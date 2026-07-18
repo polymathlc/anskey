@@ -317,6 +317,7 @@
   }
   .pageWrap svg.overlay.selectMode { cursor: default; }
   .pageWrap svg.overlay.textMode { cursor: text; }
+  .pageWrap svg.overlay.eraserMode { cursor: cell; }
   .annText {
     font-family: var(--font);
     line-height: 1.35;
@@ -602,6 +603,9 @@
     <button class="toolBtn" data-tool="keyword" title="Mark keywords — click words in a text box (K)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M15 7l3 3"/><path d="M18 4l2 2"/></svg>
     </button>
+    <button class="toolBtn" data-tool="eraser" title="Eraser — drag across ink to erase it (E)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7l-4-4a2 2 0 0 1 0-2.8l9.6-9.6a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L13.4 19"/><path d="M8.6 8.6l6.8 6.8"/></svg>
+    </button>
   </div>
   <div class="tSep"></div>
 
@@ -782,7 +786,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.4.0';
+var APP_VERSION = 'v1.5.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var COLLECTION = 'pdfAnnotator';
 var STORAGE_DIR = 'pdf-annotator';
@@ -844,15 +848,22 @@ var lastTap = { id: null, t: 0 };  // manual double-click/double-tap detection
 var stylusOnly = false;     // pencil draws, fingers scroll, palms ignored
 var pencilSeen = false;     // an Apple Pencil / stylus has been used this session
 var activePointerId = null; // the one pointer allowed to draw/drag right now
-var fingerPan = null;       // { id, x, y } — one-finger scroll gesture in pencil-only mode
-var PALM_CONTACT = 30;      // touch contact wider than this (px) is treated as a palm
+var erasing = null;         // { page, snap, removed, lastX, lastY } while the eraser is down
+// iPads report ordinary fingertips with contact sizes up to ~45px, so the
+// palm threshold must sit above that or normal finger scrolling gets eaten.
+var PALM_CONTACT = 55;
+
+/* Touch navigation (GoodNotes-style): fingers pan with momentum, two
+   fingers pan/pinch-zoom, multi-finger double-taps undo/redo. */
+var nav = { mode: null, pts: new Map(), cx: 0, cy: 0, dist: 0, vx: 0, vy: 0, lastT: 0 };
+var navMomentum = null;
 
 function isPalmTouch(e) {
   return e.pointerType === 'touch' && (e.width > PALM_CONTACT || e.height > PALM_CONTACT);
 }
 function isDrawTool(t) {
   return t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
-         t === 'line' || t === 'arrow' || t === 'text';
+         t === 'line' || t === 'arrow' || t === 'text' || t === 'eraser';
 }
 function setStylusOnly(on, quiet) {
   stylusOnly = on;
@@ -861,6 +872,28 @@ function setStylusOnly(on, quiet) {
     toast(on
       ? 'Pencil-only mode on — Apple Pencil draws, fingers scroll, palms are ignored.'
       : 'Pencil-only mode off — fingers can draw again.');
+  }
+}
+
+/* Stroke eraser: drag across ink to delete whole annotations (GoodNotes-style). */
+function eraseAlong(x1, y1, x2, y2) {
+  if (!erasing) return;
+  var dist = Math.hypot(x2 - x1, y2 - y1);
+  var steps = Math.max(1, Math.ceil(dist / 6));
+  for (var i = 0; i <= steps; i++) {
+    var x = x1 + (x2 - x1) * i / steps;
+    var y = y1 + (y2 - y1) * i / steps;
+    var elt = document.elementFromPoint(x, y);
+    if (!elt || !elt.closest) continue;
+    var host = elt.closest('g[data-id]');
+    if (!host) continue;
+    var id = host.getAttribute('data-id');
+    if (!annotations.some(function (q) { return q.id === id; })) continue;
+    annotations = annotations.filter(function (q) { return q.id !== id; });
+    if (selectedId === id) selectedId = null;
+    if (editModeId === id) editModeId = null;
+    erasing.removed = true;
+    renderOverlay(erasing.page);
   }
 }
 
@@ -1466,6 +1499,7 @@ function updateToolCursor() {
     p.svg.classList.toggle('selectMode', tool === 'select' || tool === 'keyword');
     p.svg.classList.toggle('textMode', tool === 'text');
     p.svg.classList.toggle('kwMode', tool === 'keyword');
+    p.svg.classList.toggle('eraserMode', tool === 'eraser');
   });
 }
 
@@ -1506,14 +1540,12 @@ function attachOverlayHandlers(p) {
     // While one pointer is drawing/dragging, every extra touch (palm,
     // stray finger) is swallowed instead of hijacking the gesture.
     if (activePointerId !== null && e.pointerId !== activePointerId) { e.preventDefault(); return; }
+    // Touches claimed by the navigation engine (finger pan, two-finger
+    // pan / pinch-zoom) never reach the drawing tools.
+    if (e.pointerType === 'touch' && nav.mode) { e.preventDefault(); return; }
     // In pencil-only mode a finger on a drawing tool pans the page instead
     // of drawing — the Pencil remains the only thing that makes marks.
-    if (stylusOnly && e.pointerType === 'touch' && isDrawTool(tool) && !reviseMode) {
-      fingerPan = { id: e.pointerId, x: e.clientX, y: e.clientY };
-      svg.setPointerCapture(e.pointerId);
-      e.preventDefault();
-      return;
-    }
+    if (stylusOnly && e.pointerType === 'touch' && isDrawTool(tool) && !reviseMode) return;
 
     var pt = eventPoint(e, p);
 
@@ -1536,6 +1568,15 @@ function attachOverlayHandlers(p) {
       activePointerId = e.pointerId;
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
+      return;
+    }
+
+    if (tool === 'eraser') {
+      e.preventDefault();
+      erasing = { page: p, snap: snapshot(), removed: false, lastX: e.clientX, lastY: e.clientY };
+      activePointerId = e.pointerId;
+      svg.setPointerCapture(e.pointerId);
+      eraseAlong(e.clientX, e.clientY, e.clientX, e.clientY);
       return;
     }
 
@@ -1595,22 +1636,20 @@ function attachOverlayHandlers(p) {
       drawing = { ann: { id: newAnnId(), page: p.num, type: 'text', color: color, fontSize: fontSize, x: pt.x, y: pt.y, w: 220, h: fontSize * 1.9, text: '', kw: [], ts: now }, page: p, isText: true };
       return;
     }
-    drawing = { ann: ann, page: p, svgNode: null };
+    drawing = { ann: ann, page: p, svgNode: null, ptrType: e.pointerType, startT: e.timeStamp };
     redrawTemp();
   });
 
   svg.addEventListener('pointermove', function (e) {
-    if (fingerPan && e.pointerId === fingerPan.id) {
-      var area = $('viewerArea');
-      area.scrollLeft -= e.clientX - fingerPan.x;
-      area.scrollTop -= e.clientY - fingerPan.y;
-      fingerPan.x = e.clientX;
-      fingerPan.y = e.clientY;
-      return;
-    }
     // Only the pointer that started the gesture may continue it — a palm
     // or second finger moving on the page is ignored completely.
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    if (erasing && erasing.page === p) {
+      eraseAlong(erasing.lastX, erasing.lastY, e.clientX, e.clientY);
+      erasing.lastX = e.clientX;
+      erasing.lastY = e.clientY;
+      return;
+    }
     if (resizingSel && resizingSel.page === p) {
       var rpt = eventPoint(e, p);
       var ra = annotations.find(function (x) { return x.id === resizingSel.id; });
@@ -1645,10 +1684,14 @@ function attachOverlayHandlers(p) {
   });
 
   function finishPointer(e) {
-    if (fingerPan && e.pointerId === fingerPan.id) { fingerPan = null; return; }
     // A palm or stray finger lifting off must not end the real gesture.
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
     activePointerId = null;
+    if (erasing && erasing.page === p) {
+      if (erasing.removed) { pushUndo(erasing.snap); setDirty(true); }
+      erasing = null;
+      return;
+    }
     if (resizingSel && resizingSel.page === p) {
       if (resizingSel.moved) {
         pushUndo(resizingSel.snapshot);
@@ -1705,8 +1748,13 @@ function attachOverlayHandlers(p) {
      multitasking swipe, etc.) the browser fires pointercancel. Previously
      that threw the in-progress stroke away — now the work is kept. */
   svg.addEventListener('pointercancel', function (e) {
-    if (fingerPan && e.pointerId === fingerPan.id) { fingerPan = null; return; }
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    if (erasing && erasing.page === p) {
+      if (erasing.removed) { pushUndo(erasing.snap); setDirty(true); }
+      erasing = null;
+      activePointerId = null;
+      return;
+    }
     if (drawing && drawing.page === p && !drawing.isText) {
       // Commit whatever was drawn so far instead of cancelling the workings.
       finishPointer(e);
@@ -2331,6 +2379,169 @@ var viewerArea = $('viewerArea');
   });
 });
 
+/* ================= Touch navigation & gestures (GoodNotes-style) ================= */
+function navCenterDist() {
+  var arr = Array.from(nav.pts.values());
+  if (!arr.length) return { cx: 0, cy: 0, dist: 0 };
+  var cx = 0, cy = 0;
+  arr.forEach(function (q) { cx += q.x; cy += q.y; });
+  cx /= arr.length; cy /= arr.length;
+  var dist = arr.length >= 2 ? Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y) : 0;
+  return { cx: cx, cy: cy, dist: dist };
+}
+
+function stopNavMomentum() {
+  if (navMomentum) { cancelAnimationFrame(navMomentum); navMomentum = null; }
+}
+
+/* Flick scrolling: carry on with decaying velocity after the finger lifts. */
+function startNavMomentum() {
+  var vx = nav.vx, vy = nav.vy;
+  if (Math.abs(vx) < 0.08 && Math.abs(vy) < 0.08) return;
+  var last = performance.now();
+  function step(now) {
+    var dt = Math.min(50, now - last);
+    last = now;
+    viewerArea.scrollLeft -= vx * dt;
+    viewerArea.scrollTop -= vy * dt;
+    var decay = Math.pow(0.94, dt / 16.7);
+    vx *= decay; vy *= decay;
+    if (Math.abs(vx) > 0.02 || Math.abs(vy) > 0.02) navMomentum = requestAnimationFrame(step);
+    else navMomentum = null;
+  }
+  navMomentum = requestAnimationFrame(step);
+}
+
+/* Zoom keeping the point under the gesture centre fixed on screen. */
+function zoomAt(clientX, clientY, factor) {
+  var rect = viewerArea.getBoundingClientRect();
+  var newScale = Math.min(4, Math.max(0.25, scale * factor));
+  var f = newScale / scale;
+  if (f === 1) return;
+  var ox = clientX - rect.left + viewerArea.scrollLeft;
+  var oy = clientY - rect.top + viewerArea.scrollTop;
+  scale = newScale;
+  applyScale();
+  viewerArea.scrollLeft = ox * f - (clientX - rect.left);
+  viewerArea.scrollTop = oy * f - (clientY - rect.top);
+}
+
+/* If a second finger lands right after a one-finger stroke began, the user
+   meant to scroll — discard the accidental dot/stroke and pan instead. */
+function abortYoungStroke(ts) {
+  if (drawing && !drawing.isText && drawing.ptrType === 'touch' && ts - drawing.startT < 300) {
+    if (drawing.svgNode && drawing.svgNode.parentNode) drawing.svgNode.parentNode.removeChild(drawing.svgNode);
+    drawing = null;
+    activePointerId = null;
+  }
+}
+
+viewerArea.addEventListener('pointerdown', function (e) {
+  if (e.pointerType !== 'touch') return;
+  stopNavMomentum();
+  if (isPalmTouch(e)) return;
+  nav.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (nav.pts.size === 2 && nav.mode !== 'pinch') {
+    abortYoungStroke(e.timeStamp);
+    if (!drawing && !draggingSel && !resizingSel && !erasing) {
+      nav.mode = 'pinch';
+      var c = navCenterDist();
+      nav.cx = c.cx; nav.cy = c.cy; nav.dist = c.dist;
+      nav.vx = 0; nav.vy = 0; nav.lastT = e.timeStamp;
+    }
+  } else if (nav.pts.size === 1 && stylusOnly && isDrawTool(tool) && !reviseMode && !editingId &&
+             e.target.closest && e.target.closest('svg.overlay')) {
+    // Pencil-only mode: one finger on the page pans it.
+    nav.mode = 'pan';
+    nav.cx = e.clientX; nav.cy = e.clientY;
+    nav.vx = 0; nav.vy = 0; nav.lastT = e.timeStamp;
+  }
+}, true);
+
+viewerArea.addEventListener('pointermove', function (e) {
+  if (e.pointerType !== 'touch' || !nav.pts.has(e.pointerId)) return;
+  nav.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (!nav.mode) return;
+  var c = navCenterDist();
+  var dx = c.cx - nav.cx;
+  var dy = c.cy - nav.cy;
+  var dt = Math.max(1, e.timeStamp - nav.lastT);
+  viewerArea.scrollLeft -= dx;
+  viewerArea.scrollTop -= dy;
+  nav.vx = 0.75 * (dx / dt) + 0.25 * nav.vx;
+  nav.vy = 0.75 * (dy / dt) + 0.25 * nav.vy;
+  nav.lastT = e.timeStamp;
+  if (nav.mode === 'pinch' && nav.dist > 0 && c.dist > 0) {
+    var ratio = c.dist / nav.dist;
+    // Stepwise live zoom — re-rendering pages at every pixel would stutter.
+    if (ratio > 1.12 || ratio < 0.89) {
+      zoomAt(c.cx, c.cy, ratio);
+      nav.dist = c.dist;
+    }
+  }
+  nav.cx = c.cx; nav.cy = c.cy;
+}, true);
+
+function navEnd(e) {
+  if (e.pointerType !== 'touch' || !nav.pts.has(e.pointerId)) return;
+  nav.pts.delete(e.pointerId);
+  if (!nav.mode) return;
+  if (nav.pts.size === 0) {
+    startNavMomentum();
+    nav.mode = null;
+  } else {
+    // Re-anchor on the remaining fingers so the view doesn't jump.
+    var c = navCenterDist();
+    nav.cx = c.cx; nav.cy = c.cy; nav.dist = c.dist;
+    if (nav.pts.size === 1) nav.mode = 'pan';
+  }
+}
+document.addEventListener('pointerup', navEnd, true);
+document.addEventListener('pointercancel', navEnd, true);
+
+/* While the engine is panning/zooming, stop the browser's own touch scroll
+   from also running (it would double-scroll and fight the gesture). */
+viewerArea.addEventListener('touchmove', function (e) {
+  if (nav.mode) e.preventDefault();
+}, { passive: false });
+
+/* Two-finger double-tap = undo, three-finger double-tap = redo. */
+var mtap = { max: 0, t0: 0, moved: false, pts: {} };
+var lastMultiTap = { count: 0, t: 0 };
+viewerArea.addEventListener('touchstart', function (e) {
+  if (e.touches.length === e.changedTouches.length) {
+    mtap = { max: 0, t0: e.timeStamp, moved: false, pts: {} };
+  }
+  Array.prototype.forEach.call(e.changedTouches, function (t) {
+    mtap.pts[t.identifier] = { x: t.clientX, y: t.clientY };
+  });
+  if (e.touches.length > mtap.max) mtap.max = e.touches.length;
+}, { passive: true });
+viewerArea.addEventListener('touchmove', function (e) {
+  Array.prototype.forEach.call(e.changedTouches, function (t) {
+    var s = mtap.pts[t.identifier];
+    if (s && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 14) mtap.moved = true;
+  });
+}, { passive: true });
+viewerArea.addEventListener('touchend', function (e) {
+  if (e.touches.length) return; // wait until every finger is up
+  var dur = e.timeStamp - mtap.t0;
+  if (mtap.moved || dur > 320 || mtap.max < 2 || mtap.max > 3) return;
+  if (lastMultiTap.count === mtap.max && e.timeStamp - lastMultiTap.t < 500) {
+    lastMultiTap = { count: 0, t: 0 };
+    if (editingId || kwGuessActive) return;
+    if (mtap.max === 2) {
+      if (undoStack.length) { undo(); toast('↩︎ Undo'); }
+      else toast('Nothing to undo.');
+    } else {
+      if (redoStack.length) { redo(); toast('↪︎ Redo'); }
+      else toast('Nothing to redo.');
+    }
+  } else {
+    lastMultiTap = { count: mtap.max, t: e.timeStamp };
+  }
+}, { passive: true });
+
 /* Keyboard shortcuts */
 document.addEventListener('keydown', function (e) {
   var ae = document.activeElement;
@@ -2354,7 +2565,7 @@ document.addEventListener('keydown', function (e) {
   if (e.key === '+' || e.key === '=') { zoomBy(1.2); return; }
   if (e.key === '-') { zoomBy(1 / 1.2); return; }
   if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; renderAllOverlays(); return; }
-  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword' };
+  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey && toolKeys[e.key.toLowerCase()]) setTool(toolKeys[e.key.toLowerCase()]);
 });
 
