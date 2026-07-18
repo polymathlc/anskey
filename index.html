@@ -290,6 +290,7 @@
     overflow: auto;
     background: var(--bg-viewer);
     position: relative;
+    overscroll-behavior: none; /* no iPad rubber-band bounce mid-stroke */
   }
   #pagesContainer { padding: 28px 20px 80px; }
   .pageWrap {
@@ -299,6 +300,11 @@
     box-shadow: var(--shadow-card);
     border-radius: 4px;
     overflow: hidden;
+  }
+  .pageWrap {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none; /* no long-press callout under a resting palm */
   }
   .pageWrap canvas { display: block; width: 100%; height: 100%; }
   .pageWrap svg.overlay {
@@ -344,6 +350,8 @@
     box-shadow: 0 0 0 2.5px var(--accent-deep), 0 0 0 7px rgba(255, 224, 178, 0.55);
     background: #FFFDF4;
     cursor: text;
+    -webkit-user-select: text;
+    user-select: text;
   }
   .annText:empty::before { content: 'Type…'; color: #B9B9B2; }
   g[data-id] { pointer-events: all; }
@@ -649,6 +657,9 @@
   <div class="tSep"></div>
 
   <div class="tGroup">
+    <button class="toolBtn" id="stylusBtn" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+    </button>
     <button class="toolBtn active" id="tsToggleBtn" title="Show / hide annotation timestamps">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
     </button>
@@ -771,7 +782,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.3.0';
+var APP_VERSION = 'v1.4.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var COLLECTION = 'pdfAnnotator';
 var STORAGE_DIR = 'pdf-annotator';
@@ -828,6 +839,30 @@ var drawing = null;         // { ann, svgNode, page }
 var draggingSel = null;     // { id, startX, startY, node, snapshot }
 var resizingSel = null;     // { id, handle, page, snapshot, moved } while dragging an edit handle
 var lastTap = { id: null, t: 0 };  // manual double-click/double-tap detection
+
+/* Palm rejection / iPad state */
+var stylusOnly = false;     // pencil draws, fingers scroll, palms ignored
+var pencilSeen = false;     // an Apple Pencil / stylus has been used this session
+var activePointerId = null; // the one pointer allowed to draw/drag right now
+var fingerPan = null;       // { id, x, y } — one-finger scroll gesture in pencil-only mode
+var PALM_CONTACT = 30;      // touch contact wider than this (px) is treated as a palm
+
+function isPalmTouch(e) {
+  return e.pointerType === 'touch' && (e.width > PALM_CONTACT || e.height > PALM_CONTACT);
+}
+function isDrawTool(t) {
+  return t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
+         t === 'line' || t === 'arrow' || t === 'text';
+}
+function setStylusOnly(on, quiet) {
+  stylusOnly = on;
+  $('stylusBtn').classList.toggle('active', on);
+  if (!quiet) {
+    toast(on
+      ? 'Pencil-only mode on — Apple Pencil draws, fingers scroll, palms are ignored.'
+      : 'Pencil-only mode off — fingers can draw again.');
+  }
+}
 
 /* ================= Small helpers ================= */
 function $(id) { return document.getElementById(id); }
@@ -1458,6 +1493,28 @@ function attachOverlayHandlers(p) {
   svg.addEventListener('pointerdown', function (e) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     if (editingId) return; // let the text box handle it
+
+    /* ---- Palm rejection ---- */
+    // First time an Apple Pencil touches down, switch on pencil-only mode
+    // so a resting palm can never draw or scroll away the student's work.
+    if (e.pointerType === 'pen' && !pencilSeen) {
+      pencilSeen = true;
+      if (!stylusOnly) setStylusOnly(true);
+    }
+    // A palm-sized contact patch never starts anything.
+    if (isPalmTouch(e)) { e.preventDefault(); return; }
+    // While one pointer is drawing/dragging, every extra touch (palm,
+    // stray finger) is swallowed instead of hijacking the gesture.
+    if (activePointerId !== null && e.pointerId !== activePointerId) { e.preventDefault(); return; }
+    // In pencil-only mode a finger on a drawing tool pans the page instead
+    // of drawing — the Pencil remains the only thing that makes marks.
+    if (stylusOnly && e.pointerType === 'touch' && isDrawTool(tool) && !reviseMode) {
+      fingerPan = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+
     var pt = eventPoint(e, p);
 
     if (reviseMode) {
@@ -1476,6 +1533,7 @@ function attachOverlayHandlers(p) {
 
     if (tool === 'select' && editModeId && e.target.getAttribute && e.target.getAttribute('data-handle')) {
       resizingSel = { id: editModeId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false };
+      activePointerId = e.pointerId;
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
       return;
@@ -1513,6 +1571,7 @@ function attachOverlayHandlers(p) {
         renderAllOverlays();
         var node = svg.querySelector('[data-id="' + id + '"]');
         draggingSel = { id: id, startX: pt.x, startY: pt.y, node: node, page: p, snapshot: snapshot(), moved: false };
+        activePointerId = e.pointerId;
         svg.setPointerCapture(e.pointerId);
       } else {
         lastTap = { id: null, t: 0 };
@@ -1522,6 +1581,7 @@ function attachOverlayHandlers(p) {
     }
 
     e.preventDefault();
+    activePointerId = e.pointerId;
     svg.setPointerCapture(e.pointerId);
     var ann;
     var now = Date.now();
@@ -1540,6 +1600,17 @@ function attachOverlayHandlers(p) {
   });
 
   svg.addEventListener('pointermove', function (e) {
+    if (fingerPan && e.pointerId === fingerPan.id) {
+      var area = $('viewerArea');
+      area.scrollLeft -= e.clientX - fingerPan.x;
+      area.scrollTop -= e.clientY - fingerPan.y;
+      fingerPan.x = e.clientX;
+      fingerPan.y = e.clientY;
+      return;
+    }
+    // Only the pointer that started the gesture may continue it — a palm
+    // or second finger moving on the page is ignored completely.
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
     if (resizingSel && resizingSel.page === p) {
       var rpt = eventPoint(e, p);
       var ra = annotations.find(function (x) { return x.id === resizingSel.id; });
@@ -1574,6 +1645,10 @@ function attachOverlayHandlers(p) {
   });
 
   function finishPointer(e) {
+    if (fingerPan && e.pointerId === fingerPan.id) { fingerPan = null; return; }
+    // A palm or stray finger lifting off must not end the real gesture.
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    activePointerId = null;
     if (resizingSel && resizingSel.page === p) {
       if (resizingSel.moved) {
         pushUndo(resizingSel.snapshot);
@@ -1625,7 +1700,31 @@ function attachOverlayHandlers(p) {
     renderOverlay(p);
   }
   svg.addEventListener('pointerup', finishPointer);
-  svg.addEventListener('pointercancel', function () { drawing = null; draggingSel = null; resizingSel = null; renderOverlay(p); });
+
+  /* When iPadOS interrupts a gesture (palm triggered a system scroll,
+     multitasking swipe, etc.) the browser fires pointercancel. Previously
+     that threw the in-progress stroke away — now the work is kept. */
+  svg.addEventListener('pointercancel', function (e) {
+    if (fingerPan && e.pointerId === fingerPan.id) { fingerPan = null; return; }
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    if (drawing && drawing.page === p && !drawing.isText) {
+      // Commit whatever was drawn so far instead of cancelling the workings.
+      finishPointer(e);
+      return;
+    }
+    activePointerId = null;
+    drawing = null;
+    if (draggingSel && draggingSel.page === p) draggingSel = null;
+    if (resizingSel && resizingSel.page === p) resizingSel = null;
+    renderOverlay(p);
+  });
+
+  /* Belt-and-braces for iOS Safari: even with touch-action:none some
+     versions still try to scroll/zoom from a palm resting on the page. */
+  svg.addEventListener('touchmove', function (e) {
+    if (editingId || kwGuessActive) return;
+    e.preventDefault();
+  }, { passive: false });
 
   /* Fallback for tools other than select — double-click detection in the
      select branch above is the primary path (dblclick doesn't fire reliably
@@ -2191,6 +2290,7 @@ $('saveModal').addEventListener('click', function (e) {
 $('saveDateInput').addEventListener('input', updateSaveDayPreview);
 $('saveNameInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') performSave(); });
 
+$('stylusBtn').addEventListener('click', function () { setStylusOnly(!stylusOnly); });
 $('tsToggleBtn').addEventListener('click', function () {
   showTimestamps = !showTimestamps;
   $('tsToggleBtn').classList.toggle('active', showTimestamps);
