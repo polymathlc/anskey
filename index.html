@@ -629,7 +629,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.1.0';
+var APP_VERSION = 'v1.1.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var COLLECTION = 'pdfAnnotator';
 var STORAGE_DIR = 'pdf-annotator';
@@ -1536,7 +1536,16 @@ async function openSavedDoc(id, data) {
   toast('Opening “' + (data.name || 'Untitled') + '”…');
   try {
     var url = await storage.ref(data.storagePath).getDownloadURL();
-    var resp = await fetch(url);
+    var resp;
+    try {
+      resp = await fetch(url);
+    } catch (netErr) {
+      // fetch() only throws before an HTTP status exists: the browser blocked
+      // the cross-origin download (storage bucket missing its one-time CORS
+      // setup — see README.md) or the connection dropped.
+      throw new Error('the browser blocked the PDF download. This usually means the storage bucket still needs its one-time CORS setup (see README.md in the repo), or the network dropped.');
+    }
+    if (!resp.ok) throw new Error('download failed (HTTP ' + resp.status + '). The file may have been deleted or access was denied.');
     var buf = await resp.arrayBuffer();
     await loadPdf(new Uint8Array(buf), data.name || 'Untitled');
     annotations = JSON.parse(data.annotations || '[]');
