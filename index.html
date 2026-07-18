@@ -288,12 +288,85 @@
   svg.overlay.kwMode .annText span[data-w] { cursor: pointer; }
   svg.overlay.kwMode .annText span[data-w]:hover { outline: 2px dashed var(--accent-deep); outline-offset: 1px; border-radius: 3px; }
   .annText[contenteditable="true"] {
-    box-shadow: 0 0 0 2px var(--accent-deep);
-    background: rgba(255, 249, 235, 0.92);
+    box-shadow: 0 0 0 2.5px var(--accent-deep), 0 0 0 7px rgba(255, 224, 178, 0.55);
+    background: #FFFDF4;
     cursor: text;
   }
   .annText:empty::before { content: 'Type…'; color: #B9B9B2; }
   g[data-id] { pointer-events: all; }
+
+  /* ---------- Element edit mode (double-click with the select tool) ---------- */
+  .editBadge {
+    position: absolute;
+    z-index: 35;
+    background: var(--accent-deep);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: bold;
+    letter-spacing: 0.02em;
+    padding: 4px 11px;
+    border-radius: 999px;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+    animation: fadeUp 0.2s ease both;
+  }
+  svg.overlay [data-handle] { fill: #fff; stroke: var(--accent-deep); stroke-width: 2; }
+  svg.overlay [data-handle="nw"], svg.overlay [data-handle="se"] { cursor: nwse-resize; }
+  svg.overlay [data-handle="ne"], svg.overlay [data-handle="sw"] { cursor: nesw-resize; }
+  svg.overlay [data-handle="p1"], svg.overlay [data-handle="p2"] { cursor: move; }
+
+  /* ---------- Revise mode: click-to-type keyword boxes ---------- */
+  svg.overlay .annText span.kwHidden { cursor: text; }
+  svg.overlay .annText span.kwHidden:hover {
+    outline: 2px solid var(--accent-deep);
+    outline-offset: 1px;
+    background: #FFF3DC;
+    border-radius: 3px;
+  }
+  .kwActive { background: transparent; }
+  .kwGuessInput {
+    font: inherit;
+    color: var(--ink);
+    background: #FFFDF6;
+    border: none;
+    border-bottom: 2px solid var(--accent-deep);
+    border-radius: 3px;
+    outline: none;
+    padding: 0 2px;
+    min-width: 3ch;
+    box-shadow: 0 0 0 2px rgba(232, 165, 75, 0.4);
+  }
+  .kwWrong {
+    background: #FDE3E1;
+    border-bottom: 2px solid var(--danger);
+    border-radius: 3px;
+    padding: 0 2px;
+    animation: scaleIn 0.3s ease both;
+  }
+  .kwFeedback {
+    position: absolute;
+    z-index: 40;
+    max-width: 280px;
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--ink);
+    border: 2px solid;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
+    animation: fadeUp 0.25s ease both;
+    transition: opacity 0.4s ease;
+  }
+  .kwFeedback.ok { border-color: var(--ok); }
+  .kwFeedback.bad { border-color: var(--danger); }
+  .kwFeedback .kwFbTitle { font-weight: bold; margin-bottom: 2px; }
+  .kwFeedback.ok .kwFbTitle { color: var(--ok); }
+  .kwFeedback.bad .kwFbTitle { color: var(--danger); }
+  .kwFeedback .kwFbAns { color: var(--ink-soft); }
+  .kwFeedback .kwFbAns b { color: var(--ok); }
 
   /* ---------- Empty state ---------- */
   #emptyState {
@@ -432,7 +505,7 @@
   <div class="tSep"></div>
 
   <div class="tGroup" id="toolButtons">
-    <button class="toolBtn" data-tool="select" title="Select / move (V)">
+    <button class="toolBtn" data-tool="select" title="Select / move — double-click an element to edit it (V)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2.5-7.5L21 10z"/></svg>
     </button>
     <button class="toolBtn" data-tool="pen" title="Pen (P)">
@@ -554,7 +627,7 @@
       <input type="checkbox" id="reviseToggle">
       <span>Revise mode — hide keywords</span>
     </label>
-    <input type="text" id="kwInput" placeholder="Type a keyword + Enter" autocomplete="off" disabled>
+    <input type="text" id="kwInput" placeholder="Or type a keyword here + Enter" autocomplete="off" disabled>
     <div id="kwProgress"></div>
   </div>
   <div class="sideCard">
@@ -629,7 +702,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.1.1';
+var APP_VERSION = 'v1.2.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var COLLECTION = 'pdfAnnotator';
 var STORAGE_DIR = 'pdf-annotator';
@@ -669,17 +742,23 @@ var strokeW = 3;
 var fontSize = 16;
 var selectedId = null;
 var editingId = null;       // text annotation currently being edited
+var editModeId = null;      // annotation in handle-edit mode (double-click with select tool)
 var dirty = false;
 var currentUser = null;
 var annIdCounter = 1;
 var showTimestamps = true;
 var reviseMode = false;
 var revealedKw = {};        // normalised keyword -> true, revealed during revise mode
+var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
+var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
+var reviseHintShown = false;
 var wsMeta = { level: '', date: '' };  // worksheet level + ISO date (name lives in docName)
 
 /* Drawing-in-progress state */
 var drawing = null;         // { ann, svgNode, page }
 var draggingSel = null;     // { id, startX, startY, node, snapshot }
+var resizingSel = null;     // { id, handle, page, snapshot, moved } while dragging an edit handle
+var lastTap = { id: null, t: 0 };  // manual double-click/double-tap detection
 
 /* ================= Small helpers ================= */
 function $(id) { return document.getElementById(id); }
@@ -691,6 +770,11 @@ function el(name, attrs) {
 function round2(n) { return Math.round(n * 100) / 100; }
 function newAnnId() { return 'a' + Date.now().toString(36) + (annIdCounter++); }
 function normWord(w) { return (w || '').toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''); }
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
 function formatTs(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
 }
@@ -745,6 +829,7 @@ function redo() {
 function afterHistoryChange() {
   if (selectedId && !annotations.some(function (a) { return a.id === selectedId; })) selectedId = null;
   editingId = null;
+  editModeId = null;
   renderAllOverlays();
   setDirty(true);
 }
@@ -770,9 +855,12 @@ async function loadPdf(bytes, name) {
   redoStack = [];
   selectedId = null;
   editingId = null;
+  editModeId = null;
   wsMeta = { level: '', date: '' };
   reviseMode = false;
   revealedKw = {};
+  kwResults = {};
+  kwGuessActive = null;
   $('reviseToggle').checked = false;
   setDirty(false);
 
@@ -818,6 +906,7 @@ function applyScale() {
     p.wrap.style.width = (p.baseW * scale) + 'px';
     p.wrap.style.height = (p.baseH * scale) + 'px';
     renderPageCanvas(p);
+    renderEditChrome(p); // keep the edit badge aligned after zooming
   });
   updateToolCursor();
 }
@@ -882,7 +971,7 @@ function renderOverlay(p) {
       svg.appendChild(label);
     });
   }
-  if (selectedId) {
+  if (selectedId && selectedId !== editModeId && selectedId !== editingId) {
     var selAnn = annotations.find(function (a) { return a.id === selectedId; });
     if (selAnn && selAnn.page === p.num) {
       var node = svg.querySelector('[data-id="' + selectedId + '"]');
@@ -896,6 +985,53 @@ function renderOverlay(p) {
       }
     }
   }
+  renderEditChrome(p);
+}
+
+/* Amber frame + resize handles + floating badge for the annotation in edit mode */
+function renderEditChrome(p) {
+  var oldBadge = p.wrap.querySelector('.editBadge');
+  if (oldBadge) oldBadge.remove();
+  var activeId = editingId || editModeId;
+  if (!activeId) return;
+  var a = annotations.find(function (x) { return x.id === activeId; });
+  if (!a || a.page !== p.num) return;
+  var node = p.svg.querySelector('[data-id="' + activeId + '"]');
+  if (!node) return;
+  var box;
+  try { box = node.getBBox(); } catch (e) { return; }
+
+  if (editModeId === activeId) {
+    p.svg.appendChild(el('rect', {
+      x: box.x - 5, y: box.y - 5, width: box.width + 10, height: box.height + 10,
+      fill: 'none', stroke: '#E8A54B', 'stroke-width': 2, rx: 4, 'pointer-events': 'none'
+    }));
+    var handles = [];
+    if (a.type === 'rect' || a.type === 'ellipse') {
+      handles = [
+        { h: 'nw', x: a.x, y: a.y }, { h: 'ne', x: a.x + a.w, y: a.y },
+        { h: 'sw', x: a.x, y: a.y + a.h }, { h: 'se', x: a.x + a.w, y: a.y + a.h }
+      ];
+    } else if (a.type === 'line' || a.type === 'arrow') {
+      handles = [{ h: 'p1', x: a.x1, y: a.y1 }, { h: 'p2', x: a.x2, y: a.y2 }];
+    }
+    handles.forEach(function (hd) {
+      p.svg.appendChild(el('circle', { cx: hd.x, cy: hd.y, r: 5.5, 'data-handle': hd.h }));
+    });
+  }
+
+  var badge = document.createElement('div');
+  badge.className = 'editBadge';
+  if (editingId === activeId) {
+    badge.textContent = '✏️ Editing text — click outside or press Esc to finish';
+  } else if (a.type === 'pen' || a.type === 'highlight') {
+    badge.textContent = '✏️ Edit mode — drag to move, pick a colour, Esc to finish';
+  } else {
+    badge.textContent = '✏️ Edit mode — drag the handles to resize, Esc to finish';
+  }
+  badge.style.left = Math.max(4, box.x * scale - 5) + 'px';
+  badge.style.top = Math.max(4, box.y * scale - 34) + 'px';
+  p.wrap.appendChild(badge);
 }
 
 function pathFromPoints(pts) {
@@ -987,12 +1123,18 @@ function renderTextContent(div, a) {
     span.setAttribute('data-w', wordIndex);
     var isKw = a.kw && a.kw.indexOf(wordIndex) !== -1;
     if (isKw && reviseMode) {
-      if (revealedKw[normWord(tok)]) {
+      var res = kwResults[a.id + ':' + wordIndex];
+      if (revealedKw[normWord(tok)] || (res && res.correct)) {
         span.textContent = tok;
         span.className = 'kwRevealed';
+      } else if (res && !res.correct) {
+        span.textContent = tok;
+        span.className = 'kwWrong';
+        span.title = 'You wrote “' + res.guess + '” — the correct answer is shown.';
       } else {
         span.textContent = '_'.repeat(Math.max(4, tok.length));
         span.className = 'kwHidden';
+        span.title = 'Click and type the missing keyword';
       }
     } else {
       span.textContent = tok;
@@ -1012,7 +1154,7 @@ function allKeywordWords() {
     var words = (a.text || '').split(/\s+/).filter(function (w) { return w !== ''; });
     a.kw.forEach(function (idx) {
       if (words[idx] !== undefined && normWord(words[idx])) {
-        out.push({ norm: normWord(words[idx]), word: words[idx] });
+        out.push({ norm: normWord(words[idx]), word: words[idx], key: a.id + ':' + idx });
       }
     });
   });
@@ -1042,14 +1184,21 @@ function updateKwPanel() {
     progress.textContent = '';
     return;
   }
-  countEl.textContent = words.length + ' keyword' + (words.length === 1 ? '' : 's') + ' in this worksheet.';
   input.disabled = !reviseMode;
   if (reviseMode) {
-    var found = words.filter(function (w) { return revealedKw[w.norm]; }).length;
+    countEl.textContent = 'Click a grey box on the worksheet and type the missing keyword — it will be marked for you.';
+    var found = words.filter(function (w) {
+      return revealedKw[w.norm] || (kwResults[w.key] && kwResults[w.key].correct);
+    }).length;
+    var wrong = words.filter(function (w) {
+      return kwResults[w.key] && !kwResults[w.key].correct && !revealedKw[w.norm];
+    }).length;
     progress.innerHTML = '<span class="' + (found === words.length ? 'done' : '') + '">' +
-      found + ' / ' + words.length + ' found' +
-      (found === words.length ? ' — well done! 🎉' : '') + '</span>';
+      found + ' / ' + words.length + ' correct' +
+      (found === words.length ? ' — well done! 🎉' : '') + '</span>' +
+      (wrong ? ' · ' + wrong + ' answered wrongly' : '');
   } else {
+    countEl.textContent = words.length + ' keyword' + (words.length === 1 ? '' : 's') + ' in this worksheet.';
     progress.textContent = '';
   }
 }
@@ -1057,10 +1206,18 @@ function updateKwPanel() {
 function setReviseMode(on) {
   reviseMode = on;
   revealedKw = {};
+  kwResults = {};
+  kwGuessActive = null;
+  editingId = null;
+  editModeId = null;
+  selectedId = null;
   $('kwInput').value = '';
   renderAllOverlays();
   updateKwPanel();
-  if (on) setTimeout(function () { $('kwInput').focus(); }, 50);
+  if (on) {
+    reviseHintShown = false;
+    toast('Revise mode on — click a grey keyword box and type your answer.');
+  }
 }
 
 function tryKeyword(guess) {
@@ -1088,6 +1245,87 @@ function tryKeyword(guess) {
   }
 }
 
+/* ---- Click-to-type keyword boxes (revise mode) ---- */
+function startKwGuess(span, p) {
+  if (kwGuessActive) return;
+  var host = span.closest('[data-id]');
+  if (!host) return;
+  var annId = host.getAttribute('data-id');
+  var wordIndex = parseInt(span.getAttribute('data-w'), 10);
+  var a = annotations.find(function (x) { return x.id === annId; });
+  if (!a) return;
+  var words = (a.text || '').split(/\s+/).filter(function (w) { return w !== ''; });
+  var answer = words[wordIndex];
+  if (answer === undefined) return;
+
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'kwGuessInput';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.style.width = Math.max(5, answer.length + 2) + 'ch';
+  span.textContent = '';
+  span.className = 'kwActive';
+  span.removeAttribute('title');
+  span.appendChild(input);
+  kwGuessActive = { span: span, input: input, annId: annId, wordIndex: wordIndex, answer: answer, page: p };
+  setTimeout(function () { input.focus(); }, 0);
+
+  input.addEventListener('keydown', function (ev) {
+    ev.stopPropagation();
+    if (ev.key === 'Enter') { ev.preventDefault(); finishKwGuess(true); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); finishKwGuess(false); }
+  });
+  input.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+  input.addEventListener('blur', function () { finishKwGuess(true); });
+}
+
+function finishKwGuess(submit) {
+  var g = kwGuessActive;
+  if (!g) return;
+  kwGuessActive = null;
+  var guess = g.input.value.trim();
+  if (!submit || !guess) {
+    renderAllOverlays(); // restore the hidden box untouched
+    return;
+  }
+  // Anchor position for the feedback card, captured before re-rendering
+  var spanRect = g.span.getBoundingClientRect();
+  var wrapRect = g.page.wrap.getBoundingClientRect();
+  var anchor = {
+    left: spanRect.left - wrapRect.left,
+    top: spanRect.bottom - wrapRect.top
+  };
+  var correct = normWord(guess) === normWord(g.answer);
+  kwResults[g.annId + ':' + g.wordIndex] = { guess: guess, correct: correct };
+  if (correct) revealedKw[normWord(g.answer)] = true;
+  renderAllOverlays();
+  updateKwPanel();
+  showKwFeedback(g.page, anchor, correct, guess, g.answer);
+}
+
+function showKwFeedback(p, anchor, correct, guess, answer) {
+  var old = p.wrap.querySelector('.kwFeedback');
+  if (old) old.remove();
+  var fb = document.createElement('div');
+  fb.className = 'kwFeedback ' + (correct ? 'ok' : 'bad');
+  if (correct) {
+    fb.innerHTML = '<div class="kwFbTitle">✓ Correct!</div>' +
+      '<div class="kwFbAns">“' + escHtml(answer) + '” — well done.</div>';
+  } else {
+    fb.innerHTML = '<div class="kwFbTitle">✗ Not quite</div>' +
+      '<div class="kwFbAns">You wrote “' + escHtml(guess) + '”.<br>Correct answer: <b>' +
+      escHtml(answer) + '</b></div>';
+  }
+  var wrapW = p.wrap.clientWidth;
+  var wrapH = p.wrap.clientHeight;
+  fb.style.left = Math.max(6, Math.min(anchor.left, wrapW - 290)) + 'px';
+  fb.style.top = Math.max(6, Math.min(anchor.top + 8, wrapH - 90)) + 'px';
+  p.wrap.appendChild(fb);
+  setTimeout(function () { fb.style.opacity = '0'; }, correct ? 2200 : 4200);
+  setTimeout(function () { fb.remove(); }, correct ? 2700 : 4700);
+}
+
 /* ================= Worksheet sidebar ================= */
 function renderSidebar() {
   $('wsLevel').textContent = wsMeta.level ? wsMeta.level : 'Level —';
@@ -1108,7 +1346,7 @@ function eventPoint(e, p) {
 
 function setTool(t) {
   tool = t;
-  if (t !== 'select') { selectedId = null; renderAllOverlays(); }
+  if (t !== 'select') { selectedId = null; editModeId = null; renderAllOverlays(); }
   if (t === 'highlight' && strokeW < 10) { strokeW = 12; $('strokeSelect').value = '12'; }
   if (t === 'highlight' && (color === '#1A1A1A' || color === '#E53935' || color === '#1E88E5' || color === '#43A047')) {
     setColor('#FFEB3B');
@@ -1153,6 +1391,27 @@ function attachOverlayHandlers(p) {
     if (editingId) return; // let the text box handle it
     var pt = eventPoint(e, p);
 
+    if (reviseMode) {
+      // Students answer keyword boxes; drawing is paused while revising.
+      if (kwGuessActive) return; // the input's blur handles submission
+      var kwSpan = e.target.closest ? e.target.closest('span.kwHidden') : null;
+      if (kwSpan) {
+        e.preventDefault();
+        startKwGuess(kwSpan, p);
+      } else if (!reviseHintShown) {
+        reviseHintShown = true;
+        toast('Revise mode is on — click a grey keyword box to answer. Turn revise mode off to draw.');
+      }
+      return;
+    }
+
+    if (tool === 'select' && editModeId && e.target.getAttribute && e.target.getAttribute('data-handle')) {
+      resizingSel = { id: editModeId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false };
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+
     if (tool === 'keyword') {
       var span = e.target.closest ? e.target.closest('span[data-w]') : null;
       var host = e.target.closest ? e.target.closest('[data-id]') : null;
@@ -1170,13 +1429,25 @@ function attachOverlayHandlers(p) {
       var target = e.target.closest ? e.target.closest('[data-id]') : null;
       if (target) {
         var id = target.getAttribute('data-id');
+        // Manual double-click / double-tap detection: pointer capture stops the
+        // browser from reliably firing dblclick on the overlay.
+        var nowTap = Date.now();
+        if (lastTap.id === id && nowTap - lastTap.t < 450) {
+          lastTap = { id: null, t: 0 };
+          e.preventDefault();
+          enterEditMode(id, p);
+          return;
+        }
+        lastTap = { id: id, t: nowTap };
         selectedId = id;
-        renderOverlay(p);
+        if (editModeId && editModeId !== id) editModeId = null;
+        renderAllOverlays();
         var node = svg.querySelector('[data-id="' + id + '"]');
         draggingSel = { id: id, startX: pt.x, startY: pt.y, node: node, page: p, snapshot: snapshot(), moved: false };
         svg.setPointerCapture(e.pointerId);
       } else {
-        if (selectedId) { selectedId = null; renderAllOverlays(); }
+        lastTap = { id: null, t: 0 };
+        if (selectedId || editModeId) { selectedId = null; editModeId = null; renderAllOverlays(); }
       }
       return;
     }
@@ -1200,6 +1471,16 @@ function attachOverlayHandlers(p) {
   });
 
   svg.addEventListener('pointermove', function (e) {
+    if (resizingSel && resizingSel.page === p) {
+      var rpt = eventPoint(e, p);
+      var ra = annotations.find(function (x) { return x.id === resizingSel.id; });
+      if (ra) {
+        applyHandle(ra, resizingSel.handle, rpt);
+        resizingSel.moved = true;
+        renderOverlay(p);
+      }
+      return;
+    }
     if (draggingSel && draggingSel.page === p) {
       var pt = eventPoint(e, p);
       var dx = pt.x - draggingSel.startX;
@@ -1224,6 +1505,15 @@ function attachOverlayHandlers(p) {
   });
 
   function finishPointer(e) {
+    if (resizingSel && resizingSel.page === p) {
+      if (resizingSel.moved) {
+        pushUndo(resizingSel.snapshot);
+        setDirty(true);
+      }
+      resizingSel = null;
+      renderOverlay(p);
+      return;
+    }
     if (draggingSel && draggingSel.page === p) {
       var pt = eventPoint(e, p);
       var dx = round2(pt.x - draggingSel.startX);
@@ -1266,22 +1556,37 @@ function attachOverlayHandlers(p) {
     renderOverlay(p);
   }
   svg.addEventListener('pointerup', finishPointer);
-  svg.addEventListener('pointercancel', function () { drawing = null; draggingSel = null; renderOverlay(p); });
+  svg.addEventListener('pointercancel', function () { drawing = null; draggingSel = null; resizingSel = null; renderOverlay(p); });
 
-  /* Double-click a text annotation (any tool except keyword-marking) to edit it */
+  /* Fallback for tools other than select — double-click detection in the
+     select branch above is the primary path (dblclick doesn't fire reliably
+     once the overlay takes pointer capture). */
   svg.addEventListener('dblclick', function (e) {
-    if (tool === 'keyword') return;
+    if (tool === 'keyword' || reviseMode) return;
     var target = e.target.closest ? e.target.closest('[data-id]') : null;
     if (!target) return;
-    var id = target.getAttribute('data-id');
-    var a = annotations.find(function (x) { return x.id === id; });
-    if (a && a.type === 'text') {
-      selectedId = id;
-      editingId = id;
-      renderOverlay(p);
-      focusTextAnn(p, id);
-    }
+    enterEditMode(target.getAttribute('data-id'), p);
   });
+}
+
+/* Put an annotation into edit mode: text boxes open for typing, shapes and
+   lines get resize handles, strokes can be moved or recoloured. */
+function enterEditMode(id, p) {
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a) return;
+  if (editingId === id || editModeId === id) return; // already editing
+  selectedId = id;
+  if (a.type === 'text') {
+    editingId = id;
+    editModeId = null;
+    renderAllOverlays();
+    focusTextAnn(p, id);
+  } else {
+    if (tool !== 'select') setTool('select');
+    editModeId = id;
+    editingId = null;
+    renderAllOverlays();
+  }
 }
 
 function redrawTemp() {
@@ -1291,6 +1596,24 @@ function redrawTemp() {
   drawing.svgNode = annNode(drawing.ann);
   drawing.svgNode.setAttribute('pointer-events', 'none');
   p.svg.appendChild(drawing.svgNode);
+}
+
+/* Resize an annotation by dragging one of its edit handles */
+function applyHandle(a, h, pt) {
+  if (a.type === 'line' || a.type === 'arrow') {
+    if (h === 'p1') { a.x1 = pt.x; a.y1 = pt.y; }
+    else { a.x2 = pt.x; a.y2 = pt.y; }
+    return;
+  }
+  if (a.type === 'rect' || a.type === 'ellipse') {
+    // The corner opposite the dragged handle stays fixed.
+    var fx = (h === 'nw' || h === 'sw') ? a.x + a.w : a.x;
+    var fy = (h === 'nw' || h === 'ne') ? a.y + a.h : a.y;
+    a.x = round2(Math.min(fx, pt.x));
+    a.y = round2(Math.min(fy, pt.y));
+    a.w = round2(Math.max(3, Math.abs(pt.x - fx)));
+    a.h = round2(Math.max(3, Math.abs(pt.y - fy)));
+  }
 }
 
 function translateAnn(a, dx, dy) {
@@ -1344,6 +1667,7 @@ function deleteSelected() {
   pushUndo();
   annotations = annotations.filter(function (a) { return a.id !== selectedId; });
   selectedId = null;
+  editModeId = null;
   renderAllOverlays();
   setDirty(true);
 }
@@ -1774,7 +2098,7 @@ document.addEventListener('keydown', function (e) {
   }
   if (e.key === '+' || e.key === '=') { zoomBy(1.2); return; }
   if (e.key === '-') { zoomBy(1 / 1.2); return; }
-  if (e.key === 'Escape') { drawing = null; selectedId = null; renderAllOverlays(); return; }
+  if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; renderAllOverlays(); return; }
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey && toolKeys[e.key.toLowerCase()]) setTool(toolKeys[e.key.toLowerCase()]);
 });
