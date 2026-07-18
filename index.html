@@ -149,6 +149,59 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* ---------- Questions drawer (burger menu) ---------- */
+  #burgerBtn { flex: 0 0 auto; }
+  #qDrawer {
+    width: 290px;
+    flex: 0 0 290px;
+    border-right: 1px solid var(--line);
+    background: #FCFCFB;
+    overflow-y: auto;
+    display: none;
+  }
+  #qDrawer.open { display: block; }
+  .qDrawerHead {
+    padding: 18px 18px 12px;
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0;
+    background: #FCFCFB;
+    z-index: 2;
+  }
+  .qDrawerHead h3 { font-size: 1rem; }
+  .qDrawerSub { font-size: 0.75rem; color: var(--ink-faint); margin-top: 4px; line-height: 1.45; }
+  #qList { padding: 12px 12px 28px; }
+  .qItem {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-card);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    animation: fadeUp 0.3s ease both;
+  }
+  .qItem:hover { box-shadow: var(--shadow-btn-hover); transform: translateY(-1px); }
+  .qItem.active { border-color: var(--accent-strong); background: #FFF8EC; }
+  .qItemName { font-size: 0.88rem; font-weight: bold; line-height: 1.35; overflow-wrap: break-word; color: var(--ink); }
+  .qItemMeta { font-size: 0.73rem; color: var(--ink-faint); margin-top: 5px; line-height: 1.5; }
+  .qItemLevel {
+    display: inline-block;
+    background: var(--accent);
+    border: 1px solid var(--accent-strong);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 0.68rem;
+    font-weight: bold;
+    margin-right: 6px;
+    color: var(--ink);
+  }
+  .qEmpty { text-align: center; color: var(--ink-faint); font-size: 0.82rem; padding: 26px 10px; line-height: 1.55; }
+
   /* ---------- Main row: sidebar + viewer ---------- */
   #mainRow { flex: 1 1 auto; display: flex; overflow: hidden; }
   #sideBar {
@@ -478,6 +531,12 @@
       height: 100%;
       box-shadow: var(--shadow-modal);
     }
+    #qDrawer.open {
+      position: absolute;
+      z-index: 45;
+      height: 100%;
+      box-shadow: var(--shadow-modal);
+    }
     #mainRow { position: relative; }
   }
 </style>
@@ -485,6 +544,9 @@
 <body>
 
 <header class="polymath-header">
+  <button class="toolBtn" id="burgerBtn" title="All questions — show / hide the list">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+  </button>
   <img src="https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj"
        alt="Polymath Learning Centre" class="polymath-logo" />
   <div>
@@ -613,6 +675,13 @@
 </div>
 
 <div id="mainRow">
+<aside id="qDrawer">
+  <div class="qDrawerHead">
+    <h3>Questions</h3>
+    <div class="qDrawerSub" id="qDrawerSub">All saved questions, oldest first.</div>
+  </div>
+  <div id="qList"></div>
+</aside>
 <aside id="sideBar">
   <div class="sideCard" id="wsInfoCard">
     <div class="sideLevel" id="wsLevel">Level —</div>
@@ -702,7 +771,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.2.0';
+var APP_VERSION = 'v1.3.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var COLLECTION = 'pdfAnnotator';
 var STORAGE_DIR = 'pdf-annotator';
@@ -1726,6 +1795,8 @@ function renderAuthArea() {
 auth.onAuthStateChanged(function (user) {
   currentUser = user;
   renderAuthArea();
+  // Refresh the questions drawer for the new auth state if it is open
+  if ($('qDrawer').classList.contains('open')) loadQuestionsList();
 });
 
 /* ================= Cloud save / load ================= */
@@ -1883,6 +1954,89 @@ async function openSavedDoc(id, data) {
     console.error(e);
     toast('Could not open: ' + (e.message || e));
   }
+}
+
+/* ================= Questions drawer (burger menu) =================
+   A collapsible left column listing every saved question in chronological
+   order (by worksheet date, oldest first). Students and admin both see it —
+   any signed-in user can browse and open a question. */
+function toggleQuestionsDrawer() {
+  var open = $('qDrawer').classList.toggle('open');
+  $('burgerBtn').classList.toggle('active', open);
+  if (open) loadQuestionsList();
+}
+
+function questionSortTime(d) {
+  // Chronological key: the worksheet date if set, otherwise when it was created.
+  if (d.wsDate) {
+    var t = new Date(d.wsDate + 'T00:00:00').getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (d.createdAt && d.createdAt.toDate) return d.createdAt.toDate().getTime();
+  if (d.updatedAt && d.updatedAt.toDate) return d.updatedAt.toDate().getTime();
+  return Infinity; // undated items sink to the bottom
+}
+
+async function loadQuestionsList() {
+  var list = $('qList');
+  if (!currentUser) {
+    list.innerHTML = '<div class="qEmpty">Sign in with Google to see the questions.</div>';
+    await signIn();
+    if (!currentUser) return;
+  }
+  list.innerHTML = '<div class="qEmpty">Loading questions…</div>';
+  try {
+    var snap = await db.collection(COLLECTION).limit(500).get();
+    var docs = [];
+    snap.forEach(function (docSnap) {
+      docs.push({ id: docSnap.id, data: docSnap.data() });
+    });
+    docs.sort(function (a, b) { return questionSortTime(a.data) - questionSortTime(b.data); });
+    list.innerHTML = '';
+    if (!docs.length) {
+      list.innerHTML = '<div class="qEmpty">No questions saved yet.<br>Open a PDF, annotate it and press Save.</div>';
+      $('qDrawerSub').textContent = 'All saved questions, oldest first.';
+      return;
+    }
+    $('qDrawerSub').textContent = docs.length + ' question' + (docs.length === 1 ? '' : 's') + ' · oldest first';
+    docs.forEach(function (item) {
+      var d = item.data;
+      var btn = document.createElement('button');
+      btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '');
+      btn.setAttribute('data-qid', item.id);
+      var nm = document.createElement('div');
+      nm.className = 'qItemName';
+      nm.textContent = d.name || 'Untitled';
+      var meta = document.createElement('div');
+      meta.className = 'qItemMeta';
+      if (d.level) {
+        var lvl = document.createElement('span');
+        lvl.className = 'qItemLevel';
+        lvl.textContent = d.level;
+        meta.appendChild(lvl);
+      }
+      var bits = [];
+      if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ', ' : '') + prettyDate(d.wsDate));
+      bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
+      meta.appendChild(document.createTextNode(bits.join(' · ')));
+      btn.appendChild(nm);
+      btn.appendChild(meta);
+      btn.addEventListener('click', function () {
+        openSavedDoc(item.id, d).then(markActiveQuestion);
+        if (window.innerWidth <= 640) toggleQuestionsDrawer();
+      });
+      list.appendChild(btn);
+    });
+  } catch (e) {
+    console.error(e);
+    list.innerHTML = '<div class="qEmpty">Could not load questions: ' + escHtml(e.message || String(e)) + '</div>';
+  }
+}
+
+function markActiveQuestion() {
+  document.querySelectorAll('#qList .qItem').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-qid') === currentDocId);
+  });
 }
 
 async function deleteSavedDoc(id, data, rowEl) {
@@ -2050,6 +2204,7 @@ $('kwInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); tryKeyword(e.target.value); }
 });
 
+$('burgerBtn').addEventListener('click', toggleQuestionsDrawer);
 $('docsBtn').addEventListener('click', openDocsModal);
 $('docsCloseBtn').addEventListener('click', function () { $('docsModal').classList.remove('open'); });
 $('docsModal').addEventListener('click', function (e) {
