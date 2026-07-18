@@ -786,8 +786,9 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.5.0';
+var APP_VERSION = 'v1.6.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
+var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
 var STORAGE_DIR = 'pdf-annotator';
 var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -942,6 +943,7 @@ function setDirty(v) {
   var label = b.querySelector('.btnLabel');
   if (label) label.textContent = 'Save';
   if (typeof updateKwPanel === 'function') updateKwPanel();
+  if (v && typeof scheduleAutoSave === 'function') scheduleAutoSave();
 }
 
 /* ================= Undo / redo ================= */
@@ -1917,7 +1919,11 @@ function renderAuthArea() {
   info.className = 'authInfo';
   var name = document.createElement('div');
   name.className = 'authName';
-  name.textContent = currentUser.displayName || currentUser.email;
+  // The teacher's real name / email stays private — students only see the
+  // classroom name.
+  name.textContent = isAdmin(currentUser)
+    ? ADMIN_DISPLAY_NAME
+    : (currentUser.displayName || currentUser.email);
   var role = document.createElement('div');
   role.className = 'authRole' + (isAdmin(currentUser) ? ' isAdmin' : '');
   role.textContent = isAdmin(currentUser) ? '● Admin — cloud saving on' : 'View only — saving disabled';
@@ -1955,7 +1961,7 @@ async function saveDoc() {
     if (!currentUser) return;
   }
   if (!isAdmin(currentUser)) {
-    toast('Only ' + ADMIN_EMAIL + ' can save to the cloud.');
+    toast('Only the teacher can save to the cloud.');
     return;
   }
   // Every save runs through the worksheet-details dialog so the name,
@@ -2007,7 +2013,9 @@ async function performSave() {
     dirty = false;
     btn.classList.add('btnSaved');
     if (label) label.textContent = '✓ Saved';
-    toast('Saved “' + docName + '” to the cloud.');
+    toast(isNew
+      ? 'Saved “' + docName + '” — auto-save is now on for this worksheet.'
+      : 'Saved “' + docName + '” to the cloud.');
   } catch (e) {
     console.error(e);
     toast('Save failed: ' + (e.message || e));
@@ -2015,6 +2023,59 @@ async function performSave() {
   }
   btn.disabled = false;
 }
+
+/* ================= Auto-save =================
+   After the worksheet has been saved once (so it has a name and a cloud id),
+   every later change is saved automatically: a lightweight Firestore write of
+   just the annotations, debounced a few seconds after the last edit so the
+   app never stutters mid-stroke. The page being hidden or closed flushes any
+   pending save immediately. */
+var AUTOSAVE_DELAY = 4000;
+var autoSaveTimer = null;
+var autoSaveInFlight = false;
+var autoSaveQueued = false;
+
+function canAutoSave() {
+  return !!currentDocId && isAdmin(currentUser);
+}
+
+function scheduleAutoSave() {
+  if (!canAutoSave()) return;
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(autoSave, AUTOSAVE_DELAY);
+}
+
+async function autoSave() {
+  clearTimeout(autoSaveTimer);
+  if (!canAutoSave() || !dirty) return;
+  if (autoSaveInFlight) { autoSaveQueued = true; return; }
+  autoSaveInFlight = true;
+  try {
+    await db.collection(COLLECTION).doc(currentDocId).set({
+      annotations: JSON.stringify(annotations),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    dirty = false;
+    var btn = $('saveBtn');
+    btn.classList.add('btnSaved');
+    var label = btn.querySelector('.btnLabel');
+    if (label) label.textContent = '✓ Saved';
+  } catch (e) {
+    // Quietly retry later — the annotations are still in memory and the
+    // manual Save button always remains available.
+    console.error('Auto-save failed', e);
+    scheduleAutoSave();
+  }
+  autoSaveInFlight = false;
+  if (autoSaveQueued) { autoSaveQueued = false; if (dirty) scheduleAutoSave(); }
+}
+
+// Closing the tab, switching apps on the iPad, or locking the screen all
+// fire one of these — flush the pending save right away.
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'hidden') autoSave();
+});
+window.addEventListener('pagehide', function () { autoSave(); });
 
 async function openDocsModal() {
   if (!currentUser) {
@@ -2570,10 +2631,16 @@ document.addEventListener('keydown', function (e) {
 });
 
 window.addEventListener('beforeunload', function (e) {
-  if (dirty && annotations.length) {
-    e.preventDefault();
-    e.returnValue = '';
+  if (!dirty || !annotations.length) return;
+  if (canAutoSave()) {
+    // Auto-save handles it — kick off the flush and let the tab close.
+    autoSave();
+    return;
   }
+  // Work that cannot be auto-saved (never saved yet, or not the teacher)
+  // still gets the "are you sure?" prompt.
+  e.preventDefault();
+  e.returnValue = '';
 });
 
 window.addEventListener('resize', function () {
