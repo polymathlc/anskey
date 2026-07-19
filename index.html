@@ -259,6 +259,22 @@
   #kwInput.shake { animation: shakeX 0.4s ease; }
   #kwInput.good { border-color: var(--ok); box-shadow: 0 0 0 3px rgba(67, 160, 71, 0.18); }
   #kwProgress { font-size: 0.8rem; color: var(--ink-soft); margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .videoWatch { width: 100%; justify-content: center; margin-bottom: 4px; text-decoration: none; }
+  #videoUrlInput {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.82rem;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: none;
+    margin-top: 10px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  #videoUrlInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .videoBtnRow { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .videoBtnRow .btn { padding: 7px 12px; font-size: 0.78rem; }
+  #videoProgress { font-size: 0.78rem; color: var(--ink-soft); margin-top: 8px; font-variant-numeric: tabular-nums; }
   #kwProgress .done { color: var(--ok); font-weight: bold; }
   @keyframes shakeX {
     0%, 100% { transform: translateX(0); }
@@ -678,6 +694,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span class="btnLabel">Download</span>
     </button>
+    <button class="btn" id="printBtn" title="Print the answer key with annotations and timestamps">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span class="btnLabel">Print</span>
+    </button>
     <button class="btn btnPrimary" id="saveBtn" title="Save PDF + annotations to the cloud (Ctrl+S)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       <span class="btnLabel">Save</span>
@@ -713,6 +733,23 @@
     </label>
     <input type="text" id="kwInput" placeholder="Or type a keyword here + Enter" autocomplete="off" disabled>
     <div id="kwProgress"></div>
+  </div>
+  <div class="sideCard" id="videoCard">
+    <h4>Lesson recording</h4>
+    <div class="sideHint" id="videoNone">No recording attached to this worksheet yet.</div>
+    <a class="btn btnPrimary videoWatch" id="videoWatchBtn" target="_blank" rel="noopener" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      Watch recording
+    </a>
+    <div id="videoAdmin" style="display:none">
+      <input type="text" id="videoUrlInput" placeholder="Paste video link (YouTube, Drive…)" autocomplete="off">
+      <div class="videoBtnRow">
+        <button class="btn" id="videoAttachBtn">Attach link</button>
+        <button class="btn" id="videoUploadBtn">Upload file</button>
+        <button class="btn" id="videoRemoveBtn" style="display:none">Remove</button>
+      </div>
+      <div id="videoProgress"></div>
+    </div>
   </div>
   <div class="sideCard">
     <div class="sideHint">Timestamps beside each annotation show when it was written —
@@ -774,6 +811,7 @@
 
 <div id="toast"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
+<input type="file" id="videoFileInput" accept="video/*" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -786,7 +824,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.6.0';
+var APP_VERSION = 'v1.7.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -837,7 +875,7 @@ var revealedKw = {};        // normalised keyword -> true, revealed during revis
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
-var wsMeta = { level: '', date: '' };  // worksheet level + ISO date (name lives in docName)
+var wsMeta = { level: '', date: '', videoUrl: '', videoPath: '' };  // worksheet meta (name lives in docName)
 
 /* Drawing-in-progress state */
 var drawing = null;         // { ann, svgNode, page }
@@ -995,7 +1033,7 @@ async function loadPdf(bytes, name) {
   selectedId = null;
   editingId = null;
   editModeId = null;
-  wsMeta = { level: '', date: '' };
+  wsMeta = { level: '', date: '', videoUrl: '', videoPath: '' };
   reviseMode = false;
   revealedKw = {};
   kwResults = {};
@@ -1472,6 +1510,92 @@ function renderSidebar() {
   $('wsDay').textContent = dayFromISO(wsMeta.date);
   $('wsDate').textContent = prettyDate(wsMeta.date);
   updateKwPanel();
+  renderVideoCard();
+}
+
+/* ---- Lesson recording (video) attached to the worksheet ---- */
+function renderVideoCard() {
+  var has = !!wsMeta.videoUrl;
+  $('videoNone').style.display = has ? 'none' : 'block';
+  var watch = $('videoWatchBtn');
+  watch.style.display = has ? 'inline-flex' : 'none';
+  if (has) watch.href = wsMeta.videoUrl;
+  var admin = isAdmin(currentUser);
+  $('videoAdmin').style.display = admin ? 'block' : 'none';
+  if (admin) {
+    $('videoRemoveBtn').style.display = has ? 'inline-flex' : 'none';
+    $('videoUrlInput').value = wsMeta.videoPath ? '' : (wsMeta.videoUrl || '');
+  }
+}
+
+async function persistVideoMeta() {
+  renderVideoCard();
+  if (!currentDocId || !isAdmin(currentUser)) return; // saved with the worksheet later
+  await db.collection(COLLECTION).doc(currentDocId).set({
+    videoUrl: wsMeta.videoUrl || '',
+    videoPath: wsMeta.videoPath || '',
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
+async function attachVideoLink() {
+  var url = $('videoUrlInput').value.trim();
+  if (!url) { toast('Paste a video link first.'); return; }
+  if (!/^https?:\/\//i.test(url)) { toast('That does not look like a link — it should start with http(s)://'); return; }
+  wsMeta.videoUrl = url;
+  wsMeta.videoPath = '';
+  try {
+    await persistVideoMeta();
+    toast(currentDocId ? 'Recording link attached.' : 'Recording link added — it will be stored when you save the worksheet.');
+  } catch (e) {
+    toast('Could not attach the link: ' + (e.message || e));
+  }
+}
+
+function pickVideoFile() {
+  if (!currentDocId) { toast('Save the worksheet to the cloud first, then upload the recording.'); return; }
+  $('videoFileInput').click();
+}
+
+async function uploadVideoFile(file) {
+  if (!file) return;
+  var prog = $('videoProgress');
+  var path = STORAGE_DIR + '/videos/' + currentDocId + '_' + file.name.replace(/[^\w.\-]+/g, '_');
+  var task = storage.ref(path).put(file, { contentType: file.type || 'video/mp4' });
+  $('videoUploadBtn').disabled = true;
+  task.on('state_changed', function (snap) {
+    var pct = snap.totalBytes ? Math.round(snap.bytesTransferred / snap.totalBytes * 100) : 0;
+    prog.textContent = 'Uploading… ' + pct + '%';
+  });
+  try {
+    await task;
+    var url = await storage.ref(path).getDownloadURL();
+    wsMeta.videoUrl = url;
+    wsMeta.videoPath = path;
+    await persistVideoMeta();
+    prog.textContent = '';
+    toast('Recording uploaded and attached.');
+  } catch (e) {
+    console.error(e);
+    prog.textContent = '';
+    toast('Upload failed: ' + (e.message || e));
+  }
+  $('videoUploadBtn').disabled = false;
+}
+
+async function removeVideo() {
+  if (!wsMeta.videoUrl) return;
+  if (!window.confirm('Remove the recording from this worksheet?')) return;
+  var oldPath = wsMeta.videoPath;
+  wsMeta.videoUrl = '';
+  wsMeta.videoPath = '';
+  try {
+    await persistVideoMeta();
+    if (oldPath) { try { await storage.ref(oldPath).delete(); } catch (e) { /* already gone */ } }
+    toast('Recording removed.');
+  } catch (e) {
+    toast('Could not remove: ' + (e.message || e));
+  }
 }
 
 /* ================= Pointer interaction ================= */
@@ -1948,6 +2072,7 @@ function renderAuthArea() {
 auth.onAuthStateChanged(function (user) {
   currentUser = user;
   renderAuthArea();
+  renderVideoCard(); // admin controls appear/disappear with the auth state
   // Refresh the questions drawer for the new auth state if it is open
   if ($('qDrawer').classList.contains('open')) loadQuestionsList();
 });
@@ -2004,6 +2129,8 @@ async function performSave() {
       ownerUid: currentUser.uid,
       ownerEmail: currentUser.email,
       storagePath: STORAGE_DIR + '/' + currentDocId + '.pdf',
+      videoUrl: wsMeta.videoUrl || '',
+      videoPath: wsMeta.videoPath || '',
       pageCount: pdfDoc.numPages,
       annotations: JSON.stringify(annotations),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2155,6 +2282,8 @@ async function openSavedDoc(id, data) {
     currentDocId = id;
     wsMeta.level = data.level || '';
     wsMeta.date = data.wsDate || '';
+    wsMeta.videoUrl = data.videoUrl || '';
+    wsMeta.videoPath = data.videoPath || '';
     setDirty(false);
     renderAllOverlays();
     renderSidebar();
@@ -2226,6 +2355,7 @@ async function loadQuestionsList() {
       var bits = [];
       if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ', ' : '') + prettyDate(d.wsDate));
       bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
+      if (d.videoUrl) bits.push('🎬 recording');
       meta.appendChild(document.createTextNode(bits.join(' · ')));
       btn.appendChild(nm);
       btn.appendChild(meta);
@@ -2267,18 +2397,37 @@ function hexToRgb01(hex) {
   return { r: ((v >> 16) & 255) / 255, g: ((v >> 8) & 255) / 255, b: (v & 255) / 255 };
 }
 
-async function downloadAnnotated() {
-  if (!pdfDoc) { toast('Open a PDF first.'); return; }
-  var btn = $('downloadBtn');
-  btn.disabled = true;
-  toast('Preparing PDF…');
-  try {
-    var PDFDocument = PDFLib.PDFDocument;
-    var rgb = PDFLib.rgb;
-    var StandardFonts = PDFLib.StandardFonts;
-    var LineCapStyle = PDFLib.LineCapStyle;
-    var outDoc = await PDFDocument.load(pdfBytes);
-    var font = await outDoc.embedFont(StandardFonts.Helvetica);
+/* Overall bounding box of an annotation in base (scale-1) page coordinates,
+   used to place its timestamp label in exported PDFs. */
+function annBBox(a) {
+  if (a.points && a.points.length) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    a.points.forEach(function (q) {
+      if (q.x < minX) minX = q.x;
+      if (q.y < minY) minY = q.y;
+      if (q.x > maxX) maxX = q.x;
+      if (q.y > maxY) maxY = q.y;
+    });
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+  if (a.x1 !== undefined) {
+    return {
+      x: Math.min(a.x1, a.x2), y: Math.min(a.y1, a.y2),
+      w: Math.abs(a.x2 - a.x1), h: Math.abs(a.y2 - a.y1)
+    };
+  }
+  return { x: a.x || 0, y: a.y || 0, w: a.w || 0, h: a.h || 0 };
+}
+
+/* Bake the annotations (and, optionally, their timestamps) into a copy of
+   the PDF. Shared by Download and Print. */
+async function buildAnnotatedPdf(includeTs) {
+  var PDFDocument = PDFLib.PDFDocument;
+  var rgb = PDFLib.rgb;
+  var StandardFonts = PDFLib.StandardFonts;
+  var LineCapStyle = PDFLib.LineCapStyle;
+  var outDoc = await PDFDocument.load(pdfBytes);
+  var font = await outDoc.embedFont(StandardFonts.Helvetica);
 
     annotations.forEach(function (a) {
       var pageInfo = pages[a.page - 1];
@@ -2341,9 +2490,30 @@ async function downloadAnnotated() {
           page.drawText(line, { x: anchor.x, y: anchor.y, size: a.fontSize, font: font, color: col });
         });
       }
+
+      // Timestamp label beside the annotation, mirroring the on-screen view
+      if (includeTs && a.ts) {
+        var box = annBBox(a);
+        var tsLabel = formatTs(a.ts);
+        var tsSize = 8.5;
+        var tsW = font.widthOfTextAtSize(tsLabel, tsSize);
+        var lx = box.x + box.w + 5;
+        if (lx + tsW > pageInfo.baseW - 4) lx = Math.max(4, box.x + box.w - tsW);
+        var tsAnchor = cv(lx, Math.max(box.y + 8, 10));
+        page.drawText(tsLabel, { x: tsAnchor.x, y: tsAnchor.y, size: tsSize, font: font, color: rgb(0.54, 0.54, 0.52) });
+      }
     });
 
-    var outBytes = await outDoc.save();
+  return outDoc.save();
+}
+
+async function downloadAnnotated() {
+  if (!pdfDoc) { toast('Open a PDF first.'); return; }
+  var btn = $('downloadBtn');
+  btn.disabled = true;
+  toast('Preparing PDF…');
+  try {
+    var outBytes = await buildAnnotatedPdf(showTimestamps);
     var blob = new Blob([outBytes], { type: 'application/pdf' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -2355,6 +2525,48 @@ async function downloadAnnotated() {
   } catch (e) {
     console.error(e);
     toast('Download failed: ' + (e.message || e));
+  }
+  btn.disabled = false;
+}
+
+function isIOS() {
+  return /iP(ad|hone|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+async function printAnnotated() {
+  if (!pdfDoc) { toast('Open a PDF first.'); return; }
+  var btn = $('printBtn');
+  btn.disabled = true;
+  toast('Preparing answer key for printing…');
+  try {
+    var outBytes = await buildAnnotatedPdf(showTimestamps);
+    var blob = new Blob([outBytes], { type: 'application/pdf' });
+    var url = URL.createObjectURL(blob);
+    if (isIOS()) {
+      // iPad/iPhone Safari cannot print a PDF from a hidden frame — open it
+      // in a new tab where the share sheet offers Print / AirPrint.
+      window.open(url, '_blank');
+      toast('Answer key opened in a new tab — use the share button there to print.');
+    } else {
+      var frame = document.createElement('iframe');
+      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:2px;height:2px;border:0;visibility:hidden;';
+      frame.src = url;
+      document.body.appendChild(frame);
+      frame.addEventListener('load', function () {
+        try {
+          frame.contentWindow.focus();
+          frame.contentWindow.print();
+        } catch (err) {
+          window.open(url, '_blank');
+        }
+      });
+      // Keep the frame alive long enough for the print dialog to finish.
+      setTimeout(function () { frame.remove(); URL.revokeObjectURL(url); }, 120000);
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Print failed: ' + (e.message || e));
   }
   btn.disabled = false;
 }
@@ -2420,6 +2632,17 @@ $('docsModal').addEventListener('click', function (e) {
   if (e.target === $('docsModal')) $('docsModal').classList.remove('open');
 });
 $('downloadBtn').addEventListener('click', downloadAnnotated);
+$('printBtn').addEventListener('click', printAnnotated);
+$('videoAttachBtn').addEventListener('click', attachVideoLink);
+$('videoUploadBtn').addEventListener('click', pickVideoFile);
+$('videoRemoveBtn').addEventListener('click', removeVideo);
+$('videoFileInput').addEventListener('change', function (e) {
+  if (e.target.files && e.target.files[0]) uploadVideoFile(e.target.files[0]);
+  e.target.value = '';
+});
+$('videoUrlInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); attachVideoLink(); }
+});
 
 /* Drag & drop */
 var viewerArea = $('viewerArea');
