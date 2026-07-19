@@ -274,7 +274,18 @@
   #videoUrlInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
   .videoBtnRow { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
   .videoBtnRow .btn { padding: 7px 12px; font-size: 0.78rem; }
-  #videoProgress { font-size: 0.78rem; color: var(--ink-soft); margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .videoModalCard { max-width: 880px; }
+  #videoBody iframe, #videoBody video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+    border-radius: 10px;
+    background: #000;
+  }
+  .videoOpenRow { margin-top: 10px; text-align: right; }
+  .videoOpenRow a { font-size: 0.8rem; color: var(--accent-deep); font-weight: bold; text-decoration: none; }
+  .videoOpenRow a:hover { text-decoration: underline; }
   #kwProgress .done { color: var(--ok); font-weight: bold; }
   @keyframes shakeX {
     0%, 100% { transform: translateX(0); }
@@ -737,18 +748,17 @@
   <div class="sideCard" id="videoCard">
     <h4>Lesson recording</h4>
     <div class="sideHint" id="videoNone">No recording attached to this worksheet yet.</div>
-    <a class="btn btnPrimary videoWatch" id="videoWatchBtn" target="_blank" rel="noopener" style="display:none">
+    <button class="btn btnPrimary videoWatch" id="videoWatchBtn" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
       Watch recording
-    </a>
+    </button>
     <div id="videoAdmin" style="display:none">
-      <input type="text" id="videoUrlInput" placeholder="Paste video link (YouTube, Drive…)" autocomplete="off">
+      <input type="text" id="videoUrlInput" placeholder="Paste a Dropbox, Drive or YouTube link" autocomplete="off">
       <div class="videoBtnRow">
         <button class="btn" id="videoAttachBtn">Attach link</button>
-        <button class="btn" id="videoUploadBtn">Upload file</button>
         <button class="btn" id="videoRemoveBtn" style="display:none">Remove</button>
       </div>
-      <div id="videoProgress"></div>
+      <div class="sideHint" style="margin-top:8px">Share settings must allow “anyone with the link” to view.</div>
     </div>
   </div>
   <div class="sideCard">
@@ -799,6 +809,19 @@
   </div>
 </div>
 
+<div class="modalBack" id="videoModal">
+  <div class="modalCard videoModalCard">
+    <div class="modalHead">
+      <h2>Lesson recording</h2>
+      <button class="modalClose" id="videoCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div id="videoBody"></div>
+      <div class="videoOpenRow"><a id="videoOpenTab" target="_blank" rel="noopener">Open in a new tab ↗</a></div>
+    </div>
+  </div>
+</div>
+
 <div class="modalBack" id="docsModal">
   <div class="modalCard">
     <div class="modalHead">
@@ -811,7 +834,6 @@
 
 <div id="toast"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
-<input type="file" id="videoFileInput" accept="video/*" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -824,7 +846,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.7.0';
+var APP_VERSION = 'v1.8.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1524,8 +1546,61 @@ function renderVideoCard() {
   $('videoAdmin').style.display = admin ? 'block' : 'none';
   if (admin) {
     $('videoRemoveBtn').style.display = has ? 'inline-flex' : 'none';
-    $('videoUrlInput').value = wsMeta.videoPath ? '' : (wsMeta.videoUrl || '');
+    $('videoUrlInput').value = wsMeta.videoUrl || '';
   }
+}
+
+/* Turn a pasted share link into something embeddable in the app.
+   Dropbox links are rewritten to their direct-stream host, Drive links to
+   the /preview player, YouTube links to the embed player. */
+function videoEmbedInfo(url) {
+  var m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{6,})/i);
+  if (m) return { kind: 'iframe', src: 'https://www.youtube.com/embed/' + m[1] };
+  m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]+)/i);
+  if (m) return { kind: 'iframe', src: 'https://drive.google.com/file/d/' + m[1] + '/preview' };
+  if (/^https?:\/\/(www\.)?dropbox\.com\//i.test(url)) {
+    var src = url
+      .replace(/^https?:\/\/(www\.)?dropbox\.com/i, 'https://dl.dropboxusercontent.com')
+      .replace(/([?&])(dl|raw)=\d+/g, '$1')
+      .replace(/[?&]+$/, '')
+      .replace(/\?&/, '?');
+    return { kind: 'video', src: src };
+  }
+  if (/\.(mp4|m4v|webm|mov)($|\?)/i.test(url)) return { kind: 'video', src: url };
+  return { kind: 'link', src: url };
+}
+
+function openVideoModal() {
+  if (!wsMeta.videoUrl) return;
+  var info = videoEmbedInfo(wsMeta.videoUrl);
+  if (info.kind === 'link') {
+    // Nothing we can embed — just open the link itself.
+    window.open(wsMeta.videoUrl, '_blank', 'noopener');
+    return;
+  }
+  var body = $('videoBody');
+  body.innerHTML = '';
+  if (info.kind === 'iframe') {
+    var fr = document.createElement('iframe');
+    fr.src = info.src;
+    fr.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+    fr.allowFullscreen = true;
+    body.appendChild(fr);
+  } else {
+    var vid = document.createElement('video');
+    vid.src = info.src;
+    vid.controls = true;
+    vid.playsInline = true;
+    vid.preload = 'metadata';
+    body.appendChild(vid);
+  }
+  $('videoOpenTab').href = wsMeta.videoUrl;
+  $('videoModal').classList.add('open');
+}
+
+function closeVideoModal() {
+  $('videoModal').classList.remove('open');
+  $('videoBody').innerHTML = ''; // stops playback
 }
 
 async function persistVideoMeta() {
@@ -1546,41 +1621,14 @@ async function attachVideoLink() {
   wsMeta.videoPath = '';
   try {
     await persistVideoMeta();
-    toast(currentDocId ? 'Recording link attached.' : 'Recording link added — it will be stored when you save the worksheet.');
+    var embeddable = videoEmbedInfo(url).kind !== 'link';
+    var note = embeddable ? '' : ' (this link type opens in a new tab rather than playing in the app)';
+    toast((currentDocId
+      ? 'Recording link attached.'
+      : 'Recording link added — it will be stored when you save the worksheet.') + note, embeddable ? 2600 : 5000);
   } catch (e) {
     toast('Could not attach the link: ' + (e.message || e));
   }
-}
-
-function pickVideoFile() {
-  if (!currentDocId) { toast('Save the worksheet to the cloud first, then upload the recording.'); return; }
-  $('videoFileInput').click();
-}
-
-async function uploadVideoFile(file) {
-  if (!file) return;
-  var prog = $('videoProgress');
-  var path = STORAGE_DIR + '/videos/' + currentDocId + '_' + file.name.replace(/[^\w.\-]+/g, '_');
-  var task = storage.ref(path).put(file, { contentType: file.type || 'video/mp4' });
-  $('videoUploadBtn').disabled = true;
-  task.on('state_changed', function (snap) {
-    var pct = snap.totalBytes ? Math.round(snap.bytesTransferred / snap.totalBytes * 100) : 0;
-    prog.textContent = 'Uploading… ' + pct + '%';
-  });
-  try {
-    await task;
-    var url = await storage.ref(path).getDownloadURL();
-    wsMeta.videoUrl = url;
-    wsMeta.videoPath = path;
-    await persistVideoMeta();
-    prog.textContent = '';
-    toast('Recording uploaded and attached.');
-  } catch (e) {
-    console.error(e);
-    prog.textContent = '';
-    toast('Upload failed: ' + (e.message || e));
-  }
-  $('videoUploadBtn').disabled = false;
 }
 
 async function removeVideo() {
@@ -2634,11 +2682,11 @@ $('docsModal').addEventListener('click', function (e) {
 $('downloadBtn').addEventListener('click', downloadAnnotated);
 $('printBtn').addEventListener('click', printAnnotated);
 $('videoAttachBtn').addEventListener('click', attachVideoLink);
-$('videoUploadBtn').addEventListener('click', pickVideoFile);
 $('videoRemoveBtn').addEventListener('click', removeVideo);
-$('videoFileInput').addEventListener('change', function (e) {
-  if (e.target.files && e.target.files[0]) uploadVideoFile(e.target.files[0]);
-  e.target.value = '';
+$('videoWatchBtn').addEventListener('click', openVideoModal);
+$('videoCloseBtn').addEventListener('click', closeVideoModal);
+$('videoModal').addEventListener('click', function (e) {
+  if (e.target === $('videoModal')) closeVideoModal();
 });
 $('videoUrlInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); attachVideoLink(); }
