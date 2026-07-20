@@ -1015,7 +1015,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.13.0';
+var APP_VERSION = 'v1.14.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2021,6 +2021,16 @@ function attachOverlayHandlers(p) {
         startLassoResize(e, p);
         return;
       }
+      // Default action: dragging from inside the selection box moves the
+      // whole group; anywhere else begins a fresh lasso.
+      if (lassoSel && lassoSel.page === p) {
+        var gb = lassoGroupBBox();
+        if (gb && pt.x >= gb.x - 8 && pt.x <= gb.x + gb.w + 8 &&
+                  pt.y >= gb.y - 8 && pt.y <= gb.y + gb.h + 8) {
+          startLassoMove(e, p, pt);
+          return;
+        }
+      }
       e.preventDefault();
       clearLassoSel(true);
       activePointerId = e.pointerId;
@@ -2114,6 +2124,10 @@ function attachOverlayHandlers(p) {
       applyLassoResize(eventPoint(e, p));
       return;
     }
+    if (lassoMoving && lassoMoving.page === p) {
+      applyLassoMove(eventPoint(e, p));
+      return;
+    }
     if (lassoing && lassoing.page === p) {
       var qpt = eventPoint(e, p);
       var qlast = lassoing.pts[lassoing.pts.length - 1];
@@ -2179,6 +2193,10 @@ function attachOverlayHandlers(p) {
     }
     if (lassoResizing && lassoResizing.page === p) {
       endLassoResize();
+      return;
+    }
+    if (lassoMoving && lassoMoving.page === p) {
+      endLassoMove();
       return;
     }
     if (lassoing && lassoing.page === p) {
@@ -2279,6 +2297,11 @@ function attachOverlayHandlers(p) {
       activePointerId = null;
       return;
     }
+    if (lassoMoving && lassoMoving.page === p) {
+      endLassoMove();
+      activePointerId = null;
+      return;
+    }
     if (lassoing && lassoing.page === p) {
       if (lassoing.node && lassoing.node.parentNode) lassoing.node.parentNode.removeChild(lassoing.node);
       lassoing = null;
@@ -2361,12 +2384,16 @@ function redrawTemp(force) {
 /* ================= Lasso multi-select =================
    Draw a loop around several annotations with the lasso tool: everything
    whose centre falls inside the loop is selected, and a floating bar offers
-   Duplicate and Resize. Resizing drags a corner handle and always keeps the
-   original proportions (uniform scale about the group's top-left corner). */
+   Duplicate and Resize. By default, dragging from inside the selection box
+   simply moves the whole group; dragging outside starts a new lasso.
+   Resizing drags a corner handle and always keeps the original proportions
+   (uniform scale about the group's top-left corner). */
 var lassoing = null;       // { page, pts, node } while the loop is being drawn
 var lassoSel = null;       // { page, ids[] } once a selection exists
 var lassoResizing = null;  // { page, origin, baseDist, base[], snap, factor } during a handle drag
+var lassoMoving = null;    // { page, startX, startY, base[], snap, moved } while dragging the group
 var lassoResizeMode = false;
+var lassoMoveHintShown = false;
 
 function pointInPoly(q, poly) {
   var inside = false;
@@ -2411,6 +2438,10 @@ function completeLasso() {
   lassoResizeMode = false;
   renderOverlay(p);
   showLassoBar();
+  if (!lassoMoveHintShown) {
+    lassoMoveHintShown = true;
+    toast('Selected — drag inside the box to move everything, or use Duplicate / Resize above.', 3500);
+  }
 }
 
 function lassoGroupBBox() {
@@ -2480,6 +2511,7 @@ function clearLassoSel(rerender) {
   var p = lassoSel && lassoSel.page;
   lassoSel = null;
   lassoResizing = null;
+  lassoMoving = null;
   lassoResizeMode = false;
   $('lassoBar').style.display = 'none';
   $('lassoResizeBtn').classList.remove('btnPrimary');
@@ -2507,6 +2539,58 @@ function duplicateLassoSel() {
   renderOverlay(lassoSel.page);
   showLassoBar();
   toast(newIds.length + (newIds.length === 1 ? ' item' : ' items') + ' duplicated — drag-resize or lasso again to move on.');
+}
+
+/* ---- Default drag: move the whole lasso selection together ---- */
+function translateAnnFrom(orig, a, dx, dy) {
+  if (orig.points) {
+    a.points = orig.points.map(function (q) { return { x: round2(q.x + dx), y: round2(q.y + dy) }; });
+  }
+  if (orig.x1 !== undefined) {
+    a.x1 = round2(orig.x1 + dx); a.y1 = round2(orig.y1 + dy);
+    a.x2 = round2(orig.x2 + dx); a.y2 = round2(orig.y2 + dy);
+  }
+  if (orig.x !== undefined && orig.w !== undefined) {
+    a.x = round2(orig.x + dx); a.y = round2(orig.y + dy);
+  }
+}
+
+function startLassoMove(e, p, pt) {
+  e.preventDefault();
+  activePointerId = e.pointerId;
+  p.svg.setPointerCapture(e.pointerId);
+  lassoMoving = {
+    page: p, startX: pt.x, startY: pt.y, moved: false,
+    snap: snapshot(),
+    base: lassoSel.ids.map(function (id) {
+      var a = annotations.find(function (x) { return x.id === id; });
+      return a ? JSON.parse(JSON.stringify(a)) : null;
+    }).filter(Boolean)
+  };
+}
+
+function applyLassoMove(pt) {
+  var r = lassoMoving;
+  var dx = pt.x - r.startX, dy = pt.y - r.startY;
+  if (Math.abs(dx) + Math.abs(dy) > 0.5) r.moved = true;
+  r.base.forEach(function (orig) {
+    var a = annotations.find(function (x) { return x.id === orig.id; });
+    if (a) translateAnnFrom(orig, a, dx, dy);
+  });
+  renderOverlay(r.page);
+  positionLassoBar();
+}
+
+function endLassoMove() {
+  var r = lassoMoving;
+  lassoMoving = null;
+  if (!r) return;
+  if (r.moved) {
+    pushUndo(r.snap);
+    setDirty(true);
+  }
+  renderOverlay(r.page);
+  positionLassoBar();
 }
 
 /* Uniform scale of one annotation about origin o, from its pristine copy. */
