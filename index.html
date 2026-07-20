@@ -149,6 +149,59 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* ---------- Questions drawer (burger menu) ---------- */
+  #burgerBtn { flex: 0 0 auto; }
+  #qDrawer {
+    width: 290px;
+    flex: 0 0 290px;
+    border-right: 1px solid var(--line);
+    background: #FCFCFB;
+    overflow-y: auto;
+    display: none;
+  }
+  #qDrawer.open { display: block; }
+  .qDrawerHead {
+    padding: 18px 18px 12px;
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0;
+    background: #FCFCFB;
+    z-index: 2;
+  }
+  .qDrawerHead h3 { font-size: 1rem; }
+  .qDrawerSub { font-size: 0.75rem; color: var(--ink-faint); margin-top: 4px; line-height: 1.45; }
+  #qList { padding: 12px 12px 28px; }
+  .qItem {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-card);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    animation: fadeUp 0.3s ease both;
+  }
+  .qItem:hover { box-shadow: var(--shadow-btn-hover); transform: translateY(-1px); }
+  .qItem.active { border-color: var(--accent-strong); background: #FFF8EC; }
+  .qItemName { font-size: 0.88rem; font-weight: bold; line-height: 1.35; overflow-wrap: break-word; color: var(--ink); }
+  .qItemMeta { font-size: 0.73rem; color: var(--ink-faint); margin-top: 5px; line-height: 1.5; }
+  .qItemLevel {
+    display: inline-block;
+    background: var(--accent);
+    border: 1px solid var(--accent-strong);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 0.68rem;
+    font-weight: bold;
+    margin-right: 6px;
+    color: var(--ink);
+  }
+  .qEmpty { text-align: center; color: var(--ink-faint); font-size: 0.82rem; padding: 26px 10px; line-height: 1.55; }
+
   /* ---------- Main row: sidebar + viewer ---------- */
   #mainRow { flex: 1 1 auto; display: flex; overflow: hidden; }
   #sideBar {
@@ -206,6 +259,33 @@
   #kwInput.shake { animation: shakeX 0.4s ease; }
   #kwInput.good { border-color: var(--ok); box-shadow: 0 0 0 3px rgba(67, 160, 71, 0.18); }
   #kwProgress { font-size: 0.8rem; color: var(--ink-soft); margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .videoWatch { width: 100%; justify-content: center; margin-bottom: 4px; text-decoration: none; }
+  #videoUrlInput {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.82rem;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: none;
+    margin-top: 10px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  #videoUrlInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .videoBtnRow { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .videoBtnRow .btn { padding: 7px 12px; font-size: 0.78rem; }
+  .videoModalCard { max-width: 880px; }
+  #videoBody iframe, #videoBody video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+    border-radius: 10px;
+    background: #000;
+  }
+  .videoOpenRow { margin-top: 10px; text-align: right; }
+  .videoOpenRow a { font-size: 0.8rem; color: var(--accent-deep); font-weight: bold; text-decoration: none; }
+  .videoOpenRow a:hover { text-decoration: underline; }
   #kwProgress .done { color: var(--ok); font-weight: bold; }
   @keyframes shakeX {
     0%, 100% { transform: translateX(0); }
@@ -228,8 +308,46 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   .fieldRow input:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .fieldRow select {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.92rem;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .fieldRow select:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
   #saveDayPreview { font-size: 0.82rem; color: var(--accent-deep); font-weight: bold; margin-top: 7px; min-height: 1.1em; }
   .modalActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+  .fieldHint { font-size: 0.75rem; color: var(--ink-faint); margin-top: 7px; line-height: 1.5; }
+  .chipRow { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pickChip {
+    font-family: var(--font);
+    font-size: 0.86rem;
+    font-weight: bold;
+    padding: 9px 18px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ink-soft);
+    cursor: pointer;
+    box-shadow: var(--shadow-btn);
+    transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, color 0.2s ease;
+  }
+  .pickChip:hover { box-shadow: var(--shadow-btn-hover); transform: translateY(-1px); }
+  .pickChip.active {
+    background: var(--accent);
+    border-color: var(--accent-strong);
+    color: var(--ink);
+  }
+  .profileIntro { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.55; margin-bottom: 20px; }
+  .authInfo.clickable { cursor: pointer; border-radius: var(--radius-sm); padding: 3px 8px; transition: background 0.2s ease; }
+  .authInfo.clickable:hover { background: #F1F0EE; }
 
   /* ---------- Viewer ---------- */
   #viewerArea {
@@ -237,6 +355,7 @@
     overflow: auto;
     background: var(--bg-viewer);
     position: relative;
+    overscroll-behavior: none; /* no iPad rubber-band bounce mid-stroke */
   }
   #pagesContainer { padding: 28px 20px 80px; }
   .pageWrap {
@@ -246,6 +365,11 @@
     box-shadow: var(--shadow-card);
     border-radius: 4px;
     overflow: hidden;
+  }
+  .pageWrap {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none; /* no long-press callout under a resting palm */
   }
   .pageWrap canvas { display: block; width: 100%; height: 100%; }
   .pageWrap svg.overlay {
@@ -258,6 +382,7 @@
   }
   .pageWrap svg.overlay.selectMode { cursor: default; }
   .pageWrap svg.overlay.textMode { cursor: text; }
+  .pageWrap svg.overlay.eraserMode { cursor: cell; }
   .annText {
     font-family: var(--font);
     line-height: 1.35;
@@ -288,12 +413,87 @@
   svg.overlay.kwMode .annText span[data-w] { cursor: pointer; }
   svg.overlay.kwMode .annText span[data-w]:hover { outline: 2px dashed var(--accent-deep); outline-offset: 1px; border-radius: 3px; }
   .annText[contenteditable="true"] {
-    box-shadow: 0 0 0 2px var(--accent-deep);
-    background: rgba(255, 249, 235, 0.92);
+    box-shadow: 0 0 0 2.5px var(--accent-deep), 0 0 0 7px rgba(255, 224, 178, 0.55);
+    background: #FFFDF4;
     cursor: text;
+    -webkit-user-select: text;
+    user-select: text;
   }
   .annText:empty::before { content: 'Type…'; color: #B9B9B2; }
   g[data-id] { pointer-events: all; }
+
+  /* ---------- Element edit mode (double-click with the select tool) ---------- */
+  .editBadge {
+    position: absolute;
+    z-index: 35;
+    background: var(--accent-deep);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: bold;
+    letter-spacing: 0.02em;
+    padding: 4px 11px;
+    border-radius: 999px;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+    animation: fadeUp 0.2s ease both;
+  }
+  svg.overlay [data-handle] { fill: #fff; stroke: var(--accent-deep); stroke-width: 2; }
+  svg.overlay [data-handle="nw"], svg.overlay [data-handle="se"] { cursor: nwse-resize; }
+  svg.overlay [data-handle="ne"], svg.overlay [data-handle="sw"] { cursor: nesw-resize; }
+  svg.overlay [data-handle="p1"], svg.overlay [data-handle="p2"] { cursor: move; }
+
+  /* ---------- Revise mode: click-to-type keyword boxes ---------- */
+  svg.overlay .annText span.kwHidden { cursor: text; }
+  svg.overlay .annText span.kwHidden:hover {
+    outline: 2px solid var(--accent-deep);
+    outline-offset: 1px;
+    background: #FFF3DC;
+    border-radius: 3px;
+  }
+  .kwActive { background: transparent; }
+  .kwGuessInput {
+    font: inherit;
+    color: var(--ink);
+    background: #FFFDF6;
+    border: none;
+    border-bottom: 2px solid var(--accent-deep);
+    border-radius: 3px;
+    outline: none;
+    padding: 0 2px;
+    min-width: 3ch;
+    box-shadow: 0 0 0 2px rgba(232, 165, 75, 0.4);
+  }
+  .kwWrong {
+    background: #FDE3E1;
+    border-bottom: 2px solid var(--danger);
+    border-radius: 3px;
+    padding: 0 2px;
+    animation: scaleIn 0.3s ease both;
+  }
+  .kwFeedback {
+    position: absolute;
+    z-index: 40;
+    max-width: 280px;
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--ink);
+    border: 2px solid;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
+    animation: fadeUp 0.25s ease both;
+    transition: opacity 0.4s ease;
+  }
+  .kwFeedback.ok { border-color: var(--ok); }
+  .kwFeedback.bad { border-color: var(--danger); }
+  .kwFeedback .kwFbTitle { font-weight: bold; margin-bottom: 2px; }
+  .kwFeedback.ok .kwFbTitle { color: var(--ok); }
+  .kwFeedback.bad .kwFbTitle { color: var(--danger); }
+  .kwFeedback .kwFbAns { color: var(--ink-soft); }
+  .kwFeedback .kwFbAns b { color: var(--ok); }
 
   /* ---------- Empty state ---------- */
   #emptyState {
@@ -405,6 +605,12 @@
       height: 100%;
       box-shadow: var(--shadow-modal);
     }
+    #qDrawer.open {
+      position: absolute;
+      z-index: 45;
+      height: 100%;
+      box-shadow: var(--shadow-modal);
+    }
     #mainRow { position: relative; }
   }
 </style>
@@ -412,6 +618,9 @@
 <body>
 
 <header class="polymath-header">
+  <button class="toolBtn" id="burgerBtn" title="All questions — show / hide the list">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+  </button>
   <img src="https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj"
        alt="Polymath Learning Centre" class="polymath-logo" />
   <div>
@@ -432,7 +641,7 @@
   <div class="tSep"></div>
 
   <div class="tGroup" id="toolButtons">
-    <button class="toolBtn" data-tool="select" title="Select / move (V)">
+    <button class="toolBtn" data-tool="select" title="Select / move — double-click an element to edit it (V)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2.5-7.5L21 10z"/></svg>
     </button>
     <button class="toolBtn" data-tool="pen" title="Pen (P)">
@@ -458,6 +667,9 @@
     </button>
     <button class="toolBtn" data-tool="keyword" title="Mark keywords — click words in a text box (K)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M15 7l3 3"/><path d="M18 4l2 2"/></svg>
+    </button>
+    <button class="toolBtn" data-tool="eraser" title="Eraser — drag across ink to erase it (E)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7l-4-4a2 2 0 0 1 0-2.8l9.6-9.6a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L13.4 19"/><path d="M8.6 8.6l6.8 6.8"/></svg>
     </button>
   </div>
   <div class="tSep"></div>
@@ -514,6 +726,9 @@
   <div class="tSep"></div>
 
   <div class="tGroup">
+    <button class="toolBtn" id="stylusBtn" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+    </button>
     <button class="toolBtn active" id="tsToggleBtn" title="Show / hide annotation timestamps">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
     </button>
@@ -528,6 +743,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span class="btnLabel">Download</span>
     </button>
+    <button class="btn" id="printBtn" title="Print the answer key with annotations and timestamps">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span class="btnLabel">Print</span>
+    </button>
     <button class="btn btnPrimary" id="saveBtn" title="Save PDF + annotations to the cloud (Ctrl+S)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       <span class="btnLabel">Save</span>
@@ -540,6 +759,13 @@
 </div>
 
 <div id="mainRow">
+<aside id="qDrawer">
+  <div class="qDrawerHead">
+    <h3>Questions</h3>
+    <div class="qDrawerSub" id="qDrawerSub">All saved questions, oldest first.</div>
+  </div>
+  <div id="qList"></div>
+</aside>
 <aside id="sideBar">
   <div class="sideCard" id="wsInfoCard">
     <div class="sideLevel" id="wsLevel">Level —</div>
@@ -554,8 +780,24 @@
       <input type="checkbox" id="reviseToggle">
       <span>Revise mode — hide keywords</span>
     </label>
-    <input type="text" id="kwInput" placeholder="Type a keyword + Enter" autocomplete="off" disabled>
+    <input type="text" id="kwInput" placeholder="Or type a keyword here + Enter" autocomplete="off" disabled>
     <div id="kwProgress"></div>
+  </div>
+  <div class="sideCard" id="videoCard">
+    <h4>Lesson recording</h4>
+    <div class="sideHint" id="videoNone">No recording attached to this worksheet yet.</div>
+    <button class="btn btnPrimary videoWatch" id="videoWatchBtn" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      Watch recording
+    </button>
+    <div id="videoAdmin" style="display:none">
+      <input type="text" id="videoUrlInput" placeholder="Paste a Dropbox, Drive or YouTube link" autocomplete="off">
+      <div class="videoBtnRow">
+        <button class="btn" id="videoAttachBtn">Attach link</button>
+        <button class="btn" id="videoRemoveBtn" style="display:none">Remove</button>
+      </div>
+      <div class="sideHint" style="margin-top:8px">Share settings must allow “anyone with the link” to view.</div>
+    </div>
   </div>
   <div class="sideCard">
     <div class="sideHint">Timestamps beside each annotation show when it was written —
@@ -590,7 +832,22 @@
       </div>
       <div class="fieldRow">
         <label for="saveLevelInput">Level</label>
-        <input type="text" id="saveLevelInput" placeholder="e.g. P5" autocomplete="off">
+        <select id="saveLevelInput">
+          <option value="">Choose a level…</option>
+          <option value="P3">P3</option>
+          <option value="P4">P4</option>
+          <option value="P5">P5</option>
+          <option value="P6">P6</option>
+        </select>
+      </div>
+      <div class="fieldRow">
+        <label for="saveSubjectInput">Subject</label>
+        <select id="saveSubjectInput">
+          <option value="">Choose a subject…</option>
+          <option value="math">Mathematics</option>
+          <option value="science">Science</option>
+          <option value="both">Both — Maths &amp; Science</option>
+        </select>
       </div>
       <div class="fieldRow">
         <label for="saveDateInput">Date of worksheet</label>
@@ -605,6 +862,19 @@
   </div>
 </div>
 
+<div class="modalBack" id="videoModal">
+  <div class="modalCard videoModalCard">
+    <div class="modalHead">
+      <h2>Lesson recording</h2>
+      <button class="modalClose" id="videoCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div id="videoBody"></div>
+      <div class="videoOpenRow"><a id="videoOpenTab" target="_blank" rel="noopener">Open in a new tab ↗</a></div>
+    </div>
+  </div>
+</div>
+
 <div class="modalBack" id="docsModal">
   <div class="modalCard">
     <div class="modalHead">
@@ -612,6 +882,56 @@
       <button class="modalClose" id="docsCloseBtn" title="Close">✕</button>
     </div>
     <div class="modalBody" id="docsList"></div>
+  </div>
+</div>
+
+<div class="modalBack" id="profileModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2 id="profileTitle">Welcome to Polymath! 👋</h2>
+      <button class="modalClose" id="profileCloseBtn" title="Close" style="display:none">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro" id="profileIntro">Since this is your first time here,
+        tell us a little about yourself so we can show you the right worksheets and videos.</div>
+      <div class="fieldRow">
+        <label for="profileNameInput">Your name</label>
+        <input type="text" id="profileNameInput" placeholder="e.g. Jia Hui" autocomplete="off">
+      </div>
+      <div class="fieldRow">
+        <label>Your level</label>
+        <div class="chipRow" id="profileLevelRow">
+          <button type="button" class="pickChip" data-level="P3">P3</button>
+          <button type="button" class="pickChip" data-level="P4">P4</button>
+          <button type="button" class="pickChip" data-level="P5">P5</button>
+          <button type="button" class="pickChip" data-level="P6">P6</button>
+        </div>
+      </div>
+      <div class="fieldRow">
+        <label>Your subject</label>
+        <div class="chipRow" id="profileSubjectRow">
+          <button type="button" class="pickChip" data-subject="math">Mathematics</button>
+          <button type="button" class="pickChip" data-subject="science">Science</button>
+          <button type="button" class="pickChip" data-subject="both">Both</button>
+        </div>
+      </div>
+      <div class="fieldRow">
+        <label>Your class day(s)</label>
+        <div class="chipRow" id="profileDayRow">
+          <button type="button" class="pickChip" data-day="Monday">Mon</button>
+          <button type="button" class="pickChip" data-day="Tuesday">Tue</button>
+          <button type="button" class="pickChip" data-day="Wednesday">Wed</button>
+          <button type="button" class="pickChip" data-day="Thursday">Thu</button>
+          <button type="button" class="pickChip" data-day="Friday">Fri</button>
+          <button type="button" class="pickChip" data-day="Saturday">Sat</button>
+          <button type="button" class="pickChip" data-day="Sunday">Sun</button>
+        </div>
+        <div class="fieldHint">Worksheets from your class day are shown first. You can pick more than one.</div>
+      </div>
+      <div class="modalActions">
+        <button class="btn btnPrimary" id="profileSaveBtn">Let's go!</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -629,8 +949,9 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.1.0';
+var APP_VERSION = 'v1.9.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
+var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
 var STORAGE_DIR = 'pdf-annotator';
 var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -669,17 +990,81 @@ var strokeW = 3;
 var fontSize = 16;
 var selectedId = null;
 var editingId = null;       // text annotation currently being edited
+var editModeId = null;      // annotation in handle-edit mode (double-click with select tool)
 var dirty = false;
 var currentUser = null;
 var annIdCounter = 1;
 var showTimestamps = true;
 var reviseMode = false;
 var revealedKw = {};        // normalised keyword -> true, revealed during revise mode
-var wsMeta = { level: '', date: '' };  // worksheet level + ISO date (name lives in docName)
+var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
+var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
+var reviseHintShown = false;
+var wsMeta = { level: '', subject: '', date: '', videoUrl: '', videoPath: '' };  // worksheet meta (name lives in docName)
+var studentProfile = null;  // { name, level, subject, days[] } for signed-in students (null until loaded / for admin)
+var PROFILES_COLLECTION = 'studentProfiles';
+function subjectLabel(s) {
+  return s === 'math' ? 'Mathematics' : s === 'science' ? 'Science' : s === 'both' ? 'Maths & Science' : '';
+}
 
 /* Drawing-in-progress state */
 var drawing = null;         // { ann, svgNode, page }
 var draggingSel = null;     // { id, startX, startY, node, snapshot }
+var resizingSel = null;     // { id, handle, page, snapshot, moved } while dragging an edit handle
+var lastTap = { id: null, t: 0 };  // manual double-click/double-tap detection
+
+/* Palm rejection / iPad state */
+var stylusOnly = false;     // pencil draws, fingers scroll, palms ignored
+var pencilSeen = false;     // an Apple Pencil / stylus has been used this session
+var activePointerId = null; // the one pointer allowed to draw/drag right now
+var erasing = null;         // { page, snap, removed, lastX, lastY } while the eraser is down
+// iPads report ordinary fingertips with contact sizes up to ~45px, so the
+// palm threshold must sit above that or normal finger scrolling gets eaten.
+var PALM_CONTACT = 55;
+
+/* Touch navigation (GoodNotes-style): fingers pan with momentum, two
+   fingers pan/pinch-zoom, multi-finger double-taps undo/redo. */
+var nav = { mode: null, pts: new Map(), cx: 0, cy: 0, dist: 0, vx: 0, vy: 0, lastT: 0 };
+var navMomentum = null;
+
+function isPalmTouch(e) {
+  return e.pointerType === 'touch' && (e.width > PALM_CONTACT || e.height > PALM_CONTACT);
+}
+function isDrawTool(t) {
+  return t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
+         t === 'line' || t === 'arrow' || t === 'text' || t === 'eraser';
+}
+function setStylusOnly(on, quiet) {
+  stylusOnly = on;
+  $('stylusBtn').classList.toggle('active', on);
+  if (!quiet) {
+    toast(on
+      ? 'Pencil-only mode on — Apple Pencil draws, fingers scroll, palms are ignored.'
+      : 'Pencil-only mode off — fingers can draw again.');
+  }
+}
+
+/* Stroke eraser: drag across ink to delete whole annotations (GoodNotes-style). */
+function eraseAlong(x1, y1, x2, y2) {
+  if (!erasing) return;
+  var dist = Math.hypot(x2 - x1, y2 - y1);
+  var steps = Math.max(1, Math.ceil(dist / 6));
+  for (var i = 0; i <= steps; i++) {
+    var x = x1 + (x2 - x1) * i / steps;
+    var y = y1 + (y2 - y1) * i / steps;
+    var elt = document.elementFromPoint(x, y);
+    if (!elt || !elt.closest) continue;
+    var host = elt.closest('g[data-id]');
+    if (!host) continue;
+    var id = host.getAttribute('data-id');
+    if (!annotations.some(function (q) { return q.id === id; })) continue;
+    annotations = annotations.filter(function (q) { return q.id !== id; });
+    if (selectedId === id) selectedId = null;
+    if (editModeId === id) editModeId = null;
+    erasing.removed = true;
+    renderOverlay(erasing.page);
+  }
+}
 
 /* ================= Small helpers ================= */
 function $(id) { return document.getElementById(id); }
@@ -691,6 +1076,11 @@ function el(name, attrs) {
 function round2(n) { return Math.round(n * 100) / 100; }
 function newAnnId() { return 'a' + Date.now().toString(36) + (annIdCounter++); }
 function normWord(w) { return (w || '').toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''); }
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
 function formatTs(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
 }
@@ -721,6 +1111,7 @@ function setDirty(v) {
   var label = b.querySelector('.btnLabel');
   if (label) label.textContent = 'Save';
   if (typeof updateKwPanel === 'function') updateKwPanel();
+  if (v && typeof scheduleAutoSave === 'function') scheduleAutoSave();
 }
 
 /* ================= Undo / redo ================= */
@@ -745,6 +1136,7 @@ function redo() {
 function afterHistoryChange() {
   if (selectedId && !annotations.some(function (a) { return a.id === selectedId; })) selectedId = null;
   editingId = null;
+  editModeId = null;
   renderAllOverlays();
   setDirty(true);
 }
@@ -770,9 +1162,12 @@ async function loadPdf(bytes, name) {
   redoStack = [];
   selectedId = null;
   editingId = null;
-  wsMeta = { level: '', date: '' };
+  editModeId = null;
+  wsMeta = { level: '', subject: '', date: '', videoUrl: '', videoPath: '' };
   reviseMode = false;
   revealedKw = {};
+  kwResults = {};
+  kwGuessActive = null;
   $('reviseToggle').checked = false;
   setDirty(false);
 
@@ -818,6 +1213,7 @@ function applyScale() {
     p.wrap.style.width = (p.baseW * scale) + 'px';
     p.wrap.style.height = (p.baseH * scale) + 'px';
     renderPageCanvas(p);
+    renderEditChrome(p); // keep the edit badge aligned after zooming
   });
   updateToolCursor();
 }
@@ -882,7 +1278,7 @@ function renderOverlay(p) {
       svg.appendChild(label);
     });
   }
-  if (selectedId) {
+  if (selectedId && selectedId !== editModeId && selectedId !== editingId) {
     var selAnn = annotations.find(function (a) { return a.id === selectedId; });
     if (selAnn && selAnn.page === p.num) {
       var node = svg.querySelector('[data-id="' + selectedId + '"]');
@@ -896,6 +1292,53 @@ function renderOverlay(p) {
       }
     }
   }
+  renderEditChrome(p);
+}
+
+/* Amber frame + resize handles + floating badge for the annotation in edit mode */
+function renderEditChrome(p) {
+  var oldBadge = p.wrap.querySelector('.editBadge');
+  if (oldBadge) oldBadge.remove();
+  var activeId = editingId || editModeId;
+  if (!activeId) return;
+  var a = annotations.find(function (x) { return x.id === activeId; });
+  if (!a || a.page !== p.num) return;
+  var node = p.svg.querySelector('[data-id="' + activeId + '"]');
+  if (!node) return;
+  var box;
+  try { box = node.getBBox(); } catch (e) { return; }
+
+  if (editModeId === activeId) {
+    p.svg.appendChild(el('rect', {
+      x: box.x - 5, y: box.y - 5, width: box.width + 10, height: box.height + 10,
+      fill: 'none', stroke: '#E8A54B', 'stroke-width': 2, rx: 4, 'pointer-events': 'none'
+    }));
+    var handles = [];
+    if (a.type === 'rect' || a.type === 'ellipse') {
+      handles = [
+        { h: 'nw', x: a.x, y: a.y }, { h: 'ne', x: a.x + a.w, y: a.y },
+        { h: 'sw', x: a.x, y: a.y + a.h }, { h: 'se', x: a.x + a.w, y: a.y + a.h }
+      ];
+    } else if (a.type === 'line' || a.type === 'arrow') {
+      handles = [{ h: 'p1', x: a.x1, y: a.y1 }, { h: 'p2', x: a.x2, y: a.y2 }];
+    }
+    handles.forEach(function (hd) {
+      p.svg.appendChild(el('circle', { cx: hd.x, cy: hd.y, r: 5.5, 'data-handle': hd.h }));
+    });
+  }
+
+  var badge = document.createElement('div');
+  badge.className = 'editBadge';
+  if (editingId === activeId) {
+    badge.textContent = '✏️ Editing text — click outside or press Esc to finish';
+  } else if (a.type === 'pen' || a.type === 'highlight') {
+    badge.textContent = '✏️ Edit mode — drag to move, pick a colour, Esc to finish';
+  } else {
+    badge.textContent = '✏️ Edit mode — drag the handles to resize, Esc to finish';
+  }
+  badge.style.left = Math.max(4, box.x * scale - 5) + 'px';
+  badge.style.top = Math.max(4, box.y * scale - 34) + 'px';
+  p.wrap.appendChild(badge);
 }
 
 function pathFromPoints(pts) {
@@ -987,12 +1430,18 @@ function renderTextContent(div, a) {
     span.setAttribute('data-w', wordIndex);
     var isKw = a.kw && a.kw.indexOf(wordIndex) !== -1;
     if (isKw && reviseMode) {
-      if (revealedKw[normWord(tok)]) {
+      var res = kwResults[a.id + ':' + wordIndex];
+      if (revealedKw[normWord(tok)] || (res && res.correct)) {
         span.textContent = tok;
         span.className = 'kwRevealed';
+      } else if (res && !res.correct) {
+        span.textContent = tok;
+        span.className = 'kwWrong';
+        span.title = 'You wrote “' + res.guess + '” — the correct answer is shown.';
       } else {
         span.textContent = '_'.repeat(Math.max(4, tok.length));
         span.className = 'kwHidden';
+        span.title = 'Click and type the missing keyword';
       }
     } else {
       span.textContent = tok;
@@ -1012,7 +1461,7 @@ function allKeywordWords() {
     var words = (a.text || '').split(/\s+/).filter(function (w) { return w !== ''; });
     a.kw.forEach(function (idx) {
       if (words[idx] !== undefined && normWord(words[idx])) {
-        out.push({ norm: normWord(words[idx]), word: words[idx] });
+        out.push({ norm: normWord(words[idx]), word: words[idx], key: a.id + ':' + idx });
       }
     });
   });
@@ -1042,14 +1491,21 @@ function updateKwPanel() {
     progress.textContent = '';
     return;
   }
-  countEl.textContent = words.length + ' keyword' + (words.length === 1 ? '' : 's') + ' in this worksheet.';
   input.disabled = !reviseMode;
   if (reviseMode) {
-    var found = words.filter(function (w) { return revealedKw[w.norm]; }).length;
+    countEl.textContent = 'Click a grey box on the worksheet and type the missing keyword — it will be marked for you.';
+    var found = words.filter(function (w) {
+      return revealedKw[w.norm] || (kwResults[w.key] && kwResults[w.key].correct);
+    }).length;
+    var wrong = words.filter(function (w) {
+      return kwResults[w.key] && !kwResults[w.key].correct && !revealedKw[w.norm];
+    }).length;
     progress.innerHTML = '<span class="' + (found === words.length ? 'done' : '') + '">' +
-      found + ' / ' + words.length + ' found' +
-      (found === words.length ? ' — well done! 🎉' : '') + '</span>';
+      found + ' / ' + words.length + ' correct' +
+      (found === words.length ? ' — well done! 🎉' : '') + '</span>' +
+      (wrong ? ' · ' + wrong + ' answered wrongly' : '');
   } else {
+    countEl.textContent = words.length + ' keyword' + (words.length === 1 ? '' : 's') + ' in this worksheet.';
     progress.textContent = '';
   }
 }
@@ -1057,10 +1513,18 @@ function updateKwPanel() {
 function setReviseMode(on) {
   reviseMode = on;
   revealedKw = {};
+  kwResults = {};
+  kwGuessActive = null;
+  editingId = null;
+  editModeId = null;
+  selectedId = null;
   $('kwInput').value = '';
   renderAllOverlays();
   updateKwPanel();
-  if (on) setTimeout(function () { $('kwInput').focus(); }, 50);
+  if (on) {
+    reviseHintShown = false;
+    toast('Revise mode on — click a grey keyword box and type your answer.');
+  }
 }
 
 function tryKeyword(guess) {
@@ -1088,13 +1552,207 @@ function tryKeyword(guess) {
   }
 }
 
+/* ---- Click-to-type keyword boxes (revise mode) ---- */
+function startKwGuess(span, p) {
+  if (kwGuessActive) return;
+  var host = span.closest('[data-id]');
+  if (!host) return;
+  var annId = host.getAttribute('data-id');
+  var wordIndex = parseInt(span.getAttribute('data-w'), 10);
+  var a = annotations.find(function (x) { return x.id === annId; });
+  if (!a) return;
+  var words = (a.text || '').split(/\s+/).filter(function (w) { return w !== ''; });
+  var answer = words[wordIndex];
+  if (answer === undefined) return;
+
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'kwGuessInput';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.style.width = Math.max(5, answer.length + 2) + 'ch';
+  span.textContent = '';
+  span.className = 'kwActive';
+  span.removeAttribute('title');
+  span.appendChild(input);
+  kwGuessActive = { span: span, input: input, annId: annId, wordIndex: wordIndex, answer: answer, page: p };
+  setTimeout(function () { input.focus(); }, 0);
+
+  input.addEventListener('keydown', function (ev) {
+    ev.stopPropagation();
+    if (ev.key === 'Enter') { ev.preventDefault(); finishKwGuess(true); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); finishKwGuess(false); }
+  });
+  input.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+  input.addEventListener('blur', function () { finishKwGuess(true); });
+}
+
+function finishKwGuess(submit) {
+  var g = kwGuessActive;
+  if (!g) return;
+  kwGuessActive = null;
+  var guess = g.input.value.trim();
+  if (!submit || !guess) {
+    renderAllOverlays(); // restore the hidden box untouched
+    return;
+  }
+  // Anchor position for the feedback card, captured before re-rendering
+  var spanRect = g.span.getBoundingClientRect();
+  var wrapRect = g.page.wrap.getBoundingClientRect();
+  var anchor = {
+    left: spanRect.left - wrapRect.left,
+    top: spanRect.bottom - wrapRect.top
+  };
+  var correct = normWord(guess) === normWord(g.answer);
+  kwResults[g.annId + ':' + g.wordIndex] = { guess: guess, correct: correct };
+  if (correct) revealedKw[normWord(g.answer)] = true;
+  renderAllOverlays();
+  updateKwPanel();
+  showKwFeedback(g.page, anchor, correct, guess, g.answer);
+}
+
+function showKwFeedback(p, anchor, correct, guess, answer) {
+  var old = p.wrap.querySelector('.kwFeedback');
+  if (old) old.remove();
+  var fb = document.createElement('div');
+  fb.className = 'kwFeedback ' + (correct ? 'ok' : 'bad');
+  if (correct) {
+    fb.innerHTML = '<div class="kwFbTitle">✓ Correct!</div>' +
+      '<div class="kwFbAns">“' + escHtml(answer) + '” — well done.</div>';
+  } else {
+    fb.innerHTML = '<div class="kwFbTitle">✗ Not quite</div>' +
+      '<div class="kwFbAns">You wrote “' + escHtml(guess) + '”.<br>Correct answer: <b>' +
+      escHtml(answer) + '</b></div>';
+  }
+  var wrapW = p.wrap.clientWidth;
+  var wrapH = p.wrap.clientHeight;
+  fb.style.left = Math.max(6, Math.min(anchor.left, wrapW - 290)) + 'px';
+  fb.style.top = Math.max(6, Math.min(anchor.top + 8, wrapH - 90)) + 'px';
+  p.wrap.appendChild(fb);
+  setTimeout(function () { fb.style.opacity = '0'; }, correct ? 2200 : 4200);
+  setTimeout(function () { fb.remove(); }, correct ? 2700 : 4700);
+}
+
 /* ================= Worksheet sidebar ================= */
 function renderSidebar() {
-  $('wsLevel').textContent = wsMeta.level ? wsMeta.level : 'Level —';
+  $('wsLevel').textContent =
+    (wsMeta.level ? wsMeta.level : 'Level —') + (wsMeta.subject ? ' · ' + subjectLabel(wsMeta.subject) : '');
   $('wsName').textContent = docName || 'No worksheet loaded';
   $('wsDay').textContent = dayFromISO(wsMeta.date);
   $('wsDate').textContent = prettyDate(wsMeta.date);
   updateKwPanel();
+  renderVideoCard();
+}
+
+/* ---- Lesson recording (video) attached to the worksheet ---- */
+function renderVideoCard() {
+  var has = !!wsMeta.videoUrl;
+  $('videoNone').style.display = has ? 'none' : 'block';
+  var watch = $('videoWatchBtn');
+  watch.style.display = has ? 'inline-flex' : 'none';
+  if (has) watch.href = wsMeta.videoUrl;
+  var admin = isAdmin(currentUser);
+  $('videoAdmin').style.display = admin ? 'block' : 'none';
+  if (admin) {
+    $('videoRemoveBtn').style.display = has ? 'inline-flex' : 'none';
+    $('videoUrlInput').value = wsMeta.videoUrl || '';
+  }
+}
+
+/* Turn a pasted share link into something embeddable in the app.
+   Dropbox links are rewritten to their direct-stream host, Drive links to
+   the /preview player, YouTube links to the embed player. */
+function videoEmbedInfo(url) {
+  var m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{6,})/i);
+  if (m) return { kind: 'iframe', src: 'https://www.youtube.com/embed/' + m[1] };
+  m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]+)/i);
+  if (m) return { kind: 'iframe', src: 'https://drive.google.com/file/d/' + m[1] + '/preview' };
+  if (/^https?:\/\/(www\.)?dropbox\.com\//i.test(url)) {
+    var src = url
+      .replace(/^https?:\/\/(www\.)?dropbox\.com/i, 'https://dl.dropboxusercontent.com')
+      .replace(/([?&])(dl|raw)=\d+/g, '$1')
+      .replace(/[?&]+$/, '')
+      .replace(/\?&/, '?');
+    return { kind: 'video', src: src };
+  }
+  if (/\.(mp4|m4v|webm|mov)($|\?)/i.test(url)) return { kind: 'video', src: url };
+  return { kind: 'link', src: url };
+}
+
+function openVideoModal() {
+  if (!wsMeta.videoUrl) return;
+  var info = videoEmbedInfo(wsMeta.videoUrl);
+  if (info.kind === 'link') {
+    // Nothing we can embed — just open the link itself.
+    window.open(wsMeta.videoUrl, '_blank', 'noopener');
+    return;
+  }
+  var body = $('videoBody');
+  body.innerHTML = '';
+  if (info.kind === 'iframe') {
+    var fr = document.createElement('iframe');
+    fr.src = info.src;
+    fr.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+    fr.allowFullscreen = true;
+    body.appendChild(fr);
+  } else {
+    var vid = document.createElement('video');
+    vid.src = info.src;
+    vid.controls = true;
+    vid.playsInline = true;
+    vid.preload = 'metadata';
+    body.appendChild(vid);
+  }
+  $('videoOpenTab').href = wsMeta.videoUrl;
+  $('videoModal').classList.add('open');
+}
+
+function closeVideoModal() {
+  $('videoModal').classList.remove('open');
+  $('videoBody').innerHTML = ''; // stops playback
+}
+
+async function persistVideoMeta() {
+  renderVideoCard();
+  if (!currentDocId || !isAdmin(currentUser)) return; // saved with the worksheet later
+  await db.collection(COLLECTION).doc(currentDocId).set({
+    videoUrl: wsMeta.videoUrl || '',
+    videoPath: wsMeta.videoPath || '',
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
+async function attachVideoLink() {
+  var url = $('videoUrlInput').value.trim();
+  if (!url) { toast('Paste a video link first.'); return; }
+  if (!/^https?:\/\//i.test(url)) { toast('That does not look like a link — it should start with http(s)://'); return; }
+  wsMeta.videoUrl = url;
+  wsMeta.videoPath = '';
+  try {
+    await persistVideoMeta();
+    var embeddable = videoEmbedInfo(url).kind !== 'link';
+    var note = embeddable ? '' : ' (this link type opens in a new tab rather than playing in the app)';
+    toast((currentDocId
+      ? 'Recording link attached.'
+      : 'Recording link added — it will be stored when you save the worksheet.') + note, embeddable ? 2600 : 5000);
+  } catch (e) {
+    toast('Could not attach the link: ' + (e.message || e));
+  }
+}
+
+async function removeVideo() {
+  if (!wsMeta.videoUrl) return;
+  if (!window.confirm('Remove the recording from this worksheet?')) return;
+  var oldPath = wsMeta.videoPath;
+  wsMeta.videoUrl = '';
+  wsMeta.videoPath = '';
+  try {
+    await persistVideoMeta();
+    if (oldPath) { try { await storage.ref(oldPath).delete(); } catch (e) { /* already gone */ } }
+    toast('Recording removed.');
+  } catch (e) {
+    toast('Could not remove: ' + (e.message || e));
+  }
 }
 
 /* ================= Pointer interaction ================= */
@@ -1108,7 +1766,7 @@ function eventPoint(e, p) {
 
 function setTool(t) {
   tool = t;
-  if (t !== 'select') { selectedId = null; renderAllOverlays(); }
+  if (t !== 'select') { selectedId = null; editModeId = null; renderAllOverlays(); }
   if (t === 'highlight' && strokeW < 10) { strokeW = 12; $('strokeSelect').value = '12'; }
   if (t === 'highlight' && (color === '#1A1A1A' || color === '#E53935' || color === '#1E88E5' || color === '#43A047')) {
     setColor('#FFEB3B');
@@ -1124,6 +1782,7 @@ function updateToolCursor() {
     p.svg.classList.toggle('selectMode', tool === 'select' || tool === 'keyword');
     p.svg.classList.toggle('textMode', tool === 'text');
     p.svg.classList.toggle('kwMode', tool === 'keyword');
+    p.svg.classList.toggle('eraserMode', tool === 'eraser');
   });
 }
 
@@ -1151,7 +1810,58 @@ function attachOverlayHandlers(p) {
   svg.addEventListener('pointerdown', function (e) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     if (editingId) return; // let the text box handle it
+
+    /* ---- Palm rejection ---- */
+    // First time an Apple Pencil touches down, switch on pencil-only mode
+    // so a resting palm can never draw or scroll away the student's work.
+    if (e.pointerType === 'pen' && !pencilSeen) {
+      pencilSeen = true;
+      if (!stylusOnly) setStylusOnly(true);
+    }
+    // A palm-sized contact patch never starts anything.
+    if (isPalmTouch(e)) { e.preventDefault(); return; }
+    // While one pointer is drawing/dragging, every extra touch (palm,
+    // stray finger) is swallowed instead of hijacking the gesture.
+    if (activePointerId !== null && e.pointerId !== activePointerId) { e.preventDefault(); return; }
+    // Touches claimed by the navigation engine (finger pan, two-finger
+    // pan / pinch-zoom) never reach the drawing tools.
+    if (e.pointerType === 'touch' && nav.mode) { e.preventDefault(); return; }
+    // In pencil-only mode a finger on a drawing tool pans the page instead
+    // of drawing — the Pencil remains the only thing that makes marks.
+    if (stylusOnly && e.pointerType === 'touch' && isDrawTool(tool) && !reviseMode) return;
+
     var pt = eventPoint(e, p);
+
+    if (reviseMode) {
+      // Students answer keyword boxes; drawing is paused while revising.
+      if (kwGuessActive) return; // the input's blur handles submission
+      var kwSpan = e.target.closest ? e.target.closest('span.kwHidden') : null;
+      if (kwSpan) {
+        e.preventDefault();
+        startKwGuess(kwSpan, p);
+      } else if (!reviseHintShown) {
+        reviseHintShown = true;
+        toast('Revise mode is on — click a grey keyword box to answer. Turn revise mode off to draw.');
+      }
+      return;
+    }
+
+    if (tool === 'select' && editModeId && e.target.getAttribute && e.target.getAttribute('data-handle')) {
+      resizingSel = { id: editModeId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false };
+      activePointerId = e.pointerId;
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+
+    if (tool === 'eraser') {
+      e.preventDefault();
+      erasing = { page: p, snap: snapshot(), removed: false, lastX: e.clientX, lastY: e.clientY };
+      activePointerId = e.pointerId;
+      svg.setPointerCapture(e.pointerId);
+      eraseAlong(e.clientX, e.clientY, e.clientX, e.clientY);
+      return;
+    }
 
     if (tool === 'keyword') {
       var span = e.target.closest ? e.target.closest('span[data-w]') : null;
@@ -1170,18 +1880,32 @@ function attachOverlayHandlers(p) {
       var target = e.target.closest ? e.target.closest('[data-id]') : null;
       if (target) {
         var id = target.getAttribute('data-id');
+        // Manual double-click / double-tap detection: pointer capture stops the
+        // browser from reliably firing dblclick on the overlay.
+        var nowTap = Date.now();
+        if (lastTap.id === id && nowTap - lastTap.t < 450) {
+          lastTap = { id: null, t: 0 };
+          e.preventDefault();
+          enterEditMode(id, p);
+          return;
+        }
+        lastTap = { id: id, t: nowTap };
         selectedId = id;
-        renderOverlay(p);
+        if (editModeId && editModeId !== id) editModeId = null;
+        renderAllOverlays();
         var node = svg.querySelector('[data-id="' + id + '"]');
         draggingSel = { id: id, startX: pt.x, startY: pt.y, node: node, page: p, snapshot: snapshot(), moved: false };
+        activePointerId = e.pointerId;
         svg.setPointerCapture(e.pointerId);
       } else {
-        if (selectedId) { selectedId = null; renderAllOverlays(); }
+        lastTap = { id: null, t: 0 };
+        if (selectedId || editModeId) { selectedId = null; editModeId = null; renderAllOverlays(); }
       }
       return;
     }
 
     e.preventDefault();
+    activePointerId = e.pointerId;
     svg.setPointerCapture(e.pointerId);
     var ann;
     var now = Date.now();
@@ -1195,11 +1919,30 @@ function attachOverlayHandlers(p) {
       drawing = { ann: { id: newAnnId(), page: p.num, type: 'text', color: color, fontSize: fontSize, x: pt.x, y: pt.y, w: 220, h: fontSize * 1.9, text: '', kw: [], ts: now }, page: p, isText: true };
       return;
     }
-    drawing = { ann: ann, page: p, svgNode: null };
+    drawing = { ann: ann, page: p, svgNode: null, ptrType: e.pointerType, startT: e.timeStamp };
     redrawTemp();
   });
 
   svg.addEventListener('pointermove', function (e) {
+    // Only the pointer that started the gesture may continue it — a palm
+    // or second finger moving on the page is ignored completely.
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    if (erasing && erasing.page === p) {
+      eraseAlong(erasing.lastX, erasing.lastY, e.clientX, e.clientY);
+      erasing.lastX = e.clientX;
+      erasing.lastY = e.clientY;
+      return;
+    }
+    if (resizingSel && resizingSel.page === p) {
+      var rpt = eventPoint(e, p);
+      var ra = annotations.find(function (x) { return x.id === resizingSel.id; });
+      if (ra) {
+        applyHandle(ra, resizingSel.handle, rpt);
+        resizingSel.moved = true;
+        renderOverlay(p);
+      }
+      return;
+    }
     if (draggingSel && draggingSel.page === p) {
       var pt = eventPoint(e, p);
       var dx = pt.x - draggingSel.startX;
@@ -1224,6 +1967,23 @@ function attachOverlayHandlers(p) {
   });
 
   function finishPointer(e) {
+    // A palm or stray finger lifting off must not end the real gesture.
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    activePointerId = null;
+    if (erasing && erasing.page === p) {
+      if (erasing.removed) { pushUndo(erasing.snap); setDirty(true); }
+      erasing = null;
+      return;
+    }
+    if (resizingSel && resizingSel.page === p) {
+      if (resizingSel.moved) {
+        pushUndo(resizingSel.snapshot);
+        setDirty(true);
+      }
+      resizingSel = null;
+      renderOverlay(p);
+      return;
+    }
     if (draggingSel && draggingSel.page === p) {
       var pt = eventPoint(e, p);
       var dx = round2(pt.x - draggingSel.startX);
@@ -1266,22 +2026,66 @@ function attachOverlayHandlers(p) {
     renderOverlay(p);
   }
   svg.addEventListener('pointerup', finishPointer);
-  svg.addEventListener('pointercancel', function () { drawing = null; draggingSel = null; renderOverlay(p); });
 
-  /* Double-click a text annotation (any tool except keyword-marking) to edit it */
+  /* When iPadOS interrupts a gesture (palm triggered a system scroll,
+     multitasking swipe, etc.) the browser fires pointercancel. Previously
+     that threw the in-progress stroke away — now the work is kept. */
+  svg.addEventListener('pointercancel', function (e) {
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    if (erasing && erasing.page === p) {
+      if (erasing.removed) { pushUndo(erasing.snap); setDirty(true); }
+      erasing = null;
+      activePointerId = null;
+      return;
+    }
+    if (drawing && drawing.page === p && !drawing.isText) {
+      // Commit whatever was drawn so far instead of cancelling the workings.
+      finishPointer(e);
+      return;
+    }
+    activePointerId = null;
+    drawing = null;
+    if (draggingSel && draggingSel.page === p) draggingSel = null;
+    if (resizingSel && resizingSel.page === p) resizingSel = null;
+    renderOverlay(p);
+  });
+
+  /* Belt-and-braces for iOS Safari: even with touch-action:none some
+     versions still try to scroll/zoom from a palm resting on the page. */
+  svg.addEventListener('touchmove', function (e) {
+    if (editingId || kwGuessActive) return;
+    e.preventDefault();
+  }, { passive: false });
+
+  /* Fallback for tools other than select — double-click detection in the
+     select branch above is the primary path (dblclick doesn't fire reliably
+     once the overlay takes pointer capture). */
   svg.addEventListener('dblclick', function (e) {
-    if (tool === 'keyword') return;
+    if (tool === 'keyword' || reviseMode) return;
     var target = e.target.closest ? e.target.closest('[data-id]') : null;
     if (!target) return;
-    var id = target.getAttribute('data-id');
-    var a = annotations.find(function (x) { return x.id === id; });
-    if (a && a.type === 'text') {
-      selectedId = id;
-      editingId = id;
-      renderOverlay(p);
-      focusTextAnn(p, id);
-    }
+    enterEditMode(target.getAttribute('data-id'), p);
   });
+}
+
+/* Put an annotation into edit mode: text boxes open for typing, shapes and
+   lines get resize handles, strokes can be moved or recoloured. */
+function enterEditMode(id, p) {
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a) return;
+  if (editingId === id || editModeId === id) return; // already editing
+  selectedId = id;
+  if (a.type === 'text') {
+    editingId = id;
+    editModeId = null;
+    renderAllOverlays();
+    focusTextAnn(p, id);
+  } else {
+    if (tool !== 'select') setTool('select');
+    editModeId = id;
+    editingId = null;
+    renderAllOverlays();
+  }
 }
 
 function redrawTemp() {
@@ -1291,6 +2095,24 @@ function redrawTemp() {
   drawing.svgNode = annNode(drawing.ann);
   drawing.svgNode.setAttribute('pointer-events', 'none');
   p.svg.appendChild(drawing.svgNode);
+}
+
+/* Resize an annotation by dragging one of its edit handles */
+function applyHandle(a, h, pt) {
+  if (a.type === 'line' || a.type === 'arrow') {
+    if (h === 'p1') { a.x1 = pt.x; a.y1 = pt.y; }
+    else { a.x2 = pt.x; a.y2 = pt.y; }
+    return;
+  }
+  if (a.type === 'rect' || a.type === 'ellipse') {
+    // The corner opposite the dragged handle stays fixed.
+    var fx = (h === 'nw' || h === 'sw') ? a.x + a.w : a.x;
+    var fy = (h === 'nw' || h === 'ne') ? a.y + a.h : a.y;
+    a.x = round2(Math.min(fx, pt.x));
+    a.y = round2(Math.min(fy, pt.y));
+    a.w = round2(Math.max(3, Math.abs(pt.x - fx)));
+    a.h = round2(Math.max(3, Math.abs(pt.y - fy)));
+  }
 }
 
 function translateAnn(a, dx, dy) {
@@ -1344,6 +2166,7 @@ function deleteSelected() {
   pushUndo();
   annotations = annotations.filter(function (a) { return a.id !== selectedId; });
   selectedId = null;
+  editModeId = null;
   renderAllOverlays();
   setDirty(true);
 }
@@ -1377,10 +2200,23 @@ function renderAuthArea() {
   info.className = 'authInfo';
   var name = document.createElement('div');
   name.className = 'authName';
-  name.textContent = currentUser.displayName || currentUser.email;
+  // The teacher's real name / email stays private — students only see the
+  // classroom name.
+  name.textContent = isAdmin(currentUser)
+    ? ADMIN_DISPLAY_NAME
+    : (studentProfile && studentProfile.name) || currentUser.displayName || currentUser.email;
   var role = document.createElement('div');
   role.className = 'authRole' + (isAdmin(currentUser) ? ' isAdmin' : '');
-  role.textContent = isAdmin(currentUser) ? '● Admin — cloud saving on' : 'View only — saving disabled';
+  if (isAdmin(currentUser)) {
+    role.textContent = '● Admin — cloud saving on';
+  } else if (studentProfile) {
+    role.textContent = studentProfile.level + ' · ' + subjectLabel(studentProfile.subject);
+    info.classList.add('clickable');
+    info.title = 'Tap to edit your profile';
+    info.addEventListener('click', function () { openProfileModal(false); });
+  } else {
+    role.textContent = 'Setting up your profile…';
+  }
   info.appendChild(name);
   info.appendChild(role);
   area.appendChild(info);
@@ -1401,8 +2237,112 @@ function renderAuthArea() {
 
 auth.onAuthStateChanged(function (user) {
   currentUser = user;
+  studentProfile = null;
   renderAuthArea();
+  renderVideoCard(); // admin controls appear/disappear with the auth state
+  if (user && !isAdmin(user)) {
+    // Students: fetch their profile, and ask for it on their very first login.
+    loadStudentProfile(user).then(function () {
+      renderAuthArea();
+      if (!studentProfile) openProfileModal(true);
+      if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+    });
+  } else {
+    // Refresh the questions drawer for the new auth state if it is open
+    if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+  }
 });
+
+/* ================= Student profile (first Google login) =================
+   Students are asked for their name, level (P3–P6), subject and class day(s)
+   the first time they sign in. The profile lives in Firestore keyed by their
+   Google account uid, and drives which worksheets/videos they see. */
+async function loadStudentProfile(user) {
+  try {
+    var snap = await db.collection(PROFILES_COLLECTION).doc(user.uid).get();
+    studentProfile = snap.exists ? snap.data() : null;
+  } catch (e) {
+    console.error('Could not load student profile', e);
+    studentProfile = null;
+  }
+}
+
+var profilePick = { level: '', subject: '', days: [] };
+
+function refreshProfileChips() {
+  document.querySelectorAll('#profileLevelRow .pickChip').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-level') === profilePick.level);
+  });
+  document.querySelectorAll('#profileSubjectRow .pickChip').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-subject') === profilePick.subject);
+  });
+  document.querySelectorAll('#profileDayRow .pickChip').forEach(function (b) {
+    b.classList.toggle('active', profilePick.days.indexOf(b.getAttribute('data-day')) !== -1);
+  });
+}
+
+function openProfileModal(firstTime) {
+  var p = studentProfile || {};
+  $('profileNameInput').value = p.name || (currentUser && currentUser.displayName) || '';
+  profilePick = { level: p.level || '', subject: p.subject || '', days: (p.days || []).slice() };
+  refreshProfileChips();
+  $('profileTitle').textContent = firstTime ? 'Welcome to Polymath! 👋' : 'Your profile';
+  $('profileIntro').style.display = firstTime ? 'block' : 'none';
+  // First-time setup must be completed; editing later can be dismissed.
+  $('profileCloseBtn').style.display = firstTime ? 'none' : 'block';
+  $('profileSaveBtn').textContent = firstTime ? "Let's go!" : 'Save changes';
+  $('profileModal').classList.add('open');
+  if (firstTime) setTimeout(function () { $('profileNameInput').focus(); }, 50);
+}
+
+async function saveStudentProfile() {
+  if (!currentUser) return;
+  var name = $('profileNameInput').value.trim();
+  if (!name) { toast('Please type your name.'); $('profileNameInput').focus(); return; }
+  if (!profilePick.level) { toast('Please choose your level (P3–P6).'); return; }
+  if (!profilePick.subject) { toast('Please choose your subject.'); return; }
+  var btn = $('profileSaveBtn');
+  btn.disabled = true;
+  try {
+    var payload = {
+      name: name,
+      level: profilePick.level,
+      subject: profilePick.subject,
+      days: profilePick.days,
+      email: currentUser.email || '',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if (!studentProfile) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection(PROFILES_COLLECTION).doc(currentUser.uid).set(payload, { merge: true });
+    studentProfile = payload;
+    $('profileModal').classList.remove('open');
+    renderAuthArea();
+    if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+    toast('Welcome, ' + name + '! Showing ' + profilePick.level + ' ' +
+      subjectLabel(profilePick.subject) + ' worksheets.');
+  } catch (e) {
+    console.error(e);
+    toast('Could not save your profile: ' + (e.message || e));
+  }
+  btn.disabled = false;
+}
+
+/* ---- Which worksheets can this signed-in user see? ---- */
+function canSeeDoc(d) {
+  if (!currentUser || isAdmin(currentUser)) return true;
+  if (!studentProfile) return false; // profile not set up yet
+  // Worksheets saved before levels/subjects existed stay visible to everyone.
+  if (d.level && d.level !== studentProfile.level) return false;
+  if (d.subject && d.subject !== 'both' &&
+      studentProfile.subject !== 'both' && d.subject !== studentProfile.subject) return false;
+  return true;
+}
+
+/* 0 = worksheet falls on one of the student's class days (shown first). */
+function dayPriority(d) {
+  if (!studentProfile || !studentProfile.days || !studentProfile.days.length) return 0;
+  return d.wsDay && studentProfile.days.indexOf(d.wsDay) !== -1 ? 0 : 1;
+}
 
 /* ================= Cloud save / load ================= */
 async function saveDoc() {
@@ -1413,13 +2353,14 @@ async function saveDoc() {
     if (!currentUser) return;
   }
   if (!isAdmin(currentUser)) {
-    toast('Only ' + ADMIN_EMAIL + ' can save to the cloud.');
+    toast('Only the teacher can save to the cloud.');
     return;
   }
   // Every save runs through the worksheet-details dialog so the name,
-  // level and date can be adjusted each time.
+  // level, subject and date can be adjusted each time.
   $('saveNameInput').value = docName || '';
-  $('saveLevelInput').value = wsMeta.level || '';
+  setSelectValue($('saveLevelInput'), wsMeta.level || '');
+  setSelectValue($('saveSubjectInput'), wsMeta.subject || '');
   $('saveDateInput').value = wsMeta.date || new Date().toISOString().slice(0, 10);
   updateSaveDayPreview();
   $('saveModal').classList.add('open');
@@ -1431,11 +2372,27 @@ function updateSaveDayPreview() {
   $('saveDayPreview').textContent = day ? day : '';
 }
 
+/* Select the given value, adding it as an extra option if it is not one of
+   the standard choices (worksheets saved before the dropdowns existed). */
+function setSelectValue(sel, value) {
+  sel.value = value;
+  if (value && sel.value !== value) {
+    var opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value;
+    sel.appendChild(opt);
+    sel.value = value;
+  }
+}
+
 async function performSave() {
   var btn = $('saveBtn');
   var label = btn.querySelector('.btnLabel');
+  if (!$('saveLevelInput').value) { toast('Choose the level this worksheet is for.'); return; }
+  if (!$('saveSubjectInput').value) { toast('Choose the subject this worksheet is for.'); return; }
   docName = $('saveNameInput').value.trim() || docName || 'Untitled';
   wsMeta.level = $('saveLevelInput').value.trim();
+  wsMeta.subject = $('saveSubjectInput').value;
   wsMeta.date = $('saveDateInput').value;
   $('saveModal').classList.remove('open');
   renderSidebar();
@@ -1451,11 +2408,14 @@ async function performSave() {
     var payload = {
       name: docName,
       level: wsMeta.level,
+      subject: wsMeta.subject || '',
       wsDate: wsMeta.date,
       wsDay: dayFromISO(wsMeta.date),
       ownerUid: currentUser.uid,
       ownerEmail: currentUser.email,
       storagePath: STORAGE_DIR + '/' + currentDocId + '.pdf',
+      videoUrl: wsMeta.videoUrl || '',
+      videoPath: wsMeta.videoPath || '',
       pageCount: pdfDoc.numPages,
       annotations: JSON.stringify(annotations),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1465,7 +2425,9 @@ async function performSave() {
     dirty = false;
     btn.classList.add('btnSaved');
     if (label) label.textContent = '✓ Saved';
-    toast('Saved “' + docName + '” to the cloud.');
+    toast(isNew
+      ? 'Saved “' + docName + '” — auto-save is now on for this worksheet.'
+      : 'Saved “' + docName + '” to the cloud.');
   } catch (e) {
     console.error(e);
     toast('Save failed: ' + (e.message || e));
@@ -1474,23 +2436,92 @@ async function performSave() {
   btn.disabled = false;
 }
 
+/* ================= Auto-save =================
+   After the worksheet has been saved once (so it has a name and a cloud id),
+   every later change is saved automatically: a lightweight Firestore write of
+   just the annotations, debounced a few seconds after the last edit so the
+   app never stutters mid-stroke. The page being hidden or closed flushes any
+   pending save immediately. */
+var AUTOSAVE_DELAY = 4000;
+var autoSaveTimer = null;
+var autoSaveInFlight = false;
+var autoSaveQueued = false;
+
+function canAutoSave() {
+  return !!currentDocId && isAdmin(currentUser);
+}
+
+function scheduleAutoSave() {
+  if (!canAutoSave()) return;
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(autoSave, AUTOSAVE_DELAY);
+}
+
+async function autoSave() {
+  clearTimeout(autoSaveTimer);
+  if (!canAutoSave() || !dirty) return;
+  if (autoSaveInFlight) { autoSaveQueued = true; return; }
+  autoSaveInFlight = true;
+  try {
+    await db.collection(COLLECTION).doc(currentDocId).set({
+      annotations: JSON.stringify(annotations),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    dirty = false;
+    var btn = $('saveBtn');
+    btn.classList.add('btnSaved');
+    var label = btn.querySelector('.btnLabel');
+    if (label) label.textContent = '✓ Saved';
+  } catch (e) {
+    // Quietly retry later — the annotations are still in memory and the
+    // manual Save button always remains available.
+    console.error('Auto-save failed', e);
+    scheduleAutoSave();
+  }
+  autoSaveInFlight = false;
+  if (autoSaveQueued) { autoSaveQueued = false; if (dirty) scheduleAutoSave(); }
+}
+
+// Closing the tab, switching apps on the iPad, or locking the screen all
+// fire one of these — flush the pending save right away.
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'hidden') autoSave();
+});
+window.addEventListener('pagehide', function () { autoSave(); });
+
 async function openDocsModal() {
   if (!currentUser) {
     toast('Sign in with Google to see your saved PDFs.');
     await signIn();
     if (!currentUser) return;
   }
+  if (!isAdmin(currentUser) && !studentProfile) {
+    await loadStudentProfile(currentUser); // may still be in flight right after sign-in
+    renderAuthArea();
+    if (!studentProfile) { openProfileModal(true); return; }
+  }
   $('docsModal').classList.add('open');
   var list = $('docsList');
   list.innerHTML = '<div class="docsEmpty">Loading…</div>';
   try {
     var snap = await db.collection(COLLECTION).orderBy('updatedAt', 'desc').limit(60).get();
+    var docs = [];
+    snap.forEach(function (docSnap) {
+      if (canSeeDoc(docSnap.data())) docs.push(docSnap);
+    });
+    // Students see the worksheets from their own class day(s) first.
+    if (!isAdmin(currentUser)) {
+      docs.sort(function (a, b) { return dayPriority(a.data()) - dayPriority(b.data()); });
+    }
     list.innerHTML = '';
-    if (snap.empty) {
-      list.innerHTML = '<div class="docsEmpty">No saved PDFs yet. Open a PDF, annotate it and press Save.</div>';
+    if (!docs.length) {
+      list.innerHTML = isAdmin(currentUser) || !studentProfile
+        ? '<div class="docsEmpty">No saved PDFs yet. Open a PDF, annotate it and press Save.</div>'
+        : '<div class="docsEmpty">No worksheets for ' + escHtml(studentProfile.level) + ' ' +
+          escHtml(subjectLabel(studentProfile.subject)) + ' yet — check back after your next lesson!</div>';
       return;
     }
-    snap.forEach(function (docSnap) {
+    docs.forEach(function (docSnap) {
       var d = docSnap.data();
       var row = document.createElement('div');
       row.className = 'docRow';
@@ -1504,6 +2535,7 @@ async function openDocsModal() {
       var when = d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate().toLocaleString() : '';
       var bits = [];
       if (d.level) bits.push(d.level);
+      if (d.subject) bits.push(subjectLabel(d.subject));
       if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ' ' : '') + prettyDate(d.wsDate));
       bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
       if (when) bits.push('saved ' + when);
@@ -1536,13 +2568,25 @@ async function openSavedDoc(id, data) {
   toast('Opening “' + (data.name || 'Untitled') + '”…');
   try {
     var url = await storage.ref(data.storagePath).getDownloadURL();
-    var resp = await fetch(url);
+    var resp;
+    try {
+      resp = await fetch(url);
+    } catch (netErr) {
+      // fetch() only throws before an HTTP status exists: the browser blocked
+      // the cross-origin download (storage bucket missing its one-time CORS
+      // setup — see README.md) or the connection dropped.
+      throw new Error('the browser blocked the PDF download. This usually means the storage bucket still needs its one-time CORS setup (see README.md in the repo), or the network dropped.');
+    }
+    if (!resp.ok) throw new Error('download failed (HTTP ' + resp.status + '). The file may have been deleted or access was denied.');
     var buf = await resp.arrayBuffer();
     await loadPdf(new Uint8Array(buf), data.name || 'Untitled');
     annotations = JSON.parse(data.annotations || '[]');
     currentDocId = id;
     wsMeta.level = data.level || '';
+    wsMeta.subject = data.subject || '';
     wsMeta.date = data.wsDate || '';
+    wsMeta.videoUrl = data.videoUrl || '';
+    wsMeta.videoPath = data.videoPath || '';
     setDirty(false);
     renderAllOverlays();
     renderSidebar();
@@ -1550,6 +2594,110 @@ async function openSavedDoc(id, data) {
     console.error(e);
     toast('Could not open: ' + (e.message || e));
   }
+}
+
+/* ================= Questions drawer (burger menu) =================
+   A collapsible left column listing every saved question in chronological
+   order (by worksheet date, oldest first). Students and admin both see it —
+   any signed-in user can browse and open a question. */
+function toggleQuestionsDrawer() {
+  var open = $('qDrawer').classList.toggle('open');
+  $('burgerBtn').classList.toggle('active', open);
+  if (open) loadQuestionsList();
+}
+
+function questionSortTime(d) {
+  // Chronological key: the worksheet date if set, otherwise when it was created.
+  if (d.wsDate) {
+    var t = new Date(d.wsDate + 'T00:00:00').getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (d.createdAt && d.createdAt.toDate) return d.createdAt.toDate().getTime();
+  if (d.updatedAt && d.updatedAt.toDate) return d.updatedAt.toDate().getTime();
+  return Infinity; // undated items sink to the bottom
+}
+
+async function loadQuestionsList() {
+  var list = $('qList');
+  if (!currentUser) {
+    list.innerHTML = '<div class="qEmpty">Sign in with Google to see the questions.</div>';
+    await signIn();
+    if (!currentUser) return;
+  }
+  if (!isAdmin(currentUser) && !studentProfile) {
+    await loadStudentProfile(currentUser); // may still be in flight right after sign-in
+    renderAuthArea();
+    if (!studentProfile) {
+      list.innerHTML = '<div class="qEmpty">Finish setting up your profile to see your questions.</div>';
+      openProfileModal(true);
+      return;
+    }
+  }
+  list.innerHTML = '<div class="qEmpty">Loading questions…</div>';
+  try {
+    var snap = await db.collection(COLLECTION).limit(500).get();
+    var docs = [];
+    snap.forEach(function (docSnap) {
+      if (canSeeDoc(docSnap.data())) docs.push({ id: docSnap.id, data: docSnap.data() });
+    });
+    // Chronological, but a student's own class day(s) always float to the top.
+    docs.sort(function (a, b) {
+      var dp = dayPriority(a.data) - dayPriority(b.data);
+      if (dp && !isAdmin(currentUser)) return dp;
+      return questionSortTime(a.data) - questionSortTime(b.data);
+    });
+    list.innerHTML = '';
+    if (!docs.length) {
+      list.innerHTML = isAdmin(currentUser)
+        ? '<div class="qEmpty">No questions saved yet.<br>Open a PDF, annotate it and press Save.</div>'
+        : '<div class="qEmpty">No questions for ' + escHtml(studentProfile.level) + ' ' +
+          escHtml(subjectLabel(studentProfile.subject)) + ' yet — check back after your next lesson!</div>';
+      $('qDrawerSub').textContent = 'All saved questions, oldest first.';
+      return;
+    }
+    var hasDayPref = !isAdmin(currentUser) && studentProfile.days && studentProfile.days.length;
+    $('qDrawerSub').textContent = docs.length + ' question' + (docs.length === 1 ? '' : 's') +
+      (hasDayPref ? ' · your class day first' : ' · oldest first');
+    docs.forEach(function (item) {
+      var d = item.data;
+      var btn = document.createElement('button');
+      btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '');
+      btn.setAttribute('data-qid', item.id);
+      var nm = document.createElement('div');
+      nm.className = 'qItemName';
+      nm.textContent = d.name || 'Untitled';
+      var meta = document.createElement('div');
+      meta.className = 'qItemMeta';
+      if (d.level) {
+        var lvl = document.createElement('span');
+        lvl.className = 'qItemLevel';
+        lvl.textContent = d.level;
+        meta.appendChild(lvl);
+      }
+      var bits = [];
+      if (d.subject) bits.push(subjectLabel(d.subject));
+      if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ', ' : '') + prettyDate(d.wsDate));
+      bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
+      if (d.videoUrl) bits.push('🎬 recording');
+      meta.appendChild(document.createTextNode(bits.join(' · ')));
+      btn.appendChild(nm);
+      btn.appendChild(meta);
+      btn.addEventListener('click', function () {
+        openSavedDoc(item.id, d).then(markActiveQuestion);
+        if (window.innerWidth <= 640) toggleQuestionsDrawer();
+      });
+      list.appendChild(btn);
+    });
+  } catch (e) {
+    console.error(e);
+    list.innerHTML = '<div class="qEmpty">Could not load questions: ' + escHtml(e.message || String(e)) + '</div>';
+  }
+}
+
+function markActiveQuestion() {
+  document.querySelectorAll('#qList .qItem').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-qid') === currentDocId);
+  });
 }
 
 async function deleteSavedDoc(id, data, rowEl) {
@@ -1572,18 +2720,37 @@ function hexToRgb01(hex) {
   return { r: ((v >> 16) & 255) / 255, g: ((v >> 8) & 255) / 255, b: (v & 255) / 255 };
 }
 
-async function downloadAnnotated() {
-  if (!pdfDoc) { toast('Open a PDF first.'); return; }
-  var btn = $('downloadBtn');
-  btn.disabled = true;
-  toast('Preparing PDF…');
-  try {
-    var PDFDocument = PDFLib.PDFDocument;
-    var rgb = PDFLib.rgb;
-    var StandardFonts = PDFLib.StandardFonts;
-    var LineCapStyle = PDFLib.LineCapStyle;
-    var outDoc = await PDFDocument.load(pdfBytes);
-    var font = await outDoc.embedFont(StandardFonts.Helvetica);
+/* Overall bounding box of an annotation in base (scale-1) page coordinates,
+   used to place its timestamp label in exported PDFs. */
+function annBBox(a) {
+  if (a.points && a.points.length) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    a.points.forEach(function (q) {
+      if (q.x < minX) minX = q.x;
+      if (q.y < minY) minY = q.y;
+      if (q.x > maxX) maxX = q.x;
+      if (q.y > maxY) maxY = q.y;
+    });
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+  if (a.x1 !== undefined) {
+    return {
+      x: Math.min(a.x1, a.x2), y: Math.min(a.y1, a.y2),
+      w: Math.abs(a.x2 - a.x1), h: Math.abs(a.y2 - a.y1)
+    };
+  }
+  return { x: a.x || 0, y: a.y || 0, w: a.w || 0, h: a.h || 0 };
+}
+
+/* Bake the annotations (and, optionally, their timestamps) into a copy of
+   the PDF. Shared by Download and Print. */
+async function buildAnnotatedPdf(includeTs) {
+  var PDFDocument = PDFLib.PDFDocument;
+  var rgb = PDFLib.rgb;
+  var StandardFonts = PDFLib.StandardFonts;
+  var LineCapStyle = PDFLib.LineCapStyle;
+  var outDoc = await PDFDocument.load(pdfBytes);
+  var font = await outDoc.embedFont(StandardFonts.Helvetica);
 
     annotations.forEach(function (a) {
       var pageInfo = pages[a.page - 1];
@@ -1646,9 +2813,30 @@ async function downloadAnnotated() {
           page.drawText(line, { x: anchor.x, y: anchor.y, size: a.fontSize, font: font, color: col });
         });
       }
+
+      // Timestamp label beside the annotation, mirroring the on-screen view
+      if (includeTs && a.ts) {
+        var box = annBBox(a);
+        var tsLabel = formatTs(a.ts);
+        var tsSize = 8.5;
+        var tsW = font.widthOfTextAtSize(tsLabel, tsSize);
+        var lx = box.x + box.w + 5;
+        if (lx + tsW > pageInfo.baseW - 4) lx = Math.max(4, box.x + box.w - tsW);
+        var tsAnchor = cv(lx, Math.max(box.y + 8, 10));
+        page.drawText(tsLabel, { x: tsAnchor.x, y: tsAnchor.y, size: tsSize, font: font, color: rgb(0.54, 0.54, 0.52) });
+      }
     });
 
-    var outBytes = await outDoc.save();
+  return outDoc.save();
+}
+
+async function downloadAnnotated() {
+  if (!pdfDoc) { toast('Open a PDF first.'); return; }
+  var btn = $('downloadBtn');
+  btn.disabled = true;
+  toast('Preparing PDF…');
+  try {
+    var outBytes = await buildAnnotatedPdf(showTimestamps);
     var blob = new Blob([outBytes], { type: 'application/pdf' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1660,6 +2848,48 @@ async function downloadAnnotated() {
   } catch (e) {
     console.error(e);
     toast('Download failed: ' + (e.message || e));
+  }
+  btn.disabled = false;
+}
+
+function isIOS() {
+  return /iP(ad|hone|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+async function printAnnotated() {
+  if (!pdfDoc) { toast('Open a PDF first.'); return; }
+  var btn = $('printBtn');
+  btn.disabled = true;
+  toast('Preparing answer key for printing…');
+  try {
+    var outBytes = await buildAnnotatedPdf(showTimestamps);
+    var blob = new Blob([outBytes], { type: 'application/pdf' });
+    var url = URL.createObjectURL(blob);
+    if (isIOS()) {
+      // iPad/iPhone Safari cannot print a PDF from a hidden frame — open it
+      // in a new tab where the share sheet offers Print / AirPrint.
+      window.open(url, '_blank');
+      toast('Answer key opened in a new tab — use the share button there to print.');
+    } else {
+      var frame = document.createElement('iframe');
+      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:2px;height:2px;border:0;visibility:hidden;';
+      frame.src = url;
+      document.body.appendChild(frame);
+      frame.addEventListener('load', function () {
+        try {
+          frame.contentWindow.focus();
+          frame.contentWindow.print();
+        } catch (err) {
+          window.open(url, '_blank');
+        }
+      });
+      // Keep the frame alive long enough for the print dialog to finish.
+      setTimeout(function () { frame.remove(); URL.revokeObjectURL(url); }, 120000);
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Print failed: ' + (e.message || e));
   }
   btn.disabled = false;
 }
@@ -1704,6 +2934,7 @@ $('saveModal').addEventListener('click', function (e) {
 $('saveDateInput').addEventListener('input', updateSaveDayPreview);
 $('saveNameInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') performSave(); });
 
+$('stylusBtn').addEventListener('click', function () { setStylusOnly(!stylusOnly); });
 $('tsToggleBtn').addEventListener('click', function () {
   showTimestamps = !showTimestamps;
   $('tsToggleBtn').classList.toggle('active', showTimestamps);
@@ -1717,12 +2948,51 @@ $('kwInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); tryKeyword(e.target.value); }
 });
 
+/* Student profile modal */
+document.querySelectorAll('#profileLevelRow .pickChip').forEach(function (b) {
+  b.addEventListener('click', function () {
+    profilePick.level = b.getAttribute('data-level');
+    refreshProfileChips();
+  });
+});
+document.querySelectorAll('#profileSubjectRow .pickChip').forEach(function (b) {
+  b.addEventListener('click', function () {
+    profilePick.subject = b.getAttribute('data-subject');
+    refreshProfileChips();
+  });
+});
+document.querySelectorAll('#profileDayRow .pickChip').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var day = b.getAttribute('data-day');
+    var i = profilePick.days.indexOf(day);
+    if (i === -1) profilePick.days.push(day); else profilePick.days.splice(i, 1);
+    refreshProfileChips();
+  });
+});
+$('profileSaveBtn').addEventListener('click', saveStudentProfile);
+$('profileCloseBtn').addEventListener('click', function () { $('profileModal').classList.remove('open'); });
+$('profileNameInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); saveStudentProfile(); }
+});
+
+$('burgerBtn').addEventListener('click', toggleQuestionsDrawer);
 $('docsBtn').addEventListener('click', openDocsModal);
 $('docsCloseBtn').addEventListener('click', function () { $('docsModal').classList.remove('open'); });
 $('docsModal').addEventListener('click', function (e) {
   if (e.target === $('docsModal')) $('docsModal').classList.remove('open');
 });
 $('downloadBtn').addEventListener('click', downloadAnnotated);
+$('printBtn').addEventListener('click', printAnnotated);
+$('videoAttachBtn').addEventListener('click', attachVideoLink);
+$('videoRemoveBtn').addEventListener('click', removeVideo);
+$('videoWatchBtn').addEventListener('click', openVideoModal);
+$('videoCloseBtn').addEventListener('click', closeVideoModal);
+$('videoModal').addEventListener('click', function (e) {
+  if (e.target === $('videoModal')) closeVideoModal();
+});
+$('videoUrlInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); attachVideoLink(); }
+});
 
 /* Drag & drop */
 var viewerArea = $('viewerArea');
@@ -1742,6 +3012,169 @@ var viewerArea = $('viewerArea');
     }
   });
 });
+
+/* ================= Touch navigation & gestures (GoodNotes-style) ================= */
+function navCenterDist() {
+  var arr = Array.from(nav.pts.values());
+  if (!arr.length) return { cx: 0, cy: 0, dist: 0 };
+  var cx = 0, cy = 0;
+  arr.forEach(function (q) { cx += q.x; cy += q.y; });
+  cx /= arr.length; cy /= arr.length;
+  var dist = arr.length >= 2 ? Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y) : 0;
+  return { cx: cx, cy: cy, dist: dist };
+}
+
+function stopNavMomentum() {
+  if (navMomentum) { cancelAnimationFrame(navMomentum); navMomentum = null; }
+}
+
+/* Flick scrolling: carry on with decaying velocity after the finger lifts. */
+function startNavMomentum() {
+  var vx = nav.vx, vy = nav.vy;
+  if (Math.abs(vx) < 0.08 && Math.abs(vy) < 0.08) return;
+  var last = performance.now();
+  function step(now) {
+    var dt = Math.min(50, now - last);
+    last = now;
+    viewerArea.scrollLeft -= vx * dt;
+    viewerArea.scrollTop -= vy * dt;
+    var decay = Math.pow(0.94, dt / 16.7);
+    vx *= decay; vy *= decay;
+    if (Math.abs(vx) > 0.02 || Math.abs(vy) > 0.02) navMomentum = requestAnimationFrame(step);
+    else navMomentum = null;
+  }
+  navMomentum = requestAnimationFrame(step);
+}
+
+/* Zoom keeping the point under the gesture centre fixed on screen. */
+function zoomAt(clientX, clientY, factor) {
+  var rect = viewerArea.getBoundingClientRect();
+  var newScale = Math.min(4, Math.max(0.25, scale * factor));
+  var f = newScale / scale;
+  if (f === 1) return;
+  var ox = clientX - rect.left + viewerArea.scrollLeft;
+  var oy = clientY - rect.top + viewerArea.scrollTop;
+  scale = newScale;
+  applyScale();
+  viewerArea.scrollLeft = ox * f - (clientX - rect.left);
+  viewerArea.scrollTop = oy * f - (clientY - rect.top);
+}
+
+/* If a second finger lands right after a one-finger stroke began, the user
+   meant to scroll — discard the accidental dot/stroke and pan instead. */
+function abortYoungStroke(ts) {
+  if (drawing && !drawing.isText && drawing.ptrType === 'touch' && ts - drawing.startT < 300) {
+    if (drawing.svgNode && drawing.svgNode.parentNode) drawing.svgNode.parentNode.removeChild(drawing.svgNode);
+    drawing = null;
+    activePointerId = null;
+  }
+}
+
+viewerArea.addEventListener('pointerdown', function (e) {
+  if (e.pointerType !== 'touch') return;
+  stopNavMomentum();
+  if (isPalmTouch(e)) return;
+  nav.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (nav.pts.size === 2 && nav.mode !== 'pinch') {
+    abortYoungStroke(e.timeStamp);
+    if (!drawing && !draggingSel && !resizingSel && !erasing) {
+      nav.mode = 'pinch';
+      var c = navCenterDist();
+      nav.cx = c.cx; nav.cy = c.cy; nav.dist = c.dist;
+      nav.vx = 0; nav.vy = 0; nav.lastT = e.timeStamp;
+    }
+  } else if (nav.pts.size === 1 && stylusOnly && isDrawTool(tool) && !reviseMode && !editingId &&
+             e.target.closest && e.target.closest('svg.overlay')) {
+    // Pencil-only mode: one finger on the page pans it.
+    nav.mode = 'pan';
+    nav.cx = e.clientX; nav.cy = e.clientY;
+    nav.vx = 0; nav.vy = 0; nav.lastT = e.timeStamp;
+  }
+}, true);
+
+viewerArea.addEventListener('pointermove', function (e) {
+  if (e.pointerType !== 'touch' || !nav.pts.has(e.pointerId)) return;
+  nav.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (!nav.mode) return;
+  var c = navCenterDist();
+  var dx = c.cx - nav.cx;
+  var dy = c.cy - nav.cy;
+  var dt = Math.max(1, e.timeStamp - nav.lastT);
+  viewerArea.scrollLeft -= dx;
+  viewerArea.scrollTop -= dy;
+  nav.vx = 0.75 * (dx / dt) + 0.25 * nav.vx;
+  nav.vy = 0.75 * (dy / dt) + 0.25 * nav.vy;
+  nav.lastT = e.timeStamp;
+  if (nav.mode === 'pinch' && nav.dist > 0 && c.dist > 0) {
+    var ratio = c.dist / nav.dist;
+    // Stepwise live zoom — re-rendering pages at every pixel would stutter.
+    if (ratio > 1.12 || ratio < 0.89) {
+      zoomAt(c.cx, c.cy, ratio);
+      nav.dist = c.dist;
+    }
+  }
+  nav.cx = c.cx; nav.cy = c.cy;
+}, true);
+
+function navEnd(e) {
+  if (e.pointerType !== 'touch' || !nav.pts.has(e.pointerId)) return;
+  nav.pts.delete(e.pointerId);
+  if (!nav.mode) return;
+  if (nav.pts.size === 0) {
+    startNavMomentum();
+    nav.mode = null;
+  } else {
+    // Re-anchor on the remaining fingers so the view doesn't jump.
+    var c = navCenterDist();
+    nav.cx = c.cx; nav.cy = c.cy; nav.dist = c.dist;
+    if (nav.pts.size === 1) nav.mode = 'pan';
+  }
+}
+document.addEventListener('pointerup', navEnd, true);
+document.addEventListener('pointercancel', navEnd, true);
+
+/* While the engine is panning/zooming, stop the browser's own touch scroll
+   from also running (it would double-scroll and fight the gesture). */
+viewerArea.addEventListener('touchmove', function (e) {
+  if (nav.mode) e.preventDefault();
+}, { passive: false });
+
+/* Two-finger double-tap = undo, three-finger double-tap = redo. */
+var mtap = { max: 0, t0: 0, moved: false, pts: {} };
+var lastMultiTap = { count: 0, t: 0 };
+viewerArea.addEventListener('touchstart', function (e) {
+  if (e.touches.length === e.changedTouches.length) {
+    mtap = { max: 0, t0: e.timeStamp, moved: false, pts: {} };
+  }
+  Array.prototype.forEach.call(e.changedTouches, function (t) {
+    mtap.pts[t.identifier] = { x: t.clientX, y: t.clientY };
+  });
+  if (e.touches.length > mtap.max) mtap.max = e.touches.length;
+}, { passive: true });
+viewerArea.addEventListener('touchmove', function (e) {
+  Array.prototype.forEach.call(e.changedTouches, function (t) {
+    var s = mtap.pts[t.identifier];
+    if (s && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 14) mtap.moved = true;
+  });
+}, { passive: true });
+viewerArea.addEventListener('touchend', function (e) {
+  if (e.touches.length) return; // wait until every finger is up
+  var dur = e.timeStamp - mtap.t0;
+  if (mtap.moved || dur > 320 || mtap.max < 2 || mtap.max > 3) return;
+  if (lastMultiTap.count === mtap.max && e.timeStamp - lastMultiTap.t < 500) {
+    lastMultiTap = { count: 0, t: 0 };
+    if (editingId || kwGuessActive) return;
+    if (mtap.max === 2) {
+      if (undoStack.length) { undo(); toast('↩︎ Undo'); }
+      else toast('Nothing to undo.');
+    } else {
+      if (redoStack.length) { redo(); toast('↪︎ Redo'); }
+      else toast('Nothing to redo.');
+    }
+  } else {
+    lastMultiTap = { count: mtap.max, t: e.timeStamp };
+  }
+}, { passive: true });
 
 /* Keyboard shortcuts */
 document.addEventListener('keydown', function (e) {
@@ -1765,16 +3198,22 @@ document.addEventListener('keydown', function (e) {
   }
   if (e.key === '+' || e.key === '=') { zoomBy(1.2); return; }
   if (e.key === '-') { zoomBy(1 / 1.2); return; }
-  if (e.key === 'Escape') { drawing = null; selectedId = null; renderAllOverlays(); return; }
-  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword' };
+  if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; renderAllOverlays(); return; }
+  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey && toolKeys[e.key.toLowerCase()]) setTool(toolKeys[e.key.toLowerCase()]);
 });
 
 window.addEventListener('beforeunload', function (e) {
-  if (dirty && annotations.length) {
-    e.preventDefault();
-    e.returnValue = '';
+  if (!dirty || !annotations.length) return;
+  if (canAutoSave()) {
+    // Auto-save handles it — kick off the flush and let the tab close.
+    autoSave();
+    return;
   }
+  // Work that cannot be auto-saved (never saved yet, or not the teacher)
+  // still gets the "are you sure?" prompt.
+  e.preventDefault();
+  e.returnValue = '';
 });
 
 window.addEventListener('resize', function () {
