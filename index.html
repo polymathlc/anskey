@@ -393,6 +393,11 @@
     padding: 3px 5px;
     border-radius: 4px;
   }
+  .laserStroke {
+    pointer-events: none;
+    filter: drop-shadow(0 0 5px rgba(255, 23, 68, 0.85));
+    transition: opacity 0.9s ease;
+  }
   .kwWord {
     background: rgba(255, 224, 178, 0.85);
     border-bottom: 2px solid var(--accent-deep);
@@ -670,6 +675,9 @@
     </button>
     <button class="toolBtn" data-tool="eraser" title="Eraser — drag across ink to erase it (E)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7l-4-4a2 2 0 0 1 0-2.8l9.6-9.6a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L13.4 19"/><path d="M8.6 8.6l6.8 6.8"/></svg>
+    </button>
+    <button class="toolBtn" data-tool="laser" title="Laser pointer — strokes fade away by themselves, nothing is saved (X)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l8.5-8.5"/><circle cx="14" cy="10" r="2.6"/><path d="M14 3.5v2.2"/><path d="M20.5 10h-2.2"/><path d="M18.6 5.4l-1.6 1.6"/><path d="M18.6 14.6l-1.6-1.6"/></svg>
     </button>
   </div>
   <div class="tSep"></div>
@@ -949,7 +957,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.9.1';
+var APP_VERSION = 'v1.10.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1032,7 +1040,49 @@ function isPalmTouch(e) {
 }
 function isDrawTool(t) {
   return t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
-         t === 'line' || t === 'arrow' || t === 'text' || t === 'eraser';
+         t === 'line' || t === 'arrow' || t === 'text' || t === 'eraser' || t === 'laser';
+}
+
+/* ---- Laser pointer: glowing strokes that fade away on their own ----
+   For showing workings live (in person or over a recording) without leaving
+   permanent ink. Strokes are never added to `annotations`, so they are not
+   saved, not undoable and never appear in downloads or prints. */
+var lasering = null;            // { page, pts, node } while the laser is down
+var LASER_LINGER = 700;         // ms a finished stroke stays before fading
+var LASER_FADE = 900;           // ms of fade-out (matches .laserStroke CSS)
+var laserHintShown = false;
+
+function laserPathD(pts) {
+  if (!pts.length) return '';
+  if (pts.length === 1) {
+    // A single tap still shows a dot.
+    return 'M ' + pts[0].x + ' ' + pts[0].y + ' L ' + (pts[0].x + 0.01) + ' ' + pts[0].y;
+  }
+  return pts.map(function (q, i) { return (i === 0 ? 'M ' : 'L ') + q.x + ' ' + q.y; }).join(' ');
+}
+
+function drawLaser() {
+  if (!lasering) return;
+  var svg = lasering.page.svg;
+  if (!lasering.node || lasering.node.parentNode !== svg) {
+    lasering.node = el('path', {
+      fill: 'none', stroke: '#FF1744', 'stroke-width': 4,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+    });
+    lasering.node.setAttribute('class', 'laserStroke');
+    svg.appendChild(lasering.node);
+  }
+  lasering.node.setAttribute('d', laserPathD(lasering.pts));
+}
+
+function fadeLaserStroke(node) {
+  if (!node) return;
+  setTimeout(function () {
+    node.style.opacity = '0';
+    setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }, LASER_FADE + 100);
+  }, LASER_LINGER);
 }
 function setStylusOnly(on, quiet) {
   stylusOnly = on;
@@ -1768,6 +1818,10 @@ function setTool(t) {
   commitActiveTextEdit(); // switching tools closes the text box being typed in
   tool = t;
   if (t !== 'select') { selectedId = null; editModeId = null; renderAllOverlays(); }
+  if (t === 'laser' && !laserHintShown) {
+    laserHintShown = true;
+    toast('Laser pointer — strokes fade away by themselves and are never saved.');
+  }
   if (t === 'highlight' && strokeW < 10) { strokeW = 12; $('strokeSelect').value = '12'; }
   if (t === 'highlight' && (color === '#1A1A1A' || color === '#E53935' || color === '#1E88E5' || color === '#43A047')) {
     setColor('#FFEB3B');
@@ -1871,6 +1925,15 @@ function attachOverlayHandlers(p) {
       return;
     }
 
+    if (tool === 'laser') {
+      e.preventDefault();
+      activePointerId = e.pointerId;
+      svg.setPointerCapture(e.pointerId);
+      lasering = { page: p, pts: [pt], node: null };
+      drawLaser();
+      return;
+    }
+
     if (tool === 'keyword') {
       var span = e.target.closest ? e.target.closest('span[data-w]') : null;
       var host = e.target.closest ? e.target.closest('[data-id]') : null;
@@ -1941,6 +2004,15 @@ function attachOverlayHandlers(p) {
       erasing.lastY = e.clientY;
       return;
     }
+    if (lasering && lasering.page === p) {
+      var lpt = eventPoint(e, p);
+      var llast = lasering.pts[lasering.pts.length - 1];
+      if (Math.abs(lpt.x - llast.x) + Math.abs(lpt.y - llast.y) >= 1) {
+        lasering.pts.push(lpt);
+        drawLaser();
+      }
+      return;
+    }
     if (resizingSel && resizingSel.page === p) {
       var rpt = eventPoint(e, p);
       var ra = annotations.find(function (x) { return x.id === resizingSel.id; });
@@ -1978,6 +2050,11 @@ function attachOverlayHandlers(p) {
     // A palm or stray finger lifting off must not end the real gesture.
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
     activePointerId = null;
+    if (lasering && lasering.page === p) {
+      fadeLaserStroke(lasering.node);
+      lasering = null;
+      return;
+    }
     if (erasing && erasing.page === p) {
       if (erasing.removed) { pushUndo(erasing.snap); setDirty(true); }
       erasing = null;
@@ -2040,6 +2117,12 @@ function attachOverlayHandlers(p) {
      that threw the in-progress stroke away — now the work is kept. */
   svg.addEventListener('pointercancel', function (e) {
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    if (lasering && lasering.page === p) {
+      fadeLaserStroke(lasering.node);
+      lasering = null;
+      activePointerId = null;
+      return;
+    }
     if (erasing && erasing.page === p) {
       if (erasing.removed) { pushUndo(erasing.snap); setDirty(true); }
       erasing = null;
@@ -3236,7 +3319,7 @@ document.addEventListener('keydown', function (e) {
   if (e.key === '+' || e.key === '=') { zoomBy(1.2); return; }
   if (e.key === '-') { zoomBy(1 / 1.2); return; }
   if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; renderAllOverlays(); return; }
-  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser' };
+  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey && toolKeys[e.key.toLowerCase()]) setTool(toolKeys[e.key.toLowerCase()]);
 });
 
