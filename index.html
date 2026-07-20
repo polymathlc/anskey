@@ -1019,7 +1019,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.15.0';
+var APP_VERSION = 'v1.16.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1472,19 +1472,31 @@ function renderEditChrome(p) {
       x: box.x - 5, y: box.y - 5, width: box.width + 10, height: box.height + 10,
       fill: 'none', stroke: '#E8A54B', 'stroke-width': 2, rx: 4, 'pointer-events': 'none'
     }));
-    var handles = [];
-    if (a.type === 'rect' || a.type === 'ellipse') {
-      handles = [
-        { h: 'nw', x: a.x, y: a.y }, { h: 'ne', x: a.x + a.w, y: a.y },
-        { h: 'sw', x: a.x, y: a.y + a.h }, { h: 'se', x: a.x + a.w, y: a.y + a.h }
-      ];
-    } else if (a.type === 'line' || a.type === 'arrow') {
-      handles = [{ h: 'p1', x: a.x1, y: a.y1 }, { h: 'p2', x: a.x2, y: a.y2 }];
-    }
-    handles.forEach(function (hd) {
-      p.svg.appendChild(el('circle', { cx: hd.x, cy: hd.y, r: 5.5, 'data-handle': hd.h }));
-    });
   }
+  var handles = [];
+  if (editModeId === activeId && (a.type === 'rect' || a.type === 'ellipse')) {
+    handles = [
+      { h: 'nw', x: a.x, y: a.y }, { h: 'ne', x: a.x + a.w, y: a.y },
+      { h: 'sw', x: a.x, y: a.y + a.h }, { h: 'se', x: a.x + a.w, y: a.y + a.h }
+    ];
+  } else if (editModeId === activeId && (a.type === 'line' || a.type === 'arrow')) {
+    handles = [{ h: 'p1', x: a.x1, y: a.y1 }, { h: 'p2', x: a.x2, y: a.y2 }];
+  } else if (a.type === 'text') {
+    // Text boxes show corner handles while selected AND while being typed
+    // in — dragging one resizes the box and the words reflow to its width.
+    var th = Math.max(a.h || 0, a.fontSize * 1.8);
+    handles = [
+      { h: 'nw', x: a.x, y: a.y }, { h: 'ne', x: a.x + a.w, y: a.y },
+      { h: 'sw', x: a.x, y: a.y + th }, { h: 'se', x: a.x + a.w, y: a.y + th }
+    ];
+  }
+  handles.forEach(function (hd) {
+    p.svg.appendChild(el('circle', { cx: hd.x, cy: hd.y, r: 6, 'data-handle': hd.h }));
+    // Large invisible twin so fingers (not just the pencil) can grab it.
+    var hit = el('circle', { cx: hd.x, cy: hd.y, r: 16, 'data-handle': hd.h });
+    hit.setAttribute('style', 'fill: transparent; stroke: none;');
+    p.svg.appendChild(hit);
+  });
 
   var badge = document.createElement('div');
   badge.className = 'editBadge';
@@ -1974,6 +1986,29 @@ function attachOverlayHandlers(p) {
 
   svg.addEventListener('pointerdown', function (e) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
+    // Resize-handle grab — checked before everything else so it works with
+    // any tool, including while a text box is still being typed in.
+    if (!isStudent() && e.target.getAttribute && e.target.getAttribute('data-handle')) {
+      var hAnnId = editModeId || editingId || selectedId;
+      if (hAnnId) {
+        if (editingId) {
+          // Commit the typing first, then resize the committed box.
+          commitActiveTextEdit();
+          if (annotations.some(function (x) { return x.id === hAnnId; })) {
+            selectedId = hAnnId;
+            editModeId = hAnnId;
+            renderAllOverlays();
+          } else {
+            return; // the box was empty and vanished on commit
+          }
+        }
+        resizingSel = { id: hAnnId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false };
+        activePointerId = e.pointerId;
+        svg.setPointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
+    }
     if (editingId) {
       // Tapping inside the box being edited just moves the caret. Tapping
       // anywhere else commits it, and this same tap carries on to start the
@@ -2102,6 +2137,9 @@ function attachOverlayHandlers(p) {
         lastTap = { id: id, t: nowTap };
         selectedId = id;
         if (editModeId && editModeId !== id) editModeId = null;
+        // Text boxes get their resize handles as soon as they are selected.
+        var selA = annotations.find(function (x) { return x.id === id; });
+        if (selA && selA.type === 'text') editModeId = id;
         renderAllOverlays();
         var node = svg.querySelector('[data-id="' + id + '"]');
         draggingSel = { id: id, startX: pt.x, startY: pt.y, node: node, page: p, snapshot: snapshot(), moved: false };
@@ -2126,7 +2164,12 @@ function attachOverlayHandlers(p) {
     } else if (tool === 'line' || tool === 'arrow') {
       ann = { id: newAnnId(), page: p.num, type: tool, color: color, width: strokeW, x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y, ts: now };
     } else if (tool === 'text') {
-      drawing = { ann: { id: newAnnId(), page: p.num, type: 'text', color: color, fontSize: fontSize, x: pt.x, y: pt.y, w: 220, h: fontSize * 1.9, text: '', kw: [], ts: now }, page: p, isText: true };
+      // Drag to draw the box at the size you want (text wraps to its width);
+      // a plain tap still gives a default-width box.
+      drawing = {
+        ann: { id: newAnnId(), page: p.num, type: 'text', color: color, fontSize: fontSize, x: pt.x, y: pt.y, w: 0, h: 0, text: '', kw: [], ts: now },
+        page: p, isText: true, _sx: pt.x, _sy: pt.y, svgNode: null
+      };
       return;
     }
     drawing = { ann: ann, page: p, svgNode: null, ptrType: e.pointerType, startT: e.timeStamp };
@@ -2188,7 +2231,28 @@ function attachOverlayHandlers(p) {
       if (draggingSel.node) draggingSel.node.setAttribute('transform', 'translate(' + dx + ' ' + dy + ')');
       return;
     }
-    if (!drawing || drawing.page !== p || drawing.isText) return;
+    if (!drawing || drawing.page !== p) return;
+    if (drawing.isText) {
+      // Live dashed preview of the text box being drawn.
+      var tp = eventPoint(e, p);
+      var ta = drawing.ann;
+      ta.x = round2(Math.min(drawing._sx, tp.x));
+      ta.y = round2(Math.min(drawing._sy, tp.y));
+      ta.w = round2(Math.abs(tp.x - drawing._sx));
+      ta.h = round2(Math.abs(tp.y - drawing._sy));
+      if (!drawing.svgNode) {
+        drawing.svgNode = el('rect', {
+          fill: 'rgba(232,165,75,0.08)', stroke: '#E8A54B', 'stroke-width': 1.5,
+          'stroke-dasharray': '6 5', rx: 4, 'pointer-events': 'none'
+        });
+        p.svg.appendChild(drawing.svgNode);
+      }
+      drawing.svgNode.setAttribute('x', ta.x);
+      drawing.svgNode.setAttribute('y', ta.y);
+      drawing.svgNode.setAttribute('width', Math.max(1, ta.w));
+      drawing.svgNode.setAttribute('height', Math.max(1, ta.h));
+      return;
+    }
     var pt2 = eventPoint(e, p);
     var a = drawing.ann;
     if (drawing.snap) {
@@ -2273,6 +2337,12 @@ function attachOverlayHandlers(p) {
     var tempNode = drawing.svgNode;
     drawing = null;
     if (a2.type === 'text') {
+      if (tempNode && tempNode.parentNode) tempNode.parentNode.removeChild(tempNode);
+      // Tap = default-width box (kept on the page); drag = exactly the box
+      // that was drawn — the words wrap to its width.
+      if (!a2.w || a2.w < 40) a2.w = Math.max(80, Math.min(220, p.baseW - a2.x - 10));
+      a2.w = Math.max(60, a2.w);
+      a2.h = Math.max(a2.h || 0, a2.fontSize * 1.9);
       pushUndo();
       annotations.push(a2);
       editingId = a2.id;
@@ -2382,14 +2452,16 @@ function attachOverlayHandlers(p) {
 function enterEditMode(id, p) {
   var a = annotations.find(function (x) { return x.id === id; });
   if (!a) return;
-  if (editingId === id || editModeId === id) return; // already editing
+  if (editingId === id) return; // already typing
   selectedId = id;
   if (a.type === 'text') {
+    // Double-tap always opens the text for typing, even from handle mode.
     editingId = id;
     editModeId = null;
     renderAllOverlays();
     focusTextAnn(p, id);
   } else {
+    if (editModeId === id) return; // already in handle mode
     if (tool !== 'select') setTool('select');
     editModeId = id;
     editingId = null;
@@ -2981,6 +3053,18 @@ function applyHandle(a, h, pt) {
     else { a.x2 = pt.x; a.y2 = pt.y; }
     return;
   }
+  if (a.type === 'text') {
+    // Corner drag resizes the box; the opposite corner stays fixed and the
+    // words redistribute to the new width.
+    var curH = Math.max(a.h || 0, a.fontSize * 1.8);
+    var tfx = (h === 'nw' || h === 'sw') ? a.x + a.w : a.x;
+    var tfy = (h === 'nw' || h === 'ne') ? a.y + curH : a.y;
+    a.x = round2(Math.min(tfx, pt.x));
+    a.y = round2(Math.min(tfy, pt.y));
+    a.w = round2(Math.max(60, Math.abs(pt.x - tfx)));
+    a.h = round2(Math.max(a.fontSize * 1.8, Math.abs(pt.y - tfy)));
+    return;
+  }
   if (a.type === 'rect' || a.type === 'ellipse') {
     // The corner opposite the dragged handle stays fixed.
     var fx = (h === 'nw' || h === 'sw') ? a.x + a.w : a.x;
@@ -3017,7 +3101,8 @@ function focusTextAnn(p, id) {
   node.addEventListener('input', function () {
     var a = annotations.find(function (x) { return x.id === id; });
     if (a) {
-      a.h = Math.max(node.scrollHeight, a.fontSize * 1.8);
+      // Grow with the text, but never shrink a box the user drew tall.
+      a.h = Math.max(node.scrollHeight, a.h || 0, a.fontSize * 1.8);
       node.parentNode.setAttribute('height', a.h);
     }
   });
@@ -3030,7 +3115,7 @@ function focusTextAnn(p, id) {
       if (selectedId === id) selectedId = null;
     } else {
       a.text = text;
-      a.h = Math.max(node.scrollHeight, a.fontSize * 1.8);
+      a.h = Math.max(node.scrollHeight, a.h || 0, a.fontSize * 1.8);
     }
     if (editingId === id) editingId = null;
     renderOverlay(p);
@@ -3879,9 +3964,27 @@ async function buildAnnotatedPdf(includeTs) {
         strokePath([{ x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }], 1);
         strokePath([heads[0], { x: a.x2, y: a.y2 }, heads[1]], 1);
       } else if (a.type === 'text' && a.text) {
-        var lines = a.text.split('\n');
+        // Wrap words to the box width, matching what the screen shows.
         var lh = a.fontSize * 1.35;
-        lines.forEach(function (line, i) {
+        var maxW = Math.max(30, (a.w || 220) - 10);
+        var outLines = [];
+        a.text.split('\n').forEach(function (rawLine) {
+          var words = rawLine.split(/\s+/).filter(function (wd) { return wd !== ''; });
+          if (!words.length) { outLines.push(''); return; }
+          var cur = '';
+          words.forEach(function (wd) {
+            var trial = cur ? cur + ' ' + wd : wd;
+            if (cur && font.widthOfTextAtSize(trial, a.fontSize) > maxW) {
+              outLines.push(cur);
+              cur = wd;
+            } else {
+              cur = trial;
+            }
+          });
+          outLines.push(cur);
+        });
+        outLines.forEach(function (line, i) {
+          if (!line) return;
           var anchor = cv(a.x + 5, a.y + 3 + a.fontSize * 0.95 + i * lh);
           page.drawText(line, { x: anchor.x, y: anchor.y, size: a.fontSize, font: font, color: col });
         });
