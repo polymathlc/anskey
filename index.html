@@ -949,7 +949,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.9.0';
+var APP_VERSION = 'v1.9.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1765,6 +1765,7 @@ function eventPoint(e, p) {
 }
 
 function setTool(t) {
+  commitActiveTextEdit(); // switching tools closes the text box being typed in
   tool = t;
   if (t !== 'select') { selectedId = null; editModeId = null; renderAllOverlays(); }
   if (t === 'highlight' && strokeW < 10) { strokeW = 12; $('strokeSelect').value = '12'; }
@@ -1809,7 +1810,14 @@ function attachOverlayHandlers(p) {
 
   svg.addEventListener('pointerdown', function (e) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
-    if (editingId) return; // let the text box handle it
+    if (editingId) {
+      // Tapping inside the box being edited just moves the caret. Tapping
+      // anywhere else commits it, and this same tap carries on to start the
+      // next action (e.g. a new text box) — no second tap needed.
+      var editedHost = e.target.closest ? e.target.closest('[data-id]') : null;
+      if (editedHost && editedHost.getAttribute('data-id') === editingId) return;
+      commitActiveTextEdit();
+    }
 
     /* ---- Palm rejection ---- */
     // First time an Apple Pencil touches down, switch on pencil-only mode
@@ -2159,6 +2167,35 @@ function focusTextAnn(p, id) {
     renderOverlay(p);
     setDirty(true);
   }, { once: true });
+}
+
+/* Commit the text box currently being typed in (if any). Used when the user
+   switches tools or taps elsewhere on the page, so a single tap is enough to
+   move on — no separate "click away first" step. */
+function commitActiveTextEdit() {
+  if (!editingId) return;
+  var id = editingId;
+  var node = document.querySelector('svg.overlay [data-id="' + id + '"] .annText');
+  if (node && document.activeElement === node) {
+    node.blur(); // the blur handler saves the text and clears editingId
+    if (editingId !== id) return;
+  }
+  // Fallback (e.g. iPad Safari left the box unfocused without firing blur):
+  // read the typed text straight from the DOM and commit it here.
+  editingId = null;
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (a) {
+    var text = node ? node.innerText.replace(/\n+$/, '') : (a.text || '');
+    if (!text.trim()) {
+      annotations = annotations.filter(function (x) { return x.id !== id; });
+      if (selectedId === id) selectedId = null;
+    } else {
+      a.text = text;
+      if (node) a.h = Math.max(node.scrollHeight, a.fontSize * 1.8);
+    }
+    setDirty(true);
+  }
+  renderAllOverlays();
 }
 
 function deleteSelected() {
