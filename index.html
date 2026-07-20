@@ -1015,7 +1015,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.14.0';
+var APP_VERSION = 'v1.14.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1104,12 +1104,49 @@ function isDrawTool(t) {
 
 /* ---- Laser pointer: glowing strokes that fade away on their own ----
    For showing workings live (in person or over a recording) without leaving
-   permanent ink. Strokes are never added to `annotations`, so they are not
-   saved, not undoable and never appear in downloads or prints. */
+   permanent ink. While the pencil keeps touching the screen, every laser
+   stroke of the working stays visible; the whole working fades together
+   only after the pencil has lifted and stayed up for a moment. Strokes are
+   never added to `annotations`, so they are not saved, not undoable and
+   never appear in downloads or prints. */
 var lasering = null;            // { page, pts, node } while the laser is down
-var LASER_LINGER = 700;         // ms a finished stroke stays before fading
+var LASER_LINGER = 700;         // ms after the last lift before the working fades
 var LASER_FADE = 900;           // ms of fade-out (matches .laserStroke CSS)
 var laserHintShown = false;
+var laserNodes = [];            // finished strokes still on screen
+var laserFadeTimer = null;      // pending "start fading everything" timer
+var laserRemoveTimers = [];     // pending per-node removal timers
+
+/* Pencil touched down again — keep the working alive: cancel the pending
+   fade and bring back any strokes that had already started fading. */
+function laserEngage() {
+  clearTimeout(laserFadeTimer);
+  laserFadeTimer = null;
+  laserRemoveTimers.forEach(clearTimeout);
+  laserRemoveTimers = [];
+  laserNodes = laserNodes.filter(function (n) { return n.parentNode; });
+  laserNodes.forEach(function (n) { n.style.opacity = '1'; });
+}
+
+/* Pencil lifted — after a short pause with no new laser stroke, fade the
+   entire working (all strokes drawn so far) together. */
+function laserRelease(node) {
+  if (node && node.parentNode) laserNodes.push(node);
+  clearTimeout(laserFadeTimer);
+  laserFadeTimer = setTimeout(function () {
+    laserFadeTimer = null;
+    laserNodes = laserNodes.filter(function (n) { return n.parentNode; });
+    laserNodes.forEach(function (n) {
+      n.style.opacity = '0';
+      // Nodes stay tracked while fading so a quick pencil-down can rescue
+      // them; each removal drops its own node from the list.
+      laserRemoveTimers.push(setTimeout(function () {
+        if (n.parentNode) n.parentNode.removeChild(n);
+        laserNodes = laserNodes.filter(function (m) { return m !== n; });
+      }, LASER_FADE + 100));
+    });
+  }, LASER_LINGER);
+}
 
 function laserPathD(pts) {
   if (!pts.length) return '';
@@ -1134,15 +1171,6 @@ function drawLaser() {
   lasering.node.setAttribute('d', laserPathD(lasering.pts));
 }
 
-function fadeLaserStroke(node) {
-  if (!node) return;
-  setTimeout(function () {
-    node.style.opacity = '0';
-    setTimeout(function () {
-      if (node.parentNode) node.parentNode.removeChild(node);
-    }, LASER_FADE + 100);
-  }, LASER_LINGER);
-}
 function setStylusOnly(on, quiet) {
   stylusOnly = on;
   $('stylusBtn').classList.toggle('active', on);
@@ -2010,6 +2038,7 @@ function attachOverlayHandlers(p) {
       e.preventDefault();
       activePointerId = e.pointerId;
       svg.setPointerCapture(e.pointerId);
+      laserEngage(); // earlier strokes of this working stay while the pencil is down
       lasering = { page: p, pts: [pt], node: null };
       drawLaser();
       return;
@@ -2187,7 +2216,7 @@ function attachOverlayHandlers(p) {
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
     activePointerId = null;
     if (lasering && lasering.page === p) {
-      fadeLaserStroke(lasering.node);
+      laserRelease(lasering.node);
       lasering = null;
       return;
     }
@@ -2287,7 +2316,7 @@ function attachOverlayHandlers(p) {
   svg.addEventListener('pointercancel', function (e) {
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
     if (lasering && lasering.page === p) {
-      fadeLaserStroke(lasering.node);
+      laserRelease(lasering.node);
       lasering = null;
       activePointerId = null;
       return;
