@@ -308,8 +308,46 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   .fieldRow input:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .fieldRow select {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.92rem;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .fieldRow select:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
   #saveDayPreview { font-size: 0.82rem; color: var(--accent-deep); font-weight: bold; margin-top: 7px; min-height: 1.1em; }
   .modalActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+  .fieldHint { font-size: 0.75rem; color: var(--ink-faint); margin-top: 7px; line-height: 1.5; }
+  .chipRow { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pickChip {
+    font-family: var(--font);
+    font-size: 0.86rem;
+    font-weight: bold;
+    padding: 9px 18px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ink-soft);
+    cursor: pointer;
+    box-shadow: var(--shadow-btn);
+    transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, color 0.2s ease;
+  }
+  .pickChip:hover { box-shadow: var(--shadow-btn-hover); transform: translateY(-1px); }
+  .pickChip.active {
+    background: var(--accent);
+    border-color: var(--accent-strong);
+    color: var(--ink);
+  }
+  .profileIntro { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.55; margin-bottom: 20px; }
+  .authInfo.clickable { cursor: pointer; border-radius: var(--radius-sm); padding: 3px 8px; transition: background 0.2s ease; }
+  .authInfo.clickable:hover { background: #F1F0EE; }
 
   /* ---------- Viewer ---------- */
   #viewerArea {
@@ -794,7 +832,22 @@
       </div>
       <div class="fieldRow">
         <label for="saveLevelInput">Level</label>
-        <input type="text" id="saveLevelInput" placeholder="e.g. P5" autocomplete="off">
+        <select id="saveLevelInput">
+          <option value="">Choose a level…</option>
+          <option value="P3">P3</option>
+          <option value="P4">P4</option>
+          <option value="P5">P5</option>
+          <option value="P6">P6</option>
+        </select>
+      </div>
+      <div class="fieldRow">
+        <label for="saveSubjectInput">Subject</label>
+        <select id="saveSubjectInput">
+          <option value="">Choose a subject…</option>
+          <option value="math">Mathematics</option>
+          <option value="science">Science</option>
+          <option value="both">Both — Maths &amp; Science</option>
+        </select>
       </div>
       <div class="fieldRow">
         <label for="saveDateInput">Date of worksheet</label>
@@ -832,6 +885,56 @@
   </div>
 </div>
 
+<div class="modalBack" id="profileModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2 id="profileTitle">Welcome to Polymath! 👋</h2>
+      <button class="modalClose" id="profileCloseBtn" title="Close" style="display:none">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro" id="profileIntro">Since this is your first time here,
+        tell us a little about yourself so we can show you the right worksheets and videos.</div>
+      <div class="fieldRow">
+        <label for="profileNameInput">Your name</label>
+        <input type="text" id="profileNameInput" placeholder="e.g. Jia Hui" autocomplete="off">
+      </div>
+      <div class="fieldRow">
+        <label>Your level</label>
+        <div class="chipRow" id="profileLevelRow">
+          <button type="button" class="pickChip" data-level="P3">P3</button>
+          <button type="button" class="pickChip" data-level="P4">P4</button>
+          <button type="button" class="pickChip" data-level="P5">P5</button>
+          <button type="button" class="pickChip" data-level="P6">P6</button>
+        </div>
+      </div>
+      <div class="fieldRow">
+        <label>Your subject</label>
+        <div class="chipRow" id="profileSubjectRow">
+          <button type="button" class="pickChip" data-subject="math">Mathematics</button>
+          <button type="button" class="pickChip" data-subject="science">Science</button>
+          <button type="button" class="pickChip" data-subject="both">Both</button>
+        </div>
+      </div>
+      <div class="fieldRow">
+        <label>Your class day(s)</label>
+        <div class="chipRow" id="profileDayRow">
+          <button type="button" class="pickChip" data-day="Monday">Mon</button>
+          <button type="button" class="pickChip" data-day="Tuesday">Tue</button>
+          <button type="button" class="pickChip" data-day="Wednesday">Wed</button>
+          <button type="button" class="pickChip" data-day="Thursday">Thu</button>
+          <button type="button" class="pickChip" data-day="Friday">Fri</button>
+          <button type="button" class="pickChip" data-day="Saturday">Sat</button>
+          <button type="button" class="pickChip" data-day="Sunday">Sun</button>
+        </div>
+        <div class="fieldHint">Worksheets from your class day are shown first. You can pick more than one.</div>
+      </div>
+      <div class="modalActions">
+        <button class="btn btnPrimary" id="profileSaveBtn">Let's go!</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
 
@@ -846,7 +949,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.8.0';
+var APP_VERSION = 'v1.9.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -897,7 +1000,12 @@ var revealedKw = {};        // normalised keyword -> true, revealed during revis
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
-var wsMeta = { level: '', date: '', videoUrl: '', videoPath: '' };  // worksheet meta (name lives in docName)
+var wsMeta = { level: '', subject: '', date: '', videoUrl: '', videoPath: '' };  // worksheet meta (name lives in docName)
+var studentProfile = null;  // { name, level, subject, days[] } for signed-in students (null until loaded / for admin)
+var PROFILES_COLLECTION = 'studentProfiles';
+function subjectLabel(s) {
+  return s === 'math' ? 'Mathematics' : s === 'science' ? 'Science' : s === 'both' ? 'Maths & Science' : '';
+}
 
 /* Drawing-in-progress state */
 var drawing = null;         // { ann, svgNode, page }
@@ -1055,7 +1163,7 @@ async function loadPdf(bytes, name) {
   selectedId = null;
   editingId = null;
   editModeId = null;
-  wsMeta = { level: '', date: '', videoUrl: '', videoPath: '' };
+  wsMeta = { level: '', subject: '', date: '', videoUrl: '', videoPath: '' };
   reviseMode = false;
   revealedKw = {};
   kwResults = {};
@@ -1527,7 +1635,8 @@ function showKwFeedback(p, anchor, correct, guess, answer) {
 
 /* ================= Worksheet sidebar ================= */
 function renderSidebar() {
-  $('wsLevel').textContent = wsMeta.level ? wsMeta.level : 'Level —';
+  $('wsLevel').textContent =
+    (wsMeta.level ? wsMeta.level : 'Level —') + (wsMeta.subject ? ' · ' + subjectLabel(wsMeta.subject) : '');
   $('wsName').textContent = docName || 'No worksheet loaded';
   $('wsDay').textContent = dayFromISO(wsMeta.date);
   $('wsDate').textContent = prettyDate(wsMeta.date);
@@ -2095,10 +2204,19 @@ function renderAuthArea() {
   // classroom name.
   name.textContent = isAdmin(currentUser)
     ? ADMIN_DISPLAY_NAME
-    : (currentUser.displayName || currentUser.email);
+    : (studentProfile && studentProfile.name) || currentUser.displayName || currentUser.email;
   var role = document.createElement('div');
   role.className = 'authRole' + (isAdmin(currentUser) ? ' isAdmin' : '');
-  role.textContent = isAdmin(currentUser) ? '● Admin — cloud saving on' : 'View only — saving disabled';
+  if (isAdmin(currentUser)) {
+    role.textContent = '● Admin — cloud saving on';
+  } else if (studentProfile) {
+    role.textContent = studentProfile.level + ' · ' + subjectLabel(studentProfile.subject);
+    info.classList.add('clickable');
+    info.title = 'Tap to edit your profile';
+    info.addEventListener('click', function () { openProfileModal(false); });
+  } else {
+    role.textContent = 'Setting up your profile…';
+  }
   info.appendChild(name);
   info.appendChild(role);
   area.appendChild(info);
@@ -2119,11 +2237,112 @@ function renderAuthArea() {
 
 auth.onAuthStateChanged(function (user) {
   currentUser = user;
+  studentProfile = null;
   renderAuthArea();
   renderVideoCard(); // admin controls appear/disappear with the auth state
-  // Refresh the questions drawer for the new auth state if it is open
-  if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+  if (user && !isAdmin(user)) {
+    // Students: fetch their profile, and ask for it on their very first login.
+    loadStudentProfile(user).then(function () {
+      renderAuthArea();
+      if (!studentProfile) openProfileModal(true);
+      if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+    });
+  } else {
+    // Refresh the questions drawer for the new auth state if it is open
+    if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+  }
 });
+
+/* ================= Student profile (first Google login) =================
+   Students are asked for their name, level (P3–P6), subject and class day(s)
+   the first time they sign in. The profile lives in Firestore keyed by their
+   Google account uid, and drives which worksheets/videos they see. */
+async function loadStudentProfile(user) {
+  try {
+    var snap = await db.collection(PROFILES_COLLECTION).doc(user.uid).get();
+    studentProfile = snap.exists ? snap.data() : null;
+  } catch (e) {
+    console.error('Could not load student profile', e);
+    studentProfile = null;
+  }
+}
+
+var profilePick = { level: '', subject: '', days: [] };
+
+function refreshProfileChips() {
+  document.querySelectorAll('#profileLevelRow .pickChip').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-level') === profilePick.level);
+  });
+  document.querySelectorAll('#profileSubjectRow .pickChip').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-subject') === profilePick.subject);
+  });
+  document.querySelectorAll('#profileDayRow .pickChip').forEach(function (b) {
+    b.classList.toggle('active', profilePick.days.indexOf(b.getAttribute('data-day')) !== -1);
+  });
+}
+
+function openProfileModal(firstTime) {
+  var p = studentProfile || {};
+  $('profileNameInput').value = p.name || (currentUser && currentUser.displayName) || '';
+  profilePick = { level: p.level || '', subject: p.subject || '', days: (p.days || []).slice() };
+  refreshProfileChips();
+  $('profileTitle').textContent = firstTime ? 'Welcome to Polymath! 👋' : 'Your profile';
+  $('profileIntro').style.display = firstTime ? 'block' : 'none';
+  // First-time setup must be completed; editing later can be dismissed.
+  $('profileCloseBtn').style.display = firstTime ? 'none' : 'block';
+  $('profileSaveBtn').textContent = firstTime ? "Let's go!" : 'Save changes';
+  $('profileModal').classList.add('open');
+  if (firstTime) setTimeout(function () { $('profileNameInput').focus(); }, 50);
+}
+
+async function saveStudentProfile() {
+  if (!currentUser) return;
+  var name = $('profileNameInput').value.trim();
+  if (!name) { toast('Please type your name.'); $('profileNameInput').focus(); return; }
+  if (!profilePick.level) { toast('Please choose your level (P3–P6).'); return; }
+  if (!profilePick.subject) { toast('Please choose your subject.'); return; }
+  var btn = $('profileSaveBtn');
+  btn.disabled = true;
+  try {
+    var payload = {
+      name: name,
+      level: profilePick.level,
+      subject: profilePick.subject,
+      days: profilePick.days,
+      email: currentUser.email || '',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if (!studentProfile) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection(PROFILES_COLLECTION).doc(currentUser.uid).set(payload, { merge: true });
+    studentProfile = payload;
+    $('profileModal').classList.remove('open');
+    renderAuthArea();
+    if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+    toast('Welcome, ' + name + '! Showing ' + profilePick.level + ' ' +
+      subjectLabel(profilePick.subject) + ' worksheets.');
+  } catch (e) {
+    console.error(e);
+    toast('Could not save your profile: ' + (e.message || e));
+  }
+  btn.disabled = false;
+}
+
+/* ---- Which worksheets can this signed-in user see? ---- */
+function canSeeDoc(d) {
+  if (!currentUser || isAdmin(currentUser)) return true;
+  if (!studentProfile) return false; // profile not set up yet
+  // Worksheets saved before levels/subjects existed stay visible to everyone.
+  if (d.level && d.level !== studentProfile.level) return false;
+  if (d.subject && d.subject !== 'both' &&
+      studentProfile.subject !== 'both' && d.subject !== studentProfile.subject) return false;
+  return true;
+}
+
+/* 0 = worksheet falls on one of the student's class days (shown first). */
+function dayPriority(d) {
+  if (!studentProfile || !studentProfile.days || !studentProfile.days.length) return 0;
+  return d.wsDay && studentProfile.days.indexOf(d.wsDay) !== -1 ? 0 : 1;
+}
 
 /* ================= Cloud save / load ================= */
 async function saveDoc() {
@@ -2138,9 +2357,10 @@ async function saveDoc() {
     return;
   }
   // Every save runs through the worksheet-details dialog so the name,
-  // level and date can be adjusted each time.
+  // level, subject and date can be adjusted each time.
   $('saveNameInput').value = docName || '';
-  $('saveLevelInput').value = wsMeta.level || '';
+  setSelectValue($('saveLevelInput'), wsMeta.level || '');
+  setSelectValue($('saveSubjectInput'), wsMeta.subject || '');
   $('saveDateInput').value = wsMeta.date || new Date().toISOString().slice(0, 10);
   updateSaveDayPreview();
   $('saveModal').classList.add('open');
@@ -2152,11 +2372,27 @@ function updateSaveDayPreview() {
   $('saveDayPreview').textContent = day ? day : '';
 }
 
+/* Select the given value, adding it as an extra option if it is not one of
+   the standard choices (worksheets saved before the dropdowns existed). */
+function setSelectValue(sel, value) {
+  sel.value = value;
+  if (value && sel.value !== value) {
+    var opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value;
+    sel.appendChild(opt);
+    sel.value = value;
+  }
+}
+
 async function performSave() {
   var btn = $('saveBtn');
   var label = btn.querySelector('.btnLabel');
+  if (!$('saveLevelInput').value) { toast('Choose the level this worksheet is for.'); return; }
+  if (!$('saveSubjectInput').value) { toast('Choose the subject this worksheet is for.'); return; }
   docName = $('saveNameInput').value.trim() || docName || 'Untitled';
   wsMeta.level = $('saveLevelInput').value.trim();
+  wsMeta.subject = $('saveSubjectInput').value;
   wsMeta.date = $('saveDateInput').value;
   $('saveModal').classList.remove('open');
   renderSidebar();
@@ -2172,6 +2408,7 @@ async function performSave() {
     var payload = {
       name: docName,
       level: wsMeta.level,
+      subject: wsMeta.subject || '',
       wsDate: wsMeta.date,
       wsDay: dayFromISO(wsMeta.date),
       ownerUid: currentUser.uid,
@@ -2258,17 +2495,33 @@ async function openDocsModal() {
     await signIn();
     if (!currentUser) return;
   }
+  if (!isAdmin(currentUser) && !studentProfile) {
+    await loadStudentProfile(currentUser); // may still be in flight right after sign-in
+    renderAuthArea();
+    if (!studentProfile) { openProfileModal(true); return; }
+  }
   $('docsModal').classList.add('open');
   var list = $('docsList');
   list.innerHTML = '<div class="docsEmpty">Loading…</div>';
   try {
     var snap = await db.collection(COLLECTION).orderBy('updatedAt', 'desc').limit(60).get();
+    var docs = [];
+    snap.forEach(function (docSnap) {
+      if (canSeeDoc(docSnap.data())) docs.push(docSnap);
+    });
+    // Students see the worksheets from their own class day(s) first.
+    if (!isAdmin(currentUser)) {
+      docs.sort(function (a, b) { return dayPriority(a.data()) - dayPriority(b.data()); });
+    }
     list.innerHTML = '';
-    if (snap.empty) {
-      list.innerHTML = '<div class="docsEmpty">No saved PDFs yet. Open a PDF, annotate it and press Save.</div>';
+    if (!docs.length) {
+      list.innerHTML = isAdmin(currentUser) || !studentProfile
+        ? '<div class="docsEmpty">No saved PDFs yet. Open a PDF, annotate it and press Save.</div>'
+        : '<div class="docsEmpty">No worksheets for ' + escHtml(studentProfile.level) + ' ' +
+          escHtml(subjectLabel(studentProfile.subject)) + ' yet — check back after your next lesson!</div>';
       return;
     }
-    snap.forEach(function (docSnap) {
+    docs.forEach(function (docSnap) {
       var d = docSnap.data();
       var row = document.createElement('div');
       row.className = 'docRow';
@@ -2282,6 +2535,7 @@ async function openDocsModal() {
       var when = d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate().toLocaleString() : '';
       var bits = [];
       if (d.level) bits.push(d.level);
+      if (d.subject) bits.push(subjectLabel(d.subject));
       if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ' ' : '') + prettyDate(d.wsDate));
       bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
       if (when) bits.push('saved ' + when);
@@ -2329,6 +2583,7 @@ async function openSavedDoc(id, data) {
     annotations = JSON.parse(data.annotations || '[]');
     currentDocId = id;
     wsMeta.level = data.level || '';
+    wsMeta.subject = data.subject || '';
     wsMeta.date = data.wsDate || '';
     wsMeta.videoUrl = data.videoUrl || '';
     wsMeta.videoPath = data.videoPath || '';
@@ -2369,21 +2624,40 @@ async function loadQuestionsList() {
     await signIn();
     if (!currentUser) return;
   }
+  if (!isAdmin(currentUser) && !studentProfile) {
+    await loadStudentProfile(currentUser); // may still be in flight right after sign-in
+    renderAuthArea();
+    if (!studentProfile) {
+      list.innerHTML = '<div class="qEmpty">Finish setting up your profile to see your questions.</div>';
+      openProfileModal(true);
+      return;
+    }
+  }
   list.innerHTML = '<div class="qEmpty">Loading questions…</div>';
   try {
     var snap = await db.collection(COLLECTION).limit(500).get();
     var docs = [];
     snap.forEach(function (docSnap) {
-      docs.push({ id: docSnap.id, data: docSnap.data() });
+      if (canSeeDoc(docSnap.data())) docs.push({ id: docSnap.id, data: docSnap.data() });
     });
-    docs.sort(function (a, b) { return questionSortTime(a.data) - questionSortTime(b.data); });
+    // Chronological, but a student's own class day(s) always float to the top.
+    docs.sort(function (a, b) {
+      var dp = dayPriority(a.data) - dayPriority(b.data);
+      if (dp && !isAdmin(currentUser)) return dp;
+      return questionSortTime(a.data) - questionSortTime(b.data);
+    });
     list.innerHTML = '';
     if (!docs.length) {
-      list.innerHTML = '<div class="qEmpty">No questions saved yet.<br>Open a PDF, annotate it and press Save.</div>';
+      list.innerHTML = isAdmin(currentUser)
+        ? '<div class="qEmpty">No questions saved yet.<br>Open a PDF, annotate it and press Save.</div>'
+        : '<div class="qEmpty">No questions for ' + escHtml(studentProfile.level) + ' ' +
+          escHtml(subjectLabel(studentProfile.subject)) + ' yet — check back after your next lesson!</div>';
       $('qDrawerSub').textContent = 'All saved questions, oldest first.';
       return;
     }
-    $('qDrawerSub').textContent = docs.length + ' question' + (docs.length === 1 ? '' : 's') + ' · oldest first';
+    var hasDayPref = !isAdmin(currentUser) && studentProfile.days && studentProfile.days.length;
+    $('qDrawerSub').textContent = docs.length + ' question' + (docs.length === 1 ? '' : 's') +
+      (hasDayPref ? ' · your class day first' : ' · oldest first');
     docs.forEach(function (item) {
       var d = item.data;
       var btn = document.createElement('button');
@@ -2401,6 +2675,7 @@ async function loadQuestionsList() {
         meta.appendChild(lvl);
       }
       var bits = [];
+      if (d.subject) bits.push(subjectLabel(d.subject));
       if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ', ' : '') + prettyDate(d.wsDate));
       bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
       if (d.videoUrl) bits.push('🎬 recording');
@@ -2671,6 +2946,33 @@ $('sideToggleBtn').addEventListener('click', function () {
 $('reviseToggle').addEventListener('change', function (e) { setReviseMode(e.target.checked); });
 $('kwInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); tryKeyword(e.target.value); }
+});
+
+/* Student profile modal */
+document.querySelectorAll('#profileLevelRow .pickChip').forEach(function (b) {
+  b.addEventListener('click', function () {
+    profilePick.level = b.getAttribute('data-level');
+    refreshProfileChips();
+  });
+});
+document.querySelectorAll('#profileSubjectRow .pickChip').forEach(function (b) {
+  b.addEventListener('click', function () {
+    profilePick.subject = b.getAttribute('data-subject');
+    refreshProfileChips();
+  });
+});
+document.querySelectorAll('#profileDayRow .pickChip').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var day = b.getAttribute('data-day');
+    var i = profilePick.days.indexOf(day);
+    if (i === -1) profilePick.days.push(day); else profilePick.days.splice(i, 1);
+    refreshProfileChips();
+  });
+});
+$('profileSaveBtn').addEventListener('click', saveStudentProfile);
+$('profileCloseBtn').addEventListener('click', function () { $('profileModal').classList.remove('open'); });
+$('profileNameInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); saveStudentProfile(); }
 });
 
 $('burgerBtn').addEventListener('click', toggleQuestionsDrawer);
