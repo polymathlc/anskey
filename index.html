@@ -957,7 +957,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.10.0';
+var APP_VERSION = 'v1.11.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1307,25 +1307,7 @@ function renderOverlay(p) {
   });
   if (showTimestamps) {
     annotations.forEach(function (a) {
-      if (a.page !== p.num || !a.ts) return;
-      var node = svg.querySelector('[data-id="' + a.id + '"]');
-      if (!node) return;
-      var box;
-      try { box = node.getBBox(); } catch (e) { return; }
-      var label = el('text', {
-        x: Math.min(box.x + box.width + 5, p.baseW - 4),
-        y: Math.max(box.y + 8, 10),
-        'font-size': 8.5,
-        fill: '#8A8A84',
-        stroke: '#FFFFFF',
-        'stroke-width': 2.5,
-        'paint-order': 'stroke',
-        'text-anchor': box.x + box.width + 55 > p.baseW ? 'end' : 'start',
-        'pointer-events': 'none'
-      });
-      label.style.fontFamily = 'var(--font)';
-      label.textContent = formatTs(a.ts);
-      svg.appendChild(label);
+      if (a.page === p.num) appendTsLabel(p, a);
     });
   }
   if (selectedId && selectedId !== editModeId && selectedId !== editingId) {
@@ -1343,6 +1325,30 @@ function renderOverlay(p) {
     }
   }
   renderEditChrome(p);
+}
+
+/* Timestamp label beside one annotation (used by renderOverlay and by the
+   incremental commit path when a freshly drawn stroke is kept as-is). */
+function appendTsLabel(p, a) {
+  if (!showTimestamps || !a.ts) return;
+  var node = p.svg.querySelector('[data-id="' + a.id + '"]');
+  if (!node) return;
+  var box;
+  try { box = node.getBBox(); } catch (e) { return; }
+  var label = el('text', {
+    x: Math.min(box.x + box.width + 5, p.baseW - 4),
+    y: Math.max(box.y + 8, 10),
+    'font-size': 8.5,
+    fill: '#8A8A84',
+    stroke: '#FFFFFF',
+    'stroke-width': 2.5,
+    'paint-order': 'stroke',
+    'text-anchor': box.x + box.width + 55 > p.baseW ? 'end' : 'start',
+    'pointer-events': 'none'
+  });
+  label.style.fontFamily = 'var(--font)';
+  label.textContent = formatTs(a.ts);
+  p.svg.appendChild(label);
 }
 
 /* Amber frame + resize handles + floating badge for the annotation in edit mode */
@@ -1992,6 +1998,7 @@ function attachOverlayHandlers(p) {
     }
     drawing = { ann: ann, page: p, svgNode: null, ptrType: e.pointerType, startT: e.timeStamp };
     redrawTemp();
+    if (ann.type === 'pen' || ann.type === 'highlight') armSnapHold(e);
   });
 
   svg.addEventListener('pointermove', function (e) {
@@ -2034,9 +2041,21 @@ function attachOverlayHandlers(p) {
     if (!drawing || drawing.page !== p || drawing.isText) return;
     var pt2 = eventPoint(e, p);
     var a = drawing.ann;
+    if (drawing.snap) {
+      // The stroke has snapped to a shape — dragging now adjusts it
+      // (line endpoint, circle radius, polygon corner, curve end).
+      a.points = snapShapePoints(drawing.snap, pt2);
+      redrawTemp();
+      return;
+    }
     if (a.type === 'pen' || a.type === 'highlight') {
       var last = a.points[a.points.length - 1];
       if (Math.abs(pt2.x - last.x) + Math.abs(pt2.y - last.y) >= 1) a.points.push(pt2);
+      // Any real movement re-arms the hold-to-snap timer; staying within
+      // the jitter radius lets it run out and snap the shape.
+      if (Math.hypot(e.clientX - drawing.holdCX, e.clientY - drawing.holdCY) > SNAP_JITTER_PX) {
+        armSnapHold(e);
+      }
     } else if (a.type === 'rect' || a.type === 'ellipse') {
       a.x = Math.min(a._sx, pt2.x); a.y = Math.min(a._sy, pt2.y);
       a.w = Math.abs(pt2.x - a._sx); a.h = Math.abs(pt2.y - a._sy);
@@ -2087,7 +2106,9 @@ function attachOverlayHandlers(p) {
       return;
     }
     if (!drawing || drawing.page !== p) return;
+    clearTimeout(drawing.holdTimer);
     var a2 = drawing.ann;
+    var tempNode = drawing.svgNode;
     drawing = null;
     if (a2.type === 'text') {
       pushUndo();
@@ -2099,6 +2120,15 @@ function attachOverlayHandlers(p) {
       return;
     }
     delete a2._sx; delete a2._sy;
+    // A clean tap gives a single point — keep it as a visible dot instead of
+    // silently dropping it.
+    if ((a2.type === 'pen' || a2.type === 'highlight') && a2.points.length === 1) {
+      a2.points.push({ x: round2(a2.points[0].x + 0.01), y: a2.points[0].y });
+      if (tempNode) {
+        var dotPath = tempNode.querySelector('path');
+        if (dotPath) dotPath.setAttribute('d', pathFromPoints(a2.points));
+      }
+    }
     var tooSmall =
       ((a2.type === 'rect' || a2.type === 'ellipse') && a2.w < 3 && a2.h < 3) ||
       ((a2.type === 'line' || a2.type === 'arrow') && Math.abs(a2.x2 - a2.x1) < 3 && Math.abs(a2.y2 - a2.y1) < 3) ||
@@ -2107,8 +2137,18 @@ function attachOverlayHandlers(p) {
       pushUndo();
       annotations.push(a2);
       setDirty(true);
+      // Keep the already-rendered stroke as the final node instead of
+      // rebuilding the whole page overlay — re-rendering every annotation
+      // (plus a layout pass per timestamp) made rapid dots very laggy.
+      if (tempNode && tempNode.parentNode) {
+        tempNode.removeAttribute('pointer-events');
+        appendTsLabel(p, a2);
+      } else {
+        renderOverlay(p);
+      }
+    } else if (tempNode && tempNode.parentNode) {
+      tempNode.parentNode.removeChild(tempNode);
     }
-    renderOverlay(p);
   }
   svg.addEventListener('pointerup', finishPointer);
 
@@ -2179,13 +2219,289 @@ function enterEditMode(id, p) {
   }
 }
 
-function redrawTemp() {
+function redrawTemp(force) {
   if (!drawing) return;
   var p = drawing.page;
+  var a = drawing.ann;
+  // Fast path: while a pen/highlight stroke grows, only the path data
+  // changes — rebuilding the whole node on every pointermove makes quick
+  // dots and fast writing stutter on the iPad.
+  if (!force && drawing.svgNode && (a.type === 'pen' || a.type === 'highlight')) {
+    var path = drawing.svgNode.querySelector('path');
+    if (path) { path.setAttribute('d', pathFromPoints(a.points)); return; }
+  }
   if (drawing.svgNode) p.svg.removeChild(drawing.svgNode);
-  drawing.svgNode = annNode(drawing.ann);
+  drawing.svgNode = annNode(a);
   drawing.svgNode.setAttribute('pointer-events', 'none');
   p.svg.appendChild(drawing.svgNode);
+}
+
+/* ================= Hold-to-snap shape recognition =================
+   GoodNotes-style: draw a stroke and hold the pencil still without lifting —
+   the stroke snaps to the neat shape it looks like (straight line, smooth
+   curve, circle, ellipse, triangle, rectangle or another polygon). Keep
+   dragging to adjust the snapped shape: a line's endpoint, a circle's
+   radius, a polygon's nearest corner. The result stays a pen/highlight
+   stroke, so saving, printing and erasing work unchanged. */
+var SNAP_HOLD_MS = 550;     // hold this long to snap
+var SNAP_JITTER_PX = 7;     // screen-pixel wobble still counted as "holding still"
+var snapHintShown = false;
+
+function ptDist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function strokeLength(pts) {
+  var L = 0;
+  for (var i = 1; i < pts.length; i++) L += ptDist(pts[i - 1], pts[i]);
+  return L;
+}
+function perpDist(q, a, b) {
+  var dx = b.x - a.x, dy = b.y - a.y;
+  var L = Math.hypot(dx, dy);
+  if (L < 0.001) return ptDist(q, a);
+  return Math.abs((q.x - a.x) * dy - (q.y - a.y) * dx) / L;
+}
+
+/* Douglas–Peucker simplification, returns a subset of the points. */
+function dpSimplify(pts, eps) {
+  if (pts.length < 3) return pts.slice();
+  var keep = new Array(pts.length);
+  keep[0] = keep[pts.length - 1] = true;
+  var stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    var seg = stack.pop();
+    var s = seg[0], e2 = seg[1];
+    var maxD = 0, maxI = -1;
+    for (var i = s + 1; i < e2; i++) {
+      var d = perpDist(pts[i], pts[s], pts[e2]);
+      if (d > maxD) { maxD = d; maxI = i; }
+    }
+    if (maxD > eps) { keep[maxI] = true; stack.push([s, maxI], [maxI, e2]); }
+  }
+  return pts.filter(function (q, i) { return keep[i]; });
+}
+
+/* Corner candidates of a closed stroke: split at the point farthest from the
+   start, simplify both halves, then merge near-duplicate corners. */
+function closedCorners(pts, eps) {
+  var far = 0, maxD = 0;
+  for (var i = 1; i < pts.length; i++) {
+    var d = ptDist(pts[0], pts[i]);
+    if (d > maxD) { maxD = d; far = i; }
+  }
+  var half1 = dpSimplify(pts.slice(0, far + 1), eps);
+  var half2 = dpSimplify(pts.slice(far), eps);
+  var verts = half1.concat(half2.slice(1));
+  var out = [];
+  verts.forEach(function (v) {
+    if (!out.length || ptDist(out[out.length - 1], v) > eps * 1.4) out.push(v);
+  });
+  while (out.length > 1 && ptDist(out[0], out[out.length - 1]) <= eps * 1.6) out.pop();
+  return out;
+}
+
+/* Snap a line endpoint to exactly horizontal/vertical when it is close. */
+function axisSnapEnd(p0, pt) {
+  var dx = pt.x - p0.x, dy = pt.y - p0.y;
+  var ang = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI);
+  var toAxis = Math.min(ang % 90, 90 - (ang % 90));
+  if (toAxis < 6) {
+    if (Math.abs(dx) > Math.abs(dy)) return { x: round2(pt.x), y: round2(p0.y) };
+    return { x: round2(p0.x), y: round2(pt.y) };
+  }
+  return { x: round2(pt.x), y: round2(pt.y) };
+}
+
+function sampleEllipsePts(cx, cy, rx, ry) {
+  var out = [];
+  for (var i = 0; i <= 36; i++) {
+    var t = i / 36 * Math.PI * 2;
+    out.push({ x: round2(cx + rx * Math.cos(t)), y: round2(cy + ry * Math.sin(t)) });
+  }
+  return out;
+}
+
+function sampleQuadCurve(p0, c1, p2) {
+  var out = [];
+  for (var i = 0; i <= 24; i++) {
+    var t = i / 24, u = 1 - t;
+    out.push({
+      x: round2(u * u * p0.x + 2 * u * t * c1.x + t * t * p2.x),
+      y: round2(u * u * p0.y + 2 * u * t * c1.y + t * t * p2.y)
+    });
+  }
+  return out;
+}
+
+/* Decide what shape a freehand stroke looks like. Returns null (leave the
+   freehand ink alone) or a snap descriptor used by snapShapePoints(). */
+function recognizeStroke(pts) {
+  if (pts.length < 6) return null;
+  var len = strokeLength(pts);
+  if (len < 20) return null;
+  var p0 = pts[0], pn = pts[pts.length - 1];
+  var chord = ptDist(p0, pn);
+
+  // Straight line: every point close to the start→end chord.
+  if (chord > 24) {
+    var maxDev = 0;
+    for (var i = 1; i < pts.length - 1; i++) {
+      var d = perpDist(pts[i], p0, pn);
+      if (d > maxDev) maxDev = d;
+    }
+    if (maxDev < Math.max(4, chord * 0.055)) return { kind: 'line', p0: p0 };
+  }
+
+  var closed = chord < Math.max(24, len * 0.22);
+  if (closed) {
+    var cx = 0, cy = 0;
+    pts.forEach(function (q) { cx += q.x; cy += q.y; });
+    cx /= pts.length; cy /= pts.length;
+    var c = { x: cx, y: cy };
+    // A genuine closed shape wraps (almost) all the way around its centre;
+    // a zig-zag that merely ends near where it started does not — leave
+    // that freehand ink alone.
+    var wind = 0;
+    for (var w2 = 1; w2 < pts.length; w2++) {
+      var wa = Math.atan2(pts[w2 - 1].y - c.y, pts[w2 - 1].x - c.x);
+      var wb = Math.atan2(pts[w2].y - c.y, pts[w2].x - c.x);
+      var da = wb - wa;
+      if (da > Math.PI) da -= 2 * Math.PI;
+      if (da < -Math.PI) da += 2 * Math.PI;
+      wind += da;
+    }
+    if (Math.abs(wind) < Math.PI * 1.6) return null;
+    var rMean = 0;
+    pts.forEach(function (q) { rMean += ptDist(q, c); });
+    rMean /= pts.length;
+    var rVar = 0;
+    pts.forEach(function (q) { var dr = ptDist(q, c) - rMean; rVar += dr * dr; });
+    var rStd = Math.sqrt(rVar / pts.length);
+    if (rStd / rMean < 0.13) return { kind: 'circle', c: c };
+
+    // Polygon: few clear corners → triangle, rectangle, pentagon, hexagon.
+    var verts = closedCorners(pts, Math.max(7, len * 0.03));
+    if (verts.length >= 3 && verts.length <= 6) {
+      if (verts.length === 4) {
+        // A near-axis-aligned quad tidies up into a true rectangle.
+        var axisOk = true;
+        for (var v = 0; v < 4; v++) {
+          var w = verts[(v + 1) % 4];
+          var eAng = Math.abs(Math.atan2(w.y - verts[v].y, w.x - verts[v].x) * 180 / Math.PI);
+          var off = Math.min(eAng % 90, 90 - (eAng % 90));
+          if (off > 12) { axisOk = false; break; }
+        }
+        if (axisOk) {
+          var xs = verts.map(function (q) { return q.x; });
+          var ys = verts.map(function (q) { return q.y; });
+          var x1 = Math.min.apply(null, xs), x2 = Math.max.apply(null, xs);
+          var y1 = Math.min.apply(null, ys), y2 = Math.max.apply(null, ys);
+          verts = [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }];
+        }
+      }
+      // Continue-drag moves the corner nearest to where the pencil is now.
+      var dragIdx = 0, best = Infinity;
+      verts.forEach(function (v2, idx) {
+        var dd = ptDist(v2, pn);
+        if (dd < best) { best = dd; dragIdx = idx; }
+      });
+      return { kind: 'poly', verts: verts, dragIdx: dragIdx };
+    }
+
+    // Oval that isn't round enough for a circle: axis-aligned ellipse fit.
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    pts.forEach(function (q) {
+      if (q.x < minX) minX = q.x; if (q.x > maxX) maxX = q.x;
+      if (q.y < minY) minY = q.y; if (q.y > maxY) maxY = q.y;
+    });
+    var ex = (minX + maxX) / 2, ey = (minY + maxY) / 2;
+    var rx = Math.max(2, (maxX - minX) / 2), ry = Math.max(2, (maxY - minY) / 2);
+    var fitErr = 0;
+    pts.forEach(function (q) {
+      var nx = (q.x - ex) / rx, ny = (q.y - ey) / ry;
+      fitErr += Math.abs(Math.hypot(nx, ny) - 1);
+    });
+    if (fitErr / pts.length < 0.18) {
+      return { kind: 'ellipse', c: { x: ex, y: ey }, rx: rx, ry: ry, d0: Math.max(ptDist({ x: ex, y: ey }, pn), 2) };
+    }
+    return null;
+  }
+
+  // Open and bent: smooth it into a quadratic curve through the bend.
+  var devI = 0, devMax = 0;
+  for (var j = 1; j < pts.length - 1; j++) {
+    var dj = perpDist(pts[j], p0, pn);
+    if (dj > devMax) { devMax = dj; devI = j; }
+  }
+  if (devMax < 6) return null;
+  var u = Math.max(0.15, Math.min(0.85, strokeLength(pts.slice(0, devI + 1)) / len));
+  var M = pts[devI];
+  var uu = 1 - u;
+  var c1 = {
+    x: (M.x - uu * uu * p0.x - u * u * pn.x) / (2 * u * uu),
+    y: (M.y - uu * uu * p0.y - u * u * pn.y) / (2 * u * uu)
+  };
+  // Reject the fit if the smoothed curve strays far from the real stroke
+  // (e.g. zig-zags or letters) — better to leave the freehand ink alone.
+  var fitted = sampleQuadCurve(p0, c1, pn);
+  var worst = 0;
+  for (var k2 = 0; k2 < pts.length; k2 += 2) {
+    var bestD = Infinity;
+    for (var m2 = 0; m2 < fitted.length; m2++) {
+      var dd2 = ptDist(pts[k2], fitted[m2]);
+      if (dd2 < bestD) bestD = dd2;
+    }
+    if (bestD > worst) worst = bestD;
+  }
+  if (worst > Math.max(9, len * 0.06)) return null;
+  return { kind: 'curve', p0: p0, c1: c1 };
+}
+
+/* Regenerate the snapped shape's points with the pencil at dragPt. */
+function snapShapePoints(snap, dragPt) {
+  if (snap.kind === 'line') {
+    return [
+      { x: round2(snap.p0.x), y: round2(snap.p0.y) },
+      axisSnapEnd(snap.p0, dragPt)
+    ];
+  }
+  if (snap.kind === 'circle') {
+    var r = Math.max(3, ptDist(snap.c, dragPt));
+    return sampleEllipsePts(snap.c.x, snap.c.y, r, r);
+  }
+  if (snap.kind === 'ellipse') {
+    var s = Math.max(0.15, ptDist(snap.c, dragPt) / snap.d0);
+    return sampleEllipsePts(snap.c.x, snap.c.y, snap.rx * s, snap.ry * s);
+  }
+  if (snap.kind === 'poly') {
+    snap.verts[snap.dragIdx] = { x: round2(dragPt.x), y: round2(dragPt.y) };
+    return snap.verts.concat([snap.verts[0]]);
+  }
+  // curve — the endpoint follows the pencil
+  return sampleQuadCurve(snap.p0, snap.c1, dragPt);
+}
+
+/* Called by the hold timer: if the pencil has stayed still long enough,
+   snap the in-progress stroke to the shape it looks like. */
+function trySnapShape() {
+  if (!drawing || drawing.snap || drawing.isText) return;
+  var a = drawing.ann;
+  if (a.type !== 'pen' && a.type !== 'highlight') return;
+  var rec = recognizeStroke(a.points);
+  if (!rec) return;
+  drawing.snap = rec;
+  a.points = snapShapePoints(rec, a.points[a.points.length - 1]);
+  redrawTemp(true);
+  if (!snapHintShown) {
+    snapHintShown = true;
+    toast('Snapped! Keep dragging to adjust, or lift the pencil to keep the shape.');
+  }
+}
+
+function armSnapHold(e) {
+  if (!drawing) return;
+  drawing.holdCX = e.clientX;
+  drawing.holdCY = e.clientY;
+  clearTimeout(drawing.holdTimer);
+  drawing.holdTimer = setTimeout(trySnapShape, SNAP_HOLD_MS);
 }
 
 /* Resize an annotation by dragging one of its edit handles */
@@ -3184,6 +3500,7 @@ function zoomAt(clientX, clientY, factor) {
    meant to scroll — discard the accidental dot/stroke and pan instead. */
 function abortYoungStroke(ts) {
   if (drawing && !drawing.isText && drawing.ptrType === 'touch' && ts - drawing.startT < 300) {
+    clearTimeout(drawing.holdTimer);
     if (drawing.svgNode && drawing.svgNode.parentNode) drawing.svgNode.parentNode.removeChild(drawing.svgNode);
     drawing = null;
     activePointerId = null;
