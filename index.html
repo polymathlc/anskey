@@ -346,6 +346,32 @@
     color: var(--ink);
   }
   .profileIntro { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.55; margin-bottom: 20px; }
+  .chipRow.locked .pickChip { opacity: 0.45; pointer-events: none; }
+  #lassoBar {
+    position: fixed;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow-modal);
+    padding: 8px 10px;
+    animation: fadeUp 0.2s ease both;
+  }
+  #lassoBar .btn { padding: 7px 12px; font-size: 0.8rem; }
+  #lassoCount { font-size: 0.78rem; color: var(--ink-soft); font-weight: bold; padding-left: 4px; }
+  .stuRowSelects { display: flex; gap: 6px; margin-top: 6px; }
+  .stuRowSelects select {
+    font-family: var(--font);
+    font-size: 0.8rem;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    cursor: pointer;
+  }
   .authInfo.clickable { cursor: pointer; border-radius: var(--radius-sm); padding: 3px 8px; transition: background 0.2s ease; }
   .authInfo.clickable:hover { background: #F1F0EE; }
 
@@ -649,6 +675,9 @@
     <button class="toolBtn" data-tool="select" title="Select / move — double-click an element to edit it (V)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2.5-7.5L21 10z"/></svg>
     </button>
+    <button class="toolBtn" data-tool="lasso" title="Lasso — circle several things, then duplicate or resize them (S)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="9.5" rx="8" ry="6" stroke-dasharray="4 3"/><path d="M11 15.4c-.6 2.2-2.4 3.8-4.8 4.3"/></svg>
+    </button>
     <button class="toolBtn" data-tool="pen" title="Pen (P)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
     </button>
@@ -922,6 +951,7 @@
           <button type="button" class="pickChip" data-subject="science">Science</button>
           <button type="button" class="pickChip" data-subject="both">Both</button>
         </div>
+        <div class="fieldHint" id="profileLockHint" style="display:none"></div>
       </div>
       <div class="fieldRow">
         <label>Your class day(s)</label>
@@ -943,6 +973,29 @@
   </div>
 </div>
 
+<div id="lassoBar">
+  <span id="lassoCount"></span>
+  <button class="btn" id="lassoDupBtn" title="Make a copy of everything selected">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    Duplicate
+  </button>
+  <button class="btn" id="lassoResizeBtn" title="Resize everything selected — proportions stay fixed">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+    Resize
+  </button>
+  <button class="modalClose" id="lassoCloseBtn" title="Clear selection">✕</button>
+</div>
+
+<div class="modalBack" id="studentsModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>Students</h2>
+      <button class="modalClose" id="studentsCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody" id="studentsList"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
 
@@ -957,7 +1010,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.11.0';
+var APP_VERSION = 'v1.12.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1040,7 +1093,8 @@ function isPalmTouch(e) {
 }
 function isDrawTool(t) {
   return t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
-         t === 'line' || t === 'arrow' || t === 'text' || t === 'eraser' || t === 'laser';
+         t === 'line' || t === 'arrow' || t === 'text' || t === 'eraser' ||
+         t === 'laser' || t === 'lasso';
 }
 
 /* ---- Laser pointer: glowing strokes that fade away on their own ----
@@ -1187,6 +1241,7 @@ function afterHistoryChange() {
   if (selectedId && !annotations.some(function (a) { return a.id === selectedId; })) selectedId = null;
   editingId = null;
   editModeId = null;
+  if (typeof clearLassoSel === 'function') clearLassoSel(false);
   renderAllOverlays();
   setDirty(true);
 }
@@ -1266,6 +1321,7 @@ function applyScale() {
     renderEditChrome(p); // keep the edit badge aligned after zooming
   });
   updateToolCursor();
+  if (typeof positionLassoBar === 'function') positionLassoBar();
 }
 
 function renderPageCanvas(p) {
@@ -1324,6 +1380,7 @@ function renderOverlay(p) {
       }
     }
   }
+  if (lassoSel && lassoSel.page === p) renderLassoChrome(p);
   renderEditChrome(p);
 }
 
@@ -1822,6 +1879,7 @@ function eventPoint(e, p) {
 
 function setTool(t) {
   commitActiveTextEdit(); // switching tools closes the text box being typed in
+  if (t !== 'lasso') clearLassoSel(true);
   tool = t;
   if (t !== 'select') { selectedId = null; editModeId = null; renderAllOverlays(); }
   if (t === 'laser' && !laserHintShown) {
@@ -1940,6 +1998,21 @@ function attachOverlayHandlers(p) {
       return;
     }
 
+    if (tool === 'lasso') {
+      // Grabbing the resize handle keeps the current selection.
+      if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-handle')) {
+        startLassoResize(e, p);
+        return;
+      }
+      e.preventDefault();
+      clearLassoSel(true);
+      activePointerId = e.pointerId;
+      svg.setPointerCapture(e.pointerId);
+      lassoing = { page: p, pts: [pt], node: null };
+      drawLassoTemp();
+      return;
+    }
+
     if (tool === 'keyword') {
       var span = e.target.closest ? e.target.closest('span[data-w]') : null;
       var host = e.target.closest ? e.target.closest('[data-id]') : null;
@@ -2020,6 +2093,19 @@ function attachOverlayHandlers(p) {
       }
       return;
     }
+    if (lassoResizing && lassoResizing.page === p) {
+      applyLassoResize(eventPoint(e, p));
+      return;
+    }
+    if (lassoing && lassoing.page === p) {
+      var qpt = eventPoint(e, p);
+      var qlast = lassoing.pts[lassoing.pts.length - 1];
+      if (Math.abs(qpt.x - qlast.x) + Math.abs(qpt.y - qlast.y) >= 1.5) {
+        lassoing.pts.push(qpt);
+        drawLassoTemp();
+      }
+      return;
+    }
     if (resizingSel && resizingSel.page === p) {
       var rpt = eventPoint(e, p);
       var ra = annotations.find(function (x) { return x.id === resizingSel.id; });
@@ -2072,6 +2158,14 @@ function attachOverlayHandlers(p) {
     if (lasering && lasering.page === p) {
       fadeLaserStroke(lasering.node);
       lasering = null;
+      return;
+    }
+    if (lassoResizing && lassoResizing.page === p) {
+      endLassoResize();
+      return;
+    }
+    if (lassoing && lassoing.page === p) {
+      completeLasso();
       return;
     }
     if (erasing && erasing.page === p) {
@@ -2163,6 +2257,17 @@ function attachOverlayHandlers(p) {
       activePointerId = null;
       return;
     }
+    if (lassoResizing && lassoResizing.page === p) {
+      endLassoResize();
+      activePointerId = null;
+      return;
+    }
+    if (lassoing && lassoing.page === p) {
+      if (lassoing.node && lassoing.node.parentNode) lassoing.node.parentNode.removeChild(lassoing.node);
+      lassoing = null;
+      activePointerId = null;
+      return;
+    }
     if (erasing && erasing.page === p) {
       if (erasing.removed) { pushUndo(erasing.snap); setDirty(true); }
       erasing = null;
@@ -2234,6 +2339,221 @@ function redrawTemp(force) {
   drawing.svgNode = annNode(a);
   drawing.svgNode.setAttribute('pointer-events', 'none');
   p.svg.appendChild(drawing.svgNode);
+}
+
+/* ================= Lasso multi-select =================
+   Draw a loop around several annotations with the lasso tool: everything
+   whose centre falls inside the loop is selected, and a floating bar offers
+   Duplicate and Resize. Resizing drags a corner handle and always keeps the
+   original proportions (uniform scale about the group's top-left corner). */
+var lassoing = null;       // { page, pts, node } while the loop is being drawn
+var lassoSel = null;       // { page, ids[] } once a selection exists
+var lassoResizing = null;  // { page, origin, baseDist, base[], snap, factor } during a handle drag
+var lassoResizeMode = false;
+
+function pointInPoly(q, poly) {
+  var inside = false;
+  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    var xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    if ((yi > q.y) !== (yj > q.y) && q.x < (xj - xi) * (q.y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function drawLassoTemp() {
+  if (!lassoing) return;
+  var svg = lassoing.page.svg;
+  if (!lassoing.node || lassoing.node.parentNode !== svg) {
+    lassoing.node = el('path', {
+      fill: 'rgba(30,136,229,0.06)', stroke: '#1E88E5', 'stroke-width': 1.5,
+      'stroke-dasharray': '6 5', 'pointer-events': 'none'
+    });
+    svg.appendChild(lassoing.node);
+  }
+  lassoing.node.setAttribute('d', pathFromPoints(lassoing.pts) + ' Z');
+}
+
+function completeLasso() {
+  if (!lassoing) return;
+  var poly = lassoing.pts;
+  var p = lassoing.page;
+  if (lassoing.node && lassoing.node.parentNode) lassoing.node.parentNode.removeChild(lassoing.node);
+  lassoing = null;
+  if (poly.length < 3) return;
+  var ids = [];
+  annotations.forEach(function (a) {
+    if (a.page !== p.num) return;
+    var b = annBBox(a);
+    if (pointInPoly({ x: b.x + b.w / 2, y: b.y + b.h / 2 }, poly)) ids.push(a.id);
+  });
+  if (!ids.length) {
+    toast('Nothing inside the lasso — draw a loop around the items you want.');
+    return;
+  }
+  lassoSel = { page: p, ids: ids };
+  lassoResizeMode = false;
+  renderOverlay(p);
+  showLassoBar();
+}
+
+function lassoGroupBBox() {
+  if (!lassoSel) return null;
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, any = false;
+  lassoSel.ids.forEach(function (id) {
+    var a = annotations.find(function (x) { return x.id === id; });
+    if (!a) return;
+    var b = annBBox(a);
+    any = true;
+    minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h);
+  });
+  return any ? { x: minX, y: minY, w: maxX - minX, h: maxY - minY } : null;
+}
+
+function renderLassoChrome(p) {
+  var box = lassoGroupBBox();
+  if (!box) { clearLassoSel(false); return; }
+  lassoSel.ids.forEach(function (id) {
+    var node = p.svg.querySelector('[data-id="' + id + '"]');
+    if (!node) return;
+    var b;
+    try { b = node.getBBox(); } catch (e) { return; }
+    p.svg.appendChild(el('rect', {
+      x: b.x - 3, y: b.y - 3, width: b.width + 6, height: b.height + 6,
+      fill: 'none', stroke: '#1E88E5', 'stroke-width': 1,
+      'stroke-dasharray': '4 3', 'pointer-events': 'none', rx: 3
+    }));
+  });
+  p.svg.appendChild(el('rect', {
+    x: box.x - 6, y: box.y - 6, width: box.w + 12, height: box.h + 12,
+    fill: 'none', stroke: '#E8A54B', 'stroke-width': 1.5,
+    'stroke-dasharray': '7 5', 'pointer-events': 'none', rx: 4
+  }));
+  if (lassoResizeMode) {
+    p.svg.appendChild(el('circle', {
+      cx: box.x + box.w + 6, cy: box.y + box.h + 6, r: 8,
+      fill: '#fff', stroke: '#E8A54B', 'stroke-width': 3,
+      'data-lasso-handle': 'se', style: 'cursor: nwse-resize'
+    }));
+  }
+}
+
+function showLassoBar() {
+  if (!lassoSel) return;
+  $('lassoCount').textContent = lassoSel.ids.length + ' selected';
+  $('lassoResizeBtn').classList.toggle('btnPrimary', lassoResizeMode);
+  $('lassoBar').style.display = 'flex';
+  positionLassoBar();
+}
+
+function positionLassoBar() {
+  if (!lassoSel || $('lassoBar').style.display === 'none') return;
+  var box = lassoGroupBBox();
+  if (!box) { clearLassoSel(true); return; }
+  var wrapRect = lassoSel.page.wrap.getBoundingClientRect();
+  var sc = wrapRect.width / lassoSel.page.baseW;
+  var bar = $('lassoBar');
+  var left = wrapRect.left + (box.x + box.w / 2) * sc - bar.offsetWidth / 2;
+  var top = wrapRect.top + (box.y - 6) * sc - bar.offsetHeight - 12;
+  bar.style.left = Math.max(8, Math.min(window.innerWidth - bar.offsetWidth - 8, left)) + 'px';
+  bar.style.top = Math.max(8, Math.min(window.innerHeight - 60, top)) + 'px';
+}
+
+function clearLassoSel(rerender) {
+  var p = lassoSel && lassoSel.page;
+  lassoSel = null;
+  lassoResizing = null;
+  lassoResizeMode = false;
+  $('lassoBar').style.display = 'none';
+  $('lassoResizeBtn').classList.remove('btnPrimary');
+  if (rerender && p) renderOverlay(p);
+}
+
+function duplicateLassoSel() {
+  if (!lassoSel) return;
+  pushUndo();
+  var newIds = [];
+  var now = Date.now();
+  lassoSel.ids.forEach(function (id) {
+    var a = annotations.find(function (x) { return x.id === id; });
+    if (!a) return;
+    var copy = JSON.parse(JSON.stringify(a));
+    copy.id = newAnnId();
+    copy.ts = now;
+    translateAnn(copy, 18, 18);
+    annotations.push(copy);
+    newIds.push(copy.id);
+  });
+  if (!newIds.length) { clearLassoSel(true); return; }
+  lassoSel.ids = newIds; // the selection moves onto the fresh copies
+  setDirty(true);
+  renderOverlay(lassoSel.page);
+  showLassoBar();
+  toast(newIds.length + (newIds.length === 1 ? ' item' : ' items') + ' duplicated — drag-resize or lasso again to move on.');
+}
+
+/* Uniform scale of one annotation about origin o, from its pristine copy. */
+function scaleAnnFrom(orig, a, f, o) {
+  function sx(v) { return round2(o.x + (v - o.x) * f); }
+  function sy(v) { return round2(o.y + (v - o.y) * f); }
+  if (orig.points) {
+    a.points = orig.points.map(function (q) { return { x: sx(q.x), y: sy(q.y) }; });
+  }
+  if (orig.x1 !== undefined) {
+    a.x1 = sx(orig.x1); a.y1 = sy(orig.y1);
+    a.x2 = sx(orig.x2); a.y2 = sy(orig.y2);
+  }
+  if (orig.x !== undefined && orig.w !== undefined) {
+    a.x = sx(orig.x); a.y = sy(orig.y);
+    a.w = round2(orig.w * f); a.h = round2(orig.h * f);
+  }
+  if (orig.type === 'text' && orig.fontSize) a.fontSize = Math.max(6, round2(orig.fontSize * f));
+  if (orig.width !== undefined) a.width = Math.max(0.5, round2(orig.width * f));
+}
+
+function startLassoResize(e, p) {
+  var box = lassoGroupBBox();
+  if (!box) return;
+  e.preventDefault();
+  activePointerId = e.pointerId;
+  p.svg.setPointerCapture(e.pointerId);
+  var origin = { x: box.x, y: box.y };
+  var startPt = eventPoint(e, p);
+  lassoResizing = {
+    page: p,
+    origin: origin,
+    baseDist: Math.max(10, Math.hypot(startPt.x - origin.x, startPt.y - origin.y)),
+    snap: snapshot(),
+    factor: 1,
+    base: lassoSel.ids.map(function (id) {
+      var a = annotations.find(function (x) { return x.id === id; });
+      return a ? JSON.parse(JSON.stringify(a)) : null;
+    }).filter(Boolean)
+  };
+}
+
+function applyLassoResize(pt) {
+  var r = lassoResizing;
+  var f = Math.hypot(pt.x - r.origin.x, pt.y - r.origin.y) / r.baseDist;
+  f = Math.max(0.15, Math.min(8, f));
+  r.factor = f;
+  r.base.forEach(function (orig) {
+    var a = annotations.find(function (x) { return x.id === orig.id; });
+    if (a) scaleAnnFrom(orig, a, f, r.origin);
+  });
+  renderOverlay(r.page);
+}
+
+function endLassoResize() {
+  var r = lassoResizing;
+  lassoResizing = null;
+  if (!r) return;
+  if (Math.abs(r.factor - 1) > 0.01) {
+    pushUndo(r.snap);
+    setDirty(true);
+  }
+  renderOverlay(r.page);
+  positionLassoBar();
 }
 
 /* ================= Hold-to-snap shape recognition =================
@@ -2664,6 +2984,14 @@ function renderAuthArea() {
     img.alt = '';
     area.appendChild(img);
   }
+  if (isAdmin(currentUser)) {
+    var stuBtn = document.createElement('button');
+    stuBtn.className = 'btn';
+    stuBtn.textContent = 'Students';
+    stuBtn.title = 'Manage student levels and subjects';
+    stuBtn.addEventListener('click', openStudentsModal);
+    area.appendChild(stuBtn);
+  }
   var out = document.createElement('button');
   out.className = 'btn';
   out.textContent = 'Sign out';
@@ -2704,6 +3032,7 @@ async function loadStudentProfile(user) {
 }
 
 var profilePick = { level: '', subject: '', days: [] };
+var profileLocked = false;  // student already used their one level/subject change
 
 function refreshProfileChips() {
   document.querySelectorAll('#profileLevelRow .pickChip').forEach(function (b) {
@@ -2722,6 +3051,21 @@ function openProfileModal(firstTime) {
   $('profileNameInput').value = p.name || (currentUser && currentUser.displayName) || '';
   profilePick = { level: p.level || '', subject: p.subject || '', days: (p.days || []).slice() };
   refreshProfileChips();
+  // Students get exactly one level/subject change after setup; after that
+  // only the admin can update them.
+  profileLocked = !firstTime && !isAdmin(currentUser) && !!studentProfile &&
+    (studentProfile.lsChangesUsed || 0) >= 1;
+  $('profileLevelRow').classList.toggle('locked', profileLocked);
+  $('profileSubjectRow').classList.toggle('locked', profileLocked);
+  var lockHint = $('profileLockHint');
+  if (firstTime) {
+    lockHint.style.display = 'none';
+  } else {
+    lockHint.style.display = 'block';
+    lockHint.textContent = profileLocked
+      ? 'Your level and subject are locked — you already used your one change. Ask Mr Chung if they need fixing.'
+      : 'You can change your level or subject only once — choose carefully!';
+  }
   $('profileTitle').textContent = firstTime ? 'Welcome to Polymath! 👋' : 'Your profile';
   $('profileIntro').style.display = firstTime ? 'block' : 'none';
   // First-time setup must be completed; editing later can be dismissed.
@@ -2737,6 +3081,14 @@ async function saveStudentProfile() {
   if (!name) { toast('Please type your name.'); $('profileNameInput').focus(); return; }
   if (!profilePick.level) { toast('Please choose your level (P3–P6).'); return; }
   if (!profilePick.subject) { toast('Please choose your subject.'); return; }
+  // One level/subject change per student after the first setup.
+  var changedLS = !!studentProfile &&
+    (studentProfile.level !== profilePick.level || studentProfile.subject !== profilePick.subject);
+  var changesUsed = studentProfile ? (studentProfile.lsChangesUsed || 0) : 0;
+  if (changedLS && changesUsed >= 1) {
+    toast('Your one level/subject change has already been used — ask Mr Chung to update it for you.');
+    return;
+  }
   var btn = $('profileSaveBtn');
   btn.disabled = true;
   try {
@@ -2746,21 +3098,117 @@ async function saveStudentProfile() {
       subject: profilePick.subject,
       days: profilePick.days,
       email: currentUser.email || '',
+      lsChangesUsed: changesUsed + (changedLS ? 1 : 0),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (!studentProfile) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection(PROFILES_COLLECTION).doc(currentUser.uid).set(payload, { merge: true });
+    var wasFirstTime = !studentProfile;
     studentProfile = payload;
     $('profileModal').classList.remove('open');
     renderAuthArea();
     if ($('qDrawer').classList.contains('open')) loadQuestionsList();
-    toast('Welcome, ' + name + '! Showing ' + profilePick.level + ' ' +
-      subjectLabel(profilePick.subject) + ' worksheets.');
+    if (changedLS) {
+      toast('Updated to ' + profilePick.level + ' ' + subjectLabel(profilePick.subject) +
+        ' — that was your one change. Ask Mr Chung if you ever need another.', 4500);
+    } else if (wasFirstTime) {
+      toast('Welcome, ' + name + '! Showing ' + profilePick.level + ' ' +
+        subjectLabel(profilePick.subject) + ' worksheets.');
+    } else {
+      toast('Profile saved.');
+    }
   } catch (e) {
     console.error(e);
     toast('Could not save your profile: ' + (e.message || e));
   }
   btn.disabled = false;
+}
+
+/* ---- Admin: manage student levels & subjects ---- */
+async function openStudentsModal() {
+  $('studentsModal').classList.add('open');
+  var list = $('studentsList');
+  list.innerHTML = '<div class="docsEmpty">Loading students…</div>';
+  try {
+    var snap = await db.collection(PROFILES_COLLECTION).get();
+    var rows = [];
+    snap.forEach(function (d) { rows.push({ uid: d.id, p: d.data() }); });
+    rows.sort(function (a, b) {
+      return (a.p.level || '').localeCompare(b.p.level || '') ||
+             (a.p.name || '').localeCompare(b.p.name || '');
+    });
+    list.innerHTML = '';
+    if (!rows.length) {
+      list.innerHTML = '<div class="docsEmpty">No students have signed in yet.</div>';
+      return;
+    }
+    rows.forEach(function (row) { list.appendChild(studentAdminRow(row.uid, row.p)); });
+  } catch (e) {
+    console.error(e);
+    list.innerHTML = '<div class="docsEmpty">Could not load students: ' + escHtml(e.message || String(e)) + '</div>';
+  }
+}
+
+function studentAdminRow(uid, p) {
+  var row = document.createElement('div');
+  row.className = 'docRow';
+  var info = document.createElement('div');
+  info.className = 'docRowInfo';
+  var nm = document.createElement('div');
+  nm.className = 'docRowName';
+  nm.textContent = p.name || '(no name)';
+  var meta = document.createElement('div');
+  meta.className = 'docRowMeta';
+  function metaText() {
+    return (p.email || '') +
+      ((p.days && p.days.length) ? ' · ' + p.days.join(', ') : '') +
+      ' · ' + ((p.lsChangesUsed || 0) >= 1 ? 'change used' : 'change available');
+  }
+  meta.textContent = metaText();
+  var selWrap = document.createElement('div');
+  selWrap.className = 'stuRowSelects';
+  var lvlSel = document.createElement('select');
+  ['P3', 'P4', 'P5', 'P6'].forEach(function (l) {
+    var o = document.createElement('option'); o.value = l; o.textContent = l; lvlSel.appendChild(o);
+  });
+  setSelectValue(lvlSel, p.level || 'P3');
+  var subSel = document.createElement('select');
+  [['math', 'Mathematics'], ['science', 'Science'], ['both', 'Both']].forEach(function (s) {
+    var o = document.createElement('option'); o.value = s[0]; o.textContent = s[1]; subSel.appendChild(o);
+  });
+  setSelectValue(subSel, p.subject || 'both');
+  function adminSave(data, msg) {
+    db.collection(PROFILES_COLLECTION).doc(uid).set(Object.assign({}, data, {
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }), { merge: true }).then(function () {
+      Object.assign(p, data);
+      meta.textContent = metaText();
+      unlockBtn.disabled = (p.lsChangesUsed || 0) === 0;
+      toast(msg);
+    }).catch(function (e) { toast('Could not update: ' + (e.message || e)); });
+  }
+  lvlSel.addEventListener('change', function () {
+    adminSave({ level: lvlSel.value }, (p.name || 'Student') + ' moved to ' + lvlSel.value + '.');
+  });
+  subSel.addEventListener('change', function () {
+    adminSave({ subject: subSel.value }, (p.name || 'Student') + ' set to ' + subjectLabel(subSel.value) + '.');
+  });
+  selWrap.appendChild(lvlSel);
+  selWrap.appendChild(subSel);
+  info.appendChild(nm);
+  info.appendChild(meta);
+  info.appendChild(selWrap);
+  row.appendChild(info);
+  var unlockBtn = document.createElement('button');
+  unlockBtn.className = 'btn';
+  unlockBtn.textContent = 'Unlock change';
+  unlockBtn.title = 'Let this student pick a new level/subject once more';
+  unlockBtn.disabled = (p.lsChangesUsed || 0) === 0;
+  unlockBtn.addEventListener('click', function () {
+    adminSave({ lsChangesUsed: 0 }, (p.name || 'Student') + ' can change their level/subject once again.');
+  });
+  row.appendChild(unlockBtn);
+  return row;
 }
 
 /* ---- Which worksheets can this signed-in user see? ---- */
@@ -3387,12 +3835,14 @@ $('kwInput').addEventListener('keydown', function (e) {
 /* Student profile modal */
 document.querySelectorAll('#profileLevelRow .pickChip').forEach(function (b) {
   b.addEventListener('click', function () {
+    if (profileLocked) { toast('Your level is locked — ask Mr Chung to change it.'); return; }
     profilePick.level = b.getAttribute('data-level');
     refreshProfileChips();
   });
 });
 document.querySelectorAll('#profileSubjectRow .pickChip').forEach(function (b) {
   b.addEventListener('click', function () {
+    if (profileLocked) { toast('Your subject is locked — ask Mr Chung to change it.'); return; }
     profilePick.subject = b.getAttribute('data-subject');
     refreshProfileChips();
   });
@@ -3409,6 +3859,23 @@ $('profileSaveBtn').addEventListener('click', saveStudentProfile);
 $('profileCloseBtn').addEventListener('click', function () { $('profileModal').classList.remove('open'); });
 $('profileNameInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); saveStudentProfile(); }
+});
+
+/* Lasso action bar */
+$('lassoDupBtn').addEventListener('click', duplicateLassoSel);
+$('lassoResizeBtn').addEventListener('click', function () {
+  if (!lassoSel) return;
+  lassoResizeMode = !lassoResizeMode;
+  this.classList.toggle('btnPrimary', lassoResizeMode);
+  renderOverlay(lassoSel.page);
+  if (lassoResizeMode) toast('Drag the round corner handle — resizing keeps the proportions.');
+});
+$('lassoCloseBtn').addEventListener('click', function () { clearLassoSel(true); });
+
+/* Admin: students management */
+$('studentsCloseBtn').addEventListener('click', function () { $('studentsModal').classList.remove('open'); });
+$('studentsModal').addEventListener('click', function (e) {
+  if (e.target === $('studentsModal')) $('studentsModal').classList.remove('open');
 });
 
 $('burgerBtn').addEventListener('click', toggleQuestionsDrawer);
@@ -3432,6 +3899,8 @@ $('videoUrlInput').addEventListener('keydown', function (e) {
 
 /* Drag & drop */
 var viewerArea = $('viewerArea');
+viewerArea.addEventListener('scroll', positionLassoBar, { passive: true });
+window.addEventListener('resize', positionLassoBar);
 ['dragenter', 'dragover'].forEach(function (evt) {
   document.body.addEventListener(evt, function (e) {
     e.preventDefault();
@@ -3635,8 +4104,8 @@ document.addEventListener('keydown', function (e) {
   }
   if (e.key === '+' || e.key === '=') { zoomBy(1.2); return; }
   if (e.key === '-') { zoomBy(1 / 1.2); return; }
-  if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; renderAllOverlays(); return; }
-  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser' };
+  if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; clearLassoSel(false); renderAllOverlays(); return; }
+  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey && toolKeys[e.key.toLowerCase()]) setTool(toolKeys[e.key.toLowerCase()]);
 });
 
