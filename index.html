@@ -346,6 +346,8 @@
     color: var(--ink);
   }
   .profileIntro { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.55; margin-bottom: 20px; }
+  body.headerHidden .polymath-header { display: none; }
+  body.studentMode .pageWrap svg.overlay { touch-action: pan-x pan-y; cursor: default; }
   .chipRow.locked .pickChip { opacity: 0.45; pointer-events: none; }
   #lassoBar {
     position: fixed;
@@ -763,6 +765,9 @@
   <div class="tSep"></div>
 
   <div class="tGroup">
+    <button class="toolBtn" id="focusBtn" title="Hide / show the top banner — more space for screensharing">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+    </button>
     <button class="toolBtn" id="stylusBtn" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
     </button>
@@ -1010,7 +1015,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.12.0';
+var APP_VERSION = 'v1.13.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1250,6 +1255,10 @@ function afterHistoryChange() {
 function openFilePicker() { $('fileInput').click(); }
 
 async function loadPdfFromFile(file) {
+  if (isStudent()) {
+    toast('Worksheets come from your teacher — open one from the questions list or “My PDFs”.');
+    return;
+  }
   if (!file || file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
     toast('Please choose a PDF file.');
     return;
@@ -1308,6 +1317,11 @@ async function loadPdf(bytes, name) {
   }
   fitWidth();
   if (window.innerWidth > 900) $('sideBar').classList.add('open');
+  // Fresh worksheet, fresh pen: black ink selected by default.
+  if (!isStudent()) {
+    setTool('pen');
+    setColor('#1A1A1A');
+  }
   renderSidebar();
   toast('Loaded “' + docName + '” — ' + pdfDoc.numPages + ' page' + (pdfDoc.numPages > 1 ? 's' : ''));
 }
@@ -1936,6 +1950,9 @@ function attachOverlayHandlers(p) {
       if (editedHost && editedHost.getAttribute('data-id') === editingId) return;
       commitActiveTextEdit();
     }
+    // Students read only — the page never draws or edits for them. Keyword
+    // revision (revise mode) is the one interaction that stays.
+    if (isStudent() && !reviseMode) return;
 
     /* ---- Palm rejection ---- */
     // First time an Apple Pencil touches down, switch on pencil-only mode
@@ -2289,7 +2306,7 @@ function attachOverlayHandlers(p) {
   /* Belt-and-braces for iOS Safari: even with touch-action:none some
      versions still try to scroll/zoom from a palm resting on the page. */
   svg.addEventListener('touchmove', function (e) {
-    if (editingId || kwGuessActive) return;
+    if (editingId || kwGuessActive || isStudent()) return; // students scroll natively
     e.preventDefault();
   }, { passive: false });
 
@@ -2297,7 +2314,7 @@ function attachOverlayHandlers(p) {
      select branch above is the primary path (dblclick doesn't fire reliably
      once the overlay takes pointer capture). */
   svg.addEventListener('dblclick', function (e) {
-    if (tool === 'keyword' || reviseMode) return;
+    if (isStudent() || tool === 'keyword' || reviseMode) return;
     var target = e.target.closest ? e.target.closest('[data-id]') : null;
     if (!target) return;
     enterEditMode(target.getAttribute('data-id'), p);
@@ -2929,6 +2946,44 @@ function deleteSelected() {
 
 /* ================= Auth ================= */
 function isAdmin(user) { return !!user && user.email === ADMIN_EMAIL; }
+function isStudent() { return !!currentUser && !isAdmin(currentUser); }
+
+/* Students only open and read worksheets for their level and subject — every
+   editing/annotation function disappears and the page becomes scroll-only
+   (keyword revision in the sidebar stays, since that IS reading practice). */
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'toolButtons', 'colorChips', 'strokeSelect', 'fontSelect',
+  'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'downloadBtn', 'printBtn', 'saveBtn'];
+var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
+
+function applyRoleUI() {
+  var student = isStudent();
+  document.body.classList.toggle('studentMode', student);
+  TEACHER_TOOLBAR_IDS.forEach(function (id) {
+    var elm = $(id);
+    if (elm) elm.style.display = student ? 'none' : '';
+  });
+  document.querySelectorAll('#toolbar .tSep').forEach(function (s) {
+    s.style.display = student ? 'none' : '';
+  });
+  var h1 = $('emptyState').querySelector('h1');
+  var para = $('emptyState').querySelector('p');
+  if (student) {
+    h1.textContent = 'Welcome to Polymath!';
+    para.textContent = 'Tap the ☰ button (top left) to see the questions for your level and subject, ' +
+      'or “My PDFs” to open a saved worksheet. Use the sidebar to watch the lesson recording and revise keywords.';
+    $('emptyUploadBtn').style.display = 'none';
+    $('dropHint').style.display = 'none';
+    clearLassoSel(false);
+    selectedId = null;
+    editModeId = null;
+    if (pages.length) renderAllOverlays();
+  } else {
+    h1.textContent = 'Annotate any PDF';
+    para.textContent = EMPTY_STATE_TEACHER_P;
+    $('emptyUploadBtn').style.display = '';
+    $('dropHint').style.display = '';
+  }
+}
 
 async function signIn() {
   var provider = new firebase.auth.GoogleAuthProvider();
@@ -3003,6 +3058,7 @@ auth.onAuthStateChanged(function (user) {
   currentUser = user;
   studentProfile = null;
   renderAuthArea();
+  applyRoleUI();
   renderVideoCard(); // admin controls appear/disappear with the auth state
   if (user && !isAdmin(user)) {
     // Students: fetch their profile, and ask for it on their very first login.
@@ -3818,6 +3874,11 @@ $('saveModal').addEventListener('click', function (e) {
 $('saveDateInput').addEventListener('input', updateSaveDayPreview);
 $('saveNameInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') performSave(); });
 
+$('focusBtn').addEventListener('click', function () {
+  var hidden = document.body.classList.toggle('headerHidden');
+  $('focusBtn').classList.toggle('active', hidden);
+  toast(hidden ? 'Top banner hidden — more space for the worksheet.' : 'Top banner shown again.');
+});
 $('stylusBtn').addEventListener('click', function () { setStylusOnly(!stylusOnly); });
 $('tsToggleBtn').addEventListener('click', function () {
   showTimestamps = !showTimestamps;
@@ -4096,6 +4157,12 @@ document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') ae.blur();
     return;
   }
+  if (isStudent()) {
+    // Reading-only shortcuts for students: zoom in/out and Escape.
+    if (e.key === '+' || e.key === '=') { zoomBy(1.2); }
+    else if (e.key === '-') { zoomBy(1 / 1.2); }
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -4127,7 +4194,8 @@ window.addEventListener('resize', function () {
 });
 
 setTool('pen');
-setColor('#E53935');
+setColor('#1A1A1A');
+applyRoleUI();
 </script>
 </body>
 </html>
