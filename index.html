@@ -988,6 +988,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
     Resize
   </button>
+  <button class="btn" id="lassoDeleteBtn" title="Delete everything selected">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    Delete
+  </button>
   <button class="modalClose" id="lassoCloseBtn" title="Clear selection">✕</button>
 </div>
 
@@ -1015,7 +1019,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.14.1';
+var APP_VERSION = 'v1.15.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2622,6 +2626,22 @@ function endLassoMove() {
   positionLassoBar();
 }
 
+function deleteLassoSel() {
+  if (!lassoSel) return;
+  var ids = lassoSel.ids.filter(function (id) {
+    return annotations.some(function (a) { return a.id === id; });
+  });
+  if (!ids.length) { clearLassoSel(true); return; }
+  pushUndo();
+  annotations = annotations.filter(function (a) { return ids.indexOf(a.id) === -1; });
+  if (selectedId && ids.indexOf(selectedId) !== -1) selectedId = null;
+  var p = lassoSel.page;
+  clearLassoSel(false);
+  setDirty(true);
+  renderOverlay(p);
+  toast(ids.length + (ids.length === 1 ? ' item' : ' items') + ' deleted — undo brings them back.');
+}
+
 /* Uniform scale of one annotation about origin o, from its pristine copy. */
 function scaleAnnFrom(orig, a, f, o) {
   function sx(v) { return round2(o.x + (v - o.x) * f); }
@@ -4044,6 +4064,7 @@ $('lassoResizeBtn').addEventListener('click', function () {
   renderOverlay(lassoSel.page);
   if (lassoResizeMode) toast('Drag the round corner handle — resizing keeps the proportions.');
 });
+$('lassoDeleteBtn').addEventListener('click', deleteLassoSel);
 $('lassoCloseBtn').addEventListener('click', function () { clearLassoSel(true); });
 
 /* Admin: students management */
@@ -4279,7 +4300,8 @@ document.addEventListener('keydown', function (e) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (selectedId) { e.preventDefault(); deleteSelected(); }
+    if (lassoSel) { e.preventDefault(); deleteLassoSel(); }
+    else if (selectedId) { e.preventDefault(); deleteSelected(); }
     return;
   }
   if (e.key === '+' || e.key === '=') { zoomBy(1.2); return; }
