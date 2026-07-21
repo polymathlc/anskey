@@ -679,6 +679,8 @@
   .docRowMeta { font-size: 0.75rem; color: var(--ink-faint); margin-top: 3px; }
   .docRow .btn { padding: 7px 13px; font-size: 0.78rem; }
   .docsEmpty { text-align: center; color: var(--ink-faint); padding: 30px 0 16px; font-size: 0.9rem; }
+  .docEditRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .docEditRow select { font: inherit; font-size: 0.85rem; padding: 4px 6px; border: 1px solid var(--line, #E2E0DC); border-radius: 6px; background: #fff; }
 
   /* ---------- Toast ---------- */
   #toast {
@@ -1008,6 +1010,7 @@
           <option value="P4">P4</option>
           <option value="P5">P5</option>
           <option value="P6">P6</option>
+          <option value="S1">Sec 1</option>
         </select>
       </div>
       <div class="fieldRow">
@@ -1075,6 +1078,7 @@
           <button type="button" class="pickChip" data-level="P4">P4</button>
           <button type="button" class="pickChip" data-level="P5">P5</button>
           <button type="button" class="pickChip" data-level="P6">P6</button>
+          <button type="button" class="pickChip" data-level="S1">Sec 1</button>
         </div>
       </div>
       <div class="fieldRow">
@@ -1163,7 +1167,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.22.0';
+var APP_VERSION = 'v1.23.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1220,6 +1224,11 @@ var PROFILES_COLLECTION = 'studentProfiles';
 function subjectLabel(s) {
   return s === 'math' ? 'Mathematics' : s === 'science' ? 'Science' : s === 'both' ? 'Maths & Science' : '';
 }
+/* Every level the centre teaches, in teaching order. One list so the save
+   dialog, student profiles, the admin students list and the My PDFs editor
+   can never drift apart. */
+var LEVELS = ['P3', 'P4', 'P5', 'P6', 'S1'];
+function levelLabel(l) { return l === 'S1' ? 'Sec 1' : (l || ''); }
 
 /* Drawing-in-progress state */
 var drawing = null;         // { ann, svgNode, page }
@@ -2101,7 +2110,7 @@ function showKwFeedback(p, anchor, correct, guess, answer) {
 /* ================= Worksheet sidebar ================= */
 function renderSidebar() {
   $('wsLevel').textContent =
-    (wsMeta.level ? wsMeta.level : 'Level —') + (wsMeta.subject ? ' · ' + subjectLabel(wsMeta.subject) : '');
+    (wsMeta.level ? levelLabel(wsMeta.level) : 'Level —') + (wsMeta.subject ? ' · ' + subjectLabel(wsMeta.subject) : '');
   $('wsName').textContent = docName || 'No worksheet loaded';
   $('wsDay').textContent = dayFromISO(wsMeta.date);
   $('wsDate').textContent = prettyDate(wsMeta.date);
@@ -3479,7 +3488,7 @@ function deleteSelected() {
    bottom of this file. */
 var AI_ANSWER_SYS =
   'You are helping a tuition teacher fill in answers on a PDF worksheet for ' +
-  'primary school students (P3-P6, Singapore syllabus). Snapshots of the ' +
+  'students from P3 to Secondary 1 (Singapore syllabus). Snapshots of the ' +
   'worksheet are attached: the first image shows the part of the page where ' +
   'the teacher placed the answer box, and the question nearest that box is ' +
   'usually the one being answered; the remaining images show the full current ' +
@@ -3590,7 +3599,7 @@ function aiAnswer(id) {
   var ctx = aiContextImages(a);
   var lines = [];
   var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
-  var lvl = (wsMeta && wsMeta.level) || '';
+  var lvl = wsMeta && wsMeta.level ? levelLabel(wsMeta.level) : '';
   if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
   if (ctx.length) {
     lines.push('Attached: ' + ctx.map(function (im, i) { return 'image ' + (i + 1) + ' = ' + im.label; }).join('; ') + '.');
@@ -3739,7 +3748,7 @@ auth.onAuthStateChanged(function (user) {
 });
 
 /* ================= Student profile (first Google login) =================
-   Students are asked for their name, level (P3–P6), subject and class day(s)
+   Students are asked for their name, level (P3–P6 / Sec 1), subject and class day(s)
    the first time they sign in. The profile lives in Firestore keyed by their
    Google account uid, and drives which worksheets/videos they see. */
 async function loadStudentProfile(user) {
@@ -3800,7 +3809,7 @@ async function saveStudentProfile() {
   if (!currentUser) return;
   var name = $('profileNameInput').value.trim();
   if (!name) { toast('Please type your name.'); $('profileNameInput').focus(); return; }
-  if (!profilePick.level) { toast('Please choose your level (P3–P6).'); return; }
+  if (!profilePick.level) { toast('Please choose your level (P3–P6 or Sec 1).'); return; }
   if (!profilePick.subject) { toast('Please choose your subject.'); return; }
   // One level/subject change per student after the first setup.
   var changedLS = !!studentProfile &&
@@ -3830,10 +3839,10 @@ async function saveStudentProfile() {
     renderAuthArea();
     if ($('qDrawer').classList.contains('open')) loadQuestionsList();
     if (changedLS) {
-      toast('Updated to ' + profilePick.level + ' ' + subjectLabel(profilePick.subject) +
+      toast('Updated to ' + levelLabel(profilePick.level) + ' ' + subjectLabel(profilePick.subject) +
         ' — that was your one change. Ask Mr Chung if you ever need another.', 4500);
     } else if (wasFirstTime) {
-      toast('Welcome, ' + name + '! Showing ' + profilePick.level + ' ' +
+      toast('Welcome, ' + name + '! Showing ' + levelLabel(profilePick.level) + ' ' +
         subjectLabel(profilePick.subject) + ' worksheets.');
     } else {
       toast('Profile saved.');
@@ -3889,8 +3898,8 @@ function studentAdminRow(uid, p) {
   var selWrap = document.createElement('div');
   selWrap.className = 'stuRowSelects';
   var lvlSel = document.createElement('select');
-  ['P3', 'P4', 'P5', 'P6'].forEach(function (l) {
-    var o = document.createElement('option'); o.value = l; o.textContent = l; lvlSel.appendChild(o);
+  LEVELS.forEach(function (l) {
+    var o = document.createElement('option'); o.value = l; o.textContent = levelLabel(l); lvlSel.appendChild(o);
   });
   setSelectValue(lvlSel, p.level || 'P3');
   var subSel = document.createElement('select');
@@ -4258,14 +4267,17 @@ async function openDocsModal() {
       nm.textContent = d.name || 'Untitled';
       var meta = document.createElement('div');
       meta.className = 'docRowMeta';
-      var when = d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate().toLocaleString() : '';
-      var bits = [];
-      if (d.level) bits.push(d.level);
-      if (d.subject) bits.push(subjectLabel(d.subject));
-      if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ' ' : '') + prettyDate(d.wsDate));
-      bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
-      if (when) bits.push('saved ' + when);
-      meta.textContent = bits.join(' · ');
+      function metaLine() {
+        var when = d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate().toLocaleString() : '';
+        var bits = [];
+        if (d.level) bits.push(levelLabel(d.level));
+        if (d.subject) bits.push(subjectLabel(d.subject));
+        if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ' ' : '') + prettyDate(d.wsDate));
+        bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
+        if (when) bits.push('saved ' + when);
+        return bits.join(' · ');
+      }
+      meta.textContent = metaLine();
       info.appendChild(nm);
       info.appendChild(meta);
       row.appendChild(info);
@@ -4275,6 +4287,13 @@ async function openDocsModal() {
       openBtn.addEventListener('click', function () { openSavedDoc(docSnap.id, d); });
       row.appendChild(openBtn);
       if (isAdmin(currentUser)) {
+        var editBtn = document.createElement('button');
+        editBtn.className = 'btn';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', function () {
+          editDocMeta(docSnap.id, d, info, function () { meta.textContent = metaLine(); });
+        });
+        row.appendChild(editBtn);
         var delBtn = document.createElement('button');
         delBtn.className = 'btn';
         delBtn.textContent = 'Delete';
@@ -4287,6 +4306,61 @@ async function openDocsModal() {
     console.error(e);
     list.innerHTML = '<div class="docsEmpty">Could not load documents: ' + (e.message || e) + '</div>';
   }
+}
+
+/* Inline level/subject editor for a saved PDF in the My PDFs list — writes
+   straight to Firestore so a worksheet can be reassigned without opening it
+   and re-saving. */
+function editDocMeta(id, d, info, refreshMeta) {
+  var existing = info.querySelector('.docEditRow');
+  if (existing) { existing.remove(); return; } // Edit again = close the editor
+  var wrap = document.createElement('div');
+  wrap.className = 'docEditRow';
+  var lvlSel = document.createElement('select');
+  LEVELS.forEach(function (l) {
+    var o = document.createElement('option'); o.value = l; o.textContent = levelLabel(l); lvlSel.appendChild(o);
+  });
+  setSelectValue(lvlSel, d.level || 'P3');
+  var subSel = document.createElement('select');
+  [['math', 'Mathematics'], ['science', 'Science'], ['both', 'Both — Maths & Science']].forEach(function (s) {
+    var o = document.createElement('option'); o.value = s[0]; o.textContent = s[1]; subSel.appendChild(o);
+  });
+  setSelectValue(subSel, d.subject || 'math');
+  var okBtn = document.createElement('button');
+  okBtn.className = 'btn btnPrimary';
+  okBtn.textContent = 'Save';
+  okBtn.addEventListener('click', function () {
+    okBtn.disabled = true;
+    db.collection(COLLECTION).doc(id).set({
+      level: lvlSel.value,
+      subject: subSel.value,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).then(function () {
+      d.level = lvlSel.value;
+      d.subject = subSel.value;
+      refreshMeta();
+      wrap.remove();
+      // If this worksheet is the one on screen, its sidebar follows along.
+      if (currentDocId === id) {
+        wsMeta.level = d.level;
+        wsMeta.subject = d.subject;
+        renderSidebar();
+      }
+      toast('“' + (d.name || 'Untitled') + '” is now ' + levelLabel(d.level) + ' ' + subjectLabel(d.subject) + '.');
+    }).catch(function (e) {
+      okBtn.disabled = false;
+      toast('Could not update: ' + (e.message || e), 5000);
+    });
+  });
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', function () { wrap.remove(); });
+  wrap.appendChild(lvlSel);
+  wrap.appendChild(subSel);
+  wrap.appendChild(okBtn);
+  wrap.appendChild(cancelBtn);
+  info.appendChild(wrap);
 }
 
 async function openSavedDoc(id, data) {
