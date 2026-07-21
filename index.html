@@ -554,9 +554,6 @@
   }
   .aiBar button:hover { background: #F6F1E7; }
   .aiBar button:disabled { opacity: 0.5; cursor: default; }
-  .aiBar .aiKeyBtn { padding: 4px 8px; color: var(--ink-faint, #8A8A84); }
-  .aiKeyNote { font-size: 0.8rem; color: var(--ink-faint, #8A8A84); line-height: 1.5; margin-top: 10px; }
-  .aiKeyNote a { color: var(--accent-deep); font-weight: bold; }
 
   /* ---------- Revise mode: click-to-type keyword boxes ---------- */
   svg.overlay .annText span.kwHidden { cursor: text; }
@@ -1136,31 +1133,6 @@
   </div>
 </div>
 
-<div class="modalBack" id="aiKeyModal">
-  <div class="modalCard">
-    <div class="modalHead">
-      <h2>Gemini AI setup</h2>
-      <button class="modalClose" id="aiKeyCloseBtn" title="Close">✕</button>
-    </div>
-    <div class="modalBody">
-      <div class="fieldRow">
-        <label for="aiKeyInput">Google Gemini API key</label>
-        <input type="password" id="aiKeyInput" placeholder="AIza…" autocomplete="off">
-      </div>
-      <div class="aiKeyNote">
-        The app first tries its own built-in Google key, so this can stay empty.
-        If Gemini rejects it, paste a free key from
-        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>
-        — it is stored only in this browser and sent only to Google's Gemini API.
-      </div>
-      <div class="modalActions">
-        <button class="btn" id="aiKeyClearBtn">Remove saved key</button>
-        <button class="btn btnPrimary" id="aiKeySaveBtn">Save key</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div id="toast"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
 
@@ -1175,7 +1147,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.19.1';
+var APP_VERSION = 'v1.20.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1813,7 +1785,6 @@ function renderAiBar(p, a, box) {
   }
   addBtn('✨ Answer', '', 'Gemini answers the question typed in this box', aiAnswer);
   addBtn('✒️ Improve', '', 'Gemini fixes grammar and sentence structure without changing the content', aiImprove);
-  addBtn('⚙', 'aiKeyBtn', 'Change the saved Gemini API key', function () { openAiKeyModal(null); });
   p.wrap.appendChild(bar);
 }
 
@@ -3483,14 +3454,11 @@ function deleteSelected() {
 }
 
 /* ================= Gemini AI helpers =================
-   The API key is pasted once by the user, kept in this browser's
-   localStorage only, and sent only to Google's Gemini API. */
-var GEMINI_MODEL = 'gemini-2.5-flash';
-var AI_KEY_STORE = 'anskeyGeminiKey';
-// The app's own Firebase web key, tried first so no setup is needed when the
-// Generative Language API is enabled on the mathgen--app project. A key
-// pasted into the settings modal always takes priority over it.
-var AI_DEFAULT_KEY = 'AIzaSyAUSI3Uh28IeqASEp0JhH4QPaVt-O3meBo';
+   Gemini is reached through Firebase AI Logic on the shared mathgen--app
+   project — there is no secret key in this file, and quota abuse is
+   prevented by App Check (reCAPTCHA v3), enforced in the Firebase console.
+   The model bridge (window.askGemini) is set up by the module script at the
+   bottom of this file. */
 var AI_ANSWER_SYS =
   'You are helping a tuition teacher annotate a PDF worksheet for primary school ' +
   'students (P3-P6 mathematics and science, Singapore syllabus). Answer the ' +
@@ -3503,84 +3471,6 @@ var AI_IMPROVE_SYS =
   'Keep roughly the same length and keep the same line breaks where possible. ' +
   'Return only the corrected text as plain text - no markdown, no commentary.';
 var aiBusy = false;
-var aiPendingAction = null; // re-run after the key modal is filled in
-
-function getStoredAiKey() {
-  try { return localStorage.getItem(AI_KEY_STORE) || ''; } catch (e) { return ''; }
-}
-function getAiKey() {
-  return getStoredAiKey() || AI_DEFAULT_KEY;
-}
-
-function openAiKeyModal(pending) {
-  aiPendingAction = pending || null;
-  $('aiKeyInput').value = getStoredAiKey();
-  $('aiKeyModal').classList.add('open');
-  setTimeout(function () { $('aiKeyInput').focus(); }, 0);
-}
-
-$('aiKeySaveBtn').addEventListener('click', function () {
-  var key = $('aiKeyInput').value.trim();
-  if (!key) { toast('Paste your Gemini API key first.'); return; }
-  try { localStorage.setItem(AI_KEY_STORE, key); } catch (e) {}
-  $('aiKeyModal').classList.remove('open');
-  toast('Gemini key saved — it stays in this browser only.');
-  var run = aiPendingAction;
-  aiPendingAction = null;
-  if (run) run();
-});
-$('aiKeyClearBtn').addEventListener('click', function () {
-  try { localStorage.removeItem(AI_KEY_STORE); } catch (e) {}
-  $('aiKeyInput').value = '';
-  toast('Saved Gemini key removed.');
-});
-$('aiKeyCloseBtn').addEventListener('click', function () {
-  $('aiKeyModal').classList.remove('open');
-  aiPendingAction = null;
-});
-$('aiKeyModal').addEventListener('click', function (e) {
-  if (e.target === $('aiKeyModal')) { $('aiKeyModal').classList.remove('open'); aiPendingAction = null; }
-});
-$('aiKeyInput').addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') $('aiKeySaveBtn').click();
-});
-
-function callGemini(systemText, userText) {
-  var key = getAiKey();
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-            GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(key);
-  return fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemText }] },
-      contents: [{ role: 'user', parts: [{ text: userText }] }],
-      generationConfig: { temperature: 0.4 }
-    })
-  }).then(function (res) {
-    return res.json().catch(function () { return {}; }).then(function (data) {
-      if (!res.ok) {
-        // A rejected key: clear any stored one and flag the error so the
-        // request is retried once a working key has been pasted.
-        if (res.status === 400 || res.status === 401 || res.status === 403) {
-          try { localStorage.removeItem(AI_KEY_STORE); } catch (e) {}
-          var keyErr = new Error(key !== AI_DEFAULT_KEY
-            ? 'Gemini rejected the API key — please paste it again.'
-            : 'The built-in key can’t reach Gemini — paste a Gemini API key to continue.');
-          keyErr.aiKeyRejected = true;
-          throw keyErr;
-        }
-        var msg = data && data.error && data.error.message ? data.error.message : ('HTTP ' + res.status);
-        throw new Error('Gemini error: ' + msg);
-      }
-      var cand = data.candidates && data.candidates[0];
-      var parts = cand && cand.content && cand.content.parts;
-      var text = (parts || []).map(function (pt) { return pt.text || ''; }).join('').trim();
-      if (!text) throw new Error('Gemini returned an empty answer — please try again.');
-      return text;
-    });
-  });
-}
 
 /* Swap in AI text and regrow the box so the whole reply is visible. */
 function aiApplyText(id, text) {
@@ -3601,23 +3491,21 @@ function aiApplyText(id, text) {
 
 function aiRequest(id, systemText, userText, busyMsg) {
   if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
-  var run = function () {
-    aiBusy = true;
-    toast(busyMsg, 30000);
-    callGemini(systemText, userText).then(function (text) {
-      aiBusy = false;
-      aiApplyText(id, text);
-      toast('✨ Done — Ctrl+Z brings the old text back.');
-    }).catch(function (err) {
-      aiBusy = false;
-      toast(err.message || 'Gemini request failed.', 6000);
-      // A key problem opens the settings modal and retries this same
-      // request as soon as a new key is saved.
-      if (err.aiKeyRejected) openAiKeyModal(run);
-    });
-  };
-  if (!getAiKey()) { openAiKeyModal(run); return; }
-  run();
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  aiBusy = true;
+  toast(busyMsg, 30000);
+  window.askGemini(userText, { system: systemText, maxOutputTokens: 1200, temperature: 0.4 }).then(function (text) {
+    aiBusy = false;
+    if (!text) { toast('Gemini returned an empty answer — please try again.', 5000); return; }
+    aiApplyText(id, text);
+    toast('✨ Done — Ctrl+Z brings the old text back.');
+  }).catch(function (err) {
+    aiBusy = false;
+    toast('Gemini error: ' + ((err && err.message) || 'request failed — please try again.'), 6000);
+  });
 }
 
 function aiAnswer(id) {
@@ -5005,6 +4893,72 @@ window.addEventListener('resize', function () {
 setTool('pen');
 setColor('#1A1A1A');
 applyRoleUI();
+</script>
+
+<script type="module">
+/* ================= Firebase AI Logic (Gemini) =================
+   Gemini access for the AI text-box features. Uses the shared Polymath
+   Firebase project — everything here is public client config (NOT a
+   secret); quota abuse is prevented by App Check (reCAPTCHA v3), enforced
+   in the Firebase console. Exposes window.askGemini / window.aiReady for
+   the non-module script above. Keep the call shape in sync with the other
+   Polymath apps. */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js";
+import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
+
+// Shared Polymath Firebase project — same across all apps
+const firebaseConfig = {
+  apiKey: "AIzaSyAUSI3Uh28IeqASEp0JhH4QPaVt-O3meBo",   // public Firebase web API key (NOT a secret)
+  authDomain: "mathgen--app.firebaseapp.com",
+  projectId: "mathgen--app",
+  storageBucket: "mathgen--app.firebasestorage.app",
+  messagingSenderId: "165654161198",
+  appId: "1:165654161198:web:16c8bd60eb3a2aa7edbcbf",
+  measurementId: "G-0MWZFG211D"
+};
+
+// App Check (reCAPTCHA v3) site key — registered for polymathlc.github.io (+ localhost)
+const RECAPTCHA_SITE_KEY = "6Le98gwtAAAAAAzkjJTZXFM5D8tpjx_P4rtRuhuH";
+
+// Model used app-wide
+const AI_MODEL = "gemini-3.5-flash";
+
+const app = initializeApp(firebaseConfig);
+
+// App Check protects the shared Gemini quota. If enforcement is disabled in
+// the console, AI still works without a valid token.
+if (RECAPTCHA_SITE_KEY && !RECAPTCHA_SITE_KEY.startsWith("PASTE_")) {
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
+  } catch (e) { console.warn("App Check init failed:", e); }
+}
+
+let geminiModel = null;
+try {
+  geminiModel = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), { model: AI_MODEL });
+} catch (e) { console.warn("Firebase AI init failed (AI disabled):", e); }
+
+window.aiReady = () => !!geminiModel;
+
+// thinkingBudget: 0 disables Gemini "thinking" so the whole token budget goes
+// to the answer (faster + cheaper for short tasks). json: true switches on
+// strict-JSON response mode. system adds a systemInstruction to the request.
+window.askGemini = async function askGemini(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "" } = {}) {
+  if (!geminiModel) throw new Error("AI is not configured yet");
+  const generationConfig = { maxOutputTokens, temperature, thinkingConfig: { thinkingBudget: 0 } };
+  if (json) generationConfig.responseMimeType = "application/json";
+  const request = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig
+  };
+  if (system) request.systemInstruction = { parts: [{ text: system }] };
+  const res = await geminiModel.generateContent(request);
+  return (res.response.text() || "").trim();
+};
 </script>
 </body>
 </html>
