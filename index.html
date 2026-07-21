@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDF Annotator — Polymath Learning Centre</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #FFFFFF;
@@ -679,6 +681,13 @@
   .docRowMeta { font-size: 0.75rem; color: var(--ink-faint); margin-top: 3px; }
   .docRow .btn { padding: 7px 13px; font-size: 0.78rem; }
   .docsEmpty { text-align: center; color: var(--ink-faint); padding: 30px 0 16px; font-size: 0.9rem; }
+  /* Neat handwriting font for beautified text. Symbols missing from the
+     handwriting face (π, ℓ, superscripts on some platforms) fall back
+     per-glyph to the system fonts after it. */
+  svg.overlay .annText.handFont {
+    font-family: 'Patrick Hand', 'Segoe Print', 'Comic Sans MS', 'Chalkboard SE', cursive;
+    line-height: 1.3;
+  }
   .practiceWide { width: 100%; justify-content: center; margin-top: 8px; }
   .checkVerdict { font-size: 1.05rem; font-weight: bold; margin-bottom: 10px; }
   .checkFeedback { line-height: 1.55; margin-bottom: 14px; white-space: pre-wrap; }
@@ -1135,6 +1144,9 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
     Resize
   </button>
+  <button class="btn" id="lassoBeautifyBtn" title="Rewrite the selected handwriting neatly — the content stays exactly the same">
+    ✨ Beautify
+  </button>
   <button class="btn" id="lassoDeleteBtn" title="Delete everything selected">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
     Delete
@@ -1192,7 +1204,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.25.2';
+var APP_VERSION = 'v1.26.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1950,6 +1962,7 @@ function annNode(a) {
     fo.style.overflow = 'visible';
     var div = document.createElement('div');
     div.className = 'annText';
+    if (a.hand) div.classList.add('handFont');
     div.style.fontSize = a.fontSize + 'px';
     div.style.color = a.color;
     if (editingId === a.id) {
@@ -4088,6 +4101,97 @@ function showCheckResult(res) {
   }
 }
 
+/* ================= Beautify handwriting =================
+   Lasso some workings, press Beautify: Gemini transcribes the handwriting
+   (content untouched — no solving or correcting) and the strokes are
+   replaced by a text box in a neat handwriting font with proper symbols
+   (cm², π, ×, ÷, ℓ …). Works for the teacher's answer key and for student
+   handwriting in practice mode, so the marker can always read it. */
+var AI_BEAUTIFY_SYS =
+  'You transcribe handwriting from a worksheet into clean, neat text. Reply ' +
+  'with STRICT JSON only: {"text":"the transcription"}. Rules: transcribe ' +
+  'EXACTLY what is written — never solve, correct, complete or improve the ' +
+  'working; keep the same words, numbers, steps and line breaks. Use proper ' +
+  'symbols where the writing shows them: superscripts like cm² and m³, π, ' +
+  '×, ÷, °, ℓ for litres, fractions like 3/4. If a word is truly unreadable, ' +
+  'give your best guess rather than leaving a gap.';
+
+function beautifySelection() {
+  if (!lassoSel || !lassoSel.ids.length) { toast('Lasso some workings first.'); return; }
+  if (aiBusy) { toast('Gemini is still busy with the previous request…'); return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  var p = lassoSel.page;
+  var writing = annotations.filter(function (a) {
+    return lassoSel.ids.indexOf(a.id) !== -1 &&
+           (a.type === 'pen' || a.type === 'highlight' || a.type === 'text');
+  });
+  if (!writing.length) { toast('Lasso some handwriting or text first — shapes stay as they are.'); return; }
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  writing.forEach(function (a) {
+    var b = annBounds(a);
+    minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x2); maxY = Math.max(maxY, b.y2);
+  });
+  var bb = { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+
+  // The writing alone on a white background, high-res, so Gemini transcribes
+  // ONLY the selection and never the worksheet's printed text.
+  var k = Math.min(3, 1600 / Math.max(60, bb.w));
+  var pad = 14;
+  var cnv = document.createElement('canvas');
+  cnv.width = Math.max(1, Math.round((bb.w + pad * 2) * k));
+  cnv.height = Math.max(1, Math.round((bb.h + pad * 2) * k));
+  var ctx = cnv.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, cnv.width, cnv.height);
+  ctx.translate((pad - bb.x) * k, (pad - bb.y) * k);
+  drawAnnsOnCtx(ctx, k, k, writing, p.num);
+  var imgs = [{ mimeType: 'image/png', data: cnv.toDataURL('image/png').split(',')[1] }];
+  var ctxBand = bandJpeg(p, writing, bb.y - 80, bb.y + bb.h + 80);
+  if (ctxBand) imgs.push({ mimeType: 'image/jpeg', data: ctxBand });
+
+  aiBusy = true;
+  toast('✨ Gemini is reading the handwriting…', 30000);
+  window.askGemini(
+    'Image 1 is the handwriting to transcribe — transcribe ONLY image 1. ' +
+    (imgs.length > 1 ? 'Image 2 shows the same spot on the worksheet, for context only. ' : '') +
+    'Return the transcription.',
+    { system: AI_BEAUTIFY_SYS, maxOutputTokens: 700, temperature: 0.1, json: true, images: imgs }
+  ).then(function (raw) {
+    aiBusy = false;
+    var res = _parseAIJson(raw);
+    var text = ((res && res.text) || '').trim();
+    if (!text) { toast('Could not read the handwriting — try lassoing a clearer area.', 5000); return; }
+    pushUndo();
+    var removeIds = writing.map(function (a) { return a.id; });
+    annotations = annotations.filter(function (a) { return removeIds.indexOf(a.id) === -1; });
+    var lineCount = text.split('\n').length;
+    var fs = Math.max(12, Math.min(28, Math.round(bb.h / (lineCount * 1.6))));
+    var neat = {
+      id: newAnnId(), page: p.num, type: 'text', color: writing[0].color || '#1A1A1A',
+      fontSize: fs, x: round2(bb.x), y: round2(bb.y), w: round2(Math.max(120, bb.w)), h: 0,
+      text: text, kw: [], hand: true, ts: Date.now()
+    };
+    annotations.push(neat);
+    clearLassoSel(false);
+    renderOverlay(p);
+    var node = p.svg.querySelector('[data-id="' + neat.id + '"] .annText');
+    if (node) {
+      neat.h = Math.max(node.scrollHeight, fs * 1.8);
+      renderOverlay(p);
+    }
+    setDirty(true);
+    toast('✨ Beautified — Ctrl+Z brings the handwriting back.');
+  }).catch(function (err) {
+    aiBusy = false;
+    toast('Beautify failed: ' + ((err && err.message) || 'please try again.'), 6000);
+  });
+}
+$('lassoBeautifyBtn').addEventListener('click', beautifySelection);
+
 $('practiceStartBtn').addEventListener('click', startPractice);
 $('practiceEndBtn').addEventListener('click', endPractice);
 $('practiceCheckBtn').addEventListener('click', checkAnswer);
@@ -5049,6 +5153,18 @@ async function buildAnnotatedPdf(includeTs) {
   var outDoc = await PDFDocument.load(pdfBytes);
   var font = await outDoc.embedFont(StandardFonts.Helvetica);
 
+  // Helvetica bakes with WinAnsi encoding — symbols outside it (π, ℓ, √ …
+  // common in beautified workings) would make drawText throw and break the
+  // whole download. Map them to close equivalents and strip the rest.
+  function winAnsiSafe(s) {
+    var map = { 'π': 'pi', 'ℓ': 'l', '−': '-', '√': 'sqrt', '≈': '~', '≤': '<=', '≥': '>=',
+                '≠': '=/=', 'θ': 'theta', 'Δ': 'delta', '∠': 'angle', '→': '->', '✓': 'v', '✗': 'x' };
+    return String(s || '').replace(/[\s\S]/g, function (ch) {
+      if (map[ch] !== undefined) return map[ch];
+      return /[\x20-\x7E\xA0-\xFF\n\r\t‘’“”–—…€™]/.test(ch) ? ch : '?';
+    });
+  }
+
     annotations.forEach(function (a) {
       var pageInfo = pages[a.page - 1];
       if (!pageInfo) return;
@@ -5107,7 +5223,8 @@ async function buildAnnotatedPdf(includeTs) {
         var lh = a.fontSize * 1.35;
         var maxW = Math.max(30, (a.w || 220) - 10);
         var outLines = [];
-        a.text.split('\n').forEach(function (rawLine) {
+        // Sanitised once here: both widthOfTextAtSize and drawText encode.
+        winAnsiSafe(a.text).split('\n').forEach(function (rawLine) {
           var words = rawLine.split(/\s+/).filter(function (wd) { return wd !== ''; });
           if (!words.length) { outLines.push(''); return; }
           var cur = '';
