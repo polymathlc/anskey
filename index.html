@@ -960,8 +960,8 @@
     <div class="sideHint" id="practiceIntro">Hide the answers and try the worksheet yourself — then get each answer marked with feedback.</div>
     <button class="btn btnPrimary practiceWide" id="practiceStartBtn">Start practice — hide answers</button>
     <div id="practiceActive" style="display:none">
-      <div class="sideHint">Write or type your answers on the page. To get one marked: tap it with the select tool (arrow), then press Check.</div>
-      <button class="btn btnPrimary practiceWide" id="practiceCheckBtn">✨ Check selected answer</button>
+      <div class="sideHint">Write or type your answers on the page, then press ✨ Check — the button below marks your latest answer, or use the “Check this answer” button that appears under a box you're typing in.</div>
+      <button class="btn btnPrimary practiceWide" id="practiceCheckBtn">✨ Check my answer</button>
       <button class="btn practiceWide" id="practiceEndBtn">End practice — show answers</button>
     </div>
   </div>
@@ -1192,7 +1192,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.25.0';
+var APP_VERSION = 'v1.25.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1831,7 +1831,30 @@ function renderEditChrome(p) {
   badge.style.top = Math.max(4, box.y * scale - 34) + 'px';
   p.wrap.appendChild(badge);
 
-  if (a.type === 'text' && !isStudent()) renderAiBar(p, a, box);
+  if (practiceMode) renderPracticeBar(p, a, box);
+  else if (a.type === 'text' && !isStudent()) renderAiBar(p, a, box);
+}
+
+/* During practice the floating bar offers Check instead of the teacher's
+   Answer/Improve — right where the student is answering. */
+function renderPracticeBar(p, a, box) {
+  var old = p.wrap.querySelector('.aiBar');
+  if (old) old.remove();
+  var bar = document.createElement('div');
+  bar.className = 'aiBar';
+  var boxH = Math.max(a.h || 0, (a.fontSize || 16) * 1.8, box.height || 0);
+  bar.style.left = Math.max(4, box.x * scale - 5) + 'px';
+  bar.style.top = ((box.y + boxH) * scale + 10) + 'px';
+  var b = document.createElement('button');
+  b.textContent = '✨ Check this answer';
+  b.title = 'Gemini marks this answer against the worksheet';
+  b.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    checkAnswer(a.id);
+  });
+  bar.appendChild(b);
+  p.wrap.appendChild(bar);
 }
 
 /* Floating Gemini actions under the active text box: "Answer" treats the
@@ -2290,6 +2313,7 @@ function eventPoint(e, p) {
 }
 
 function setTool(t) {
+  if (t === 'ai' && isStudent()) t = 'text'; // students never get answer generation
   commitActiveTextEdit(); // switching tools closes the text box being typed in
   if (t !== 'lasso') clearLassoSel(true);
   tool = t;
@@ -3650,6 +3674,7 @@ function aiApplyText(id, text) {
 }
 
 function aiRequest(id, systemText, userText, busyMsg, images) {
+  if (isStudent()) return; // Answer/Improve write answers — teacher-only
   if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
@@ -3933,7 +3958,7 @@ function bandJpeg(p, anns, yTop, yBottom) {
   return out.toDataURL('image/jpeg', 0.88).split(',')[1];
 }
 
-function checkAnswer() {
+function checkAnswer(explicitId) {
   if (!practiceMode) return;
   if (aiBusy) { toast('Gemini is still marking the previous answer…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
@@ -3941,8 +3966,14 @@ function checkAnswer() {
     return;
   }
   commitActiveTextEdit();
-  var sa = annotations.find(function (x) { return x.id === selectedId; });
-  if (!sa) { toast('Tap your answer with the select tool (arrow) first, then press Check.', 4500); return; }
+  // Priority: the answer the floating button belongs to, then whatever is
+  // selected, then the most recent answer — so the sidebar button works
+  // right after typing without hunting for the select tool. (The sidebar
+  // button passes a click Event here, hence the string check.)
+  var id = typeof explicitId === 'string' ? explicitId : selectedId;
+  var sa = annotations.find(function (x) { return x.id === id; });
+  if (!sa && annotations.length) sa = annotations[annotations.length - 1];
+  if (!sa) { toast('Write or type an answer on the page first, then press Check.', 4500); return; }
   var p = pages.find(function (pg) { return pg.num === sa.page; });
   if (!p) return;
   var b = annBounds(sa);
@@ -4059,6 +4090,10 @@ function applyRoleUI() {
     var show = !student || (practiceMode && PRACTICE_TOOLBAR_IDS.indexOf(id) !== -1);
     elm.style.display = show ? '' : 'none';
   });
+  // The AI answer-box tool writes the answer for you — students never get it,
+  // especially not while practising.
+  var aiToolBtn = document.querySelector('#toolButtons [data-tool="ai"]');
+  if (aiToolBtn) aiToolBtn.style.display = student ? 'none' : '';
   document.querySelectorAll('#toolbar .tSep').forEach(function (s) {
     s.style.display = hideTools ? 'none' : '';
   });
