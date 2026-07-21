@@ -1192,7 +1192,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.25.1';
+var APP_VERSION = 'v1.25.2';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -3734,9 +3734,39 @@ function _parseAIJson(raw) {
   if (start > 0) s = s.slice(start);
   try { return JSON.parse(s); }
   catch (firstErr) {
+    // Trailing junk after the JSON (a closing ``` fence, a "Note: …") makes
+    // JSON.parse throw 'unexpected non-whitespace character after JSON' —
+    // cut the string at the end of the first complete value and retry.
+    const cut = _jsonEndIndex(s);
+    if (cut > 0) {
+      try { return JSON.parse(s.slice(0, cut)); } catch (_) {}
+      try { return JSON.parse(_repairAIJson(s.slice(0, cut))); } catch (_) {}
+    }
     try { return JSON.parse(_repairAIJson(s)); }
     catch (_) { throw firstErr; }
   }
+}
+
+/* Index just past the end of the first complete JSON object/array in s,
+   or -1 if it never closes (truncated output — the repair pass handles it). */
+function _jsonEndIndex(s) {
+  let inString = false, escaped = false, depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return -1;
 }
 
 /* Best-effort repair for slightly-malformed or TRUNCATED model JSON. */
