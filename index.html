@@ -1147,7 +1147,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.20.0';
+var APP_VERSION = 'v1.21.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -3460,17 +3460,69 @@ function deleteSelected() {
    The model bridge (window.askGemini) is set up by the module script at the
    bottom of this file. */
 var AI_ANSWER_SYS =
-  'You are helping a tuition teacher annotate a PDF worksheet for primary school ' +
-  'students (P3-P6 mathematics and science, Singapore syllabus). Answer the ' +
-  'question you are given clearly and concisely, showing short workings when ' +
-  'they help. Return plain text only - no markdown, no asterisks, no headings - ' +
-  'because the answer goes straight into a small text box on the worksheet.';
+  'You are helping a tuition teacher fill in answers on a PDF worksheet for ' +
+  'primary school students (P3-P6, Singapore syllabus). Snapshots of the ' +
+  'worksheet are attached: the first image shows the part of the page where ' +
+  'the teacher placed the answer box, and the question nearest that box is ' +
+  'usually the one being answered; the remaining images show the full current ' +
+  'page and, when present, the previous page for context. Read the worksheet ' +
+  'and answer what IT actually asks, in the worksheet’s own subject and ' +
+  'style — never assume the subject. Be clear and concise, with short ' +
+  'workings only when the worksheet expects them. Return plain text only - no ' +
+  'markdown, no asterisks, no headings - because the answer goes straight into ' +
+  'a small text box on the worksheet. If no snapshots are attached, answer the ' +
+  'teacher’s typed question directly.';
 var AI_IMPROVE_SYS =
   'Improve the grammar, spelling and sentence structure of the text you are ' +
   'given WITHOUT changing its meaning, content, facts, numbers or terminology. ' +
   'Keep roughly the same length and keep the same line breaks where possible. ' +
   'Return only the corrected text as plain text - no markdown, no commentary.';
 var aiBusy = false;
+
+/* ---- Worksheet snapshots for Gemini ----
+   JPEG captures (base64, no data: prefix) taken from the rendered PDF page
+   canvases, so Gemini answers from what the worksheet actually says instead
+   of guessing: a close-up band around the answer box, the full current page,
+   and the previous page for questions that carry over. */
+function pageJpeg(p, maxDim) {
+  if (!p || !p.canvas || !p.canvas.width || !p.canvas.height) return null;
+  var c = p.canvas;
+  var f = Math.min(1, (maxDim || 1280) / Math.max(c.width, c.height));
+  var out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(c.width * f));
+  out.height = Math.max(1, Math.round(c.height * f));
+  out.getContext('2d').drawImage(c, 0, 0, out.width, out.height);
+  return out.toDataURL('image/jpeg', 0.82).split(',')[1];
+}
+function regionJpeg(p, a) {
+  if (!p || !p.canvas || !p.canvas.width || !p.canvas.height) return null;
+  var c = p.canvas;
+  var k = c.height / p.baseH; // annotation units -> canvas pixels
+  var boxH = Math.max(a.h || 0, a.fontSize * 1.8);
+  // Full-width band: the question a box answers usually sits just above it.
+  var y0 = Math.max(0, Math.round((a.y - 260) * k));
+  var y1 = Math.min(c.height, Math.round((a.y + boxH + 140) * k));
+  if (y1 - y0 < 40) return null;
+  var out = document.createElement('canvas');
+  out.width = c.width;
+  out.height = y1 - y0;
+  out.getContext('2d').drawImage(c, 0, y0, c.width, y1 - y0, 0, 0, out.width, out.height);
+  return out.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+function aiContextImages(a) {
+  var imgs = [];
+  try {
+    var p = pages.find(function (pg) { return pg.num === a.page; });
+    var prev = pages.find(function (pg) { return pg.num === a.page - 1; });
+    var crop = p && regionJpeg(p, a);
+    if (crop) imgs.push({ mimeType: 'image/jpeg', data: crop, label: 'the part of the current page around the answer box' });
+    var cur = p && pageJpeg(p, 1280);
+    if (cur) imgs.push({ mimeType: 'image/jpeg', data: cur, label: 'the full current page' });
+    var pv = prev && pageJpeg(prev, 1280);
+    if (pv) imgs.push({ mimeType: 'image/jpeg', data: pv, label: 'the previous page, for context' });
+  } catch (e) { /* snapshot failed — Gemini still gets the typed question */ }
+  return imgs;
+}
 
 /* Swap in AI text and regrow the box so the whole reply is visible. */
 function aiApplyText(id, text) {
@@ -3489,7 +3541,7 @@ function aiApplyText(id, text) {
   setDirty(true);
 }
 
-function aiRequest(id, systemText, userText, busyMsg) {
+function aiRequest(id, systemText, userText, busyMsg, images) {
   if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
@@ -3497,7 +3549,8 @@ function aiRequest(id, systemText, userText, busyMsg) {
   }
   aiBusy = true;
   toast(busyMsg, 30000);
-  window.askGemini(userText, { system: systemText, maxOutputTokens: 1200, temperature: 0.4 }).then(function (text) {
+  var imgs = (images || []).map(function (im) { return { mimeType: im.mimeType, data: im.data }; });
+  window.askGemini(userText, { system: systemText, maxOutputTokens: 1200, temperature: 0.4, images: imgs }).then(function (text) {
     aiBusy = false;
     if (!text) { toast('Gemini returned an empty answer — please try again.', 5000); return; }
     aiApplyText(id, text);
@@ -3516,7 +3569,17 @@ function aiAnswer(id) {
   if (!a || a.type !== 'text') return;
   var q = (a.text || '').trim();
   if (!q) { toast('Type the question in the box first, then press ✨ Answer.'); return; }
-  aiRequest(id, AI_ANSWER_SYS, q, '✨ Gemini is writing the answer…');
+  var ctx = aiContextImages(a);
+  var lines = [];
+  var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
+  var lvl = (wsMeta && wsMeta.level) || '';
+  if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
+  if (ctx.length) {
+    lines.push('Attached: ' + ctx.map(function (im, i) { return 'image ' + (i + 1) + ' = ' + im.label; }).join('; ') + '.');
+  }
+  lines.push('The teacher typed in the answer box: "' + q + '"');
+  lines.push('Write only the text that should go in the box.');
+  aiRequest(id, AI_ANSWER_SYS, lines.join('\n'), '✨ Gemini is reading the worksheet…', ctx);
 }
 
 function aiImprove(id) {
@@ -4947,12 +5010,19 @@ window.aiReady = () => !!geminiModel;
 // thinkingBudget: 0 disables Gemini "thinking" so the whole token budget goes
 // to the answer (faster + cheaper for short tasks). json: true switches on
 // strict-JSON response mode. system adds a systemInstruction to the request.
-window.askGemini = async function askGemini(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "" } = {}) {
+// images is a list of { mimeType, data } inline attachments (base64 WITHOUT
+// the data: prefix), sent after the prompt — the vision path for worksheet
+// snapshots.
+window.askGemini = async function askGemini(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [] } = {}) {
   if (!geminiModel) throw new Error("AI is not configured yet");
   const generationConfig = { maxOutputTokens, temperature, thinkingConfig: { thinkingBudget: 0 } };
   if (json) generationConfig.responseMimeType = "application/json";
+  const parts = [{ text: prompt }];
+  for (const img of images) {
+    if (img && img.data) parts.push({ inlineData: { mimeType: img.mimeType || "image/jpeg", data: img.data } });
+  }
   const request = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    contents: [{ role: "user", parts }],
     generationConfig
   };
   if (system) request.systemInstruction = { parts: [{ text: system }] };
