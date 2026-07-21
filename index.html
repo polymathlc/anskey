@@ -527,6 +527,37 @@
   svg.overlay [data-handle="ne"], svg.overlay [data-handle="sw"] { cursor: nesw-resize; }
   svg.overlay [data-handle="p1"], svg.overlay [data-handle="p2"] { cursor: move; }
 
+  /* ---------- Gemini AI actions on text boxes ---------- */
+  .aiBar {
+    position: absolute;
+    z-index: 36;
+    display: flex;
+    gap: 6px;
+    background: #fff;
+    border: 1px solid var(--line, #E2E0DC);
+    border-radius: 999px;
+    padding: 4px 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    animation: fadeUp 0.2s ease both;
+  }
+  .aiBar button {
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: bold;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    color: var(--accent-deep);
+  }
+  .aiBar button:hover { background: #F6F1E7; }
+  .aiBar button:disabled { opacity: 0.5; cursor: default; }
+  .aiBar .aiKeyBtn { padding: 4px 8px; color: var(--ink-faint, #8A8A84); }
+  .aiKeyNote { font-size: 0.8rem; color: var(--ink-faint, #8A8A84); line-height: 1.5; margin-top: 10px; }
+  .aiKeyNote a { color: var(--accent-deep); font-weight: bold; }
+
   /* ---------- Revise mode: click-to-type keyword boxes ---------- */
   svg.overlay .annText span.kwHidden { cursor: text; }
   svg.overlay .annText span.kwHidden:hover {
@@ -777,6 +808,9 @@
     </button>
     <button class="toolBtn" data-tool="text" data-key="T" title="Text box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
+    </button>
+    <button class="toolBtn" data-tool="ai" data-key="G" title="AI answer box — draw a box, type your question, and Gemini writes the answer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/></svg>
     </button>
     <button class="toolBtn" data-tool="rect" data-key="R" title="Rectangle">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="1"/></svg>
@@ -1102,6 +1136,30 @@
   </div>
 </div>
 
+<div class="modalBack" id="aiKeyModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>Gemini AI setup</h2>
+      <button class="modalClose" id="aiKeyCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="fieldRow">
+        <label for="aiKeyInput">Google Gemini API key</label>
+        <input type="password" id="aiKeyInput" placeholder="AIza…" autocomplete="off">
+      </div>
+      <div class="aiKeyNote">
+        The key is stored only in this browser and sent only to Google's Gemini API.
+        Get a free key at
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
+      </div>
+      <div class="modalActions">
+        <button class="btn" id="aiKeyClearBtn">Remove saved key</button>
+        <button class="btn btnPrimary" id="aiKeySaveBtn">Save key</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
 
@@ -1116,7 +1174,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.18.0';
+var APP_VERSION = 'v1.19.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1199,7 +1257,7 @@ function isPalmTouch(e) {
 }
 function isDrawTool(t) {
   return t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
-         t === 'line' || t === 'arrow' || t === 'text' || t === 'eraser' ||
+         t === 'line' || t === 'arrow' || t === 'text' || t === 'ai' || t === 'eraser' ||
          t === 'laser' || t === 'lasso';
 }
 
@@ -1666,6 +1724,8 @@ function appendTsLabel(p, a) {
 function renderEditChrome(p) {
   var oldBadge = p.wrap.querySelector('.editBadge');
   if (oldBadge) oldBadge.remove();
+  var oldAiBar = p.wrap.querySelector('.aiBar');
+  if (oldAiBar) oldAiBar.remove();
   var activeId = editingId || editModeId;
   if (!activeId) return;
   var a = annotations.find(function (x) { return x.id === activeId; });
@@ -1708,7 +1768,9 @@ function renderEditChrome(p) {
 
   var badge = document.createElement('div');
   badge.className = 'editBadge';
-  if (editingId === activeId) {
+  if (editingId === activeId && a._ai) {
+    badge.textContent = '✨ Type your question — click outside and Gemini answers it';
+  } else if (editingId === activeId) {
     badge.textContent = '✏️ Editing text — click outside or press Esc to finish';
   } else if (a.type === 'pen' || a.type === 'highlight') {
     badge.textContent = '✏️ Edit mode — drag to move, pick a colour, Esc to finish';
@@ -1718,6 +1780,40 @@ function renderEditChrome(p) {
   badge.style.left = Math.max(4, box.x * scale - 5) + 'px';
   badge.style.top = Math.max(4, box.y * scale - 34) + 'px';
   p.wrap.appendChild(badge);
+
+  if (a.type === 'text' && !isStudent()) renderAiBar(p, a, box);
+}
+
+/* Floating Gemini actions under the active text box: "Answer" treats the
+   box's text as a question and fills in the answer; "Improve" fixes grammar
+   and sentence structure without changing the meaning. pointerdown (not
+   click) so the action still fires when pressing the button blurs and
+   commits the text box, which re-renders this bar away before click. */
+function renderAiBar(p, a, box) {
+  var old = p.wrap.querySelector('.aiBar');
+  if (old) old.remove();
+  var bar = document.createElement('div');
+  bar.className = 'aiBar';
+  var boxH = Math.max(a.h || 0, a.fontSize * 1.8);
+  bar.style.left = Math.max(4, box.x * scale - 5) + 'px';
+  bar.style.top = ((box.y + boxH) * scale + 10) + 'px';
+  function addBtn(label, cls, title, fn) {
+    var b = document.createElement('button');
+    b.textContent = label;
+    if (cls) b.className = cls;
+    b.title = title;
+    b.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      fn(a.id);
+    });
+    bar.appendChild(b);
+    return b;
+  }
+  addBtn('✨ Answer', '', 'Gemini answers the question typed in this box', aiAnswer);
+  addBtn('✒️ Improve', '', 'Gemini fixes grammar and sentence structure without changing the content', aiImprove);
+  addBtn('⚙', 'aiKeyBtn', 'Change the saved Gemini API key', function () { openAiKeyModal(null); });
+  p.wrap.appendChild(bar);
 }
 
 function pathFromPoints(pts) {
@@ -2165,7 +2261,7 @@ function setTool(t) {
 function updateToolCursor() {
   pages.forEach(function (p) {
     p.svg.classList.toggle('selectMode', tool === 'select' || tool === 'keyword');
-    p.svg.classList.toggle('textMode', tool === 'text');
+    p.svg.classList.toggle('textMode', tool === 'text' || tool === 'ai');
     p.svg.classList.toggle('kwMode', tool === 'keyword');
     p.svg.classList.toggle('eraserMode', tool === 'eraser');
   });
@@ -2371,13 +2467,14 @@ function attachOverlayHandlers(p) {
       ann = { id: newAnnId(), page: p.num, type: tool, color: color, width: strokeW, x: pt.x, y: pt.y, w: 0, h: 0, _sx: pt.x, _sy: pt.y, ts: now };
     } else if (tool === 'line' || tool === 'arrow') {
       ann = { id: newAnnId(), page: p.num, type: tool, color: color, width: strokeW, x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y, ts: now };
-    } else if (tool === 'text') {
+    } else if (tool === 'text' || tool === 'ai') {
       // Drag to draw the box at the size you want (text wraps to its width);
-      // a plain tap still gives a default-width box.
-      drawing = {
-        ann: { id: newAnnId(), page: p.num, type: 'text', color: color, fontSize: fontSize, x: pt.x, y: pt.y, w: 0, h: 0, text: '', kw: [], ts: now },
-        page: p, isText: true, _sx: pt.x, _sy: pt.y, svgNode: null
-      };
+      // a plain tap still gives a default-width box. The AI tool makes the
+      // same box, flagged so the typed question is answered by Gemini on
+      // commit.
+      var tAnn = { id: newAnnId(), page: p.num, type: 'text', color: color, fontSize: fontSize, x: pt.x, y: pt.y, w: 0, h: 0, text: '', kw: [], ts: now };
+      if (tool === 'ai') tAnn._ai = true;
+      drawing = { ann: tAnn, page: p, isText: true, _sx: pt.x, _sy: pt.y, svgNode: null };
       return;
     }
     drawing = { ann: ann, page: p, svgNode: null, ptrType: e.pointerType, startT: e.timeStamp };
@@ -3324,16 +3421,20 @@ function focusTextAnn(p, id) {
     var a = annotations.find(function (x) { return x.id === id; });
     if (!a) return;
     var text = node.innerText.replace(/\n+$/, '');
+    var askAi = false;
     if (!text.trim()) {
       annotations = annotations.filter(function (x) { return x.id !== id; });
       if (selectedId === id) selectedId = null;
     } else {
       a.text = text;
       a.h = Math.max(node.scrollHeight, a.h || 0, a.fontSize * 1.8);
+      askAi = !!a._ai;
     }
+    delete a._ai;
     if (editingId === id) editingId = null;
     renderOverlay(p);
     setDirty(true);
+    if (askAi) aiAnswer(id);
   }, { once: true });
 }
 
@@ -3352,6 +3453,7 @@ function commitActiveTextEdit() {
   // read the typed text straight from the DOM and commit it here.
   editingId = null;
   var a = annotations.find(function (x) { return x.id === id; });
+  var askAi = false;
   if (a) {
     var text = node ? node.innerText.replace(/\n+$/, '') : (a.text || '');
     if (!text.trim()) {
@@ -3360,10 +3462,13 @@ function commitActiveTextEdit() {
     } else {
       a.text = text;
       if (node) a.h = Math.max(node.scrollHeight, a.fontSize * 1.8);
+      askAi = !!a._ai;
     }
+    delete a._ai;
     setDirty(true);
   }
   renderAllOverlays();
+  if (askAi) aiAnswer(id);
 }
 
 function deleteSelected() {
@@ -3374,6 +3479,149 @@ function deleteSelected() {
   editModeId = null;
   renderAllOverlays();
   setDirty(true);
+}
+
+/* ================= Gemini AI helpers =================
+   The API key is pasted once by the user, kept in this browser's
+   localStorage only, and sent only to Google's Gemini API. */
+var GEMINI_MODEL = 'gemini-2.5-flash';
+var AI_KEY_STORE = 'anskeyGeminiKey';
+var AI_ANSWER_SYS =
+  'You are helping a tuition teacher annotate a PDF worksheet for primary school ' +
+  'students (P3-P6 mathematics and science, Singapore syllabus). Answer the ' +
+  'question you are given clearly and concisely, showing short workings when ' +
+  'they help. Return plain text only - no markdown, no asterisks, no headings - ' +
+  'because the answer goes straight into a small text box on the worksheet.';
+var AI_IMPROVE_SYS =
+  'Improve the grammar, spelling and sentence structure of the text you are ' +
+  'given WITHOUT changing its meaning, content, facts, numbers or terminology. ' +
+  'Keep roughly the same length and keep the same line breaks where possible. ' +
+  'Return only the corrected text as plain text - no markdown, no commentary.';
+var aiBusy = false;
+var aiPendingAction = null; // re-run after the key modal is filled in
+
+function getAiKey() {
+  try { return localStorage.getItem(AI_KEY_STORE) || ''; } catch (e) { return ''; }
+}
+
+function openAiKeyModal(pending) {
+  aiPendingAction = pending || null;
+  $('aiKeyInput').value = getAiKey();
+  $('aiKeyModal').classList.add('open');
+  setTimeout(function () { $('aiKeyInput').focus(); }, 0);
+}
+
+$('aiKeySaveBtn').addEventListener('click', function () {
+  var key = $('aiKeyInput').value.trim();
+  if (!key) { toast('Paste your Gemini API key first.'); return; }
+  try { localStorage.setItem(AI_KEY_STORE, key); } catch (e) {}
+  $('aiKeyModal').classList.remove('open');
+  toast('Gemini key saved — it stays in this browser only.');
+  var run = aiPendingAction;
+  aiPendingAction = null;
+  if (run) run();
+});
+$('aiKeyClearBtn').addEventListener('click', function () {
+  try { localStorage.removeItem(AI_KEY_STORE); } catch (e) {}
+  $('aiKeyInput').value = '';
+  toast('Saved Gemini key removed.');
+});
+$('aiKeyCloseBtn').addEventListener('click', function () {
+  $('aiKeyModal').classList.remove('open');
+  aiPendingAction = null;
+});
+$('aiKeyModal').addEventListener('click', function (e) {
+  if (e.target === $('aiKeyModal')) { $('aiKeyModal').classList.remove('open'); aiPendingAction = null; }
+});
+$('aiKeyInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') $('aiKeySaveBtn').click();
+});
+
+function callGemini(systemText, userText) {
+  var key = getAiKey();
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
+            GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(key);
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemText }] },
+      contents: [{ role: 'user', parts: [{ text: userText }] }],
+      generationConfig: { temperature: 0.4 }
+    })
+  }).then(function (res) {
+    return res.json().catch(function () { return {}; }).then(function (data) {
+      if (!res.ok) {
+        // A rejected key is cleared so the modal reappears with a fresh start.
+        if (res.status === 400 || res.status === 401 || res.status === 403) {
+          try { localStorage.removeItem(AI_KEY_STORE); } catch (e) {}
+          throw new Error('Gemini rejected the API key — please paste it again.');
+        }
+        var msg = data && data.error && data.error.message ? data.error.message : ('HTTP ' + res.status);
+        throw new Error('Gemini error: ' + msg);
+      }
+      var cand = data.candidates && data.candidates[0];
+      var parts = cand && cand.content && cand.content.parts;
+      var text = (parts || []).map(function (pt) { return pt.text || ''; }).join('').trim();
+      if (!text) throw new Error('Gemini returned an empty answer — please try again.');
+      return text;
+    });
+  });
+}
+
+/* Swap in AI text and regrow the box so the whole reply is visible. */
+function aiApplyText(id, text) {
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a) return; // deleted while Gemini was thinking
+  pushUndo();
+  a.text = text;
+  a.kw = []; // word positions changed, old keyword marks no longer line up
+  renderAllOverlays();
+  var p = pages.find(function (pg) { return pg.num === a.page; });
+  var node = p && p.svg.querySelector('[data-id="' + id + '"] .annText');
+  if (node) {
+    a.h = Math.max(node.scrollHeight, a.fontSize * 1.8);
+    renderOverlay(p);
+  }
+  setDirty(true);
+}
+
+function aiRequest(id, systemText, userText, busyMsg) {
+  if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
+  var run = function () {
+    aiBusy = true;
+    toast(busyMsg, 30000);
+    callGemini(systemText, userText).then(function (text) {
+      aiBusy = false;
+      aiApplyText(id, text);
+      toast('✨ Done — Ctrl+Z brings the old text back.');
+    }).catch(function (err) {
+      aiBusy = false;
+      toast(err.message || 'Gemini request failed.', 6000);
+    });
+  };
+  if (!getAiKey()) { openAiKeyModal(run); return; }
+  run();
+}
+
+function aiAnswer(id) {
+  var wasBusy = aiBusy;
+  commitActiveTextEdit(); // the question is whatever is typed right now
+  if (!wasBusy && aiBusy) return; // an AI box starts its request on commit — don't double-fire
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a || a.type !== 'text') return;
+  var q = (a.text || '').trim();
+  if (!q) { toast('Type the question in the box first, then press ✨ Answer.'); return; }
+  aiRequest(id, AI_ANSWER_SYS, q, '✨ Gemini is writing the answer…');
+}
+
+function aiImprove(id) {
+  commitActiveTextEdit(); // the improved text should include what is being typed
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a || a.type !== 'text') return;
+  var t = (a.text || '').trim();
+  if (!t) { toast('The text box is empty — nothing to improve.'); return; }
+  aiRequest(id, AI_IMPROVE_SYS, t, '✒️ Gemini is polishing the wording…');
 }
 
 /* ================= Auth ================= */
@@ -4669,7 +4917,7 @@ document.addEventListener('keydown', function (e) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); downloadAnnotated(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); printAnnotated(); return; }
   if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; clearLassoSel(false); renderAllOverlays(); return; }
-  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso' };
+  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
   var uiKeys = { f: 'fitBtn', b: 'focusBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn' };
