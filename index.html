@@ -366,6 +366,11 @@
   }
   #lassoBar .btn { padding: 7px 12px; font-size: 0.8rem; }
   #lassoCount { font-size: 0.78rem; color: var(--ink-soft); font-weight: bold; padding-left: 4px; }
+  .stuCreate { border: 1px dashed var(--line, #E2E0DC); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
+  .stuCreate .docEditRow input[type="text"] {
+    flex: 1; min-width: 150px; font: inherit; font-size: 0.85rem;
+    padding: 4px 8px; border: 1px solid var(--line, #E2E0DC); border-radius: 6px;
+  }
   .stuRowSelects { display: flex; gap: 6px; margin-top: 6px; }
   .stuRowSelects select {
     font-family: var(--font);
@@ -1211,7 +1216,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.27.0';
+var APP_VERSION = 'v1.28.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -4404,8 +4409,9 @@ $('checkModal').addEventListener('click', function (e) {
 });
 
 /* ================= Auth ================= */
+var actingStudent = null; // teacher's device handed to a student (no Google needed)
 function isAdmin(user) { return !!user && user.email === ADMIN_EMAIL; }
-function isStudent() { return !!currentUser && !isAdmin(currentUser); }
+function isStudent() { return !!actingStudent || (!!currentUser && !isAdmin(currentUser)); }
 
 /* Students only open and read worksheets for their level and subject — every
    editing/annotation function disappears and the page becomes scroll-only
@@ -4468,6 +4474,26 @@ async function signIn() {
 function renderAuthArea() {
   var area = $('authArea');
   area.innerHTML = '';
+  if (actingStudent) {
+    var aInfo = document.createElement('div');
+    aInfo.className = 'authInfo';
+    var aName = document.createElement('div');
+    aName.className = 'authName';
+    aName.textContent = actingStudent.name || 'Student';
+    var aRole = document.createElement('div');
+    aRole.className = 'authRole';
+    aRole.textContent = levelLabel(actingStudent.level) + ' · ' + subjectLabel(actingStudent.subject) + ' · practising';
+    aInfo.appendChild(aName);
+    aInfo.appendChild(aRole);
+    area.appendChild(aInfo);
+    var backBtn = document.createElement('button');
+    backBtn.className = 'btn';
+    backBtn.textContent = '↩ Teacher';
+    backBtn.title = 'Hand the device back — return to teacher mode';
+    backBtn.addEventListener('click', stopActingAs);
+    area.appendChild(backBtn);
+    return;
+  }
   if (!currentUser) {
     var btn = document.createElement('button');
     btn.className = 'btn';
@@ -4526,6 +4552,7 @@ function renderAuthArea() {
 auth.onAuthStateChanged(function (user) {
   currentUser = user;
   studentProfile = null;
+  actingStudent = null; // a real sign-in/out always ends the handover
   renderAuthArea();
   applyRoleUI();
   renderVideoCard(); // admin controls appear/disappear with the auth state
@@ -4663,8 +4690,12 @@ async function openStudentsModal() {
              (a.p.name || '').localeCompare(b.p.name || '');
     });
     list.innerHTML = '';
+    list.appendChild(managedStudentForm());
     if (!rows.length) {
-      list.innerHTML = '<div class="docsEmpty">No students have signed in yet.</div>';
+      var none = document.createElement('div');
+      none.className = 'docsEmpty';
+      none.textContent = 'No students yet — add one above, or they appear here after their first Google sign-in.';
+      list.appendChild(none);
       return;
     }
     rows.forEach(function (row) { list.appendChild(studentAdminRow(row.uid, row.p)); });
@@ -4672,6 +4703,103 @@ async function openStudentsModal() {
     console.error(e);
     list.innerHTML = '<div class="docsEmpty">Could not load students: ' + escHtml(e.message || String(e)) + '</div>';
   }
+}
+
+/* Create a student account with no Google login — they practise on the
+   teacher's device, from the teacher's account. */
+function managedStudentForm() {
+  var wrap = document.createElement('div');
+  wrap.className = 'stuCreate';
+  var title = document.createElement('div');
+  title.className = 'docRowName';
+  title.textContent = 'Add a student without Google';
+  var hint = document.createElement('div');
+  hint.className = 'docRowMeta';
+  hint.textContent = 'For students with no Gmail: create them here, then press “Practise as” to hand them your device — worksheets and practice work as if they were signed in.';
+  var rowEls = document.createElement('div');
+  rowEls.className = 'docEditRow';
+  var nameIn = document.createElement('input');
+  nameIn.type = 'text';
+  nameIn.placeholder = 'Student’s name';
+  nameIn.autocomplete = 'off';
+  var lvlSel = document.createElement('select');
+  LEVELS.forEach(function (l) {
+    var o = document.createElement('option'); o.value = l; o.textContent = levelLabel(l); lvlSel.appendChild(o);
+  });
+  var subSel = document.createElement('select');
+  [['math', 'Mathematics'], ['science', 'Science'], ['both', 'Both']].forEach(function (s) {
+    var o = document.createElement('option'); o.value = s[0]; o.textContent = s[1]; subSel.appendChild(o);
+  });
+  var addBtn = document.createElement('button');
+  addBtn.className = 'btn btnPrimary';
+  addBtn.textContent = 'Add student';
+  addBtn.addEventListener('click', function () {
+    var name = nameIn.value.trim();
+    if (!name) { toast('Type the student’s name first.'); nameIn.focus(); return; }
+    addBtn.disabled = true;
+    var id = 'managed_' + Date.now().toString(36) + (annIdCounter++);
+    db.collection(PROFILES_COLLECTION).doc(id).set({
+      name: name,
+      level: lvlSel.value,
+      subject: subSel.value,
+      days: [],
+      managed: true,
+      email: '',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function () {
+      toast('“' + name + '” added — press Practise as to hand over the device.');
+      openStudentsModal(); // re-render with the new student in the list
+    }).catch(function (e) {
+      addBtn.disabled = false;
+      toast('Could not add: ' + (e.message || e), 5000);
+    });
+  });
+  nameIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') addBtn.click(); });
+  rowEls.appendChild(nameIn);
+  rowEls.appendChild(lvlSel);
+  rowEls.appendChild(subSel);
+  rowEls.appendChild(addBtn);
+  wrap.appendChild(title);
+  wrap.appendChild(hint);
+  wrap.appendChild(rowEls);
+  return wrap;
+}
+
+/* Hand the device to a student: the app behaves exactly as if they were
+   signed in (their worksheets, practice mode, no teacher tools) until the
+   teacher takes it back with the ↩ Teacher button. */
+function startActingAs(uid, p) {
+  actingStudent = { id: uid, name: p.name || 'Student', level: p.level || 'P3', subject: p.subject || 'both', days: p.days || [] };
+  studentProfile = actingStudent;
+  if (practiceMode) endPractice();
+  commitActiveTextEdit();
+  clearLassoSel(false);
+  selectedId = null;
+  editModeId = null;
+  $('studentsModal').classList.remove('open');
+  applyRoleUI();
+  renderAuthArea();
+  renderVideoCard();
+  if (pages.length) renderAllOverlays();
+  updatePracticeCard();
+  if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+  toast('Device handed to ' + actingStudent.name + ' (' + levelLabel(actingStudent.level) + ' ' +
+        subjectLabel(actingStudent.subject) + '). Press ↩ Teacher when done.', 5600);
+}
+
+function stopActingAs() {
+  if (!actingStudent) return;
+  if (practiceMode) endPractice(); // restores hidden answers first
+  actingStudent = null;
+  studentProfile = null;
+  applyRoleUI();
+  renderAuthArea();
+  renderVideoCard();
+  if (pages.length) renderAllOverlays();
+  updatePracticeCard();
+  if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+  toast('Back to teacher mode.');
 }
 
 function studentAdminRow(uid, p) {
@@ -4685,7 +4813,7 @@ function studentAdminRow(uid, p) {
   var meta = document.createElement('div');
   meta.className = 'docRowMeta';
   function metaText() {
-    return (p.email || '') +
+    return (p.managed ? 'No Google — practises from your device' : (p.email || '')) +
       ((p.days && p.days.length) ? ' · ' + p.days.join(', ') : '') +
       ' · ' + ((p.lsChangesUsed || 0) >= 1 ? 'change used' : 'change available');
   }
@@ -4733,12 +4861,20 @@ function studentAdminRow(uid, p) {
     adminSave({ lsChangesUsed: 0 }, (p.name || 'Student') + ' can change their level/subject once again.');
   });
   row.appendChild(unlockBtn);
+  var actBtn = document.createElement('button');
+  actBtn.className = 'btn btnPrimary';
+  actBtn.textContent = 'Practise as';
+  actBtn.title = 'Hand this device to ' + (p.name || 'the student') + ' — they see and practise their own worksheets';
+  actBtn.addEventListener('click', function () { startActingAs(uid, p); });
+  row.appendChild(actBtn);
   return row;
 }
 
 /* ---- Which worksheets can this signed-in user see? ---- */
 function canSeeDoc(d) {
-  if (!currentUser || isAdmin(currentUser)) return true;
+  // While the teacher's device is handed to a student, filter exactly as if
+  // that student were signed in.
+  if (!currentUser || (isAdmin(currentUser) && !actingStudent)) return true;
   if (!studentProfile) return false; // profile not set up yet
   // Students only see worksheets explicitly assigned to their level AND
   // subject. A worksheet with no level/subject set (saved before tagging
@@ -4761,6 +4897,7 @@ function dayPriority(d) {
 async function saveDoc() {
   if (!pdfDoc) { toast('Open a PDF first.'); return; }
   if (practiceMode) { toast('End practice first — practice answers are never saved.'); return; }
+  if (actingStudent) { toast('Switch back to teacher mode to save.'); return; }
   if (!currentUser) {
     toast('Sign in with Google to save.');
     await signIn();
