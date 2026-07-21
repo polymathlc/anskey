@@ -1167,7 +1167,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.23.1';
+var APP_VERSION = 'v1.24.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -3748,7 +3748,7 @@ function renderAuthArea() {
   if (isAdmin(currentUser)) {
     role.textContent = '● Admin — cloud saving on';
   } else if (studentProfile) {
-    role.textContent = studentProfile.level + ' · ' + subjectLabel(studentProfile.subject);
+    role.textContent = levelLabel(studentProfile.level) + ' · ' + subjectLabel(studentProfile.subject);
     info.classList.add('clickable');
     info.title = 'Tap to edit your profile';
     info.addEventListener('click', function () { openProfileModal(false); });
@@ -3998,10 +3998,14 @@ function studentAdminRow(uid, p) {
 function canSeeDoc(d) {
   if (!currentUser || isAdmin(currentUser)) return true;
   if (!studentProfile) return false; // profile not set up yet
-  // Worksheets saved before levels/subjects existed stay visible to everyone.
-  if (d.level && d.level !== studentProfile.level) return false;
-  if (d.subject && d.subject !== 'both' &&
-      studentProfile.subject !== 'both' && d.subject !== studentProfile.subject) return false;
+  // Students only see worksheets explicitly assigned to their level AND
+  // subject. A worksheet with no level/subject set (saved before tagging
+  // existed) used to be shown to every student — now it stays teacher-only
+  // until it is assigned via Edit in My PDFs.
+  if (!d.level || d.level !== studentProfile.level) return false;
+  if (!d.subject) return false;
+  if (d.subject !== 'both' && studentProfile.subject !== 'both' &&
+      d.subject !== studentProfile.subject) return false;
   return true;
 }
 
@@ -4305,7 +4309,7 @@ async function openDocsModal() {
     if (!docs.length) {
       list.innerHTML = isAdmin(currentUser) || !studentProfile
         ? '<div class="docsEmpty">No saved PDFs yet. Open a PDF, annotate it and press Save.</div>'
-        : '<div class="docsEmpty">No worksheets for ' + escHtml(studentProfile.level) + ' ' +
+        : '<div class="docsEmpty">No worksheets for ' + escHtml(levelLabel(studentProfile.level)) + ' ' +
           escHtml(subjectLabel(studentProfile.subject)) + ' yet — check back after your next lesson!</div>';
       return;
     }
@@ -4325,6 +4329,7 @@ async function openDocsModal() {
         var bits = [];
         if (d.level) bits.push(levelLabel(d.level));
         if (d.subject) bits.push(subjectLabel(d.subject));
+        if (!d.level || !d.subject) bits.push('⚠ unassigned — hidden from students, press Edit');
         if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ' ' : '') + prettyDate(d.wsDate));
         bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
         if (when) bits.push('saved ' + when);
@@ -4503,7 +4508,7 @@ async function loadQuestionsList() {
     if (!docs.length) {
       list.innerHTML = isAdmin(currentUser)
         ? '<div class="qEmpty">No questions saved yet.<br>Open a PDF, annotate it and press Save.</div>'
-        : '<div class="qEmpty">No questions for ' + escHtml(studentProfile.level) + ' ' +
+        : '<div class="qEmpty">No questions for ' + escHtml(levelLabel(studentProfile.level)) + ' ' +
           escHtml(subjectLabel(studentProfile.subject)) + ' yet — check back after your next lesson!</div>';
       $('qDrawerSub').textContent = 'All saved questions, oldest first.';
       return;
@@ -4524,11 +4529,12 @@ async function loadQuestionsList() {
       if (d.level) {
         var lvl = document.createElement('span');
         lvl.className = 'qItemLevel';
-        lvl.textContent = d.level;
+        lvl.textContent = levelLabel(d.level);
         meta.appendChild(lvl);
       }
       var bits = [];
       if (d.subject) bits.push(subjectLabel(d.subject));
+      if (isAdmin(currentUser) && (!d.level || !d.subject)) bits.push('⚠ unassigned — hidden from students');
       if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ', ' : '') + prettyDate(d.wsDate));
       bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
       if (d.videoUrl) bits.push('🎬 recording');
