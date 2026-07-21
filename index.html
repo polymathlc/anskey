@@ -1167,7 +1167,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.23.0';
+var APP_VERSION = 'v1.23.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1240,6 +1240,29 @@ var lastTap = { id: null, t: 0 };  // manual double-click/double-tap detection
 var stylusOnly = false;     // pencil draws, fingers scroll, palms ignored
 var pencilSeen = false;     // an Apple Pencil / stylus has been used this session
 var activePointerId = null; // the one pointer allowed to draw/drag right now
+var activePointerType = null; // its pointerType, to tell a stale gesture from a palm
+function claimPointer(e) { activePointerId = e.pointerId; activePointerType = e.pointerType; }
+
+/* A gesture whose pointerup/pointercancel never reached us (swallowed by the
+   two-finger navigation engine or by the browser) would leave its dashed
+   preview stranded on the page and keep every later touch locked out. Throw
+   the stale state away, sweep any leftover preview off every page, and let
+   the new gesture proceed. */
+function cancelStaleGesture() {
+  if (drawing && drawing.svgNode && drawing.svgNode.parentNode) drawing.svgNode.parentNode.removeChild(drawing.svgNode);
+  drawing = null;
+  erasing = null;
+  lasering = null;
+  if (lassoing && lassoing.node && lassoing.node.parentNode) lassoing.node.parentNode.removeChild(lassoing.node);
+  lassoing = null;
+  lassoMoving = null;
+  lassoResizing = null;
+  draggingSel = null;
+  resizingSel = null;
+  activePointerId = null;
+  activePointerType = null;
+  renderAllOverlays();
+}
 var erasing = null;         // { page, snap, removed, lastX, lastY } while the eraser is down
 // iPads report ordinary fingertips with contact sizes up to ~45px, so the
 // palm threshold must sit above that or normal finger scrolling gets eaten.
@@ -2306,7 +2329,7 @@ function attachOverlayHandlers(p) {
           }
         }
         resizingSel = { id: hAnnId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false };
-        activePointerId = e.pointerId;
+        claimPointer(e);
         svg.setPointerCapture(e.pointerId);
         e.preventDefault();
         return;
@@ -2334,8 +2357,18 @@ function attachOverlayHandlers(p) {
     // A palm-sized contact patch never starts anything.
     if (isPalmTouch(e)) { e.preventDefault(); return; }
     // While one pointer is drawing/dragging, every extra touch (palm,
-    // stray finger) is swallowed instead of hijacking the gesture.
-    if (activePointerId !== null && e.pointerId !== activePointerId) { e.preventDefault(); return; }
+    // stray finger) is swallowed instead of hijacking the gesture. But a NEW
+    // primary pointer of the same kind can only exist if the old gesture's
+    // up/cancel was lost — clear the stale state (and its dashed preview)
+    // instead of locking the page forever.
+    if (activePointerId !== null && e.pointerId !== activePointerId) {
+      if (e.isPrimary && e.pointerType === activePointerType) {
+        cancelStaleGesture();
+      } else {
+        e.preventDefault();
+        return;
+      }
+    }
     // Touches claimed by the navigation engine (finger pan, two-finger
     // pan / pinch-zoom) never reach the drawing tools.
     if (e.pointerType === 'touch' && nav.mode) { e.preventDefault(); return; }
@@ -2361,7 +2394,7 @@ function attachOverlayHandlers(p) {
 
     if (tool === 'select' && editModeId && e.target.getAttribute && e.target.getAttribute('data-handle')) {
       resizingSel = { id: editModeId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false };
-      activePointerId = e.pointerId;
+      claimPointer(e);
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
       return;
@@ -2370,7 +2403,7 @@ function attachOverlayHandlers(p) {
     if (tool === 'eraser') {
       e.preventDefault();
       erasing = { page: p, snap: snapshot(), removed: false, lastX: e.clientX, lastY: e.clientY };
-      activePointerId = e.pointerId;
+      claimPointer(e);
       svg.setPointerCapture(e.pointerId);
       eraseAlong(e.clientX, e.clientY, e.clientX, e.clientY);
       return;
@@ -2378,7 +2411,7 @@ function attachOverlayHandlers(p) {
 
     if (tool === 'laser') {
       e.preventDefault();
-      activePointerId = e.pointerId;
+      claimPointer(e);
       svg.setPointerCapture(e.pointerId);
       laserEngage(); // earlier strokes of this working stay while the pencil is down
       lasering = { page: p, pts: [pt], node: null };
@@ -2404,7 +2437,7 @@ function attachOverlayHandlers(p) {
       }
       e.preventDefault();
       clearLassoSel(true);
-      activePointerId = e.pointerId;
+      claimPointer(e);
       svg.setPointerCapture(e.pointerId);
       lassoing = { page: p, pts: [pt], node: null };
       drawLassoTemp();
@@ -2446,7 +2479,7 @@ function attachOverlayHandlers(p) {
         renderAllOverlays();
         var node = svg.querySelector('[data-id="' + id + '"]');
         draggingSel = { id: id, startX: pt.x, startY: pt.y, node: node, page: p, snapshot: snapshot(), moved: false };
-        activePointerId = e.pointerId;
+        claimPointer(e);
         svg.setPointerCapture(e.pointerId);
       } else {
         lastTap = { id: null, t: 0 };
@@ -2456,7 +2489,7 @@ function attachOverlayHandlers(p) {
     }
 
     e.preventDefault();
-    activePointerId = e.pointerId;
+    claimPointer(e);
     svg.setPointerCapture(e.pointerId);
     var ann;
     var now = Date.now();
@@ -2697,7 +2730,7 @@ function attachOverlayHandlers(p) {
   /* When iPadOS interrupts a gesture (palm triggered a system scroll,
      multitasking swipe, etc.) the browser fires pointercancel. Previously
      that threw the in-progress stroke away — now the work is kept. */
-  svg.addEventListener('pointercancel', function (e) {
+  function cancelGesture(e) {
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
     if (lasering && lasering.page === p) {
       laserRelease(lasering.node);
@@ -2733,10 +2766,30 @@ function attachOverlayHandlers(p) {
       return;
     }
     activePointerId = null;
+    // The dashed text-box preview may sit on another page's overlay, which
+    // renderOverlay(p) below would not touch — remove it directly.
+    if (drawing && drawing.svgNode && drawing.svgNode.parentNode) drawing.svgNode.parentNode.removeChild(drawing.svgNode);
     drawing = null;
     if (draggingSel && draggingSel.page === p) draggingSel = null;
     if (resizingSel && resizingSel.page === p) resizingSel = null;
     renderOverlay(p);
+  }
+  svg.addEventListener('pointercancel', cancelGesture);
+
+  /* If the capture is dropped while gesture state is still active — a
+     capture-phase handler (e.g. the two-finger navigation engine) swallowed
+     the pointerup, or the browser revoked the capture — the dashed preview
+     would linger and later touches would be locked out. Treat it exactly
+     like a pointercancel. lostpointercapture also fires after every normal
+     pointerup, but by then the state is already cleared and cancelGesture's
+     guards make it a no-op. */
+  svg.addEventListener('lostpointercapture', function (e) {
+    if (activePointerId === null || e.pointerId !== activePointerId) return;
+    var busy = (drawing && drawing.page === p) || (erasing && erasing.page === p) ||
+               (lasering && lasering.page === p) || (lassoing && lassoing.page === p) ||
+               (lassoMoving && lassoMoving.page === p) || (lassoResizing && lassoResizing.page === p) ||
+               (draggingSel && draggingSel.page === p) || (resizingSel && resizingSel.page === p);
+    if (busy) cancelGesture(e);
   });
 
   /* Belt-and-braces for iOS Safari: even with touch-action:none some
@@ -2972,7 +3025,7 @@ function translateAnnFrom(orig, a, dx, dy) {
 
 function startLassoMove(e, p, pt) {
   e.preventDefault();
-  activePointerId = e.pointerId;
+  claimPointer(e);
   p.svg.setPointerCapture(e.pointerId);
   lassoMoving = {
     page: p, startX: pt.x, startY: pt.y, moved: false,
@@ -3047,7 +3100,7 @@ function startLassoResize(e, p) {
   var box = lassoGroupBBox();
   if (!box) return;
   e.preventDefault();
-  activePointerId = e.pointerId;
+  claimPointer(e);
   p.svg.setPointerCapture(e.pointerId);
   var origin = { x: box.x, y: box.y };
   var startPt = eventPoint(e, p);
