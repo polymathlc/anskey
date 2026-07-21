@@ -679,6 +679,11 @@
   .docRowMeta { font-size: 0.75rem; color: var(--ink-faint); margin-top: 3px; }
   .docRow .btn { padding: 7px 13px; font-size: 0.78rem; }
   .docsEmpty { text-align: center; color: var(--ink-faint); padding: 30px 0 16px; font-size: 0.9rem; }
+  .practiceWide { width: 100%; justify-content: center; margin-top: 8px; }
+  .checkVerdict { font-size: 1.05rem; font-weight: bold; margin-bottom: 10px; }
+  .checkFeedback { line-height: 1.55; margin-bottom: 14px; white-space: pre-wrap; }
+  .checkModel { background: #F6F1E7; border-radius: 8px; padding: 10px 12px; line-height: 1.5; white-space: pre-wrap; }
+  .checkModel b { display: block; margin-bottom: 4px; }
   .docEditRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .docEditRow select { font: inherit; font-size: 0.85rem; padding: 4px 6px; border: 1px solid var(--line, #E2E0DC); border-radius: 6px; background: #fff; }
 
@@ -950,6 +955,16 @@
     <input type="text" id="kwInput" placeholder="Or type a keyword here + Enter" autocomplete="off" disabled>
     <div id="kwProgress"></div>
   </div>
+  <div class="sideCard" id="practiceCard" style="display:none">
+    <h4>Practice this worksheet</h4>
+    <div class="sideHint" id="practiceIntro">Hide the answers and try the worksheet yourself — then get each answer marked with feedback.</div>
+    <button class="btn btnPrimary practiceWide" id="practiceStartBtn">Start practice — hide answers</button>
+    <div id="practiceActive" style="display:none">
+      <div class="sideHint">Write or type your answers on the page. To get one marked: tap it with the select tool (arrow), then press Check.</div>
+      <button class="btn btnPrimary practiceWide" id="practiceCheckBtn">✨ Check selected answer</button>
+      <button class="btn practiceWide" id="practiceEndBtn">End practice — show answers</button>
+    </div>
+  </div>
   <div class="sideCard" id="videoCard">
     <h4>Lesson recording</h4>
     <div class="sideHint" id="videoNone">No recording attached to this worksheet yet.</div>
@@ -1137,6 +1152,16 @@
   </div>
 </div>
 
+<div class="modalBack" id="checkModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2 id="checkTitle">Checking your answer…</h2>
+      <button class="modalClose" id="checkCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody" id="checkBody"></div>
+  </div>
+</div>
+
 <div class="modalBack" id="draftModal">
   <div class="modalCard">
     <div class="modalHead">
@@ -1167,7 +1192,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.24.0';
+var APP_VERSION = 'v1.25.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1481,6 +1506,8 @@ async function loadPdf(bytes, name) {
   pdfBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   docName = name || 'Untitled';
   currentDocId = null;
+  practiceMode = false; // a new document always starts outside practice
+  teacherAnswers = null;
   annotations = [];
   undoStack = [];
   redoStack = [];
@@ -2138,6 +2165,7 @@ function renderSidebar() {
   $('wsDay').textContent = dayFromISO(wsMeta.date);
   $('wsDate').textContent = prettyDate(wsMeta.date);
   updateKwPanel();
+  if (typeof updatePracticeCard === 'function') updatePracticeCard();
   renderVideoCard();
 }
 
@@ -2344,8 +2372,8 @@ function attachOverlayHandlers(p) {
       commitActiveTextEdit();
     }
     // Students read only — the page never draws or edits for them. Keyword
-    // revision (revise mode) is the one interaction that stays.
-    if (isStudent() && !reviseMode) return;
+    // revision (revise mode) and practice mode are the interactions that stay.
+    if (isStudent() && !reviseMode && !practiceMode) return;
 
     /* ---- Palm rejection ---- */
     // First time an Apple Pencil touches down, switch on pencil-only mode
@@ -2795,7 +2823,7 @@ function attachOverlayHandlers(p) {
   /* Belt-and-braces for iOS Safari: even with touch-action:none some
      versions still try to scroll/zoom from a palm resting on the page. */
   svg.addEventListener('touchmove', function (e) {
-    if (editingId || kwGuessActive || isStudent()) return; // students scroll natively
+    if (editingId || kwGuessActive || (isStudent() && !practiceMode)) return; // students scroll natively
     e.preventDefault();
   }, { passive: false });
 
@@ -3671,6 +3699,342 @@ function aiImprove(id) {
   aiRequest(id, AI_IMPROVE_SYS, t, '✒️ Gemini is polishing the wording…');
 }
 
+/* Tolerant JSON parse for model output (strips code fences, finds the
+   array/object). Keep in sync with the other Polymath apps. */
+function _parseAIJson(raw) {
+  let s = (raw || '').trim();
+  if (!s) throw new Error('empty AI response — please try again');
+  s = s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  const start = s.search(/[\[{]/);
+  if (start > 0) s = s.slice(start);
+  try { return JSON.parse(s); }
+  catch (firstErr) {
+    try { return JSON.parse(_repairAIJson(s)); }
+    catch (_) { throw firstErr; }
+  }
+}
+
+/* Best-effort repair for slightly-malformed or TRUNCATED model JSON. */
+function _repairAIJson(s) {
+  s = String(s || '');
+  let out = '', inString = false, escaped = false;
+  const closers = [];
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      if (escaped) { out += ch; escaped = false; continue; }
+      if (ch === '\\') { out += ch; escaped = true; continue; }
+      if (ch === '"') {
+        // Only a real close-quote if what follows continues the JSON
+        // structure; otherwise it's an unescaped quote INSIDE the string
+        // (e.g. feedback text quoting the word "friction") — escape it.
+        let j = i + 1;
+        while (j < s.length && ' \t\r\n'.includes(s[j])) j++;
+        const nxt = j < s.length ? s[j] : '';
+        let close = false;
+        if (!nxt || ':}]'.includes(nxt)) close = true;
+        else if (nxt === ',') {
+          // A real close is followed by the NEXT element after the comma —
+          // a quoted key/value, number, object/array or literal. Prose
+          // (like: "no", so the toy…) is not, so the quote is internal.
+          let k = j + 1;
+          while (k < s.length && ' \t\r\n'.includes(s[k])) k++;
+          close = k >= s.length || '"{[}]-0123456789'.includes(s[k]) ||
+                  /^(true|false|null)\b/.test(s.slice(k, k + 6));
+        }
+        if (close) { out += ch; inString = false; } else out += '\\"';
+        continue;
+      }
+      if (ch === '\n') { out += '\\n'; continue; }
+      if (ch === '\r') { continue; }
+      if (ch === '\t') { out += '\\t'; continue; }
+      out += ch; continue;
+    }
+    if (ch === '"') { out += ch; inString = true; continue; }
+    if (ch === '{') closers.push('}');
+    else if (ch === '[') closers.push(']');
+    else if ((ch === '}' || ch === ']') && closers[closers.length - 1] === ch) closers.pop();
+    out += ch;
+  }
+  if (inString) out += '"';
+  // A response cut off in the middle of a KEY (e.g. …,"feedb or …,"feedback":)
+  // leaves a dangling key that no amount of bracket-closing fixes — drop it.
+  out = out.replace(/([{,]\s*)"(?:[^"\\]|\\.)*"\s*:?\s*$/, '$1').replace(/,\s*$/, '');
+  while (closers.length) out += closers.pop();
+  return out.replace(/,\s*([}\]])/g, '$1');
+}
+
+/* ================= Practice mode =================
+   Students hide the worksheet's answers, write or type their own on the
+   page, then select one and have Gemini mark it against the teacher's
+   original answer — with the question band, the full page and the pages
+   before/after as context. Practice work is never saved anywhere. */
+var practiceMode = false;
+var teacherAnswers = null; // the worksheet's real annotations, hidden while practising
+
+var AI_MARK_SYS =
+  'You are a kind, encouraging tuition teacher marking ONE answer on a ' +
+  'worksheet for a student from P3 to Secondary 1 (Singapore syllabus). Read ' +
+  'the attached worksheet snapshots, find the question nearest the student\'s ' +
+  'answer, and compare the student\'s answer with the teacher\'s model answer ' +
+  'when one is provided — accept different wording when the meaning and key ' +
+  'points match, and follow the worksheet\'s own subject. The student\'s answer ' +
+  'may be typed or handwritten; read handwriting generously. Reply with STRICT ' +
+  'JSON only, no markdown, exactly this shape: {"verdict":"correct"|"partly"|' +
+  '"incorrect","feedback":"2-4 encouraging sentences: what was right, what was ' +
+  'missing or wrong, and how to improve","model":"the model answer, briefly"}.';
+
+function updatePracticeCard() {
+  var hasAnswers = practiceMode ? !!(teacherAnswers && teacherAnswers.length) : annotations.length > 0;
+  $('practiceCard').style.display = (pdfDoc && hasAnswers) ? '' : 'none';
+  $('practiceStartBtn').style.display = practiceMode ? 'none' : '';
+  $('practiceIntro').style.display = practiceMode ? 'none' : '';
+  $('practiceActive').style.display = practiceMode ? '' : 'none';
+}
+
+function startPractice() {
+  if (!pdfDoc || !annotations.length) { toast('Open a worksheet with answers first.'); return; }
+  commitActiveTextEdit();
+  teacherAnswers = annotations;
+  annotations = [];
+  undoStack = []; redoStack = [];
+  selectedId = null; editingId = null; editModeId = null;
+  reviseMode = false; $('reviseToggle').checked = false;
+  practiceMode = true;
+  applyRoleUI();
+  setTool('pen');
+  renderAllOverlays();
+  updatePracticeCard();
+  toast('Answers hidden — write or type your answers, then select one and press Check.', 5200);
+}
+
+function endPractice() {
+  if (!practiceMode) return;
+  commitActiveTextEdit();
+  practiceMode = false;
+  annotations = teacherAnswers || [];
+  teacherAnswers = null;
+  undoStack = []; redoStack = [];
+  selectedId = null; editingId = null; editModeId = null;
+  setDirty(false); // practice edits never count as changes to the worksheet
+  applyRoleUI();
+  setTool(isStudent() ? 'select' : 'pen');
+  renderAllOverlays();
+  updatePracticeCard();
+  toast('Answers shown again.');
+}
+
+/* Bounding box of any annotation, in page units. */
+function annBounds(a) {
+  if (a.points && a.points.length) {
+    var xs = a.points.map(function (pt) { return pt.x; });
+    var ys = a.points.map(function (pt) { return pt.y; });
+    return { x: Math.min.apply(null, xs), y: Math.min.apply(null, ys),
+             x2: Math.max.apply(null, xs), y2: Math.max.apply(null, ys) };
+  }
+  if (a.x1 !== undefined) {
+    return { x: Math.min(a.x1, a.x2), y: Math.min(a.y1, a.y2),
+             x2: Math.max(a.x1, a.x2), y2: Math.max(a.y1, a.y2) };
+  }
+  var h = a.type === 'text' ? Math.max(a.h || 0, (a.fontSize || 16) * 1.8) : (a.h || 0);
+  return { x: a.x || 0, y: a.y || 0, x2: (a.x || 0) + (a.w || 0), y2: (a.y || 0) + h };
+}
+
+/* Draw annotations straight onto a 2d context (kx/ky = page units -> canvas
+   pixels). Used to composite student ink and teacher answers into the
+   snapshots sent to Gemini — the SVG overlay itself can't be rasterised
+   reliably on every browser. */
+function drawAnnsOnCtx(ctx, kx, ky, anns, pageNum) {
+  (anns || []).forEach(function (a) {
+    if (a.page !== pageNum) return;
+    ctx.save();
+    ctx.strokeStyle = a.color || '#1A1A1A';
+    ctx.fillStyle = a.color || '#1A1A1A';
+    ctx.lineWidth = Math.max(1, (a.width || 2) * kx);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (a.type === 'pen' || a.type === 'highlight') {
+      if (a.type === 'highlight') ctx.globalAlpha = 0.4;
+      if (a.points && a.points.length) {
+        ctx.beginPath();
+        ctx.moveTo(a.points[0].x * kx, a.points[0].y * ky);
+        for (var i = 1; i < a.points.length; i++) ctx.lineTo(a.points[i].x * kx, a.points[i].y * ky);
+        ctx.stroke();
+      }
+    } else if (a.type === 'rect') {
+      ctx.strokeRect(a.x * kx, a.y * ky, a.w * kx, a.h * ky);
+    } else if (a.type === 'ellipse') {
+      ctx.beginPath();
+      ctx.ellipse((a.x + a.w / 2) * kx, (a.y + a.h / 2) * ky, a.w / 2 * kx, a.h / 2 * ky, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (a.type === 'line' || a.type === 'arrow') {
+      ctx.beginPath();
+      ctx.moveTo(a.x1 * kx, a.y1 * ky);
+      ctx.lineTo(a.x2 * kx, a.y2 * ky);
+      ctx.stroke();
+    } else if (a.type === 'text') {
+      var fs = Math.max(6, (a.fontSize || 16) * ky);
+      ctx.font = fs + 'px sans-serif';
+      var maxW = Math.max(40, (a.w || 200) * kx);
+      var x = a.x * kx;
+      var y = a.y * ky + fs;
+      String(a.text || '').split('\n').forEach(function (para) {
+        var line = '';
+        para.split(/\s+/).forEach(function (w) {
+          if (!w) return;
+          var t = line ? line + ' ' + w : w;
+          if (ctx.measureText(t).width > maxW && line) {
+            ctx.fillText(line, x, y);
+            line = w;
+            y += fs * 1.35;
+          } else {
+            line = t;
+          }
+        });
+        ctx.fillText(line, x, y);
+        y += fs * 1.35;
+      });
+    }
+    ctx.restore();
+  });
+}
+
+/* Full page (downscaled) with the given annotations composited in. */
+function compositeJpeg(p, anns, maxDim) {
+  if (!p || !p.canvas || !p.canvas.width || !p.canvas.height) return null;
+  var c = p.canvas;
+  var f = Math.min(1, (maxDim || 1280) / Math.max(c.width, c.height));
+  var out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(c.width * f));
+  out.height = Math.max(1, Math.round(c.height * f));
+  var ctx = out.getContext('2d');
+  ctx.drawImage(c, 0, 0, out.width, out.height);
+  drawAnnsOnCtx(ctx, out.width / p.baseW, out.height / p.baseH, anns, p.num);
+  return out.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+
+/* Full-width band of the page between two y positions (page units), with
+   the given annotations composited in. */
+function bandJpeg(p, anns, yTop, yBottom) {
+  if (!p || !p.canvas || !p.canvas.width || !p.canvas.height) return null;
+  var c = p.canvas;
+  var kx = c.width / p.baseW;
+  var ky = c.height / p.baseH;
+  var y0 = Math.max(0, Math.round(yTop * ky));
+  var y1 = Math.min(c.height, Math.round(yBottom * ky));
+  if (y1 - y0 < 30) return null;
+  var out = document.createElement('canvas');
+  out.width = c.width;
+  out.height = y1 - y0;
+  var ctx = out.getContext('2d');
+  ctx.drawImage(c, 0, y0, c.width, y1 - y0, 0, 0, c.width, y1 - y0);
+  ctx.translate(0, -y0);
+  drawAnnsOnCtx(ctx, kx, ky, anns, p.num);
+  return out.toDataURL('image/jpeg', 0.88).split(',')[1];
+}
+
+function checkAnswer() {
+  if (!practiceMode) return;
+  if (aiBusy) { toast('Gemini is still marking the previous answer…'); return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  commitActiveTextEdit();
+  var sa = annotations.find(function (x) { return x.id === selectedId; });
+  if (!sa) { toast('Tap your answer with the select tool (arrow) first, then press Check.', 4500); return; }
+  var p = pages.find(function (pg) { return pg.num === sa.page; });
+  if (!p) return;
+  var b = annBounds(sa);
+  var bandTop = b.y - 280;
+  var bandBottom = b.y2 + 160;
+  function inBand(x) {
+    if (x.page !== sa.page) return false;
+    var xb = annBounds(x);
+    return xb.y2 >= bandTop && xb.y <= bandBottom;
+  }
+  // Everything the student put near the selected answer counts as the answer.
+  var myAnns = annotations.filter(inBand);
+  var teacherBand = (teacherAnswers || []).filter(inBand);
+  var myTexts = myAnns.filter(function (x) { return x.type === 'text' && x.text; }).map(function (x) { return x.text; });
+  var teacherTexts = teacherBand.filter(function (x) { return x.type === 'text' && x.text; }).map(function (x) { return x.text; });
+
+  var imgs = [];
+  var qBand = bandJpeg(p, myAnns, bandTop, bandBottom);
+  if (qBand) imgs.push({ mimeType: 'image/jpeg', data: qBand, label: 'the question with the student\'s answer on it (close-up)' });
+  var full = compositeJpeg(p, myAnns, 1280);
+  if (full) imgs.push({ mimeType: 'image/jpeg', data: full, label: 'the full page, with all the student\'s answers' });
+  var prev = pages.find(function (pg) { return pg.num === sa.page - 1; });
+  var next = pages.find(function (pg) { return pg.num === sa.page + 1; });
+  var pv = prev && pageJpeg(prev, 1100);
+  if (pv) imgs.push({ mimeType: 'image/jpeg', data: pv, label: 'the page before, for context' });
+  var nx = next && pageJpeg(next, 1100);
+  if (nx) imgs.push({ mimeType: 'image/jpeg', data: nx, label: 'the page after, for context' });
+  var model = teacherBand.length ? bandJpeg(p, teacherBand, bandTop, bandBottom) : null;
+  if (model) imgs.push({ mimeType: 'image/jpeg', data: model, label: 'the TEACHER\'S MODEL ANSWER for this question' });
+
+  var lines = [];
+  var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
+  var lvl = wsMeta && wsMeta.level ? levelLabel(wsMeta.level) : '';
+  if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
+  lines.push('Attached: ' + imgs.map(function (im, i) { return 'image ' + (i + 1) + ' = ' + im.label; }).join('; ') + '.');
+  if (myTexts.length) lines.push('The student typed: "' + myTexts.join('" / "') + '"');
+  if (teacherTexts.length) lines.push('The teacher\'s model answer (text): "' + teacherTexts.join('" / "') + '"');
+  if (!teacherBand.length) lines.push('No teacher answer was recorded near this question — mark using the worksheet and your own knowledge.');
+  lines.push('Mark the student\'s answer to the question nearest it.');
+
+  aiBusy = true;
+  $('checkTitle').textContent = 'Checking your answer…';
+  $('checkBody').textContent = '✨ Gemini is reading the worksheet and your answer…';
+  $('checkModal').classList.add('open');
+  window.askGemini(lines.join('\n'), {
+    system: AI_MARK_SYS, maxOutputTokens: 900, temperature: 0.2, json: true,
+    images: imgs.map(function (im) { return { mimeType: im.mimeType, data: im.data }; })
+  }).then(function (raw) {
+    aiBusy = false;
+    showCheckResult(_parseAIJson(raw));
+  }).catch(function (err) {
+    aiBusy = false;
+    $('checkTitle').textContent = 'Could not mark this answer';
+    $('checkBody').textContent = (err && err.message) || 'Marking failed — please try again.';
+  });
+}
+
+function showCheckResult(res) {
+  var v = String((res && res.verdict) || '').toLowerCase();
+  var head = v === 'correct' ? '✅ Correct — well done!'
+           : v === 'partly' ? '🟡 Almost there'
+           : '❌ Not quite';
+  $('checkTitle').textContent = 'Your answer, marked';
+  var body = $('checkBody');
+  body.innerHTML = '';
+  var verdict = document.createElement('div');
+  verdict.className = 'checkVerdict';
+  verdict.textContent = head;
+  body.appendChild(verdict);
+  var fb = document.createElement('div');
+  fb.className = 'checkFeedback';
+  fb.textContent = (res && res.feedback) || '';
+  body.appendChild(fb);
+  if (res && res.model) {
+    var model = document.createElement('div');
+    model.className = 'checkModel';
+    var lbl = document.createElement('b');
+    lbl.textContent = 'Model answer';
+    model.appendChild(lbl);
+    model.appendChild(document.createTextNode(res.model));
+    body.appendChild(model);
+  }
+}
+
+$('practiceStartBtn').addEventListener('click', startPractice);
+$('practiceEndBtn').addEventListener('click', endPractice);
+$('practiceCheckBtn').addEventListener('click', checkAnswer);
+$('checkCloseBtn').addEventListener('click', function () { $('checkModal').classList.remove('open'); });
+$('checkModal').addEventListener('click', function (e) {
+  if (e.target === $('checkModal')) $('checkModal').classList.remove('open');
+});
+
 /* ================= Auth ================= */
 function isAdmin(user) { return !!user && user.email === ADMIN_EMAIL; }
 function isStudent() { return !!currentUser && !isAdmin(currentUser); }
@@ -3682,15 +4046,21 @@ var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'toolButtons', 'colorChips', 'strokeSele
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'downloadBtn', 'printBtn', 'saveBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
+var PRACTICE_TOOLBAR_IDS = ['toolButtons', 'colorChips', 'strokeSelect', 'fontSelect',
+  'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn'];
+
 function applyRoleUI() {
   var student = isStudent();
-  document.body.classList.toggle('studentMode', student);
+  var hideTools = student && !practiceMode; // practising students get drawing tools
+  document.body.classList.toggle('studentMode', hideTools);
   TEACHER_TOOLBAR_IDS.forEach(function (id) {
     var elm = $(id);
-    if (elm) elm.style.display = student ? 'none' : '';
+    if (!elm) return;
+    var show = !student || (practiceMode && PRACTICE_TOOLBAR_IDS.indexOf(id) !== -1);
+    elm.style.display = show ? '' : 'none';
   });
   document.querySelectorAll('#toolbar .tSep').forEach(function (s) {
-    s.style.display = student ? 'none' : '';
+    s.style.display = hideTools ? 'none' : '';
   });
   var h1 = $('emptyState').querySelector('h1');
   var para = $('emptyState').querySelector('p');
@@ -4018,6 +4388,7 @@ function dayPriority(d) {
 /* ================= Cloud save / load ================= */
 async function saveDoc() {
   if (!pdfDoc) { toast('Open a PDF first.'); return; }
+  if (practiceMode) { toast('End practice first — practice answers are never saved.'); return; }
   if (!currentUser) {
     toast('Sign in with Google to save.');
     await signIn();
@@ -4120,7 +4491,9 @@ var autoSaveInFlight = false;
 var autoSaveQueued = false;
 
 function canAutoSave() {
-  return !!currentDocId && isAdmin(currentUser);
+  // Never while practising — practice scribbles must not overwrite the
+  // worksheet's real annotations.
+  return !!currentDocId && isAdmin(currentUser) && !practiceMode;
 }
 
 function scheduleAutoSave() {
@@ -4223,7 +4596,7 @@ function scheduleDraftSave() {
 
 function saveDraftNow() {
   clearTimeout(draftTimer);
-  if (!window.indexedDB || !pdfBytes || isStudent()) return;
+  if (!window.indexedDB || !pdfBytes || isStudent() || practiceMode) return;
   var value = {
     docName: docName,
     docId: currentDocId,
@@ -5137,10 +5510,22 @@ document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') ae.blur();
     return;
   }
-  if (isStudent()) {
+  if (isStudent() && !practiceMode) {
     // Reading-only shortcuts for students: zoom in/out and Escape.
     if (e.key === '+' || e.key === '=') { zoomBy(1.2); }
     else if (e.key === '-') { zoomBy(1 / 1.2); }
+    return;
+  }
+  if (isStudent()) {
+    // Practising students get drawing shortcuts, but never file/save/print.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId) { e.preventDefault(); deleteSelected(); } return; }
+    if (e.key === '+' || e.key === '=') { zoomBy(1.2); return; }
+    if (e.key === '-') { zoomBy(1 / 1.2); return; }
+    if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; renderAllOverlays(); return; }
+    var pk = { v: 'select', p: 'pen', h: 'highlight', t: 'text', e: 'eraser' };
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && pk[e.key.toLowerCase()]) setTool(pk[e.key.toLowerCase()]);
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
