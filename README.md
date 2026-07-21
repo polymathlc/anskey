@@ -70,3 +70,33 @@ service firebase.storage {
   }
 }
 ```
+
+## Never lose unsaved work again (local draft failsafe)
+
+Since v1.22.0 the app mirrors everything on screen — the PDF bytes, all
+annotations, the worksheet name and details — into a **local draft** in the
+browser's IndexedDB a couple of seconds after every change, *even before the
+worksheet has ever been saved*. If the tab closes, the browser crashes, or the
+iPad discards the page, the next visit shows an **"Unsaved work found 🛟"**
+dialog offering to restore the draft exactly as it was. Closing the dialog
+keeps the draft for next time; only "Discard it" deletes it.
+
+Notes:
+
+- The draft lives in that browser on that device only (one slot — the most
+  recently edited worksheet). Cloud "Save" is still the real backup: once a
+  worksheet is saved once, cloud auto-save takes over after every change.
+- The draft is marked clean whenever a cloud save succeeds, so you are only
+  prompted when something genuinely never reached the cloud.
+
+### Recovering work lost before this failsafe existed
+
+Annotations made before v1.22.0 on a worksheet that was **never saved** lived
+only in page memory — they cannot be recovered once the tab is gone. But:
+
+1. **The PDF itself is not lost.** The app only reads a copy, so the original
+   file is untouched wherever it came from — check your Downloads folder,
+   email/WhatsApp attachment, or the browser's download history (Ctrl+J).
+2. **Check My PDFs anyway** (M key) — if the worksheet was ever saved even
+   once, the latest auto-saved version is in the cloud, sorted by most
+   recently updated.
