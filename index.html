@@ -1133,6 +1133,22 @@
   </div>
 </div>
 
+<div class="modalBack" id="draftModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>Unsaved work found 🛟</h2>
+      <button class="modalClose" id="draftCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro" id="draftInfo"></div>
+      <div class="modalActions">
+        <button class="btn" id="draftDiscardBtn">Discard it</button>
+        <button class="btn btnPrimary" id="draftRestoreBtn">Restore it</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
 
@@ -1147,7 +1163,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.21.0';
+var APP_VERSION = 'v1.22.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1381,6 +1397,8 @@ function setDirty(v) {
   if (label) label.textContent = 'Save';
   if (typeof updateKwPanel === 'function') updateKwPanel();
   if (v && typeof scheduleAutoSave === 'function') scheduleAutoSave();
+  // Mirror every change into the local draft failsafe as well.
+  if (typeof scheduleDraftSave === 'function') scheduleDraftSave();
 }
 
 /* ================= Undo / redo ================= */
@@ -4010,6 +4028,7 @@ async function performSave() {
     if (isNew) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection(COLLECTION).doc(currentDocId).set(payload, { merge: true });
     dirty = false;
+    scheduleDraftSave(); // mark the local draft clean too
     btn.classList.add('btnSaved');
     if (label) label.textContent = '✓ Saved';
     toast(isNew
@@ -4055,6 +4074,7 @@ async function autoSave() {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
     dirty = false;
+    scheduleDraftSave(); // mark the local draft clean too
     var btn = $('saveBtn');
     btn.classList.add('btnSaved');
     var label = btn.querySelector('.btnLabel');
@@ -4072,9 +4092,128 @@ async function autoSave() {
 // Closing the tab, switching apps on the iPad, or locking the screen all
 // fire one of these — flush the pending save right away.
 document.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'hidden') autoSave();
+  if (document.visibilityState === 'hidden') { autoSave(); saveDraftNow(); }
 });
-window.addEventListener('pagehide', function () { autoSave(); });
+window.addEventListener('pagehide', function () { autoSave(); saveDraftNow(); });
+
+/* ================= Local draft failsafe =================
+   Cloud auto-save only starts once a worksheet has been saved for the first
+   time, so a brand-new worksheet used to live purely in memory — one closed
+   tab and it was gone. Now everything on screen (PDF bytes, annotations,
+   name, worksheet details) is also mirrored into a local draft in this
+   browser's IndexedDB shortly after every change, and the next visit offers
+   to restore it if it never reached the cloud. One draft slot: the most
+   recently edited worksheet. */
+var DRAFT_DB = 'anskeyDrafts';
+var DRAFT_STORE = 'drafts';
+var DRAFT_KEY = 'last';
+var DRAFT_DELAY = 2500;
+var draftTimer = null;
+
+function draftDb() {
+  return new Promise(function (resolve, reject) {
+    var req = indexedDB.open(DRAFT_DB, 1);
+    req.onupgradeneeded = function () { req.result.createObjectStore(DRAFT_STORE); };
+    req.onsuccess = function () { resolve(req.result); };
+    req.onerror = function () { reject(req.error); };
+  });
+}
+function draftPut(value) {
+  return draftDb().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(DRAFT_STORE, 'readwrite');
+      tx.objectStore(DRAFT_STORE).put(value, DRAFT_KEY);
+      tx.oncomplete = function () { db.close(); resolve(); };
+      tx.onerror = function () { db.close(); reject(tx.error); };
+    });
+  });
+}
+function draftGet() {
+  return draftDb().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(DRAFT_STORE, 'readonly');
+      var req = tx.objectStore(DRAFT_STORE).get(DRAFT_KEY);
+      req.onsuccess = function () { db.close(); resolve(req.result || null); };
+      req.onerror = function () { db.close(); reject(req.error); };
+    });
+  });
+}
+function draftDelete() {
+  return draftDb().then(function (db) {
+    return new Promise(function (resolve) {
+      var tx = db.transaction(DRAFT_STORE, 'readwrite');
+      tx.objectStore(DRAFT_STORE).delete(DRAFT_KEY);
+      tx.oncomplete = function () { db.close(); resolve(); };
+      tx.onerror = function () { db.close(); resolve(); };
+    });
+  });
+}
+
+function scheduleDraftSave() {
+  if (!window.indexedDB) return;
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(saveDraftNow, DRAFT_DELAY);
+}
+
+function saveDraftNow() {
+  clearTimeout(draftTimer);
+  if (!window.indexedDB || !pdfBytes || isStudent()) return;
+  var value = {
+    docName: docName,
+    docId: currentDocId,
+    wsMeta: wsMeta,
+    annotations: snapshot(),
+    unsaved: dirty,
+    pageCount: pdfDoc ? pdfDoc.numPages : 0,
+    pdf: new Blob([pdfBytes], { type: 'application/pdf' }),
+    savedAt: Date.now()
+  };
+  draftPut(value).catch(function (e) { console.warn('Draft backup failed', e); });
+}
+
+async function restoreDraft(d) {
+  var buf = await d.pdf.arrayBuffer();
+  await loadPdf(new Uint8Array(buf), d.docName);
+  currentDocId = d.docId || null;
+  try { annotations = JSON.parse(d.annotations || '[]'); } catch (e) { annotations = []; }
+  if (d.wsMeta) wsMeta = d.wsMeta;
+  renderAllOverlays();
+  renderSidebar();
+  setDirty(true);
+  toast(currentDocId
+    ? 'Restored — auto-save will catch it up in a moment.'
+    : 'Restored — press Save to keep it in the cloud.', 5000);
+}
+
+// On startup, offer to bring back work that never reached the cloud.
+(function offerDraftRestore() {
+  if (!window.indexedDB) return;
+  draftGet().then(function (d) {
+    if (!d || !d.unsaved || !d.pdf) return;
+    var annCount = 0;
+    try { annCount = JSON.parse(d.annotations || '[]').length; } catch (e) {}
+    $('draftInfo').textContent =
+      '“' + (d.docName || 'Untitled') + '” (' + (d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's') +
+      ', ' + annCount + ' annotation' + (annCount === 1 ? '' : 's') + ') was still open on ' +
+      new Date(d.savedAt).toLocaleString() + ' and never made it to the cloud. Restore it exactly as it was?';
+    $('draftModal').classList.add('open');
+    $('draftRestoreBtn').onclick = function () {
+      $('draftModal').classList.remove('open');
+      restoreDraft(d).catch(function (e) {
+        console.error(e);
+        toast('Could not restore the draft: ' + (e.message || e), 6000);
+      });
+    };
+    $('draftDiscardBtn').onclick = function () {
+      $('draftModal').classList.remove('open');
+      draftDelete();
+    };
+    $('draftCloseBtn').onclick = function () {
+      // Just closing keeps the draft — the offer returns on the next visit.
+      $('draftModal').classList.remove('open');
+    };
+  }).catch(function (e) { console.warn('Draft check failed', e); });
+})();
 
 async function openDocsModal() {
   if (!currentUser) {
@@ -4938,6 +5077,7 @@ document.addEventListener('keydown', function (e) {
 
 window.addEventListener('beforeunload', function (e) {
   if (!dirty || !annotations.length) return;
+  saveDraftNow(); // last-chance flush into the local draft failsafe
   if (canAutoSave()) {
     // Auto-save handles it — kick off the flush and let the tab close.
     autoSave();
