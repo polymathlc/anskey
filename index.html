@@ -377,6 +377,56 @@
   .authInfo.clickable { cursor: pointer; border-radius: var(--radius-sm); padding: 3px 8px; transition: background 0.2s ease; }
   .authInfo.clickable:hover { background: #F1F0EE; }
 
+  /* ---------- Page thumbnails panel ---------- */
+  #thumbPanel {
+    flex: 0 0 auto;
+    width: 168px;
+    border-right: 1px solid var(--line);
+    background: #FCFCFB;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 12px 30px;
+    display: none;
+  }
+  #thumbPanel.open { display: block; }
+  #thumbResizer {
+    flex: 0 0 6px;
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    border-right: 1px solid var(--line);
+    touch-action: none;
+    transition: background 0.2s ease;
+    display: none;
+  }
+  #thumbResizer.open { display: block; }
+  #thumbResizer:hover, #thumbResizer.dragging { background: var(--accent-strong); }
+  .thumbItem { margin-bottom: 14px; cursor: pointer; }
+  .thumbPage {
+    position: relative;
+    background: #fff;
+    border: 2px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .thumbItem:hover .thumbPage { box-shadow: var(--shadow-btn-hover); }
+  .thumbItem.current .thumbPage {
+    border-color: var(--accent-deep);
+    box-shadow: 0 0 0 2px rgba(232, 165, 75, 0.35), var(--shadow-card);
+  }
+  .thumbPage canvas { display: block; width: 100%; height: 100%; }
+  .thumbPage svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .thumbNum {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    margin-top: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .thumbItem.current .thumbNum { color: var(--accent-deep); font-weight: bold; }
+
   /* ---------- Viewer ---------- */
   #viewerArea {
     flex: 1 1 auto;
@@ -644,6 +694,13 @@
       height: 100%;
       box-shadow: var(--shadow-modal);
     }
+    #thumbPanel.open {
+      position: absolute;
+      z-index: 38;
+      height: 100%;
+      box-shadow: var(--shadow-modal);
+    }
+    #thumbResizer { display: none !important; }
     #mainRow { position: relative; }
   }
 </style>
@@ -774,6 +831,9 @@
     <button class="toolBtn active" id="tsToggleBtn" title="Show / hide annotation timestamps">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
     </button>
+    <button class="toolBtn" id="thumbToggleBtn" title="Show / hide page thumbnails — drag the panel edge to resize them">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/><rect x="5.4" y="7" width="2.4" height="3.2"/><rect x="5.4" y="13" width="2.4" height="3.2"/></svg>
+    </button>
     <button class="toolBtn" id="sideToggleBtn" title="Show / hide worksheet panel">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9.5" y1="4" x2="9.5" y2="20"/></svg>
     </button>
@@ -846,6 +906,11 @@
       match them against the lesson recording to find the explanation for that part.</div>
   </div>
 </aside>
+
+<aside id="thumbPanel">
+  <div id="thumbList"></div>
+</aside>
+<div id="thumbResizer" title="Drag to resize thumbnails"></div>
 
 <main id="viewerArea">
   <div id="emptyState">
@@ -1019,7 +1084,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.16.0';
+var APP_VERSION = 'v1.17.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1348,7 +1413,11 @@ async function loadPdf(bytes, name) {
     attachOverlayHandlers(p);
   }
   fitWidth();
-  if (window.innerWidth > 900) $('sideBar').classList.add('open');
+  buildThumbs();
+  if (window.innerWidth > 900) {
+    $('sideBar').classList.add('open');
+    setThumbPanelOpen(true);
+  }
   // Fresh worksheet, fresh pen: black ink selected by default.
   if (!isStudent()) {
     setTool('pen');
@@ -1394,6 +1463,105 @@ function fitWidth() {
   var avail = $('viewerArea').clientWidth - 48;
   scale = Math.min(4, Math.max(0.25, avail / pages[0].baseW));
   applyScale();
+}
+
+/* ================= Page thumbnails panel =================
+   A resizable strip of page previews: click one to jump to that page,
+   drag the panel's right edge to make the thumbnails larger or smaller.
+   Annotations are mirrored onto each preview so it matches the real page. */
+var thumbs = [];            // { item, canvas, svg, renderTask, observer, timer } parallel to pages[]
+var THUMB_MIN = 110, THUMB_MAX = 440;
+var thumbW = (function () {
+  try { return Math.min(THUMB_MAX, Math.max(THUMB_MIN, parseInt(localStorage.getItem('pdfThumbW'), 10) || 168)); }
+  catch (e) { return 168; }
+})();
+var thumbRerenderTimer = null;
+var thumbScrollPending = false;
+
+function buildThumbs() {
+  thumbs.forEach(function (t) {
+    if (t.observer) t.observer.disconnect();
+    if (t.renderTask) { try { t.renderTask.cancel(); } catch (e) {} }
+    clearTimeout(t.timer);
+  });
+  thumbs = [];
+  var list = $('thumbList');
+  list.innerHTML = '';
+  $('thumbPanel').style.width = thumbW + 'px';
+  pages.forEach(function (p) {
+    var item = document.createElement('div');
+    item.className = 'thumbItem';
+    item.title = 'Go to page ' + p.num;
+    var box = document.createElement('div');
+    box.className = 'thumbPage';
+    box.style.aspectRatio = p.baseW + ' / ' + p.baseH;
+    var canvas = document.createElement('canvas');
+    var svg = el('svg', {
+      viewBox: '0 0 ' + p.baseW + ' ' + p.baseH,
+      preserveAspectRatio: 'none'
+    });
+    box.appendChild(canvas);
+    box.appendChild(svg);
+    var num = document.createElement('div');
+    num.className = 'thumbNum';
+    num.textContent = p.num;
+    item.appendChild(box);
+    item.appendChild(num);
+    list.appendChild(item);
+    item.addEventListener('click', function () {
+      $('viewerArea').scrollTop = p.wrap.offsetTop - 20;
+    });
+    var t = { item: item, canvas: canvas, svg: svg, renderTask: null, timer: null };
+    // Mirror the page overlay onto the thumbnail whenever annotations change.
+    t.observer = new MutationObserver(function () {
+      clearTimeout(t.timer);
+      t.timer = setTimeout(function () { t.svg.innerHTML = p.svg.innerHTML; }, 250);
+    });
+    t.observer.observe(p.svg, { childList: true, subtree: true, attributes: true, characterData: true });
+    t.svg.innerHTML = p.svg.innerHTML;
+    thumbs.push(t);
+  });
+  renderAllThumbCanvases();
+  markCurrentThumb();
+}
+
+function renderThumbCanvas(t, p) {
+  if (t.renderTask) { try { t.renderTask.cancel(); } catch (e) {} }
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var w = Math.max(60, thumbW - 28);   // panel padding + thumbnail border
+  var viewport = p.page.getViewport({ scale: (w * dpr) / p.baseW });
+  t.canvas.width = Math.floor(viewport.width);
+  t.canvas.height = Math.floor(viewport.height);
+  t.renderTask = p.page.render({ canvasContext: t.canvas.getContext('2d'), viewport: viewport });
+  t.renderTask.promise.catch(function () { /* cancelled — fine */ });
+}
+
+function renderAllThumbCanvases() {
+  pages.forEach(function (p, i) { if (thumbs[i]) renderThumbCanvas(thumbs[i], p); });
+}
+
+/* Highlight the thumbnail of the page currently in the middle of the viewer. */
+function markCurrentThumb() {
+  if (!pages.length || !thumbs.length) return;
+  var area = $('viewerArea');
+  var mid = area.scrollTop + area.clientHeight / 2;
+  var best = 0;
+  pages.forEach(function (p, i) { if (p.wrap.offsetTop <= mid) best = i; });
+  if (thumbs[best].item.classList.contains('current')) return;
+  thumbs.forEach(function (t, i) { t.item.classList.toggle('current', i === best); });
+  if ($('thumbPanel').classList.contains('open')) {
+    thumbs[best].item.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function setThumbPanelOpen(open) {
+  $('thumbPanel').classList.toggle('open', open);
+  $('thumbResizer').classList.toggle('open', open);
+  $('thumbToggleBtn').classList.toggle('active', open);
+  if (open) {
+    $('thumbPanel').style.width = thumbW + 'px';
+    markCurrentThumb();
+  }
 }
 
 /* ================= Annotation rendering ================= */
@@ -4124,6 +4292,40 @@ $('tsToggleBtn').addEventListener('click', function () {
 $('sideToggleBtn').addEventListener('click', function () {
   $('sideBar').classList.toggle('open');
 });
+$('thumbToggleBtn').addEventListener('click', function () {
+  setThumbPanelOpen(!$('thumbPanel').classList.contains('open'));
+});
+
+/* Drag the strip between the thumbnails and the page to resize the previews */
+(function () {
+  var resizer = $('thumbResizer');
+  var dragging = false;
+  resizer.addEventListener('pointerdown', function (e) {
+    dragging = true;
+    resizer.classList.add('dragging');
+    resizer.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  resizer.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    var left = $('thumbPanel').getBoundingClientRect().left;
+    thumbW = Math.min(THUMB_MAX, Math.max(THUMB_MIN, Math.round(e.clientX - left)));
+    $('thumbPanel').style.width = thumbW + 'px';
+    // The canvases stretch live via CSS; re-render them sharp once the drag settles.
+    clearTimeout(thumbRerenderTimer);
+    thumbRerenderTimer = setTimeout(renderAllThumbCanvases, 200);
+  });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('dragging');
+    try { localStorage.setItem('pdfThumbW', String(thumbW)); } catch (e) {}
+    clearTimeout(thumbRerenderTimer);
+    renderAllThumbCanvases();
+  }
+  resizer.addEventListener('pointerup', endDrag);
+  resizer.addEventListener('pointercancel', endDrag);
+})();
 $('reviseToggle').addEventListener('change', function (e) { setReviseMode(e.target.checked); });
 $('kwInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); tryKeyword(e.target.value); }
@@ -4198,6 +4400,14 @@ $('videoUrlInput').addEventListener('keydown', function (e) {
 /* Drag & drop */
 var viewerArea = $('viewerArea');
 viewerArea.addEventListener('scroll', positionLassoBar, { passive: true });
+viewerArea.addEventListener('scroll', function () {
+  if (thumbScrollPending) return;
+  thumbScrollPending = true;
+  requestAnimationFrame(function () {
+    thumbScrollPending = false;
+    markCurrentThumb();
+  });
+}, { passive: true });
 window.addEventListener('resize', positionLassoBar);
 ['dragenter', 'dragover'].forEach(function (evt) {
   document.body.addEventListener(evt, function (e) {
