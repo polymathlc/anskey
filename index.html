@@ -1197,6 +1197,14 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
     Resize
   </button>
+  <button class="btn" id="lassoRotateBtn" title="Rotate everything selected — drag the round handle above the box">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+    Rotate
+  </button>
+  <button class="btn" id="lassoGroupBtn" title="Group the selected items so they select and move as one">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M11 7h4a2 2 0 0 1 2 2v4"/></svg>
+    <span id="lassoGroupLabel">Group</span>
+  </button>
   <button class="btn" id="lassoBeautifyBtn" title="Rewrite the selected handwriting neatly — the content stays exactly the same">
     ✨ Beautify
   </button>
@@ -1257,7 +1265,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.30.0';
+var APP_VERSION = 'v1.31.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1413,6 +1421,7 @@ function cancelStaleGesture() {
   lassoing = null;
   lassoMoving = null;
   lassoResizing = null;
+  lassoRotating = null;
   draggingSel = null;
   resizingSel = null;
   activePointerId = null;
@@ -1548,6 +1557,35 @@ function el(name, attrs) {
 }
 function round2(n) { return Math.round(n * 100) / 100; }
 function newAnnId() { return 'a' + Date.now().toString(36) + (annIdCounter++); }
+/* Rotate point q about centre c by deg degrees (clockwise on screen). */
+function rotPt(q, c, deg) {
+  var r = deg * Math.PI / 180, cos = Math.cos(r), sin = Math.sin(r);
+  var dx = q.x - c.x, dy = q.y - c.y;
+  return { x: round2(c.x + dx * cos - dy * sin), y: round2(c.y + dx * sin + dy * cos) };
+}
+function normDeg(d) {
+  d = d % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return round2(d);
+}
+/* Unrotated frame of an x/y/w/h annotation. Text boxes never render shorter
+   than one line, so their frame uses the same effective height everywhere. */
+function annFrame(a) {
+  var h = a.type === 'text' ? Math.max(a.h || 0, (a.fontSize || 16) * 1.8) : (a.h || 0);
+  return { x: a.x || 0, y: a.y || 0, w: a.w || 0, h: h };
+}
+/* Corners of a possibly-rotated frame annotation, in page units. */
+function annFrameCorners(a) {
+  var fr = annFrame(a);
+  var cs = [
+    { x: fr.x, y: fr.y }, { x: fr.x + fr.w, y: fr.y },
+    { x: fr.x + fr.w, y: fr.y + fr.h }, { x: fr.x, y: fr.y + fr.h }
+  ];
+  if (!a.rot) return cs;
+  var c = { x: fr.x + fr.w / 2, y: fr.y + fr.h / 2 };
+  return cs.map(function (q) { return rotPt(q, c, a.rot); });
+}
 function normWord(w) { return (w || '').toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''); }
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
@@ -1928,7 +1966,11 @@ function renderEditChrome(p) {
     }));
   }
   var handles = [];
-  if (editModeId === activeId && (a.type === 'rect' || a.type === 'ellipse')) {
+  // Corner-resize handles assume an unrotated frame — a rotated shape keeps
+  // its amber outline but is resized with the lasso tool instead.
+  if (a.rot) {
+    // no handles
+  } else if (editModeId === activeId && (a.type === 'rect' || a.type === 'ellipse')) {
     handles = [
       { h: 'nw', x: a.x, y: a.y }, { h: 'ne', x: a.x + a.w, y: a.y },
       { h: 'sw', x: a.x, y: a.y + a.h }, { h: 'se', x: a.x + a.w, y: a.y + a.h }
@@ -2097,6 +2139,13 @@ function annNode(a) {
     div.contentEditable = (editingId === a.id) ? 'true' : 'false';
     fo.appendChild(div);
     g.appendChild(fo);
+  }
+  // Rotation lives on the child shapes (not the g), so g.getBBox() — used by
+  // the selection chrome and timestamp labels — reflects the rotated shape.
+  if (a.rot && (a.type === 'rect' || a.type === 'ellipse' || a.type === 'text')) {
+    var rfr = annFrame(a);
+    var rtf = 'rotate(' + a.rot + ' ' + (rfr.x + rfr.w / 2) + ' ' + (rfr.y + rfr.h / 2) + ')';
+    Array.prototype.forEach.call(g.childNodes, function (n) { n.setAttribute('transform', rtf); });
   }
   return g;
 }
@@ -2611,9 +2660,13 @@ function attachOverlayHandlers(p) {
     }
 
     if (tool === 'lasso') {
-      // Grabbing the resize handle keeps the current selection.
+      // Grabbing the resize or rotate handle keeps the current selection.
       if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-handle')) {
         startLassoResize(e, p);
+        return;
+      }
+      if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-rotate')) {
+        startLassoRotate(e, p);
         return;
       }
       // Default action: dragging from inside the selection box moves the
@@ -2649,6 +2702,16 @@ function attachOverlayHandlers(p) {
     }
 
     if (tool === 'select') {
+      // A group picked up with the select tool shows the lasso chrome — its
+      // resize/rotate handles must keep working without switching tools.
+      if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-rotate')) {
+        startLassoRotate(e, p);
+        return;
+      }
+      if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-handle')) {
+        startLassoResize(e, p);
+        return;
+      }
       var target = e.target.closest ? e.target.closest('[data-id]') : null;
       if (target) {
         var id = target.getAttribute('data-id');
@@ -2662,10 +2725,27 @@ function attachOverlayHandlers(p) {
           return;
         }
         lastTap = { id: id, t: nowTap };
+        var selA = annotations.find(function (x) { return x.id === id; });
+        // A grouped item selects its whole group — the lasso selection UI
+        // takes over so the group moves (and rotates/resizes) as one.
+        if (selA && selA.grp) {
+          var members = annotations.filter(function (x) {
+            return x.grp === selA.grp && x.page === p.num;
+          }).map(function (x) { return x.id; });
+          if (members.length > 1) {
+            selectedId = null; editModeId = null;
+            lassoSel = { page: p, ids: members };
+            lassoResizeMode = false; lassoRotateMode = false;
+            renderAllOverlays();
+            showLassoBar();
+            startLassoMove(e, p, pt);
+            return;
+          }
+        }
+        if (lassoSel) clearLassoSel(true);
         selectedId = id;
         if (editModeId && editModeId !== id) editModeId = null;
         // Text boxes get their resize handles as soon as they are selected.
-        var selA = annotations.find(function (x) { return x.id === id; });
         if (selA && selA.type === 'text') editModeId = id;
         renderAllOverlays();
         var node = svg.querySelector('[data-id="' + id + '"]');
@@ -2674,6 +2754,7 @@ function attachOverlayHandlers(p) {
         svg.setPointerCapture(e.pointerId);
       } else {
         lastTap = { id: null, t: 0 };
+        if (lassoSel) clearLassoSel(true);
         if (selectedId || editModeId) { selectedId = null; editModeId = null; renderAllOverlays(); }
       }
       return;
@@ -2722,6 +2803,10 @@ function attachOverlayHandlers(p) {
         lasering.pts.push(lpt);
         drawLaser();
       }
+      return;
+    }
+    if (lassoRotating && lassoRotating.page === p) {
+      applyLassoRotate(eventPoint(e, p));
       return;
     }
     if (lassoResizing && lassoResizing.page === p) {
@@ -2814,6 +2899,10 @@ function attachOverlayHandlers(p) {
     if (lasering && lasering.page === p) {
       laserRelease(lasering.node);
       lasering = null;
+      return;
+    }
+    if (lassoRotating && lassoRotating.page === p) {
+      endLassoRotate();
       return;
     }
     if (lassoResizing && lassoResizing.page === p) {
@@ -3051,7 +3140,9 @@ var lassoing = null;       // { page, pts, node } while the loop is being drawn
 var lassoSel = null;       // { page, ids[] } once a selection exists
 var lassoResizing = null;  // { page, origin, baseDist, base[], snap, factor } during a handle drag
 var lassoMoving = null;    // { page, startX, startY, base[], snap, moved } while dragging the group
+var lassoRotating = null;  // { page, center, startAng, base[], snap, deg } during a rotate drag
 var lassoResizeMode = false;
+var lassoRotateMode = false;
 var lassoMoveHintShown = false;
 
 function pointInPoly(q, poly) {
@@ -3093,8 +3184,18 @@ function completeLasso() {
     toast('Nothing inside the lasso — draw a loop around the items you want.');
     return;
   }
+  // A group always selects as a whole — lassoing any member pulls in the rest.
+  var grps = {};
+  ids.forEach(function (id) {
+    var a = annotations.find(function (x) { return x.id === id; });
+    if (a && a.grp) grps[a.grp] = true;
+  });
+  annotations.forEach(function (a) {
+    if (a.grp && grps[a.grp] && a.page === p.num && ids.indexOf(a.id) === -1) ids.push(a.id);
+  });
   lassoSel = { page: p, ids: ids };
   lassoResizeMode = false;
+  lassoRotateMode = false;
   renderOverlay(p);
   showLassoBar();
   if (!lassoMoveHintShown) {
@@ -3143,6 +3244,22 @@ function renderLassoChrome(p) {
       'data-lasso-handle': 'se', style: 'cursor: nwse-resize'
     }));
   }
+  if (lassoRotateMode) {
+    // Stem + round handle above the box — drag it around the centre to spin
+    // the whole selection. An invisible fat twin makes it finger-friendly.
+    var hx = box.x + box.w / 2, hy = box.y - 30;
+    p.svg.appendChild(el('line', {
+      x1: hx, y1: box.y - 6, x2: hx, y2: hy + 8,
+      stroke: '#7E57C2', 'stroke-width': 1.5, 'stroke-dasharray': '4 3', 'pointer-events': 'none'
+    }));
+    p.svg.appendChild(el('circle', {
+      cx: hx, cy: hy, r: 8, fill: '#fff', stroke: '#7E57C2', 'stroke-width': 3,
+      'data-lasso-rotate': '1', style: 'cursor: grab'
+    }));
+    var rotHit = el('circle', { cx: hx, cy: hy, r: 18, 'data-lasso-rotate': '1' });
+    rotHit.setAttribute('style', 'fill: transparent; stroke: none;');
+    p.svg.appendChild(rotHit);
+  }
 }
 
 function showLassoBar() {
@@ -3151,6 +3268,13 @@ function showLassoBar() {
   // Checking compares with the answer key, which only exists in practice mode.
   $('lassoCheckBtn').style.display = practiceMode ? '' : 'none';
   $('lassoResizeBtn').classList.toggle('btnPrimary', lassoResizeMode);
+  $('lassoRotateBtn').classList.toggle('btnPrimary', lassoRotateMode);
+  var selAnns = lassoSel.ids.map(function (id) {
+    return annotations.find(function (x) { return x.id === id; });
+  }).filter(Boolean);
+  var sameGrp = selAnns.length > 0 && selAnns[0].grp &&
+    selAnns.every(function (a) { return a.grp === selAnns[0].grp; });
+  $('lassoGroupLabel').textContent = sameGrp ? 'Ungroup' : 'Group';
   $('lassoBar').style.display = 'flex';
   positionLassoBar();
 }
@@ -3173,9 +3297,12 @@ function clearLassoSel(rerender) {
   lassoSel = null;
   lassoResizing = null;
   lassoMoving = null;
+  lassoRotating = null;
   lassoResizeMode = false;
+  lassoRotateMode = false;
   $('lassoBar').style.display = 'none';
   $('lassoResizeBtn').classList.remove('btnPrimary');
+  $('lassoRotateBtn').classList.remove('btnPrimary');
   if (rerender && p) renderOverlay(p);
 }
 
@@ -3184,12 +3311,17 @@ function duplicateLassoSel() {
   pushUndo();
   var newIds = [];
   var now = Date.now();
+  var grpMap = {}; // copies form their own groups, not joining the originals'
   lassoSel.ids.forEach(function (id) {
     var a = annotations.find(function (x) { return x.id === id; });
     if (!a) return;
     var copy = JSON.parse(JSON.stringify(a));
     copy.id = newAnnId();
     copy.ts = now;
+    if (copy.grp) {
+      if (!grpMap[copy.grp]) grpMap[copy.grp] = 'g' + now.toString(36) + (annIdCounter++);
+      copy.grp = grpMap[copy.grp];
+    }
     translateAnn(copy, 18, 18);
     annotations.push(copy);
     newIds.push(copy.id);
@@ -3332,6 +3464,105 @@ function endLassoResize() {
   }
   renderOverlay(r.page);
   positionLassoBar();
+}
+
+/* ---- Rotate the whole selection about its centre ----
+   Ink, lines and arrows rotate their actual geometry; rects, ellipses and
+   text boxes move their centre and carry the angle in a.rot, which every
+   renderer (SVG, snapshot canvas, PDF export) applies about the frame
+   centre. */
+function rotateAnnFrom(orig, a, deg, c) {
+  if (orig.points) {
+    a.points = orig.points.map(function (q) { return rotPt(q, c, deg); });
+  }
+  if (orig.x1 !== undefined) {
+    var q1 = rotPt({ x: orig.x1, y: orig.y1 }, c, deg);
+    var q2 = rotPt({ x: orig.x2, y: orig.y2 }, c, deg);
+    a.x1 = q1.x; a.y1 = q1.y; a.x2 = q2.x; a.y2 = q2.y;
+  }
+  if (orig.x !== undefined && orig.w !== undefined && orig.x1 === undefined) {
+    var fr = annFrame(orig);
+    var oc = { x: fr.x + fr.w / 2, y: fr.y + fr.h / 2 };
+    var nc = rotPt(oc, c, deg);
+    a.x = round2(nc.x - fr.w / 2);
+    a.y = round2(nc.y - fr.h / 2);
+    var nd = normDeg((orig.rot || 0) + deg);
+    if (Math.abs(nd) < 0.25) delete a.rot; else a.rot = nd;
+  }
+}
+
+function startLassoRotate(e, p) {
+  var box = lassoGroupBBox();
+  if (!box) return;
+  e.preventDefault();
+  claimPointer(e);
+  p.svg.setPointerCapture(e.pointerId);
+  var c = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
+  var startPt = eventPoint(e, p);
+  lassoRotating = {
+    page: p, center: c,
+    startAng: Math.atan2(startPt.y - c.y, startPt.x - c.x),
+    snap: snapshot(), deg: 0,
+    base: lassoSel.ids.map(function (id) {
+      var a = annotations.find(function (x) { return x.id === id; });
+      return a ? JSON.parse(JSON.stringify(a)) : null;
+    }).filter(Boolean)
+  };
+}
+
+function applyLassoRotate(pt) {
+  var r = lassoRotating;
+  var deg = (Math.atan2(pt.y - r.center.y, pt.x - r.center.x) - r.startAng) * 180 / Math.PI;
+  deg = normDeg(deg);
+  // Click into neat 15° steps when close, so straightening things is easy.
+  var nearStep = Math.round(deg / 15) * 15;
+  if (Math.abs(deg - nearStep) < 4) deg = nearStep;
+  r.deg = deg;
+  r.base.forEach(function (orig) {
+    var a = annotations.find(function (x) { return x.id === orig.id; });
+    if (a) rotateAnnFrom(orig, a, deg, r.center);
+  });
+  renderOverlay(r.page);
+  positionLassoBar();
+}
+
+function endLassoRotate() {
+  var r = lassoRotating;
+  lassoRotating = null;
+  if (!r) return;
+  if (Math.abs(r.deg) > 0.2) {
+    pushUndo(r.snap);
+    setDirty(true);
+  }
+  renderOverlay(r.page);
+  positionLassoBar();
+}
+
+/* ---- Group / ungroup the selection ----
+   Grouped annotations share a grp id: lassoing or select-tapping any member
+   selects the whole group, which then moves, resizes and rotates as one. */
+function toggleLassoGroup() {
+  if (!lassoSel) return;
+  var anns = lassoSel.ids.map(function (id) {
+    return annotations.find(function (x) { return x.id === id; });
+  }).filter(Boolean);
+  var sameGrp = anns.length > 0 && anns[0].grp &&
+    anns.every(function (a) { return a.grp === anns[0].grp; });
+  if (!sameGrp && anns.length < 2) {
+    toast('Lasso at least two items to group them.');
+    return;
+  }
+  pushUndo();
+  if (sameGrp) {
+    anns.forEach(function (a) { delete a.grp; });
+    toast('Ungrouped — the items move separately again.');
+  } else {
+    var gid = 'g' + Date.now().toString(36) + (annIdCounter++);
+    anns.forEach(function (a) { a.grp = gid; });
+    toast('Grouped — selecting or moving one now moves them all.');
+  }
+  setDirty(true);
+  showLassoBar(); // refresh the Group/Ungroup label
 }
 
 /* ================= Hold-to-snap shape recognition =================
@@ -4041,8 +4272,11 @@ function annBounds(a) {
     return { x: Math.min(a.x1, a.x2), y: Math.min(a.y1, a.y2),
              x2: Math.max(a.x1, a.x2), y2: Math.max(a.y1, a.y2) };
   }
-  var h = a.type === 'text' ? Math.max(a.h || 0, (a.fontSize || 16) * 1.8) : (a.h || 0);
-  return { x: a.x || 0, y: a.y || 0, x2: (a.x || 0) + (a.w || 0), y2: (a.y || 0) + h };
+  var cs = annFrameCorners(a);
+  var xs = cs.map(function (q) { return q.x; });
+  var ys = cs.map(function (q) { return q.y; });
+  return { x: Math.min.apply(null, xs), y: Math.min.apply(null, ys),
+           x2: Math.max.apply(null, xs), y2: Math.max.apply(null, ys) };
 }
 
 /* Draw annotations straight onto a 2d context (kx/ky = page units -> canvas
@@ -4058,6 +4292,14 @@ function drawAnnsOnCtx(ctx, kx, ky, anns, pageNum) {
     ctx.lineWidth = Math.max(1, (a.width || 2) * kx);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    // Rotated frame shapes spin about their own centre, matching the SVG view.
+    if (a.rot && (a.type === 'rect' || a.type === 'ellipse' || a.type === 'text')) {
+      var rfr = annFrame(a);
+      var rcx = (rfr.x + rfr.w / 2) * kx, rcy = (rfr.y + rfr.h / 2) * ky;
+      ctx.translate(rcx, rcy);
+      ctx.rotate(a.rot * Math.PI / 180);
+      ctx.translate(-rcx, -rcy);
+    }
     if (a.type === 'pen' || a.type === 'highlight') {
       if (a.type === 'highlight') ctx.globalAlpha = 0.4;
       if (a.points && a.points.length) {
@@ -5651,7 +5893,11 @@ function annBBox(a) {
       w: Math.abs(a.x2 - a.x1), h: Math.abs(a.y2 - a.y1)
     };
   }
-  return { x: a.x || 0, y: a.y || 0, w: a.w || 0, h: a.h || 0 };
+  var cs = annFrameCorners(a);
+  var xs = cs.map(function (q) { return q.x; });
+  var ys = cs.map(function (q) { return q.y; });
+  var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
+  return { x: x0, y: y0, w: Math.max.apply(null, xs) - x0, h: Math.max.apply(null, ys) - y0 };
 }
 
 /* Bake the annotations (and, optionally, their timestamps) into a copy of
@@ -5709,20 +5955,36 @@ async function buildAnnotatedPdf(includeTs) {
       } else if (a.type === 'highlight') {
         strokePath(a.points, 0.4);
       } else if (a.type === 'rect') {
-        var p1 = cv(a.x, a.y), p2 = cv(a.x + a.w, a.y + a.h);
-        page.drawRectangle({
-          x: Math.min(p1.x, p2.x), y: Math.min(p1.y, p2.y),
-          width: Math.abs(p2.x - p1.x), height: Math.abs(p2.y - p1.y),
-          borderColor: col, borderWidth: a.width
-        });
+        if (a.rot) {
+          var rc = annFrameCorners(a);
+          strokePath([rc[0], rc[1], rc[2], rc[3], rc[0]], 1);
+        } else {
+          var p1 = cv(a.x, a.y), p2 = cv(a.x + a.w, a.y + a.h);
+          page.drawRectangle({
+            x: Math.min(p1.x, p2.x), y: Math.min(p1.y, p2.y),
+            width: Math.abs(p2.x - p1.x), height: Math.abs(p2.y - p1.y),
+            borderColor: col, borderWidth: a.width
+          });
+        }
       } else if (a.type === 'ellipse') {
-        var ctr = cv(a.x + a.w / 2, a.y + a.h / 2);
-        var edge = cv(a.x + a.w, a.y + a.h);
-        page.drawEllipse({
-          x: ctr.x, y: ctr.y,
-          xScale: Math.abs(edge.x - ctr.x), yScale: Math.abs(edge.y - ctr.y),
-          borderColor: col, borderWidth: a.width
-        });
+        if (a.rot) {
+          // Sampled outline rotated about the centre — drawEllipse can't spin.
+          var eC = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
+          var ePts = [];
+          for (var et = 0; et <= 64; et++) {
+            var eth = et / 64 * Math.PI * 2;
+            ePts.push(rotPt({ x: eC.x + a.w / 2 * Math.cos(eth), y: eC.y + a.h / 2 * Math.sin(eth) }, eC, a.rot));
+          }
+          strokePath(ePts, 1);
+        } else {
+          var ctr = cv(a.x + a.w / 2, a.y + a.h / 2);
+          var edge = cv(a.x + a.w, a.y + a.h);
+          page.drawEllipse({
+            x: ctr.x, y: ctr.y,
+            xScale: Math.abs(edge.x - ctr.x), yScale: Math.abs(edge.y - ctr.y),
+            borderColor: col, borderWidth: a.width
+          });
+        }
       } else if (a.type === 'line') {
         strokePath([{ x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }], 1);
       } else if (a.type === 'arrow') {
@@ -5750,10 +6012,18 @@ async function buildAnnotatedPdf(includeTs) {
           });
           outLines.push(cur);
         });
+        var tFr = annFrame(a);
+        var tC = { x: tFr.x + tFr.w / 2, y: tFr.y + tFr.h / 2 };
         outLines.forEach(function (line, i) {
           if (!line) return;
-          var anchor = cv(a.x + 5, a.y + 3 + a.fontSize * 0.95 + i * lh);
-          page.drawText(line, { x: anchor.x, y: anchor.y, size: a.fontSize, font: font, color: col });
+          var basePt = { x: a.x + 5, y: a.y + 3 + a.fontSize * 0.95 + i * lh };
+          if (a.rot) basePt = rotPt(basePt, tC, a.rot);
+          var anchor = cv(basePt.x, basePt.y);
+          var tOpts = { x: anchor.x, y: anchor.y, size: a.fontSize, font: font, color: col };
+          // Screen rotation is clockwise (y down); PDF's positive is
+          // counter-clockwise (y up), so the angle flips sign.
+          if (a.rot) tOpts.rotate = PDFLib.degrees(-a.rot);
+          page.drawText(line, tOpts);
         });
       }
 
@@ -5992,10 +6262,20 @@ $('lassoDupBtn').addEventListener('click', duplicateLassoSel);
 $('lassoResizeBtn').addEventListener('click', function () {
   if (!lassoSel) return;
   lassoResizeMode = !lassoResizeMode;
-  this.classList.toggle('btnPrimary', lassoResizeMode);
+  if (lassoResizeMode) lassoRotateMode = false;
+  showLassoBar();
   renderOverlay(lassoSel.page);
   if (lassoResizeMode) toast('Drag the round corner handle — resizing keeps the proportions.');
 });
+$('lassoRotateBtn').addEventListener('click', function () {
+  if (!lassoSel) return;
+  lassoRotateMode = !lassoRotateMode;
+  if (lassoRotateMode) lassoResizeMode = false;
+  showLassoBar();
+  renderOverlay(lassoSel.page);
+  if (lassoRotateMode) toast('Drag the round handle above the box to spin the selection — it clicks into neat 15° steps.');
+});
+$('lassoGroupBtn').addEventListener('click', toggleLassoGroup);
 $('lassoDeleteBtn').addEventListener('click', deleteLassoSel);
 $('lassoCloseBtn').addEventListener('click', function () { clearLassoSel(true); });
 
