@@ -6187,15 +6187,17 @@ try {
 
 window.aiReady = () => !!geminiModel;
 
-// thinkingBudget: 0 disables Gemini "thinking" so the whole token budget goes
-// to the answer (faster + cheaper for short tasks). json: true switches on
+// thinkingLevel: "minimal" keeps Gemini "thinking" to a minimum so the token
+// budget goes to the answer (faster + cheaper for short tasks). Gemini 3.x
+// rejects the older numeric thinkingBudget with 400 INVALID_ARGUMENT.
+// json: true switches on
 // strict-JSON response mode. system adds a systemInstruction to the request.
 // images is a list of { mimeType, data } inline attachments (base64 WITHOUT
 // the data: prefix), sent after the prompt — the vision path for worksheet
 // snapshots.
 window.askGemini = async function askGemini(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [] } = {}) {
   if (!geminiModel) throw new Error("AI is not configured yet");
-  const generationConfig = { maxOutputTokens, temperature, thinkingConfig: { thinkingBudget: 0 } };
+  const generationConfig = { maxOutputTokens, temperature, thinkingConfig: { thinkingLevel: "minimal" } };
   if (json) generationConfig.responseMimeType = "application/json";
   const parts = [{ text: prompt }];
   for (const img of images) {
