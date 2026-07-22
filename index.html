@@ -500,6 +500,16 @@
   .pageWrap svg.overlay.selectMode { cursor: default; }
   .pageWrap svg.overlay.textMode { cursor: text; }
   .pageWrap svg.overlay.eraserMode { cursor: cell; }
+  /* Practice mode: one "check this page" button pinned to each page's corner */
+  .pageCheckBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    display: none;
+    box-shadow: var(--shadow-btn);
+  }
+  body.practiceOn .pageCheckBtn { display: inline-flex; }
   .annText {
     font-family: var(--font);
     line-height: 1.35;
@@ -1176,6 +1186,9 @@
 
 <div id="lassoBar">
   <span id="lassoCount"></span>
+  <button class="btn" id="lassoCheckBtn" title="Mark the lassoed answer against the answer key" style="display:none">
+    ✨ Check
+  </button>
   <button class="btn" id="lassoDupBtn" title="Make a copy of everything selected">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
     Duplicate
@@ -1244,7 +1257,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.29.0';
+var APP_VERSION = 'v1.30.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1661,6 +1674,14 @@ async function loadPdf(bytes, name) {
     svg.classList.add('overlay');
     wrap.appendChild(canvas);
     wrap.appendChild(svg);
+    var checkPageBtn = document.createElement('button');
+    checkPageBtn.className = 'btn pageCheckBtn';
+    checkPageBtn.textContent = '✨ Check this page';
+    checkPageBtn.title = 'Mark every answer on this page against the answer key';
+    checkPageBtn.addEventListener('click', (function (num) {
+      return function () { checkPageAnswers(num); };
+    })(n));
+    wrap.appendChild(checkPageBtn);
     container.appendChild(wrap);
     var p = {
       num: n, page: page, viewport1: viewport1,
@@ -3127,6 +3148,8 @@ function renderLassoChrome(p) {
 function showLassoBar() {
   if (!lassoSel) return;
   $('lassoCount').textContent = lassoSel.ids.length + ' selected';
+  // Checking compares with the answer key, which only exists in practice mode.
+  $('lassoCheckBtn').style.display = practiceMode ? '' : 'none';
   $('lassoResizeBtn').classList.toggle('btnPrimary', lassoResizeMode);
   $('lassoBar').style.display = 'flex';
   positionLassoBar();
@@ -3981,17 +4004,19 @@ function startPractice() {
   selectedId = null; editingId = null; editModeId = null;
   reviseMode = false; $('reviseToggle').checked = false;
   practiceMode = true;
+  document.body.classList.add('practiceOn'); // shows the per-page Check buttons
   applyRoleUI();
   setTool('pen');
   renderAllOverlays();
   updatePracticeCard();
-  toast('Answers hidden — write or type your answers, then select one and press Check.', 5200);
+  toast('Answers hidden — write your answers, then lasso one and press ✨ Check, or use “Check this page” at the top of each page.', 5800);
 }
 
 function endPractice() {
   if (!practiceMode) return;
   commitActiveTextEdit();
   practiceMode = false;
+  document.body.classList.remove('practiceOn');
   annotations = teacherAnswers || [];
   teacherAnswers = null;
   undoStack = []; redoStack = [];
@@ -4267,18 +4292,49 @@ function clusterAnswers() {
   return clusters;
 }
 
-async function checkAllAnswers() {
-  if (!practiceMode) return;
-  if (aiBusy) { toast('Gemini is still marking — one moment…'); return; }
+/* Shared guards for every marking entry point (one answer, lasso, page, all). */
+function checkingAvailable() {
+  if (!practiceMode) {
+    toast('Start practice first (sidebar) — checking compares your answers with the hidden answer key.', 4500);
+    return false;
+  }
+  if (aiBusy) { toast('Gemini is still marking — one moment…'); return false; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
-    return;
+    return false;
   }
+  return true;
+}
+
+/* Lasso bar Check: everything inside the loop is marked as ONE answer, so
+   the student decides exactly what counts as the question's working. */
+function checkLassoSelection() {
+  if (!lassoSel) return;
+  if (!checkingAvailable()) return;
   commitActiveTextEdit();
-  if (!annotations.length) { toast('Write or type your answers on the page first.', 4500); return; }
-  var clusters = clusterAnswers();
+  var p = lassoSel.page;
+  var ids = lassoSel.ids;
+  var anns = annotations.filter(function (a) { return ids.indexOf(a.id) !== -1; });
+  clearLassoSel(true);
+  if (!anns.length) { toast('The lassoed items are gone — lasso your answer again.'); return; }
   aiBusy = true;
-  $('checkTitle').textContent = 'Marking your worksheet…';
+  $('checkTitle').textContent = 'Checking the selected answer…';
+  $('checkBody').textContent = '✨ Gemini is reading the worksheet and your answer…';
+  $('checkModal').classList.add('open');
+  markCluster(p, anns).then(function (out) {
+    aiBusy = false;
+    showCheckResult(out.res);
+  }).catch(function (err) {
+    aiBusy = false;
+    $('checkTitle').textContent = 'Could not mark this answer';
+    $('checkBody').textContent = (err && err.message) || 'Marking failed — please try again.';
+  });
+}
+
+/* Mark the given clusters one by one, then show the printable report. */
+async function markClustersToReport(clusters, workingTitle) {
+  aiBusy = true;
+  $('checkTitle').textContent = workingTitle;
   $('checkBody').textContent = '✨ Found ' + clusters.length + ' answer' + (clusters.length === 1 ? '' : 's') + ' to mark…';
   $('checkModal').classList.add('open');
   var results = [];
@@ -4302,6 +4358,22 @@ async function checkAllAnswers() {
     results: results
   };
   renderReport();
+}
+
+async function checkAllAnswers() {
+  if (!checkingAvailable()) return;
+  commitActiveTextEdit();
+  if (!annotations.length) { toast('Write or type your answers on the page first.', 4500); return; }
+  await markClustersToReport(clusterAnswers(), 'Marking your worksheet…');
+}
+
+/* The "Check this page" button pinned to each page in practice mode. */
+async function checkPageAnswers(pageNum) {
+  if (!checkingAvailable()) return;
+  commitActiveTextEdit();
+  var clusters = clusterAnswers().filter(function (c) { return c.page === pageNum; });
+  if (!clusters.length) { toast('No answers on this page yet — write or type them first.', 4500); return; }
+  await markClustersToReport(clusters, 'Marking page ' + pageNum + '…');
 }
 
 function reportCounts(rep) {
@@ -4496,6 +4568,7 @@ function beautifySelection() {
   });
 }
 $('lassoBeautifyBtn').addEventListener('click', beautifySelection);
+$('lassoCheckBtn').addEventListener('click', checkLassoSelection);
 
 $('practiceStartBtn').addEventListener('click', startPractice);
 $('practiceEndBtn').addEventListener('click', endPractice);
