@@ -133,15 +133,47 @@
   }
   #customColor::-webkit-color-swatch-wrapper { padding: 0; }
   #customColor::-webkit-color-swatch { border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); }
-  .tSelect {
-    font-family: var(--font);
-    font-size: 0.8rem;
-    padding: 7px 8px;
+  .sliderCtl {
+    gap: 6px;
+    padding: 5px 9px;
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
     background: #fff;
+  }
+  .sliderCtl .sliderIcon { width: 16px; height: 16px; color: var(--ink-soft); flex: 0 0 auto; }
+  .sliderAa { font-size: 0.78rem; font-weight: 600; color: var(--ink-soft); }
+  .sliderVal {
+    font-size: 0.78rem;
+    min-width: 3ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
     color: var(--ink);
+  }
+  .sliderCtl input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 88px;
+    height: 26px;
+    margin: 0;
+    background: transparent;
     cursor: pointer;
+  }
+  .sliderCtl input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--line); }
+  .sliderCtl input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px; margin-top: -7px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-btn);
+  }
+  .sliderCtl input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+  .sliderCtl input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-btn);
   }
   #zoomLabel {
     font-size: 0.8rem;
@@ -868,19 +900,15 @@
     <div class="colorChip" data-color="#FFEB3B" style="background:#FFEB3B" title="Yellow"></div>
     <input type="color" id="customColor" value="#E53935" title="Custom colour">
   </div>
-  <div class="tGroup">
-    <select class="tSelect" id="strokeSelect" title="Stroke thickness">
-      <option value="2">Thin</option>
-      <option value="3" selected>Medium</option>
-      <option value="6">Thick</option>
-      <option value="12">Marker</option>
-    </select>
-    <select class="tSelect" id="fontSelect" title="Text size">
-      <option value="12">Aa 12</option>
-      <option value="16" selected>Aa 16</option>
-      <option value="22">Aa 22</option>
-      <option value="30">Aa 30</option>
-    </select>
+  <div class="tGroup sliderCtl" id="strokeCtl" title="Stroke thickness">
+    <svg class="sliderIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="4" y1="5" x2="20" y2="5" stroke-width="1.2"/><line x1="4" y1="11.5" x2="20" y2="11.5" stroke-width="2.6"/><line x1="4" y1="19" x2="20" y2="19" stroke-width="5"/></svg>
+    <input type="range" id="strokeRange" min="0.5" max="24" step="0.5" value="3">
+    <span class="sliderVal" id="strokeVal">3</span>
+  </div>
+  <div class="tGroup sliderCtl" id="fontCtl" title="Text size">
+    <span class="sliderAa">Aa</span>
+    <input type="range" id="fontRange" min="8" max="48" step="1" value="16">
+    <span class="sliderVal" id="fontVal">16</span>
   </div>
   <div class="tSep"></div>
 
@@ -1216,7 +1244,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.28.0';
+var APP_VERSION = 'v1.29.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1252,9 +1280,75 @@ var annotations = [];       // see annotation shapes below
 var undoStack = [];
 var redoStack = [];
 var tool = 'pen';
-var color = '#E53935';
+var color = '#1A1A1A';
 var strokeW = 3;
 var fontSize = 16;
+
+/* ---- Per-tool style memory ----
+   Every drawing tool remembers its own colour and thickness (text tools:
+   colour and font size). Switching tools restores that tool's last-used
+   style, and the whole set survives closing the app via localStorage. */
+var STYLE_KEY = 'annotToolStyles';
+var TOOL_STYLE_DEFAULTS = {
+  pen:       { color: '#1A1A1A', width: 3 },
+  highlight: { color: '#FFEB3B', width: 12 },
+  rect:      { color: '#1A1A1A', width: 3 },
+  ellipse:   { color: '#1A1A1A', width: 3 },
+  line:      { color: '#1A1A1A', width: 3 },
+  arrow:     { color: '#1A1A1A', width: 3 },
+  text:      { color: '#1A1A1A', fontSize: 16 },
+  ai:        { color: '#1A1A1A', fontSize: 16 }
+};
+var toolStyles = loadToolStyles();
+
+function loadToolStyles() {
+  var out = { _lastTool: '' };
+  Object.keys(TOOL_STYLE_DEFAULTS).forEach(function (t) {
+    out[t] = Object.assign({}, TOOL_STYLE_DEFAULTS[t]);
+  });
+  try {
+    var saved = JSON.parse(localStorage.getItem(STYLE_KEY) || '{}');
+    Object.keys(TOOL_STYLE_DEFAULTS).forEach(function (t) {
+      var s = saved[t];
+      if (!s) return;
+      if (/^#[0-9a-fA-F]{6}$/.test(s.color || '')) out[t].color = s.color;
+      if (out[t].width !== undefined && isFinite(s.width) && s.width >= 0.5 && s.width <= 24) out[t].width = +s.width;
+      if (out[t].fontSize !== undefined && isFinite(s.fontSize) && s.fontSize >= 8 && s.fontSize <= 48) out[t].fontSize = +s.fontSize;
+    });
+    if (typeof saved._lastTool === 'string' && /^[a-z]+$/.test(saved._lastTool)) out._lastTool = saved._lastTool;
+  } catch (e) {}
+  return out;
+}
+
+function saveToolStyles() {
+  toolStyles._lastTool = tool;
+  try { localStorage.setItem(STYLE_KEY, JSON.stringify(toolStyles)); } catch (e) {}
+}
+
+/* Record the current colour/thickness/size against the active tool.
+   Tools without a style entry (select, lasso, eraser, laser, keyword)
+   change nothing, so playing with the controls there never clobbers a
+   drawing tool's memory. */
+function rememberToolStyle() {
+  var s = toolStyles[tool];
+  if (!s) return;
+  s.color = color;
+  if (s.width !== undefined) s.width = strokeW;
+  if (s.fontSize !== undefined) s.fontSize = fontSize;
+  saveToolStyles();
+}
+
+/* Reflect the current colour/thickness/size in the toolbar controls. */
+function syncStyleControls() {
+  document.querySelectorAll('.colorChip').forEach(function (chip) {
+    chip.classList.toggle('active', chip.getAttribute('data-color') === color);
+  });
+  $('customColor').value = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#E53935';
+  $('strokeRange').value = strokeW;
+  $('strokeVal').textContent = String(strokeW);
+  $('fontRange').value = fontSize;
+  $('fontVal').textContent = String(fontSize);
+}
 var selectedId = null;
 var editingId = null;       // text annotation currently being edited
 var editModeId = null;      // annotation in handle-edit mode (double-click with select tool)
@@ -1582,11 +1676,8 @@ async function loadPdf(bytes, name) {
     $('sideBar').classList.add('open');
     setThumbPanelOpen(true);
   }
-  // Fresh worksheet, fresh pen: black ink selected by default.
-  if (!isStudent()) {
-    setTool('pen');
-    setColor('#1A1A1A');
-  }
+  // Fresh worksheet starts on the pen, with the pen's remembered style.
+  if (!isStudent()) setTool('pen');
   renderSidebar();
   toast('Loaded “' + docName + '” — ' + pdfDoc.numPages + ' page' + (pdfDoc.numPages > 1 ? 's' : ''));
 }
@@ -2347,10 +2438,14 @@ function setTool(t) {
     laserHintShown = true;
     toast('Laser pointer — strokes fade away by themselves and are never saved.');
   }
-  if (t === 'highlight' && strokeW < 10) { strokeW = 12; $('strokeSelect').value = '12'; }
-  if (t === 'highlight' && (color === '#1A1A1A' || color === '#E53935' || color === '#1E88E5' || color === '#43A047')) {
-    setColor('#FFEB3B');
+  var s = toolStyles[t];
+  if (s) {
+    color = s.color;
+    if (s.width !== undefined) strokeW = s.width;
+    if (s.fontSize !== undefined) fontSize = s.fontSize;
+    syncStyleControls();
   }
+  saveToolStyles(); // the active tool is part of the remembered state
   document.querySelectorAll('#toolButtons .toolBtn').forEach(function (b) {
     b.classList.toggle('active', b.getAttribute('data-tool') === t);
   });
@@ -2368,10 +2463,7 @@ function updateToolCursor() {
 
 function setColor(c) {
   color = c;
-  document.querySelectorAll('.colorChip').forEach(function (chip) {
-    chip.classList.toggle('active', chip.getAttribute('data-color') === c);
-  });
-  $('customColor').value = /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#E53935';
+  syncStyleControls();
   // Recolour the selected annotation, if any
   if (selectedId) {
     var a = annotations.find(function (x) { return x.id === selectedId; });
@@ -2382,6 +2474,7 @@ function setColor(c) {
       setDirty(true);
     }
   }
+  rememberToolStyle();
 }
 
 function attachOverlayHandlers(p) {
@@ -3529,7 +3622,10 @@ function focusTextAnn(p, id) {
   var node = p.svg.querySelector('[data-id="' + id + '"] .annText');
   if (!node) return;
   node.contentEditable = 'true';
-  setTimeout(function () {
+  // Focus synchronously so it still counts as part of the user's tap —
+  // iPad Safari only opens the keyboard for in-gesture focus, so a deferred
+  // focus() would leave the box waiting for a second tap before typing.
+  function placeCaret() {
     node.focus();
     var range = document.createRange();
     range.selectNodeContents(node);
@@ -3537,7 +3633,9 @@ function focusTextAnn(p, id) {
     var sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
-  }, 0);
+  }
+  placeCaret();
+  setTimeout(function () { if (document.activeElement !== node) placeCaret(); }, 0);
   node.addEventListener('input', function () {
     var a = annotations.find(function (x) { return x.id === id; });
     if (a) {
@@ -4416,11 +4514,11 @@ function isStudent() { return !!actingStudent || (!!currentUser && !isAdmin(curr
 /* Students only open and read worksheets for their level and subject — every
    editing/annotation function disappears and the page becomes scroll-only
    (keyword revision in the sidebar stays, since that IS reading practice). */
-var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'toolButtons', 'colorChips', 'strokeSelect', 'fontSelect',
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'downloadBtn', 'printBtn', 'saveBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
-var PRACTICE_TOOLBAR_IDS = ['toolButtons', 'colorChips', 'strokeSelect', 'fontSelect',
+var PRACTICE_TOOLBAR_IDS = ['toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn'];
 
 function applyRoleUI() {
@@ -5681,14 +5779,42 @@ document.querySelectorAll('.colorChip').forEach(function (chip) {
   chip.addEventListener('click', function () { setColor(chip.getAttribute('data-color')); });
 });
 $('customColor').addEventListener('input', function (e) { setColor(e.target.value); });
-$('strokeSelect').addEventListener('change', function (e) { strokeW = parseFloat(e.target.value); });
-$('fontSelect').addEventListener('change', function (e) {
-  fontSize = parseFloat(e.target.value);
+
+/* The sliders update live while dragging; a drag over a selected annotation
+   restyles it as one single undo step (committed when the drag ends). */
+var strokeUndoPushed = false;
+$('strokeRange').addEventListener('input', function (e) {
+  strokeW = parseFloat(e.target.value);
+  $('strokeVal').textContent = String(strokeW);
+  rememberToolStyle();
   if (selectedId) {
     var a = annotations.find(function (x) { return x.id === selectedId; });
-    if (a && a.type === 'text') { pushUndo(); a.fontSize = fontSize; renderAllOverlays(); setDirty(true); }
+    if (a && a.width !== undefined && a.type !== 'text') {
+      if (!strokeUndoPushed) { pushUndo(); strokeUndoPushed = true; }
+      a.width = strokeW;
+      renderAllOverlays();
+      setDirty(true);
+    }
   }
 });
+$('strokeRange').addEventListener('change', function () { strokeUndoPushed = false; });
+
+var fontUndoPushed = false;
+$('fontRange').addEventListener('input', function (e) {
+  fontSize = parseFloat(e.target.value);
+  $('fontVal').textContent = String(fontSize);
+  rememberToolStyle();
+  if (selectedId) {
+    var a = annotations.find(function (x) { return x.id === selectedId; });
+    if (a && a.type === 'text') {
+      if (!fontUndoPushed) { pushUndo(); fontUndoPushed = true; }
+      a.fontSize = fontSize;
+      renderAllOverlays();
+      setDirty(true);
+    }
+  }
+});
+$('fontRange').addEventListener('change', function () { fontUndoPushed = false; });
 
 $('undoBtn').addEventListener('click', undo);
 $('redoBtn').addEventListener('click', redo);
@@ -6133,8 +6259,10 @@ window.addEventListener('resize', function () {
   // keep the fitted look sensible on rotation / resize without forcing re-fit
 });
 
-setTool('pen');
-setColor('#1A1A1A');
+// Pick up where the last session left off: same tool, same remembered styles.
+var lastTool = toolStyles._lastTool;
+setTool(lastTool && document.querySelector('#toolButtons [data-tool="' + lastTool + '"]') ? lastTool : 'pen');
+syncStyleControls();
 applyRoleUI();
 </script>
 
