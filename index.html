@@ -167,9 +167,13 @@
   .videoPopTitle { font-weight: bold; flex: 1; }
   .videoPopHead a { color: #9ECBFF; text-decoration: none; font-size: 0.75rem; white-space: nowrap; }
   .videoPopClose {
-    background: none; border: none; color: #fff;
-    font-size: 1rem; cursor: pointer; padding: 2px 6px; line-height: 1;
+    background: rgba(255,255,255,0.14); border: none; color: #fff;
+    font-size: 1rem; cursor: pointer; line-height: 1;
+    width: 30px; height: 30px; border-radius: 8px;
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
   }
+  .videoPopClose:hover { background: rgba(255,255,255,0.28); }
   .videoPop video, .videoPop iframe {
     display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000;
   }
@@ -1449,7 +1453,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.33.0';
+var APP_VERSION = 'v1.33.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2781,13 +2785,20 @@ function watchVideoBtnFromModal() {
   if (a && p) openVideoPop(p, a);
 }
 
+var videoPopDocClose = null; // tap-outside-to-close listener while a pop is open
+
 function closeVideoPops() {
   document.querySelectorAll('.videoPop').forEach(function (n) { n.remove(); });
+  if (videoPopDocClose) {
+    document.removeEventListener('pointerdown', videoPopDocClose, true);
+    videoPopDocClose = null;
+  }
 }
 
-/* Expand the player just under the pill. Anchored in % of the page so it
-   stays put across zoom changes; native <video> controls give play/pause,
-   scrubbing and full screen. */
+/* Expand the player just under the pill, clamped fully inside the page so
+   the ✕ can never be clipped off by the page's overflow:hidden. Closes via
+   ✕, Esc, or tapping anywhere outside it. Native <video> controls give
+   play/pause, scrubbing and full screen. */
 function openVideoPop(p, a) {
   closeVideoPops();
   if (!a.url) { toast('No video link on this button yet.'); return; }
@@ -2799,8 +2810,20 @@ function openVideoPop(p, a) {
   }
   var pop = document.createElement('div');
   pop.className = 'videoPop';
-  pop.style.left = Math.max(1, Math.min((a.x / p.baseW) * 100, 55)) + '%';
-  pop.style.top = Math.min(((a.y + (a.h || VIDEO_BTN_H) + 6) / p.baseH) * 100, 88) + '%';
+  var wrapW = p.wrap.clientWidth || 1;
+  var wrapH = p.wrap.clientHeight || 1;
+  var popW = Math.min(480, Math.round(wrapW * 0.92));
+  var popH = Math.round(popW * 9 / 16) + 38; // 16:9 body + header row
+  pop.style.width = popW + 'px';
+  var lx = (a.x / p.baseW) * wrapW;
+  var ty = ((a.y + (a.h || VIDEO_BTN_H) + 6) / p.baseH) * wrapH;
+  lx = Math.max(8, Math.min(lx, wrapW - popW - 8));
+  if (ty + popH > wrapH - 8) {
+    // No room below the pill — open above it instead (or pin to the top).
+    ty = Math.max(8, (a.y / p.baseH) * wrapH - popH - 6);
+  }
+  pop.style.left = Math.round(lx) + 'px';
+  pop.style.top = Math.round(ty) + 'px';
   var head = document.createElement('div');
   head.className = 'videoPopHead';
   var ttl = document.createElement('div');
@@ -2815,7 +2838,15 @@ function openVideoPop(p, a) {
   x.className = 'videoPopClose';
   x.textContent = '✕';
   x.title = 'Close the video';
-  x.addEventListener('click', closeVideoPops);
+  // pointerup as well as click — some touch flows swallow the synthetic
+  // click, and this button must always work.
+  ['pointerup', 'click'].forEach(function (evt) {
+    x.addEventListener(evt, function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeVideoPops();
+    });
+  });
   head.appendChild(ttl);
   head.appendChild(tab);
   head.appendChild(x);
@@ -2836,6 +2867,13 @@ function openVideoPop(p, a) {
     pop.appendChild(vid);
   }
   p.wrap.appendChild(pop);
+  // Tapping anywhere outside the player folds it away — the guaranteed way
+  // out even if the ✕ is missed. (Added during the opening tap's dispatch,
+  // so it only sees the NEXT pointerdown.)
+  videoPopDocClose = function (ev) {
+    if (!pop.contains(ev.target)) closeVideoPops();
+  };
+  document.addEventListener('pointerdown', videoPopDocClose, true);
 }
 
 /* ================= Pointer interaction ================= */
