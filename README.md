@@ -3,6 +3,50 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Sharing a worksheet (v1.32.0)
+
+The purple **Share** button (next to Save, admin only) gives you a link that
+opens exactly one saved worksheet — `…/index.html?share=<worksheet-id>`.
+In the Share dialog you can:
+
+- **Copy the link** to send to students.
+- **Choose who the link admits** — saved on the worksheet itself:
+  - *Anyone with the link can view* (default): read-only, with Download.
+  - *Anyone with the link can edit*: students also get the drawing tools and
+    their writing auto-saves onto the worksheet.
+  - *Off — only you*: the link turns visitors away.
+- **Add a password**: students must type it before the worksheet opens. Only
+  a SHA-256 fingerprint of the password is stored, never the password itself.
+  (Note: this is a classroom-level deterrent enforced in the browser, not
+  bank-grade security.)
+
+Visitors on a share link see only that worksheet — no My PDFs, no questions
+drawer, no save/print/AI — but Download always works.
+
+### One-time Firebase setup for share links
+
+1. **Anonymous sign-in** (Firebase console → Authentication → Sign-in
+   method → Anonymous → Enable). The app signs link visitors in anonymously
+   so "anyone with the link" works without a Google account. If it stays
+   disabled, visitors are asked to sign in with Google instead.
+2. **Firestore rules** must let signed-in users (including anonymous) read
+   worksheets, and — if you use edit links — update the annotations, e.g.:
+
+   ```
+   match /pdfAnnotator/{docId} {
+     allow read: if request.auth != null;
+     allow create, delete: if request.auth != null
+       && request.auth.token.email == 'chungzhikai@gmail.com';
+     allow update: if request.auth != null
+       && (request.auth.token.email == 'chungzhikai@gmail.com'
+           || (resource.data.share.mode == 'edit'
+               && request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['annotations', 'updatedAt'])));
+   }
+   ```
+3. **Storage rules** must allow signed-in reads of `pdf-annotator/` (see the
+   section below) so the PDF bytes download for visitors too.
+
 ## Fixing “Could not open: Failed to fetch”
 
 When you open a saved worksheet, the app asks Firebase Storage for a download

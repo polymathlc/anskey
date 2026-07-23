@@ -84,6 +84,35 @@
   .btnPrimary:hover { background: var(--accent-strong); }
   .btnSaved { background: #DFF2E0 !important; border-color: #BCE3BE !important; }
   .btn svg { width: 16px; height: 16px; display: block; }
+  .btnShare {
+    background: linear-gradient(135deg, #42A5F5, #7E57C2);
+    border-color: #5C6BC0;
+    color: #fff;
+    font-weight: bold;
+  }
+  .btnShare:hover { background: linear-gradient(135deg, #2196F3, #673AB7); }
+
+  /* ---------- Share modal ---------- */
+  .shareLinkRow { display: flex; gap: 8px; align-items: stretch; }
+  .shareLinkRow input { flex: 1; min-width: 0; }
+  .shareOpt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+  .shareOpt:hover { box-shadow: var(--shadow-btn-hover); }
+  .shareOpt.active { background: var(--accent); border-color: var(--accent-deep); box-shadow: var(--shadow-btn); }
+  .shareOptTitle { font-size: 0.85rem; font-weight: bold; color: var(--ink); }
+  .shareOptDesc { font-size: 0.74rem; color: var(--ink-soft); margin-top: 3px; line-height: 1.45; }
+  .shareOpt.active .shareOptDesc { color: var(--ink-soft); }
 
   /* ---------- Toolbar ---------- */
   #toolbar {
@@ -981,6 +1010,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       <span class="btnLabel">Save</span>
     </button>
+    <button class="btn btnShare" id="shareBtn" title="Share — copy a link students can open this worksheet with">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
+      <span class="btnLabel">Share</span>
+    </button>
     <button class="btn" id="docsBtn" data-key="M" title="Open a previously saved PDF">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span class="btnLabel">My PDFs</span>
@@ -1104,6 +1137,72 @@
       <div class="modalActions">
         <button class="btn" id="saveCancelBtn">Cancel</button>
         <button class="btn btnPrimary" id="saveConfirmBtn">Save to cloud</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modalBack" id="shareModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>Share worksheet</h2>
+      <button class="modalClose" id="shareCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="fieldRow">
+        <label for="shareLinkInput">Link for students</label>
+        <div class="shareLinkRow">
+          <input type="text" id="shareLinkInput" readonly>
+          <button class="btn btnShare" id="shareCopyBtn">Copy link</button>
+        </div>
+        <div class="fieldHint" id="shareLinkHint"></div>
+      </div>
+      <div class="fieldRow">
+        <label>Who can use the link</label>
+        <div id="shareModeList">
+          <button type="button" class="shareOpt" data-mode="view">
+            <div class="shareOptTitle">Anyone with the link can view</div>
+            <div class="shareOptDesc">Students open the worksheet read-only and can download it. This is the default.</div>
+          </button>
+          <button type="button" class="shareOpt" data-mode="edit">
+            <div class="shareOptTitle">Anyone with the link can edit</div>
+            <div class="shareOptDesc">Students can also write on the worksheet — their changes are saved onto it.</div>
+          </button>
+          <button type="button" class="shareOpt" data-mode="off">
+            <div class="shareOptTitle">Off — only you</div>
+            <div class="shareOptDesc">The link stops working. Only you (admin) can open this worksheet.</div>
+          </button>
+        </div>
+      </div>
+      <div class="fieldRow">
+        <label for="sharePwSetInput">Password (optional)</label>
+        <div class="fieldHint" id="sharePwStatus" style="margin-top:0;margin-bottom:7px"></div>
+        <div class="shareLinkRow">
+          <input type="text" id="sharePwSetInput" placeholder="e.g. fractions123" autocomplete="off">
+          <button class="btn btnPrimary" id="sharePwSetBtn">Set</button>
+          <button class="btn" id="sharePwRemoveBtn">Remove</button>
+        </div>
+        <div class="fieldHint">With a password on, students must type it before the worksheet opens. Only a scrambled fingerprint of the password is stored, never the password itself.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modalBack" id="shareGateModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2 id="shareGateTitle">Shared worksheet</h2>
+      <button class="modalClose" id="shareGateCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro" id="shareGateMsg"></div>
+      <div class="fieldRow" id="shareGatePwRow" style="display:none">
+        <label for="shareGatePwInput">Password</label>
+        <input type="password" id="shareGatePwInput" autocomplete="off">
+        <div class="fieldHint" id="shareGatePwErr" style="color:var(--danger)"></div>
+      </div>
+      <div class="modalActions">
+        <button class="btn btnPrimary" id="shareGateOkBtn">Open worksheet</button>
       </div>
     </div>
   </div>
@@ -1265,7 +1364,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.31.0';
+var APP_VERSION = 'v1.32.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1383,6 +1482,18 @@ var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keywo
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
 var wsMeta = { level: '', subject: '', date: '', videoUrl: '', videoPath: '' };  // worksheet meta (name lives in docName)
+
+/* ---- Share links ----
+   Every saved worksheet carries share settings: who a plain link admits
+   (view / edit / off) and an optional password (stored only as a SHA-256
+   fingerprint). Opening the app with ?share=<docId> goes through
+   openSharedLink() instead of the normal My PDFs flow. */
+var wsShare = { mode: 'view', passwordHash: '' };  // settings of the worksheet on screen
+var sharedLink = null;         // { id, mode } while a visitor is here via a share link
+var shareOpenInProgress = false;  // suppress profile prompts while the link resolves
+var shareSaveBlocked = false;  // edit-link cloud save hit permission-denied — stop retrying
+var SHARE_OPEN_ID = new URLSearchParams(location.search).get('share') || '';
+var shareOpenHandled = false;
 var studentProfile = null;  // { name, level, subject, days[] } for signed-in students (null until loaded / for admin)
 var PROFILES_COLLECTION = 'studentProfiles';
 function subjectLabel(s) {
@@ -1659,7 +1770,7 @@ function afterHistoryChange() {
 function openFilePicker() { $('fileInput').click(); }
 
 async function loadPdfFromFile(file) {
-  if (isStudent()) {
+  if (isStudent() || isSharedVisitor()) {
     toast('Worksheets come from your teacher — open one from the questions list or “My PDFs”.');
     return;
   }
@@ -1684,6 +1795,7 @@ async function loadPdf(bytes, name) {
   editingId = null;
   editModeId = null;
   wsMeta = { level: '', subject: '', date: '', videoUrl: '', videoPath: '' };
+  wsShare = { mode: 'view', passwordHash: '' };
   reviseMode = false;
   revealedKw = {};
   kwResults = {};
@@ -2010,7 +2122,7 @@ function renderEditChrome(p) {
   p.wrap.appendChild(badge);
 
   if (practiceMode) renderPracticeBar(p, a, box);
-  else if (a.type === 'text' && !isStudent()) renderAiBar(p, a, box);
+  else if (a.type === 'text' && !isStudent() && !isSharedVisitor()) renderAiBar(p, a, box);
 }
 
 /* During practice the floating bar offers Check instead of the teacher's
@@ -2499,7 +2611,7 @@ function eventPoint(e, p) {
 }
 
 function setTool(t) {
-  if (t === 'ai' && isStudent()) t = 'text'; // students never get answer generation
+  if (t === 'ai' && (isStudent() || isSharedVisitor())) t = 'text'; // students and share-link visitors never get answer generation
   commitActiveTextEdit(); // switching tools closes the text box being typed in
   if (t !== 'lasso') clearLassoSel(true);
   tool = t;
@@ -4824,13 +4936,19 @@ $('checkModal').addEventListener('click', function (e) {
 /* ================= Auth ================= */
 var actingStudent = null; // teacher's device handed to a student (no Google needed)
 function isAdmin(user) { return !!user && user.email === ADMIN_EMAIL; }
-function isStudent() { return !!actingStudent || (!!currentUser && !isAdmin(currentUser)); }
+function isSharedVisitor() { return !!sharedLink && !isAdmin(currentUser); }
+function isStudent() {
+  // A visitor who arrived through a share link is read-only unless the link
+  // allows editing. (The admin opening their own link stays the teacher.)
+  if (isSharedVisitor()) return sharedLink.mode !== 'edit';
+  return !!actingStudent || (!!currentUser && !isAdmin(currentUser));
+}
 
 /* Students only open and read worksheets for their level and subject — every
    editing/annotation function disappears and the page becomes scroll-only
    (keyword revision in the sidebar stays, since that IS reading practice). */
 var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
-  'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'downloadBtn', 'printBtn', 'saveBtn'];
+  'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'downloadBtn', 'printBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
 var PRACTICE_TOOLBAR_IDS = ['toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
@@ -4850,6 +4968,20 @@ function applyRoleUI() {
   // especially not while practising.
   var aiToolBtn = document.querySelector('#toolButtons [data-tool="ai"]');
   if (aiToolBtn) aiToolBtn.style.display = student ? 'none' : '';
+  // Share-link visitors: downloading is always allowed, but uploading, cloud
+  // saving, printing the answer key, AI answers and browsing the other
+  // worksheets never are — whatever the link's mode.
+  var sharedVisitor = isSharedVisitor();
+  $('burgerBtn').style.display = sharedVisitor ? 'none' : '';
+  $('docsBtn').style.display = sharedVisitor ? 'none' : '';
+  if (sharedVisitor) {
+    ['uploadBtn', 'saveBtn', 'printBtn', 'shareBtn'].forEach(function (id) {
+      var elm = $(id);
+      if (elm) elm.style.display = 'none';
+    });
+    $('downloadBtn').style.display = '';
+    if (aiToolBtn) aiToolBtn.style.display = 'none';
+  }
   document.querySelectorAll('#toolbar .tSep').forEach(function (s) {
     s.style.display = hideTools ? 'none' : '';
   });
@@ -4907,7 +5039,31 @@ function renderAuthArea() {
     area.appendChild(backBtn);
     return;
   }
-  if (!currentUser) {
+  if (isSharedVisitor()) {
+    // Nothing personal up here — just what the link allows. The teacher can
+    // still sign in from a shared link to get their own view back.
+    var shInfo = document.createElement('div');
+    shInfo.className = 'authInfo';
+    var shName = document.createElement('div');
+    shName.className = 'authName';
+    shName.textContent = 'Shared worksheet';
+    var shRole = document.createElement('div');
+    shRole.className = 'authRole';
+    shRole.textContent = sharedLink.mode === 'edit' ? 'Anyone with the link can edit' : 'View & download';
+    shInfo.appendChild(shName);
+    shInfo.appendChild(shRole);
+    area.appendChild(shInfo);
+    if (!currentUser || currentUser.isAnonymous) {
+      var shBtn = document.createElement('button');
+      shBtn.className = 'btn';
+      shBtn.textContent = 'Sign in';
+      shBtn.title = 'Sign in with Google';
+      shBtn.addEventListener('click', signIn);
+      area.appendChild(shBtn);
+    }
+    return;
+  }
+  if (!currentUser || currentUser.isAnonymous) {
     var btn = document.createElement('button');
     btn.className = 'btn';
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Sign in with Google';
@@ -4969,16 +5125,23 @@ auth.onAuthStateChanged(function (user) {
   renderAuthArea();
   applyRoleUI();
   renderVideoCard(); // admin controls appear/disappear with the auth state
-  if (user && !isAdmin(user)) {
+  if (user && !isAdmin(user) && !user.isAnonymous) {
     // Students: fetch their profile, and ask for it on their very first login.
     loadStudentProfile(user).then(function () {
       renderAuthArea();
-      if (!studentProfile) openProfileModal(true);
+      // Visitors on a share link never get nagged about a student profile.
+      if (!studentProfile && !sharedLink && !shareOpenInProgress && !SHARE_OPEN_ID) openProfileModal(true);
       if ($('qDrawer').classList.contains('open')) loadQuestionsList();
     });
   } else {
     // Refresh the questions drawer for the new auth state if it is open
     if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+  }
+  // The page was opened through a share link: resolve it once the initial
+  // auth state is known (signed in, remembered session, or signed out).
+  if (SHARE_OPEN_ID && !shareOpenHandled) {
+    shareOpenHandled = true;
+    openSharedLink(SHARE_OPEN_ID);
   }
 });
 
@@ -5382,6 +5545,7 @@ async function performSave() {
       videoPath: wsMeta.videoPath || '',
       pageCount: pdfDoc.numPages,
       annotations: JSON.stringify(annotations),
+      share: { mode: wsShare.mode, passwordHash: wsShare.passwordHash },
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if (isNew) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
@@ -5415,7 +5579,10 @@ var autoSaveQueued = false;
 function canAutoSave() {
   // Never while practising — practice scribbles must not overwrite the
   // worksheet's real annotations.
-  return !!currentDocId && isAdmin(currentUser) && !practiceMode;
+  if (!currentDocId || practiceMode) return false;
+  if (isAdmin(currentUser)) return true;
+  // A share link in edit mode saves the visitor's writing onto the worksheet.
+  return !!sharedLink && sharedLink.mode === 'edit' && !shareSaveBlocked;
 }
 
 function scheduleAutoSave() {
@@ -5441,10 +5608,17 @@ async function autoSave() {
     var label = btn.querySelector('.btnLabel');
     if (label) label.textContent = '✓ Saved';
   } catch (e) {
-    // Quietly retry later — the annotations are still in memory and the
-    // manual Save button always remains available.
     console.error('Auto-save failed', e);
-    scheduleAutoSave();
+    if (isSharedVisitor() && e && e.code === 'permission-denied') {
+      // The Firestore rules don't let this visitor write — say so once and
+      // stop retrying. Their writing stays on screen and in downloads.
+      shareSaveBlocked = true;
+      toast('Your writing stays on this screen and in downloads, but could not be saved back to the cloud.', 6000);
+    } else {
+      // Quietly retry later — the annotations are still in memory and the
+      // manual Save button always remains available.
+      scheduleAutoSave();
+    }
   }
   autoSaveInFlight = false;
   if (autoSaveQueued) { autoSaveQueued = false; if (dirty) scheduleAutoSave(); }
@@ -5518,7 +5692,7 @@ function scheduleDraftSave() {
 
 function saveDraftNow() {
   clearTimeout(draftTimer);
-  if (!window.indexedDB || !pdfBytes || isStudent() || practiceMode) return;
+  if (!window.indexedDB || !pdfBytes || isStudent() || isSharedVisitor() || practiceMode) return;
   var value = {
     docName: docName,
     docId: currentDocId,
@@ -5548,7 +5722,8 @@ async function restoreDraft(d) {
 
 // On startup, offer to bring back work that never reached the cloud.
 (function offerDraftRestore() {
-  if (!window.indexedDB) return;
+  // A share link goes straight to the shared worksheet — no draft prompt.
+  if (!window.indexedDB || SHARE_OPEN_ID) return;
   draftGet().then(function (d) {
     if (!d || !d.unsaved || !d.pdf) return;
     var annCount = 0;
@@ -5740,6 +5915,7 @@ async function openSavedDoc(id, data) {
     wsMeta.date = data.wsDate || '';
     wsMeta.videoUrl = data.videoUrl || '';
     wsMeta.videoPath = data.videoPath || '';
+    wsShare = normalizeShare(data.share);
     setDirty(false);
     renderAllOverlays();
     renderSidebar();
@@ -5865,6 +6041,223 @@ async function deleteSavedDoc(id, data, rowEl) {
   } catch (e) {
     toast('Delete failed: ' + (e.message || e));
   }
+}
+
+/* ================= Share links =================
+   The Share button gives the teacher a link that opens exactly one saved
+   worksheet. The link's power lives on the worksheet's Firestore doc:
+     share.mode          'view' (default) | 'edit' | 'off'
+     share.passwordHash  '' or the SHA-256 hex of an optional password
+   Visitors arrive with ?share=<docId>; view mode is read-only + download,
+   edit mode adds the drawing tools and saves their writing onto the
+   worksheet, off turns the link away entirely. */
+
+function normalizeShare(s) {
+  var out = { mode: 'view', passwordHash: '' };
+  if (s && typeof s === 'object') {
+    if (s.mode === 'edit' || s.mode === 'off' || s.mode === 'view') out.mode = s.mode;
+    if (typeof s.passwordHash === 'string') out.passwordHash = s.passwordHash;
+  }
+  return out;
+}
+
+function shareUrl(id) {
+  return location.origin + location.pathname + '?share=' + encodeURIComponent(id);
+}
+
+async function sha256Hex(text) {
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.prototype.map.call(new Uint8Array(buf), function (b) {
+    return ('0' + b.toString(16)).slice(-2);
+  }).join('');
+}
+
+/* ---- Teacher side: the Share dialog ---- */
+function openShareModal() {
+  if (!pdfDoc) { toast('Open a worksheet first.'); return; }
+  if (!currentDocId) {
+    toast('Save the worksheet to the cloud first — the share link points to the saved copy.', 4500);
+    saveDoc();
+    return;
+  }
+  renderShareModal();
+  $('shareModal').classList.add('open');
+}
+
+function renderShareModal() {
+  $('shareLinkInput').value = shareUrl(currentDocId);
+  document.querySelectorAll('#shareModeList .shareOpt').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-mode') === wsShare.mode);
+  });
+  var hint = $('shareLinkHint');
+  if (wsShare.mode === 'off') hint.textContent = 'The link is off — students who open it are turned away.';
+  else if (wsShare.mode === 'edit') hint.textContent = 'Students with this link can open, write on and download this worksheet.';
+  else hint.textContent = 'Students with this link can open and download this worksheet (view only).';
+  $('sharePwStatus').textContent = wsShare.passwordHash
+    ? '🔒 Password is on — students must type it before the worksheet opens.'
+    : 'No password — the link alone opens the worksheet.';
+  $('sharePwRemoveBtn').style.display = wsShare.passwordHash ? '' : 'none';
+}
+
+async function persistShare(okMsg) {
+  try {
+    await db.collection(COLLECTION).doc(currentDocId).set({
+      share: { mode: wsShare.mode, passwordHash: wsShare.passwordHash },
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    if (okMsg) toast(okMsg, 3500);
+  } catch (e) {
+    console.error(e);
+    toast('Could not update sharing: ' + (e.message || e), 5000);
+  }
+  renderShareModal();
+}
+
+function setShareMode(mode) {
+  if (wsShare.mode === mode) { renderShareModal(); return; }
+  wsShare.mode = mode;
+  persistShare(mode === 'off'
+    ? 'Sharing is off — only you can open this worksheet now.'
+    : mode === 'edit'
+      ? 'Anyone with the link can now write on this worksheet.'
+      : 'Anyone with the link can now view this worksheet.');
+}
+
+async function copyShareLink() {
+  var link = shareUrl(currentDocId);
+  var input = $('shareLinkInput');
+  input.focus();
+  input.select();
+  var copied = false;
+  try { await navigator.clipboard.writeText(link); copied = true; } catch (e) {}
+  if (!copied) { try { copied = document.execCommand('copy'); } catch (e) {} }
+  toast(copied
+    ? 'Link copied — paste it to your students.'
+    : 'Could not copy automatically — the link is selected, press Ctrl+C.', 4000);
+}
+
+async function setSharePassword() {
+  var pw = $('sharePwSetInput').value.trim();
+  if (!pw) { toast('Type the password first, then press Set.'); return; }
+  try {
+    wsShare.passwordHash = await sha256Hex(pw);
+  } catch (e) {
+    toast('Passwords need a secure (https) connection — could not set it here.', 5000);
+    return;
+  }
+  $('sharePwSetInput').value = '';
+  persistShare('Password set — students will be asked for it when they open the link.');
+}
+
+function removeSharePassword() {
+  wsShare.passwordHash = '';
+  persistShare('Password removed — the link alone opens the worksheet again.');
+}
+
+/* ---- Visitor side: opening a share link ---- */
+async function openSharedLink(id) {
+  shareOpenInProgress = true;
+  try {
+    // Give signed-out visitors an anonymous session first — when the
+    // Firebase project allows it, "anyone with the link" works without a
+    // Google account. If it is not enabled we simply try without.
+    if (!currentUser) {
+      try { await auth.signInAnonymously(); } catch (e) {}
+    }
+    var snap;
+    try {
+      snap = await db.collection(COLLECTION).doc(id).get();
+    } catch (e) {
+      console.error('Shared link read failed', e);
+      shareGate('signin', id);
+      return;
+    }
+    if (!snap.exists) { shareGate('gone'); return; }
+    var d = snap.data();
+    if (isAdmin(currentUser)) {
+      // The teacher's own link just opens the worksheet normally.
+      await openSavedDoc(id, d);
+      return;
+    }
+    var s = normalizeShare(d.share);
+    if (s.mode === 'off') { shareGate('off'); return; }
+    if (s.passwordHash) {
+      var ok = await askSharePassword(s.passwordHash);
+      if (!ok) return;
+    }
+    sharedLink = { id: id, mode: s.mode };
+    shareSaveBlocked = false;
+    renderAuthArea();
+    applyRoleUI();
+    await openSavedDoc(id, d);
+    if (s.mode === 'view') setTool('select');
+    toast(s.mode === 'edit'
+      ? 'Shared worksheet — you can write on it and download it.'
+      : 'Shared worksheet — read it and download it any time.', 5000);
+  } finally {
+    shareOpenInProgress = false;
+  }
+}
+
+/* One dialog covers every gate a visitor can hit: sign-in needed, link
+   turned off, or worksheet gone. */
+function shareGate(kind, id) {
+  $('shareGatePwRow').style.display = 'none';
+  var ok = $('shareGateOkBtn');
+  if (kind === 'signin') {
+    $('shareGateTitle').textContent = 'Sign in to open this worksheet';
+    $('shareGateMsg').textContent = 'This shared worksheet needs you to sign in before it opens.';
+    ok.textContent = 'Sign in with Google';
+    ok.onclick = async function () {
+      $('shareGateModal').classList.remove('open');
+      await signIn();
+      if (currentUser) openSharedLink(id);
+    };
+  } else if (kind === 'off') {
+    $('shareGateTitle').textContent = 'Sharing is turned off';
+    $('shareGateMsg').textContent = 'The teacher has turned this link off, so the worksheet cannot be opened with it. Ask ' + ADMIN_DISPLAY_NAME + ' to turn sharing back on.';
+    ok.textContent = 'OK';
+    ok.onclick = function () { $('shareGateModal').classList.remove('open'); };
+  } else {
+    $('shareGateTitle').textContent = 'Link not valid';
+    $('shareGateMsg').textContent = 'This share link does not point to a worksheet any more — it may have been deleted. Ask your teacher for a fresh link.';
+    ok.textContent = 'OK';
+    ok.onclick = function () { $('shareGateModal').classList.remove('open'); };
+  }
+  $('shareGateCloseBtn').onclick = function () { $('shareGateModal').classList.remove('open'); };
+  $('shareGateModal').classList.add('open');
+}
+
+function askSharePassword(hash) {
+  return new Promise(function (resolve) {
+    var done = false;
+    function finish(ok) {
+      if (done) return;
+      done = true;
+      $('shareGateModal').classList.remove('open');
+      resolve(ok);
+    }
+    $('shareGateTitle').textContent = 'This worksheet is locked 🔒';
+    $('shareGateMsg').textContent = 'Type the password from your teacher to open it.';
+    $('shareGatePwRow').style.display = '';
+    $('shareGatePwErr').textContent = '';
+    $('shareGatePwInput').value = '';
+    $('shareGateOkBtn').textContent = 'Open worksheet';
+    $('shareGateOkBtn').onclick = async function () {
+      var typed = $('shareGatePwInput').value;
+      if (!typed) { $('shareGatePwErr').textContent = 'Type the password first.'; return; }
+      var h = '';
+      try { h = await sha256Hex(typed); } catch (e) {}
+      if (h && h === hash) finish(true);
+      else {
+        $('shareGatePwErr').textContent = 'That password is not right — check with your teacher and try again.';
+        $('shareGatePwInput').select();
+      }
+    };
+    $('shareGateCloseBtn').onclick = function () { finish(false); };
+    $('shareGateModal').classList.add('open');
+    setTimeout(function () { $('shareGatePwInput').focus(); }, 50);
+  });
 }
 
 /* ================= Flattened PDF download ================= */
@@ -6293,6 +6686,26 @@ $('docsModal').addEventListener('click', function (e) {
 });
 $('downloadBtn').addEventListener('click', downloadAnnotated);
 $('printBtn').addEventListener('click', printAnnotated);
+
+/* Share dialog */
+$('shareBtn').addEventListener('click', openShareModal);
+$('shareCloseBtn').addEventListener('click', function () { $('shareModal').classList.remove('open'); });
+$('shareModal').addEventListener('click', function (e) {
+  if (e.target === $('shareModal')) $('shareModal').classList.remove('open');
+});
+$('shareCopyBtn').addEventListener('click', copyShareLink);
+$('shareLinkInput').addEventListener('click', function () { this.select(); });
+document.querySelectorAll('#shareModeList .shareOpt').forEach(function (b) {
+  b.addEventListener('click', function () { setShareMode(b.getAttribute('data-mode')); });
+});
+$('sharePwSetBtn').addEventListener('click', setSharePassword);
+$('sharePwRemoveBtn').addEventListener('click', removeSharePassword);
+$('sharePwSetInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); setSharePassword(); }
+});
+$('shareGatePwInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); $('shareGateOkBtn').click(); }
+});
 $('videoAttachBtn').addEventListener('click', attachVideoLink);
 $('videoRemoveBtn').addEventListener('click', removeVideo);
 $('videoWatchBtn').addEventListener('click', openVideoModal);
@@ -6538,9 +6951,9 @@ document.addEventListener('keydown', function (e) {
   }
   if (e.key === '+' || e.key === '=') { zoomBy(1.2); return; }
   if (e.key === '-') { zoomBy(1 / 1.2); return; }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') { e.preventDefault(); openFilePicker(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') { e.preventDefault(); if (!isSharedVisitor()) openFilePicker(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); downloadAnnotated(); return; }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); printAnnotated(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); if (!isSharedVisitor()) printAnnotated(); return; }
   if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; clearLassoSel(false); renderAllOverlays(); return; }
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
@@ -6549,7 +6962,11 @@ document.addEventListener('keydown', function (e) {
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
     if (toolKeys[k]) setTool(toolKeys[k]);
-    else if (uiKeys[k]) $(uiKeys[k]).click();
+    else if (uiKeys[k]) {
+      // Share-link visitors stay on their one worksheet — no drawer, no My PDFs.
+      if (isSharedVisitor() && (k === 'q' || k === 'm')) return;
+      $(uiKeys[k]).click();
+    }
   }
 });
 
