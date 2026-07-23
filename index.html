@@ -1052,7 +1052,7 @@
     <button class="toolBtn" id="stylusBtn" data-key="D" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
     </button>
-    <button class="toolBtn active" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps">
+    <button class="toolBtn" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps (first and last of each page)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
     </button>
     <button class="toolBtn" id="thumbToggleBtn" data-key="N" title="Show / hide page thumbnails — drag the panel edge to resize them">
@@ -1453,7 +1453,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.33.1';
+var APP_VERSION = 'v1.34.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -1564,7 +1564,7 @@ var editModeId = null;      // annotation in handle-edit mode (double-click with
 var dirty = false;
 var currentUser = null;
 var annIdCounter = 1;
-var showTimestamps = true;
+var showTimestamps = false; // off for everyone by default — labels clutter the page
 var reviseMode = false;
 var revealedKw = {};        // normalised keyword -> true, revealed during revise mode
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
@@ -2098,11 +2098,7 @@ function renderOverlay(p) {
   annotations.forEach(function (a) {
     if (a.page === p.num) svg.appendChild(annNode(a));
   });
-  if (showTimestamps) {
-    annotations.forEach(function (a) {
-      if (a.page === p.num) appendTsLabel(p, a);
-    });
-  }
+  if (showTimestamps) refreshTsLabels(p);
   if (selectedId && selectedId !== editModeId && selectedId !== editingId) {
     var selAnn = annotations.find(function (a) { return a.id === selectedId; });
     if (selAnn && selAnn.page === p.num) {
@@ -2121,8 +2117,26 @@ function renderOverlay(p) {
   renderEditChrome(p);
 }
 
-/* Timestamp label beside one annotation (used by renderOverlay and by the
-   incremental commit path when a freshly drawn stroke is kept as-is). */
+/* Only the earliest and latest timestamped annotation of a page get a
+   label — one stamp per annotation buried the worksheet in grey text and
+   made it look broken. */
+function tsLabelTargets(pageNum) {
+  var stamped = annotations.filter(function (a) { return a.page === pageNum && a.ts; });
+  if (stamped.length < 3) return stamped;
+  stamped.sort(function (x, y) { return x.ts - y.ts; });
+  return [stamped[0], stamped[stamped.length - 1]];
+}
+
+/* Wipe and re-draw the page's timestamp labels (used by renderOverlay and
+   by the incremental commit path when a freshly drawn stroke is kept as-is
+   — the newest stroke becomes the page's "last" label). */
+function refreshTsLabels(p) {
+  p.svg.querySelectorAll('text.tsLabel').forEach(function (n) { n.remove(); });
+  if (!showTimestamps) return;
+  tsLabelTargets(p.num).forEach(function (a) { appendTsLabel(p, a); });
+}
+
+/* Timestamp label beside one annotation. */
 function appendTsLabel(p, a) {
   if (!showTimestamps || !a.ts) return;
   var node = p.svg.querySelector('[data-id="' + a.id + '"]');
@@ -2130,6 +2144,7 @@ function appendTsLabel(p, a) {
   var box;
   try { box = node.getBBox(); } catch (e) { return; }
   var label = el('text', {
+    'class': 'tsLabel',
     x: Math.min(box.x + box.width + 5, p.baseW - 4),
     y: Math.max(box.y + 8, 10),
     'font-size': 8.5,
@@ -3410,7 +3425,7 @@ function attachOverlayHandlers(p) {
       // (plus a layout pass per timestamp) made rapid dots very laggy.
       if (tempNode && tempNode.parentNode) {
         tempNode.removeAttribute('pointer-events');
-        appendTsLabel(p, a2);
+        if (showTimestamps) refreshTsLabels(p);
       } else {
         renderOverlay(p);
       }
@@ -6620,6 +6635,15 @@ async function buildAnnotatedPdf(includeTs) {
     });
   }
 
+    // Baked timestamps follow the on-screen rule: only the first and last
+    // stamped annotation of each page get a label.
+    var tsTargets = {};
+    if (includeTs) {
+      pages.forEach(function (pi) {
+        tsLabelTargets(pi.num).forEach(function (t) { tsTargets[t.id] = true; });
+      });
+    }
+
     annotations.forEach(function (a) {
       var pageInfo = pages[a.page - 1];
       if (!pageInfo) return;
@@ -6758,7 +6782,7 @@ async function buildAnnotatedPdf(includeTs) {
       }
 
       // Timestamp label beside the annotation, mirroring the on-screen view
-      if (includeTs && a.ts) {
+      if (includeTs && a.ts && tsTargets[a.id]) {
         var box = annBBox(a);
         var tsLabel = formatTs(a.ts);
         var tsSize = 8.5;
