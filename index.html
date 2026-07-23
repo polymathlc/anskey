@@ -114,6 +114,66 @@
   .shareOptDesc { font-size: 0.74rem; color: var(--ink-soft); margin-top: 3px; line-height: 1.45; }
   .shareOpt.active .shareOptDesc { color: var(--ink-soft); }
 
+  /* ---------- Video solution button (placed on the page) ---------- */
+  /* Lives inside the overlay SVG (foreignObject), so it scales with zoom.
+     Sizes are in page units, matching the annotation's stored w/h. */
+  .videoAnnBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 0 8px;
+    background: linear-gradient(135deg, #42A5F5, #7E57C2);
+    color: #fff;
+    border-radius: 999px;
+    font-family: var(--font);
+    font-size: 11.5px;
+    font-weight: bold;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.22);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .videoAnnBtn svg { width: 13px; height: 13px; flex: 0 0 auto; }
+  .videoPop {
+    position: absolute;
+    z-index: 40;
+    width: 480px;
+    max-width: 92%;
+    background: #111;
+    border-radius: 12px;
+    box-shadow: var(--shadow-modal);
+    overflow: hidden;
+    transform-origin: top left;
+    animation: videoPopIn 0.22s ease;
+  }
+  @keyframes videoPopIn {
+    from { transform: scale(0.25); opacity: 0.3; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .videoPopHead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #1C1C1C;
+    color: #fff;
+    font-size: 0.8rem;
+  }
+  .videoPopTitle { font-weight: bold; flex: 1; }
+  .videoPopHead a { color: #9ECBFF; text-decoration: none; font-size: 0.75rem; white-space: nowrap; }
+  .videoPopClose {
+    background: none; border: none; color: #fff;
+    font-size: 1rem; cursor: pointer; padding: 2px 6px; line-height: 1;
+  }
+  .videoPop video, .videoPop iframe {
+    display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000;
+  }
+
   /* ---------- Toolbar ---------- */
   #toolbar {
     display: flex;
@@ -922,6 +982,9 @@
     <button class="toolBtn" data-tool="keyword" data-key="K" title="Mark keywords — click words in a text box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M15 7l3 3"/><path d="M18 4l2 2"/></svg>
     </button>
+    <button class="toolBtn" data-tool="video" data-key="U" title="Video solution button — click a spot on the page, paste a video link, students tap it to watch">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M10 9.2v5.6l5.2-2.8z" fill="currentColor" stroke="none"/></svg>
+    </button>
     <button class="toolBtn" data-tool="eraser" data-key="E" title="Eraser — drag across ink to erase it">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7l-4-4a2 2 0 0 1 0-2.8l9.6-9.6a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L13.4 19"/><path d="M8.6 8.6l6.8 6.8"/></svg>
     </button>
@@ -1208,6 +1271,28 @@
   </div>
 </div>
 
+<div class="modalBack" id="videoBtnModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2 id="videoBtnTitle">Video solution button</h2>
+      <button class="modalClose" id="videoBtnCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="fieldRow">
+        <label for="videoBtnUrlInput">Video link</label>
+        <input type="text" id="videoBtnUrlInput" placeholder="Paste a Dropbox, Drive or YouTube link" autocomplete="off">
+        <div class="fieldHint">Dropbox: the normal “Copy link” share link works — the video plays right on the page with full controls (including full screen). Move the button afterwards with the Select tool (V); erase or lasso it like any annotation.</div>
+      </div>
+      <div class="modalActions">
+        <button class="btn" id="videoBtnWatchBtn" style="margin-right:auto">▶ Watch</button>
+        <button class="btn" id="videoBtnRemoveBtn">Remove</button>
+        <button class="btn" id="videoBtnCancelBtn">Cancel</button>
+        <button class="btn btnPrimary" id="videoBtnSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modalBack" id="videoModal">
   <div class="modalCard videoModalCard">
     <div class="modalHead">
@@ -1364,7 +1449,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.32.0';
+var APP_VERSION = 'v1.33.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2251,6 +2336,23 @@ function annNode(a) {
     div.contentEditable = (editingId === a.id) ? 'true' : 'false';
     fo.appendChild(div);
     g.appendChild(fo);
+  } else if (a.type === 'video') {
+    // "Watch video solution" pill — an HTML button inside the overlay so it
+    // scales with zoom and moves/erases like any annotation. Taps on it are
+    // handled specially in the overlay's pointerdown.
+    var vfo = el('foreignObject', { x: a.x, y: a.y, width: a.w || 150, height: a.h || 30 });
+    vfo.style.overflow = 'visible';
+    var vbtn = document.createElement('div');
+    vbtn.className = 'videoAnnBtn';
+    var vicon = el('svg', { viewBox: '0 0 24 24' });
+    vicon.appendChild(el('circle', { cx: 12, cy: 12, r: 10, fill: 'rgba(255,255,255,0.25)' }));
+    vicon.appendChild(el('path', { d: 'M10 8.3v7.4l6-3.7z', fill: '#fff' }));
+    vbtn.appendChild(vicon);
+    var vlabel = document.createElement('span');
+    vlabel.textContent = 'Watch video solution';
+    vbtn.appendChild(vlabel);
+    vfo.appendChild(vbtn);
+    g.appendChild(vfo);
   }
   // Rotation lives on the child shapes (not the g), so g.getBBox() — used by
   // the selection chrome and timestamp labels — reflects the rotated shape.
@@ -2601,6 +2703,141 @@ async function removeVideo() {
   }
 }
 
+/* ================= Video solution buttons =================
+   A 'video' annotation is a pill on the page ("Watch video solution") that
+   carries a video URL. The teacher places one with the video tool and pastes
+   a Dropbox / Drive / YouTube link; tapping the pill expands an inline
+   player (native controls, full screen included) right next to it. */
+var VIDEO_BTN_W = 150;
+var VIDEO_BTN_H = 30;
+var videoBtnEdit = null; // { mode:'new', page, x, y } | { mode:'edit', id, page }
+
+function openVideoBtnModal(ctx) {
+  videoBtnEdit = ctx;
+  var editing = ctx.mode === 'edit';
+  var a = editing ? annotations.find(function (x) { return x.id === ctx.id; }) : null;
+  $('videoBtnUrlInput').value = (a && a.url) || '';
+  $('videoBtnTitle').textContent = editing ? 'Video solution button' : 'New video solution button';
+  $('videoBtnWatchBtn').style.display = editing && a && a.url ? '' : 'none';
+  $('videoBtnRemoveBtn').style.display = editing ? '' : 'none';
+  $('videoBtnModal').classList.add('open');
+  setTimeout(function () { $('videoBtnUrlInput').focus(); }, 50);
+}
+
+function closeVideoBtnModal() {
+  $('videoBtnModal').classList.remove('open');
+  videoBtnEdit = null;
+}
+
+function saveVideoBtn() {
+  if (!videoBtnEdit) return;
+  var url = $('videoBtnUrlInput').value.trim();
+  if (!url) { toast('Paste the video link first.'); return; }
+  if (!/^https?:\/\//i.test(url)) { toast('That does not look like a link — it should start with http(s)://'); return; }
+  pushUndo();
+  var placed = false;
+  if (videoBtnEdit.mode === 'edit') {
+    var a = annotations.find(function (x) { return x.id === videoBtnEdit.id; });
+    if (a) a.url = url;
+  } else {
+    var p = videoBtnEdit.page;
+    annotations.push({
+      id: newAnnId(), page: p.num, type: 'video',
+      x: round2(Math.max(4, Math.min(videoBtnEdit.x - VIDEO_BTN_W / 2, p.baseW - VIDEO_BTN_W - 4))),
+      y: round2(Math.max(4, Math.min(videoBtnEdit.y, p.baseH - VIDEO_BTN_H - 4))),
+      w: VIDEO_BTN_W, h: VIDEO_BTN_H, url: url, ts: Date.now()
+    });
+    placed = true;
+  }
+  renderAllOverlays();
+  setDirty(true);
+  var embeddable = videoEmbedInfo(url).kind !== 'link';
+  toast((placed
+    ? 'Video button placed — students tap it to watch the solution.'
+    : 'Video link updated.') +
+    (embeddable ? '' : ' (This link type opens in a new tab rather than playing on the page.)'),
+    embeddable ? 3200 : 5000);
+  closeVideoBtnModal();
+}
+
+function removeVideoBtn() {
+  if (!videoBtnEdit || videoBtnEdit.mode !== 'edit') return;
+  var id = videoBtnEdit.id;
+  pushUndo();
+  annotations = annotations.filter(function (x) { return x.id !== id; });
+  if (selectedId === id) selectedId = null;
+  if (editModeId === id) editModeId = null;
+  renderAllOverlays();
+  setDirty(true);
+  toast('Video button removed — undo brings it back.');
+  closeVideoBtnModal();
+}
+
+function watchVideoBtnFromModal() {
+  if (!videoBtnEdit || videoBtnEdit.mode !== 'edit') return;
+  var a = annotations.find(function (x) { return x.id === videoBtnEdit.id; });
+  var p = a && pages[a.page - 1];
+  closeVideoBtnModal();
+  if (a && p) openVideoPop(p, a);
+}
+
+function closeVideoPops() {
+  document.querySelectorAll('.videoPop').forEach(function (n) { n.remove(); });
+}
+
+/* Expand the player just under the pill. Anchored in % of the page so it
+   stays put across zoom changes; native <video> controls give play/pause,
+   scrubbing and full screen. */
+function openVideoPop(p, a) {
+  closeVideoPops();
+  if (!a.url) { toast('No video link on this button yet.'); return; }
+  var info = videoEmbedInfo(a.url);
+  if (info.kind === 'link') {
+    // Nothing we can embed — open the link itself.
+    window.open(a.url, '_blank', 'noopener');
+    return;
+  }
+  var pop = document.createElement('div');
+  pop.className = 'videoPop';
+  pop.style.left = Math.max(1, Math.min((a.x / p.baseW) * 100, 55)) + '%';
+  pop.style.top = Math.min(((a.y + (a.h || VIDEO_BTN_H) + 6) / p.baseH) * 100, 88) + '%';
+  var head = document.createElement('div');
+  head.className = 'videoPopHead';
+  var ttl = document.createElement('div');
+  ttl.className = 'videoPopTitle';
+  ttl.textContent = '🎬 Video solution';
+  var tab = document.createElement('a');
+  tab.href = a.url;
+  tab.target = '_blank';
+  tab.rel = 'noopener';
+  tab.textContent = 'Open in new tab ↗';
+  var x = document.createElement('button');
+  x.className = 'videoPopClose';
+  x.textContent = '✕';
+  x.title = 'Close the video';
+  x.addEventListener('click', closeVideoPops);
+  head.appendChild(ttl);
+  head.appendChild(tab);
+  head.appendChild(x);
+  pop.appendChild(head);
+  if (info.kind === 'iframe') {
+    var fr = document.createElement('iframe');
+    fr.src = info.src;
+    fr.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+    fr.allowFullscreen = true;
+    pop.appendChild(fr);
+  } else {
+    var vid = document.createElement('video');
+    vid.src = info.src;
+    vid.controls = true;
+    vid.playsInline = true;
+    vid.preload = 'metadata';
+    vid.autoplay = true; // the user's tap is the gesture — play right away
+    pop.appendChild(vid);
+  }
+  p.wrap.appendChild(pop);
+}
+
 /* ================= Pointer interaction ================= */
 function eventPoint(e, p) {
   var rect = p.svg.getBoundingClientRect();
@@ -2612,6 +2849,7 @@ function eventPoint(e, p) {
 
 function setTool(t) {
   if (t === 'ai' && (isStudent() || isSharedVisitor())) t = 'text'; // students and share-link visitors never get answer generation
+  if (t === 'video' && (isStudent() || isSharedVisitor())) t = 'select'; // placing video buttons is teacher-only
   commitActiveTextEdit(); // switching tools closes the text box being typed in
   if (t !== 'lasso') clearLassoSel(true);
   tool = t;
@@ -2694,6 +2932,24 @@ function attachOverlayHandlers(p) {
       var editedHost = e.target.closest ? e.target.closest('[data-id]') : null;
       if (editedHost && editedHost.getAttribute('data-id') === editingId) return;
       commitActiveTextEdit();
+    }
+    // A tap on a "Watch video solution" pill plays the video for students
+    // (and share-link visitors), and opens the link editor for the teacher.
+    // The teacher's select / lasso / eraser tools fall through so the pill
+    // can still be moved, grouped and erased like any annotation.
+    var vHost = e.target.closest ? e.target.closest('.videoAnnBtn') : null;
+    if (vHost) {
+      var vG = vHost.closest ? vHost.closest('g[data-id]') : null;
+      var vAnn = vG && annotations.find(function (x) { return x.id === vG.getAttribute('data-id'); });
+      if (vAnn && vAnn.type === 'video') {
+        var vTeacher = !isStudent() && !isSharedVisitor();
+        if (!(vTeacher && (tool === 'select' || tool === 'lasso' || tool === 'eraser'))) {
+          e.preventDefault();
+          if (vTeacher) openVideoBtnModal({ mode: 'edit', id: vAnn.id, page: p });
+          else openVideoPop(p, vAnn);
+          return;
+        }
+      }
     }
     // Students read only — the page never draws or edits for them. Keyword
     // revision (revise mode) and practice mode are the interactions that stay.
@@ -2810,6 +3066,13 @@ function attachOverlayHandlers(p) {
       } else {
         toast('Keywords live in text boxes — click a word inside one.');
       }
+      return;
+    }
+
+    if (tool === 'video') {
+      // Placing a video-solution button: pick the spot, then paste the link.
+      e.preventDefault();
+      openVideoBtnModal({ mode: 'new', page: p, x: pt.x, y: pt.y });
       return;
     }
 
@@ -4968,6 +5231,9 @@ function applyRoleUI() {
   // especially not while practising.
   var aiToolBtn = document.querySelector('#toolButtons [data-tool="ai"]');
   if (aiToolBtn) aiToolBtn.style.display = student ? 'none' : '';
+  // Placing video-solution buttons is teacher-only, like the AI tool.
+  var videoToolBtn = document.querySelector('#toolButtons [data-tool="video"]');
+  if (videoToolBtn) videoToolBtn.style.display = student ? 'none' : '';
   // Share-link visitors: downloading is always allowed, but uploading, cloud
   // saving, printing the answer key, AI answers and browsing the other
   // worksheets never are — whatever the link's mode.
@@ -4981,6 +5247,7 @@ function applyRoleUI() {
     });
     $('downloadBtn').style.display = '';
     if (aiToolBtn) aiToolBtn.style.display = 'none';
+    if (videoToolBtn) videoToolBtn.style.display = 'none';
   }
   document.querySelectorAll('#toolbar .tSep').forEach(function (s) {
     s.style.display = hideTools ? 'none' : '';
@@ -6418,6 +6685,38 @@ async function buildAnnotatedPdf(includeTs) {
           if (a.rot) tOpts.rotate = PDFLib.degrees(-a.rot);
           page.drawText(line, tOpts);
         });
+      } else if (a.type === 'video') {
+        // The pill bakes in as a purple button; a real PDF link annotation on
+        // top makes it tappable in the downloaded copy.
+        var vq1 = cv(a.x, a.y), vq2 = cv(a.x + (a.w || 150), a.y + (a.h || 30));
+        var vx = Math.min(vq1.x, vq2.x), vy = Math.min(vq1.y, vq2.y);
+        var vw = Math.abs(vq2.x - vq1.x), vh = Math.abs(vq2.y - vq1.y);
+        page.drawRectangle({
+          x: vx, y: vy, width: vw, height: vh,
+          color: rgb(0.42, 0.45, 0.85), borderColor: rgb(0.33, 0.35, 0.72), borderWidth: 1
+        });
+        var vLabel = 'Watch video solution';
+        var vSize = 9.5;
+        var vTextW = font.widthOfTextAtSize(vLabel, vSize);
+        var vTriX = vx + Math.max(6, (vw - vTextW - 12) / 2);
+        page.drawSvgPath('M 0 0 L 0 8 L 7 4 Z', { x: vTriX, y: vy + vh / 2 + 4, color: rgb(1, 1, 1) });
+        page.drawText(vLabel, {
+          x: vTriX + 12, y: vy + (vh - vSize) / 2 + 1,
+          size: vSize, font: font, color: rgb(1, 1, 1)
+        });
+        try {
+          var vLinkRef = outDoc.context.register(outDoc.context.obj({
+            Type: 'Annot', Subtype: 'Link',
+            Rect: [vx, vy, vx + vw, vy + vh],
+            Border: [0, 0, 0],
+            A: { Type: 'Action', S: 'URI', URI: PDFLib.PDFString.of(a.url || '') }
+          }));
+          var vAnnots = page.node.lookup(PDFLib.PDFName.of('Annots'));
+          if (vAnnots) vAnnots.push(vLinkRef);
+          else page.node.set(PDFLib.PDFName.of('Annots'), outDoc.context.obj([vLinkRef]));
+        } catch (linkErr) {
+          console.warn('Could not add the PDF link for a video button', linkErr);
+        }
       }
 
       // Timestamp label beside the annotation, mirroring the on-screen view
@@ -6706,6 +7005,19 @@ $('sharePwSetInput').addEventListener('keydown', function (e) {
 $('shareGatePwInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); $('shareGateOkBtn').click(); }
 });
+/* Video solution buttons */
+$('videoBtnSaveBtn').addEventListener('click', saveVideoBtn);
+$('videoBtnRemoveBtn').addEventListener('click', removeVideoBtn);
+$('videoBtnWatchBtn').addEventListener('click', watchVideoBtnFromModal);
+$('videoBtnCancelBtn').addEventListener('click', closeVideoBtnModal);
+$('videoBtnCloseBtn').addEventListener('click', closeVideoBtnModal);
+$('videoBtnModal').addEventListener('click', function (e) {
+  if (e.target === $('videoBtnModal')) closeVideoBtnModal();
+});
+$('videoBtnUrlInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); saveVideoBtn(); }
+});
+
 $('videoAttachBtn').addEventListener('click', attachVideoLink);
 $('videoRemoveBtn').addEventListener('click', removeVideo);
 $('videoWatchBtn').addEventListener('click', openVideoModal);
@@ -6915,6 +7227,7 @@ document.addEventListener('keydown', function (e) {
   var ae = document.activeElement;
   var editingText = ae && (ae.isContentEditable ||
     ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT');
+  if (e.key === 'Escape') closeVideoPops(); // Esc always folds an open video away
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDoc();
@@ -6955,7 +7268,7 @@ document.addEventListener('keydown', function (e) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); downloadAnnotated(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); if (!isSharedVisitor()) printAnnotated(); return; }
   if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; clearLassoSel(false); renderAllOverlays(); return; }
-  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso' };
+  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
   var uiKeys = { f: 'fitBtn', b: 'focusBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn' };
