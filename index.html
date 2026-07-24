@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<!-- maximum-scale stops iOS zooming the page when a keyword input gets
-     focus; two-finger pinch zoom is handled by the app itself. -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<!-- No maximum-scale: iOS has ignored it since iOS 10, so it never stopped
+     the focus zoom it was added for — it only blocked pinch-zoom for
+     low-vision users on other browsers. Fields are 16px on touch instead,
+     which is what actually prevents iOS zooming into them. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDF Annotator — Polymath Learning Centre</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
@@ -483,6 +485,11 @@
     z-index: 60;
     display: none;
     align-items: center;
+    /* ~800px of buttons on one unwrapped row meant Delete and the close
+       button sat off-screen on any tablet in portrait, and on every phone. */
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: calc(100vw - 16px);
     gap: 8px;
     background: #fff;
     border: 1px solid var(--line);
@@ -667,7 +674,12 @@
     pointer-events: none;
     white-space: nowrap;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
-    animation: fadeUp 0.2s ease both;
+    /* No entry animation: this element is destroyed and rebuilt on every
+       overlay render, so an animation restarted each frame during a drag or
+       a zoom and the badge visibly vibrated instead of settling. */
+    max-width: calc(100% - 8px);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   svg.overlay [data-handle] { fill: #fff; stroke: var(--accent-deep); stroke-width: 2; }
   svg.overlay [data-handle="nw"], svg.overlay [data-handle="se"] { cursor: nwse-resize; }
@@ -685,7 +697,9 @@
     border-radius: 999px;
     padding: 4px 6px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-    animation: fadeUp 0.2s ease both;
+    /* Rebuilt on every overlay render — see .editBadge above. */
+    max-width: calc(100% - 8px);
+    flex-wrap: wrap;
   }
   .aiBar button {
     border: none;
@@ -982,6 +996,129 @@
     #thumbResizer { display: none !important; }
     #mainRow { position: relative; }
   }
+
+  /* ---------- Touch devices: no sticky :hover, real press feedback ----------
+     iOS/iPadOS latches :hover onto whatever was tapped and holds it until
+     something else is tapped. That left the last-used tool looking selected
+     next to the genuinely active one, and left answered keyword boxes
+     highlighted. Neutralise hover styling where the device cannot hover and
+     give a proper pressed state in its place. */
+  @media (hover: none) {
+    .btn:hover { box-shadow: var(--shadow-btn); transform: none; }
+    .btnPrimary:hover { background: var(--accent); }
+    .btnShare:hover { background: linear-gradient(135deg, #42A5F5, #7E57C2); }
+    .toolBtn:hover { transform: none; }
+    .toolBtn:hover:not(.active) { background: transparent; }
+    .colorChip:hover { transform: none; }
+    .qItem:hover { transform: none; }
+    .pickChip:hover { transform: none; }
+    .authInfo.clickable:hover { background: transparent; }
+    #thumbResizer:hover:not(.dragging) { background: transparent; }
+    .aiBar button:hover { background: none; }
+    .modalClose:hover { background: none; }
+    .docRow:hover { background: transparent; }
+    svg.overlay.kwMode .annText span[data-w]:hover { outline: none; }
+    svg.overlay .annText span.kwHidden:hover { outline: none; background: #ECECEA; }
+
+    /* The press feedback that :hover used to stand in for. */
+    .toolBtn:active { background: #E8E6E3; }
+    .colorChip:active { transform: scale(0.94); }
+    .qItem:active, .pickChip:active, .shareOpt:active, .docRow:active { background: #F1F0EE; }
+    .aiBar button:active, .modalClose:active { background: #EDEAE4; }
+  }
+
+  /* ---------- Touch ergonomics ---------- */
+  @media (pointer: coarse) {
+    /* Apple's minimum comfortable target is 44px; these were 24-38px. The
+       hit area grows without moving anything: the visual size is kept and
+       an invisible centred pad extends the tappable region. */
+    .toolBtn { width: 44px; height: 44px; }
+    .colorChip, #customColor, .modalClose, .aiBar button, .reviseToggleRow input { position: relative; }
+    .colorChip::after, #customColor::after, .modalClose::after,
+    .aiBar button::after, .reviseToggleRow input::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px; height: 44px;
+    }
+    .btn { min-height: 44px; }
+    /* A 6px drag strip is unusable by finger — widen the grab area only. */
+    #thumbResizer { flex-basis: 22px; width: 22px; margin-right: -16px; }
+    /* Keyword boxes are the main student interaction in revise mode. */
+    .kwHidden { padding: 6px 5px; }
+    /* Which words are markable was shown only on hover, i.e. never on iPad. */
+    svg.overlay.kwMode .annText span[data-w] {
+      outline: 1px dashed rgba(198, 134, 42, 0.45);
+      outline-offset: 1px;
+      border-radius: 3px;
+    }
+    /* Below 16px iOS zooms the whole page when the field takes focus, and
+       never zooms back — the single most jarring thing on an iPad. */
+    #kwInput, #videoUrlInput, .fieldRow input, .fieldRow select,
+    .stuCreate .docEditRow input[type="text"] { font-size: 16px; }
+    .kwGuessInput { font-size: max(16px, 1em); }
+  }
+
+  /* No grey iOS tap flash on chrome; no accidental text selection or
+     magnifier callout when a hand rests on a panel. */
+  .btn, .toolBtn, .colorChip, .qItem, .pickChip, .shareOpt,
+  .docRow, .modalClose, .thumbItem, .aiBar button { -webkit-tap-highlight-color: transparent; }
+  .polymath-header, #toolbar, #sideBar, #qDrawer, #thumbPanel, .modalHead, #lassoBar {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .modalBody, .askAiA, .checkFeedback { -webkit-user-select: text; user-select: text; }
+
+  /* Flicking a nested list past its end used to chain into the page behind. */
+  #askAiThread, .modalBody, #sideBar, #qDrawer, #thumbPanel { overscroll-behavior: contain; }
+
+  /* Pinching the margins around the page zoomed the whole UI — header and
+     toolbar included — because only the page overlay claimed the gesture. */
+  #viewerArea { touch-action: pan-x pan-y; }
+
+  /* Tool buttons had no flex-shrink, so on a narrow screen the row squashed
+     them into deformed slivers instead of scrolling. */
+  .toolBtn, .colorChip, .tSep, .tGroup { flex: 0 0 auto; }
+  @media (max-width: 1100px) {
+    #toolbar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+    }
+    #toolbar::-webkit-scrollbar { display: none; }
+  }
+
+  /* iPads land between the old 640px breakpoint and the desktop layout, so
+     they used to get 424px of panels on an 834px screen. */
+  @media (max-width: 1100px) {
+    #sideBar.open, #qDrawer.open, #thumbPanel.open {
+      position: absolute;
+      z-index: 40;
+      height: 100%;
+      box-shadow: var(--shadow-modal);
+    }
+    #qDrawer.open { z-index: 45; }
+    #thumbPanel.open { z-index: 38; }
+    #mainRow { position: relative; }
+    #panelScrim.on { display: block; }
+  }
+  #panelScrim {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 37;
+    background: rgba(20, 20, 18, 0.28);
+  }
+
+  /* On iOS the keyboard shrinks the visible viewport without changing vh,
+     so a modal's input could sit behind it. --vvh tracks the real height. */
+  .modalBack { padding: 7vh 16px; padding: min(7vh, 7dvh) 16px; }
+  .modalCard { max-height: 78vh; max-height: min(78dvh, calc(var(--vvh, 100vh) - 64px)); }
+  #askAiThread { max-height: 42vh; max-height: min(42dvh, calc(var(--vvh, 100vh) * 0.36)); }
+  .askAiRow { position: sticky; bottom: 0; background: #fff; }
 </style>
 </head>
 <body>
@@ -1146,6 +1283,7 @@
 </div>
 
 <div id="mainRow">
+<div id="panelScrim"></div>
 <aside id="qDrawer">
   <div class="qDrawerHead">
     <h3>Questions</h3>
@@ -1805,7 +1943,10 @@ function setStylusOnly(on, quiet) {
 function eraseAlong(x1, y1, x2, y2) {
   if (!erasing) return;
   var dist = Math.hypot(x2 - x1, y2 - y1);
-  var steps = Math.max(1, Math.ceil(dist / 6));
+  // Each step is a hit-test that forces layout, so a fast flick must not be
+  // allowed to fire dozens of them in one move event.
+  var steps = Math.min(12, Math.max(1, Math.ceil(dist / 10)));
+  var changed = false;
   for (var i = 0; i <= steps; i++) {
     var x = x1 + (x2 - x1) * i / steps;
     var y = y1 + (y2 - y1) * i / steps;
@@ -1819,8 +1960,12 @@ function eraseAlong(x1, y1, x2, y2) {
     if (selectedId === id) selectedId = null;
     if (editModeId === id) editModeId = null;
     erasing.removed = true;
-    renderOverlay(erasing.page);
+    // Drop the node now so the remaining hit-tests in this loop don't see
+    // it; the authoritative rebuild happens once, after the loop.
+    if (host.parentNode) host.parentNode.removeChild(host);
+    changed = true;
   }
+  if (changed) renderOverlay(erasing.page);
 }
 
 /* ================= Small helpers ================= */
@@ -2028,33 +2173,85 @@ async function loadPdf(bytes, name) {
   toast('Loaded “' + docName + '” — ' + pdfDoc.numPages + ' page' + (pdfDoc.numPages > 1 ? 's' : ''));
 }
 
+/* Zoom used to resize AND re-rasterise every page in the document on every
+   step, straight from the pinch's pointermove. Assigning canvas.width wipes
+   the bitmap, and the replacement render was cancelled by the next step
+   before it ever painted — so during a pinch the whole document flashed
+   white. Now the geometry is applied immediately (cheap, and the canvas is
+   CSS-stretched to fill it, so pages stay visible and merely soften), while
+   the real rasterisation is deferred and limited to the pages on screen. */
+var rasterTimer = null;
+var fittedWidth = false;
+
 function applyScale() {
   $('zoomLabel').textContent = Math.round(scale * 100) + '%';
   pages.forEach(function (p) {
     p.wrap.style.width = (p.baseW * scale) + 'px';
     p.wrap.style.height = (p.baseH * scale) + 'px';
-    renderPageCanvas(p);
-    renderEditChrome(p); // keep the edit badge aligned after zooming
   });
   updateToolCursor();
   if (typeof positionLassoBar === 'function') positionLassoBar();
+  scheduleRaster();
+}
+
+function scheduleRaster() {
+  clearTimeout(rasterTimer);
+  rasterTimer = setTimeout(function () {
+    rasterTimer = null;
+    rasterVisiblePages();
+    pages.forEach(renderEditChrome); // keep the edit badge aligned after zooming
+  }, 130);
+}
+
+/* Only pages within a screen of the viewport are worth rasterising: a
+   10-page worksheet at fit-width on an iPad is ~27 MB of canvas per page,
+   and holding every one resident is what makes Safari discard the tab. */
+function rasterVisiblePages() {
+  var area = $('viewerArea');
+  if (!area || !pages.length) return;
+  var top = area.scrollTop - area.clientHeight;
+  var bottom = area.scrollTop + area.clientHeight * 2;
+  pages.forEach(function (p) {
+    var pTop = p.wrap.offsetTop;
+    var pBottom = pTop + p.wrap.offsetHeight;
+    if (pBottom >= top && pTop <= bottom) renderPageCanvas(p);
+    else releasePageCanvas(p);
+  });
+}
+
+function releasePageCanvas(p) {
+  if (!p.canvas.width) return; // already released
+  if (p.renderTask) { try { p.renderTask.cancel(); } catch (e) {} p.renderTask = null; }
+  p.canvas.width = 0;
+  p.canvas.height = 0;
+  p._rasterAt = null;
 }
 
 function renderPageCanvas(p) {
-  if (p.renderTask) { try { p.renderTask.cancel(); } catch (e) {} }
+  // iOS Safari refuses canvases over ~16.7M pixels and silently leaves them
+  // blank, which a 400% zoom on A4 comfortably exceeds. Cap the rasterised
+  // resolution and let CSS stretch it — soft beats blank.
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  var viewport = p.page.getViewport({ scale: scale * dpr });
+  var raster = Math.min(scale, 2.5);
+  while (raster * dpr * p.baseW * raster * dpr * p.baseH > 16000000 && dpr > 0.5) dpr /= 2;
+  var want = raster * dpr;
+  if (p._rasterAt === want && p.canvas.width) return; // already sharp enough
+  if (p.renderTask) { try { p.renderTask.cancel(); } catch (e) {} }
+  var viewport = p.page.getViewport({ scale: want });
   p.canvas.width = Math.floor(viewport.width);
   p.canvas.height = Math.floor(viewport.height);
+  p._rasterAt = want;
   var ctx = p.canvas.getContext('2d');
   p.renderTask = p.page.render({ canvasContext: ctx, viewport: viewport });
-  p.renderTask.promise.catch(function () { /* cancelled — fine */ });
+  p.renderTask.promise.then(function () { p.renderTask = null; })
+                      .catch(function () { /* cancelled — fine */ });
 }
 
 function zoomBy(factor) {
   var area = $('viewerArea');
   var ratio = area.scrollTop / Math.max(1, area.scrollHeight);
   scale = Math.min(4, Math.max(0.25, scale * factor));
+  fittedWidth = false;
   applyScale();
   area.scrollTop = ratio * area.scrollHeight;
 }
@@ -2063,6 +2260,7 @@ function fitWidth() {
   if (!pages.length) return;
   var avail = $('viewerArea').clientWidth - 48;
   scale = Math.min(4, Math.max(0.25, avail / pages[0].baseW));
+  fittedWidth = true;
   applyScale();
 }
 
@@ -2112,26 +2310,49 @@ function buildThumbs() {
     item.addEventListener('click', function () {
       $('viewerArea').scrollTop = p.wrap.offsetTop - 20;
     });
-    var t = { item: item, canvas: canvas, svg: svg, renderTask: null, timer: null };
-    // Mirror the page overlay onto the thumbnail whenever annotations change.
-    function mirrorOverlay() {
-      t.svg.innerHTML = p.svg.innerHTML;
-      // The copies are display-only — a text box being edited must not
-      // carry its editable state into the preview.
-      t.svg.querySelectorAll('[contenteditable]').forEach(function (d) {
-        d.setAttribute('contenteditable', 'false');
+    var t = { item: item, canvas: canvas, svg: svg, renderTask: null, timer: null, dirty: false };
+    /* Mirror the page overlay onto the thumbnail. This used to serialise the
+       whole overlay to a string and reparse it 250ms after ANY change —
+       including every `d` attribute written while a pen stroke was being
+       drawn — and it ran even with the panel hidden. Now it is skipped
+       entirely while the panel is closed or a gesture is live, and clones
+       nodes instead of round-tripping through HTML. */
+    t.mirror = function mirrorOverlay() {
+      if (!$('thumbPanel').classList.contains('open')) { t.dirty = true; return; }
+      if (drawing || erasing || lasering || lassoing || lassoMoving || lassoResizing || lassoRotating) {
+        t.dirty = true;
+        return;
+      }
+      t.dirty = false;
+      var copies = [];
+      Array.prototype.forEach.call(p.svg.children, function (n) {
+        if (!n.getAttribute || !n.getAttribute('data-id')) return; // skip chrome
+        var c = n.cloneNode(true);
+        // The copies are display-only — a text box being edited must not
+        // carry its editable state into the preview.
+        c.querySelectorAll('[contenteditable]').forEach(function (d) {
+          d.setAttribute('contenteditable', 'false');
+        });
+        copies.push(c);
       });
-    }
+      t.svg.replaceChildren.apply(t.svg, copies);
+    };
     t.observer = new MutationObserver(function () {
+      if (!$('thumbPanel').classList.contains('open')) { t.dirty = true; return; }
       clearTimeout(t.timer);
-      t.timer = setTimeout(mirrorOverlay, 250);
+      t.timer = setTimeout(t.mirror, 250);
     });
-    t.observer.observe(p.svg, { childList: true, subtree: true, attributes: true, characterData: true });
-    mirrorOverlay();
+    t.observer.observe(p.svg, { childList: true, subtree: true });
+    t.mirror();
     thumbs.push(t);
   });
   renderAllThumbCanvases();
   markCurrentThumb();
+}
+
+/* Mirrors skipped while the panel was closed are caught up when it opens. */
+function flushDirtyThumbs() {
+  thumbs.forEach(function (t) { if (t.dirty && t.mirror) t.mirror(); });
 }
 
 function renderThumbCanvas(t, p) {
@@ -2170,12 +2391,49 @@ function setThumbPanelOpen(open) {
   if (open) {
     $('thumbPanel').style.width = thumbW + 'px';
     markCurrentThumb();
+    flushDirtyThumbs(); // mirrors skipped while the panel was hidden
   }
+  syncPanelScrim();
+}
+
+/* ---- Floating panels on tablets/phones ----
+   Below 1100px the side panels overlay the worksheet instead of sitting
+   beside it (three of them open at once used to eat half an iPad screen),
+   so they get a backdrop that dismisses them. */
+var PANEL_FLOAT_MAX = 1100;
+function panelsFloat() { return window.innerWidth <= PANEL_FLOAT_MAX; }
+
+function syncPanelScrim() {
+  var anyOpen = $('sideBar').classList.contains('open') ||
+                $('qDrawer').classList.contains('open') ||
+                $('thumbPanel').classList.contains('open');
+  $('panelScrim').classList.toggle('on', anyOpen && panelsFloat());
+}
+
+function closeFloatingPanels() {
+  $('sideBar').classList.remove('open');
+  if ($('qDrawer').classList.contains('open')) toggleQuestionsDrawer();
+  if ($('thumbPanel').classList.contains('open')) setThumbPanelOpen(false);
+  syncPanelScrim();
 }
 
 /* ================= Annotation rendering ================= */
 function renderAllOverlays() {
   pages.forEach(renderOverlay);
+}
+
+/* Coalesced variant for controls that fire continuously while dragged (the
+   stroke-width and font sliders, the colour picker). Each of those events
+   used to tear down and rebuild every annotation on every page. Callers that
+   read the DOM straight afterwards must keep using renderAllOverlays(). */
+var overlaysPending = false;
+function scheduleOverlays() {
+  if (overlaysPending) return;
+  overlaysPending = true;
+  requestAnimationFrame(function () {
+    overlaysPending = false;
+    renderAllOverlays();
+  });
 }
 
 function renderOverlay(p) {
@@ -2330,9 +2588,15 @@ function placeBarBesideBadge(p, box, bar) {
   bar.style.left = left + 'px';
   bar.style.top = top + 'px';
   p.wrap.appendChild(bar);
-  // Keep the bar on the page if the badge pushed it past the right edge.
+  // On a narrow screen the badge and the bar cannot share a row: clamping
+  // the bar back left simply dropped it on top of the badge. Give it its own
+  // row underneath instead.
   var maxLeft = p.wrap.clientWidth - bar.offsetWidth - 4;
-  if (left > maxLeft) bar.style.left = Math.max(4, maxLeft) + 'px';
+  if (left > maxLeft) {
+    var badgeH = badge ? badge.offsetHeight : 22;
+    bar.style.left = Math.max(4, Math.min(box.x * scale - 5, maxLeft)) + 'px';
+    bar.style.top = (top + badgeH + 6) + 'px';
+  }
 }
 
 /* During practice the floating bar offers Check instead of the teacher's
@@ -2687,6 +2951,13 @@ function startKwGuess(span, p) {
   try { input.focus({ preventScroll: true }); } catch (err) { input.focus(); }
   setTimeout(function () { // fallback if something stole focus straight back
     if (kwGuessActive && kwGuessActive.input === input && document.activeElement !== input) input.focus();
+    // With the on-screen keyboard up, a box in the lower half of the screen
+    // ends up behind it — preventScroll stops the browser rescuing it, so
+    // bring it into view here instead.
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches &&
+        kwGuessActive && kwGuessActive.input === input && span.scrollIntoView) {
+      span.scrollIntoView({ block: 'center', inline: 'nearest' });
+    }
   }, 0);
 
   input.addEventListener('keydown', function (ev) {
@@ -3461,12 +3732,21 @@ function attachOverlayHandlers(p) {
       // The stroke has snapped to a shape — dragging now adjusts it
       // (line endpoint, circle radius, polygon corner, curve end).
       a.points = snapShapePoints(drawing.snap, pt2);
+      drawing._d = null; // points replaced wholesale, not appended to
       redrawTemp();
       return;
     }
     if (a.type === 'pen' || a.type === 'highlight') {
-      var last = a.points[a.points.length - 1];
-      if (Math.abs(pt2.x - last.x) + Math.abs(pt2.y - last.y) >= 1) a.points.push(pt2);
+      // An Apple Pencil samples far faster than pointermove is dispatched;
+      // the extra samples are only reachable through getCoalescedEvents, and
+      // dropping them is what made quick handwriting come out angular.
+      var samples = (e.getCoalescedEvents && e.getCoalescedEvents()) || null;
+      if (!samples || !samples.length) samples = [e];
+      for (var si = 0; si < samples.length; si++) {
+        var sp = (samples[si] === e) ? pt2 : eventPoint(samples[si], p);
+        var last = a.points[a.points.length - 1];
+        if (Math.abs(sp.x - last.x) + Math.abs(sp.y - last.y) >= 1) a.points.push(sp);
+      }
       // Any real movement re-arms the hold-to-snap timer; staying within
       // the jitter radius lets it run out and snap the shape.
       if (Math.hypot(e.clientX - drawing.holdCX, e.clientY - drawing.holdCY) > SNAP_JITTER_PX) {
@@ -3607,6 +3887,14 @@ function attachOverlayHandlers(p) {
       activePointerId = null;
       return;
     }
+    if (lassoRotating && lassoRotating.page === p) {
+      // Without this the rotate survived the cancel, and every later touch
+      // anywhere on the page went on spinning the selection — the page
+      // looked frozen until the tool was changed.
+      endLassoRotate();
+      activePointerId = null;
+      return;
+    }
     if (lassoResizing && lassoResizing.page === p) {
       endLassoResize();
       activePointerId = null;
@@ -3657,6 +3945,7 @@ function attachOverlayHandlers(p) {
     var busy = (drawing && drawing.page === p) || (erasing && erasing.page === p) ||
                (lasering && lasering.page === p) || (lassoing && lassoing.page === p) ||
                (lassoMoving && lassoMoving.page === p) || (lassoResizing && lassoResizing.page === p) ||
+               (lassoRotating && lassoRotating.page === p) ||
                (draggingSel && draggingSel.page === p) || (resizingSel && resizingSel.page === p);
     if (busy) cancelGesture(e);
   });
@@ -3707,11 +3996,27 @@ function redrawTemp(force) {
   var a = drawing.ann;
   // Fast path: while a pen/highlight stroke grows, only the path data
   // changes — rebuilding the whole node on every pointermove makes quick
-  // dots and fast writing stutter on the iPad.
+  // dots and fast writing stutter on the iPad. The `d` string is extended
+  // in place rather than rebuilt from all points, which used to make a
+  // stroke cost more the longer it got (a full line of working could be
+  // 1500 points re-serialised on every single frame).
   if (!force && drawing.svgNode && (a.type === 'pen' || a.type === 'highlight')) {
     var path = drawing.svgNode.querySelector('path');
-    if (path) { path.setAttribute('d', pathFromPoints(a.points)); return; }
+    if (path) {
+      if (drawing._d && drawing._dCount <= a.points.length) {
+        for (var i = drawing._dCount; i < a.points.length; i++) {
+          drawing._d += ' L ' + a.points[i].x + ' ' + a.points[i].y;
+        }
+      } else {
+        drawing._d = pathFromPoints(a.points); // first frame, or points replaced
+      }
+      drawing._dCount = a.points.length;
+      path.setAttribute('d', drawing._d);
+      return;
+    }
   }
+  drawing._d = null; // a full rebuild invalidates the incremental string
+  drawing._dCount = 0;
   if (drawing.svgNode) p.svg.removeChild(drawing.svgNode);
   drawing.svgNode = annNode(a);
   drawing.svgNode.setAttribute('pointer-events', 'none');
@@ -6599,6 +6904,7 @@ function toggleQuestionsDrawer() {
   var open = $('qDrawer').classList.toggle('open');
   $('burgerBtn').classList.toggle('active', open);
   if (open) loadQuestionsList();
+  syncPanelScrim();
 }
 
 function questionSortTime(d) {
@@ -7235,7 +7541,7 @@ $('strokeRange').addEventListener('input', function (e) {
     if (a && a.width !== undefined && a.type !== 'text') {
       if (!strokeUndoPushed) { pushUndo(); strokeUndoPushed = true; }
       a.width = strokeW;
-      renderAllOverlays();
+      scheduleOverlays();
       setDirty(true);
     }
   }
@@ -7252,7 +7558,7 @@ $('fontRange').addEventListener('input', function (e) {
     if (a && a.type === 'text') {
       if (!fontUndoPushed) { pushUndo(); fontUndoPushed = true; }
       a.fontSize = fontSize;
-      renderAllOverlays();
+      scheduleOverlays();
       setDirty(true);
     }
   }
@@ -7288,9 +7594,16 @@ $('tsToggleBtn').addEventListener('click', function () {
 });
 $('sideToggleBtn').addEventListener('click', function () {
   $('sideBar').classList.toggle('open');
+  syncPanelScrim();
 });
 $('thumbToggleBtn').addEventListener('click', function () {
   setThumbPanelOpen(!$('thumbPanel').classList.contains('open'));
+});
+/* On a tablet the panels float over the worksheet, so they need a way out
+   that isn't hunting for the button that opened them. */
+$('panelScrim').addEventListener('pointerdown', function (e) {
+  e.preventDefault();
+  closeFloatingPanels();
 });
 
 /* Drag the strip between the thumbnails and the page to resize the previews */
@@ -7447,6 +7760,9 @@ viewerArea.addEventListener('scroll', function () {
     thumbScrollPending = false;
     markCurrentThumb();
   });
+  // Pages are only rasterised near the viewport, so scrolling has to bring
+  // the newly-approaching ones up to resolution.
+  scheduleRaster();
 }, { passive: true });
 window.addEventListener('resize', positionLassoBar);
 ['dragenter', 'dragover'].forEach(function (evt) {
@@ -7508,6 +7824,7 @@ function zoomAt(clientX, clientY, factor) {
   var ox = clientX - rect.left + viewerArea.scrollLeft;
   var oy = clientY - rect.top + viewerArea.scrollTop;
   scale = newScale;
+  fittedWidth = false;
   applyScale();
   viewerArea.scrollLeft = ox * f - (clientX - rect.left);
   viewerArea.scrollTop = oy * f - (clientY - rect.top);
@@ -7524,6 +7841,30 @@ function abortYoungStroke(ts) {
   }
 }
 
+/* A second finger arriving on an established finger-stroke means "navigate",
+   but the ink already drawn is the student's work — keep it rather than
+   throwing it away, then clear the gesture so pinch/pan can take over. */
+function commitTouchStrokeForNav() {
+  if (!drawing || drawing.isText) return;
+  clearTimeout(drawing.holdTimer);
+  var a = drawing.ann;
+  var node = drawing.svgNode;
+  var pg = drawing.page;
+  drawing = null;
+  activePointerId = null;
+  var keep = (a.type === 'pen' || a.type === 'highlight') && a.points && a.points.length >= 2;
+  if (keep) {
+    delete a._sx; delete a._sy;
+    pushUndo();
+    annotations.push(a);
+    setDirty(true);
+    if (node && node.parentNode) node.removeAttribute('pointer-events');
+    else if (pg) renderOverlay(pg);
+  } else if (node && node.parentNode) {
+    node.parentNode.removeChild(node);
+  }
+}
+
 viewerArea.addEventListener('pointerdown', function (e) {
   if (e.pointerType !== 'touch') return;
   stopNavMomentum();
@@ -7531,6 +7872,13 @@ viewerArea.addEventListener('pointerdown', function (e) {
   nav.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (nav.pts.size === 2 && nav.mode !== 'pinch') {
     abortYoungStroke(e.timeStamp);
+    // A finger stroke older than 300ms used to block pinch mode entirely:
+    // the second finger did nothing, and stayed dead until it was lifted,
+    // because native scrolling is disabled over the page. Commit the stroke
+    // and let the two fingers navigate — that is plainly what was meant.
+    if (drawing && !drawing.isText && drawing.ptrType === 'touch') {
+      commitTouchStrokeForNav();
+    }
     if (!drawing && !draggingSel && !resizingSel && !erasing) {
       nav.mode = 'pinch';
       var c = navCenterDist();
@@ -7561,8 +7909,10 @@ viewerArea.addEventListener('pointermove', function (e) {
   nav.lastT = e.timeStamp;
   if (nav.mode === 'pinch' && nav.dist > 0 && c.dist > 0) {
     var ratio = c.dist / nav.dist;
-    // Stepwise live zoom — re-rendering pages at every pixel would stutter.
-    if (ratio > 1.12 || ratio < 0.89) {
+    // Zoom now only rewrites page geometry (rasterisation is deferred until
+    // the gesture settles), so the pinch can track the fingers closely
+    // instead of jumping in the 12% steps it used to need.
+    if (ratio > 1.02 || ratio < 0.98) {
       zoomAt(c.cx, c.cy, ratio);
       nav.dist = c.dist;
     }
@@ -7721,13 +8071,24 @@ document.addEventListener('keydown', function (e) {
     tip.style.left = x + 'px';
     tip.style.top = y + 'px';
   }
+  // On a touch device there is no hover, so stripping the native title left
+  // ~23 unlabelled icons with no way at all to find out what they do. Keep
+  // the title there, and offer the label on a long press instead.
+  var canHover = !window.matchMedia || window.matchMedia('(hover: hover)').matches;
   document.querySelectorAll('#toolbar [title], .polymath-header [title]').forEach(function (btn) {
     btn.setAttribute('data-tip', btn.getAttribute('title'));
-    btn.removeAttribute('title');
+    if (canHover) btn.removeAttribute('title');
     if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', btn.getAttribute('data-tip'));
-    btn.addEventListener('mouseenter', function () { showTip(btn); });
+    btn.addEventListener('mouseenter', function () { if (canHover) showTip(btn); });
     btn.addEventListener('mouseleave', hideTip);
     btn.addEventListener('mousedown', hideTip);
+    if (!canHover) {
+      btn.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+        showTip(btn);
+        setTimeout(hideTip, 1800);
+      });
+    }
   });
   document.addEventListener('scroll', hideTip, true);
 })();
@@ -7746,9 +8107,33 @@ window.addEventListener('beforeunload', function (e) {
   e.returnValue = '';
 });
 
-window.addEventListener('resize', function () {
-  // keep the fitted look sensible on rotation / resize without forcing re-fit
-});
+/* Rotating an iPad used to leave the zoom at the old orientation's fit, so
+   the worksheet was either cut off on the right or marooned in grey. Re-fit
+   only if the user was on the fitted zoom to begin with — a deliberate zoom
+   is theirs to keep. Panels that float are closed, because a rotation into
+   portrait otherwise leaves most of the screen covered. */
+var resizeSettle = null;
+function handleViewportResize() {
+  clearTimeout(resizeSettle);
+  resizeSettle = setTimeout(function () {
+    if (typeof positionLassoBar === 'function') positionLassoBar();
+    if (pages.length && fittedWidth) fitWidth();
+    if (panelsFloat()) closeFloatingPanels();
+    syncPanelScrim();
+  }, 160);
+}
+window.addEventListener('resize', handleViewportResize);
+window.addEventListener('orientationchange', handleViewportResize);
+
+/* iOS shrinks the *visual* viewport when the keyboard opens but never fires
+   `resize`, so a modal sized in vh kept its input behind the keyboard. */
+if (window.visualViewport) {
+  var syncVVH = function () {
+    document.documentElement.style.setProperty('--vvh', window.visualViewport.height + 'px');
+  };
+  window.visualViewport.addEventListener('resize', syncVVH);
+  syncVVH();
+}
 
 // Pick up where the last session left off: same tool, same remembered styles.
 var lastTool = toolStyles._lastTool;
