@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- maximum-scale stops iOS zooming the page when a keyword input gets
+     focus; two-finger pinch zoom is handled by the app itself. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>PDF Annotator — Polymath Learning Centre</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
@@ -629,6 +631,9 @@
     border-bottom: 2px dashed var(--ink-faint);
     color: var(--ink-faint);
     letter-spacing: 1px;
+    /* Slightly padded hit area — fingers need more than the bare word. */
+    padding: 2px 3px;
+    border-radius: 3px;
   }
   .kwRevealed {
     background: #DFF2E0;
@@ -733,7 +738,7 @@
   .kwFeedback {
     position: absolute;
     z-index: 40;
-    max-width: 280px;
+    max-width: min(280px, calc(100vw - 24px));
     background: #fff;
     border-radius: 10px;
     padding: 10px 14px;
@@ -2576,25 +2581,39 @@ function startKwGuess(span, p) {
   var wordIndex = parseInt(span.getAttribute('data-w'), 10);
   var a = annotations.find(function (x) { return x.id === annId; });
   if (!a) return;
+  // The tapped span may belong to an overlay that was re-rendered a moment
+  // ago (e.g. a stale guess was just auto-submitted) — work on the live one,
+  // and only if this word is still an unanswered hidden box.
+  var live = p.svg.querySelector('[data-id="' + annId + '"] span[data-w="' + wordIndex + '"]');
+  if (live) span = live;
+  if (!span.isConnected || !span.classList.contains('kwHidden')) return;
   var words = (a.text || '').split(/\s+/).filter(function (w) { return w !== ''; });
   var answer = words[wordIndex];
   if (answer === undefined) return;
   answer = splitKwToken(answer).core; // never ask for the full stop
-
-
 
   var input = document.createElement('input');
   input.type = 'text';
   input.className = 'kwGuessInput';
   input.autocomplete = 'off';
   input.spellcheck = false;
+  input.autocapitalize = 'off';
+  input.setAttribute('autocorrect', 'off');
+  input.enterKeyHint = 'done';
   input.style.width = Math.max(5, answer.length + 2) + 'ch';
   span.textContent = '';
   span.className = 'kwActive';
   span.removeAttribute('title');
   span.appendChild(input);
   kwGuessActive = { span: span, input: input, annId: annId, wordIndex: wordIndex, answer: answer, page: p };
-  setTimeout(function () { input.focus(); }, 0);
+  // Focus synchronously: mobile browsers only open the on-screen keyboard
+  // for a focus() made inside the tap's own event handler. The deferred
+  // focus this used to do left the box dead on iPads/phones — and with no
+  // blur ever coming, kwGuessActive then locked out every later tap too.
+  try { input.focus({ preventScroll: true }); } catch (err) { input.focus(); }
+  setTimeout(function () { // fallback if something stole focus straight back
+    if (kwGuessActive && kwGuessActive.input === input && document.activeElement !== input) input.focus();
+  }, 0);
 
   input.addEventListener('keydown', function (ev) {
     ev.stopPropagation();
@@ -2614,8 +2633,14 @@ function finishKwGuess(submit) {
     renderAllOverlays(); // restore the hidden box untouched
     return;
   }
-  // Anchor position for the feedback card, captured before re-rendering
-  var spanRect = g.span.getBoundingClientRect();
+  // Anchor position for the feedback card, captured before re-rendering.
+  // If the overlay was rebuilt under us the original span is detached and
+  // measures 0×0 at the origin — anchor to the live span instead.
+  var spanEl = g.span;
+  if (!spanEl.isConnected) {
+    spanEl = g.page.svg.querySelector('[data-id="' + g.annId + '"] span[data-w="' + g.wordIndex + '"]') || spanEl;
+  }
+  var spanRect = spanEl.getBoundingClientRect();
   var wrapRect = g.page.wrap.getBoundingClientRect();
   var anchor = {
     left: spanRect.left - wrapRect.left,
@@ -2642,11 +2667,12 @@ function showKwFeedback(p, anchor, correct, guess, answer) {
       '<div class="kwFbAns">You wrote “' + escHtml(guess) + '”.<br>Correct answer: <b>' +
       escHtml(answer) + '</b></div>';
   }
+  p.wrap.appendChild(fb);
+  // Clamp with the card's real size so it stays on-page on small screens.
   var wrapW = p.wrap.clientWidth;
   var wrapH = p.wrap.clientHeight;
-  fb.style.left = Math.max(6, Math.min(anchor.left, wrapW - 290)) + 'px';
-  fb.style.top = Math.max(6, Math.min(anchor.top + 8, wrapH - 90)) + 'px';
-  p.wrap.appendChild(fb);
+  fb.style.left = Math.max(6, Math.min(anchor.left, wrapW - fb.offsetWidth - 6)) + 'px';
+  fb.style.top = Math.max(6, Math.min(anchor.top + 8, wrapH - fb.offsetHeight - 6)) + 'px';
   setTimeout(function () { fb.style.opacity = '0'; }, correct ? 2200 : 4200);
   setTimeout(function () { fb.remove(); }, correct ? 2700 : 4700);
 }
@@ -3093,7 +3119,16 @@ function attachOverlayHandlers(p) {
 
     if (reviseMode) {
       // Students answer keyword boxes; drawing is paused while revising.
-      if (kwGuessActive) return; // the input's blur handles submission
+      if (kwGuessActive) {
+        if (e.target === kwGuessActive.input) return; // typing in the box
+        if (kwGuessActive.input.isConnected && document.activeElement === kwGuessActive.input) {
+          return; // the input's blur handles submission
+        }
+        // The input is gone or never got focus (mobile keyboards, overlay
+        // re-renders) — no blur is coming, so submit it here instead of
+        // silently swallowing every tap until revise mode is toggled.
+        finishKwGuess(true);
+      }
       var kwSpan = e.target.closest ? e.target.closest('span.kwHidden') : null;
       if (kwSpan) {
         e.preventDefault();
