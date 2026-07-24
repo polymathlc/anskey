@@ -696,6 +696,11 @@
   }
   .aiBar button:hover { background: #F6F1E7; }
   .aiBar button:disabled { opacity: 0.5; cursor: default; }
+  .aiBar button.aiBarToggle {
+    color: var(--ink-faint);
+    font-weight: normal;
+    padding: 4px 8px;
+  }
 
   /* ---------- Revise mode: click-to-type keyword boxes ---------- */
   svg.overlay .annText span.kwHidden { cursor: text; }
@@ -1787,6 +1792,17 @@ function annFrameCorners(a) {
   return cs.map(function (q) { return rotPt(q, c, a.rot); });
 }
 function normWord(w) { return (w || '').toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''); }
+
+/* Split a token into leading punctuation, keyword core and trailing
+   punctuation, so a marked keyword never includes the full stop or comma
+   stuck to the word ("photosynthesis." → core "photosynthesis"). Tokens
+   with no alphanumeric core (dashes, symbols) are kept whole. */
+function splitKwToken(tok) {
+  var core = tok.replace(/^[^A-Za-z0-9]+/, '').replace(/[^A-Za-z0-9]+$/, '');
+  if (!core) return { lead: '', core: tok, trail: '' };
+  var i = tok.indexOf(core);
+  return { lead: tok.slice(0, i), core: core, trail: tok.slice(i + core.length) };
+}
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -2229,6 +2245,26 @@ function renderEditChrome(p) {
   else if (a.type === 'text' && !isStudent() && !isSharedVisitor()) renderAiBar(p, a, box);
 }
 
+/* Place a floating bar on the badge row above the box, to the right of the
+   edit badge. The bar used to sit below the box, but typed text overflows
+   the stored box height downwards, so the bar ended up on top of the very
+   lines being typed. Above the box it can never collide with the text. */
+function placeBarBesideBadge(p, box, bar) {
+  var badge = p.wrap.querySelector('.editBadge');
+  var left = Math.max(4, box.x * scale - 5);
+  var top = Math.max(4, box.y * scale - 34);
+  if (badge) {
+    left = (parseFloat(badge.style.left) || left) + badge.offsetWidth + 8;
+    top = parseFloat(badge.style.top) || top;
+  }
+  bar.style.left = left + 'px';
+  bar.style.top = top + 'px';
+  p.wrap.appendChild(bar);
+  // Keep the bar on the page if the badge pushed it past the right edge.
+  var maxLeft = p.wrap.clientWidth - bar.offsetWidth - 4;
+  if (left > maxLeft) bar.style.left = Math.max(4, maxLeft) + 'px';
+}
+
 /* During practice the floating bar offers Check instead of the teacher's
    Answer/Improve — right where the student is answering. */
 function renderPracticeBar(p, a, box) {
@@ -2236,9 +2272,6 @@ function renderPracticeBar(p, a, box) {
   if (old) old.remove();
   var bar = document.createElement('div');
   bar.className = 'aiBar';
-  var boxH = Math.max(a.h || 0, (a.fontSize || 16) * 1.8, box.height || 0);
-  bar.style.left = Math.max(4, box.x * scale - 5) + 'px';
-  bar.style.top = ((box.y + boxH) * scale + 10) + 'px';
   var b = document.createElement('button');
   b.textContent = '✨ Check this answer';
   b.title = 'Gemini marks this answer against the worksheet';
@@ -2248,22 +2281,23 @@ function renderPracticeBar(p, a, box) {
     checkAnswer(a.id);
   });
   bar.appendChild(b);
-  p.wrap.appendChild(bar);
+  placeBarBesideBadge(p, box, bar);
 }
 
-/* Floating Gemini actions under the active text box: "Answer" treats the
+/* Floating Gemini actions above the active text box: "Answer" treats the
    box's text as a question and fills in the answer; "Improve" fixes grammar
    and sentence structure without changing the meaning. pointerdown (not
    click) so the action still fires when pressing the button blurs and
-   commits the text box, which re-renders this bar away before click. */
+   commits the text box, which re-renders this bar away before click.
+   The bar collapses to a lone ✨ chip; the choice sticks across boxes. */
+var aiBarMin = false;
+try { aiBarMin = localStorage.getItem('aiBarMin') === '1'; } catch (e) {}
+
 function renderAiBar(p, a, box) {
   var old = p.wrap.querySelector('.aiBar');
   if (old) old.remove();
   var bar = document.createElement('div');
   bar.className = 'aiBar';
-  var boxH = Math.max(a.h || 0, a.fontSize * 1.8);
-  bar.style.left = Math.max(4, box.x * scale - 5) + 'px';
-  bar.style.top = ((box.y + boxH) * scale + 10) + 'px';
   function addBtn(label, cls, title, fn) {
     var b = document.createElement('button');
     b.textContent = label;
@@ -2277,9 +2311,19 @@ function renderAiBar(p, a, box) {
     bar.appendChild(b);
     return b;
   }
-  addBtn('✨ Answer', '', 'Gemini answers the question typed in this box', aiAnswer);
-  addBtn('✒️ Improve', '', 'Gemini fixes grammar and sentence structure without changing the content', aiImprove);
-  p.wrap.appendChild(bar);
+  function setMin(min) {
+    aiBarMin = min;
+    try { localStorage.setItem('aiBarMin', min ? '1' : '0'); } catch (e) {}
+    renderAiBar(p, a, box); // rebuild in place — the text box keeps focus
+  }
+  if (aiBarMin) {
+    addBtn('✨', 'aiBarToggle', 'Show the Gemini Answer / Improve menu', function () { setMin(false); });
+  } else {
+    addBtn('✨ Answer', '', 'Gemini answers the question typed in this box', aiAnswer);
+    addBtn('✒️ Improve', '', 'Gemini fixes grammar and sentence structure without changing the content', aiImprove);
+    addBtn('—', 'aiBarToggle', 'Minimise this menu', function () { setMin(true); });
+  }
+  placeBarBesideBadge(p, box, bar);
 }
 
 function pathFromPoints(pts) {
@@ -2395,25 +2439,30 @@ function renderTextContent(div, a) {
     var span = document.createElement('span');
     span.setAttribute('data-w', wordIndex);
     var isKw = a.kw && a.kw.indexOf(wordIndex) !== -1;
+    // Punctuation stuck to a keyword ("cell.") stays outside the mark, so
+    // the highlight, hidden box and revealed answer never include it.
+    var parts = isKw ? splitKwToken(tok) : { lead: '', core: tok, trail: '' };
+    if (parts.lead) div.appendChild(document.createTextNode(parts.lead));
     if (isKw && reviseMode) {
       var res = kwResults[a.id + ':' + wordIndex];
       if (revealedKw[normWord(tok)] || (res && res.correct)) {
-        span.textContent = tok;
+        span.textContent = parts.core;
         span.className = 'kwRevealed';
       } else if (res && !res.correct) {
-        span.textContent = tok;
+        span.textContent = parts.core;
         span.className = 'kwWrong';
         span.title = 'You wrote “' + res.guess + '” — the correct answer is shown.';
       } else {
-        span.textContent = '_'.repeat(Math.max(4, tok.length));
+        span.textContent = '_'.repeat(Math.max(4, parts.core.length));
         span.className = 'kwHidden';
         span.title = 'Click and type the missing keyword';
       }
     } else {
-      span.textContent = tok;
+      span.textContent = parts.core;
       if (isKw) span.className = 'kwWord';
     }
     div.appendChild(span);
+    if (parts.trail) div.appendChild(document.createTextNode(parts.trail));
     wordIndex++;
   });
 }
@@ -2530,6 +2579,9 @@ function startKwGuess(span, p) {
   var words = (a.text || '').split(/\s+/).filter(function (w) { return w !== ''; });
   var answer = words[wordIndex];
   if (answer === undefined) return;
+  answer = splitKwToken(answer).core; // never ask for the full stop
+
+
 
   var input = document.createElement('input');
   input.type = 'text';
