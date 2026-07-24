@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- maximum-scale stops iOS zooming the page when a keyword input gets
+     focus; two-finger pinch zoom is handled by the app itself. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>PDF Annotator — Polymath Learning Centre</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
@@ -629,6 +631,9 @@
     border-bottom: 2px dashed var(--ink-faint);
     color: var(--ink-faint);
     letter-spacing: 1px;
+    /* Slightly padded hit area — fingers need more than the bare word. */
+    padding: 2px 3px;
+    border-radius: 3px;
   }
   .kwRevealed {
     background: #DFF2E0;
@@ -702,6 +707,53 @@
     padding: 4px 8px;
   }
 
+  /* ---------- Ask AI about a question (practice mode) ---------- */
+  .askAiCredits {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: var(--accent-deep);
+    background: #FFF3DC;
+    border: 1px solid var(--accent-strong);
+    border-radius: 999px;
+    padding: 2px 10px;
+    vertical-align: middle;
+  }
+  .askAiCredits.low { color: var(--danger); background: #FDE3E1; border-color: var(--danger); }
+  #askAiThread {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 42vh;
+    overflow-y: auto;
+    margin: 10px 0 2px;
+  }
+  .askAiQ, .askAiA {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    max-width: 88%;
+    white-space: pre-wrap;
+  }
+  .askAiQ { align-self: flex-end; background: #FFF3DC; border: 1px solid var(--accent-strong); }
+  .askAiA { align-self: flex-start; background: #F3F2F0; border: 1px solid var(--line, #E2E0DC); }
+  .askAiPenalty { align-self: flex-start; color: var(--danger); font-size: 0.8rem; font-weight: bold; }
+  .askAiRow { display: flex; gap: 8px; margin-top: 10px; }
+  .askAiRow input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 16px; /* not smaller — stops mobile browsers zooming the input */
+    padding: 9px 12px;
+    border: 1.5px solid var(--line, #E2E0DC);
+    border-radius: 10px;
+    outline: none;
+  }
+  .askAiRow input:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .askAiRow input:disabled { background: #F3F2F0; }
+
   /* ---------- Revise mode: click-to-type keyword boxes ---------- */
   svg.overlay .annText span.kwHidden { cursor: text; }
   svg.overlay .annText span.kwHidden:hover {
@@ -733,7 +785,7 @@
   .kwFeedback {
     position: absolute;
     z-index: 40;
-    max-width: 280px;
+    max-width: min(280px, calc(100vw - 24px));
     background: #fff;
     border-radius: 10px;
     padding: 10px 14px;
@@ -1126,6 +1178,7 @@
       <div class="sideHint">Write or type your answers on the page, then press ✨ Check — the button below marks your latest answer, or use the “Check this answer” button that appears under a box you're typing in.</div>
       <button class="btn btnPrimary practiceWide" id="practiceCheckAllBtn">📋 Mark ALL my answers — get report</button>
       <button class="btn practiceWide" id="practiceCheckBtn">✨ Check one answer</button>
+      <button class="btn practiceWide" id="practiceAskBtn">💬 Ask AI about a question</button>
       <button class="btn practiceWide" id="practiceEndBtn">End practice — show answers</button>
     </div>
   </div>
@@ -1425,6 +1478,23 @@
       <button class="modalClose" id="checkCloseBtn" title="Close">✕</button>
     </div>
     <div class="modalBody" id="checkBody"></div>
+  </div>
+</div>
+
+<div class="modalBack" id="askAiModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>💬 Ask AI <span class="askAiCredits" id="askAiCredits"></span></h2>
+      <button class="modalClose" id="askAiCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="sideHint">Ask about anything featured in this question — a word, an idea, a diagram. The AI explains it without giving the answer away. Careful: an off-topic question costs 5 of your 20 credits!</div>
+      <div id="askAiThread"></div>
+      <div class="askAiRow">
+        <input type="text" id="askAiInput" placeholder="e.g. What does this word mean?" autocomplete="off" autocapitalize="off" enterkeyhint="send">
+        <button class="btn btnPrimary" id="askAiSendBtn">Ask</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2281,6 +2351,15 @@ function renderPracticeBar(p, a, box) {
     checkAnswer(a.id);
   });
   bar.appendChild(b);
+  var ask = document.createElement('button');
+  ask.textContent = '💬 Ask AI · ' + askCreditsLeft(a) + '⭐';
+  ask.title = 'Ask Gemini to explain anything featured in this question — an off-topic question costs ' + ASK_PENALTY + ' credits';
+  ask.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    openAskAi(a.id);
+  });
+  bar.appendChild(ask);
   placeBarBesideBadge(p, box, bar);
 }
 
@@ -2576,25 +2655,39 @@ function startKwGuess(span, p) {
   var wordIndex = parseInt(span.getAttribute('data-w'), 10);
   var a = annotations.find(function (x) { return x.id === annId; });
   if (!a) return;
+  // The tapped span may belong to an overlay that was re-rendered a moment
+  // ago (e.g. a stale guess was just auto-submitted) — work on the live one,
+  // and only if this word is still an unanswered hidden box.
+  var live = p.svg.querySelector('[data-id="' + annId + '"] span[data-w="' + wordIndex + '"]');
+  if (live) span = live;
+  if (!span.isConnected || !span.classList.contains('kwHidden')) return;
   var words = (a.text || '').split(/\s+/).filter(function (w) { return w !== ''; });
   var answer = words[wordIndex];
   if (answer === undefined) return;
   answer = splitKwToken(answer).core; // never ask for the full stop
-
-
 
   var input = document.createElement('input');
   input.type = 'text';
   input.className = 'kwGuessInput';
   input.autocomplete = 'off';
   input.spellcheck = false;
+  input.autocapitalize = 'off';
+  input.setAttribute('autocorrect', 'off');
+  input.enterKeyHint = 'done';
   input.style.width = Math.max(5, answer.length + 2) + 'ch';
   span.textContent = '';
   span.className = 'kwActive';
   span.removeAttribute('title');
   span.appendChild(input);
   kwGuessActive = { span: span, input: input, annId: annId, wordIndex: wordIndex, answer: answer, page: p };
-  setTimeout(function () { input.focus(); }, 0);
+  // Focus synchronously: mobile browsers only open the on-screen keyboard
+  // for a focus() made inside the tap's own event handler. The deferred
+  // focus this used to do left the box dead on iPads/phones — and with no
+  // blur ever coming, kwGuessActive then locked out every later tap too.
+  try { input.focus({ preventScroll: true }); } catch (err) { input.focus(); }
+  setTimeout(function () { // fallback if something stole focus straight back
+    if (kwGuessActive && kwGuessActive.input === input && document.activeElement !== input) input.focus();
+  }, 0);
 
   input.addEventListener('keydown', function (ev) {
     ev.stopPropagation();
@@ -2614,8 +2707,14 @@ function finishKwGuess(submit) {
     renderAllOverlays(); // restore the hidden box untouched
     return;
   }
-  // Anchor position for the feedback card, captured before re-rendering
-  var spanRect = g.span.getBoundingClientRect();
+  // Anchor position for the feedback card, captured before re-rendering.
+  // If the overlay was rebuilt under us the original span is detached and
+  // measures 0×0 at the origin — anchor to the live span instead.
+  var spanEl = g.span;
+  if (!spanEl.isConnected) {
+    spanEl = g.page.svg.querySelector('[data-id="' + g.annId + '"] span[data-w="' + g.wordIndex + '"]') || spanEl;
+  }
+  var spanRect = spanEl.getBoundingClientRect();
   var wrapRect = g.page.wrap.getBoundingClientRect();
   var anchor = {
     left: spanRect.left - wrapRect.left,
@@ -2642,11 +2741,12 @@ function showKwFeedback(p, anchor, correct, guess, answer) {
       '<div class="kwFbAns">You wrote “' + escHtml(guess) + '”.<br>Correct answer: <b>' +
       escHtml(answer) + '</b></div>';
   }
+  p.wrap.appendChild(fb);
+  // Clamp with the card's real size so it stays on-page on small screens.
   var wrapW = p.wrap.clientWidth;
   var wrapH = p.wrap.clientHeight;
-  fb.style.left = Math.max(6, Math.min(anchor.left, wrapW - 290)) + 'px';
-  fb.style.top = Math.max(6, Math.min(anchor.top + 8, wrapH - 90)) + 'px';
-  p.wrap.appendChild(fb);
+  fb.style.left = Math.max(6, Math.min(anchor.left, wrapW - fb.offsetWidth - 6)) + 'px';
+  fb.style.top = Math.max(6, Math.min(anchor.top + 8, wrapH - fb.offsetHeight - 6)) + 'px';
   setTimeout(function () { fb.style.opacity = '0'; }, correct ? 2200 : 4200);
   setTimeout(function () { fb.remove(); }, correct ? 2700 : 4700);
 }
@@ -3093,7 +3193,16 @@ function attachOverlayHandlers(p) {
 
     if (reviseMode) {
       // Students answer keyword boxes; drawing is paused while revising.
-      if (kwGuessActive) return; // the input's blur handles submission
+      if (kwGuessActive) {
+        if (e.target === kwGuessActive.input) return; // typing in the box
+        if (kwGuessActive.input.isConnected && document.activeElement === kwGuessActive.input) {
+          return; // the input's blur handles submission
+        }
+        // The input is gone or never got focus (mobile keyboards, overlay
+        // re-renders) — no blur is coming, so submit it here instead of
+        // silently swallowing every tap until revise mode is toggled.
+        finishKwGuess(true);
+      }
       var kwSpan = e.target.closest ? e.target.closest('span.kwHidden') : null;
       if (kwSpan) {
         e.preventDefault();
@@ -4698,6 +4807,178 @@ var AI_MARK_SYS =
   '"explain":"1-3 sentences explaining WHY the model answer is correct, in ' +
   'language the student\'s level can follow"}.';
 
+/* ---- Ask AI credits ----
+   Every question grants 20 credits for asking Gemini to explain anything
+   featured in it. Relevant questions are free; an off-topic question costs
+   5 credits, and at 0 credits the ask box locks for that question. Credits
+   live only for the practice session, like the practice work itself. */
+var ASK_START_CREDITS = 20;
+var ASK_PENALTY = 5;
+var askCredits = {};     // question key -> credits left
+var askThreads = {};     // question key -> [{ who:'s'|'ai', text, penalty }]
+var askAiTargetId = null;
+
+var AI_EXPLAIN_SYS =
+  'You are a kind, patient tuition tutor helping a student from P3 to ' +
+  'Secondary 1 (Singapore syllabus) who is practising a worksheet. Snapshots ' +
+  'of the worksheet are attached: the first shows the part of the page with ' +
+  'the question the student is working on. The student may ask about ' +
+  'anything featured in that question — a word, phrase, concept, diagram, ' +
+  'method or instruction. FIRST decide whether the message is a genuine ' +
+  'attempt to understand this question: greetings, jokes, chat, or topics ' +
+  'with nothing to do with this part of the worksheet are IRRELEVANT. ' +
+  'Asking directly for the answer IS relevant, but you must gently refuse ' +
+  'and give a hint about how to think about it instead. NEVER reveal, solve ' +
+  'or complete the answer to the question — explain the idea so the student ' +
+  'can answer it on their own, in 2-5 short sentences their level can ' +
+  'follow, plain text only. Reply with STRICT JSON only, no markdown, ' +
+  'exactly this shape: {"relevant":true|false,"reply":"what you say to the ' +
+  'student"}.';
+
+/* Questions have no identity of their own, so credits key on the answer's
+   rough vertical band on its page — a deleted and re-made answer box on the
+   same question keeps the same credit balance. */
+function askCreditKey(a) {
+  var b = annBounds(a);
+  return a.page + ':' + Math.round(b.y / 150);
+}
+
+function askCreditsLeft(a) {
+  var k = askCreditKey(a);
+  if (!(k in askCredits)) askCredits[k] = ASK_START_CREDITS;
+  return askCredits[k];
+}
+
+function askAiAnn() {
+  return annotations.find(function (x) { return x.id === askAiTargetId; }) || null;
+}
+
+function openAskAi(explicitId) {
+  if (!practiceMode) return;
+  commitActiveTextEdit();
+  // Same target resolution as checkAnswer: the annotation the floating
+  // button belongs to, else the selection, else the most recent answer.
+  var id = typeof explicitId === 'string' ? explicitId : selectedId;
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a && annotations.length) a = annotations[annotations.length - 1];
+  if (!a) { toast('Write or type near the question first, then ask the AI about it.', 4500); return; }
+  askAiTargetId = a.id;
+  renderAskThread(a);
+  updateAskAiUi(a);
+  $('askAiModal').classList.add('open');
+  $('askAiInput').focus();
+}
+
+function updateAskAiUi(a) {
+  var left = askCreditsLeft(a);
+  $('askAiCredits').textContent = left + ' credit' + (left === 1 ? '' : 's');
+  $('askAiCredits').classList.toggle('low', left <= ASK_PENALTY);
+  var locked = left <= 0;
+  $('askAiInput').disabled = locked;
+  $('askAiSendBtn').disabled = locked;
+  $('askAiInput').placeholder = locked
+    ? 'No credits left for this question.'
+    : 'e.g. What does this word mean?';
+}
+
+function renderAskThread(a) {
+  var box = $('askAiThread');
+  box.innerHTML = '';
+  (askThreads[askCreditKey(a)] || []).forEach(function (m) {
+    var d = document.createElement('div');
+    d.className = m.who === 's' ? 'askAiQ' : 'askAiA';
+    d.textContent = m.text;
+    box.appendChild(d);
+    if (m.penalty) {
+      var pd = document.createElement('div');
+      pd.className = 'askAiPenalty';
+      pd.textContent = '⚠️ Off-topic — ' + ASK_PENALTY + ' credits deducted.';
+      box.appendChild(pd);
+    }
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+/* Snapshots for Ask AI. Unlike aiContextImages this works for ANY
+   annotation type (practice answers are often pen ink, not text boxes),
+   and it composites only the student's own work — the teacher's answers
+   are already hidden while practising. */
+function askContextImages(a) {
+  var imgs = [];
+  try {
+    var p = pages.find(function (pg) { return pg.num === a.page; });
+    if (!p) return imgs;
+    var b = annBounds(a);
+    var band = bandJpeg(p, annotations, b.y - 280, b.y2 + 160);
+    if (band) imgs.push({ mimeType: 'image/jpeg', data: band, label: 'the question the student is working on (close-up)' });
+    var full = compositeJpeg(p, annotations, 1280);
+    if (full) imgs.push({ mimeType: 'image/jpeg', data: full, label: 'the full current page' });
+    var prev = pages.find(function (pg) { return pg.num === a.page - 1; });
+    var pv = prev && pageJpeg(prev, 1100);
+    if (pv) imgs.push({ mimeType: 'image/jpeg', data: pv, label: 'the previous page, for context' });
+  } catch (e) { /* snapshots failed — Gemini still gets the typed question */ }
+  return imgs;
+}
+
+function sendAskAi() {
+  var a = askAiAnn();
+  if (!practiceMode || !a) { $('askAiModal').classList.remove('open'); return; }
+  var q = $('askAiInput').value.trim();
+  if (!q) return;
+  if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  var key = askCreditKey(a);
+  if (askCreditsLeft(a) <= 0) { updateAskAiUi(a); return; }
+  var thread = askThreads[key] = askThreads[key] || [];
+  thread.push({ who: 's', text: q });
+  renderAskThread(a);
+  $('askAiInput').value = '';
+  var thinking = document.createElement('div');
+  thinking.className = 'askAiA';
+  thinking.textContent = '✨ Thinking…';
+  $('askAiThread').appendChild(thinking);
+  $('askAiThread').scrollTop = $('askAiThread').scrollHeight;
+  aiBusy = true;
+
+  var lines = [];
+  var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
+  var lvl = wsMeta && wsMeta.level ? levelLabel(wsMeta.level) : '';
+  if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
+  // A little history so follow-up questions make sense.
+  thread.slice(-7, -1).forEach(function (m) {
+    lines.push((m.who === 's' ? 'Student said earlier: ' : 'You replied earlier: ') + '"' + m.text + '"');
+  });
+  var imgs = askContextImages(a);
+  if (imgs.length) {
+    lines.push('Attached: ' + imgs.map(function (im, i) { return 'image ' + (i + 1) + ' = ' + im.label; }).join('; ') + '.');
+  }
+  lines.push('The student asks: "' + q + '"');
+
+  window.askGemini(lines.join('\n'), {
+    system: AI_EXPLAIN_SYS, maxOutputTokens: 800, temperature: 0.4, json: true,
+    images: imgs.map(function (im) { return { mimeType: im.mimeType, data: im.data }; })
+  }).then(function (raw) {
+    aiBusy = false;
+    thinking.remove();
+    var res = _parseAIJson(raw);
+    var relevant = !(res && res.relevant === false);
+    var reply = (res && res.reply) || 'Sorry — I could not answer that. Please try asking again.';
+    if (!relevant) askCredits[key] = Math.max(0, askCreditsLeft(a) - ASK_PENALTY);
+    thread.push({ who: 'ai', text: reply, penalty: !relevant });
+    renderAskThread(a);
+    updateAskAiUi(a);
+    renderAllOverlays(); // the floating bar shows this question's credits
+  }).catch(function (err) {
+    aiBusy = false;
+    thinking.remove();
+    thread.push({ who: 'ai', text: 'Gemini error: ' + ((err && err.message) || 'request failed — please try again.') });
+    renderAskThread(a);
+  });
+}
+
 function updatePracticeCard() {
   var hasAnswers = practiceMode ? !!(teacherAnswers && teacherAnswers.length) : annotations.length > 0;
   $('practiceCard').style.display = (pdfDoc && hasAnswers) ? '' : 'none';
@@ -4715,6 +4996,7 @@ function startPractice() {
   selectedId = null; editingId = null; editModeId = null;
   reviseMode = false; $('reviseToggle').checked = false;
   practiceMode = true;
+  askCredits = {}; askThreads = {}; askAiTargetId = null; // fresh Ask AI credits
   document.body.classList.add('practiceOn'); // shows the per-page Check buttons
   applyRoleUI();
   setTool('pen');
@@ -4727,6 +5009,8 @@ function endPractice() {
   if (!practiceMode) return;
   commitActiveTextEdit();
   practiceMode = false;
+  askCredits = {}; askThreads = {}; askAiTargetId = null;
+  $('askAiModal').classList.remove('open');
   document.body.classList.remove('practiceOn');
   annotations = teacherAnswers || [];
   teacherAnswers = null;
@@ -5296,6 +5580,16 @@ $('practiceStartBtn').addEventListener('click', startPractice);
 $('practiceEndBtn').addEventListener('click', endPractice);
 $('practiceCheckBtn').addEventListener('click', checkAnswer);
 $('practiceCheckAllBtn').addEventListener('click', checkAllAnswers);
+$('practiceAskBtn').addEventListener('click', openAskAi);
+$('askAiCloseBtn').addEventListener('click', function () { $('askAiModal').classList.remove('open'); });
+$('askAiModal').addEventListener('click', function (e) {
+  if (e.target === $('askAiModal')) $('askAiModal').classList.remove('open');
+});
+$('askAiSendBtn').addEventListener('click', sendAskAi);
+$('askAiInput').addEventListener('keydown', function (e) {
+  e.stopPropagation(); // page shortcuts must never fire while asking
+  if (e.key === 'Enter') { e.preventDefault(); sendAskAi(); }
+});
 $('checkCloseBtn').addEventListener('click', function () { $('checkModal').classList.remove('open'); });
 $('checkModal').addEventListener('click', function (e) {
   if (e.target === $('checkModal')) $('checkModal').classList.remove('open');
