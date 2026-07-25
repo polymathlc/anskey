@@ -420,6 +420,20 @@
   }
   @media (prefers-reduced-motion: reduce) { .liveDot { animation: none; } }
   #wsLive { margin-top: 10px; }
+  .updatedPill {
+    display: inline-block;
+    margin-top: 10px;
+    margin-left: 6px;
+    font-size: 0.68rem;
+    font-weight: bold;
+    color: var(--ok, #43A047);
+    background: #DFF2E0;
+    border-radius: 999px;
+    padding: 2px 9px;
+    white-space: nowrap;
+    transition: opacity 0.5s ease;
+  }
+  .updatedPill.fading { opacity: 0; }
   .qItem.live {
     border-color: var(--danger, #E53935);
     background: #FFF6F5;
@@ -1405,6 +1419,7 @@
     <div class="sideDay" id="wsDay"></div>
     <div class="sideDate" id="wsDate"></div>
     <div class="livePill" id="wsLive" style="display:none"><span class="liveDot"></span>LIVE</div>
+    <div class="updatedPill" id="wsUpdated" style="display:none">✓ Updated just now</div>
   </div>
   <div class="sideCard" id="revisePanel">
     <h4>Keyword revision</h4>
@@ -2232,6 +2247,7 @@ async function loadPdfFromFile(file) {
 
 async function loadPdf(bytes, name) {
   stopLivePresence(true); // the worksheet being left is no longer live
+  unsubscribeOpenDoc();
   pdfBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   docName = name || 'Untitled';
   currentDocId = null;
@@ -3126,6 +3142,7 @@ function finishKwGuess(submit) {
   renderAllOverlays();
   updateKwPanel();
   showKwFeedback(g.page, anchor, correct, guess, g.answer);
+  flushPendingRemoteDoc(); // an update that arrived mid-answer can land now
 }
 
 function showKwFeedback(p, anchor, correct, guess, answer) {
@@ -6459,6 +6476,7 @@ function startActingAs(uid, p) {
   actingStudent = { id: uid, name: p.name || 'Student', level: p.level || 'P3', subject: p.subject || 'both', days: p.days || [] };
   studentProfile = actingStudent;
   stopLivePresence(true); // the teacher is demonstrating, not editing
+  if (currentDocId) subscribeOpenDoc(currentDocId); // now a viewer: follow along
   if (practiceMode) endPractice();
   commitActiveTextEdit();
   clearLassoSel(false);
@@ -6658,11 +6676,28 @@ function subscribeLive() {
   }
 }
 
+/* A worksheet started mid-lesson is live before it has ever been in the
+   student's list, so its arrival is the cue to rebuild the list once. Each
+   id triggers at most one rebuild, so a live worksheet for another level
+   cannot make this run over and over. */
+var liveListTried = {};
+function maybeRefreshListForNewLive() {
+  if (!$('qDrawer').classList.contains('open')) return;
+  if (isAdmin(currentUser) && !actingStudent) return;
+  var fresh = Object.keys(liveDocs).filter(function (id) {
+    return !liveListTried[id] && !document.querySelector('#qList .qItem[data-qid="' + id + '"]');
+  });
+  if (!fresh.length) return;
+  fresh.forEach(function (id) { liveListTried[id] = true; });
+  loadQuestionsList();
+}
+
 /* Paint the marks onto whatever is currently on screen. */
 function applyLiveMarks() {
   document.querySelectorAll('#qList .qItem').forEach(function (btn) {
     markLiveCard(btn, btn.getAttribute('data-qid'));
   });
+  maybeRefreshListForNewLive();
   var wsLive = $('wsLive');
   if (wsLive) {
     var openLive = currentDocId && liveDocs[currentDocId];
@@ -6693,6 +6728,117 @@ function markLiveCard(btn, id) {
   by.textContent = live.by + ' is editing this now';
   row.appendChild(by);
   btn.appendChild(row);
+}
+
+/* ================= Live worksheet sync =================
+   A student used to be looking at a snapshot taken when they opened the
+   worksheet, so anything the teacher added afterwards only appeared if they
+   reloaded the page. The open worksheet now follows the cloud copy: the
+   teacher auto-saves a few seconds after each change, and that change lands
+   on every screen showing it.
+
+   Only the PDF's annotations travel — the file itself never changes for an
+   existing worksheet — so the page, the zoom and the scroll position all
+   stay exactly where the student left them. */
+var openDocUnsub = null;
+var openDocAnnJson = '';    // last applied annotations, to ignore no-op writes
+var openDocPending = null;  // an update held back while a student is answering
+var liveSyncToldUser = false;
+var liveFlashTimer = null;
+
+/* Whoever is editing must never have their own work overwritten by their own
+   save coming back to them, so only viewers follow the cloud copy. */
+function liveSyncEnabled() {
+  if (!currentDocId) return false;
+  if (sharedLink && sharedLink.mode === 'edit') return false; // they can write too
+  return isStudent() || isSharedVisitor();
+}
+
+function unsubscribeOpenDoc() {
+  if (openDocUnsub) { try { openDocUnsub(); } catch (e) {} openDocUnsub = null; }
+  openDocPending = null;
+  openDocAnnJson = '';
+}
+
+function subscribeOpenDoc(id) {
+  unsubscribeOpenDoc();
+  if (!id) return;
+  openDocAnnJson = JSON.stringify(annotations);
+  try {
+    openDocUnsub = db.collection(COLLECTION).doc(id).onSnapshot(function (snap) {
+      if (!snap.exists || currentDocId !== id) return;
+      applyRemoteDoc(snap.data());
+    }, function () { /* offline or refused — the worksheet just stops updating */ });
+  } catch (e) { /* same */ }
+}
+
+function applyRemoteDoc(d) {
+  if (!liveSyncEnabled()) return;
+
+  // Worksheet details can change without the annotations changing at all.
+  docName = d.name || docName;
+  wsMeta.level = d.level || '';
+  wsMeta.subject = d.subject || '';
+  wsMeta.date = d.wsDate || '';
+  wsMeta.slot = (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? d.wsSlot : '';
+  wsMeta.videoUrl = d.videoUrl || '';
+  wsMeta.videoPath = d.videoPath || '';
+  wsShare = normalizeShare(d.share);
+
+  var json = d.annotations || '[]';
+  // The LIVE heartbeat rewrites the document every 30s without touching the
+  // annotations — those updates must not disturb anything on screen.
+  if (json === openDocAnnJson) { renderSidebar(); return; }
+
+  // Never yank the page out from under a student mid-answer: hold the update
+  // until they have finished typing into the keyword box.
+  if (kwGuessActive) { openDocPending = d; return; }
+
+  openDocAnnJson = json;
+  var parsed;
+  try { parsed = JSON.parse(json); } catch (e) { return; }
+
+  if (practiceMode) {
+    // Their own answers stay on the page; only the hidden answer key moves.
+    teacherAnswers = parsed;
+  } else {
+    annotations = parsed;
+    undoStack = [];
+    redoStack = [];
+    selectedId = null;
+    editModeId = null;
+    editingId = null;
+    clearLassoSel(false);
+    renderAllOverlays();
+  }
+  renderSidebar();
+  noteLiveUpdate();
+}
+
+/* Flush an update that arrived while the student was typing an answer. */
+function flushPendingRemoteDoc() {
+  if (!openDocPending || kwGuessActive) return;
+  var d = openDocPending;
+  openDocPending = null;
+  applyRemoteDoc(d);
+}
+
+/* Say it properly once, then keep it to a quiet flash — during a lesson this
+   can fire every few seconds and a toast each time would be unbearable. */
+function noteLiveUpdate() {
+  if (!liveSyncToldUser) {
+    liveSyncToldUser = true;
+    toast('This worksheet updates by itself as your teacher writes — no need to refresh.', 5200);
+  }
+  var pill = $('wsUpdated');
+  if (!pill) return;
+  pill.style.display = '';
+  pill.classList.remove('fading');
+  clearTimeout(liveFlashTimer);
+  liveFlashTimer = setTimeout(function () {
+    pill.classList.add('fading');
+    setTimeout(function () { pill.style.display = 'none'; }, 600);
+  }, 1800);
 }
 
 /* 0 = worksheet falls on one of the student's class days (shown first). */
@@ -7176,6 +7322,7 @@ async function openSavedDoc(id, data) {
     setDirty(false);
     renderAllOverlays();
     renderSidebar();
+    subscribeOpenDoc(id); // keep it in step with the teacher from now on
   } catch (e) {
     console.error(e);
     toast('Could not open: ' + (e.message || e));
