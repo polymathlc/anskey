@@ -320,6 +320,78 @@
   .qItem.active { border-color: var(--accent-strong); background: #FFF8EC; }
   .qItemName { font-size: 0.88rem; font-weight: bold; line-height: 1.35; overflow-wrap: break-word; color: var(--ink); }
   .qItemMeta { font-size: 0.73rem; color: var(--ink-faint); margin-top: 5px; line-height: 1.5; }
+
+  /* ---------- Worksheets grouped by class day and time slot ---------- */
+  .qDayGroup { margin-bottom: 18px; }
+  .qDayHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    padding: 4px 2px 8px;
+    border-bottom: 2px solid var(--line);
+    margin-bottom: 10px;
+    position: sticky;
+    top: 0;
+    background: var(--bg, #fff);
+    z-index: 2;
+  }
+  .qDayGroup.mine .qDayHead { color: var(--accent-deep); border-bottom-color: var(--accent-strong); }
+  .qMineTag {
+    font-size: 0.64rem;
+    font-weight: bold;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--accent-deep);
+    background: #FFF3DC;
+    border: 1px solid var(--accent-strong);
+    border-radius: 999px;
+    padding: 1px 8px;
+    white-space: nowrap;
+  }
+  .qGroupCount {
+    margin-left: auto;
+    font-size: 0.7rem;
+    font-weight: bold;
+    color: var(--ink-faint);
+    background: #F1F0EE;
+    border-radius: 999px;
+    padding: 1px 8px;
+    min-width: 20px;
+    text-align: center;
+  }
+  .qSlotGroup { margin: 0 0 12px; }
+  .qSlotHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.78rem;
+    font-weight: bold;
+    color: var(--ink);
+    background: #F8F7F5;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 9px 11px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .qSlotGroup.mine .qSlotHead { background: #FFF8EC; border-color: var(--accent-strong); }
+  .qSlotHead::after {
+    content: '▾';
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+    order: 9;
+  }
+  .qSlotGroup.collapsed .qSlotHead::after { content: '▸'; }
+  .qSlotGroup.collapsed .qSlotBody { display: none; }
+  .qSlotBody { padding-left: 2px; }
   .qItemLevel {
     display: inline-block;
     background: var(--accent);
@@ -1397,6 +1469,16 @@
         <input type="date" id="saveDateInput">
         <div id="saveDayPreview"></div>
       </div>
+      <div class="fieldRow">
+        <label for="saveSlotInput">Class time slot</label>
+        <select id="saveSlotInput">
+          <option value="">Work it out from when this is saved</option>
+          <option value="0">3:00 – 4:45pm</option>
+          <option value="1">5:00 – 6:45pm</option>
+          <option value="2">7:00 – 8:45pm</option>
+        </select>
+        <div class="fieldHint">Only needed if you prepared this outside class hours.</div>
+      </div>
       <div class="modalActions">
         <button class="btn" id="saveCancelBtn">Cancel</button>
         <button class="btn btnPrimary" id="saveConfirmBtn">Save to cloud</button>
@@ -1560,6 +1642,15 @@
           <button type="button" class="pickChip" data-day="Sunday">Sun</button>
         </div>
         <div class="fieldHint">Worksheets from your class day are shown first. You can pick more than one.</div>
+      </div>
+      <div class="fieldRow">
+        <label>Your class time</label>
+        <div class="chipRow" id="profileSlotRow">
+          <button type="button" class="pickChip" data-slot="0">3:00 – 4:45pm</button>
+          <button type="button" class="pickChip" data-slot="1">5:00 – 6:45pm</button>
+          <button type="button" class="pickChip" data-slot="2">7:00 – 8:45pm</button>
+        </div>
+        <div class="fieldHint">Optional — we'll mark your time slot in the worksheet list.</div>
       </div>
       <div class="modalActions">
         <button class="btn btnPrimary" id="profileSaveBtn">Let's go!</button>
@@ -1783,7 +1874,7 @@ var revealedKw = {};        // normalised keyword -> true, revealed during revis
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
-var wsMeta = { level: '', subject: '', date: '', videoUrl: '', videoPath: '' };  // worksheet meta (name lives in docName)
+var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '' };  // worksheet meta (name lives in docName)
 
 /* ---- Share links ----
    Every saved worksheet carries share settings: who a plain link admits
@@ -2114,7 +2205,7 @@ async function loadPdf(bytes, name) {
   selectedId = null;
   editingId = null;
   editModeId = null;
-  wsMeta = { level: '', subject: '', date: '', videoUrl: '', videoPath: '' };
+  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '' };
   wsShare = { mode: 'view', passwordHash: '' };
   reviseMode = false;
   revealedKw = {};
@@ -6130,7 +6221,7 @@ async function loadStudentProfile(user) {
   }
 }
 
-var profilePick = { level: '', subject: '', days: [] };
+var profilePick = { level: '', subject: '', days: [], slot: '' };
 var profileLocked = false;  // student already used their one level/subject change
 
 function refreshProfileChips() {
@@ -6143,12 +6234,16 @@ function refreshProfileChips() {
   document.querySelectorAll('#profileDayRow .pickChip').forEach(function (b) {
     b.classList.toggle('active', profilePick.days.indexOf(b.getAttribute('data-day')) !== -1);
   });
+  document.querySelectorAll('#profileSlotRow .pickChip').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-slot') === profilePick.slot);
+  });
 }
 
 function openProfileModal(firstTime) {
   var p = studentProfile || {};
   $('profileNameInput').value = p.name || (currentUser && currentUser.displayName) || '';
-  profilePick = { level: p.level || '', subject: p.subject || '', days: (p.days || []).slice() };
+  profilePick = { level: p.level || '', subject: p.subject || '', days: (p.days || []).slice(),
+                  slot: (p.slot === 0 || p.slot === 1 || p.slot === 2) ? String(p.slot) : '' };
   refreshProfileChips();
   // Students get exactly one level/subject change after setup; after that
   // only the admin can update them.
@@ -6196,6 +6291,7 @@ async function saveStudentProfile() {
       level: profilePick.level,
       subject: profilePick.subject,
       days: profilePick.days,
+      slot: profilePick.slot === '' ? null : parseInt(profilePick.slot, 10),
       email: currentUser.email || '',
       lsChangesUsed: changesUsed + (changedLS ? 1 : 0),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -6460,6 +6556,7 @@ async function saveDoc() {
   setSelectValue($('saveLevelInput'), wsMeta.level || '');
   setSelectValue($('saveSubjectInput'), wsMeta.subject || '');
   $('saveDateInput').value = wsMeta.date || new Date().toISOString().slice(0, 10);
+  setSelectValue($('saveSlotInput'), wsMeta.slot === 0 || wsMeta.slot ? String(wsMeta.slot) : '');
   updateSaveDayPreview();
   $('saveModal').classList.add('open');
   setTimeout(function () { $('saveNameInput').focus(); }, 50);
@@ -6492,6 +6589,7 @@ async function performSave() {
   wsMeta.level = $('saveLevelInput').value.trim();
   wsMeta.subject = $('saveSubjectInput').value;
   wsMeta.date = $('saveDateInput').value;
+  wsMeta.slot = $('saveSlotInput').value;
   $('saveModal').classList.remove('open');
   renderSidebar();
   btn.disabled = true;
@@ -6509,6 +6607,7 @@ async function performSave() {
       subject: wsMeta.subject || '',
       wsDate: wsMeta.date,
       wsDay: dayFromISO(wsMeta.date),
+      wsSlot: wsMeta.slot === '' || wsMeta.slot === undefined ? null : parseInt(wsMeta.slot, 10),
       ownerUid: currentUser.uid,
       ownerEmail: currentUser.email,
       storagePath: STORAGE_DIR + '/' + currentDocId + '.pdf',
@@ -6772,6 +6871,10 @@ async function openDocsModal() {
         if (d.subject) bits.push(subjectLabel(d.subject));
         if (!d.level || !d.subject) bits.push('⚠ unassigned — hidden from students, press Edit');
         if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ' ' : '') + prettyDate(d.wsDate));
+        // Show which class slot students will find this under, so a wrongly
+        // detected one can be spotted and corrected with Edit.
+        bits.push('🕒 ' + slotLabel(slotOf(d)) +
+                  ((d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? '' : ' (auto)'));
         bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
         if (when) bits.push('saved ' + when);
         return bits.join(' · ');
@@ -6825,6 +6928,16 @@ function editDocMeta(id, d, info, refreshMeta) {
     var o = document.createElement('option'); o.value = s[0]; o.textContent = s[1]; subSel.appendChild(o);
   });
   setSelectValue(subSel, d.subject || 'math');
+  // Class time slot: blank means "work it out from when it was saved".
+  var slotSel = document.createElement('select');
+  var autoOpt = document.createElement('option');
+  autoOpt.value = '';
+  autoOpt.textContent = 'Auto — ' + slotLabel(slotOf(d));
+  slotSel.appendChild(autoOpt);
+  SLOTS.forEach(function (s) {
+    var o = document.createElement('option'); o.value = String(s.key); o.textContent = s.label; slotSel.appendChild(o);
+  });
+  setSelectValue(slotSel, (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? String(d.wsSlot) : '');
   var okBtn = document.createElement('button');
   okBtn.className = 'btn btnPrimary';
   okBtn.textContent = 'Save';
@@ -6833,16 +6946,19 @@ function editDocMeta(id, d, info, refreshMeta) {
     db.collection(COLLECTION).doc(id).set({
       level: lvlSel.value,
       subject: subSel.value,
+      wsSlot: slotSel.value === '' ? null : parseInt(slotSel.value, 10),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).then(function () {
       d.level = lvlSel.value;
       d.subject = subSel.value;
+      d.wsSlot = slotSel.value === '' ? null : parseInt(slotSel.value, 10);
       refreshMeta();
       wrap.remove();
       // If this worksheet is the one on screen, its sidebar follows along.
       if (currentDocId === id) {
         wsMeta.level = d.level;
         wsMeta.subject = d.subject;
+        wsMeta.slot = slotSel.value;
         renderSidebar();
       }
       toast('“' + (d.name || 'Untitled') + '” is now ' + levelLabel(d.level) + ' ' + subjectLabel(d.subject) + '.');
@@ -6857,6 +6973,7 @@ function editDocMeta(id, d, info, refreshMeta) {
   cancelBtn.addEventListener('click', function () { wrap.remove(); });
   wrap.appendChild(lvlSel);
   wrap.appendChild(subSel);
+  wrap.appendChild(slotSel);
   wrap.appendChild(okBtn);
   wrap.appendChild(cancelBtn);
   info.appendChild(wrap);
@@ -6884,6 +7001,7 @@ async function openSavedDoc(id, data) {
     wsMeta.level = data.level || '';
     wsMeta.subject = data.subject || '';
     wsMeta.date = data.wsDate || '';
+    wsMeta.slot = (data.wsSlot === 0 || data.wsSlot === 1 || data.wsSlot === 2) ? data.wsSlot : '';
     wsMeta.videoUrl = data.videoUrl || '';
     wsMeta.videoPath = data.videoPath || '';
     wsShare = normalizeShare(data.share);
@@ -6905,6 +7023,50 @@ function toggleQuestionsDrawer() {
   $('burgerBtn').classList.toggle('active', open);
   if (open) loadQuestionsList();
   syncPanelScrim();
+}
+
+/* ================= Class time slots =================
+   Lessons run in three fixed slots. A worksheet's slot is normally worked
+   out from when it was saved (the only field carrying a time of day), in
+   Singapore time regardless of where the device is; a teacher can override
+   it on the Save form when a worksheet was prepared outside class hours. */
+var SLOTS = [
+  { key: 0, label: '3:00 – 4:45pm', short: '3:00pm' },
+  { key: 1, label: '5:00 – 6:45pm', short: '5:00pm' },
+  { key: 2, label: '7:00 – 8:45pm', short: '7:00pm' }
+];
+var SLOT_OTHER = 'other';
+
+function slotLabel(k) {
+  var s = SLOTS[k];
+  return s ? s.label : 'Other times';
+}
+
+/* Hour of day the worksheet was saved, in Singapore time. */
+function fileHourSG(d) {
+  var ts = (d.createdAt && d.createdAt.toDate && d.createdAt.toDate()) ||
+           (d.updatedAt && d.updatedAt.toDate && d.updatedAt.toDate()) || null;
+  if (!ts || isNaN(ts)) return null;
+  try {
+    var h = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Singapore', hour: '2-digit', hour12: false
+    }).format(ts);
+    var n = parseInt(h, 10);
+    return isNaN(n) ? ts.getHours() : n;
+  } catch (e) {
+    return ts.getHours();
+  }
+}
+
+/* Slot index 0-2, or SLOT_OTHER when it falls outside lesson hours. */
+function slotOf(d) {
+  if (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) return d.wsSlot;
+  var h = fileHourSG(d);
+  if (h === null) return SLOT_OTHER;
+  if (h >= 14 && h < 17) return 0;
+  if (h >= 17 && h < 19) return 1;
+  if (h >= 19 && h <= 22) return 2;
+  return SLOT_OTHER;
 }
 
 function questionSortTime(d) {
@@ -6956,44 +7118,149 @@ async function loadQuestionsList() {
       $('qDrawerSub').textContent = 'All saved questions, oldest first.';
       return;
     }
-    var hasDayPref = !isAdmin(currentUser) && studentProfile.days && studentProfile.days.length;
-    $('qDrawerSub').textContent = docs.length + ' question' + (docs.length === 1 ? '' : 's') +
-      (hasDayPref ? ' · your class day first' : ' · oldest first');
-    docs.forEach(function (item) {
-      var d = item.data;
-      var btn = document.createElement('button');
-      btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '');
-      btn.setAttribute('data-qid', item.id);
-      var nm = document.createElement('div');
-      nm.className = 'qItemName';
-      nm.textContent = d.name || 'Untitled';
-      var meta = document.createElement('div');
-      meta.className = 'qItemMeta';
-      if (d.level) {
-        var lvl = document.createElement('span');
-        lvl.className = 'qItemLevel';
-        lvl.textContent = levelLabel(d.level);
-        meta.appendChild(lvl);
-      }
-      var bits = [];
-      if (d.subject) bits.push(subjectLabel(d.subject));
-      if (isAdmin(currentUser) && (!d.level || !d.subject)) bits.push('⚠ unassigned — hidden from students');
-      if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ', ' : '') + prettyDate(d.wsDate));
-      bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
-      if (d.videoUrl) bits.push('🎬 recording');
-      meta.appendChild(document.createTextNode(bits.join(' · ')));
-      btn.appendChild(nm);
-      btn.appendChild(meta);
-      btn.addEventListener('click', function () {
-        openSavedDoc(item.id, d).then(markActiveQuestion);
-        if (window.innerWidth <= 640) toggleQuestionsDrawer();
-      });
-      list.appendChild(btn);
-    });
+    var hasDayPref = !isAdmin(currentUser) && studentProfile && studentProfile.days && studentProfile.days.length;
+    $('qDrawerSub').textContent = docs.length + ' worksheet' + (docs.length === 1 ? '' : 's') +
+      ' · grouped by class day and time' + (hasDayPref ? ' · your class first' : '');
+    renderQuestionGroups(list, docs);
   } catch (e) {
     console.error(e);
     list.innerHTML = '<div class="qEmpty">Could not load questions: ' + escHtml(e.message || String(e)) + '</div>';
   }
+}
+
+/* Build one card per worksheet — kept separate so the grouped renderer can
+   place it under the right day and time-slot heading. */
+function questionCard(item) {
+  var d = item.data;
+  var btn = document.createElement('button');
+  btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '');
+  btn.setAttribute('data-qid', item.id);
+  var nm = document.createElement('div');
+  nm.className = 'qItemName';
+  nm.textContent = d.name || 'Untitled';
+  var meta = document.createElement('div');
+  meta.className = 'qItemMeta';
+  if (d.level) {
+    var lvl = document.createElement('span');
+    lvl.className = 'qItemLevel';
+    lvl.textContent = levelLabel(d.level);
+    meta.appendChild(lvl);
+  }
+  var bits = [];
+  if (d.subject) bits.push(subjectLabel(d.subject));
+  if (isAdmin(currentUser) && (!d.level || !d.subject)) bits.push('⚠ unassigned — hidden from students');
+  if (d.wsDate) bits.push(prettyDate(d.wsDate));
+  bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
+  if (d.videoUrl) bits.push('🎬 recording');
+  meta.appendChild(document.createTextNode(bits.join(' · ')));
+  btn.appendChild(nm);
+  btn.appendChild(meta);
+  btn.addEventListener('click', function () {
+    openSavedDoc(item.id, d).then(markActiveQuestion);
+    if (panelsFloat()) toggleQuestionsDrawer();
+  });
+  return btn;
+}
+
+/* Group the worksheets by class day, then by time slot within the day, so a
+   student can go straight to their own lesson instead of reading a flat
+   chronological list. The student's own day and slot are marked and floated
+   to the top; groups other than theirs start collapsed. */
+var DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function renderQuestionGroups(list, docs) {
+  var mine = (!isAdmin(currentUser) || actingStudent) && studentProfile ? studentProfile : null;
+  var myDays = (mine && mine.days) || [];
+  var mySlot = mine && (mine.slot === 0 || mine.slot === 1 || mine.slot === 2) ? mine.slot : null;
+
+  // day name -> slot key -> [items]
+  var byDay = {};
+  docs.forEach(function (item) {
+    var day = item.data.wsDay || 'Undated';
+    var slot = slotOf(item.data);
+    if (!byDay[day]) byDay[day] = {};
+    var k = String(slot);
+    if (!byDay[day][k]) byDay[day][k] = [];
+    byDay[day][k].push(item);
+  });
+
+  var days = Object.keys(byDay).sort(function (a, b) {
+    // The student's own class days first, then the normal week order.
+    var am = myDays.indexOf(a) !== -1 ? 0 : 1;
+    var bm = myDays.indexOf(b) !== -1 ? 0 : 1;
+    if (am !== bm) return am - bm;
+    var ai = DAY_ORDER.indexOf(a), bi = DAY_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
+  days.forEach(function (day) {
+    var isMyDay = myDays.indexOf(day) !== -1;
+    var slotKeys = Object.keys(byDay[day]).sort(function (a, b) {
+      var av = a === SLOT_OTHER ? 9 : parseInt(a, 10);
+      var bv = b === SLOT_OTHER ? 9 : parseInt(b, 10);
+      return av - bv;
+    });
+    var dayCount = slotKeys.reduce(function (n, k) { return n + byDay[day][k].length; }, 0);
+
+    var dayWrap = document.createElement('div');
+    dayWrap.className = 'qDayGroup' + (isMyDay ? ' mine' : '');
+    var dayHead = document.createElement('div');
+    dayHead.className = 'qDayHead';
+    dayHead.textContent = day;
+    if (isMyDay) {
+      var tag = document.createElement('span');
+      tag.className = 'qMineTag';
+      tag.textContent = 'your class day';
+      dayHead.appendChild(tag);
+    }
+    var dayN = document.createElement('span');
+    dayN.className = 'qGroupCount';
+    dayN.textContent = dayCount;
+    dayHead.appendChild(dayN);
+    dayWrap.appendChild(dayHead);
+
+    slotKeys.forEach(function (k) {
+      var items = byDay[day][k];
+      var slotNum = k === SLOT_OTHER ? null : parseInt(k, 10);
+      var isMySlot = isMyDay && mySlot !== null && slotNum === mySlot;
+
+      var sec = document.createElement('div');
+      sec.className = 'qSlotGroup' + (isMySlot ? ' mine' : '');
+      var head = document.createElement('button');
+      head.className = 'qSlotHead';
+      head.type = 'button';
+      var ttl = document.createElement('span');
+      ttl.className = 'qSlotTitle';
+      ttl.textContent = '🕒 ' + slotLabel(slotNum === null ? -1 : slotNum);
+      head.appendChild(ttl);
+      if (isMySlot) {
+        var mt = document.createElement('span');
+        mt.className = 'qMineTag';
+        mt.textContent = 'your slot';
+        head.appendChild(mt);
+      }
+      var n = document.createElement('span');
+      n.className = 'qGroupCount';
+      n.textContent = items.length;
+      head.appendChild(n);
+      sec.appendChild(head);
+
+      var body = document.createElement('div');
+      body.className = 'qSlotBody';
+      items.forEach(function (item) { body.appendChild(questionCard(item)); });
+      sec.appendChild(body);
+
+      // Everything is expanded for the teacher and for a student's own day;
+      // other days start folded so the list stays short and scannable.
+      var collapsed = mine && !isMyDay;
+      sec.classList.toggle('collapsed', !!collapsed);
+      head.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
+
+      dayWrap.appendChild(sec);
+    });
+
+    list.appendChild(dayWrap);
+  });
 }
 
 function markActiveQuestion() {
@@ -7661,6 +7928,13 @@ document.querySelectorAll('#profileDayRow .pickChip').forEach(function (b) {
     var day = b.getAttribute('data-day');
     var i = profilePick.days.indexOf(day);
     if (i === -1) profilePick.days.push(day); else profilePick.days.splice(i, 1);
+    refreshProfileChips();
+  });
+});
+document.querySelectorAll('#profileSlotRow .pickChip').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var s = b.getAttribute('data-slot');
+    profilePick.slot = (profilePick.slot === s) ? '' : s; // tapping again clears it
     refreshProfileChips();
   });
 });
