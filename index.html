@@ -299,6 +299,23 @@
     z-index: 2;
   }
   .qDrawerHead h3 { font-size: 1rem; }
+  .panelHeadRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .panelCloseBtn {
+    font-family: var(--font);
+    font-size: 0.76rem;
+    font-weight: bold;
+    color: var(--ink-soft);
+    background: #F1F0EE;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    min-height: 34px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .panelCloseBtn:active { background: #E3E1DD; }
+  @media (pointer: coarse) { .panelCloseBtn { min-height: 44px; padding: 8px 16px; } }
   .qDrawerSub { font-size: 0.75rem; color: var(--ink-faint); margin-top: 4px; line-height: 1.45; }
   #qList { padding: 12px 12px 28px; }
   .qItem {
@@ -1407,14 +1424,20 @@
 <div id="panelScrim"></div>
 <aside id="qDrawer">
   <div class="qDrawerHead">
-    <h3>Questions</h3>
+    <div class="panelHeadRow">
+      <h3>Worksheets</h3>
+      <button class="panelCloseBtn" id="qDrawerCloseBtn" title="Hide this list">✕ Close</button>
+    </div>
     <div class="qDrawerSub" id="qDrawerSub">All saved questions, oldest first.</div>
   </div>
   <div id="qList"></div>
 </aside>
 <aside id="sideBar">
   <div class="sideCard" id="wsInfoCard">
-    <div class="sideLevel" id="wsLevel">Level —</div>
+    <div class="panelHeadRow" style="margin-bottom:8px">
+      <div class="sideLevel" id="wsLevel">Level —</div>
+      <button class="panelCloseBtn" id="sideBarCloseBtn" title="Hide this panel">✕ Close</button>
+    </div>
     <div class="sideName" id="wsName">No worksheet loaded</div>
     <div class="sideDay" id="wsDay"></div>
     <div class="sideDate" id="wsDate"></div>
@@ -1886,6 +1909,7 @@ function loadToolStyles() {
 
 function saveToolStyles() {
   toolStyles._lastTool = tool;
+  toolStyles._textW = defaultTextW || 0;
   try { localStorage.setItem(STYLE_KEY, JSON.stringify(toolStyles)); } catch (e) {}
 }
 
@@ -1935,6 +1959,7 @@ var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPa
 var wsShare = { mode: 'view', passwordHash: '' };  // settings of the worksheet on screen
 var sharedLink = null;         // { id, mode } while a visitor is here via a share link
 var shareOpenInProgress = false;  // suppress profile prompts while the link resolves
+var studentListOpened = false;    // the worksheet list is auto-opened once per session
 var shareSaveBlocked = false;  // edit-link cloud save hit permission-denied — stop retrying
 var SHARE_OPEN_ID = new URLSearchParams(location.search).get('share') || '';
 var shareOpenHandled = false;
@@ -2781,6 +2806,34 @@ function renderPracticeBar(p, a, box) {
 var aiBarMin = false;
 try { aiBarMin = localStorage.getItem('aiBarMin') === '1'; } catch (e) {}
 
+/* Remembered width for new text boxes. Without it every box came out at a
+   width derived from where it was tapped, so a teacher who wants a
+   consistent column had to drag each one to size. Pressing the button on a
+   box you have already sized makes that width the default; pressing it
+   again on the same width goes back to automatic. Survives reloads. */
+var defaultTextW = 0;
+try {
+  var savedTextW = parseFloat(toolStyles._textW);
+  if (isFinite(savedTextW) && savedTextW >= 40 && savedTextW <= 2000) defaultTextW = savedTextW;
+} catch (e) {}
+
+function setDefaultTextWidth(id) {
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a || a.type !== 'text') return;
+  var w = Math.round(a.w || 0);
+  if (w < 40) { toast('Make the box a bit wider first, then set it as the default.'); return; }
+  if (defaultTextW && Math.abs(defaultTextW - w) < 1) {
+    defaultTextW = 0;
+    saveToolStyles();
+    toast('New text boxes go back to sizing themselves.');
+  } else {
+    defaultTextW = w;
+    saveToolStyles();
+    toast('New text boxes will be ' + w + ' wide from now on.');
+  }
+  renderAllOverlays(); // the button relabels itself
+}
+
 function renderAiBar(p, a, box) {
   var old = p.wrap.querySelector('.aiBar');
   if (old) old.remove();
@@ -2809,6 +2862,12 @@ function renderAiBar(p, a, box) {
   } else {
     addBtn('✨ Answer', '', 'Gemini answers the question typed in this box', aiAnswer);
     addBtn('✒️ Improve', '', 'Gemini fixes grammar and sentence structure without changing the content', aiImprove);
+    var isDefault = defaultTextW && Math.abs(defaultTextW - (a.w || 0)) < 1;
+    addBtn(isDefault ? '↔ Default ✓' : '↔ Set width', '',
+      isDefault
+        ? 'This width is the default for new text boxes — press to go back to automatic'
+        : 'Use this box\'s width for every new text box from now on',
+      setDefaultTextWidth);
     addBtn('—', 'aiBarToggle', 'Minimise this menu', function () { setMin(true); });
   }
   placeBarBesideBadge(p, box, bar);
@@ -3977,7 +4036,9 @@ function attachOverlayHandlers(p) {
         // half-leading so the caret lands exactly under the cursor.
         a2.x = round2(Math.max(0, a2.x - 5));
         a2.y = round2(Math.max(0, a2.y - 3 - a2.fontSize * 0.175));
-        a2.w = Math.max(80, Math.min(220, p.baseW - a2.x - 10));
+        a2.w = defaultTextW
+          ? Math.max(60, Math.min(defaultTextW, p.baseW - a2.x - 10))
+          : Math.max(80, Math.min(220, p.baseW - a2.x - 10));
       }
       a2.w = Math.max(60, a2.w);
       a2.h = Math.max(a2.h || 0, a2.fontSize * 1.9);
@@ -6254,6 +6315,13 @@ auth.onAuthStateChanged(function (user) {
       // Visitors on a share link never get nagged about a student profile.
       if (!studentProfile && !sharedLink && !shareOpenInProgress && !SHARE_OPEN_ID) openProfileModal(true);
       if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+      // A student's first move is always "which worksheet?", and the burger
+      // was not discoverable enough to be the only way in. Open the list for
+      // them once, unless they arrived straight into a shared worksheet.
+      else if (studentProfile && !sharedLink && !SHARE_OPEN_ID && !studentListOpened) {
+        studentListOpened = true;
+        toggleQuestionsDrawer();
+      }
     });
   } else {
     // Refresh the questions drawer for the new auth state if it is open
@@ -6294,7 +6362,16 @@ function refreshProfileChips() {
   document.querySelectorAll('#profileDayRow .pickChip').forEach(function (b) {
     b.classList.toggle('active', profilePick.days.indexOf(b.getAttribute('data-day')) !== -1);
   });
+  // Saturday classes run in the morning, so the time chips are relabelled
+  // to match the class day(s) the student has picked.
+  var days = profilePick.days || [];
+  var weekendOnly = days.length && days.every(isWeekendDay);
+  var weekdayOnly = days.length && !days.some(isWeekendDay);
   document.querySelectorAll('#profileSlotRow .pickChip').forEach(function (b) {
+    var k = parseInt(b.getAttribute('data-slot'), 10);
+    b.textContent = weekendOnly ? SLOTS_WEEKEND[k].label
+                  : weekdayOnly ? SLOTS_WEEKDAY[k].label
+                                : slotLabelBoth(k);
     b.classList.toggle('active', b.getAttribute('data-slot') === profilePick.slot);
   });
 }
@@ -6867,6 +6944,7 @@ async function saveDoc() {
   setSelectValue($('saveLevelInput'), wsMeta.level || '');
   setSelectValue($('saveSubjectInput'), wsMeta.subject || '');
   $('saveDateInput').value = wsMeta.date || new Date().toISOString().slice(0, 10);
+  refreshSaveSlotOptions(dayFromISO($('saveDateInput').value));
   setSelectValue($('saveSlotInput'), wsMeta.slot === 0 || wsMeta.slot ? String(wsMeta.slot) : '');
   updateSaveDayPreview();
   $('saveModal').classList.add('open');
@@ -6876,6 +6954,27 @@ async function saveDoc() {
 function updateSaveDayPreview() {
   var day = dayFromISO($('saveDateInput').value);
   $('saveDayPreview').textContent = day ? day : '';
+  refreshSaveSlotOptions(day);
+}
+
+/* Saturday lessons run in the morning, so the slot choices are relabelled
+   to match whichever day the worksheet's date falls on. */
+function refreshSaveSlotOptions(day) {
+  var sel = $('saveSlotInput');
+  if (!sel) return;
+  var keep = sel.value;
+  sel.innerHTML = '';
+  var auto = document.createElement('option');
+  auto.value = '';
+  auto.textContent = 'Work it out from when this is saved';
+  sel.appendChild(auto);
+  slotsForDay(day).forEach(function (sl) {
+    var o = document.createElement('option');
+    o.value = String(sl.key);
+    o.textContent = sl.label;
+    sel.appendChild(o);
+  });
+  sel.value = keep;
 }
 
 /* Select the given value, adding it as an extra option if it is not one of
@@ -7186,7 +7285,7 @@ async function openDocsModal() {
         if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ' ' : '') + prettyDate(d.wsDate));
         // Show which class slot students will find this under, so a wrongly
         // detected one can be spotted and corrected with Edit.
-        bits.push('🕒 ' + slotLabel(slotOf(d)) +
+        bits.push('🕒 ' + slotLabel(slotOf(d), d.wsDay) +
                   ((d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? '' : ' (auto)'));
         bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
         if (when) bits.push('saved ' + when);
@@ -7245,9 +7344,9 @@ function editDocMeta(id, d, info, refreshMeta) {
   var slotSel = document.createElement('select');
   var autoOpt = document.createElement('option');
   autoOpt.value = '';
-  autoOpt.textContent = 'Auto — ' + slotLabel(slotOf(d));
+  autoOpt.textContent = 'Auto — ' + slotLabel(slotOf(d), d.wsDay);
   slotSel.appendChild(autoOpt);
-  SLOTS.forEach(function (s) {
+  slotsForDay(d.wsDay).forEach(function (s) {
     var o = document.createElement('option'); o.value = String(s.key); o.textContent = s.label; slotSel.appendChild(o);
   });
   setSelectValue(slotSel, (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? String(d.wsSlot) : '');
@@ -7345,16 +7444,41 @@ function toggleQuestionsDrawer() {
    out from when it was saved (the only field carrying a time of day), in
    Singapore time regardless of where the device is; a teacher can override
    it on the Save form when a worksheet was prepared outside class hours. */
-var SLOTS = [
-  { key: 0, label: '3:00 – 4:45pm', short: '3:00pm' },
-  { key: 1, label: '5:00 – 6:45pm', short: '5:00pm' },
-  { key: 2, label: '7:00 – 8:45pm', short: '7:00pm' }
+/* Weekday lessons run in the evening, Saturday's run in the morning. The
+   slot NUMBER means the same thing on both — first, second or third session
+   of that day — so only the clock times and the labels differ. */
+var SLOTS_WEEKDAY = [
+  { key: 0, label: '3:00 – 4:45pm', short: '3:00pm', from: 14, to: 17 },
+  { key: 1, label: '5:00 – 6:45pm', short: '5:00pm', from: 17, to: 19 },
+  { key: 2, label: '7:00 – 8:45pm', short: '7:00pm', from: 19, to: 23 }
 ];
+var SLOTS_WEEKEND = [
+  { key: 0, label: '9:00 – 10:45am', short: '9:00am', from: 7,  to: 11 },
+  { key: 1, label: '11:00 – 12:45pm', short: '11:00am', from: 11, to: 13 },
+  { key: 2, label: '1:00 – 2:45pm', short: '1:00pm', from: 13, to: 16 }
+];
+var SLOTS = SLOTS_WEEKDAY; // kept for anything that just wants three entries
 var SLOT_OTHER = 'other';
 
-function slotLabel(k) {
-  var s = SLOTS[k];
+/* Sunday follows Saturday's morning timings — only Saturday was specified,
+   but a weekend morning class is far closer to the truth than a weekday
+   evening one, and a slot set by hand always overrides this anyway. */
+function isWeekendDay(day) { return day === 'Saturday' || day === 'Sunday'; }
+function slotsForDay(day) { return isWeekendDay(day) ? SLOTS_WEEKEND : SLOTS_WEEKDAY; }
+
+/* Label for slot k on a given day. Without a day it falls back to the
+   weekday times, which is what most worksheets are. */
+function slotLabel(k, day) {
+  var s = slotsForDay(day)[k];
   return s ? s.label : 'Other times';
+}
+
+/* Both schedules at once, for places where the day is not known yet (the
+   profile chips before a class day is picked). */
+function slotLabelBoth(k) {
+  var w = SLOTS_WEEKDAY[k], s = SLOTS_WEEKEND[k];
+  if (!w || !s) return 'Other times';
+  return w.short + ' · wkend ' + s.short;
 }
 
 /* Hour of day the worksheet was saved, in Singapore time. */
@@ -7373,15 +7497,24 @@ function fileHourSG(d) {
   }
 }
 
-/* Slot index 0-2, or SLOT_OTHER when it falls outside lesson hours. */
+/* Slot index 0-2, or SLOT_OTHER when it falls outside lesson hours.
+   The worksheet's own day picks the schedule, so the label always matches
+   the hours actually checked. Anything outside that day's lesson hours —
+   preparing in the morning, tidying up late — lands in "Other times", where
+   the teacher can assign it explicitly. */
 function slotOf(d) {
   if (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) return d.wsSlot;
   var h = fileHourSG(d);
   if (h === null) return SLOT_OTHER;
-  if (h >= 14 && h < 17) return 0;
-  if (h >= 17 && h < 19) return 1;
-  if (h >= 19 && h <= 22) return 2;
-  return SLOT_OTHER;
+  var hit = matchSlotHour(slotsForDay(d.wsDay), h);
+  return hit === null ? SLOT_OTHER : hit;
+}
+
+function matchSlotHour(sched, h) {
+  for (var i = 0; i < sched.length; i++) {
+    if (h >= sched[i].from && h < sched[i].to) return sched[i].key;
+  }
+  return null;
 }
 
 function questionSortTime(d) {
@@ -7547,7 +7680,7 @@ function renderQuestionGroups(list, docs) {
       head.type = 'button';
       var ttl = document.createElement('span');
       ttl.className = 'qSlotTitle';
-      ttl.textContent = '🕒 ' + slotLabel(slotNum === null ? -1 : slotNum);
+      ttl.textContent = '🕒 ' + slotLabel(slotNum === null ? -1 : slotNum, day);
       head.appendChild(ttl);
       if (isMySlot) {
         var mt = document.createElement('span');
@@ -8187,6 +8320,13 @@ $('thumbToggleBtn').addEventListener('click', function () {
 });
 /* On a tablet the panels float over the worksheet, so they need a way out
    that isn't hunting for the button that opened them. */
+$('qDrawerCloseBtn').addEventListener('click', function () {
+  if ($('qDrawer').classList.contains('open')) toggleQuestionsDrawer();
+});
+$('sideBarCloseBtn').addEventListener('click', function () {
+  $('sideBar').classList.remove('open');
+  syncPanelScrim();
+});
 $('panelScrim').addEventListener('pointerdown', function (e) {
   e.preventDefault();
   closeFloatingPanels();
