@@ -1889,7 +1889,7 @@ var TOOL_STYLE_DEFAULTS = {
 var toolStyles = loadToolStyles();
 
 function loadToolStyles() {
-  var out = { _lastTool: '' };
+  var out = { _lastTool: '', _textW: 0 };
   Object.keys(TOOL_STYLE_DEFAULTS).forEach(function (t) {
     out[t] = Object.assign({}, TOOL_STYLE_DEFAULTS[t]);
   });
@@ -1903,6 +1903,8 @@ function loadToolStyles() {
       if (out[t].fontSize !== undefined && isFinite(s.fontSize) && s.fontSize >= 8 && s.fontSize <= 48) out[t].fontSize = +s.fontSize;
     });
     if (typeof saved._lastTool === 'string' && /^[a-z]+$/.test(saved._lastTool)) out._lastTool = saved._lastTool;
+    var tw = parseFloat(saved._textW);
+    if (isFinite(tw) && tw >= 40 && tw <= 2000) out._textW = tw;
   } catch (e) {}
   return out;
 }
@@ -2726,10 +2728,14 @@ function renderEditChrome(p) {
 
   var badge = document.createElement('div');
   badge.className = 'editBadge';
+  // A text box also gets a floating button bar on this row, so its badge is
+  // kept short — the long version pushed the buttons off the row and onto
+  // the text being typed.
+  var sharesRow = a.type === 'text' && (practiceMode || (!isStudent() && !isSharedVisitor()));
   if (editingId === activeId && a._ai) {
-    badge.textContent = '✨ Type your question — click outside and Gemini answers it';
+    badge.textContent = sharesRow ? '✨ Type your question' : '✨ Type your question — click outside and Gemini answers it';
   } else if (editingId === activeId) {
-    badge.textContent = '✏️ Editing text — click outside or press Esc to finish';
+    badge.textContent = sharesRow ? '✏️ Editing' : '✏️ Editing text — click outside or press Esc to finish';
   } else if (a.type === 'pen' || a.type === 'highlight') {
     badge.textContent = '✏️ Edit mode — drag to move, pick a colour, Esc to finish';
   } else {
@@ -2749,24 +2755,58 @@ function renderEditChrome(p) {
    lines being typed. Above the box it can never collide with the text. */
 function placeBarBesideBadge(p, box, bar) {
   var badge = p.wrap.querySelector('.editBadge');
-  var left = Math.max(4, box.x * scale - 5);
-  var top = Math.max(4, box.y * scale - 34);
-  if (badge) {
-    left = (parseFloat(badge.style.left) || left) + badge.offsetWidth + 8;
-    top = parseFloat(badge.style.top) || top;
+  var wrapW = p.wrap.clientWidth;
+  var boxLeft = Math.max(4, box.x * scale - 5);
+  var boxTop = box.y * scale;
+  var boxBottom = (box.y + (box.height || 0)) * scale;
+  p.wrap.appendChild(bar); // must be in the DOM before it can be measured
+  var barW = bar.offsetWidth;
+  var barH = bar.offsetHeight;
+  var badgeH = badge ? badge.offsetHeight : 0;
+  var clamped = Math.max(4, Math.min(boxLeft, wrapW - barW - 4));
+
+  // A box at the very top of the page has no room above it, so the badge row
+  // gets clamped down INTO the box. Everything then has to go underneath
+  // instead — measured from what is actually rendered, so text that has
+  // grown past the stored height is still not covered.
+  if (boxTop - 34 < 4) {
+    if (badge) badge.style.top = (boxBottom + 8) + 'px';
+    var underLeft = badge ? boxLeft + badge.offsetWidth + 8 : boxLeft;
+    if (badge && underLeft + barW <= wrapW - 4) {
+      bar.style.left = underLeft + 'px';
+      bar.style.top = (boxBottom + 8) + 'px';
+    } else {
+      bar.style.left = clamped + 'px';
+      bar.style.top = (boxBottom + 8 + (badge ? badgeH + 4 : 0)) + 'px';
+    }
+    return;
   }
-  bar.style.left = left + 'px';
-  bar.style.top = top + 'px';
-  p.wrap.appendChild(bar);
-  // On a narrow screen the badge and the bar cannot share a row: clamping
-  // the bar back left simply dropped it on top of the badge. Give it its own
-  // row underneath instead.
-  var maxLeft = p.wrap.clientWidth - bar.offsetWidth - 4;
-  if (left > maxLeft) {
-    var badgeH = badge ? badge.offsetHeight : 22;
-    bar.style.left = Math.max(4, Math.min(box.x * scale - 5, maxLeft)) + 'px';
-    bar.style.top = (top + badgeH + 6) + 'px';
+
+  var badgeTop = boxTop - 34;
+
+  // 1. Alongside the badge, on the row above the box.
+  var sideLeft = badge
+    ? (parseFloat(badge.style.left) || boxLeft) + badge.offsetWidth + 8
+    : boxLeft;
+  if (sideLeft + barW <= wrapW - 4) {
+    bar.style.left = sideLeft + 'px';
+    bar.style.top = (badge ? (parseFloat(badge.style.top) || badgeTop) : badgeTop) + 'px';
+    return;
   }
+
+  // 2. No room beside it: take a row of its own ABOVE the badge. Putting it
+  //    below the badge is what used to drop the buttons onto the first line
+  //    of the text box and cover what was being typed.
+  var aboveTop = badgeTop - barH - 4;
+  if (aboveTop >= 4) {
+    bar.style.left = clamped + 'px';
+    bar.style.top = aboveTop + 'px';
+    return;
+  }
+
+  // 3. Squeezed at the top: under the box is the only clear space left.
+  bar.style.left = clamped + 'px';
+  bar.style.top = (boxBottom + 10) + 'px';
 }
 
 /* During practice the floating bar offers Check instead of the teacher's
@@ -2818,10 +2858,11 @@ try {
 } catch (e) {}
 
 function setDefaultTextWidth(id) {
+  commitActiveTextEdit(); // a re-render must not throw away what is being typed
   var a = annotations.find(function (x) { return x.id === id; });
   if (!a || a.type !== 'text') return;
   var w = Math.round(a.w || 0);
-  if (w < 40) { toast('Make the box a bit wider first, then set it as the default.'); return; }
+  if (w < 40) { toast('Drag this box wider first, then set it as the default.'); return; }
   if (defaultTextW && Math.abs(defaultTextW - w) < 1) {
     defaultTextW = 0;
     saveToolStyles();
@@ -2829,7 +2870,7 @@ function setDefaultTextWidth(id) {
   } else {
     defaultTextW = w;
     saveToolStyles();
-    toast('New text boxes will be ' + w + ' wide from now on.');
+    toast('Every new text box will now be this wide across.');
   }
   renderAllOverlays(); // the button relabels itself
 }
