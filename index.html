@@ -392,6 +392,41 @@
   .qSlotGroup.collapsed .qSlotHead::after { content: '▸'; }
   .qSlotGroup.collapsed .qSlotBody { display: none; }
   .qSlotBody { padding-left: 2px; }
+
+  /* ---------- "Mr Chung is working on this now" ---------- */
+  .livePill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.66rem;
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    color: #fff;
+    background: var(--danger, #E53935);
+    border-radius: 999px;
+    padding: 2px 9px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .liveDot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #fff;
+    animation: livePulse 1.4s ease-in-out infinite;
+  }
+  @keyframes livePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.75); }
+  }
+  @media (prefers-reduced-motion: reduce) { .liveDot { animation: none; } }
+  #wsLive { margin-top: 10px; }
+  .qItem.live {
+    border-color: var(--danger, #E53935);
+    background: #FFF6F5;
+    box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.18), var(--shadow-card);
+  }
+  .qItemLive { margin-top: 7px; }
+  .qItemLiveBy { font-size: 0.7rem; color: var(--danger, #E53935); font-weight: bold; margin-left: 7px; }
   .qItemLevel {
     display: inline-block;
     background: var(--accent);
@@ -1369,6 +1404,7 @@
     <div class="sideName" id="wsName">No worksheet loaded</div>
     <div class="sideDay" id="wsDay"></div>
     <div class="sideDate" id="wsDate"></div>
+    <div class="livePill" id="wsLive" style="display:none"><span class="liveDot"></span>LIVE</div>
   </div>
   <div class="sideCard" id="revisePanel">
     <h4>Keyword revision</h4>
@@ -2139,6 +2175,7 @@ function toast(msg, ms) {
 
 function setDirty(v) {
   dirty = v;
+  if (v) liveLastEditAt = Date.now(); // keeps the LIVE marker alive while working
   var b = $('saveBtn');
   b.classList.remove('btnSaved');
   var label = b.querySelector('.btnLabel');
@@ -2194,6 +2231,7 @@ async function loadPdfFromFile(file) {
 }
 
 async function loadPdf(bytes, name) {
+  stopLivePresence(true); // the worksheet being left is no longer live
   pdfBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   docName = name || 'Untitled';
   currentDocId = null;
@@ -6189,6 +6227,9 @@ auth.onAuthStateChanged(function (user) {
   renderAuthArea();
   applyRoleUI();
   renderVideoCard(); // admin controls appear/disappear with the auth state
+  stopLivePresence(false);
+  subscribeLive();
+  if (currentDocId) startLivePresence();
   if (user && !isAdmin(user) && !user.isAnonymous) {
     // Students: fetch their profile, and ask for it on their very first login.
     loadStudentProfile(user).then(function () {
@@ -6417,6 +6458,7 @@ function managedStudentForm() {
 function startActingAs(uid, p) {
   actingStudent = { id: uid, name: p.name || 'Student', level: p.level || 'P3', subject: p.subject || 'both', days: p.days || [] };
   studentProfile = actingStudent;
+  stopLivePresence(true); // the teacher is demonstrating, not editing
   if (practiceMode) endPractice();
   commitActiveTextEdit();
   clearLassoSel(false);
@@ -6438,6 +6480,7 @@ function stopActingAs() {
   if (practiceMode) endPractice(); // restores hidden answers first
   actingStudent = null;
   studentProfile = null;
+  if (currentDocId) startLivePresence();
   applyRoleUI();
   renderAuthArea();
   renderVideoCard();
@@ -6532,6 +6575,126 @@ function canSeeDoc(d) {
   return true;
 }
 
+/* ================= Live "being edited now" marker =================
+   While the teacher has a saved worksheet open, that worksheet carries a
+   heartbeat (liveAt / liveBy). Students watch the handful of most recently
+   beating worksheets in real time, so the one being worked on right now
+   shows up highlighted with a LIVE badge in their list.
+
+   The heartbeat lives on the worksheet document itself rather than in a new
+   collection, so it needs no extra security rules: the teacher already
+   writes these documents and students already read them. */
+var LIVE_PING_MS = 30000;    // how often the heartbeat is refreshed
+var LIVE_FRESH_MS = 90000;   // a heartbeat older than this is stale (tab died)
+var LIVE_IDLE_MS = 600000;   // stop beating after this long with no edits
+var liveDocs = {};           // docId -> { by, at } currently beating
+var livePingTimer = null;
+var liveUnsub = null;
+var liveSweepTimer = null;
+var liveLastEditAt = 0;
+
+function liveFresh(at) {
+  return !!at && (Date.now() - at) < LIVE_FRESH_MS;
+}
+
+/* ---- Teacher side: send the heartbeat ---- */
+function pingLive() {
+  if (!currentDocId || !currentUser || !isAdmin(currentUser) || actingStudent) return;
+  // An open tab left alone all evening should not keep claiming to be live.
+  if (Date.now() - liveLastEditAt > LIVE_IDLE_MS) return;
+  db.collection(COLLECTION).doc(currentDocId).set({
+    liveAt: firebase.firestore.FieldValue.serverTimestamp(),
+    liveBy: ADMIN_DISPLAY_NAME
+  }, { merge: true }).catch(function () { /* offline — the marker just expires */ });
+}
+
+function startLivePresence() {
+  stopLivePresence(false);
+  if (!currentDocId || !currentUser || !isAdmin(currentUser) || actingStudent) return;
+  liveLastEditAt = Date.now();
+  pingLive();
+  livePingTimer = setInterval(pingLive, LIVE_PING_MS);
+}
+
+/* clear=true also removes the marker so students stop seeing LIVE at once. */
+function stopLivePresence(clear, docId) {
+  if (livePingTimer) { clearInterval(livePingTimer); livePingTimer = null; }
+  var id = docId || currentDocId;
+  if (clear && id && currentUser && isAdmin(currentUser)) {
+    db.collection(COLLECTION).doc(id).set({
+      liveAt: firebase.firestore.FieldValue.delete(),
+      liveBy: firebase.firestore.FieldValue.delete()
+    }, { merge: true }).catch(function () { /* it expires by itself anyway */ });
+  }
+}
+
+/* ---- Everyone: watch what is live ----
+   orderBy skips documents without the field, so this only ever returns
+   worksheets that have beaten at least once — a handful of documents. */
+function subscribeLive() {
+  if (liveUnsub) { liveUnsub(); liveUnsub = null; }
+  if (!currentUser) { liveDocs = {}; applyLiveMarks(); return; }
+  try {
+    liveUnsub = db.collection(COLLECTION).orderBy('liveAt', 'desc').limit(5)
+      .onSnapshot(function (snap) {
+        liveDocs = {};
+        snap.forEach(function (docSnap) {
+          var d = docSnap.data();
+          var at = d.liveAt && d.liveAt.toDate ? d.liveAt.toDate().getTime() : 0;
+          if (liveFresh(at)) liveDocs[docSnap.id] = { by: d.liveBy || 'Your teacher', at: at };
+        });
+        applyLiveMarks();
+      }, function () { /* listener refused or offline — no LIVE marks, no harm */ });
+  } catch (e) { /* same */ }
+  if (!liveSweepTimer) {
+    // Expire a marker whose tab died without a further snapshot arriving.
+    liveSweepTimer = setInterval(function () {
+      var changed = false;
+      Object.keys(liveDocs).forEach(function (id) {
+        if (!liveFresh(liveDocs[id].at)) { delete liveDocs[id]; changed = true; }
+      });
+      if (changed) applyLiveMarks();
+    }, 20000);
+  }
+}
+
+/* Paint the marks onto whatever is currently on screen. */
+function applyLiveMarks() {
+  document.querySelectorAll('#qList .qItem').forEach(function (btn) {
+    markLiveCard(btn, btn.getAttribute('data-qid'));
+  });
+  var wsLive = $('wsLive');
+  if (wsLive) {
+    var openLive = currentDocId && liveDocs[currentDocId];
+    // No point telling the teacher their own worksheet is live to themselves.
+    var showHere = openLive && !(isAdmin(currentUser) && !actingStudent);
+    wsLive.style.display = showHere ? '' : 'none';
+    wsLive.title = showHere ? openLive.by + ' is working on this worksheet right now' : '';
+  }
+}
+
+function markLiveCard(btn, id) {
+  var live = id && liveDocs[id];
+  btn.classList.toggle('live', !!live);
+  var old = btn.querySelector('.qItemLive');
+  if (old) old.remove();
+  if (!live) return;
+  var row = document.createElement('div');
+  row.className = 'qItemLive';
+  var pill = document.createElement('span');
+  pill.className = 'livePill';
+  var dot = document.createElement('span');
+  dot.className = 'liveDot';
+  pill.appendChild(dot);
+  pill.appendChild(document.createTextNode('LIVE'));
+  row.appendChild(pill);
+  var by = document.createElement('span');
+  by.className = 'qItemLiveBy';
+  by.textContent = live.by + ' is editing this now';
+  row.appendChild(by);
+  btn.appendChild(row);
+}
+
 /* 0 = worksheet falls on one of the student's class days (shown first). */
 function dayPriority(d) {
   if (!studentProfile || !studentProfile.days || !studentProfile.days.length) return 0;
@@ -6622,6 +6785,7 @@ async function performSave() {
     };
     if (isNew) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection(COLLECTION).doc(currentDocId).set(payload, { merge: true });
+    startLivePresence(); // now it exists, it can advertise that it is live
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
     btn.classList.add('btnSaved');
@@ -6782,6 +6946,7 @@ async function restoreDraft(d) {
   var buf = await d.pdf.arrayBuffer();
   await loadPdf(new Uint8Array(buf), d.docName);
   currentDocId = d.docId || null;
+  startLivePresence();
   try { annotations = JSON.parse(d.annotations || '[]'); } catch (e) { annotations = []; }
   if (d.wsMeta) wsMeta = d.wsMeta;
   renderAllOverlays();
@@ -7000,6 +7165,7 @@ async function openSavedDoc(id, data) {
     await loadPdf(new Uint8Array(buf), data.name || 'Untitled');
     annotations = JSON.parse(data.annotations || '[]');
     currentDocId = id;
+    startLivePresence();
     wsMeta.level = data.level || '';
     wsMeta.subject = data.subject || '';
     wsMeta.date = data.wsDate || '';
@@ -7161,6 +7327,7 @@ function questionCard(item) {
     openSavedDoc(item.id, d).then(markActiveQuestion);
     if (panelsFloat()) toggleQuestionsDrawer();
   });
+  markLiveCard(btn, item.id);
   return btn;
 }
 
@@ -7277,7 +7444,7 @@ async function deleteSavedDoc(id, data, rowEl) {
     await db.collection(COLLECTION).doc(id).delete();
     try { await storage.ref(data.storagePath).delete(); } catch (e) { /* file may be gone */ }
     if (rowEl) rowEl.remove();
-    if (currentDocId === id) currentDocId = null;
+    if (currentDocId === id) { stopLivePresence(false); currentDocId = null; }
     toast('Deleted.');
   } catch (e) {
     toast('Delete failed: ' + (e.message || e));
@@ -8374,6 +8541,7 @@ document.addEventListener('keydown', function (e) {
   document.addEventListener('scroll', hideTip, true);
 })();
 
+window.addEventListener('beforeunload', function () { stopLivePresence(true); });
 window.addEventListener('beforeunload', function (e) {
   if (!dirty || !annotations.length) return;
   saveDraftNow(); // last-chance flush into the local draft failsafe
