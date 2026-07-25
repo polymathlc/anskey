@@ -1454,6 +1454,9 @@
     <button class="toolBtn" id="deleteBtn" data-key="Del" title="Delete selected">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
     </button>
+    <button class="toolBtn" id="askPageBtn" title="Ask AI about this page — opens a conversation about what is on screen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.5 9.5 0 0 1-3-.5L3 21l1.6-4.2A8.2 8.2 0 0 1 3.6 11.5 8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/><path d="M9.2 9.3a2.8 2.8 0 0 1 5.5.7c0 1.9-2.8 2.8-2.8 2.8"/><line x1="12" y1="16.5" x2="12" y2="16.5"/></svg>
+    </button>
   </div>
   <div class="tSep"></div>
 
@@ -1905,11 +1908,11 @@
 <div class="modalBack" id="askAiModal">
   <div class="modalCard">
     <div class="modalHead">
-      <h2>💬 Ask AI <span class="askAiCredits" id="askAiCredits"></span></h2>
+      <h2><span id="askAiTitle">💬 Ask AI</span> <span class="askAiCredits" id="askAiCredits"></span></h2>
       <button class="modalClose" id="askAiCloseBtn" title="Close">✕</button>
     </div>
     <div class="modalBody">
-      <div class="sideHint">Ask about anything featured in this question — a word, an idea, a diagram. The AI explains it without giving the answer away. Careful: an off-topic question costs 5 of your 20 credits!</div>
+      <div class="sideHint" id="askAiHint"></div>
       <div id="askAiThread"></div>
       <div class="askAiRow">
         <input type="text" id="askAiInput" placeholder="e.g. What does this word mean?" autocomplete="off" autocapitalize="off" enterkeyhint="send">
@@ -2944,7 +2947,7 @@ function renderPracticeBar(p, a, box) {
   });
   bar.appendChild(b);
   var ask = document.createElement('button');
-  ask.textContent = '💬 Ask AI · ' + askCreditsLeft(a) + '⭐';
+  ask.textContent = '💬 Ask AI · ' + askCreditsLeft({ kind: 'ann', id: a.id }) + '⭐';
   ask.title = 'Ask Gemini to explain anything featured in this question — an off-topic question costs ' + ASK_PENALTY + ' credits';
   ask.addEventListener('pointerdown', function (e) {
     e.preventDefault();
@@ -5488,7 +5491,17 @@ var ASK_START_CREDITS = 20;
 var ASK_PENALTY = 5;
 var askCredits = {};     // question key -> credits left
 var askThreads = {};     // question key -> [{ who:'s'|'ai', text, penalty }]
-var askAiTargetId = null;
+var askTarget = null;   // { kind: 'ann', id } or { kind: 'page', page }
+
+var AI_TEACHER_ASK_SYS =
+  'You are helping a tuition teacher (Singapore syllabus, P3 to Secondary 1) ' +
+  'who is looking at a worksheet page. Snapshots of the page are attached. ' +
+  'Answer their question about it directly and practically — unlike with a ' +
+  'student, you SHOULD give answers, worked solutions, marking points or ' +
+  'explanations pitched at a given level when asked. Read the worksheet ' +
+  'itself rather than assuming the subject. Reply with STRICT JSON only, no ' +
+  'markdown, exactly this shape: {"relevant":true,"reply":"your answer as ' +
+  'plain text"}.';
 
 var AI_EXPLAIN_SYS =
   'You are a kind, patient tuition tutor helping a student from P3 to ' +
@@ -5510,19 +5523,47 @@ var AI_EXPLAIN_SYS =
 /* Questions have no identity of their own, so credits key on the answer's
    rough vertical band on its page — a deleted and re-made answer box on the
    same question keeps the same credit balance. */
-function askCreditKey(a) {
+function askCreditKey(t) {
+  if (t && t.kind === 'page') return 'page:' + t.page;
+  var a = t && t.kind === 'ann' ? askAnnOf(t) : t;
+  if (!a) return 'none';
   var b = annBounds(a);
   return a.page + ':' + Math.round(b.y / 150);
 }
 
-function askCreditsLeft(a) {
-  var k = askCreditKey(a);
+function askCreditsLeft(t) {
+  var k = askCreditKey(t);
   if (!(k in askCredits)) askCredits[k] = ASK_START_CREDITS;
   return askCredits[k];
 }
 
+/* Credits are a student thing — the teacher asks freely. */
+function askMetered() { return isStudent() || isSharedVisitor(); }
+
+function askAnnOf(t) {
+  if (!t || t.kind !== 'ann') return null;
+  return annotations.find(function (x) { return x.id === t.id; }) || null;
+}
+
+/* The target is either one answer on the page or the page as a whole. */
+function askTargetValid(t) {
+  if (!t) return false;
+  if (t.kind === 'page') return pages.some(function (p) { return p.num === t.page; });
+  return !!askAnnOf(t);
+}
+
 function askAiAnn() {
-  return annotations.find(function (x) { return x.id === askAiTargetId; }) || null;
+  return askAnnOf(askTarget);
+}
+
+/* Whichever page is currently filling most of the viewer. */
+function currentPageNum() {
+  if (!pages.length) return 0;
+  var area = $('viewerArea');
+  var mid = area.scrollTop + area.clientHeight / 2;
+  var best = pages[0].num;
+  pages.forEach(function (p) { if (p.wrap.offsetTop <= mid) best = p.num; });
+  return best;
 }
 
 function openAskAi(explicitId) {
@@ -5534,22 +5575,63 @@ function openAskAi(explicitId) {
   var a = annotations.find(function (x) { return x.id === id; });
   if (!a && annotations.length) a = annotations[annotations.length - 1];
   if (!a) { toast('Write or type near the question first, then ask the AI about it.', 4500); return; }
-  askAiTargetId = a.id;
-  renderAskThread(a);
-  updateAskAiUi(a);
+  showAskAi({ kind: 'ann', id: a.id });
+}
+
+/* Ask about the whole page currently on screen — no answer box needed, so
+   this works straight from the toolbar for teacher and student alike. */
+function openAskAiPage() {
+  if (!pdfDoc || !pages.length) { toast('Open a worksheet first.'); return; }
+  commitActiveTextEdit();
+  showAskAi({ kind: 'page', page: currentPageNum() });
+}
+
+function showAskAi(t) {
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  askTarget = t;
+  renderAskThread(t);
+  updateAskAiUi(t);
   $('askAiModal').classList.add('open');
   $('askAiInput').focus();
 }
 
-function updateAskAiUi(a) {
-  var left = askCreditsLeft(a);
-  $('askAiCredits').textContent = left + ' credit' + (left === 1 ? '' : 's');
-  $('askAiCredits').classList.toggle('low', left <= ASK_PENALTY);
+function updateAskAiUi(t) {
+  var chip = $('askAiCredits');
+  var title = $('askAiTitle');
+  if (title) {
+    title.textContent = (t && t.kind === 'page')
+      ? '💬 Ask AI about page ' + t.page
+      : '💬 Ask AI about this question';
+  }
+  var hint = $('askAiHint');
+  if (hint) {
+    hint.textContent = askMetered()
+      ? 'Ask about anything on this ' + (t && t.kind === 'page' ? 'page' : 'question') +
+        ' — a word, an idea, a diagram. The AI explains it without giving the answer away. ' +
+        'Careful: an off-topic question costs ' + ASK_PENALTY + ' of your ' + ASK_START_CREDITS + ' credits!'
+      : 'Ask anything about what is on this ' + (t && t.kind === 'page' ? 'page' : 'question') +
+        ' — Gemini can read the worksheet.';
+  }
+  if (!askMetered()) {
+    // No credit meter for the teacher.
+    chip.style.display = 'none';
+    $('askAiInput').disabled = false;
+    $('askAiSendBtn').disabled = false;
+    $('askAiInput').placeholder = 'e.g. Explain question 3 for a P5 student';
+    return;
+  }
+  chip.style.display = '';
+  var left = askCreditsLeft(t);
+  chip.textContent = left + ' credit' + (left === 1 ? '' : 's');
+  chip.classList.toggle('low', left <= ASK_PENALTY);
   var locked = left <= 0;
   $('askAiInput').disabled = locked;
   $('askAiSendBtn').disabled = locked;
   $('askAiInput').placeholder = locked
-    ? 'No credits left for this question.'
+    ? 'No credits left here.'
     : 'e.g. What does this word mean?';
 }
 
@@ -5575,17 +5657,34 @@ function renderAskThread(a) {
    annotation type (practice answers are often pen ink, not text boxes),
    and it composites only the student's own work — the teacher's answers
    are already hidden while practising. */
-function askContextImages(a) {
+function askContextImages(t) {
   var imgs = [];
   try {
-    var p = pages.find(function (pg) { return pg.num === a.page; });
+    if (t && t.kind === 'page') {
+      var pg = pages.find(function (x) { return x.num === t.page; });
+      if (!pg) return imgs;
+      // While practising, the answers on screen are the student's own; the
+      // teacher's are hidden, so nothing is given away by including them.
+      var whole = compositeJpeg(pg, annotations, 1400);
+      if (whole) imgs.push({ mimeType: 'image/jpeg', data: whole, label: 'the whole page being asked about' });
+      var before = pages.find(function (x) { return x.num === t.page - 1; });
+      var bj = before && pageJpeg(before, 1100);
+      if (bj) imgs.push({ mimeType: 'image/jpeg', data: bj, label: 'the page before, for context' });
+      var next = pages.find(function (x) { return x.num === t.page + 1; });
+      var nj = next && pageJpeg(next, 1100);
+      if (nj) imgs.push({ mimeType: 'image/jpeg', data: nj, label: 'the page after, for context' });
+      return imgs;
+    }
+    var a = askAnnOf(t);
+    if (!a) return imgs;
+    var p = pages.find(function (x) { return x.num === a.page; });
     if (!p) return imgs;
     var b = annBounds(a);
     var band = bandJpeg(p, annotations, b.y - 280, b.y2 + 160);
     if (band) imgs.push({ mimeType: 'image/jpeg', data: band, label: 'the question the student is working on (close-up)' });
     var full = compositeJpeg(p, annotations, 1280);
     if (full) imgs.push({ mimeType: 'image/jpeg', data: full, label: 'the full current page' });
-    var prev = pages.find(function (pg) { return pg.num === a.page - 1; });
+    var prev = pages.find(function (x) { return x.num === a.page - 1; });
     var pv = prev && pageJpeg(prev, 1100);
     if (pv) imgs.push({ mimeType: 'image/jpeg', data: pv, label: 'the previous page, for context' });
   } catch (e) { /* snapshots failed — Gemini still gets the typed question */ }
@@ -5593,8 +5692,8 @@ function askContextImages(a) {
 }
 
 function sendAskAi() {
-  var a = askAiAnn();
-  if (!practiceMode || !a) { $('askAiModal').classList.remove('open'); return; }
+  var t = askTarget;
+  if (!askTargetValid(t)) { $('askAiModal').classList.remove('open'); return; }
   var q = $('askAiInput').value.trim();
   if (!q) return;
   if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
@@ -5602,11 +5701,12 @@ function sendAskAi() {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return;
   }
-  var key = askCreditKey(a);
-  if (askCreditsLeft(a) <= 0) { updateAskAiUi(a); return; }
+  var metered = askMetered();
+  var key = askCreditKey(t);
+  if (metered && askCreditsLeft(t) <= 0) { updateAskAiUi(t); return; }
   var thread = askThreads[key] = askThreads[key] || [];
   thread.push({ who: 's', text: q });
-  renderAskThread(a);
+  renderAskThread(t);
   $('askAiInput').value = '';
   var thinking = document.createElement('div');
   thinking.className = 'askAiA';
@@ -5623,14 +5723,16 @@ function sendAskAi() {
   thread.slice(-7, -1).forEach(function (m) {
     lines.push((m.who === 's' ? 'Student said earlier: ' : 'You replied earlier: ') + '"' + m.text + '"');
   });
-  var imgs = askContextImages(a);
+  var imgs = askContextImages(t);
   if (imgs.length) {
     lines.push('Attached: ' + imgs.map(function (im, i) { return 'image ' + (i + 1) + ' = ' + im.label; }).join('; ') + '.');
   }
-  lines.push('The student asks: "' + q + '"');
+  if (t.kind === 'page') lines.push('The question is about this whole page, not one particular answer.');
+  lines.push((metered ? 'The student asks: "' : 'The teacher asks: "') + q + '"');
 
   window.askGemini(lines.join('\n'), {
-    system: AI_EXPLAIN_SYS, maxOutputTokens: 800, temperature: 0.4, json: true,
+    system: metered ? AI_EXPLAIN_SYS : AI_TEACHER_ASK_SYS,
+    maxOutputTokens: 900, temperature: 0.4, json: true,
     images: imgs.map(function (im) { return { mimeType: im.mimeType, data: im.data }; })
   }).then(function (raw) {
     aiBusy = false;
@@ -5638,16 +5740,17 @@ function sendAskAi() {
     var res = _parseAIJson(raw);
     var relevant = !(res && res.relevant === false);
     var reply = (res && res.reply) || 'Sorry — I could not answer that. Please try asking again.';
-    if (!relevant) askCredits[key] = Math.max(0, askCreditsLeft(a) - ASK_PENALTY);
-    thread.push({ who: 'ai', text: reply, penalty: !relevant });
-    renderAskThread(a);
-    updateAskAiUi(a);
+    // Only students are charged, and only for genuinely off-topic questions.
+    if (metered && !relevant) askCredits[key] = Math.max(0, askCreditsLeft(t) - ASK_PENALTY);
+    thread.push({ who: 'ai', text: reply, penalty: metered && !relevant });
+    renderAskThread(t);
+    updateAskAiUi(t);
     renderAllOverlays(); // the floating bar shows this question's credits
   }).catch(function (err) {
     aiBusy = false;
     thinking.remove();
     thread.push({ who: 'ai', text: 'Gemini error: ' + ((err && err.message) || 'request failed — please try again.') });
-    renderAskThread(a);
+    renderAskThread(t);
   });
 }
 
@@ -5668,7 +5771,7 @@ function startPractice() {
   selectedId = null; editingId = null; editModeId = null;
   reviseMode = false; $('reviseToggle').checked = false;
   practiceMode = true;
-  askCredits = {}; askThreads = {}; askAiTargetId = null; // fresh Ask AI credits
+  askCredits = {}; askThreads = {}; askTarget = null; // fresh Ask AI credits
   document.body.classList.add('practiceOn'); // shows the per-page Check buttons
   applyRoleUI();
   setTool('pen');
@@ -5681,7 +5784,7 @@ function endPractice() {
   if (!practiceMode) return;
   commitActiveTextEdit();
   practiceMode = false;
-  askCredits = {}; askThreads = {}; askAiTargetId = null;
+  askCredits = {}; askThreads = {}; askTarget = null;
   $('askAiModal').classList.remove('open');
   document.body.classList.remove('practiceOn');
   annotations = teacherAnswers || [];
@@ -6253,6 +6356,7 @@ $('practiceEndBtn').addEventListener('click', endPractice);
 $('practiceCheckBtn').addEventListener('click', checkAnswer);
 $('practiceCheckAllBtn').addEventListener('click', checkAllAnswers);
 $('practiceAskBtn').addEventListener('click', openAskAi);
+$('askPageBtn').addEventListener('click', openAskAiPage);
 $('askAiCloseBtn').addEventListener('click', function () { $('askAiModal').classList.remove('open'); });
 $('askAiModal').addEventListener('click', function (e) {
   if (e.target === $('askAiModal')) $('askAiModal').classList.remove('open');
