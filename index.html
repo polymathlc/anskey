@@ -51,6 +51,7 @@
     border-bottom: 1px solid var(--line);
     background: var(--bg);
     flex: 0 0 auto;
+    min-height: auto;
   }
   .polymath-logo { height: 46px; display: block; }
   .headerTitle { font-size: 1.15rem; font-weight: bold; letter-spacing: 0.01em; }
@@ -187,16 +188,20 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 18px;
+    gap: 6px;
+    padding: 8px 14px;
     border-bottom: 1px solid var(--line);
     background: #FCFCFB;
+    /* flex-shrink AND min-height:auto: without them a short viewport (an
+       iPad with the keyboard up) could collapse this row to nothing. */
     flex: 0 0 auto;
+    min-height: auto;
   }
+  body.toolbarMin #toolbar { display: none; }
   .tGroup { display: flex; align-items: center; gap: 5px; }
   .tSep { width: 1px; height: 26px; background: var(--line); margin: 0 6px; }
   .toolBtn {
-    width: 38px; height: 38px;
+    width: 32px; height: 32px;
     display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -206,7 +211,7 @@
     transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
     position: relative;
   }
-  .toolBtn svg { width: 19px; height: 19px; display: block; }
+  .toolBtn svg { width: 17px; height: 17px; display: block; }
   .toolBtn:hover { background: #F1F0EE; transform: translateY(-1px); }
   .toolBtn.active {
     background: var(--accent);
@@ -1170,7 +1175,7 @@
     /* Apple's minimum comfortable target is 44px; these were 24-38px. The
        hit area grows without moving anything: the visual size is kept and
        an invisible centred pad extends the tappable region. */
-    .toolBtn { width: 44px; height: 44px; }
+    .toolBtn { width: 32px; height: 32px; }
     .colorChip, #customColor, .modalClose, .aiBar button, .reviseToggleRow input { position: relative; }
     .colorChip::after, #customColor::after, .modalClose::after,
     .aiBar button::after, .reviseToggleRow input::after {
@@ -1218,15 +1223,104 @@
 
   /* Tool buttons had no flex-shrink, so on a narrow screen the row squashed
      them into deformed slivers instead of scrolling. */
-  .toolBtn, .colorChip, .tSep, .tGroup { flex: 0 0 auto; }
+  .toolBtn, .colorChip, .tSep { flex: 0 0 auto; }
+  .tGroup { flex: 0 1 auto; flex-wrap: wrap; }
+
+  /* ---------- Favourites bar (floating, draggable) ---------- */
+  #favBar {
+    position: fixed;
+    z-index: 55;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 5px;
+    background: #FCFCFB;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow-modal);
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    max-height: calc(100vh - 24px);
+  }
+  #favBar.dragging { opacity: 0.85; }
+  .favGrip {
+    font-size: 0.7rem;
+    letter-spacing: -1px;
+    color: var(--ink-faint);
+    cursor: grab;
+    padding: 2px 6px 4px;
+    touch-action: none;
+    line-height: 1;
+  }
+  #favBar.dragging .favGrip { cursor: grabbing; }
+  .favTools {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    max-height: calc(100vh - 150px);
+    scrollbar-width: none;
+  }
+  .favTools::-webkit-scrollbar { display: none; }
+  .favBtn {
+    width: 36px; height: 36px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: var(--font);
+    font-size: 0.95rem;
+    cursor: pointer;
+    flex: 0 0 auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .favBtn svg { width: 17px; height: 17px; display: block; }
+  .favBtn:active { background: #E8E6E3; }
+  .favBtn.active {
+    background: var(--accent);
+    border-color: var(--accent-strong);
+    color: var(--ink);
+  }
+  .favMeta { color: var(--ink-faint); border-top: 1px solid var(--line); border-radius: 0; height: 32px; }
+  .favEmpty { font-size: 0.6rem; color: var(--ink-faint); text-align: center; padding: 4px 2px; line-height: 1.3; }
+  body.toolbarMin #favToolbarBtn { background: var(--accent); color: var(--ink); }
+
+  /* Picker: which tools live on the bar */
+  .favPickRow {
+    display: flex; align-items: center; gap: 12px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .favPickRow.on { background: #FFF8EC; border-color: var(--accent-strong); }
+  .favPickRow .favPickIcon {
+    width: 30px; height: 30px; flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ink-soft);
+  }
+  .favPickRow .favPickIcon svg { width: 18px; height: 18px; }
+  .favPickName { font-size: 0.86rem; flex: 1; min-width: 0; }
+  .favPickMark { font-size: 0.9rem; color: var(--accent-deep); font-weight: bold; }
+  /* Below this width the file buttons drop their text labels, which is what
+     lets every icon fit into about two rows instead of scrolling away. */
+  @media (max-width: 1300px) {
+    #toolbar { flex-wrap: wrap; gap: 5px; padding: 7px 8px; }
+    #toolbar .btnLabel { display: none; }
+    #toolbar .btn { padding: 7px 9px; }
+  }
+  /* Tighter still on a tablet or phone, so the whole set lands in two rows. */
   @media (max-width: 1100px) {
-    #toolbar {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: none;
-    }
-    #toolbar::-webkit-scrollbar { display: none; }
+    .sliderCtl { gap: 4px; padding: 4px 6px; }
+    .sliderCtl input[type="range"] { width: 46px; }
+    .colorChip { width: 20px; height: 20px; }
+    .tSep { display: none; }
+    #toolbar { gap: 4px; }
+    #toolbar .btn { padding: 6px 7px; }
+    #colorChips { gap: 4px; }
   }
 
   /* iPads land between the old 640px breakpoint and the desktop layout, so
@@ -1378,7 +1472,7 @@
   <div class="tSep"></div>
 
   <div class="tGroup">
-    <button class="toolBtn" id="focusBtn" data-key="B" title="Hide / show the top banner — more space for screensharing">
+    <button class="toolBtn" id="focusBtn" title="Hide / show the top banner — more space for screensharing">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
     </button>
     <button class="toolBtn" id="stylusBtn" data-key="D" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
@@ -1418,6 +1512,13 @@
       <span class="btnLabel">My PDFs</span>
     </button>
   </div>
+</div>
+
+<div id="favBar" style="display:none">
+  <div class="favGrip" id="favGrip" title="Drag to move this bar">⋮⋮</div>
+  <div class="favTools" id="favTools"></div>
+  <button class="favBtn favMeta" id="favToolbarBtn" title="Hide / show the main toolbar">▤</button>
+  <button class="favBtn favMeta" id="favAddBtn" title="Choose which tools appear here">＋</button>
 </div>
 
 <div id="mainRow">
@@ -1781,6 +1882,23 @@
       <button class="modalClose" id="checkCloseBtn" title="Close">✕</button>
     </div>
     <div class="modalBody" id="checkBody"></div>
+  </div>
+</div>
+
+<div class="modalBack" id="favModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>Favourite tools</h2>
+      <button class="modalClose" id="favCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="sideHint">Tap any tool to put it on the side bar, tap again to take it off. Drag the ⋮⋮ handle to move the bar anywhere on screen.</div>
+      <div id="favPickList"></div>
+      <div class="modalActions">
+        <button class="btn" id="favResetBtn">Clear all</button>
+        <button class="btn btnPrimary" id="favDoneBtn">Done</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3591,6 +3709,7 @@ function setTool(t) {
   document.querySelectorAll('#toolButtons .toolBtn').forEach(function (b) {
     b.classList.toggle('active', b.getAttribute('data-tool') === t);
   });
+  if (typeof syncFavActive === 'function') syncFavActive();
   updateToolCursor();
 }
 
@@ -6206,6 +6325,7 @@ function applyRoleUI() {
   document.querySelectorAll('#toolbar .tSep').forEach(function (s) {
     s.style.display = hideTools ? 'none' : '';
   });
+  if (typeof renderFavBar === 'function') renderFavBar();
   var h1 = $('emptyState').querySelector('h1');
   var para = $('emptyState').querySelector('p');
   if (student) {
@@ -8805,7 +8925,7 @@ document.addEventListener('keydown', function (e) {
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
-  var uiKeys = { f: 'fitBtn', b: 'focusBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn' };
+  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
     if (toolKeys[k]) setTool(toolKeys[k]);
@@ -8911,6 +9031,200 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', syncVVH);
   syncVVH();
 }
+
+/* ================= Favourites bar =================
+   A floating vertical bar holding whichever toolbar buttons the teacher uses
+   most, so the tools they want are one tap away wherever they park it. Each
+   favourite is a reference to a real toolbar button — pressing it presses
+   that button — so every tool keeps its existing behaviour and nothing is
+   duplicated. The chosen tools and the bar's position are remembered. */
+var FAV_KEY = 'annotFavBar';
+var favKeys = [];
+var favPos = null;   // { x, y } in px from the top-left of the viewport
+var toolbarMin = false;
+
+function loadFavState() {
+  try {
+    var raw = JSON.parse(localStorage.getItem(FAV_KEY) || '{}');
+    if (Array.isArray(raw.keys)) favKeys = raw.keys.filter(function (k) { return typeof k === 'string'; }).slice(0, 24);
+    if (raw.pos && isFinite(raw.pos.x) && isFinite(raw.pos.y)) favPos = { x: +raw.pos.x, y: +raw.pos.y };
+    toolbarMin = !!raw.toolbarMin;
+  } catch (e) {}
+}
+
+function saveFavState() {
+  try {
+    localStorage.setItem(FAV_KEY, JSON.stringify({ keys: favKeys, pos: favPos, toolbarMin: toolbarMin }));
+  } catch (e) {}
+}
+
+/* Every toolbar button that can be favourited, keyed stably so the choice
+   survives the markup changing order. */
+function favCandidates() {
+  var out = [];
+  document.querySelectorAll('#toolbar button, .polymath-header button').forEach(function (b) {
+    if (b.closest('#favBar')) return;
+    if (b.style.display === 'none') return; // hidden for this role
+    var t = b.getAttribute('data-tool');
+    var key = t ? 'tool:' + t : (b.id ? 'id:' + b.id : '');
+    if (!key) return;
+    var label = b.getAttribute('data-tip') || b.getAttribute('title') ||
+                (b.textContent || '').trim() || key;
+    out.push({ key: key, label: label.split('—')[0].trim(), el: b });
+  });
+  return out;
+}
+
+function favSourceEl(key) {
+  if (key.indexOf('tool:') === 0) return document.querySelector('#toolButtons [data-tool="' + key.slice(5) + '"]');
+  if (key.indexOf('id:') === 0) return document.getElementById(key.slice(3));
+  return null;
+}
+
+function renderFavBar() {
+  var bar = $('favBar');
+  var wrap = $('favTools');
+  if (!bar || !wrap) return;
+  // Students have no tools to favourite, so the bar stays out of their way.
+  var show = !isStudent() && !isSharedVisitor();
+  bar.style.display = show ? '' : 'none';
+  if (!show) return;
+  wrap.innerHTML = '';
+  if (!favKeys.length) {
+    var hint = document.createElement('div');
+    hint.className = 'favEmpty';
+    hint.textContent = 'Add tools with ＋';
+    wrap.appendChild(hint);
+  }
+  favKeys.forEach(function (key) {
+    var src = favSourceEl(key);
+    if (!src) return;
+    var b = document.createElement('button');
+    b.className = 'favBtn';
+    b.setAttribute('data-fav', key);
+    b.title = src.getAttribute('data-tip') || src.getAttribute('title') || '';
+    var svg = src.querySelector('svg');
+    if (svg) b.appendChild(svg.cloneNode(true));
+    else b.textContent = (src.textContent || '?').trim().slice(0, 2);
+    b.addEventListener('click', function () {
+      var live = favSourceEl(key);
+      if (live) live.click();     // reuse the real button's behaviour
+      syncFavActive();
+    });
+    wrap.appendChild(b);
+  });
+  syncFavActive();
+  placeFavBar();
+}
+
+/* Mirror the source buttons' active state onto the favourites. */
+function syncFavActive() {
+  document.querySelectorAll('#favTools .favBtn').forEach(function (b) {
+    var src = favSourceEl(b.getAttribute('data-fav'));
+    b.classList.toggle('active', !!src && src.classList.contains('active'));
+  });
+}
+
+/* Keep the bar on screen whatever the window size or orientation. */
+function placeFavBar() {
+  var bar = $('favBar');
+  if (!bar || bar.style.display === 'none') return;
+  var w = bar.offsetWidth || 48;
+  var h = bar.offsetHeight || 200;
+  var maxX = Math.max(4, window.innerWidth - w - 4);
+  var maxY = Math.max(4, window.innerHeight - h - 4);
+  if (!favPos) favPos = { x: maxX, y: Math.max(4, Math.round((window.innerHeight - h) / 2)) };
+  bar.style.left = Math.min(Math.max(4, favPos.x), maxX) + 'px';
+  bar.style.top = Math.min(Math.max(4, favPos.y), maxY) + 'px';
+  bar.style.right = 'auto';
+}
+
+function setToolbarMin(on) {
+  toolbarMin = !!on;
+  document.body.classList.toggle('toolbarMin', toolbarMin);
+  saveFavState();
+  placeFavBar();
+}
+
+/* ---- The picker ---- */
+function openFavModal() {
+  var list = $('favPickList');
+  list.innerHTML = '';
+  favCandidates().forEach(function (c) {
+    var row = document.createElement('div');
+    row.className = 'favPickRow' + (favKeys.indexOf(c.key) !== -1 ? ' on' : '');
+    var icon = document.createElement('div');
+    icon.className = 'favPickIcon';
+    var svg = c.el.querySelector('svg');
+    if (svg) icon.appendChild(svg.cloneNode(true));
+    else icon.textContent = '•';
+    var name = document.createElement('div');
+    name.className = 'favPickName';
+    name.textContent = c.label;
+    var mark = document.createElement('div');
+    mark.className = 'favPickMark';
+    mark.textContent = favKeys.indexOf(c.key) !== -1 ? '✓' : '';
+    row.appendChild(icon); row.appendChild(name); row.appendChild(mark);
+    row.addEventListener('click', function () {
+      var i = favKeys.indexOf(c.key);
+      if (i === -1) favKeys.push(c.key); else favKeys.splice(i, 1);
+      saveFavState();
+      row.classList.toggle('on', i === -1);
+      mark.textContent = i === -1 ? '✓' : '';
+      renderFavBar();
+    });
+    list.appendChild(row);
+  });
+  $('favModal').classList.add('open');
+}
+
+/* ---- Dragging the bar ---- */
+(function () {
+  var grip = $('favGrip');
+  if (!grip) return;
+  var drag = null;
+  grip.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    var bar = $('favBar');
+    var r = bar.getBoundingClientRect();
+    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId };
+    bar.classList.add('dragging');
+    try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  grip.addEventListener('pointermove', function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    e.preventDefault();
+    favPos = { x: e.clientX - drag.dx, y: e.clientY - drag.dy };
+    placeFavBar();
+  });
+  function endDrag(e) {
+    if (!drag || (e && e.pointerId !== drag.id)) return;
+    drag = null;
+    $('favBar').classList.remove('dragging');
+    placeFavBar();
+    saveFavState();
+  }
+  grip.addEventListener('pointerup', endDrag);
+  grip.addEventListener('pointercancel', endDrag);
+})();
+
+$('favAddBtn').addEventListener('click', openFavModal);
+$('favToolbarBtn').addEventListener('click', function () { setToolbarMin(!toolbarMin); });
+$('favCloseBtn').addEventListener('click', function () { $('favModal').classList.remove('open'); });
+$('favDoneBtn').addEventListener('click', function () { $('favModal').classList.remove('open'); });
+$('favModal').addEventListener('click', function (e) {
+  if (e.target === $('favModal')) $('favModal').classList.remove('open');
+});
+$('favResetBtn').addEventListener('click', function () {
+  favKeys = [];
+  saveFavState();
+  renderFavBar();
+  openFavModal();
+});
+window.addEventListener('resize', placeFavBar);
+
+loadFavState();
+document.body.classList.toggle('toolbarMin', toolbarMin);
 
 // Pick up where the last session left off: same tool, same remembered styles.
 var lastTool = toolStyles._lastTool;
