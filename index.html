@@ -546,6 +546,21 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   #videoUrlInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  text.tsLabel.tsLink { cursor: pointer; }
+  text.tsLabel.tsLink:hover { fill: #1E5FA8; }
+  #videoStartRow { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  #videoStartRow label { display: block; font-size: 0.78rem; font-weight: bold; color: var(--ink-soft); margin-bottom: 5px; }
+  #videoStartInput {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.82rem;
+    padding: 8px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  #videoStartInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
   .videoBtnRow { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
   .videoBtnRow .btn { padding: 7px 12px; font-size: 0.78rem; }
   .videoModalCard { max-width: 880px; }
@@ -1481,7 +1496,7 @@
     <button class="toolBtn" id="stylusBtn" data-key="D" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
     </button>
-    <button class="toolBtn" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps (first and last of each page)">
+    <button class="toolBtn" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps — tap one to jump the lesson recording to that moment">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
     </button>
     <button class="toolBtn" id="thumbToggleBtn" data-key="N" title="Show / hide page thumbnails — drag the panel edge to resize them">
@@ -1584,10 +1599,20 @@
         <button class="btn" id="videoRemoveBtn" style="display:none">Remove</button>
       </div>
       <div class="sideHint" style="margin-top:8px">Share settings must allow “anyone with the link” to view.</div>
+      <div id="videoStartRow" style="display:none">
+        <label for="videoStartInput">Recording started at (clock time)</label>
+        <input type="time" id="videoStartInput" step="1">
+        <div class="videoBtnRow">
+          <button class="btn btnPrimary" id="videoStartSaveBtn">Save start time</button>
+          <button class="btn" id="videoStartFirstBtn" title="Fill in the clock time of the first mark on this worksheet">Use first mark</button>
+          <button class="btn" id="videoStartClearBtn" style="display:none">Clear</button>
+        </div>
+        <div class="sideHint" id="videoStartHint" style="margin-top:8px"></div>
+      </div>
     </div>
   </div>
   <div class="sideCard">
-    <div class="sideHint">Timestamps beside each annotation show when it was written —
+    <div class="sideHint" id="tsHint">Timestamps beside each annotation show when it was written —
       match them against the lesson recording to find the explanation for that part.</div>
   </div>
 </aside>
@@ -1760,6 +1785,7 @@
       <button class="modalClose" id="videoCloseBtn" title="Close">✕</button>
     </div>
     <div class="modalBody">
+      <div class="sideHint" id="videoAtHint" style="display:none;margin-bottom:8px"></div>
       <div id="videoBody"></div>
       <div class="videoOpenRow"><a id="videoOpenTab" target="_blank" rel="noopener">Open in a new tab ↗</a></div>
     </div>
@@ -2072,7 +2098,7 @@ var revealedKw = {};        // normalised keyword -> true, revealed during revis
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
-var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '' };  // worksheet meta (name lives in docName)
+var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0 };  // worksheet meta (name lives in docName)
 
 /* ---- Share links ----
    Every saved worksheet carries share settings: who a plain link admits
@@ -2407,7 +2433,7 @@ async function loadPdf(bytes, name) {
   selectedId = null;
   editingId = null;
   editModeId = null;
-  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '' };
+  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0 };
   wsShare = { mode: 'view', passwordHash: '' };
   reviseMode = false;
   revealedKw = {};
@@ -2761,7 +2787,17 @@ function tsLabelTargets(pageNum) {
   var stamped = annotations.filter(function (a) { return a.page === pageNum && a.ts; });
   if (stamped.length < 3) return stamped;
   stamped.sort(function (x, y) { return x.ts - y.ts; });
-  return [stamped[0], stamped[stamped.length - 1]];
+  if (!videoSeekReady()) return [stamped[0], stamped[stamped.length - 1]];
+  // Each label is a jump point into the recording, so two per page is too
+  // few — keep one per couple of minutes of lesson (the first and the last
+  // always), which stays readable without burying the page in grey text.
+  var GAP = 120000, MAX = 8;
+  var picked = [stamped[0]];
+  for (var i = 1; i < stamped.length - 1 && picked.length < MAX - 1; i++) {
+    if (stamped[i].ts - picked[picked.length - 1].ts >= GAP) picked.push(stamped[i]);
+  }
+  picked.push(stamped[stamped.length - 1]);
+  return picked;
 }
 
 /* Wipe and re-draw the page's timestamp labels (used by renderOverlay and
@@ -2773,27 +2809,47 @@ function refreshTsLabels(p) {
   tsLabelTargets(p.num).forEach(function (a) { appendTsLabel(p, a); });
 }
 
-/* Timestamp label beside one annotation. */
+/* Timestamp label beside one annotation. Once the recording has a start
+   time, the label becomes a link: tapping it opens the recording at the
+   moment that mark was written. */
 function appendTsLabel(p, a) {
   if (!showTimestamps || !a.ts) return;
   var node = p.svg.querySelector('[data-id="' + a.id + '"]');
   if (!node) return;
   var box;
   try { box = node.getBBox(); } catch (e) { return; }
+  var seekable = videoSeekReady();
   var label = el('text', {
-    'class': 'tsLabel',
+    'class': seekable ? 'tsLabel tsLink' : 'tsLabel',
     x: Math.min(box.x + box.width + 5, p.baseW - 4),
     y: Math.max(box.y + 8, 10),
     'font-size': 8.5,
-    fill: '#8A8A84',
+    fill: seekable ? '#3A6FB0' : '#8A8A84',
     stroke: '#FFFFFF',
     'stroke-width': 2.5,
     'paint-order': 'stroke',
     'text-anchor': box.x + box.width + 55 > p.baseW ? 'end' : 'start',
-    'pointer-events': 'none'
+    'pointer-events': seekable ? 'auto' : 'none'
   });
   label.style.fontFamily = 'var(--font)';
-  label.textContent = formatTs(a.ts);
+  label.textContent = (seekable ? '▶ ' : '') + formatTs(a.ts);
+  if (seekable) {
+    label.style.cursor = 'pointer';
+    label.style.textDecoration = 'underline';
+    var tip = el('title');
+    tip.textContent = 'Play the recording from ' + formatOffset(videoOffsetFor(a.ts));
+    label.appendChild(tip);
+    // Swallow the pointer events so tapping the label never draws, selects
+    // or erases underneath it; the click itself opens the recording.
+    ['pointerdown', 'pointerup', 'mousedown', 'touchstart'].forEach(function (evt) {
+      label.addEventListener(evt, function (ev) { ev.stopPropagation(); });
+    });
+    label.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      ev.preventDefault();
+      jumpRecordingToTs(a.ts);
+    });
+  }
   p.svg.appendChild(label);
 }
 
@@ -3413,36 +3469,207 @@ function renderVideoCard() {
   if (admin) {
     $('videoRemoveBtn').style.display = has ? 'inline-flex' : 'none';
     $('videoUrlInput').value = wsMeta.videoUrl || '';
+    renderVideoStartRow();
+  }
+  updateTsHint();
+  maybeAutoShowTimestamps();
+}
+
+/* ---- Start time of the recording ----
+   Annotations carry a wall-clock stamp (a.ts). Knowing the clock time at
+   which the recording began turns any stamp into a position in the video:
+   position = stamp − start. The teacher sets that one clock time here. */
+
+/* Midnight (local) of the day the recording belongs to — used to turn the
+   "13:45:00" typed in the box into a real moment. Preference order: the day
+   already saved, the day of the first mark on the page, the worksheet date,
+   then today. */
+function videoStartDayBase() {
+  var d;
+  if (wsMeta.videoStart) d = new Date(wsMeta.videoStart);
+  else {
+    var first = firstAnnTs();
+    if (first) d = new Date(first);
+    else if (wsMeta.date) d = new Date(wsMeta.date + 'T00:00:00');
+  }
+  if (!d || isNaN(d)) d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function firstAnnTs() {
+  var t = 0;
+  annotations.forEach(function (a) { if (a.ts && (!t || a.ts < t)) t = a.ts; });
+  return t;
+}
+
+function clockToMs(hhmmss, dayBase) {
+  var m = String(hhmmss || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return 0;
+  return dayBase + (+m[1]) * 3600000 + (+m[2]) * 60000 + (+(m[3] || 0)) * 1000;
+}
+
+function msToClock(ts) {
+  var d = new Date(ts);
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
+
+/* Seconds into the recording for a wall-clock stamp (null when unknown). */
+function videoOffsetFor(ts) {
+  if (!ts || !wsMeta.videoStart) return null;
+  return Math.max(0, Math.round((ts - wsMeta.videoStart) / 1000));
+}
+
+/* Can a tapped timestamp actually move this recording? */
+function videoSeekReady() {
+  return !!(wsMeta.videoUrl && wsMeta.videoStart && videoEmbedInfo(wsMeta.videoUrl).seek !== 'none');
+}
+
+function formatOffset(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  return (h ? h + ':' + pad(m) : String(m)) + ':' + pad(s);
+}
+
+function renderVideoStartRow() {
+  var has = !!wsMeta.videoUrl;
+  $('videoStartRow').style.display = has ? 'block' : 'none';
+  if (!has) return;
+  $('videoStartInput').value = wsMeta.videoStart ? msToClock(wsMeta.videoStart) : '';
+  $('videoStartClearBtn').style.display = wsMeta.videoStart ? 'inline-flex' : 'none';
+  var seek = videoEmbedInfo(wsMeta.videoUrl).seek;
+  var hint;
+  if (seek === 'none') {
+    hint = 'This link type cannot be jumped to a time — a Dropbox, YouTube or direct .mp4 link can.';
+  } else if (!wsMeta.videoStart) {
+    hint = 'Set the clock time the recording began and every timestamp on the page becomes a tap-to-jump link into it.';
+  } else {
+    hint = 'Recording began ' + formatTs(wsMeta.videoStart) + ' on ' +
+      new Date(wsMeta.videoStart).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) +
+      ' — tapping a timestamp jumps the recording to that moment.';
+  }
+  $('videoStartHint').textContent = hint;
+}
+
+/* When a worksheet arrives with a recording that timestamps can drive, show
+   the labels — they are the way into the recording. Anyone who works the C
+   toggle themselves keeps the last thing they chose. */
+var tsUserToggled = false;
+function maybeAutoShowTimestamps() {
+  if (tsUserToggled || showTimestamps || !videoSeekReady()) return;
+  showTimestamps = true;
+  $('tsToggleBtn').classList.add('active');
+  renderAllOverlays();
+}
+
+/* Student-facing line under the recording card. */
+function updateTsHint() {
+  var hint = $('tsHint');
+  if (!hint) return;
+  hint.textContent = videoSeekReady()
+    ? 'Tap a timestamp on the page to jump the lesson recording to that moment. Press C to show or hide the timestamps.'
+    : 'Timestamps beside each annotation show when it was written — match them against the lesson recording to find the explanation for that part.';
+}
+
+async function saveVideoStart() {
+  var raw = $('videoStartInput').value.trim();
+  if (!raw) { toast('Type the clock time the recording began, e.g. 14:05:00.'); return; }
+  var ms = clockToMs(raw, videoStartDayBase());
+  if (!ms) { toast('That time did not look right — use HH:MM or HH:MM:SS.'); return; }
+  wsMeta.videoStart = ms;
+  try {
+    await persistVideoMeta();
+    renderAllOverlays(); // timestamps become tap-to-jump links
+    toast('Start time saved — timestamps now jump the recording to that moment.', 3200);
+  } catch (e) {
+    toast('Could not save the start time: ' + (e.message || e));
+  }
+}
+
+function fillVideoStartFromFirstMark() {
+  var first = firstAnnTs();
+  if (!first) { toast('No timestamped marks on this worksheet yet.'); return; }
+  $('videoStartInput').value = msToClock(first);
+  toast('Filled in the time of the first mark — adjust it back to when you pressed record, then save.', 4200);
+}
+
+async function clearVideoStart() {
+  wsMeta.videoStart = 0;
+  try {
+    await persistVideoMeta();
+    renderAllOverlays();
+    toast('Start time cleared — timestamps no longer jump the recording.');
+  } catch (e) {
+    toast('Could not clear the start time: ' + (e.message || e));
   }
 }
 
 /* Turn a pasted share link into something embeddable in the app.
    Dropbox links are rewritten to their direct-stream host, Drive links to
-   the /preview player, YouTube links to the embed player. */
-function videoEmbedInfo(url) {
+   the /preview player, YouTube links to the embed player. `seek` says how a
+   start position can be applied: 'media' (set currentTime on the <video>),
+   'param' (baked into the embed URL) or 'none'. */
+function videoEmbedInfo(url, startSec) {
+  var t = Math.max(0, Math.floor(startSec || 0));
   var m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{6,})/i);
-  if (m) return { kind: 'iframe', src: 'https://www.youtube.com/embed/' + m[1] };
+  if (m) {
+    return {
+      kind: 'iframe', seek: 'param',
+      src: 'https://www.youtube.com/embed/' + m[1] + (t ? '?start=' + t + '&autoplay=1' : '')
+    };
+  }
   m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]+)/i);
-  if (m) return { kind: 'iframe', src: 'https://drive.google.com/file/d/' + m[1] + '/preview' };
+  if (m) return { kind: 'iframe', seek: 'none', src: 'https://drive.google.com/file/d/' + m[1] + '/preview' };
   if (/^https?:\/\/(www\.)?dropbox\.com\//i.test(url)) {
     var src = url
       .replace(/^https?:\/\/(www\.)?dropbox\.com/i, 'https://dl.dropboxusercontent.com')
       .replace(/([?&])(dl|raw)=\d+/g, '$1')
       .replace(/[?&]+$/, '')
       .replace(/\?&/, '?');
-    return { kind: 'video', src: src };
+    return { kind: 'video', seek: 'media', src: src };
   }
-  if (/\.(mp4|m4v|webm|mov)($|\?)/i.test(url)) return { kind: 'video', src: url };
-  return { kind: 'link', src: url };
+  if (/\.(mp4|m4v|webm|mov)($|\?)/i.test(url)) return { kind: 'video', seek: 'media', src: url };
+  return { kind: 'link', seek: 'none', src: url };
 }
 
-function openVideoModal() {
+/* The share link with a time position baked in, for "open in a new tab" and
+   for the links baked into the downloaded PDF. */
+function videoLinkAt(url, sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  if (!url || !sec) return url || '';
+  if (/youtu\.?be/i.test(url)) return url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + sec + 's';
+  if (/drive\.google\.com/i.test(url)) return url; // the Drive player takes no time parameter
+  return url.replace(/#.*$/, '') + '#t=' + sec;
+}
+
+/* Nudge a native <video> to the requested position as soon as it knows how
+   long it is — setting currentTime before metadata arrives is ignored. */
+function seekVideoEl(vid, sec) {
+  if (!sec) return;
+  var go = function () {
+    try { if (Math.abs(vid.currentTime - sec) > 0.6) vid.currentTime = sec; } catch (e) { /* not seekable yet */ }
+  };
+  if (vid.readyState >= 1) go();
+  vid.addEventListener('loadedmetadata', go, { once: true });
+  vid.addEventListener('canplay', go, { once: true });
+}
+
+/* startSec is optional; the sidebar button passes a click event, so anything
+   that is not a real number means "play from the beginning". */
+function openVideoModal(startSec) {
   if (!wsMeta.videoUrl) return;
-  var info = videoEmbedInfo(wsMeta.videoUrl);
+  var sec = (typeof startSec === 'number' && isFinite(startSec) && startSec > 0) ? Math.floor(startSec) : 0;
+  var info = videoEmbedInfo(wsMeta.videoUrl, sec);
   if (info.kind === 'link') {
     // Nothing we can embed — just open the link itself.
-    window.open(wsMeta.videoUrl, '_blank', 'noopener');
+    window.open(videoLinkAt(wsMeta.videoUrl, sec), '_blank', 'noopener');
     return;
+  }
+  if (sec && info.seek === 'none') {
+    toast('This link type cannot jump to a time — playing from the start. Scrub to ' + formatOffset(sec) + '.', 5000);
+    sec = 0;
   }
   var body = $('videoBody');
   body.innerHTML = '';
@@ -3454,14 +3681,31 @@ function openVideoModal() {
     body.appendChild(fr);
   } else {
     var vid = document.createElement('video');
-    vid.src = info.src;
+    vid.src = sec ? info.src + (info.src.indexOf('#') >= 0 ? '' : '#t=' + sec) : info.src;
     vid.controls = true;
     vid.playsInline = true;
     vid.preload = 'metadata';
+    if (sec) { vid.autoplay = true; seekVideoEl(vid, sec); }
     body.appendChild(vid);
   }
-  $('videoOpenTab').href = wsMeta.videoUrl;
+  var at = $('videoAtHint');
+  at.style.display = sec ? 'block' : 'none';
+  at.textContent = sec ? '▶ Playing from ' + formatOffset(sec) + ' into the recording.' : '';
+  $('videoOpenTab').href = videoLinkAt(wsMeta.videoUrl, sec);
   $('videoModal').classList.add('open');
+}
+
+/* Tapping a timestamp on the page: open the recording at that moment. */
+function jumpRecordingToTs(ts) {
+  if (!wsMeta.videoUrl) { toast('No recording is attached to this worksheet yet.'); return; }
+  var off = videoOffsetFor(ts);
+  if (off === null) {
+    toast('The recording has no start time set yet, so timestamps cannot be matched to it.', 4500);
+    openVideoModal();
+    return;
+  }
+  if (ts < wsMeta.videoStart) toast('That mark was written before the recording began — playing from the start.', 4000);
+  openVideoModal(off);
 }
 
 function closeVideoModal() {
@@ -3475,6 +3719,7 @@ async function persistVideoMeta() {
   await db.collection(COLLECTION).doc(currentDocId).set({
     videoUrl: wsMeta.videoUrl || '',
     videoPath: wsMeta.videoPath || '',
+    videoStartMs: wsMeta.videoStart || 0,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
 }
@@ -3483,8 +3728,10 @@ async function attachVideoLink() {
   var url = $('videoUrlInput').value.trim();
   if (!url) { toast('Paste a video link first.'); return; }
   if (!/^https?:\/\//i.test(url)) { toast('That does not look like a link — it should start with http(s)://'); return; }
+  var changed = url !== wsMeta.videoUrl;
   wsMeta.videoUrl = url;
   wsMeta.videoPath = '';
+  if (changed) wsMeta.videoStart = 0; // a different recording needs its own start time
   try {
     await persistVideoMeta();
     var embeddable = videoEmbedInfo(url).kind !== 'link';
@@ -3503,6 +3750,7 @@ async function removeVideo() {
   var oldPath = wsMeta.videoPath;
   wsMeta.videoUrl = '';
   wsMeta.videoPath = '';
+  wsMeta.videoStart = 0;
   try {
     await persistVideoMeta();
     if (oldPath) { try { await storage.ref(oldPath).delete(); } catch (e) { /* already gone */ } }
@@ -7125,6 +7373,7 @@ function applyRemoteDoc(d) {
   wsMeta.slot = (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? d.wsSlot : '';
   wsMeta.videoUrl = d.videoUrl || '';
   wsMeta.videoPath = d.videoPath || '';
+  wsMeta.videoStart = Number(d.videoStartMs) || 0;
   wsShare = normalizeShare(d.share);
 
   var json = d.annotations || '[]';
@@ -7288,6 +7537,7 @@ async function performSave() {
       storagePath: STORAGE_DIR + '/' + currentDocId + '.pdf',
       videoUrl: wsMeta.videoUrl || '',
       videoPath: wsMeta.videoPath || '',
+      videoStartMs: wsMeta.videoStart || 0,
       pageCount: pdfDoc.numPages,
       annotations: JSON.stringify(annotations),
       share: { mode: wsShare.mode, passwordHash: wsShare.passwordHash },
@@ -7682,6 +7932,7 @@ async function openSavedDoc(id, data) {
     wsMeta.slot = (data.wsSlot === 0 || data.wsSlot === 1 || data.wsSlot === 2) ? data.wsSlot : '';
     wsMeta.videoUrl = data.videoUrl || '';
     wsMeta.videoPath = data.videoPath || '';
+    wsMeta.videoStart = Number(data.videoStartMs) || 0;
     wsShare = normalizeShare(data.share);
     setDirty(false);
     renderAllOverlays();
@@ -8423,7 +8674,29 @@ async function buildAnnotatedPdf(includeTs) {
         var lx = box.x + box.w + 5;
         if (lx + tsW > pageInfo.baseW - 4) lx = Math.max(4, box.x + box.w - tsW);
         var tsAnchor = cv(lx, Math.max(box.y + 8, 10));
-        page.drawText(tsLabel, { x: tsAnchor.x, y: tsAnchor.y, size: tsSize, font: font, color: rgb(0.54, 0.54, 0.52) });
+        var tsOff = videoOffsetFor(a.ts);
+        var tsSeekable = tsOff !== null && videoSeekReady();
+        page.drawText(tsLabel, {
+          x: tsAnchor.x, y: tsAnchor.y, size: tsSize, font: font,
+          color: tsSeekable ? rgb(0.23, 0.44, 0.69) : rgb(0.54, 0.54, 0.52)
+        });
+        // With a start time set, the stamp is a link into the recording at
+        // that exact moment — the printed copy keeps that.
+        if (tsSeekable) {
+          try {
+            var tsLinkRef = outDoc.context.register(outDoc.context.obj({
+              Type: 'Annot', Subtype: 'Link',
+              Rect: [tsAnchor.x - 2, tsAnchor.y - 2, tsAnchor.x + tsW + 2, tsAnchor.y + tsSize + 2],
+              Border: [0, 0, 0],
+              A: { Type: 'Action', S: 'URI', URI: PDFLib.PDFString.of(videoLinkAt(wsMeta.videoUrl, tsOff)) }
+            }));
+            var tsAnnots = page.node.lookup(PDFLib.PDFName.of('Annots'));
+            if (tsAnnots) tsAnnots.push(tsLinkRef);
+            else page.node.set(PDFLib.PDFName.of('Annots'), outDoc.context.obj([tsLinkRef]));
+          } catch (tsLinkErr) {
+            console.warn('Could not add the PDF link for a timestamp', tsLinkErr);
+          }
+        }
       }
     });
 
@@ -8572,6 +8845,7 @@ $('focusBtn').addEventListener('click', function () {
 });
 $('stylusBtn').addEventListener('click', function () { setStylusOnly(!stylusOnly); });
 $('tsToggleBtn').addEventListener('click', function () {
+  tsUserToggled = true; // their choice sticks — stop auto-showing the labels
   showTimestamps = !showTimestamps;
   $('tsToggleBtn').classList.toggle('active', showTimestamps);
   renderAllOverlays();
@@ -8746,6 +9020,12 @@ $('videoModal').addEventListener('click', function (e) {
 });
 $('videoUrlInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); attachVideoLink(); }
+});
+$('videoStartSaveBtn').addEventListener('click', saveVideoStart);
+$('videoStartFirstBtn').addEventListener('click', fillVideoStartFromFirstMark);
+$('videoStartClearBtn').addEventListener('click', clearVideoStart);
+$('videoStartInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); saveVideoStart(); }
 });
 
 /* Drag & drop */
