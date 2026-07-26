@@ -508,6 +508,33 @@
     margin-bottom: 12px;
   }
   .sideName { font-size: 1.02rem; font-weight: bold; line-height: 1.4; margin-bottom: 10px; overflow-wrap: break-word; }
+  .sideNameRow { display: flex; align-items: flex-start; gap: 8px; }
+  .sideNameRow .sideName { flex: 1; min-width: 0; }
+  .sideRenameBtn {
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: var(--ink-soft);
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .sideRenameBtn:hover { background: var(--accent); border-color: var(--accent-strong); color: var(--ink); }
+  .wsRenameInput {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 1rem;
+    font-weight: bold;
+    padding: 6px 9px;
+    margin-bottom: 10px;
+    border: 1px solid var(--accent-strong);
+    border-radius: var(--radius-sm);
+    outline: none;
+  }
   .sideDay { font-size: 0.86rem; font-weight: bold; color: var(--ink-soft); }
   .sideDate { font-size: 0.8rem; color: var(--ink-faint); margin-top: 3px; }
   .sideHint { font-size: 0.76rem; color: var(--ink-faint); line-height: 1.5; }
@@ -1070,6 +1097,11 @@
   .repHead { font-weight: bold; margin-bottom: 6px; }
   .docEditRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .docEditRow select { font: inherit; font-size: 0.85rem; padding: 4px 6px; border: 1px solid var(--line, #E2E0DC); border-radius: 6px; background: #fff; }
+  .docEditRow .docNameInput {
+    font: inherit; font-size: 0.85rem; padding: 4px 8px; min-width: 200px; flex: 1 1 220px;
+    border: 1px solid var(--line, #E2E0DC); border-radius: 6px; background: #fff; outline: none;
+  }
+  .docEditRow .docNameInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
 
   /* ---------- Toast ---------- */
   #toast {
@@ -1213,7 +1245,8 @@
     }
     /* Below 16px iOS zooms the whole page when the field takes focus, and
        never zooms back — the single most jarring thing on an iPad. */
-    #kwInput, #videoUrlInput, .fieldRow input, .fieldRow select,
+    #kwInput, #videoUrlInput, #videoStartInput, .fieldRow input, .fieldRow select,
+    .wsRenameInput, .docEditRow .docNameInput,
     .stuCreate .docEditRow input[type="text"] { font-size: 16px; }
     .kwGuessInput { font-size: max(16px, 1em); }
   }
@@ -1557,7 +1590,10 @@
       <div class="sideLevel" id="wsLevel">Level —</div>
       <button class="panelCloseBtn" id="sideBarCloseBtn" title="Hide this panel">✕ Close</button>
     </div>
-    <div class="sideName" id="wsName">No worksheet loaded</div>
+    <div class="sideNameRow" id="wsNameRow">
+      <div class="sideName" id="wsName">No worksheet loaded</div>
+      <button class="sideRenameBtn" id="wsRenameBtn" title="Rename this worksheet" style="display:none">✎ Rename</button>
+    </div>
     <div class="sideDay" id="wsDay"></div>
     <div class="sideDate" id="wsDate"></div>
     <div class="livePill" id="wsLive" style="display:none"><span class="liveDot"></span>LIVE</div>
@@ -3450,11 +3486,71 @@ function renderSidebar() {
   $('wsLevel').textContent =
     (wsMeta.level ? levelLabel(wsMeta.level) : 'Level —') + (wsMeta.subject ? ' · ' + subjectLabel(wsMeta.subject) : '');
   $('wsName').textContent = docName || 'No worksheet loaded';
+  // Only the teacher renames worksheets, and only once one is open.
+  $('wsRenameBtn').style.display = (isAdmin(currentUser) && !actingStudent && pdfDoc) ? 'inline-flex' : 'none';
   $('wsDay').textContent = dayFromISO(wsMeta.date);
   $('wsDate').textContent = prettyDate(wsMeta.date);
   updateKwPanel();
   if (typeof updatePracticeCard === 'function') updatePracticeCard();
   renderVideoCard();
+}
+
+/* ---- Renaming the open worksheet ----
+   The name is what students see in My PDFs and in the questions drawer, and
+   it is the filename of any downloaded copy, so it is worth being able to
+   fix in place instead of re-saving the whole worksheet. */
+function startWsRename() {
+  if (!isAdmin(currentUser) || actingStudent || !pdfDoc) return;
+  var row = $('wsNameRow');
+  if (row.querySelector('.wsRenameInput')) return; // already renaming
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'wsRenameInput';
+  input.value = docName || '';
+  input.placeholder = 'Worksheet name';
+  input.autocomplete = 'off';
+  $('wsName').style.display = 'none';
+  $('wsRenameBtn').style.display = 'none';
+  row.appendChild(input);
+  input.focus();
+  input.select();
+  var finished = false;
+  var done = function (commit) {
+    if (finished) return;
+    finished = true;
+    var v = input.value.trim();
+    input.remove();
+    $('wsName').style.display = '';
+    renderSidebar(); // puts the ✎ button back
+    if (commit && v && v !== docName) applyWsRename(v);
+  };
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); done(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); done(false); }
+  });
+  input.addEventListener('blur', function () { done(true); });
+}
+
+async function applyWsRename(name) {
+  var old = docName;
+  docName = name;
+  renderSidebar();
+  setDirty(true);
+  if (!currentDocId) {
+    toast('Renamed to “' + docName + '” — press Save to keep it in the cloud.', 4000);
+    return;
+  }
+  try {
+    await db.collection(COLLECTION).doc(currentDocId).set({
+      name: docName,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    toast('Renamed to “' + docName + '”.');
+  } catch (e) {
+    docName = old; // the cloud copy still has the old name — keep them in step
+    renderSidebar();
+    toast('Could not rename: ' + (e.message || e), 5000);
+  }
 }
 
 /* ---- Lesson recording (video) attached to the worksheet ---- */
@@ -7837,14 +7933,20 @@ async function openDocsModal() {
   }
 }
 
-/* Inline level/subject editor for a saved PDF in the My PDFs list — writes
-   straight to Firestore so a worksheet can be reassigned without opening it
-   and re-saving. */
+/* Inline name/level/subject editor for a saved PDF in the My PDFs list —
+   writes straight to Firestore so a worksheet can be renamed or reassigned
+   without opening it and re-saving. */
 function editDocMeta(id, d, info, refreshMeta) {
   var existing = info.querySelector('.docEditRow');
   if (existing) { existing.remove(); return; } // Edit again = close the editor
   var wrap = document.createElement('div');
   wrap.className = 'docEditRow';
+  var nameIn = document.createElement('input');
+  nameIn.type = 'text';
+  nameIn.className = 'docNameInput';
+  nameIn.value = d.name || '';
+  nameIn.placeholder = 'Worksheet name';
+  nameIn.autocomplete = 'off';
   var lvlSel = document.createElement('select');
   LEVELS.forEach(function (l) {
     var o = document.createElement('option'); o.value = l; o.textContent = levelLabel(l); lvlSel.appendChild(o);
@@ -7870,34 +7972,47 @@ function editDocMeta(id, d, info, refreshMeta) {
   okBtn.textContent = 'Save';
   okBtn.addEventListener('click', function () {
     okBtn.disabled = true;
+    var newName = nameIn.value.trim() || d.name || 'Untitled';
+    var renamed = newName !== (d.name || '');
     db.collection(COLLECTION).doc(id).set({
+      name: newName,
       level: lvlSel.value,
       subject: subSel.value,
       wsSlot: slotSel.value === '' ? null : parseInt(slotSel.value, 10),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).then(function () {
+      d.name = newName;
       d.level = lvlSel.value;
       d.subject = subSel.value;
       d.wsSlot = slotSel.value === '' ? null : parseInt(slotSel.value, 10);
+      var nmEl = info.querySelector('.docRowName');
+      if (nmEl) nmEl.textContent = newName;
       refreshMeta();
       wrap.remove();
       // If this worksheet is the one on screen, its sidebar follows along.
       if (currentDocId === id) {
+        docName = newName;
         wsMeta.level = d.level;
         wsMeta.subject = d.subject;
         wsMeta.slot = slotSel.value;
         renderSidebar();
       }
-      toast('“' + (d.name || 'Untitled') + '” is now ' + levelLabel(d.level) + ' ' + subjectLabel(d.subject) + '.');
+      toast(renamed
+        ? 'Renamed to “' + newName + '” — ' + levelLabel(d.level) + ' ' + subjectLabel(d.subject) + '.'
+        : '“' + newName + '” is now ' + levelLabel(d.level) + ' ' + subjectLabel(d.subject) + '.');
     }).catch(function (e) {
       okBtn.disabled = false;
       toast('Could not update: ' + (e.message || e), 5000);
     });
   });
+  nameIn.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); }
+  });
   var cancelBtn = document.createElement('button');
   cancelBtn.className = 'btn';
   cancelBtn.textContent = 'Cancel';
   cancelBtn.addEventListener('click', function () { wrap.remove(); });
+  wrap.appendChild(nameIn);
   wrap.appendChild(lvlSel);
   wrap.appendChild(subSel);
   wrap.appendChild(slotSel);
@@ -9021,6 +9136,8 @@ $('videoModal').addEventListener('click', function (e) {
 $('videoUrlInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); attachVideoLink(); }
 });
+$('wsRenameBtn').addEventListener('click', startWsRename);
+$('wsName').addEventListener('dblclick', startWsRename);
 $('videoStartSaveBtn').addEventListener('click', saveVideoStart);
 $('videoStartFirstBtn').addEventListener('click', fillVideoStartFromFirstMark);
 $('videoStartClearBtn').addEventListener('click', clearVideoStart);
