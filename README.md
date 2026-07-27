@@ -3,47 +3,41 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
-## Full screen (v1.36.0)
+## Full screen (v1.37.0)
 
-The last button in the toolbar's view-toggle group (after the panel toggles)
-hands the whole display to the worksheet, hiding the browser's own bars.
-`Shift+F` does the same from the keyboard. It is available to students and
-teachers alike, and to share-link visitors.
+The last button in the toolbar's view-toggle group folds the banner and the
+toolbar away so the worksheet has the whole window. `Shift+F` does the same
+from the keyboard. A floating **Exit full screen** chip in the top-right
+corner brings them back — the toolbar is hidden, so the way out travels with
+the worksheet. Students, teachers and share-link visitors all get it.
 
-Press it again — or Esc, or the system control — to come back; the button
-tracks the state either way and swaps between the expand and contract glyphs.
+That gains about 25% more height for the worksheet on an iPad.
 
-### Staying in it (v1.36.1)
+### Why the browser's own bars are a separate question
 
-iPadOS Safari lets go of element full screen by itself: focusing an input
-does it, and so does a drag the system decides was one of its own gestures.
-The API can only be re-entered from a user gesture, so rather than quietly
-falling out, the app remembers that full screen was asked for and takes the
-next tap as permission to go back.
+Losing the *browser's* bars on top of that is the Fullscreen API, and it is
+only dependable on desktop and Android. On iPadOS Safari it lets go of the
+page by itself the moment a drag or a focused input looks like a system
+gesture, and re-entering needs a fresh user gesture — so trying to hold on
+to it just made the mode flicker in and out.
 
-- Leaving deliberately — the button, or Esc — clears that wish, so it never
-  fights a real exit.
-- It never interrupts typing: while an input or text box has focus the app
-  waits, then restores on the next tap after focus leaves.
-- Restoring is touch-only. Desktop full screen does not drop on its own, and
-  re-entering there after Esc would be maddening.
-- If the browser keeps dropping it (12 times), the app gives up and says so
-  rather than looping.
+So the API is asked for where it holds and **never called on iOS at all**.
+Nothing to drop there means nothing to flicker: the worksheet goes edge to
+edge inside Safari and stays there.
 
-`html, body` also carry `overscroll-behavior: none`, so a drag can no longer
-rubber-band the document into a gesture iPadOS mistakes for one of its own.
+### Losing Safari's bars for good: Add to Home Screen
 
-This uses the standard Fullscreen API, which Safari has supported for ordinary
-elements since 16.4 on iPad and 17.4 on iPhone, and Android for years. Where
-it is genuinely unavailable (or a managed-device profile blocks it) the button
-hides itself rather than sitting there doing nothing — the existing
-**Hide the top banner** button and the **▤** toggle on the favourites bar
-still free up space in that case.
+`manifest.webmanifest` plus the `apple-mobile-web-app-*` tags mean the app
+can be installed from **Share → Add to Home Screen**. Opened from there it
+launches with no browser bars at all, which on an iPad is the only reliable
+way to be rid of them. The first time full screen is used on iOS, a toast
+says so.
 
-Note this is not the same as installing the app to the Home Screen, which
-would remove the browser chrome permanently. That would need `signInWithPopup`
-(`index.html`, Google sign-in) swapping for `signInWithRedirect` first, since
-popups are unreliable inside iOS standalone web apps.
+Because a popup opened from an installed web app lands in a detached browser
+window that never reports back, `signIn()` uses `signInWithRedirect` when it
+detects standalone mode and `signInWithPopup` everywhere else, with
+`getRedirectResult()` collected on load. Ordinary browser tabs are on exactly
+the same path they always were.
 
 ## Printing questions and answers (v1.35.0)
 

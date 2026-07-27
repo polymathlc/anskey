@@ -8,6 +8,17 @@
      which is what actually prevents iOS zooming into them. -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDF Annotator — Polymath Learning Centre</title>
+<!-- Added to the Home Screen this opens with no browser bars at all, which is
+     the only way to be properly rid of them on an iPad: Safari's Fullscreen
+     API lets go of the page on its own. `display` in the manifest covers
+     iOS 17.4+ and Android; the apple-mobile-web-app-capable tag covers the
+     iPads still on older versions. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Polymath">
+<meta name="theme-color" content="#FFE0B2">
+<link rel="apple-touch-icon" href="https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <style>
@@ -221,8 +232,40 @@
   .toolBtn svg { width: 17px; height: 17px; display: block; }
   /* One button, two glyphs: expand while windowed, contract while full screen. */
   #fsBtn .fsExit { display: none; }
-  body.fsOn #fsBtn .fsEnter { display: none; }
-  body.fsOn #fsBtn .fsExit { display: block; }
+  body.immersive #fsBtn .fsEnter { display: none; }
+  body.immersive #fsBtn .fsExit { display: block; }
+
+  /* ---------- Full screen ----------
+     The app's own chrome folds away in CSS, which cannot fail on any browser.
+     Losing the *browser's* bars on top is the Fullscreen API's job, and that
+     one is only asked for where it holds (see the script). */
+  body.immersive .polymath-header,
+  body.immersive #toolbar { display: none; }
+  /* The toolbar is gone, so the way out has to travel with the worksheet. */
+  #immersiveExitBtn {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    right: calc(env(safe-area-inset-right, 0px) + 10px);
+    z-index: 60;
+    display: none;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 14px;
+    font-family: var(--font);
+    font-size: 0.78rem;
+    font-weight: bold;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: var(--shadow-modal);
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  body.immersive #immersiveExitBtn { display: inline-flex; }
+  #immersiveExitBtn:hover { background: #fff; }
+  #immersiveExitBtn svg { width: 15px; height: 15px; flex: 0 0 auto; }
   .toolBtn:hover { background: #F1F0EE; transform: translateY(-1px); }
   .toolBtn.active {
     background: var(--accent);
@@ -1576,7 +1619,7 @@
     <button class="toolBtn" id="sideToggleBtn" data-key="W" title="Show / hide worksheet panel">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9.5" y1="4" x2="9.5" y2="20"/></svg>
     </button>
-    <button class="toolBtn" id="fsBtn" data-key="Shift+F" title="Full screen — hide the browser's own bars too">
+    <button class="toolBtn" id="fsBtn" data-key="Shift+F" title="Full screen — hide the banner and toolbar">
       <svg class="fsEnter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M10 20H4v-6"/><line x1="20" y1="4" x2="13.5" y2="10.5"/><line x1="4" y1="20" x2="10.5" y2="13.5"/></svg>
       <svg class="fsExit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10h-6V4"/><path d="M4 14h6v6"/><line x1="14" y1="10" x2="20.5" y2="3.5"/><line x1="10" y1="14" x2="3.5" y2="20.5"/></svg>
     </button>
@@ -1617,6 +1660,11 @@
   <button class="favBtn favMeta" id="favToolbarBtn" title="Hide / show the main toolbar">▤</button>
   <button class="favBtn favMeta" id="favAddBtn" title="Choose which tools appear here">＋</button>
 </div>
+
+<button id="immersiveExitBtn" title="Leave full screen">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10h-6V4"/><path d="M4 14h6v6"/><line x1="14" y1="10" x2="20.5" y2="3.5"/><line x1="10" y1="14" x2="3.5" y2="20.5"/></svg>
+  Exit full screen
+</button>
 
 <div id="mainRow">
 <div id="panelScrim"></div>
@@ -2078,7 +2126,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.36.1';
+var APP_VERSION = 'v1.37.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -6917,13 +6965,26 @@ function applyRoleUI() {
 async function signIn() {
   var provider = new firebase.auth.GoogleAuthProvider();
   try {
-    await auth.signInWithPopup(provider);
+    // A popup opened from an installed (Home Screen) web app lands in a
+    // detached browser window that never reports back, so the sign-in hangs
+    // forever. Redirect is the supported path there. In an ordinary tab the
+    // popup stays — it keeps the worksheet on screen behind the sign-in.
+    if (standaloneApp()) await auth.signInWithRedirect(provider);
+    else await auth.signInWithPopup(provider);
   } catch (e) {
     if (e && e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
       toast('Sign-in failed: ' + (e.message || e));
     }
   }
 }
+
+/* Collect the result of a redirect sign-in when the app opens again after
+   one. A no-op on every other load, including every load in a browser tab. */
+try {
+  auth.getRedirectResult().catch(function (e) {
+    if (e && e.code) toast('Sign-in failed: ' + (e.message || e));
+  });
+} catch (e) { /* older SDKs without the method — the popup path is unaffected */ }
 
 function renderAuthArea() {
   var area = $('authArea');
@@ -9660,15 +9721,21 @@ $('focusBtn').addEventListener('click', function () {
   toast(hidden ? 'Top banner hidden — more space for the worksheet.' : 'Top banner shown again.');
 });
 /* ================= Full screen =================
-   The browser's own bars eat a surprising slice of an iPad screen, and the
-   worksheet is the whole point — this hands it the entire display. Everyone
-   gets it: students reading a worksheet want the room as much as the teacher
-   marking one.
+   Two jobs here, and only one of them is the browser's to do.
 
-   Safari has supported this for ordinary elements since 16.4 on iPad and
-   17.4 on iPhone, and Android has for years. Where it is genuinely missing
-   the button takes itself away rather than sitting there doing nothing —
-   the existing “hide the banner” and ▤ toggles still free up space there. */
+   The app's own chrome — banner and toolbar — always folds away. That is
+   pure CSS, it cannot fail on any browser, and on an iPad it is most of the
+   win. Losing the *browser's* bars on top of that is the Fullscreen API,
+   which is dependable on desktop and Android but not on iPadOS Safari: there
+   it lets go by itself the moment a drag or a focused input looks like a
+   system gesture. Re-entering needs a fresh user gesture, so chasing it made
+   the mode flicker in and out — worse than not having it. On iOS the API is
+   therefore not called at all. The worksheet still goes edge to edge inside
+   Safari, and Add to Home Screen (see the manifest above) is how to be rid
+   of Safari's bars for good.
+
+   Everyone gets it — students reading a worksheet want the room as much as
+   the teacher marking one. */
 function fsActive() {
   return !!(document.fullscreenElement || document.webkitFullscreenElement);
 }
@@ -9678,100 +9745,74 @@ function fsSupported() {
   // Only ever explicitly false — an iframe whose permissions policy forbids it.
   return document.fullscreenEnabled !== false && document.webkitFullscreenEnabled !== false;
 }
-function syncFsBtn() {
-  var on = fsActive();
-  document.body.classList.toggle('fsOn', on);
-  var btn = $('fsBtn');
-  btn.classList.toggle('active', on);
-  var label = on ? 'Leave full screen' : 'Full screen — hide the browser’s own bars too';
-  // The tooltip module mirrors title into data-tip and drops the native title
-  // on hover-capable devices — handing one back would double the tooltip up.
-  if (btn.hasAttribute('title')) btn.title = label;
-  if (btn.hasAttribute('data-tip')) btn.setAttribute('data-tip', label);
-  btn.setAttribute('aria-label', label);
+/* Ask the browser for its bars back only where that request holds. */
+function fsApiUsable() { return fsSupported() && !isIOS(); }
+/* Added to the Home Screen there are no browser bars left to lose. */
+function standaloneApp() {
+  return window.navigator.standalone === true ||
+    !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 }
 function fsEnter() {
   var el = document.documentElement;
   if (el.requestFullscreen) return el.requestFullscreen();
   if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); return Promise.resolve(); }
-  return Promise.reject(new Error('this browser has no full screen'));
+  return Promise.reject(new Error('no full screen here'));
 }
 function fsLeave() {
   if (document.exitFullscreen) return document.exitFullscreen();
   if (document.webkitExitFullscreen) document.webkitExitFullscreen();
   return Promise.resolve();
 }
+function immersive() { return document.body.classList.contains('immersive'); }
 
-/* ---- Holding on to it ----
-   iPadOS Safari lets go of element full screen by itself: focusing an input
-   does it, and so does a drag the system decides was one of its own gestures.
-   The API can only be re-entered from a user gesture, so instead of quietly
-   falling out, the app remembers that full screen was asked for and takes the
-   next tap as permission to go back. Leaving deliberately — the button, Esc,
-   the system control on a desktop — clears that wish, so this never fights a
-   real exit. Restoring is touch-only: desktop full screen never drops on its
-   own, and re-entering there after Esc would be maddening. */
-var fsWanted = false;   // asked for, and not yet given up on
-var fsDrops = 0;        // times the browser has let go since it was asked for
-var fsToldUser = false;
-var FS_DROP_LIMIT = 12; // something is fighting us — stop trying rather than loop
-
-function fsTypingNow() {
-  var ae = document.activeElement;
-  return !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' ||
-                   ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT'));
+function syncFsBtn() {
+  var on = immersive();
+  var btn = $('fsBtn');
+  btn.classList.toggle('active', on);
+  var label = on ? 'Leave full screen' : 'Full screen — hide the banner and toolbar';
+  // The tooltip module mirrors title into data-tip and drops the native title
+  // on hover-capable devices — handing one back would double the tooltip up.
+  if (btn.hasAttribute('title')) btn.title = label;
+  if (btn.hasAttribute('data-tip')) btn.setAttribute('data-tip', label);
+  btn.setAttribute('aria-label', label);
 }
 
-async function toggleFullscreen() {
-  try {
-    if (fsActive()) {
-      fsWanted = false;
-      await fsLeave();
-    } else {
-      fsWanted = true;
-      fsDrops = 0;
-      await fsEnter();
-      toast('Full screen — tap the button again to come back.', 3500);
+var fsHomeScreenHintShown = false;
+async function setImmersive(on) {
+  document.body.classList.toggle('immersive', on);
+  if (on) closeFloatingPanels(); // a panel over half the screen defeats the point
+  if (fsApiUsable()) {
+    try {
+      if (on && !fsActive()) await fsEnter();
+      else if (!on && fsActive()) await fsLeave();
+    } catch (e) {
+      // Refused (no user gesture, or a managed-device profile). The CSS half
+      // has already applied, so the mode still does something useful.
     }
-  } catch (e) {
-    // Safari refuses outside a user gesture, and some managed-device profiles
-    // block it outright; say so instead of leaving the button looking broken.
-    fsWanted = false;
-    toast('The browser would not go full screen: ' + (e.message || e), 4500);
   }
   syncFsBtn();
+  handleViewportResize(); // the usable height just changed — re-fit the page
+  if (!on) return;
+  if (isIOS() && !standaloneApp() && !fsHomeScreenHintShown) {
+    fsHomeScreenHintShown = true;
+    toast('Full screen. To lose Safari’s own bars too, use Share → “Add to Home Screen” and open it from there.', 7000);
+  } else {
+    toast('Full screen — tap “Exit full screen” to come back.', 3000);
+  }
 }
-
-/* The next touch anywhere is enough to get back in — but not one that landed
-   on the full screen button (that tap is about to be handled as a real
-   toggle), and not while a keyboard is up, which is what knocked it out. */
-function fsRestoreOnTouch(e) {
-  if (e.pointerType !== 'touch') return;
-  if (!fsWanted || fsActive() || fsTypingNow()) return;
-  if (e.target && e.target.closest && e.target.closest('#fsBtn')) return;
-  fsEnter().then(syncFsBtn, function () { /* refused — the next tap retries */ });
-}
-document.addEventListener('pointerup', fsRestoreOnTouch, true);
+function toggleFullscreen() { return setImmersive(!immersive()); }
 
 $('fsBtn').addEventListener('click', toggleFullscreen);
+$('immersiveExitBtn').addEventListener('click', function () { setImmersive(false); });
 ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
   document.addEventListener(ev, function () {
-    if (!fsActive() && fsWanted) {
-      // The browser let go, not the user.
-      fsDrops++;
-      if (fsDrops >= FS_DROP_LIMIT) {
-        fsWanted = false;
-        toast('This browser keeps dropping full screen, so it has been left off.', 5000);
-      } else if (!fsToldUser) {
-        fsToldUser = true;
-        toast('Safari stepped out of full screen — tap the page to go back in.', 4500);
-      }
-    }
+    // Esc or the browser's own control means leave the whole mode, not just
+    // the browser half of it.
+    if (fsApiUsable() && !fsActive() && immersive()) { setImmersive(false); return; }
     syncFsBtn();
-    handleViewportResize(); // the usable height just changed — re-fit the page
+    handleViewportResize();
   });
 });
-if (!fsSupported()) $('fsBtn').style.display = 'none';
 syncFsBtn();
 
 $('stylusBtn').addEventListener('click', function () { setStylusOnly(!stylusOnly); });
@@ -10208,9 +10249,9 @@ document.addEventListener('keydown', function (e) {
   var editingText = ae && (ae.isContentEditable ||
     ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT');
   if (e.key === 'Escape') closeVideoPops(); // Esc always folds an open video away
-  // Esc is the browser's own way out of full screen: treat it as deliberate,
-  // so the touch-restore below never drags them back in.
-  if (e.key === 'Escape') fsWanted = false;
+  // Esc leaves full screen wherever the browser has no bars of its own to
+  // hand back — elsewhere the browser does it and fullscreenchange follows.
+  if (e.key === 'Escape' && immersive() && !fsApiUsable()) { setImmersive(false); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDoc();

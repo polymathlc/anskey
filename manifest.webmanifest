@@ -1,0 +1,19 @@
+{
+  "name": "Polymath PDF Annotator",
+  "short_name": "Polymath",
+  "description": "Open a worksheet, mark it up, and save it to the cloud.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFE0B2",
+  "icons": [
+    {
+      "src": "https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
