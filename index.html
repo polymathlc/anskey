@@ -32,7 +32,10 @@
     --font: 'Century Gothic', CenturyGothic, AppleGothic, 'Segoe UI', sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
+  /* overscroll-behavior on the document too, not just the scrollers inside it:
+     a drag that rubber-bands the page is a gesture iPadOS may take for one of
+     its own, and in full screen that means being dumped straight back out. */
+  html, body { height: 100%; overscroll-behavior: none; }
   body {
     font-family: var(--font);
     color: var(--ink);
@@ -2075,7 +2078,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.36.0';
+var APP_VERSION = 'v1.36.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -9687,28 +9690,83 @@ function syncFsBtn() {
   if (btn.hasAttribute('data-tip')) btn.setAttribute('data-tip', label);
   btn.setAttribute('aria-label', label);
 }
+function fsEnter() {
+  var el = document.documentElement;
+  if (el.requestFullscreen) return el.requestFullscreen();
+  if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); return Promise.resolve(); }
+  return Promise.reject(new Error('this browser has no full screen'));
+}
+function fsLeave() {
+  if (document.exitFullscreen) return document.exitFullscreen();
+  if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  return Promise.resolve();
+}
+
+/* ---- Holding on to it ----
+   iPadOS Safari lets go of element full screen by itself: focusing an input
+   does it, and so does a drag the system decides was one of its own gestures.
+   The API can only be re-entered from a user gesture, so instead of quietly
+   falling out, the app remembers that full screen was asked for and takes the
+   next tap as permission to go back. Leaving deliberately — the button, Esc,
+   the system control on a desktop — clears that wish, so this never fights a
+   real exit. Restoring is touch-only: desktop full screen never drops on its
+   own, and re-entering there after Esc would be maddening. */
+var fsWanted = false;   // asked for, and not yet given up on
+var fsDrops = 0;        // times the browser has let go since it was asked for
+var fsToldUser = false;
+var FS_DROP_LIMIT = 12; // something is fighting us — stop trying rather than loop
+
+function fsTypingNow() {
+  var ae = document.activeElement;
+  return !!(ae && (ae.isContentEditable || ae.tagName === 'INPUT' ||
+                   ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT'));
+}
+
 async function toggleFullscreen() {
   try {
     if (fsActive()) {
-      if (document.exitFullscreen) await document.exitFullscreen();
-      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      fsWanted = false;
+      await fsLeave();
     } else {
-      var el = document.documentElement;
-      if (el.requestFullscreen) await el.requestFullscreen();
-      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      fsWanted = true;
+      fsDrops = 0;
+      await fsEnter();
       toast('Full screen — tap the button again to come back.', 3500);
     }
   } catch (e) {
     // Safari refuses outside a user gesture, and some managed-device profiles
     // block it outright; say so instead of leaving the button looking broken.
+    fsWanted = false;
     toast('The browser would not go full screen: ' + (e.message || e), 4500);
   }
   syncFsBtn();
 }
+
+/* The next touch anywhere is enough to get back in — but not one that landed
+   on the full screen button (that tap is about to be handled as a real
+   toggle), and not while a keyboard is up, which is what knocked it out. */
+function fsRestoreOnTouch(e) {
+  if (e.pointerType !== 'touch') return;
+  if (!fsWanted || fsActive() || fsTypingNow()) return;
+  if (e.target && e.target.closest && e.target.closest('#fsBtn')) return;
+  fsEnter().then(syncFsBtn, function () { /* refused — the next tap retries */ });
+}
+document.addEventListener('pointerup', fsRestoreOnTouch, true);
+
 $('fsBtn').addEventListener('click', toggleFullscreen);
 ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
-  // Also fires when the user leaves with Esc or the system control.
   document.addEventListener(ev, function () {
+    if (!fsActive() && fsWanted) {
+      // The browser let go, not the user.
+      fsDrops++;
+      if (fsDrops >= FS_DROP_LIMIT) {
+        fsWanted = false;
+        toast('This browser keeps dropping full screen, so it has been left off.', 5000);
+      } else if (!fsToldUser) {
+        fsToldUser = true;
+        toast('Safari stepped out of full screen — tap the page to go back in.', 4500);
+      }
+    }
     syncFsBtn();
     handleViewportResize(); // the usable height just changed — re-fit the page
   });
@@ -10150,6 +10208,9 @@ document.addEventListener('keydown', function (e) {
   var editingText = ae && (ae.isContentEditable ||
     ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT');
   if (e.key === 'Escape') closeVideoPops(); // Esc always folds an open video away
+  // Esc is the browser's own way out of full screen: treat it as deliberate,
+  // so the touch-restore below never drags them back in.
+  if (e.key === 'Escape') fsWanted = false;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDoc();

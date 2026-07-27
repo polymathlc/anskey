@@ -13,6 +13,26 @@ teachers alike, and to share-link visitors.
 Press it again — or Esc, or the system control — to come back; the button
 tracks the state either way and swaps between the expand and contract glyphs.
 
+### Staying in it (v1.36.1)
+
+iPadOS Safari lets go of element full screen by itself: focusing an input
+does it, and so does a drag the system decides was one of its own gestures.
+The API can only be re-entered from a user gesture, so rather than quietly
+falling out, the app remembers that full screen was asked for and takes the
+next tap as permission to go back.
+
+- Leaving deliberately — the button, or Esc — clears that wish, so it never
+  fights a real exit.
+- It never interrupts typing: while an input or text box has focus the app
+  waits, then restores on the next tap after focus leaves.
+- Restoring is touch-only. Desktop full screen does not drop on its own, and
+  re-entering there after Esc would be maddening.
+- If the browser keeps dropping it (12 times), the app gives up and says so
+  rather than looping.
+
+`html, body` also carry `overscroll-behavior: none`, so a drag can no longer
+rubber-band the document into a gesture iPadOS mistakes for one of its own.
+
 This uses the standard Fullscreen API, which Safari has supported for ordinary
 elements since 16.4 on iPad and 17.4 on iPhone, and Android for years. Where
 it is genuinely unavailable (or a managed-device profile blocks it) the button
