@@ -1172,6 +1172,13 @@
   .checkModel b { display: block; margin-bottom: 4px; }
   .checkExplain { background: #EDF4FB; border-radius: 8px; padding: 10px 12px; line-height: 1.5; white-space: pre-wrap; }
   .checkExplain b { display: block; margin-bottom: 4px; }
+  .checkSummary { background: #F1F5EE; border-radius: 8px; padding: 10px 12px; line-height: 1.5; margin-top: 10px; }
+  .checkSummary > b { display: block; margin-bottom: 6px; }
+  .sumBlock + .sumBlock { margin-top: 9px; }
+  .sumLabel { display: block; font-size: 0.8rem; font-weight: bold; color: var(--ink-soft); }
+  .checkSummary ul { margin: 4px 0 0; padding-left: 20px; }
+  .checkSummary li { margin-bottom: 3px; }
+  .repPoints { margin-top: 0; margin-bottom: 16px; }
   .repSummary { font-size: 1.02rem; font-weight: bold; margin-bottom: 14px; }
   .repItem { border: 1px solid var(--line, #E2E0DC); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
   .repItem img { max-width: 100%; border-radius: 6px; border: 1px solid var(--line, #E2E0DC); margin-bottom: 8px; }
@@ -2126,7 +2133,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.37.0';
+var APP_VERSION = 'v1.38.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -5987,7 +5994,14 @@ var AI_MARK_SYS =
   '"incorrect","feedback":"2-4 encouraging sentences: what was right, what was ' +
   'missing or wrong, and how to improve","model":"the model answer, briefly",' +
   '"explain":"1-3 sentences explaining WHY the model answer is correct, in ' +
-  'language the student\'s level can follow"}.';
+  'language the student\'s level can follow","learn":["1-4 SHORT points: the ' +
+  'skills, concepts, formulae or keywords this question needs, named plainly ' +
+  'so the student knows what to revise"],"gaps":["0-4 SHORT points: what is ' +
+  'actually missing or wrong in THIS student\'s answer — a missing unit, a ' +
+  'skipped step, a keyword not written, a wrong method. Leave the array empty ' +
+  'when the answer is fully correct; never invent a fault"]}. Keep every ' +
+  '"learn" and "gaps" point to a phrase of about 10 words, not a sentence, ' +
+  'and write them to the student ("you", "your answer").';
 
 /* ---- Ask AI credits ----
    Every question grants 20 credits for asking Gemini to explain anything
@@ -6506,7 +6520,7 @@ function markCluster(p, seedAnns) {
   lines.push('Mark the student\'s answer to the question nearest it.');
 
   return window.askGemini(lines.join('\n'), {
-    system: AI_MARK_SYS, maxOutputTokens: 1000, temperature: 0.2, json: true,
+    system: AI_MARK_SYS, maxOutputTokens: 1400, temperature: 0.2, json: true,
     images: imgs.map(function (im) { return { mimeType: im.mimeType, data: im.data }; })
   }).then(function (raw) {
     return { res: _parseAIJson(raw), band: qBand };
@@ -6520,7 +6534,56 @@ function verdictHead(res) {
        : '❌ Not quite';
 }
 
-/* Verdict + feedback + model + explanation, appended to any container. */
+/* ---- Point-form summary ----
+   The marking prompt asks for two lists: what the question needs the student
+   to know, and what their own answer was actually short of. Gemini is asked
+   for arrays but occasionally sends one string, so both shapes are accepted
+   and bullet markers it may have added are stripped back off. */
+function asPoints(v) {
+  var out = [];
+  if (Array.isArray(v)) out = v;
+  else if (typeof v === 'string') out = v.split(/\r?\n|;/);
+  return out
+    .map(function (s) { return String(s == null ? '' : s).replace(/^\s*[-•*\d.)\]]+\s*/, '').trim(); })
+    .filter(function (s) { return s.length > 1; })
+    .slice(0, 5);
+}
+
+/* A labelled bullet list, or nothing at all when there is nothing to say —
+   an empty "what you missed" heading on a correct answer reads as a telling-off. */
+function appendPointList(parent, label, points) {
+  if (!points.length) return;
+  var block = document.createElement('div');
+  block.className = 'sumBlock';
+  var lbl = document.createElement('span');
+  lbl.className = 'sumLabel';
+  lbl.textContent = label;
+  block.appendChild(lbl);
+  var ul = document.createElement('ul');
+  points.forEach(function (p) {
+    var li = document.createElement('li');
+    li.textContent = p;          // model output — never innerHTML
+    ul.appendChild(li);
+  });
+  block.appendChild(ul);
+  parent.appendChild(block);
+}
+
+function appendSummary(body, res) {
+  var learn = asPoints(res && res.learn);
+  var gaps = asPoints(res && res.gaps);
+  if (!learn.length && !gaps.length) return;
+  var box = document.createElement('div');
+  box.className = 'checkSummary';
+  var lbl = document.createElement('b');
+  lbl.textContent = 'Summary';
+  box.appendChild(lbl);
+  appendPointList(box, '📘 What you need to learn', learn);
+  appendPointList(box, '🔍 What your answer was missing', gaps);
+  body.appendChild(box);
+}
+
+/* Verdict + feedback + model + explanation + summary, appended to any container. */
 function appendMarkResult(body, res) {
   var verdict = document.createElement('div');
   verdict.className = 'checkVerdict';
@@ -6548,6 +6611,7 @@ function appendMarkResult(body, res) {
     ex.appendChild(document.createTextNode(res.explain));
     body.appendChild(ex);
   }
+  appendSummary(body, res);
 }
 
 function showCheckResult(res) {
@@ -6664,6 +6728,26 @@ async function checkPageAnswers(pageNum) {
   await markClustersToReport(clusters, 'Marking page ' + pageNum + '…');
 }
 
+/* One roll-up for the whole worksheet: the same weakness showing up in three
+   questions is one thing to work on, not three. Matching ignores case and
+   punctuation so near-identical phrasings collapse together. */
+function reportPoints(rep) {
+  function collect(key) {
+    var out = [], seen = {};
+    rep.results.forEach(function (r) {
+      if (!r.res) return;
+      asPoints(r.res[key]).forEach(function (p) {
+        var k = p.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        if (!k || seen[k]) return;
+        seen[k] = true;
+        out.push(p);
+      });
+    });
+    return out.slice(0, 8);
+  }
+  return { learn: collect('learn'), gaps: collect('gaps') };
+}
+
 function reportCounts(rep) {
   var c = { correct: 0, partly: 0, incorrect: 0, failed: 0 };
   rep.results.forEach(function (r) {
@@ -6695,6 +6779,19 @@ function renderReport() {
   summary.textContent = '✅ ' + c.correct + ' correct · 🟡 ' + c.partly + ' almost · ❌ ' + c.incorrect + ' to revisit' +
     (c.failed ? ' · ' + c.failed + ' could not be marked' : '');
   body.appendChild(summary);
+  // The whole point of marking everything at once: one list to revise from,
+  // above the answer-by-answer detail.
+  var pts = reportPoints(lastReport);
+  if (pts.learn.length || pts.gaps.length) {
+    var box = document.createElement('div');
+    box.className = 'checkSummary repPoints';
+    var lbl = document.createElement('b');
+    lbl.textContent = 'What to work on';
+    box.appendChild(lbl);
+    appendPointList(box, '📘 Learn or revise these', pts.learn);
+    appendPointList(box, '🔍 Missing from your answers', pts.gaps);
+    body.appendChild(box);
+  }
   lastReport.results.forEach(function (r, i) {
     var item = document.createElement('div');
     item.className = 'repItem';
@@ -6740,11 +6837,29 @@ function printReport() {
     '.verdict{font-weight:bold;margin-bottom:6px}.fb{margin-bottom:10px;white-space:pre-wrap}' +
     '.model,.explain{border-radius:8px;padding:9px 12px;margin-bottom:8px;white-space:pre-wrap}' +
     '.model{background:#F6F1E7}.explain{background:#EDF4FB}.model b,.explain b{display:block;margin-bottom:3px}' +
+    '.sum{background:#F1F5EE;border-radius:8px;padding:9px 12px;margin-bottom:8px}' +
+    '.sum b{display:block;margin-bottom:3px}.sum .lbl{display:block;font-size:0.88rem;font-weight:bold;color:#55554F;margin-top:6px}' +
+    '.sum ul{margin:3px 0 0;padding-left:20px}.sum li{margin-bottom:2px}' +
     '</style></head><body>' +
     '<h1>Practice report — ' + escHtml(lastReport.name || 'Worksheet') + '</h1>' +
     '<div class="meta">' + escHtml(meta) + '</div>' +
     '<div class="summary">' + c.correct + ' of ' + marked + ' correct · ✅ ' + c.correct + ' · 🟡 ' + c.partly + ' · ❌ ' + c.incorrect +
     (c.failed ? ' · ⚠ ' + c.failed + ' not marked' : '') + '</div>';
+  /* The point-form summary, on paper as well — this is the half a parent or
+     a teacher actually acts on. */
+  function sumHtml(title, learn, gaps) {
+    if (!learn.length && !gaps.length) return '';
+    function list(label, pts) {
+      if (!pts.length) return '';
+      return '<span class="lbl">' + escHtml(label) + '</span><ul>' +
+        pts.map(function (p) { return '<li>' + escHtml(p) + '</li>'; }).join('') + '</ul>';
+    }
+    return '<div class="sum"><b>' + escHtml(title) + '</b>' +
+      list('What you need to learn', learn) +
+      list('What your answer was missing', gaps) + '</div>';
+  }
+  var repPts = reportPoints(lastReport);
+  html += sumHtml('What to work on', repPts.learn, repPts.gaps);
   lastReport.results.forEach(function (r, i) {
     html += '<div class="item"><div class="verdict">Answer ' + (i + 1) + ' (page ' + r.page + ') — ' +
       escHtml(r.res ? verdictHead(r.res) : '⚠ could not be marked') + '</div>';
@@ -6753,6 +6868,7 @@ function printReport() {
       if (r.res.feedback) html += '<div class="fb">' + escHtml(r.res.feedback) + '</div>';
       if (r.res.model) html += '<div class="model"><b>Model answer</b>' + escHtml(r.res.model) + '</div>';
       if (r.res.explain) html += '<div class="explain"><b>Why</b>' + escHtml(r.res.explain) + '</div>';
+      html += sumHtml('Summary', asPoints(r.res.learn), asPoints(r.res.gaps));
     } else if (r.error) {
       html += '<div class="fb">' + escHtml(r.error) + '</div>';
     }
