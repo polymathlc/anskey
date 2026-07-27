@@ -96,6 +96,10 @@
     font-weight: bold;
   }
   .btnShare:hover { background: linear-gradient(135deg, #2196F3, #673AB7); }
+  /* Icon-only toolbar button: the footprint of a tool button, so the two
+     print buttons together take no more room than the one they replaced. */
+  .btnIcon { padding: 9px 10px; gap: 0; }
+  .btnIcon .btnLabel { display: none; }
 
   /* ---------- Share modal ---------- */
   .shareLinkRow { display: flex; gap: 8px; align-items: stretch; }
@@ -573,6 +577,33 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   #videoUrlInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .printBtnRow { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+  .printBtnRow .btn { padding: 7px 12px; font-size: 0.78rem; }
+  #coverAdmin { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  #coverAdmin label { display: block; font-size: 0.78rem; font-weight: bold; color: var(--ink-soft); margin-bottom: 5px; }
+  #coverTitleInput {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.82rem;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  #coverTitleInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .coverPreview {
+    margin-top: 10px;
+    padding: 9px 11px;
+    background: var(--paper-tint, #FAF7F0);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
+    font-size: 0.74rem;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    overflow-wrap: break-word;
+  }
+  .coverPreview b { color: var(--ink); }
   text.tsLabel.tsLink { cursor: pointer; }
   text.tsLabel.tsLink:hover { fill: #1E5FA8; }
   #videoStartRow { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
@@ -1546,9 +1577,13 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span class="btnLabel">Download</span>
     </button>
-    <button class="btn" id="printBtn" data-key="Ctrl+P" title="Print the answer key with annotations and timestamps">
+    <button class="btn btnIcon" id="printQBtn" data-key="Ctrl+P" title="Print questions — the worksheet on its own, with every working and annotation taken out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-      <span class="btnLabel">Print</span>
+      <span class="btnLabel">Questions</span>
+    </button>
+    <button class="btn btnIcon" id="printABtn" data-key="Ctrl+Shift+P" title="Print answers — the worksheet with all the workings and annotations on it">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/><line x1="8.6" y1="17" x2="15.4" y2="17"/><line x1="8.6" y1="19.6" x2="13" y2="19.6"/></svg>
+      <span class="btnLabel">Answers</span>
     </button>
     <button class="btn btnPrimary" id="saveBtn" data-key="Ctrl+S" title="Save PDF + annotations to the cloud">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -1646,6 +1681,24 @@
         <div class="sideHint" id="videoStartHint" style="margin-top:8px"></div>
       </div>
     </div>
+  </div>
+  <div class="sideCard" id="printCard">
+    <h4>Print</h4>
+    <div class="printBtnRow">
+      <button class="btn" id="printQSideBtn">🖨 Questions</button>
+      <button class="btn" id="printASideBtn">🖨 Answers</button>
+    </div>
+    <div class="sideHint">“Questions” prints the worksheet on its own — every working and annotation taken out. “Answers” prints it with the workings on.</div>
+    <label class="reviseToggleRow" style="margin-top:12px; margin-bottom:0">
+      <input type="checkbox" id="coverToggle" checked>
+      <span>Add a Polymath cover page</span>
+    </label>
+    <div id="coverAdmin" style="display:none">
+      <label for="coverTitleInput">Cover title</label>
+      <input type="text" id="coverTitleInput" placeholder="Follows the worksheet name" autocomplete="off">
+      <div class="sideHint" style="margin-top:6px">Leave it empty and the cover uses the worksheet name. Saved with the worksheet.</div>
+    </div>
+    <div class="coverPreview" id="coverPreview"></div>
   </div>
   <div class="sideCard">
     <div class="sideHint" id="tsHint">Timestamps beside each annotation show when it was written —
@@ -2014,7 +2067,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.34.0';
+var APP_VERSION = 'v1.35.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2134,7 +2187,7 @@ var revealedKw = {};        // normalised keyword -> true, revealed during revis
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
-var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0 };  // worksheet meta (name lives in docName)
+var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '' };  // worksheet meta (name lives in docName)
 
 /* ---- Share links ----
    Every saved worksheet carries share settings: who a plain link admits
@@ -2469,7 +2522,7 @@ async function loadPdf(bytes, name) {
   selectedId = null;
   editingId = null;
   editModeId = null;
-  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0 };
+  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '' };
   wsShare = { mode: 'view', passwordHash: '' };
   reviseMode = false;
   revealedKw = {};
@@ -3493,6 +3546,57 @@ function renderSidebar() {
   updateKwPanel();
   if (typeof updatePracticeCard === 'function') updatePracticeCard();
   renderVideoCard();
+  renderPrintCard();
+}
+
+/* ---- Print card ----
+   The cover page is a per-device preference (anyone printing can turn it off);
+   the title override is part of the worksheet, so only the teacher sets it. */
+function renderPrintCard() {
+  var admin = isAdmin(currentUser) && !actingStudent;
+  $('coverToggle').checked = coverEnabled();
+  $('coverAdmin').style.display = admin ? 'block' : 'none';
+  if (admin && document.activeElement !== $('coverTitleInput')) {
+    $('coverTitleInput').value = wsMeta.coverTitle || '';
+    $('coverTitleInput').placeholder = docName ? 'Follows “' + docName + '”' : 'Follows the worksheet name';
+  }
+  renderCoverPreview();
+}
+
+function renderCoverPreview() {
+  var box = $('coverPreview');
+  if (!coverEnabled()) {
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = '';
+  // Mirror what the teacher is typing before it has been committed.
+  var typed = $('coverAdmin').style.display !== 'none' ? $('coverTitleInput').value.trim() : '';
+  var title = typed || coverTitleText();
+  box.textContent = 'Cover: ';
+  var strong = document.createElement('b');   // worksheet names are user text
+  strong.textContent = title;
+  box.appendChild(strong);
+  box.appendChild(document.createTextNode(
+    ' · ' + coverFooterText() + (wsMeta.videoUrl ? ' · QR code to the recording' : '')));
+}
+
+async function saveCoverTitle() {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  var value = $('coverTitleInput').value.trim();
+  if (value === (wsMeta.coverTitle || '')) return;
+  wsMeta.coverTitle = value;
+  renderCoverPreview();
+  setDirty(true);
+  if (!currentDocId) return;   // it will go up with the first Save
+  try {
+    await db.collection(COLLECTION).doc(currentDocId).set({
+      coverTitle: value,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    toast('Could not save the cover title: ' + (e.message || e), 5000);
+  }
 }
 
 /* ---- Renaming the open worksheet ----
@@ -6729,10 +6833,11 @@ function isStudent() {
 /* Students only open and read worksheets for their level and subject — every
    editing/annotation function disappears and the page becomes scroll-only
    (keyword revision in the sidebar stays, since that IS reading practice). */
-/* Download is deliberately NOT in this list: students may keep a copy of any
-   worksheet they can already open, so the button stays for everyone. */
+/* Download and the two Print buttons are deliberately NOT in this list:
+   students may keep — and print — a copy of any worksheet they can already
+   open, so those buttons stay for everyone. */
 var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
-  'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'printBtn', 'saveBtn', 'shareBtn'];
+  'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
 var PRACTICE_TOOLBAR_IDS = ['toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
@@ -6762,7 +6867,7 @@ function applyRoleUI() {
   $('burgerBtn').style.display = sharedVisitor ? 'none' : '';
   $('docsBtn').style.display = sharedVisitor ? 'none' : '';
   if (sharedVisitor) {
-    ['uploadBtn', 'saveBtn', 'printBtn', 'shareBtn'].forEach(function (id) {
+    ['uploadBtn', 'saveBtn', 'printQBtn', 'printABtn', 'shareBtn'].forEach(function (id) {
       var elm = $(id);
       if (elm) elm.style.display = 'none';
     });
@@ -6770,6 +6875,10 @@ function applyRoleUI() {
     if (aiToolBtn) aiToolBtn.style.display = 'none';
     if (videoToolBtn) videoToolBtn.style.display = 'none';
   }
+  $('printCard').style.display = sharedVisitor ? 'none' : '';
+  // Runs at start-up too, so the cover checkbox matches the saved preference
+  // before any worksheet has been opened.
+  renderPrintCard();
   document.querySelectorAll('#toolbar .tSep').forEach(function (s) {
     s.style.display = hideTools ? 'none' : '';
   });
@@ -7470,6 +7579,7 @@ function applyRemoteDoc(d) {
   wsMeta.videoUrl = d.videoUrl || '';
   wsMeta.videoPath = d.videoPath || '';
   wsMeta.videoStart = Number(d.videoStartMs) || 0;
+  wsMeta.coverTitle = d.coverTitle || '';
   wsShare = normalizeShare(d.share);
 
   var json = d.annotations || '[]';
@@ -7634,6 +7744,7 @@ async function performSave() {
       videoUrl: wsMeta.videoUrl || '',
       videoPath: wsMeta.videoPath || '',
       videoStartMs: wsMeta.videoStart || 0,
+      coverTitle: wsMeta.coverTitle || '',
       pageCount: pdfDoc.numPages,
       annotations: JSON.stringify(annotations),
       share: { mode: wsShare.mode, passwordHash: wsShare.passwordHash },
@@ -8048,6 +8159,7 @@ async function openSavedDoc(id, data) {
     wsMeta.videoUrl = data.videoUrl || '';
     wsMeta.videoPath = data.videoPath || '';
     wsMeta.videoStart = Number(data.videoStartMs) || 0;
+    wsMeta.coverTitle = data.coverTitle || '';
     wsShare = normalizeShare(data.share);
     setDirty(false);
     renderAllOverlays();
@@ -8579,6 +8691,548 @@ function askSharePassword(hash) {
   });
 }
 
+/* ================= Cover page =================
+   Printed sheets go out to parents and get filed in folders, so both prints
+   can start with the Polymath cover: title, subtitle, name/date lines, and —
+   when a lesson recording is attached — a QR code students can scan to watch
+   it. The page is drawn straight into the PDF with pdf-lib, so it needs no
+   browser rendering step and comes out identical on an iPad and a laptop. */
+
+var PT_PER_MM = 72 / 25.4;
+function mm(v) { return v * PT_PER_MM; }
+
+/* Helvetica and Times bake with WinAnsi encoding — symbols outside it (π, ℓ,
+   √ … common in beautified workings, and anything non-Latin in a worksheet
+   name) would make drawText throw and break the whole export. Map them to
+   close equivalents and strip the rest. */
+function winAnsiSafe(s) {
+  var map = { 'π': 'pi', 'ℓ': 'l', '−': '-', '√': 'sqrt', '≈': '~', '≤': '<=', '≥': '>=',
+              '≠': '=/=', 'θ': 'theta', 'Δ': 'delta', '∠': 'angle', '→': '->', '✓': 'v', '✗': 'x' };
+  return String(s || '').replace(/[\s\S]/g, function (ch) {
+    if (map[ch] !== undefined) return map[ch];
+    return /[\x20-\x7E\xA0-\xFF\n\r\t‘’“”–—…€™]/.test(ch) ? ch : '?';
+  });
+}
+
+/* ---- QR encoding ----
+   Byte mode, error correction level M, versions 1-15 (up to 412 bytes — a
+   Dropbox link is nearer 110). Verified module-for-module against the
+   qrcode-generator reference implementation across ASCII and UTF-8 inputs.
+   Returns a square array of booleans, or null if the text is too long. */
+function qrModules(text) {
+  var RS_M = [                                  // [blocks, total, data] per version
+    [1, 26, 16], [1, 44, 28], [1, 70, 44], [2, 50, 32], [2, 67, 43],
+    [4, 43, 27], [4, 49, 31], [2, 60, 38, 2, 61, 39], [3, 58, 36, 2, 59, 37],
+    [4, 69, 43, 1, 70, 44], [1, 80, 50, 4, 81, 51], [6, 58, 36, 2, 59, 37],
+    [8, 59, 37, 1, 60, 38], [4, 64, 40, 5, 65, 41], [5, 65, 41, 5, 66, 42]];
+  var ALIGN = [[], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38],
+    [6, 24, 42], [6, 26, 46], [6, 28, 50], [6, 30, 54], [6, 32, 58],
+    [6, 34, 62], [6, 26, 46, 66], [6, 26, 48, 70]];
+  var G15 = 0x537, G18 = 0x1F25, G15_MASK = 0x5412;
+
+  // GF(256), primitive polynomial x^8 + x^4 + x^3 + x^2 + 1
+  var EXP = new Array(256), LOG = new Array(256), i;
+  for (i = 0; i < 8; i++) EXP[i] = 1 << i;
+  for (i = 8; i < 256; i++) EXP[i] = EXP[i - 4] ^ EXP[i - 5] ^ EXP[i - 6] ^ EXP[i - 8];
+  for (i = 0; i < 255; i++) LOG[EXP[i]] = i;
+  function gExp(n) { while (n < 0) n += 255; while (n >= 256) n -= 255; return EXP[n]; }
+  function gMul(a, b) { return (a === 0 || b === 0) ? 0 : gExp(LOG[a] + LOG[b]); }
+  function polyMul(a, b) {
+    var out = new Array(a.length + b.length - 1);
+    for (var x = 0; x < out.length; x++) out[x] = 0;
+    for (x = 0; x < a.length; x++) {
+      for (var y = 0; y < b.length; y++) out[x + y] ^= gMul(a[x], b[y]);
+    }
+    return out;
+  }
+  function polyMod(a, b) {
+    if (a.length - b.length < 0) return a;
+    var ratio = LOG[a[0]] - LOG[b[0]];
+    var out = a.slice();
+    for (var x = 0; x < b.length; x++) out[x] ^= gMul(b[x], gExp(ratio));
+    while (out.length && out[0] === 0) out.shift();
+    return polyMod(out, b);
+  }
+  function ecPoly(n) {
+    var p = [1];
+    for (var x = 0; x < n; x++) p = polyMul(p, [1, gExp(x)]);
+    return p;
+  }
+
+  var str = String(text == null ? '' : text);
+  var bytes = [];
+  if (window.TextEncoder) {
+    var enc = new TextEncoder().encode(str);
+    for (i = 0; i < enc.length; i++) bytes.push(enc[i]);
+  } else {
+    var utf8 = unescape(encodeURIComponent(str));
+    for (i = 0; i < utf8.length; i++) bytes.push(utf8.charCodeAt(i) & 0xFF);
+  }
+
+  function blocksFor(v) {
+    var t = RS_M[v - 1], out = [];
+    for (var x = 0; x < t.length; x += 3) {
+      for (var n = 0; n < t[x]; n++) out.push({ total: t[x + 1], data: t[x + 2] });
+    }
+    return out;
+  }
+  var version = 0, blocks = null, totalData = 0;
+  for (var v = 1; v <= RS_M.length; v++) {
+    blocks = blocksFor(v);
+    totalData = blocks.reduce(function (s, b) { return s + b.data; }, 0);
+    if (4 + (v < 10 ? 8 : 16) + bytes.length * 8 <= totalData * 8) { version = v; break; }
+  }
+  if (!version) return null;                    // too long — the caller prints the link alone
+
+  var bits = [];
+  function put(val, len) { for (var x = len - 1; x >= 0; x--) bits.push((val >>> x) & 1); }
+  put(4, 4);                                    // byte mode
+  put(bytes.length, version < 10 ? 8 : 16);
+  bytes.forEach(function (b) { put(b, 8); });
+  if (bits.length + 4 <= totalData * 8) put(0, 4);
+  while (bits.length % 8 !== 0) bits.push(0);
+  var words = [];
+  for (i = 0; i < bits.length; i += 8) {
+    var byteVal = 0;
+    for (var k = 0; k < 8; k++) byteVal = (byteVal << 1) | bits[i + k];
+    words.push(byteVal);
+  }
+  var pads = [0xEC, 0x11], p = 0;
+  while (words.length < totalData) words.push(pads[p++ % 2]);
+
+  var off = 0, dc = [], ec = [], maxDc = 0, maxEc = 0;
+  blocks.forEach(function (b, bi) {
+    var ecCount = b.total - b.data;
+    dc[bi] = words.slice(off, off + b.data);
+    off += b.data;
+    maxDc = Math.max(maxDc, b.data);
+    maxEc = Math.max(maxEc, ecCount);
+    var raw = dc[bi].slice();
+    for (var z = 0; z < ecCount; z++) raw.push(0);
+    while (raw.length && raw[0] === 0) raw.shift();
+    var rem = raw.length ? polyMod(raw, ecPoly(ecCount)) : [];
+    var pad = ecCount - rem.length;
+    ec[bi] = [];
+    for (z = 0; z < ecCount; z++) ec[bi][z] = z < pad ? 0 : rem[z - pad];
+  });
+  var stream = [];
+  for (i = 0; i < maxDc; i++) blocks.forEach(function (b, bi) { if (i < dc[bi].length) stream.push(dc[bi][i]); });
+  for (i = 0; i < maxEc; i++) blocks.forEach(function (b, bi) { if (i < ec[bi].length) stream.push(ec[bi][i]); });
+
+  var size = version * 4 + 17;
+  function bch(data, poly, shift) {
+    var d = data << shift;
+    function digit(n) { var c = 0; while (n !== 0) { c++; n >>>= 1; } return c; }
+    while (digit(d) - digit(poly) >= 0) d ^= (poly << (digit(d) - digit(poly)));
+    return (data << shift) | d;
+  }
+  var MASKS = [
+    function (r, c) { return (r + c) % 2 === 0; },
+    function (r) { return r % 2 === 0; },
+    function (r, c) { return c % 3 === 0; },
+    function (r, c) { return (r + c) % 3 === 0; },
+    function (r, c) { return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0; },
+    function (r, c) { return (r * c) % 2 + (r * c) % 3 === 0; },
+    function (r, c) { return ((r * c) % 2 + (r * c) % 3) % 2 === 0; },
+    function (r, c) { return ((r * c) % 3 + (r + c) % 2) % 2 === 0; }];
+
+  // `test` blanks the format/version areas: the mask is picked by scoring the
+  // data region alone, before those bits are known.
+  function build(mask, test) {
+    var m = [], r, c;
+    for (r = 0; r < size; r++) { m[r] = []; for (c = 0; c < size; c++) m[r][c] = null; }
+    function finder(row, col) {
+      for (var fr = -1; fr <= 7; fr++) {
+        if (row + fr < 0 || row + fr >= size) continue;
+        for (var fc = -1; fc <= 7; fc++) {
+          if (col + fc < 0 || col + fc >= size) continue;
+          m[row + fr][col + fc] =
+            (fr >= 0 && fr <= 6 && (fc === 0 || fc === 6)) ||
+            (fc >= 0 && fc <= 6 && (fr === 0 || fr === 6)) ||
+            (fr >= 2 && fr <= 4 && fc >= 2 && fc <= 4);
+        }
+      }
+    }
+    finder(0, 0); finder(size - 7, 0); finder(0, size - 7);
+    ALIGN[version - 1].forEach(function (row) {
+      ALIGN[version - 1].forEach(function (col) {
+        if (m[row][col] !== null) return;
+        for (var ar = -2; ar <= 2; ar++) {
+          for (var ac = -2; ac <= 2; ac++) {
+            m[row + ar][col + ac] = (ar === -2 || ar === 2 || ac === -2 || ac === 2 || (ar === 0 && ac === 0));
+          }
+        }
+      });
+    });
+    for (r = 8; r < size - 8; r++) if (m[r][6] === null) m[r][6] = (r % 2 === 0);
+    for (c = 8; c < size - 8; c++) if (m[6][c] === null) m[6][c] = (c % 2 === 0);
+
+    var fBits = bch((0 /* level M */ << 3) | mask, G15, 10) ^ G15_MASK;
+    for (var fi = 0; fi < 15; fi++) {
+      var on = !test && ((fBits >> fi) & 1) === 1;
+      if (fi < 6) m[fi][8] = on;
+      else if (fi < 8) m[fi + 1][8] = on;
+      else m[size - 15 + fi][8] = on;
+      if (fi < 8) m[8][size - fi - 1] = on;
+      else if (fi < 9) m[8][15 - fi] = on;
+      else m[8][15 - fi - 1] = on;
+    }
+    m[size - 8][8] = !test;
+    if (version >= 7) {
+      var vBits = bch(version, G18, 12);
+      for (var vi = 0; vi < 18; vi++) {
+        var vOn = !test && ((vBits >> vi) & 1) === 1;
+        m[Math.floor(vi / 3)][vi % 3 + size - 11] = vOn;
+        m[vi % 3 + size - 11][Math.floor(vi / 3)] = vOn;
+      }
+    }
+
+    var inc = -1, row2 = size - 1, bitIdx = 7, byteIdx = 0, fn = MASKS[mask];
+    for (var col = size - 1; col > 0; col -= 2) {
+      if (col === 6) col -= 1;
+      for (;;) {
+        for (var d2 = 0; d2 < 2; d2++) {
+          if (m[row2][col - d2] !== null) continue;
+          var dark = byteIdx < stream.length && ((stream[byteIdx] >>> bitIdx) & 1) === 1;
+          if (fn(row2, col - d2)) dark = !dark;
+          m[row2][col - d2] = dark;
+          if (--bitIdx === -1) { byteIdx++; bitIdx = 7; }
+        }
+        row2 += inc;
+        if (row2 < 0 || row2 >= size) { row2 -= inc; inc = -inc; break; }
+      }
+    }
+    return m;
+  }
+
+  function penalty(m) {
+    var lost = 0, r, c;
+    for (r = 0; r < size; r++) {
+      for (c = 0; c < size; c++) {
+        var same = 0, dark = m[r][c];
+        for (var dr = -1; dr <= 1; dr++) {
+          if (r + dr < 0 || r + dr >= size) continue;
+          for (var dc2 = -1; dc2 <= 1; dc2++) {
+            if (c + dc2 < 0 || c + dc2 >= size) continue;
+            if (dr === 0 && dc2 === 0) continue;
+            if (m[r + dr][c + dc2] === dark) same++;
+          }
+        }
+        if (same > 5) lost += 3 + same - 5;
+      }
+    }
+    for (r = 0; r < size - 1; r++) {
+      for (c = 0; c < size - 1; c++) {
+        var n = (m[r][c] ? 1 : 0) + (m[r + 1][c] ? 1 : 0) + (m[r][c + 1] ? 1 : 0) + (m[r + 1][c + 1] ? 1 : 0);
+        if (n === 0 || n === 4) lost += 3;
+      }
+    }
+    for (r = 0; r < size; r++) {
+      for (c = 0; c < size - 6; c++) {
+        if (m[r][c] && !m[r][c + 1] && m[r][c + 2] && m[r][c + 3] && m[r][c + 4] && !m[r][c + 5] && m[r][c + 6]) lost += 40;
+      }
+    }
+    for (c = 0; c < size; c++) {
+      for (r = 0; r < size - 6; r++) {
+        if (m[r][c] && !m[r + 1][c] && m[r + 2][c] && m[r + 3][c] && m[r + 4][c] && !m[r + 5][c] && m[r + 6][c]) lost += 40;
+      }
+    }
+    var darkCount = 0;
+    for (c = 0; c < size; c++) for (r = 0; r < size; r++) if (m[r][c]) darkCount++;
+    return lost + (Math.abs(100 * darkCount / size / size - 50) / 5) * 10;
+  }
+
+  var bestMask = 0, bestScore = Infinity;
+  for (var mk = 0; mk < 8; mk++) {
+    var score = penalty(build(mk, true));
+    if (score < bestScore) { bestScore = score; bestMask = mk; }
+  }
+  return build(bestMask, false);
+}
+
+/* ---- What the cover says ---- */
+function coverEnabled() {
+  try { return localStorage.getItem('anskeyCoverPage') !== 'off'; } catch (e) { return true; }
+}
+function setCoverEnabled(on) {
+  try { localStorage.setItem('anskeyCoverPage', on ? 'on' : 'off'); } catch (e) {}
+}
+/* The title follows the file name; only the teacher can override it. */
+function coverTitleText() {
+  return String(wsMeta.coverTitle || docName || 'Worksheet').trim() || 'Worksheet';
+}
+/* “Primary Mathematics” / “Primary Science”, following the worksheet's level
+   and subject — Sec 1 worksheets say “Secondary” instead. */
+function coverFooterText() {
+  var stage = String(wsMeta.level || '').charAt(0).toUpperCase() === 'S' ? 'Secondary' : 'Primary';
+  var subject = wsMeta.subject === 'science' ? 'Science'
+    : (wsMeta.subject === 'both' ? 'Mathematics & Science' : 'Mathematics');
+  return stage + ' ' + subject;
+}
+
+/* ---- The logo ----
+   Fetched once per session. Dropbox serves it with permissive CORS headers,
+   but if a network or CORS problem swallows it the cover falls back to a
+   plain wordmark rather than failing the print. */
+var COVER_LOGO_URLS = [
+  'https://dl.dropboxusercontent.com/scl/fi/2wc1ulpjuiaqlxk5qhc07/polymath-logo-sticker-copy.png?rlkey=jhutxqmdbwe0jgoqcwdxzwt55&raw=1',
+  'https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj'
+];
+var coverLogoPromise = null;
+function loadCoverLogoBytes() {
+  if (coverLogoPromise) return coverLogoPromise;
+  coverLogoPromise = (async function () {
+    for (var i = 0; i < COVER_LOGO_URLS.length; i++) {
+      try {
+        var resp = await fetch(COVER_LOGO_URLS[i]);
+        if (!resp.ok) continue;
+        var buf = new Uint8Array(await resp.arrayBuffer());
+        if (buf.length > 8) return buf;
+      } catch (e) { /* try the next URL */ }
+    }
+    return null;
+  })();
+  return coverLogoPromise;
+}
+
+/* Draw the Polymath cover as page 1 of `outDoc`. */
+async function addCoverPage(outDoc, opts) {
+  var rgb = PDFLib.rgb;
+  var degrees = PDFLib.degrees;
+  var StandardFonts = PDFLib.StandardFonts;
+  var page = outDoc.insertPage(0, [mm(210), mm(297)]);
+  var W = page.getWidth(), H = page.getHeight();
+  var padX = mm(22);
+  var INK = rgb(0.067, 0.067, 0.067);      // #111
+  var MUTED = rgb(0.4, 0.4, 0.4);          // #666
+
+  var sans = await outDoc.embedFont(StandardFonts.Helvetica);
+  var sansBold = await outDoc.embedFont(StandardFonts.HelveticaBold);
+  var serif = await outDoc.embedFont(StandardFonts.TimesRomanBold);
+  var serifItalic = await outDoc.embedFont(StandardFonts.TimesRomanItalic);
+  // π and √ are outside WinAnsi; the Symbol face draws them properly instead
+  // of the "pi"/"sqrt" spellings winAnsiSafe would fall back to.
+  var symbolFont = await outDoc.embedFont(StandardFonts.Symbol);
+
+  /* Width of a string once letter-spacing is applied. */
+  function trackedWidth(text, font, size, tracking) {
+    if (!text) return 0;
+    return font.widthOfTextAtSize(text, size) + tracking * (text.length - 1);
+  }
+  /* pdf-lib has no letter-spacing, so tracked text is drawn glyph by glyph. */
+  function drawTracked(text, o) {
+    text = winAnsiSafe(text);
+    if (!text) return;
+    var tracking = o.tracking || 0;
+    var x = o.x;
+    if (o.align === 'center') x -= trackedWidth(text, o.font, o.size, tracking) / 2;
+    else if (o.align === 'right') x -= trackedWidth(text, o.font, o.size, tracking);
+    if (!tracking) {
+      page.drawText(text, { x: x, y: o.y, size: o.size, font: o.font, color: o.color, opacity: o.opacity });
+      return;
+    }
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      page.drawText(ch, { x: x, y: o.y, size: o.size, font: o.font, color: o.color, opacity: o.opacity });
+      x += o.font.widthOfTextAtSize(ch, o.size) + tracking;
+    }
+  }
+  /* Greedy word wrap; single words longer than the line are hard-split. */
+  function wrap(text, font, size, maxW) {
+    var words = winAnsiSafe(text).split(/\s+/).filter(Boolean);
+    var lines = [], cur = '';
+    words.forEach(function (word) {
+      while (font.widthOfTextAtSize(word, size) > maxW && word.length > 1) {
+        var cut = word.length;
+        while (cut > 1 && font.widthOfTextAtSize(word.slice(0, cut), size) > maxW) cut--;
+        if (cur) { lines.push(cur); cur = ''; }
+        lines.push(word.slice(0, cut));
+        word = word.slice(cut);
+      }
+      var trial = cur ? cur + ' ' + word : word;
+      if (cur && font.widthOfTextAtSize(trial, size) > maxW) { lines.push(cur); cur = word; }
+      else cur = trial;
+    });
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [''];
+  }
+
+  /* ---- Pastel decorations, in the millimetre grid of the original SVG.
+     SVG y grows downward, so shapes convert with (H − y) and rotations flip
+     sign against PDF's counter-clockwise positive. ---- */
+  function dot(cx, cy, r, hex, op) {
+    var c = hexToRgb01(hex);
+    page.drawCircle({ x: mm(cx), y: H - mm(cy), size: mm(r), color: rgb(c.r, c.g, c.b), opacity: op });
+  }
+  function tri(pts, hex, op) {
+    var c = hexToRgb01(hex);
+    var d = pts.map(function (q, i) { return (i ? 'L ' : 'M ') + mm(q[0]) + ' ' + mm(q[1]); }).join(' ') + ' Z';
+    page.drawSvgPath(d, { x: 0, y: H, color: rgb(c.r, c.g, c.b), opacity: op, borderWidth: 0 });
+  }
+  function chip(x, y, s, hex, deg) {
+    var c = hexToRgb01(hex);
+    var ctr = { x: mm(x + s / 2), y: H - mm(y + s / 2) };
+    var corner = rotPt({ x: mm(x), y: H - mm(y + s) }, ctr, -deg);
+    page.drawRectangle({
+      x: corner.x, y: corner.y, width: mm(s), height: mm(s),
+      color: rgb(c.r, c.g, c.b), rotate: degrees(-deg)
+    });
+  }
+  function sym(x, y, txt, sizeMm, hex, op, deg) {
+    var c = hexToRgb01(hex);
+    var glyphFont = /[π√]/.test(txt) ? symbolFont : sansBold;
+    page.drawText(glyphFont === symbolFont ? txt : winAnsiSafe(txt), {
+      x: mm(x), y: H - mm(y), size: mm(sizeMm), font: glyphFont,
+      color: rgb(c.r, c.g, c.b), opacity: op, rotate: degrees(-(deg || 0))
+    });
+  }
+
+  dot(8, 14, 26, '#a5e3dd', 0.5); dot(36, 6, 13, '#cdf0ec', 0.6);
+  dot(6, 46, 9, '#7fd6cd', 0.4); dot(28, 32, 4.5, '#f5c1d6', 0.65);
+  dot(52, 14, 3, '#a5e3dd', 0.7);
+  tri([[42, 26], [52, 30], [44, 38]], '#bdebe6', 0.8);
+  chip(14, 58, 7, '#f9d8e6', 20);
+  sym(40, 54, 'π', 11, '#6cc9c0', 0.75, -12);
+  sym(24, 78, '+', 9, '#eb9bbf', 0.7, 15);
+
+  dot(202, 284, 26, '#f5c1d6', 0.5); dot(174, 292, 13, '#fbe0eb', 0.6);
+  dot(204, 252, 9, '#f0a8c8', 0.4); dot(182, 266, 4.5, '#a5e3dd', 0.65);
+  dot(156, 282, 3, '#f5c1d6', 0.7);
+  tri([[168, 268], [158, 272], [166, 260]], '#f9d8e6', 0.8);
+  chip(190, 232, 7, '#bdebe6', -20);
+  sym(158, 294, '÷', 10, '#eb9bbf', 0.75, 10);
+  sym(176, 246, '×', 9, '#6cc9c0', 0.7, -15);
+
+  tri([[150, 6], [157, 8], [152, 14]], '#f9d8e6', 0.75);
+  dot(180, 10, 4, '#bdebe6', 0.6);
+  sym(196, 28, '×', 7, '#eb9bbf', 0.6, 18);
+  dot(203, 44, 2.5, '#f5c1d6', 0.6);
+  sym(199, 120, '+', 8, '#6cc9c0', 0.55, -10);
+  dot(205, 160, 3.5, '#fbe0eb', 0.8);
+  tri([[202, 196], [208, 199], [203, 205]], '#bdebe6', 0.65);
+  dot(5, 120, 3, '#f5c1d6', 0.6);
+  sym(3, 166, '=', 8, '#6cc9c0', 0.55, 12);
+  tri([[6, 210], [13, 213], [8, 219]], '#cdf0ec', 0.8);
+  sym(3, 252, '%', 7, '#eb9bbf', 0.6, -15);
+  dot(34, 290, 4, '#a5e3dd', 0.55);
+  sym(58, 294, '√', 8, '#eb9bbf', 0.6, -8);
+  dot(100, 293, 2.5, '#f9d8e6', 0.8);
+  tri([[124, 288], [131, 290], [126, 296]], '#bdebe6', 0.7);
+
+  /* ---- Structural rules and the running head / foot ---- */
+  page.drawLine({ start: { x: padX, y: H - mm(18) }, end: { x: W - padX, y: H - mm(18) }, thickness: 0.75, color: INK });
+  page.drawLine({ start: { x: padX, y: mm(18) }, end: { x: W - padX, y: mm(18) }, thickness: 0.75, color: INK });
+  drawTracked('POLYMATH LEARNING CENTRE',
+    { x: W / 2, y: H - mm(25) - 8.5, size: 8.4, font: sans, color: INK, tracking: 8.4 * 0.32, align: 'center' });
+  drawTracked(String(opts.footer || '').toUpperCase(),
+    { x: W / 2, y: mm(25), size: 7.8, font: sans, color: MUTED, tracking: 7.8 * 0.28, align: 'center' });
+
+  /* ---- Top-right: scan to watch the lesson recording ---- */
+  var qrBottom = H - mm(30);
+  if (opts.videoUrl) {
+    var cardW = mm(38), cardRight = W - padX, cardLeft = cardRight - cardW;
+    var cx = (cardLeft + cardRight) / 2;
+    var y = H - mm(30);
+    drawTracked('SCAN TO WATCH', { x: cx, y: y, size: 6, font: sansBold, color: MUTED, tracking: 6 * 0.18, align: 'center' });
+    y -= 8;
+    var modules = qrModules(opts.videoUrl);
+    if (modules) {
+      var quiet = 2;                                   // modules of white margin
+      var side = mm(26);
+      var cell = side / (modules.length + quiet * 2);
+      var qx = cx - side / 2, qy = y - side;
+      page.drawRectangle({ x: qx, y: qy, width: side, height: side, color: rgb(1, 1, 1) });
+      for (var r = 0; r < modules.length; r++) {
+        for (var c = 0; c < modules.length; c++) {
+          if (!modules[r][c]) continue;
+          page.drawRectangle({
+            // +0.35 overdraw closes hairline seams between cells in print
+            x: qx + (c + quiet) * cell, y: qy + side - (r + quiet + 1) * cell,
+            width: cell + 0.35, height: cell + 0.35, color: INK
+          });
+        }
+      }
+      y = qy - 8;
+    }
+    // The QR carries the real link; these lines are just so it can be typed
+    // out or checked by eye, so a very long one is cut off after four.
+    var linkLines = wrap(opts.videoUrl, sans, 5.2, cardW);
+    var shown = linkLines.slice(0, 4);
+    if (linkLines.length > shown.length) shown[shown.length - 1] += '…';
+    shown.forEach(function (line) {
+      drawTracked(line, { x: cx, y: y, size: 5.2, font: sans, color: MUTED, align: 'center' });
+      y -= 6.4;
+    });
+    qrBottom = y - 4;
+  }
+
+  /* ---- Centre block: logo, title, subtitle, name/date ---- */
+  var maxW = W - padX * 2 - mm(10);
+  var titleSize = 38.4;
+  var titleLines = wrap(opts.title, serif, titleSize, maxW);
+  while (titleLines.length > 3 && titleSize > 16) {
+    titleSize = Math.max(16, titleSize * 0.85);
+    titleLines = wrap(opts.title, serif, titleSize, maxW);
+  }
+  var titleLead = titleSize * 1.1;
+  var subSize = 19.2;
+  var subLines = wrap(opts.subtitle, serifItalic, subSize, maxW);
+
+  var logoImg = null, logoW = 0, logoH = 0;
+  var logoBytes = opts.logo;
+  if (logoBytes) {
+    try {
+      logoImg = await outDoc.embedPng(logoBytes);
+      logoW = 135;
+      logoH = Math.min(mm(45), logoImg.height * (logoW / logoImg.width));
+      logoW = logoImg.width * (logoH / logoImg.height);
+    } catch (e) { logoImg = null; }
+  }
+
+  var labelSize = 8.4, lineH = 19.2, fieldsW = 360, colGap = 26.4;
+  var fieldsH = labelSize + 6 + lineH;
+  var stackH = (logoImg ? logoH : 26) + 24 +
+    titleLines.length * titleLead + 9.6 +
+    subLines.length * (subSize * 1.25) + 42 + fieldsH;
+
+  // Centred between the running head and the foot, allowing for the 40mm of
+  // bottom padding the design leaves under the block — then pushed down if
+  // the QR card needs the room, and back up if it would reach the footer.
+  var top = mm(166.5) + stackH / 2;
+  top = Math.min(top, qrBottom - mm(6));
+  top = Math.max(top, stackH + mm(34));
+
+  var cursor = top;
+  if (logoImg) {
+    page.drawImage(logoImg, { x: (W - logoW) / 2, y: cursor - logoH, width: logoW, height: logoH });
+    cursor -= logoH;
+  } else {
+    drawTracked('POLYMATH', { x: W / 2, y: cursor - 20, size: 20, font: serif, color: INK, tracking: 5, align: 'center' });
+    cursor -= 26;
+  }
+  cursor -= 24;
+  titleLines.forEach(function (line) {
+    cursor -= titleSize;
+    drawTracked(line, { x: W / 2, y: cursor, size: titleSize, font: serif, color: INK, align: 'center' });
+    cursor -= (titleLead - titleSize);
+  });
+  cursor -= 9.6;
+  subLines.forEach(function (line) {
+    cursor -= subSize;
+    drawTracked(line, { x: W / 2, y: cursor, size: subSize, font: serifItalic, color: MUTED, align: 'center' });
+    cursor -= (subSize * 0.25);
+  });
+  cursor -= 42;
+
+  var colW = (fieldsW - colGap) / 2;
+  var fieldsLeft = (W - fieldsW) / 2;
+  [['NAME', fieldsLeft], ['DATE', fieldsLeft + colW + colGap]].forEach(function (f) {
+    drawTracked(f[0], { x: f[1], y: cursor - labelSize, size: labelSize, font: sans, color: INK, tracking: labelSize * 0.18 });
+    var ly = cursor - labelSize - 6 - lineH;
+    page.drawLine({ start: { x: f[1], y: ly }, end: { x: f[1] + colW, y: ly }, thickness: 0.75, color: INK });
+  });
+}
+
 /* ================= Flattened PDF download ================= */
 function hexToRgb01(hex) {
   var m = /^#?([0-9a-f]{6})$/i.exec(hex || '#1A1A1A');
@@ -8614,25 +9268,19 @@ function annBBox(a) {
 
 /* Bake the annotations (and, optionally, their timestamps) into a copy of
    the PDF. Shared by Download and Print. */
-async function buildAnnotatedPdf(includeTs) {
+/* opts.anns   — what to bake in (defaults to everything on screen; pass [] for
+                  a clean question paper)
+   opts.cover  — prepend the Polymath cover page
+   opts.subtitle — the line under the cover title */
+async function buildAnnotatedPdf(includeTs, opts) {
+  opts = opts || {};
+  var anns = opts.anns || annotations;
   var PDFDocument = PDFLib.PDFDocument;
   var rgb = PDFLib.rgb;
   var StandardFonts = PDFLib.StandardFonts;
   var LineCapStyle = PDFLib.LineCapStyle;
   var outDoc = await PDFDocument.load(pdfBytes);
   var font = await outDoc.embedFont(StandardFonts.Helvetica);
-
-  // Helvetica bakes with WinAnsi encoding — symbols outside it (π, ℓ, √ …
-  // common in beautified workings) would make drawText throw and break the
-  // whole download. Map them to close equivalents and strip the rest.
-  function winAnsiSafe(s) {
-    var map = { 'π': 'pi', 'ℓ': 'l', '−': '-', '√': 'sqrt', '≈': '~', '≤': '<=', '≥': '>=',
-                '≠': '=/=', 'θ': 'theta', 'Δ': 'delta', '∠': 'angle', '→': '->', '✓': 'v', '✗': 'x' };
-    return String(s || '').replace(/[\s\S]/g, function (ch) {
-      if (map[ch] !== undefined) return map[ch];
-      return /[\x20-\x7E\xA0-\xFF\n\r\t‘’“”–—…€™]/.test(ch) ? ch : '?';
-    });
-  }
 
     // Baked timestamps follow the on-screen rule: only the first and last
     // stamped annotation of each page get a label.
@@ -8643,7 +9291,7 @@ async function buildAnnotatedPdf(includeTs) {
       });
     }
 
-    annotations.forEach(function (a) {
+    anns.forEach(function (a) {
       var pageInfo = pages[a.page - 1];
       if (!pageInfo) return;
       var page = outDoc.getPage(a.page - 1);
@@ -8815,6 +9463,23 @@ async function buildAnnotatedPdf(includeTs) {
       }
     });
 
+  // Inserted last, so the annotations above still address the original page
+  // numbers while they are being drawn.
+  if (opts.cover) {
+    try {
+      await addCoverPage(outDoc, {
+        title: coverTitleText(),
+        subtitle: opts.subtitle || 'Worksheet',
+        footer: coverFooterText(),
+        videoUrl: wsMeta.videoUrl || '',
+        logo: await loadCoverLogoBytes()
+      });
+    } catch (e) {
+      // A cover is a nicety — never lose the print over it.
+      console.warn('Cover page skipped', e);
+      toast('Printing without the cover page — it could not be built.', 4000);
+    }
+  }
   return outDoc.save();
 }
 
@@ -8848,20 +9513,50 @@ function isIOS() {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
-async function printAnnotated() {
+/* ---- The two prints ----
+   “Questions” is the worksheet exactly as it arrived: every working, mark and
+   annotation taken out, so it can be handed to a class to attempt. “Answers”
+   is the same paper with all the workings baked in. Both are available to
+   students and teachers alike, and both can carry the cover page. */
+
+/* The answer key. While a student is practising, `annotations` holds their own
+   attempt and the teacher's answers are parked in `teacherAnswers` — the
+   answer print always means the teacher's. */
+function answerAnnotations() {
+  return practiceMode ? (teacherAnswers || []) : annotations;
+}
+
+function printQuestions() { return runPrint('questions'); }
+function printAnswers() { return runPrint('answers'); }
+
+async function runPrint(kind) {
   if (!pdfDoc) { toast('Open a PDF first.'); return; }
-  var btn = $('printBtn');
-  btn.disabled = true;
-  toast('Preparing answer key for printing…');
+  var answers = kind === 'answers';
+  var btns = [$('printQBtn'), $('printABtn'), $('printQSideBtn'), $('printASideBtn')];
+  btns.forEach(function (b) { if (b) b.disabled = true; });
+  toast(answers ? 'Preparing the answers for printing…' : 'Preparing the questions for printing…');
   try {
-    var outBytes = await buildAnnotatedPdf(showTimestamps);
+    var outBytes = await buildAnnotatedPdf(answers && showTimestamps, {
+      anns: answers ? answerAnnotations() : [],
+      cover: coverEnabled(),
+      subtitle: answers ? 'Answers' : 'Worksheet'
+    });
+    printPdfBytes(outBytes, answers ? 'The answers' : 'The questions');
+  } catch (e) {
+    console.error(e);
+    toast('Print failed: ' + (e.message || e));
+  }
+  btns.forEach(function (b) { if (b) b.disabled = false; });
+}
+
+function printPdfBytes(outBytes, label) {
     var blob = new Blob([outBytes], { type: 'application/pdf' });
     var url = URL.createObjectURL(blob);
     if (isIOS()) {
       // iPad/iPhone Safari cannot print a PDF from a hidden frame — open it
       // in a new tab where the share sheet offers Print / AirPrint.
       window.open(url, '_blank');
-      toast('Answer key opened in a new tab — use the share button there to print.');
+      toast(label + ' opened in a new tab — use the share button there to print.');
     } else {
       var frame = document.createElement('iframe');
       frame.style.cssText = 'position:fixed;right:0;bottom:0;width:2px;height:2px;border:0;visibility:hidden;';
@@ -8878,11 +9573,6 @@ async function printAnnotated() {
       // Keep the frame alive long enough for the print dialog to finish.
       setTimeout(function () { frame.remove(); URL.revokeObjectURL(url); }, 120000);
     }
-  } catch (e) {
-    console.error(e);
-    toast('Print failed: ' + (e.message || e));
-  }
-  btn.disabled = false;
 }
 
 /* ================= Wiring ================= */
@@ -9092,7 +9782,18 @@ $('docsModal').addEventListener('click', function (e) {
   if (e.target === $('docsModal')) $('docsModal').classList.remove('open');
 });
 $('downloadBtn').addEventListener('click', downloadAnnotated);
-$('printBtn').addEventListener('click', printAnnotated);
+$('printQBtn').addEventListener('click', printQuestions);
+$('printABtn').addEventListener('click', printAnswers);
+$('printQSideBtn').addEventListener('click', printQuestions);
+$('printASideBtn').addEventListener('click', printAnswers);
+$('coverToggle').addEventListener('change', function (e) {
+  setCoverEnabled(e.target.checked);
+  renderPrintCard();
+  toast(e.target.checked ? 'Prints will start with the cover page.' : 'Prints will skip the cover page.');
+});
+$('coverTitleInput').addEventListener('input', renderCoverPreview);
+$('coverTitleInput').addEventListener('change', saveCoverTitle);
+$('coverTitleInput').addEventListener('blur', saveCoverTitle);
 
 /* Share dialog */
 $('shareBtn').addEventListener('click', openShareModal);
@@ -9421,7 +10122,12 @@ document.addEventListener('keydown', function (e) {
   if (e.key === '-') { zoomBy(1 / 1.2); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') { e.preventDefault(); if (!isSharedVisitor()) openFilePicker(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); downloadAnnotated(); return; }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); if (!isSharedVisitor()) printAnnotated(); return; }
+  // Ctrl+P prints the questions, Ctrl+Shift+P the answers.
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    e.preventDefault();
+    if (!isSharedVisitor()) { if (e.shiftKey) printAnswers(); else printQuestions(); }
+    return;
+  }
   if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; clearLassoSel(false); renderAllOverlays(); return; }
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the

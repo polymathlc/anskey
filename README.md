@@ -3,6 +3,43 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Printing questions and answers (v1.35.0)
+
+The toolbar has two small print buttons (next to Download), and the same pair
+sits in the **Print** card in the worksheet panel. Both are available to
+students and teachers:
+
+- **Questions** (`Ctrl+P`) — the worksheet exactly as it arrived. Every
+  working, mark, text box, video button and timestamp is taken out, so it can
+  be handed to a class to attempt.
+- **Answers** (`Ctrl+Shift+P`) — the same paper with all the workings baked
+  in, timestamps included when they are switched on. While a student is
+  practising, this prints the *teacher's* answer key, not their own attempt.
+
+### The cover page
+
+Both prints can start with a Polymath cover — logo, title, subtitle, and Name
+/ Date lines. It is drawn straight into the PDF, so it needs no browser
+rendering step and comes out identical on an iPad and a laptop.
+
+- **Toggle it on or off** with “Add a Polymath cover page” in the Print card.
+  The choice is remembered per device.
+- **The title follows the worksheet name.** Admin accounts get a *Cover title*
+  box to override it; the override is saved with the worksheet, so everyone
+  who prints it gets the same cover. Leave it empty to go back to the name.
+- **The footer follows the level and subject** — “Primary Mathematics” or
+  “Primary Science” (and “Secondary …” for Sec 1 worksheets).
+- **A lesson recording adds a QR code** to the top right, with the link
+  underneath in a small font, so students can scan the printed sheet and watch.
+
+The QR encoder is built in (byte mode, EC level M, versions 1-15) rather than
+pulled from a CDN, and is verified module-for-module against the
+`qrcode-generator` reference implementation.
+
+The logo is fetched from Dropbox once per session. If the network or CORS
+swallows it, the cover falls back to a plain `POLYMATH` wordmark rather than
+failing the print.
+
 ## Sharing a worksheet (v1.32.0)
 
 The purple **Share** button (next to Save, admin only) gives you a link that
