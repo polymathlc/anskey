@@ -216,6 +216,10 @@
     position: relative;
   }
   .toolBtn svg { width: 17px; height: 17px; display: block; }
+  /* One button, two glyphs: expand while windowed, contract while full screen. */
+  #fsBtn .fsExit { display: none; }
+  body.fsOn #fsBtn .fsEnter { display: none; }
+  body.fsOn #fsBtn .fsExit { display: block; }
   .toolBtn:hover { background: #F1F0EE; transform: translateY(-1px); }
   .toolBtn.active {
     background: var(--accent);
@@ -1569,6 +1573,10 @@
     <button class="toolBtn" id="sideToggleBtn" data-key="W" title="Show / hide worksheet panel">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9.5" y1="4" x2="9.5" y2="20"/></svg>
     </button>
+    <button class="toolBtn" id="fsBtn" data-key="Shift+F" title="Full screen — hide the browser's own bars too">
+      <svg class="fsEnter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M10 20H4v-6"/><line x1="20" y1="4" x2="13.5" y2="10.5"/><line x1="4" y1="20" x2="10.5" y2="13.5"/></svg>
+      <svg class="fsExit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10h-6V4"/><path d="M4 14h6v6"/><line x1="14" y1="10" x2="20.5" y2="3.5"/><line x1="10" y1="14" x2="3.5" y2="20.5"/></svg>
+    </button>
   </div>
   <div class="tSep"></div>
 
@@ -2067,7 +2075,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.35.0';
+var APP_VERSION = 'v1.36.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -9648,6 +9656,66 @@ $('focusBtn').addEventListener('click', function () {
   $('focusBtn').classList.toggle('active', hidden);
   toast(hidden ? 'Top banner hidden — more space for the worksheet.' : 'Top banner shown again.');
 });
+/* ================= Full screen =================
+   The browser's own bars eat a surprising slice of an iPad screen, and the
+   worksheet is the whole point — this hands it the entire display. Everyone
+   gets it: students reading a worksheet want the room as much as the teacher
+   marking one.
+
+   Safari has supported this for ordinary elements since 16.4 on iPad and
+   17.4 on iPhone, and Android has for years. Where it is genuinely missing
+   the button takes itself away rather than sitting there doing nothing —
+   the existing “hide the banner” and ▤ toggles still free up space there. */
+function fsActive() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+function fsSupported() {
+  var el = document.documentElement;
+  if (!el.requestFullscreen && !el.webkitRequestFullscreen) return false;
+  // Only ever explicitly false — an iframe whose permissions policy forbids it.
+  return document.fullscreenEnabled !== false && document.webkitFullscreenEnabled !== false;
+}
+function syncFsBtn() {
+  var on = fsActive();
+  document.body.classList.toggle('fsOn', on);
+  var btn = $('fsBtn');
+  btn.classList.toggle('active', on);
+  var label = on ? 'Leave full screen' : 'Full screen — hide the browser’s own bars too';
+  // The tooltip module mirrors title into data-tip and drops the native title
+  // on hover-capable devices — handing one back would double the tooltip up.
+  if (btn.hasAttribute('title')) btn.title = label;
+  if (btn.hasAttribute('data-tip')) btn.setAttribute('data-tip', label);
+  btn.setAttribute('aria-label', label);
+}
+async function toggleFullscreen() {
+  try {
+    if (fsActive()) {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } else {
+      var el = document.documentElement;
+      if (el.requestFullscreen) await el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      toast('Full screen — tap the button again to come back.', 3500);
+    }
+  } catch (e) {
+    // Safari refuses outside a user gesture, and some managed-device profiles
+    // block it outright; say so instead of leaving the button looking broken.
+    toast('The browser would not go full screen: ' + (e.message || e), 4500);
+  }
+  syncFsBtn();
+}
+$('fsBtn').addEventListener('click', toggleFullscreen);
+['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
+  // Also fires when the user leaves with Esc or the system control.
+  document.addEventListener(ev, function () {
+    syncFsBtn();
+    handleViewportResize(); // the usable height just changed — re-fit the page
+  });
+});
+if (!fsSupported()) $('fsBtn').style.display = 'none';
+syncFsBtn();
+
 $('stylusBtn').addEventListener('click', function () { setStylusOnly(!stylusOnly); });
 $('tsToggleBtn').addEventListener('click', function () {
   tsUserToggled = true; // their choice sticks — stop auto-showing the labels
@@ -10089,6 +10157,13 @@ document.addEventListener('keydown', function (e) {
   }
   if (editingText) {
     if (e.key === 'Escape') ae.blur();
+    return;
+  }
+  // Ahead of the role branches below: full screen is for everyone. Shift, so
+  // it does not collide with plain F for fit-to-width.
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    if (fsSupported()) toggleFullscreen();
     return;
   }
   if (isStudent() && !practiceMode) {

@@ -3,6 +3,28 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Full screen (v1.36.0)
+
+The last button in the toolbar's view-toggle group (after the panel toggles)
+hands the whole display to the worksheet, hiding the browser's own bars.
+`Shift+F` does the same from the keyboard. It is available to students and
+teachers alike, and to share-link visitors.
+
+Press it again — or Esc, or the system control — to come back; the button
+tracks the state either way and swaps between the expand and contract glyphs.
+
+This uses the standard Fullscreen API, which Safari has supported for ordinary
+elements since 16.4 on iPad and 17.4 on iPhone, and Android for years. Where
+it is genuinely unavailable (or a managed-device profile blocks it) the button
+hides itself rather than sitting there doing nothing — the existing
+**Hide the top banner** button and the **▤** toggle on the favourites bar
+still free up space in that case.
+
+Note this is not the same as installing the app to the Home Screen, which
+would remove the browser chrome permanently. That would need `signInWithPopup`
+(`index.html`, Google sign-in) swapping for `signInWithRedirect` first, since
+popups are unreliable inside iOS standalone web apps.
+
 ## Printing questions and answers (v1.35.0)
 
 The toolbar has two small print buttons (next to Download), and the same pair
