@@ -3,6 +3,28 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Marking summary (v1.38.0)
+
+Every marked answer now ends with a **Summary** segment, in point form:
+
+- **📘 What you need to learn** — the skills, concepts, formulae or keywords
+  the question calls for, named plainly so the student knows what to revise.
+- **🔍 What your answer was missing** — what was actually short in *their*
+  answer: a missing unit, a skipped step, a keyword not written, a wrong
+  method.
+
+A fully correct answer shows no "missing" list at all — an empty heading
+there reads as a telling-off. Marking that returns neither list (an older
+response shape) simply omits the segment.
+
+**Mark ALL my answers** additionally opens with one **What to work on**
+roll-up above the answer-by-answer detail, merging the points from every
+question so the same weakness across three questions is one thing to revise,
+not three. Matching ignores case and punctuation, so near-identical phrasings
+collapse together.
+
+Both the on-screen report and the printed one carry the summaries.
+
 ## Full screen (v1.37.0)
 
 The last button in the toolbar's view-toggle group folds the banner and the
