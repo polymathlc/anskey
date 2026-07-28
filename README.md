@@ -3,6 +3,28 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## One-tap teaching widgets (v1.43.0)
+
+Choose **Interactive widget**, click beside a question, press Generate with the
+instructions box **empty** — and you get an interactive app that teaches the
+concept behind that question. No typing, mid-lesson.
+
+- **The spot is the brief.** The job sends the page image plus where on the page
+  you clicked ("roughly 50% across and 49% down"), and asks for the question
+  printed nearest there — the one above, if the spot falls between two. The
+  instruction is to teach the idea underneath the question, not to answer it.
+- **The page always goes with it.** With nothing typed there is nothing else to
+  go on, so the snapshot is attached even if *Let … see this page* is unticked.
+  If the page cannot be read at all, the window asks for words instead of
+  guessing.
+- **Blank means blank only for widgets.** Notes, tables and pictures still ask
+  what you want.
+- **Redo stays blank.** A card built this way remembers no instructions, so
+  reopening it shows an empty box and Generate again re-reads the question at
+  the card's own spot.
+- **The card type is remembered** across reloads, so a widget teacher opens the
+  window already on *Interactive widget*.
+
 ## AI notes: build quality, and cards made in the background (v1.42.0)
 
 The AI notes window used to hold the lesson hostage: one card at a time, the
