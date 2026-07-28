@@ -3,6 +3,34 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## AI notes: build quality, and cards made in the background (v1.42.0)
+
+The AI notes window used to hold the lesson hostage: one card at a time, the
+window stuck open until it landed, and a widget budget so tight that anything
+ambitious came back half-built.
+
+- **Build quality — Quick / Standard / High / Highest.** Picked in the window
+  and remembered on the device (default **High**). It raises three things
+  together: the output budget (widgets go from 8k tokens to 6k/12k/22k/32k),
+  how hard the model thinks (ChatGPT `reasoning_effort`, Gemini
+  `thinkingLevel`), and how much the prompt asks for — labelled layouts, live
+  readouts, sane defaults, edge values that don't break it. Pictures follow
+  too, through the image model's own quality setting.
+- **Everything runs in the background.** Pressing Generate hands the build to a
+  job and gives the window straight back. Minimise it with the **–** button
+  (title bar only — tap the bar to open it again), close it, or carry on
+  annotating; the card lands on the page by itself.
+- **Up to four at once.** Start a widget, click another spot, start the next.
+  A fifth is politely refused until one lands.
+- **A small notification per card.** Each build gets a chip in the bottom-right
+  corner: a spinner while it works, then a notification naming what was made —
+  tap it to jump to the card, ✕ to dismiss. Failures say what went wrong and
+  stay until dismissed, including a widget that was cut off before it finished.
+- **Late answers can't land on the wrong worksheet.** A job remembers the
+  worksheet, page and card it was started for; if the worksheet was closed, the
+  page is gone, or the card being redone was deleted, the result is dropped and
+  the chip says so.
+
 ## ChatGPT engine toggle (v1.41.0)
 
 Every AI feature in the app — **Answer** and **Improve** on text boxes, **AI
