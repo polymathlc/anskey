@@ -1183,6 +1183,21 @@
   .repItem { border: 1px solid var(--line, #E2E0DC); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
   .repItem img { max-width: 100%; border-radius: 6px; border: 1px solid var(--line, #E2E0DC); margin-bottom: 8px; }
   .repHead { font-weight: bold; margin-bottom: 6px; }
+  /* ---- Answer key ----
+     The same layout the printed key uses, so what is on screen is what comes
+     out of the printer: the question number on the margin, and the answer and
+     explanation indented under it behind small lettered labels. */
+  .akMeta { color: var(--ink-faint); font-size: 0.85rem; margin-bottom: 16px; }
+  .akItem { margin-bottom: 22px; }
+  .akQ { font-weight: bold; font-size: 1rem; margin-bottom: 9px; }
+  .akBody { padding-left: 18px; }
+  .akLabel {
+    display: block; margin-bottom: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint);
+  }
+  .akAnswer { margin-bottom: 13px; }
+  .akExplain { line-height: 1.6; white-space: pre-wrap; }
   .docEditRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .docEditRow select { font: inherit; font-size: 0.85rem; padding: 4px 6px; border: 1px solid var(--line, #E2E0DC); border-radius: 6px; background: #fff; }
   .docEditRow .docNameInput {
@@ -1766,6 +1781,13 @@
     </div>
     <div class="coverPreview" id="coverPreview"></div>
   </div>
+  <div class="sideCard" id="answerKeyCard" style="display:none">
+    <h4>Answer key</h4>
+    <div class="sideHint">Gemini reads every page of this worksheet — the printed questions and any answers written on it — and writes one condensed answer per question with a short explanation.</div>
+    <button class="btn btnPrimary practiceWide" id="genKeyBtn">✨ Generate answer key</button>
+    <button class="btn practiceWide" id="viewKeyBtn" style="display:none">📄 View the answer key</button>
+    <button class="btn practiceWide" id="printKeyBtn" style="display:none">🖨 Print / save as PDF</button>
+  </div>
   <div class="sideCard">
     <div class="sideHint" id="tsHint">Timestamps beside each annotation show when it was written —
       match them against the lesson recording to find the explanation for that part.</div>
@@ -2133,7 +2155,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.38.0';
+var APP_VERSION = 'v1.39.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2582,6 +2604,7 @@ async function loadPdf(bytes, name) {
   currentDocId = null;
   practiceMode = false; // a new document always starts outside practice
   teacherAnswers = null;
+  lastAnswerKey = null; // a key belongs to the worksheet it was built from
   annotations = [];
   undoStack = [];
   redoStack = [];
@@ -3613,6 +3636,7 @@ function renderSidebar() {
   if (typeof updatePracticeCard === 'function') updatePracticeCard();
   renderVideoCard();
   renderPrintCard();
+  if (typeof updateAnswerKeyCard === 'function') updateAnswerKeyCard();
 }
 
 /* ---- Print card ----
@@ -6882,6 +6906,303 @@ function printReport() {
   w.focus();
 }
 
+/* ================= AI answer key =================
+   Gemini reads the worksheet a page at a time — the printed questions plus
+   whatever answers are written on the page — and returns one condensed entry
+   per question: the answer itself and a short explanation of why it is right.
+   The result prints as a plain answer key: “Question 16”, the answer, the
+   explanation. Teacher-only, like the AI answer tool: students and share-link
+   visitors never see the card. */
+var lastAnswerKey = null;   // { name, level, subject, when, items: [], failed: [] }
+
+var AI_KEY_SYS =
+  'You are an experienced Singapore tuition teacher (P3 to Secondary 1) ' +
+  'writing the ANSWER KEY for ONE page of a worksheet. Snapshots of the page ' +
+  'are attached. Reply with STRICT JSON only, no markdown, exactly this ' +
+  'shape: {"questions":[{"number":"16","option":"2","answer":"(2)",' +
+  '"explanation":"why this is the answer"}]}. Rules: one entry for every ' +
+  'question actually PRINTED on the page being keyed, in the order they ' +
+  'appear, keeping the worksheet\'s own numbering in "number" ("16", "3a"). ' +
+  'Never invent a question that is not on the page — a cover, an ' +
+  'instructions page or a blank page returns {"questions":[]}. For a ' +
+  'multiple-choice question, "option" is the correct option\'s number or ' +
+  'letter exactly as printed ("2", "B") and "answer" is that option\'s own ' +
+  'wording, copied from the paper. For every other question leave "option" ' +
+  'empty and put the final answer in "answer", condensed to what a marker ' +
+  'needs — the value with its unit, or one short sentence. "explanation" is ' +
+  '2-4 sentences saying WHY, in plain language the student\'s level can ' +
+  'follow, with the working when there is working to show. Plain text only ' +
+  'in every field: no markdown, no bullets, no line breaks. When the ' +
+  'teacher\'s own answers are attached they are authoritative — follow them, ' +
+  'and read the handwriting generously; where they are absent or unreadable, ' +
+  'work the answer out yourself from the question.';
+
+function answerKeyReady() {
+  if (!pdfDoc) { toast('Open a worksheet first.'); return false; }
+  if (isStudent() || isSharedVisitor()) return false;
+  if (aiBusy) { toast('Gemini is still busy — one moment…'); return false; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return false;
+  }
+  return true;
+}
+
+/* A page rendered on its own canvas, with the given annotations composited in.
+   The viewer only keeps the pages you can see rasterised, so the key cannot
+   read `p.canvas` the way marking does — it renders each page itself. */
+async function keyPageJpeg(p, anns, maxDim) {
+  if (!p || !p.page) return null;
+  var want = Math.min(2.5, Math.max(0.6, (maxDim || 1500) / Math.max(p.baseW, p.baseH)));
+  var viewport = p.page.getViewport({ scale: want });
+  var cnv = document.createElement('canvas');
+  cnv.width = Math.floor(viewport.width);
+  cnv.height = Math.floor(viewport.height);
+  var ctx = cnv.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, cnv.width, cnv.height);
+  await p.page.render({ canvasContext: ctx, viewport: viewport }).promise;
+  if (anns && anns.length) drawAnnsOnCtx(ctx, cnv.width / p.baseW, cnv.height / p.baseH, anns, p.num);
+  return cnv.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+
+/* Question numbers are the worksheet's, not ours: a question that runs over a
+   page break comes back from both pages, so entries are keyed on the number
+   with punctuation and case ignored, and the fuller of the two is kept. */
+function keyNumKey(n) { return String(n == null ? '' : n).toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+
+function keyEntryWeight(q) {
+  return String((q && q.answer) || '').length + String((q && q.explanation) || '').length;
+}
+
+async function generateAnswerKey() {
+  if (!answerKeyReady()) return;
+  commitActiveTextEdit();
+  // Practising hides the worksheet's real answers in `teacherAnswers` — the
+  // key always means the teacher's, never the attempt on screen.
+  var keyAnns = answerAnnotations();
+  aiBusy = true;
+  $('checkTitle').textContent = 'Building the answer key…';
+  $('checkBody').textContent = '✨ Gemini is reading page 1 of ' + pages.length + '…';
+  $('checkModal').classList.add('open');
+  var items = [], seen = {}, failed = [];
+  var prevJpeg = null;
+  for (var i = 0; i < pages.length; i++) {
+    var p = pages[i];
+    $('checkBody').textContent = '✨ Gemini is reading page ' + p.num + ' of ' + pages.length + '…' +
+      (items.length ? ' (' + items.length + ' question' + (items.length === 1 ? '' : 's') + ' so far)' : '');
+    try {
+      var clean = await keyPageJpeg(p, [], 1500);
+      if (!clean) { failed.push(p.num); continue; }
+      var pageAnns = keyAnns.filter(function (a) { return a.page === p.num; });
+      var marked = pageAnns.length ? await keyPageJpeg(p, pageAnns, 1500) : null;
+      var imgs = [];
+      var labels = [];
+      imgs.push({ mimeType: 'image/jpeg', data: clean });
+      labels.push('image 1 = page ' + p.num + ', the page to key');
+      if (marked) {
+        imgs.push({ mimeType: 'image/jpeg', data: marked });
+        labels.push('image ' + imgs.length + ' = the same page with the TEACHER\'S OWN ANSWERS written on it');
+      }
+      if (prevJpeg) {
+        imgs.push({ mimeType: 'image/jpeg', data: prevJpeg });
+        labels.push('image ' + imgs.length + ' = the page before, for context only — do not key it');
+      }
+      var typed = pageAnns.filter(function (a) { return a.type === 'text' && a.text; })
+                          .map(function (a) { return a.text; });
+      var lines = [];
+      var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
+      var lvl = wsMeta && wsMeta.level ? levelLabel(wsMeta.level) : '';
+      if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
+      lines.push('Attached: ' + labels.join('; ') + '.');
+      if (typed.length) lines.push('The teacher also typed on this page: "' + typed.join('" / "') + '"');
+      if (!pageAnns.length) lines.push('No teacher answers were written on this page — work the answers out from the question itself.');
+      lines.push('Key every question printed on page ' + p.num + '.');
+      var raw = await window.askGemini(lines.join('\n'), {
+        system: AI_KEY_SYS, maxOutputTokens: 4000, temperature: 0.2, json: true, images: imgs
+      });
+      var res = _parseAIJson(raw);
+      var qs = (res && Array.isArray(res.questions)) ? res.questions : [];
+      qs.forEach(function (q) {
+        if (!q) return;
+        var entry = {
+          page: p.num,
+          number: String(q.number == null ? '' : q.number).trim(),
+          option: String(q.option == null ? '' : q.option).trim(),
+          answer: String(q.answer == null ? '' : q.answer).trim(),
+          explanation: String(q.explanation == null ? '' : q.explanation).trim()
+        };
+        if (!entry.answer && !entry.option) return;   // nothing to key
+        var k = keyNumKey(entry.number);
+        if (k && k in seen) {
+          var prior = items[seen[k]];
+          if (keyEntryWeight(entry) > keyEntryWeight(prior)) items[seen[k]] = entry;
+          return;
+        }
+        if (k) seen[k] = items.length;
+        items.push(entry);
+      });
+      prevJpeg = clean;
+    } catch (e) {
+      console.warn('Answer key failed on page ' + p.num, e);
+      failed.push(p.num);
+    }
+  }
+  aiBusy = false;
+  lastAnswerKey = {
+    name: docName,
+    level: wsMeta.level, subject: wsMeta.subject,
+    when: new Date(),
+    items: items,
+    failed: failed
+  };
+  updateAnswerKeyCard();
+  renderAnswerKey();
+}
+
+/* The number as it is printed on the paper — Gemini sometimes returns “16”
+   and sometimes “Question 16”, and only one of those reads well as a heading. */
+function keyHeading(q, i) {
+  var n = (q.number || '').replace(/^\s*(question|qn?)[\s.:]*/i, '').trim();
+  return n ? 'Question ' + n : 'Question ' + (i + 1);
+}
+
+/* The answer line: an MCQ prints its option number in bold ahead of the
+   option's own wording, everything else prints the answer in bold on its own. */
+function appendKeyAnswer(parent, q) {
+  var line = document.createElement('div');
+  line.className = 'akAnswer';
+  if (q.option) {
+    var opt = document.createElement('b');
+    opt.textContent = /[.)]$/.test(q.option) ? q.option : q.option + '.';
+    line.appendChild(opt);
+    if (q.answer) line.appendChild(document.createTextNode(' ' + q.answer));
+  } else {
+    var b = document.createElement('b');
+    b.textContent = q.answer;
+    line.appendChild(b);
+  }
+  parent.appendChild(line);
+}
+
+function renderAnswerKey() {
+  if (!lastAnswerKey) return;
+  var key = lastAnswerKey;
+  $('checkTitle').textContent = 'Answer key — ' + key.items.length + ' question' + (key.items.length === 1 ? '' : 's');
+  var body = $('checkBody');
+  body.innerHTML = '';
+  if (!key.items.length) {
+    var none = document.createElement('div');
+    none.className = 'checkFeedback';
+    none.textContent = 'Gemini could not find any questions to key on this worksheet. ' +
+      (key.failed.length ? 'Page' + (key.failed.length === 1 ? ' ' : 's ') + key.failed.join(', ') + ' could not be read.' : 'Try again in a moment.');
+    body.appendChild(none);
+    return;
+  }
+  var printBtn = document.createElement('button');
+  printBtn.className = 'btn btnPrimary practiceWide';
+  printBtn.textContent = '🖨 Print / save as PDF';
+  printBtn.style.marginTop = '0';
+  printBtn.style.marginBottom = '14px';
+  printBtn.addEventListener('click', printAnswerKey);
+  body.appendChild(printBtn);
+  var meta = document.createElement('div');
+  meta.className = 'akMeta';
+  meta.textContent = answerKeyMeta(key) +
+    (key.failed.length ? ' · ⚠ page' + (key.failed.length === 1 ? ' ' : 's ') + key.failed.join(', ') + ' could not be read' : '');
+  body.appendChild(meta);
+  key.items.forEach(function (q, i) {
+    var item = document.createElement('div');
+    item.className = 'akItem';
+    var head = document.createElement('div');
+    head.className = 'akQ';
+    head.textContent = keyHeading(q, i);
+    item.appendChild(head);
+    var inner = document.createElement('div');
+    inner.className = 'akBody';
+    var aLbl = document.createElement('span');
+    aLbl.className = 'akLabel';
+    aLbl.textContent = 'Answer';
+    inner.appendChild(aLbl);
+    appendKeyAnswer(inner, q);
+    if (q.explanation) {
+      var eLbl = document.createElement('span');
+      eLbl.className = 'akLabel';
+      eLbl.textContent = 'Explanation';
+      inner.appendChild(eLbl);
+      var ex = document.createElement('div');
+      ex.className = 'akExplain';
+      ex.textContent = q.explanation;   // model output — never innerHTML
+      inner.appendChild(ex);
+    }
+    item.appendChild(inner);
+    body.appendChild(item);
+  });
+}
+
+function answerKeyMeta(key) {
+  return [
+    key.level && levelLabel(key.level),
+    key.subject && subjectLabel(key.subject),
+    key.when.toLocaleDateString()
+  ].filter(Boolean).join(' · ');
+}
+
+/* Self-contained printable page, laid out exactly like the on-screen key so
+   “save as PDF” from the print dialog gives the answer key as a document. */
+function printAnswerKey() {
+  if (!lastAnswerKey || !lastAnswerKey.items.length) { toast('Generate the answer key first.'); return; }
+  var key = lastAnswerKey;
+  var title = (key.name || 'Worksheet') + ' — Answer key';
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escHtml(title) + '</title>' +
+    '<style>body{font-family:\'Century Gothic\',CenturyGothic,AppleGothic,\'Segoe UI\',sans-serif;' +
+    'max-width:760px;margin:28px auto;padding:0 22px;color:#1A1A1A;line-height:1.55;-webkit-print-color-adjust:exact}' +
+    'h1{font-size:1.45rem;margin-bottom:3px}.meta{color:#8A8A84;font-size:0.88rem;margin-bottom:26px}' +
+    '.q{margin-bottom:24px;page-break-inside:avoid;break-inside:avoid}' +
+    '.qh{font-weight:bold;font-size:1.02rem;margin-bottom:9px}' +
+    '.qb{padding-left:18px}' +
+    '.lbl{display:block;margin-bottom:4px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;' +
+    'font-size:0.66rem;letter-spacing:0.16em;text-transform:uppercase;color:#8A8A84}' +
+    '.ans{margin-bottom:13px}.exp{line-height:1.6}' +
+    '</style></head><body>' +
+    '<h1>' + escHtml(key.name || 'Worksheet') + ' — Answer key</h1>' +
+    '<div class="meta">' + escHtml(answerKeyMeta(key)) + '</div>';
+  key.items.forEach(function (q, i) {
+    var ans = q.option
+      ? '<b>' + escHtml(/[.)]$/.test(q.option) ? q.option : q.option + '.') + '</b>' +
+        (q.answer ? ' ' + escHtml(q.answer) : '')
+      : '<b>' + escHtml(q.answer) + '</b>';
+    html += '<div class="q"><div class="qh">' + escHtml(keyHeading(q, i)) + '</div><div class="qb">' +
+      '<span class="lbl">Answer</span><div class="ans">' + ans + '</div>' +
+      (q.explanation ? '<span class="lbl">Explanation</span><div class="exp">' + escHtml(q.explanation) + '</div>' : '') +
+      '</div></div>';
+  });
+  html += '<script>window.onload=function(){window.print()}<\/script></body></html>';
+  var w = window.open('', '_blank');
+  if (!w) { toast('Allow pop-ups for this site to print the answer key.', 5000); return; }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+}
+
+function updateAnswerKeyCard() {
+  var card = $('answerKeyCard');
+  if (!card) return;
+  card.style.display = (pdfDoc && !isStudent() && !isSharedVisitor()) ? '' : 'none';
+  var have = !!(lastAnswerKey && lastAnswerKey.items.length);
+  $('genKeyBtn').textContent = have ? '✨ Generate it again' : '✨ Generate answer key';
+  $('viewKeyBtn').style.display = have ? '' : 'none';
+  $('printKeyBtn').style.display = have ? '' : 'none';
+}
+
+$('genKeyBtn').addEventListener('click', generateAnswerKey);
+$('viewKeyBtn').addEventListener('click', function () {
+  if (!lastAnswerKey) return;
+  $('checkModal').classList.add('open');
+  renderAnswerKey();
+});
+$('printKeyBtn').addEventListener('click', printAnswerKey);
+
 /* ================= Beautify handwriting =================
    Lasso some workings, press Beautify: Gemini transcribes the handwriting
    (content untouched — no solving or correcting) and the strokes are
@@ -7051,6 +7372,9 @@ function applyRoleUI() {
     if (videoToolBtn) videoToolBtn.style.display = 'none';
   }
   $('printCard').style.display = sharedVisitor ? 'none' : '';
+  // The answer key writes out every answer on the paper — teacher-only, like
+  // the AI answer tool.
+  if (typeof updateAnswerKeyCard === 'function') updateAnswerKeyCard();
   // Runs at start-up too, so the cover checkbox matches the saved preference
   // before any worksheet has been opened.
   renderPrintCard();
