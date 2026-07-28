@@ -275,6 +275,74 @@
   #aiNoteInstr { min-height: 92px; resize: vertical; }
   .aiNoteBusy { font-size: 0.82rem; color: var(--ink-soft); margin-right: auto; }
 
+  /* How hard the model works on the build: Quick … Highest. */
+  .aiQualRow { display: flex; gap: 6px; flex-wrap: wrap; }
+  .aiQualBtn {
+    flex: 1 1 0; min-width: 68px;
+    border: 1.5px solid var(--line);
+    background: #fff;
+    border-radius: var(--radius-sm);
+    padding: 7px 6px;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 0.82rem;
+    text-align: center;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .aiQualBtn:hover { border-color: var(--accent-deep); }
+  .aiQualBtn.sel { border-color: var(--accent-deep); background: #F6F2FB; font-weight: bold; }
+
+  /* ---------- AI notes: the background job tray ----------
+     Cards are made in the background, several at a time, so the window can be
+     minimised or closed while they run. Each build gets a small chip down in
+     the corner: a spinner while it works, then a notification that lands the
+     card — tap it to jump to what was made. */
+  #aiJobTray {
+    position: fixed;
+    right: 16px; bottom: 16px;
+    z-index: 190;                  /* above the worksheet, below real modals */
+    display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+    pointer-events: none;          /* only the chips themselves take clicks */
+    max-width: min(340px, 84vw);
+  }
+  .aiJobChip {
+    pointer-events: auto;
+    display: flex; align-items: center; gap: 9px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent-deep);
+    border-radius: 12px;
+    box-shadow: var(--shadow-modal);
+    padding: 9px 10px 9px 12px;
+    font-size: 0.82rem;
+    max-width: 100%;
+    animation: aiJobIn 0.22s ease both;
+  }
+  @keyframes aiJobIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .aiJobChip.done { border-left-color: #2E7D32; cursor: pointer; }
+  .aiJobChip.err { border-left-color: #C62828; }
+  .aiJobChip.leaving { opacity: 0; transform: translateY(6px); transition: opacity 0.3s ease, transform 0.3s ease; }
+  .aiJobSpin {
+    flex: 0 0 auto;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent-deep);
+    animation: aiJobSpin 0.8s linear infinite;
+  }
+  @keyframes aiJobSpin { to { transform: rotate(360deg); } }
+  .aiJobIcon { flex: 0 0 auto; font-size: 1rem; }
+  .aiJobTxt { min-width: 0; line-height: 1.3; }
+  .aiJobName { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .aiJobSub { color: var(--ink-soft); font-size: 0.74rem; margin-top: 1px; }
+  .aiJobX {
+    flex: 0 0 auto;
+    border: none; background: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 0.95rem;
+    padding: 2px 5px; border-radius: 6px;
+  }
+  .aiJobX:hover { background: #F1F0EE; color: var(--ink); }
+
   .videoPop {
     position: absolute;
     z-index: 40;
@@ -1766,6 +1834,13 @@
     opacity: 0.45;
   }
   .modalBack.floatWin .floatWinGrip:hover { opacity: 0.8; }
+  /* Minimised: only the title bar is left on screen, and whatever is being
+     made carries on in the background. */
+  .modalBack.floatWin.winMin .modalCard { height: auto !important; }
+  .modalBack.floatWin.winMin .modalBody,
+  .modalBack.floatWin.winMin .floatWinGrip { display: none; }
+  .modalBack.floatWin.winMin .modalHead { border-bottom: none; padding-bottom: 18px; }
+  .winBtns { display: flex; align-items: center; gap: 2px; }
 </style>
 </head>
 <body>
@@ -2227,12 +2302,20 @@
   <div class="modalCard" id="aiNoteCard">
     <div class="modalHead" id="aiNoteHead" title="Drag to move — the worksheet stays live underneath">
       <h2 id="aiNoteTitle">AI notes</h2>
-      <button class="modalClose" id="aiNoteCloseBtn" title="Close">✕</button>
+      <div class="winBtns">
+        <button class="modalClose" id="aiNoteMinBtn" title="Minimise — anything being made carries on in the background">–</button>
+        <button class="modalClose" id="aiNoteCloseBtn" title="Close — anything being made carries on in the background">✕</button>
+      </div>
     </div>
     <div class="modalBody">
       <div class="fieldRow">
         <label>What should <span class="aiName">Gemini</span> make?</label>
         <div class="aiKindGrid" id="aiNoteKinds"></div>
+      </div>
+      <div class="fieldRow">
+        <label>Build quality</label>
+        <div class="aiQualRow" id="aiNoteQuality"></div>
+        <div class="fieldHint" id="aiNoteQualityHint"></div>
       </div>
       <div class="fieldRow">
         <label for="aiNoteInstr">Your instructions</label>
@@ -2507,6 +2590,8 @@
 </div>
 
 <div id="toast"></div>
+<!-- Cards being made in the background, one chip each -->
+<div id="aiJobTray"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -2520,7 +2605,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.41.0';
+var APP_VERSION = 'v1.42.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2964,6 +3049,7 @@ async function loadPdfFromFile(file) {
 async function loadPdf(bytes, name) {
   stopLivePresence(true); // the worksheet being left is no longer live
   unsubscribeOpenDoc();
+  wsEpoch++;              // cards still being made belong to the old worksheet
   pdfBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   docName = name || 'Untitled';
   currentDocId = null;
@@ -6386,20 +6472,41 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
 
   var body = { model: model, messages: messages, max_completion_tokens: Math.max(1024, o.maxOutputTokens || 512) };
   if (o.json) body.response_format = { type: 'json_object' };
+  // Build quality: the gpt-5 family thinks harder when asked to. The budget
+  // above has to cover those reasoning tokens as well as the answer, which is
+  // why the higher quality levels raise both together.
+  if (o.effort && /^(gpt-5|o[1-9])/.test(model)) body.reasoning_effort = o.effort;
   // gpt-5.x models only run at their default temperature; sending one is a 400
   if (o.temperature !== undefined && !/^gpt-5/.test(model)) body.temperature = o.temperature;
 
-  var res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getOpenAiKey() },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) {
-    var detail = '';
-    try { var ej = await res.json(); detail = ej && ej.error ? ej.error.message : ''; } catch (e) { /* non-JSON error body */ }
-    throw new Error('OpenAI API error ' + res.status + (detail ? ': ' + detail : ''));
+  async function send(payload) {
+    var res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getOpenAiKey() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      var detail = '';
+      try { var ej = await res.json(); detail = ej && ej.error ? ej.error.message : ''; } catch (e) { /* non-JSON error body */ }
+      var err = new Error('OpenAI API error ' + res.status + (detail ? ': ' + detail : ''));
+      err.status = res.status; err.detail = detail;
+      throw err;
+    }
+    return res.json();
   }
-  var data = await res.json();
+
+  var data;
+  try { data = await send(body); }
+  catch (e) {
+    // A model that will not take a reasoning setting should still answer at
+    // its default effort — quietly dropping to the other engine would be a
+    // worse surprise than a slightly less considered card.
+    if (body.reasoning_effort && e.status === 400 && /reasoning_effort|unsupported|unknown parameter/i.test(e.detail || e.message || '')) {
+      console.warn('reasoning_effort not supported by ' + model + ' — retrying without it');
+      delete body.reasoning_effort;
+      data = await send(body);
+    } else throw e;
+  }
   var text = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   if (typeof text !== 'string' || !text) throw new Error('OpenAI returned an unexpected response shape.');
   return text.trim();
@@ -6410,6 +6517,7 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
 window.askOpenAiImage = async function askOpenAiImage(prompt, opts) {
   var o = opts || {};
   if (!getOpenAiKey()) throw new Error('No OpenAI API key saved on this device');
+  if (o.quality === 'max') o.quality = 'high';
   var base = { model: getOpenAiImageModel(), prompt: prompt, size: o.size || '1024x1024', n: 1 };
   var full = Object.assign({}, base, { output_format: 'png', quality: o.quality || 'high' });
 
@@ -6512,6 +6620,11 @@ var AI_IMPROVE_SYS =
   'Keep roughly the same length and keep the same line breaks where possible. ' +
   'Return only the corrected text as plain text - no markdown, no commentary.';
 var aiBusy = false;
+/* Bumped every time a different worksheet is loaded. A card being made in the
+   background carries the epoch it started under, so a result that arrives
+   after the teacher has moved on is dropped instead of landing on the wrong
+   worksheet. */
+var wsEpoch = 0;
 
 /* ---- Worksheet snapshots for Gemini ----
    JPEG captures (base64, no data: prefix) taken from the rendered PDF page
@@ -6676,6 +6789,88 @@ function aiNoteKindInfo(k) {
   return AI_NOTE_KINDS.find(function (x) { return x.key === k; }) || AI_NOTE_KINDS[0];
 }
 
+/* ---- Build quality ----
+   How much room and how much thinking the model gets. The cheap default made
+   widgets that were cut off half-built, so the teacher picks: Quick for a
+   throwaway demo, Highest when the widget is the lesson. Higher levels raise
+   the output budget, turn the reasoning up (ChatGPT reasoning_effort / Gemini
+   thinkingLevel) and ask for more of the model in the prompt itself.
+   tokens: widget = the generated page, text = notes/table JSON, svg = the
+   drawn-diagram fallback. */
+var AI_NOTE_QUALITY = [
+  {
+    key: 'fast', name: 'Quick', what: 'Fastest — one simple idea, a control or two.',
+    effort: 'low', think: 'minimal', imageQuality: 'medium',
+    tokens: { widget: 6000, text: 1200, svg: 3000 },
+    sys: 'Keep this one small and quick: a single clear idea, one or two controls, no extras.'
+  },
+  {
+    key: 'standard', name: 'Standard', what: 'Balanced — good for most cards.',
+    effort: 'medium', think: 'low', imageQuality: 'medium',
+    tokens: { widget: 12000, text: 1600, svg: 4000 },
+    sys: ''
+  },
+  {
+    key: 'high', name: 'High', what: 'Richer and better finished. Takes longer.',
+    effort: 'high', think: 'high', imageQuality: 'high',
+    tokens: { widget: 22000, text: 2400, svg: 6000 },
+    sys: 'Make this genuinely good: a clear labelled layout, two to four useful ' +
+         'controls, live readouts of the numbers that matter, smooth animation, and ' +
+         'defaults chosen so the idea is obvious the moment it opens. Re-read your ' +
+         'own code before answering — no unclosed tags, no undefined variables.'
+  },
+  {
+    key: 'max', name: 'Highest', what: 'The most detailed build. Slowest.',
+    effort: 'high', think: 'high', imageQuality: 'high',
+    tokens: { widget: 32000, text: 3200, svg: 8000 },
+    sys: 'Make this genuinely good: a clear labelled layout, two to four useful ' +
+         'controls, live readouts of the numbers that matter, smooth animation, and ' +
+         'defaults chosen so the idea is obvious the moment it opens. Re-read your ' +
+         'own code before answering — no unclosed tags, no undefined variables.\n' +
+         'Take the time to get it right: add one short caption line saying what to ' +
+         'look for, keep the science and the maths accurate, survive the extreme ' +
+         'value of every control without breaking, and stay readable on an iPad ' +
+         'held at arm\'s length in front of a class.'
+  }
+];
+var AI_NOTE_QUALITY_KEY = 'polymath.aiNoteQuality';
+var aiNoteQuality = 'high';
+
+function aiNoteQualityInfo(k) {
+  return AI_NOTE_QUALITY.find(function (x) { return x.key === k; }) ||
+         AI_NOTE_QUALITY.find(function (x) { return x.key === 'high'; });
+}
+
+function loadAiNoteQuality() {
+  try {
+    var v = localStorage.getItem(AI_NOTE_QUALITY_KEY);
+    if (v && AI_NOTE_QUALITY.some(function (q) { return q.key === v; })) aiNoteQuality = v;
+  } catch (e) {}
+}
+
+function setAiNoteQuality(k) {
+  aiNoteQuality = k;
+  try { localStorage.setItem(AI_NOTE_QUALITY_KEY, k); } catch (e) {}
+  renderAiNoteQuality();
+}
+
+function renderAiNoteQuality() {
+  var wrap = $('aiNoteQuality');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  AI_NOTE_QUALITY.forEach(function (q) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'aiQualBtn' + (q.key === aiNoteQuality ? ' sel' : '');
+    b.textContent = q.name;
+    b.title = q.what;
+    b.addEventListener('click', function () { setAiNoteQuality(q.key); });
+    wrap.appendChild(b);
+  });
+  $('aiNoteQualityHint').textContent = aiNoteQualityInfo(aiNoteQuality).what +
+    ' Higher settings think for longer and are allowed a much longer answer, so widgets come back finished instead of cut short.';
+}
+
 /* ---- The chooser is a window, not a modal ----
    It floats over the worksheet with no backdrop, so the class can still read
    and copy the answers underneath while the teacher has it open. Drag the
@@ -6684,7 +6879,9 @@ function aiNoteKindInfo(k) {
 var AI_NOTE_WIN_MIN_W = 300, AI_NOTE_WIN_MIN_H = 240;
 var AI_NOTE_WIN_KEY = 'polymath.aiNoteWindow';
 var AI_NOTE_WIN_TIP_KEY = 'polymath.aiNoteWindowTip';
+var AI_NOTE_HEAD_ONLY_H = 60;   // roughly the title bar alone, for clamping
 var aiNoteWin = null;   // { x, y, w, h } — the card's box in CSS pixels
+var aiNoteWinMin = false;   // minimised: title bar only, builds carry on behind it
 
 function aiNoteViewportH() {
   return (window.visualViewport && window.visualViewport.height) || window.innerHeight;
@@ -6694,9 +6891,12 @@ function clampAiNoteWin(b) {
   var vw = window.innerWidth, vh = aiNoteViewportH(), pad = 8;
   var w = Math.min(Math.max(b.w, AI_NOTE_WIN_MIN_W), Math.max(vw - pad * 2, 120));
   var h = Math.min(Math.max(b.h, AI_NOTE_WIN_MIN_H), Math.max(vh - pad * 2, 120));
+  // Minimised, only the title bar is on screen — keep the full height stored
+  // (it comes back on restore) but let the window sit lower than it allows.
+  var onScreenH = aiNoteWinMin ? Math.min(AI_NOTE_HEAD_ONLY_H, h) : h;
   return {
     x: Math.round(Math.max(pad, Math.min(b.x, vw - w - pad))),
-    y: Math.round(Math.max(pad, Math.min(b.y, vh - h - pad))),
+    y: Math.round(Math.max(pad, Math.min(b.y, vh - onScreenH - pad))),
     w: Math.round(w), h: Math.round(h)
   };
 }
@@ -6742,12 +6942,26 @@ function applyAiNoteWin() {
   c.style.left = aiNoteWin.x + 'px';
   c.style.top = aiNoteWin.y + 'px';
   c.style.width = aiNoteWin.w + 'px';
-  c.style.height = aiNoteWin.h + 'px';
+  c.style.height = aiNoteWinMin ? 'auto' : aiNoteWin.h + 'px';
 }
 
 function placeAiNoteWin() {
   aiNoteWin = clampAiNoteWin(aiNoteWin || loadAiNoteWin() || defaultAiNoteWin());
   applyAiNoteWin();
+}
+
+/* Minimise leaves the title bar floating over the worksheet. Nothing is
+   cancelled: whatever is being made lands on the page on its own. */
+function setAiNoteWinMin(on) {
+  aiNoteWinMin = !!on;
+  $('aiNoteModal').classList.toggle('winMin', aiNoteWinMin);
+  var b = $('aiNoteMinBtn');
+  b.textContent = aiNoteWinMin ? '▢' : '–';
+  b.title = aiNoteWinMin
+    ? 'Open it back up'
+    : 'Minimise — anything being made carries on in the background';
+  if (aiNoteWin) { aiNoteWin = clampAiNoteWin(aiNoteWin); applyAiNoteWin(); }
+  aiNoteSyncTitle();
 }
 
 /* Dragging the title bar moves it; dragging the corner grip resizes it. */
@@ -6816,12 +7030,9 @@ function openAiNoteModal(ctx) {
   }
   var wasOpen = $('aiNoteModal').classList.contains('open');
   // The window no longer blocks the page, so a tap on the worksheet can land
-  // while it is open. Mid-generation the spot is already spoken for; the rest
-  // of the time picking a new spot just moves it, keeping what was typed.
-  if (wasOpen && aiBusy) {
-    toast(aiEngineName() + ' is still making the last card — wait for it to land.');
-    return;
-  }
+  // while it is open — picking a new spot just moves it, keeping what was
+  // typed. Cards already being made are unaffected: they run in the
+  // background and land wherever they were started from.
   var keepTyped = wasOpen && ctx.mode === 'new' &&
     aiNoteEdit && aiNoteEdit.mode === 'new' && $('aiNoteInstr').value.trim();
   aiNoteEdit = ctx;
@@ -6829,14 +7040,16 @@ function openAiNoteModal(ctx) {
   var a = editing ? annotations.find(function (x) { return x.id === ctx.id; }) : null;
   if (editing && !a) return;
   aiNoteKind = editing ? (a.kind || 'notes') : (aiNoteKind || 'notes');
-  $('aiNoteTitle').textContent = editing ? 'Redo this AI note' : 'AI notes';
+  aiNoteBaseTitle = editing ? 'Redo this AI note' : 'AI notes';
   if (!keepTyped) $('aiNoteInstr').value = editing ? (a.prompt || '') : '';
   $('aiNoteDeleteBtn').style.display = editing ? '' : 'none';
   $('aiNoteGenBtn').textContent = editing ? '✨ Generate again' : '✨ Generate';
-  $('aiNoteBusy').textContent = '';
   $('aiNoteContext').checked = true;
   renderAiNoteKinds();
+  renderAiNoteQuality();
   refreshAiEngineNames();  // the labels name whichever engine is on right now
+  setAiNoteWinMin(false);  // a freshly opened window is never left collapsed
+  aiNoteSyncTitle();
   $('aiNoteModal').classList.add('open');
   placeAiNoteWin();   // needs the card laid out — it measures its own height
   if (keepTyped) { toast('New spot picked — your instructions are still here.'); return; }
@@ -6872,7 +7085,7 @@ function renderAiNoteKinds() {
   $('aiNoteHint').textContent = aiNoteKind === 'widget'
     ? 'The widget runs in a sandbox of its own — it cannot reach the rest of the app or the internet. Tap ▶ Use on the card to play with it; ✋ Lock it again to write over it.'
     : 'Say what you want in your own words. The card lands where you clicked and can be moved, resized or erased like anything else.';
-  $('aiNoteHint').textContent += ' This window moves too — drag its title bar, or the corner to resize — and the worksheet behind it stays live.';
+  $('aiNoteHint').textContent += ' Building carries on in the background — minimise or close this window, start another card, and a note in the corner tells you when each one lands.';
 }
 
 function setAiNoteKind(k) {
@@ -6931,42 +7144,97 @@ var AI_NOTE_SYS = {
     'confuse a primary-school reader.'
 };
 
-async function generateAiNote() {
+/* ---- Cards are made in the background ----
+   A build can take a minute at the higher quality settings, and a lesson
+   cannot stop for it. Pressing Generate hands the work to a job: the window
+   is free again straight away (minimise it, close it, start another card, or
+   carry on annotating), several jobs run at once, and each one drops its card
+   onto the page by itself and puts a small notification in the corner.
+   Because a job outlives the window, everything it needs — the page snapshot,
+   the spot, the quality — is captured up front. */
+var AI_NOTE_MAX_JOBS = 4;      // enough for a lesson's worth at once, gentle on the quota
+var AI_JOB_DONE_MS = 15000;    // how long a "ready" notification stays up
+var aiNoteJobs = [];
+var aiNoteJobSeq = 0;
+var aiNoteBaseTitle = 'AI notes';
+
+function aiNoteRunningCount() {
+  return aiNoteJobs.filter(function (j) { return j.state === 'run'; }).length;
+}
+
+function generateAiNote() {
   if (!aiNoteEdit) return;
   var instr = $('aiNoteInstr').value.trim();
   if (!instr) { toast('Say what you would like ' + aiEngineName() + ' to make.'); $('aiNoteInstr').focus(); return; }
-  if (aiBusy) { toast(aiEngineName() + ' is still working on the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  if (aiNoteRunningCount() >= AI_NOTE_MAX_JOBS) {
+    toast(AI_NOTE_MAX_JOBS + ' cards are already being made — they land on their own, then you can start another.', 5000);
     return;
   }
   var kind = aiNoteKind;
   var ctx = aiNoteEdit;
   var editing = ctx.mode === 'edit';
-  var page = editing
-    ? pages.find(function (pg) { return pg.num === (annotations.find(function (x) { return x.id === ctx.id; }) || {}).page; })
-    : ctx.page;
+  var target = editing ? annotations.find(function (x) { return x.id === ctx.id; }) : null;
+  if (editing && !target) { closeAiNoteModal(); return; }
+  var page = editing ? pages.find(function (pg) { return pg.num === target.page; }) : ctx.page;
   if (!page) { closeAiNoteModal(); return; }
 
   var size = AI_NOTE_SIZE[kind] || AI_NOTE_SIZE.notes;
   var frame = editing
-    ? annFrame(annotations.find(function (x) { return x.id === ctx.id; }))
+    ? annFrame(target)
     : {
         x: round2(Math.max(4, Math.min(ctx.x - size.w / 2, page.baseW - size.w - 4))),
         y: round2(Math.max(4, Math.min(ctx.y - 12, page.baseH - size.h - 4))),
         w: size.w, h: size.h
       };
 
-  aiBusy = true;
-  setAiNoteBusy(true, aiEngineName() + ' is making your ' + aiNoteKindInfo(kind).name.toLowerCase() + '…');
+  // Snapshot the page now, not when the answer comes back — the class keeps
+  // writing on it while the job runs.
+  var images = [];
+  if ($('aiNoteContext').checked) {
+    var snap = aiNotePageImage(page);
+    if (snap) images.push(snap);
+  }
+
+  var job = {
+    id: ++aiNoteJobSeq, kind: kind, instr: instr, quality: aiNoteQuality,
+    annId: editing ? ctx.id : null, pageNum: page.num, frame: frame,
+    images: images, epoch: wsEpoch, state: 'run',
+    name: aiNoteKindInfo(kind).name, msg: ''
+  };
+  aiNoteJobs.push(job);
+  renderAiJobTray();
+  runAiNoteJob(job);
+
+  // The window has handed its work over — get it out of the way. Clicking
+  // another spot on the worksheet opens it again for the next card, which
+  // starts building alongside this one.
+  closeAiNoteModal();
+  toast('✨ Making your ' + job.name.toLowerCase() + ' in the background — it lands on page ' + job.pageNum +
+        ' by itself. Click another spot to start the next one.', 4600);
+}
+
+async function runAiNoteJob(job) {
   try {
-    var built = await buildAiNotePayload(kind, instr, frame, page);
-    var a = editing ? annotations.find(function (x) { return x.id === ctx.id; }) : null;
+    var built = await buildAiNotePayload(job.kind, job.instr, job.frame, job.images, job.quality);
+    if (job.state === 'gone') return;                       // dismissed while it worked
+    if (job.epoch !== wsEpoch) {
+      finishAiJob(job, 'err', 'that worksheet was closed before it was ready');
+      return;
+    }
+    var page = pages.find(function (p) { return p.num === job.pageNum; });
+    if (!page) { finishAiJob(job, 'err', 'page ' + job.pageNum + ' is no longer open'); return; }
+    var a = job.annId ? annotations.find(function (x) { return x.id === job.annId; }) : null;
+    if (job.annId && !a) { finishAiJob(job, 'err', 'that card was deleted while it was being redone'); return; }
+
     pushUndo();
     if (a) {
       // Redo keeps the card where it is, at the size the teacher gave it.
-      a.kind = kind;
-      a.prompt = instr;
+      a.kind = job.kind;
+      a.prompt = job.instr;
       a.title = built.title;
       a.text = built.text || '';
       a.columns = built.columns || null;
@@ -6976,31 +7244,125 @@ async function generateAiNote() {
       a.live = false;
     } else {
       a = {
-        id: newAnnId(), page: page.num, type: 'ainote', kind: kind,
-        x: frame.x, y: frame.y, w: frame.w, h: frame.h,
-        color: color, prompt: instr, title: built.title,
+        id: newAnnId(), page: page.num, type: 'ainote', kind: job.kind,
+        x: job.frame.x, y: job.frame.y, w: job.frame.w, h: job.frame.h,
+        color: color, prompt: job.instr, title: built.title,
         text: built.text || '', columns: built.columns || null, rows: built.rows || null,
         src: built.src || '', html: built.html || '', live: false, ts: Date.now()
       };
       annotations.push(a);
-      selectedId = a.id;
     }
+    job.annId = a.id;
     renderAllOverlays();
-    // Written notes and tables come back whatever length Gemini made them —
+    // Written notes and tables come back whatever length the model made them —
     // grow the card so nothing is cut off (it can still be resized by hand).
     if (fitAiNoteHeight(a)) renderAllOverlays();
     setDirty(true);
-    closeAiNoteModal();
-    toast(kind === 'widget'
-      ? '✨ Widget ready — tap ▶ Use on the card to play with it.'
-      : '✨ Card added — drag it where you want it. Ctrl+Z undoes it.', 4200);
+    finishAiJob(job, 'done', built.title || aiNoteTitleFrom(job.instr));
   } catch (err) {
     console.error('AI note failed', err);
-    toast(aiEngineName() + ' could not make that: ' + ((err && err.message) || 'please try again.'), 6000);
-  } finally {
-    aiBusy = false;
-    setAiNoteBusy(false, '');
+    finishAiJob(job, 'err', (err && err.message) || 'please try again');
   }
+}
+
+function finishAiJob(job, state, msg) {
+  if (job.state === 'gone') return;
+  job.state = state;
+  job.msg = msg || '';
+  renderAiJobTray();
+  if (state === 'done') {
+    job.timer = setTimeout(function () { dismissAiJob(job); }, AI_JOB_DONE_MS);
+  }
+}
+
+function dismissAiJob(job) {
+  clearTimeout(job.timer);
+  // A running job cannot be called back — the answer is already on its way —
+  // but marking it gone drops the result instead of dumping it on the page.
+  job.state = 'gone';
+  aiNoteJobs = aiNoteJobs.filter(function (j) { return j !== job; });
+  renderAiJobTray();
+}
+
+/* Jump to what a finished job made: select the card and scroll its page so
+   the card is in view. */
+function showAiJobCard(job) {
+  var a = annotations.find(function (x) { return x.id === job.annId; });
+  if (!a) { toast('That card is no longer on the worksheet.'); return; }
+  var p = pages.find(function (pg) { return pg.num === a.page; });
+  if (!p || !p.wrap) return;
+  selectedId = a.id;
+  renderAllOverlays();
+  var scale = (p.wrap.offsetHeight || 0) / (p.baseH || 1);
+  $('viewerArea').scrollTop = Math.max(0, p.wrap.offsetTop + (a.y || 0) * scale - 90);
+  dismissAiJob(job);
+}
+
+function renderAiJobTray() {
+  var tray = $('aiJobTray');
+  if (!tray) return;
+  tray.innerHTML = '';
+  aiNoteJobs.forEach(function (job) {
+    var chip = document.createElement('div');
+    chip.className = 'aiJobChip' + (job.state === 'done' ? ' done' : job.state === 'err' ? ' err' : '');
+
+    if (job.state === 'run') {
+      var spin = document.createElement('div');
+      spin.className = 'aiJobSpin';
+      chip.appendChild(spin);
+    } else {
+      var icon = document.createElement('div');
+      icon.className = 'aiJobIcon';
+      icon.textContent = job.state === 'done' ? '✨' : '⚠️';
+      chip.appendChild(icon);
+    }
+
+    var txt = document.createElement('div');
+    txt.className = 'aiJobTxt';
+    var name = document.createElement('div');
+    name.className = 'aiJobName';
+    name.textContent = job.state === 'done' ? job.msg || job.name
+                     : job.state === 'err' ? job.name + ' failed'
+                     : 'Making your ' + job.name.toLowerCase() + '…';
+    var sub = document.createElement('div');
+    sub.className = 'aiJobSub';
+    sub.textContent = job.state === 'done'
+      ? (job.kind === 'widget' ? 'Ready on page ' + job.pageNum + ' — tap to see it, then ▶ Use to play with it.'
+                               : 'Landed on page ' + job.pageNum + ' — tap to see it.')
+      : job.state === 'err' ? job.msg
+      : aiEngineName() + ' · ' + aiNoteQualityInfo(job.quality).name.toLowerCase() + ' · page ' + job.pageNum;
+    txt.appendChild(name);
+    txt.appendChild(sub);
+    chip.appendChild(txt);
+
+    var x = document.createElement('button');
+    x.className = 'aiJobX';
+    x.type = 'button';
+    x.textContent = '✕';
+    x.title = job.state === 'run' ? 'Stop waiting for this one' : 'Dismiss';
+    x.addEventListener('click', function (e) { e.stopPropagation(); dismissAiJob(job); });
+    chip.appendChild(x);
+
+    if (job.state === 'done') chip.addEventListener('click', function () { showAiJobCard(job); });
+    tray.appendChild(chip);
+  });
+  aiNoteSyncTitle();
+  setAiNoteBusy();
+}
+
+/* The window's own status line, so a teacher with it open can see what is
+   still cooking without hunting for the tray. */
+function setAiNoteBusy() {
+  var n = aiNoteRunningCount();
+  var el = $('aiNoteBusy');
+  if (el) el.textContent = n ? (n === 1 ? '1 card is being made in the background' : n + ' cards are being made in the background') : '';
+}
+
+function aiNoteSyncTitle() {
+  var el = $('aiNoteTitle');
+  if (!el) return;
+  var n = aiNoteRunningCount();
+  el.textContent = aiNoteWinMin && n ? '✨ Making ' + n + (n === 1 ? ' card…' : ' cards…') : aiNoteBaseTitle;
 }
 
 /* Grow a notes or table card to the height its contents actually need, up to
@@ -7018,32 +7380,22 @@ function fitAiNoteHeight(a) {
   return true;
 }
 
-function setAiNoteBusy(on, msg) {
-  $('aiNoteBusy').textContent = msg || '';
-  $('aiNoteGenBtn').disabled = !!on;
-  $('aiNoteCancelBtn').disabled = !!on;
-}
-
-/* Ask Gemini for the card's contents. Everything comes back in the shape the
-   annotation stores, so the caller only has to save it. */
-async function buildAiNotePayload(kind, instr, frame, page) {
+/* Ask the model for the card's contents. Everything comes back in the shape
+   the annotation stores, so the caller only has to save it. The page snapshot
+   and the quality come from the job — the window may be long gone. */
+async function buildAiNotePayload(kind, instr, frame, imgs, quality) {
+  var q = aiNoteQualityInfo(quality);
   var lines = [];
   var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
   var lvl = wsMeta && wsMeta.level ? levelLabel(wsMeta.level) : '';
   if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
-  var imgs = [];
-  if ($('aiNoteContext').checked) {
-    var snap = aiNotePageImage(page);
-    if (snap) {
-      imgs.push(snap);
-      lines.push('Attached: the worksheet page this card goes onto — use it for context.');
-    }
-  }
+  imgs = imgs || [];
+  if (imgs.length) lines.push('Attached: the worksheet page this card goes onto — use it for context.');
   lines.push('The teacher asked for: "' + instr + '"');
 
   if (kind === 'image') {
     var imgPrompt = lines.concat([AI_NOTE_SYS[kind]]).join('\n');
-    var pic = await aiNoteImage(imgPrompt, instr);
+    var pic = await aiNoteImage(imgPrompt, instr, q);
     return { title: aiNoteTitleFrom(instr), src: pic };
   }
 
@@ -7051,17 +7403,24 @@ async function buildAiNotePayload(kind, instr, frame, page) {
     lines.push('The card is about ' + Math.round(frame.w) + '×' + Math.round(frame.h) +
                ' points on the page, and can be resized by the teacher afterwards.');
     var html = await window.askGemini(lines.join('\n'), {
-      system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS.widget,
-      maxOutputTokens: 8000, temperature: 0.55, images: imgs
+      system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS.widget + (q.sys ? '\n' + q.sys : ''),
+      maxOutputTokens: q.tokens.widget, temperature: 0.55, images: imgs,
+      effort: q.effort, thinkingLevel: q.think
     });
     html = stripCodeFence(html);
     if (!/[<]/.test(html)) throw new Error('the widget came back empty — try describing it again');
+    // A page that opens a tag it never closes ran out of room mid-build. It
+    // would render as a half-widget, so say what happened instead.
+    if (/<html[\s>]/i.test(html) && !/<\/html>/i.test(html)) {
+      throw new Error('the widget was cut off before it finished — try a higher build quality or a simpler ask');
+    }
     return { title: aiNoteHtmlTitle(html) || aiNoteTitleFrom(instr), html: html };
   }
 
   var raw = await window.askGemini(lines.join('\n'), {
-    system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS[kind],
-    maxOutputTokens: 1600, temperature: 0.4, json: true, images: imgs
+    system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS[kind] + (q.sys ? '\nTake the care this deserves — accuracy first.' : ''),
+    maxOutputTokens: q.tokens.text, temperature: 0.4, json: true, images: imgs,
+    effort: q.effort, thinkingLevel: q.think
   });
   var data = _parseAIJson(raw);
   if (kind === 'table') {
@@ -7083,10 +7442,11 @@ async function buildAiNotePayload(kind, instr, frame, page) {
 /* Picture: the image model first, and if it is unavailable (or refuses), a
    drawn SVG from the text model — a labelled diagram is usually what a
    worksheet wanted anyway. */
-async function aiNoteImage(prompt, instr) {
+async function aiNoteImage(prompt, instr, q) {
+  q = q || aiNoteQualityInfo(aiNoteQuality);
   if (window.askGeminiImage) {
     try {
-      var out = await window.askGeminiImage(prompt);
+      var out = await window.askGeminiImage(prompt, { quality: q.imageQuality });
       if (out && out.data) {
         return await shrinkImageDataUrl('data:' + (out.mimeType || 'image/png') + ';base64,' + out.data);
       }
@@ -7102,7 +7462,8 @@ async function aiNoteImage(prompt, instr) {
         'commentary. It must have a viewBox, no external references, no scripts, and ' +
         'readable labels at small sizes (font-size 11 or larger). Simple flat shapes ' +
         'and thin strokes; white background.',
-      maxOutputTokens: 4000, temperature: 0.5
+      maxOutputTokens: q.tokens.svg, temperature: 0.5,
+      effort: q.effort, thinkingLevel: q.think
     }
   );
   svg = stripCodeFence(svg);
@@ -7396,6 +7757,14 @@ function deleteAiNote() {
 
 $('aiNoteCloseBtn').addEventListener('click', closeAiNoteModal);
 $('aiNoteCancelBtn').addEventListener('click', closeAiNoteModal);
+$('aiNoteMinBtn').addEventListener('click', function () { setAiNoteWinMin(!aiNoteWinMin); });
+// Minimised, the whole title bar is the way back in — a small button is a
+// poor target on an iPad, and dragging still works because a click only
+// counts if the pointer never moved into a drag.
+$('aiNoteHead').addEventListener('click', function (e) {
+  if (!aiNoteWinMin || e.target.closest('button')) return;
+  setAiNoteWinMin(false);
+});
 $('aiNoteDeleteBtn').addEventListener('click', deleteAiNote);
 $('aiNoteGenBtn').addEventListener('click', generateAiNote);
 /* No click-outside-to-close: outside is the worksheet, and it stays live. */
@@ -12929,6 +13298,7 @@ setTool(lastTool && document.querySelector('#toolButtons [data-tool="' + lastToo
 syncStyleControls();
 applyRoleUI();
 refreshAiEngineNames();
+loadAiNoteQuality();
 </script>
 
 <script type="module">
@@ -13004,21 +13374,31 @@ window.askGemini = async function askGemini(prompt, opts = {}) {
   return askGeminiDirect(prompt, opts);
 };
 
-async function askGeminiDirect(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [] } = {}) {
+async function askGeminiDirect(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [], thinkingLevel = "minimal" } = {}) {
   if (!geminiModel) throw new Error("AI is not configured yet");
-  const generationConfig = { maxOutputTokens, temperature, thinkingConfig: { thinkingLevel: "minimal" } };
-  if (json) generationConfig.responseMimeType = "application/json";
   const parts = [{ text: prompt }];
   for (const img of images) {
     if (img && img.data) parts.push({ inlineData: { mimeType: img.mimeType || "image/jpeg", data: img.data } });
   }
-  const request = {
-    contents: [{ role: "user", parts }],
-    generationConfig
-  };
-  if (system) request.systemInstruction = { parts: [{ text: system }] };
-  const res = await geminiModel.generateContent(request);
-  return (res.response.text() || "").trim();
+
+  async function run(level) {
+    const generationConfig = { maxOutputTokens, temperature, thinkingConfig: { thinkingLevel: level } };
+    if (json) generationConfig.responseMimeType = "application/json";
+    const request = { contents: [{ role: "user", parts }], generationConfig };
+    if (system) request.systemInstruction = { parts: [{ text: system }] };
+    const res = await geminiModel.generateContent(request);
+    return (res.response.text() || "").trim();
+  }
+
+  // The AI note "build quality" picker turns this up. If a level the model
+  // does not take is sent it answers 400 INVALID_ARGUMENT — fall back to the
+  // level that has always worked rather than failing the card outright.
+  try { return await run(thinkingLevel); }
+  catch (e) {
+    if (thinkingLevel === "minimal") throw e;
+    console.warn("thinkingLevel " + thinkingLevel + " rejected, retrying at minimal:", e);
+    return run("minimal");
+  }
 }
 
 // Picture generation for AI note cards. Returns { mimeType, data } with data
@@ -13028,9 +13408,9 @@ async function askGeminiDirect(prompt, { maxOutputTokens = 512, temperature = 0.
 // With the ChatGPT engine on, the ChatGPT image model goes first and the
 // Gemini image model is the fallback.
 let geminiImageModel = null;
-window.askGeminiImage = async function askGeminiImage(prompt) {
+window.askGeminiImage = async function askGeminiImage(prompt, opts = {}) {
   if (openAiOn()) {
-    try { return await window.askOpenAiImage(prompt); }
+    try { return await window.askOpenAiImage(prompt, opts); }
     catch (e) { console.warn("ChatGPT image generation failed, falling back to Gemini:", e); }
   }
   return askGeminiImageDirect(prompt);
