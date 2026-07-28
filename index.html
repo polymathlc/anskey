@@ -397,26 +397,88 @@
   .qItemName { font-size: 0.88rem; font-weight: bold; line-height: 1.35; overflow-wrap: break-word; color: var(--ink); }
   .qItemMeta { font-size: 0.73rem; color: var(--ink-faint); margin-top: 5px; line-height: 1.5; }
 
-  /* ---------- Worksheets grouped by class day and time slot ---------- */
-  .qDayGroup { margin-bottom: 18px; }
+  /* ---------- Worksheets grouped by class day ----------
+     The day is what everyone scans this list for, so it carries the strongest
+     signal on screen: its own colour, a band across the top of the group, and
+     a fold. Every worksheet for that day sits directly underneath, with a thin
+     time-of-class line separating the classes that share the day. */
+  .qDayGroup { margin-bottom: 20px; }
   .qDayHead {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.78rem;
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.9rem;
     font-weight: bold;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--ink-soft);
-    padding: 4px 2px 8px;
-    border-bottom: 2px solid var(--line);
-    margin-bottom: 10px;
+    color: var(--dayInk, var(--ink-soft));
+    background: var(--dayTint, #F3F2F0);
+    border: 1px solid var(--dayLine, var(--line));
+    border-left: 5px solid var(--dayInk, var(--ink-soft));
+    border-radius: var(--radius-sm);
+    padding: 11px 12px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    text-align: left;
+    /* Sticky under the drawer's own head, whose height is measured after
+       every render — the filter chips make it two lines on some days. */
     position: sticky;
-    top: 0;
-    background: var(--bg, #fff);
-    z-index: 2;
+    top: var(--qHeadH, 0px);
+    z-index: 1;
   }
-  .qDayGroup.mine .qDayHead { color: var(--accent-deep); border-bottom-color: var(--accent-strong); }
+  .qDayHead::after {
+    content: '▾';
+    font-size: 0.72rem;
+    opacity: 0.75;
+    order: 9;
+  }
+  .qDayGroup.collapsed .qDayHead::after { content: '▸'; }
+  .qDayGroup.collapsed .qDayBody { display: none; }
+  .qDayGroup.collapsed .qDayHead { margin-bottom: 0; }
+  .qDayName { white-space: nowrap; }
+  .qDayTag {
+    font-size: 0.64rem;
+    font-weight: bold;
+    color: var(--dayInk, var(--ink-soft));
+    background: #fff;
+    border: 1px solid var(--dayLine, var(--line));
+    border-radius: 999px;
+    padding: 1px 8px;
+    white-space: nowrap;
+  }
+  .qDayHead .qGroupCount {
+    color: var(--dayInk, var(--ink-faint));
+    background: #fff;
+    border: 1px solid var(--dayLine, var(--line));
+  }
+  /* The class within the day — a label, not another thing to open. */
+  .qSlotLine {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.73rem;
+    font-weight: bold;
+    color: var(--ink-soft);
+    margin: 0 2px 8px;
+  }
+  .qSlotLine + .qSlotLine, .qItem + .qSlotLine { margin-top: 14px; }
+  .qSlotLine.mine { color: var(--accent-deep); }
+  /* Subject filter — only shown to someone whose list holds more than one. */
+  .qFilterRow { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .qFilterChip {
+    font-family: var(--font);
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: var(--ink-soft);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 11px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .qFilterChip.active { color: var(--ink); background: var(--accent); border-color: var(--accent-strong); }
+  @media (pointer: coarse) { .qFilterChip { padding: 8px 14px; } }
   .qMineTag {
     font-size: 0.64rem;
     font-weight: bold;
@@ -440,34 +502,6 @@
     min-width: 20px;
     text-align: center;
   }
-  .qSlotGroup { margin: 0 0 12px; }
-  .qSlotHead {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    font-family: var(--font);
-    font-size: 0.78rem;
-    font-weight: bold;
-    color: var(--ink);
-    background: #F8F7F5;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    padding: 9px 11px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    text-align: left;
-  }
-  .qSlotGroup.mine .qSlotHead { background: #FFF8EC; border-color: var(--accent-strong); }
-  .qSlotHead::after {
-    content: '▾';
-    font-size: 0.7rem;
-    color: var(--ink-faint);
-    order: 9;
-  }
-  .qSlotGroup.collapsed .qSlotHead::after { content: '▸'; }
-  .qSlotGroup.collapsed .qSlotBody { display: none; }
-  .qSlotBody { padding-left: 2px; }
 
   /* ---------- "Mr Chung is working on this now" ---------- */
   .livePill {
@@ -528,6 +562,21 @@
     margin-right: 6px;
     color: var(--ink);
   }
+  /* Maths and Science are told apart at a glance — a student taking both sees
+     both under the same day and needs to know which is which without reading. */
+  .qItemSubject {
+    display: inline-block;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 0.68rem;
+    font-weight: bold;
+    margin-right: 6px;
+    color: var(--ink-soft);
+  }
+  .qItemSubject.math { color: #1D6FA5; background: #EBF4FA; border-color: #AFD2E9; }
+  .qItemSubject.science { color: #15803D; background: #EDF7F0; border-color: #B7DEC4; }
+  .qItemSubject.both { color: #6D28D9; background: #F2EEFC; border-color: #CDBDF0; }
   .qEmpty { text-align: center; color: var(--ink-faint); font-size: 0.82rem; padding: 26px 10px; line-height: 1.55; }
 
   /* ---------- Main row: sidebar + viewer ---------- */
@@ -1158,6 +1207,25 @@
   .docRowMeta { font-size: 0.75rem; color: var(--ink-faint); margin-top: 3px; }
   .docRow .btn { padding: 7px 13px; font-size: 0.78rem; }
   .docsEmpty { text-align: center; color: var(--ink-faint); padding: 30px 0 16px; font-size: 0.9rem; }
+  /* My PDFs is grouped by class day too, in the same colours as the drawer —
+     one way of finding a worksheet, wherever you are looking for it. */
+  .docsDayHead {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.85rem; font-weight: bold;
+    color: var(--dayInk, var(--ink-soft));
+    background: var(--dayTint, #F3F2F0);
+    border: 1px solid var(--dayLine, var(--line));
+    border-left: 5px solid var(--dayInk, var(--ink-soft));
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    margin: 16px 0 8px;
+  }
+  .docsDayHead:first-child { margin-top: 4px; }
+  .docsDayHead .qGroupCount {
+    color: var(--dayInk, var(--ink-faint));
+    background: #fff;
+    border: 1px solid var(--dayLine, var(--line));
+  }
   /* Neat handwriting font for beautified text. Symbols missing from the
      handwriting face (π, ℓ, superscripts on some platforms) fall back
      per-glyph to the system fonts after it. */
@@ -1696,7 +1764,8 @@
       <h3>Worksheets</h3>
       <button class="panelCloseBtn" id="qDrawerCloseBtn" title="Hide this list">✕ Close</button>
     </div>
-    <div class="qDrawerSub" id="qDrawerSub">All saved questions, oldest first.</div>
+    <div class="qDrawerSub" id="qDrawerSub">All saved questions, grouped by class day.</div>
+    <div class="qFilterRow" id="qFilterRow" style="display:none"></div>
   </div>
   <div id="qList"></div>
 </aside>
@@ -2155,7 +2224,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.39.0';
+var APP_VERSION = 'v1.40.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -8487,10 +8556,6 @@ async function openDocsModal() {
     snap.forEach(function (docSnap) {
       if (canSeeDoc(docSnap.data())) docs.push(docSnap);
     });
-    // Students see the worksheets from their own class day(s) first.
-    if (!isAdmin(currentUser)) {
-      docs.sort(function (a, b) { return dayPriority(a.data()) - dayPriority(b.data()); });
-    }
     list.innerHTML = '';
     if (!docs.length) {
       list.innerHTML = isAdmin(currentUser) || !studentProfile
@@ -8499,8 +8564,19 @@ async function openDocsModal() {
           escHtml(subjectLabel(studentProfile.subject)) + ' yet — check back after your next lesson!</div>';
       return;
     }
-    docs.forEach(function (docSnap) {
+    // Same day headings as the worksheets drawer, in the same colours: the
+    // rows keep their Open / Edit / Delete buttons, but they sit under the
+    // class day they belong to instead of in one long run.
+    var lastDayHead = null;
+    orderDocsByDay(docs, function (s) { return s.data(); }).forEach(function (docSnap) {
       var d = docSnap.data();
+      var day = d.wsDay || DAY_UNDATED;
+      if (day !== lastDayHead) {
+        lastDayHead = day;
+        list.appendChild(docsDayHeading(day, docs.filter(function (s) {
+          return (s.data().wsDay || DAY_UNDATED) === day;
+        }).length));
+      }
       var row = document.createElement('div');
       row.className = 'docRow';
       var info = document.createElement('div');
@@ -8806,30 +8882,95 @@ async function loadQuestionsList() {
     snap.forEach(function (docSnap) {
       if (canSeeDoc(docSnap.data())) docs.push({ id: docSnap.id, data: docSnap.data() });
     });
-    // Chronological, but a student's own class day(s) always float to the top.
+    // Newest first inside every group — the worksheet from the last lesson is
+    // the one being looked for. The day headings carry the ordering now, so
+    // the flat sort no longer floats a student's own day.
     docs.sort(function (a, b) {
-      var dp = dayPriority(a.data) - dayPriority(b.data);
-      if (dp && !isAdmin(currentUser)) return dp;
-      return questionSortTime(a.data) - questionSortTime(b.data);
+      return questionSortTime(b.data) - questionSortTime(a.data);
     });
+    qDocs = docs;
     list.innerHTML = '';
     if (!docs.length) {
+      qSubjectFilter = 'all';
+      renderSubjectFilter();
       list.innerHTML = isAdmin(currentUser)
         ? '<div class="qEmpty">No questions saved yet.<br>Open a PDF, annotate it and press Save.</div>'
         : '<div class="qEmpty">No questions for ' + escHtml(levelLabel(studentProfile.level)) + ' ' +
           escHtml(subjectLabel(studentProfile.subject)) + ' yet — check back after your next lesson!</div>';
-      $('qDrawerSub').textContent = 'All saved questions, oldest first.';
+      $('qDrawerSub').textContent = 'All saved questions, grouped by class day.';
       return;
     }
-    var hasDayPref = !isAdmin(currentUser) && studentProfile && studentProfile.days && studentProfile.days.length;
-    $('qDrawerSub').textContent = docs.length + ' worksheet' + (docs.length === 1 ? '' : 's') +
-      ' · grouped by class day and time' + (hasDayPref ? ' · your class first' : '');
-    renderQuestionGroups(list, docs);
+    renderSubjectFilter();
+    renderQuestionList();
   } catch (e) {
     console.error(e);
     list.innerHTML = '<div class="qEmpty">Could not load questions: ' + escHtml(e.message || String(e)) + '</div>';
   }
 }
+
+/* ---- Subject filter ----
+   A student taking both subjects sees Maths and Science together under each
+   day — that is the point. The chips are for the moment they want only one of
+   them; they appear only when the list actually holds more than one subject,
+   so a single-subject student never sees a control that does nothing. */
+var qDocs = [];                 // everything this user may see, newest first
+var qSubjectFilter = 'all';     // 'all' | 'math' | 'science'
+
+function docHasSubject(d, subject) {
+  if (subject === 'all') return true;
+  return d.subject === subject || d.subject === 'both';
+}
+
+function filteredQDocs() {
+  return qDocs.filter(function (item) { return docHasSubject(item.data, qSubjectFilter); });
+}
+
+function renderSubjectFilter() {
+  var row = $('qFilterRow');
+  row.innerHTML = '';
+  var hasMath = qDocs.some(function (i) { return docHasSubject(i.data, 'math'); });
+  var hasSci = qDocs.some(function (i) { return docHasSubject(i.data, 'science'); });
+  if (!(hasMath && hasSci)) { row.style.display = 'none'; qSubjectFilter = 'all'; return; }
+  row.style.display = '';
+  [['all', 'All'], ['math', 'Mathematics'], ['science', 'Science']].forEach(function (opt) {
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'qFilterChip' + (qSubjectFilter === opt[0] ? ' active' : '');
+    chip.textContent = opt[1];
+    chip.addEventListener('click', function () {
+      qSubjectFilter = opt[0];
+      renderSubjectFilter();
+      renderQuestionList();
+    });
+    row.appendChild(chip);
+  });
+}
+
+function renderQuestionList() {
+  var list = $('qList');
+  var docs = filteredQDocs();
+  list.innerHTML = '';
+  if (!docs.length) {
+    list.innerHTML = '<div class="qEmpty">No ' + escHtml(subjectLabel(qSubjectFilter) || 'matching') +
+      ' worksheets in your list yet.</div>';
+    $('qDrawerSub').textContent = 'Grouped by class day, newest first.';
+    return;
+  }
+  var hasDayPref = !isAdmin(currentUser) && studentProfile && studentProfile.days && studentProfile.days.length;
+  $('qDrawerSub').textContent = docs.length + ' worksheet' + (docs.length === 1 ? '' : 's') +
+    ' · grouped by class day, newest first' + (hasDayPref ? ' · your day first' : '');
+  renderQuestionGroups(list, docs);
+  syncDrawerHeadOffset();
+}
+
+/* The day bands stick just below the drawer's heading, so the heading is
+   measured rather than guessed — it grows a line when the subject chips wrap
+   or the count text runs long. */
+function syncDrawerHeadOffset() {
+  var head = document.querySelector('.qDrawerHead');
+  if (head) $('qList').style.setProperty('--qHeadH', head.offsetHeight + 'px');
+}
+window.addEventListener('resize', syncDrawerHeadOffset);
 
 /* Build one card per worksheet — kept separate so the grouped renderer can
    place it under the right day and time-slot heading. */
@@ -8849,8 +8990,13 @@ function questionCard(item) {
     lvl.textContent = levelLabel(d.level);
     meta.appendChild(lvl);
   }
+  if (d.subject) {
+    var subj = document.createElement('span');
+    subj.className = 'qItemSubject ' + d.subject;
+    subj.textContent = subjectLabel(d.subject);
+    meta.appendChild(subj);
+  }
   var bits = [];
-  if (d.subject) bits.push(subjectLabel(d.subject));
   if (isAdmin(currentUser) && (!d.level || !d.subject)) bits.push('⚠ unassigned — hidden from students');
   if (d.wsDate) bits.push(prettyDate(d.wsDate));
   bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
@@ -8866,24 +9012,91 @@ function questionCard(item) {
   return btn;
 }
 
-/* Group the worksheets by class day, then by time slot within the day, so a
-   student can go straight to their own lesson instead of reading a flat
-   chronological list. The student's own day and slot are marked and floated
-   to the top; groups other than theirs start collapsed. */
+/* ---- The list, day by day ----
+   The day is the heading — one coloured band per class day, with every
+   worksheet for that day directly underneath, whoever is looking. A student
+   taking both subjects sees Maths and Science together under each day, told
+   apart by the subject chip on the card. Within a day the classes that share
+   it are separated by a thin time line rather than another thing to open, so
+   the list is two levels deep instead of three.
+
+   Teachers and students see the same shape; the only difference is that a
+   student's own class day is coloured in, tagged and opened first, and the
+   other days start folded. */
 var DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+var DAY_UNDATED = 'Undated';
+
+/* One hue per day, dark enough on its own tint to read at a glance. */
+var DAY_COLOURS = {
+  Monday:    { ink: '#C2410C', tint: '#FDF1E8', line: '#F2C9AC' },
+  Tuesday:   { ink: '#B45309', tint: '#FDF6E7', line: '#F0D9A6' },
+  Wednesday: { ink: '#15803D', tint: '#EDF7F0', line: '#B7DEC4' },
+  Thursday:  { ink: '#1D6FA5', tint: '#EBF4FA', line: '#AFD2E9' },
+  Friday:    { ink: '#6D28D9', tint: '#F2EEFC', line: '#CDBDF0' },
+  Saturday:  { ink: '#B02A6F', tint: '#FBEDF4', line: '#EEBBD5' },
+  Sunday:    { ink: '#0F766E', tint: '#E9F5F4', line: '#A8D6D1' }
+};
+var DAY_COLOUR_OTHER = { ink: '#55554F', tint: '#F3F2F0', line: '#DCDAD5' };
+function dayColour(day) { return DAY_COLOURS[day] || DAY_COLOUR_OTHER; }
+
+/* The class days this user is in — empty for the teacher, so nothing floats. */
+function myClassDays() {
+  var mine = (!isAdmin(currentUser) || actingStudent) && studentProfile ? studentProfile : null;
+  return (mine && mine.days) || [];
+}
+
+/* The order every list puts the days in: a student's own class days first,
+   then Monday to Sunday, with undated worksheets last. Worksheets inside a
+   day keep the order they arrived in. */
+function orderDocsByDay(docs, getData) {
+  var myDays = myClassDays();
+  function rank(day) {
+    if (day === DAY_UNDATED) return 100;
+    var base = DAY_ORDER.indexOf(day);
+    if (base === -1) return 99;
+    return (myDays.indexOf(day) !== -1 ? 0 : 10) + base;
+  }
+  return docs
+    .map(function (item, i) { return { item: item, i: i, r: rank(getData(item).wsDay || DAY_UNDATED) }; })
+    .sort(function (a, b) { return a.r - b.r || a.i - b.i; })
+    .map(function (x) { return x.item; });
+}
+
+/* The coloured band above a day's worksheets in the My PDFs list. */
+function docsDayHeading(day, count) {
+  var c = dayColour(day);
+  var head = document.createElement('div');
+  head.className = 'docsDayHead';
+  head.style.setProperty('--dayInk', c.ink);
+  head.style.setProperty('--dayTint', c.tint);
+  head.style.setProperty('--dayLine', c.line);
+  var name = document.createElement('span');
+  name.textContent = day === DAY_UNDATED ? 'No class day set' : day;
+  head.appendChild(name);
+  if (myClassDays().indexOf(day) !== -1) {
+    var tag = document.createElement('span');
+    tag.className = 'qDayTag';
+    tag.textContent = 'your class day';
+    head.appendChild(tag);
+  }
+  var n = document.createElement('span');
+  n.className = 'qGroupCount';
+  n.textContent = count;
+  head.appendChild(n);
+  return head;
+}
 
 function renderQuestionGroups(list, docs) {
   var mine = (!isAdmin(currentUser) || actingStudent) && studentProfile ? studentProfile : null;
   var myDays = (mine && mine.days) || [];
   var mySlot = mine && (mine.slot === 0 || mine.slot === 1 || mine.slot === 2) ? mine.slot : null;
 
-  // day name -> slot key -> [items]
+  // day name -> slot key -> [items], each list already newest first
   var byDay = {};
   docs.forEach(function (item) {
-    var day = item.data.wsDay || 'Undated';
-    var slot = slotOf(item.data);
+    var day = item.data.wsDay || DAY_UNDATED;
+    var k = String(slotOf(item.data));
     if (!byDay[day]) byDay[day] = {};
-    var k = String(slot);
     if (!byDay[day][k]) byDay[day][k] = [];
     byDay[day][k].push(item);
   });
@@ -8900,20 +9113,35 @@ function renderQuestionGroups(list, docs) {
   days.forEach(function (day) {
     var isMyDay = myDays.indexOf(day) !== -1;
     var slotKeys = Object.keys(byDay[day]).sort(function (a, b) {
+      // The student's own class time leads their day; otherwise first class
+      // to last, with anything outside lesson hours at the end.
       var av = a === SLOT_OTHER ? 9 : parseInt(a, 10);
       var bv = b === SLOT_OTHER ? 9 : parseInt(b, 10);
+      if (isMyDay && mySlot !== null) {
+        if (av === mySlot) return -1;
+        if (bv === mySlot) return 1;
+      }
       return av - bv;
     });
     var dayCount = slotKeys.reduce(function (n, k) { return n + byDay[day][k].length; }, 0);
+    var colour = dayColour(day);
 
     var dayWrap = document.createElement('div');
     dayWrap.className = 'qDayGroup' + (isMyDay ? ' mine' : '');
-    var dayHead = document.createElement('div');
+    dayWrap.style.setProperty('--dayInk', colour.ink);
+    dayWrap.style.setProperty('--dayTint', colour.tint);
+    dayWrap.style.setProperty('--dayLine', colour.line);
+
+    var dayHead = document.createElement('button');
     dayHead.className = 'qDayHead';
-    dayHead.textContent = day;
+    dayHead.type = 'button';
+    var dayName = document.createElement('span');
+    dayName.className = 'qDayName';
+    dayName.textContent = day === DAY_UNDATED ? 'No class day set' : day;
+    dayHead.appendChild(dayName);
     if (isMyDay) {
       var tag = document.createElement('span');
-      tag.className = 'qMineTag';
+      tag.className = 'qDayTag';
       tag.textContent = 'your class day';
       dayHead.appendChild(tag);
     }
@@ -8923,48 +9151,49 @@ function renderQuestionGroups(list, docs) {
     dayHead.appendChild(dayN);
     dayWrap.appendChild(dayHead);
 
+    var body = document.createElement('div');
+    body.className = 'qDayBody';
+    var manySlots = slotKeys.length > 1;
     slotKeys.forEach(function (k) {
       var items = byDay[day][k];
       var slotNum = k === SLOT_OTHER ? null : parseInt(k, 10);
       var isMySlot = isMyDay && mySlot !== null && slotNum === mySlot;
-
-      var sec = document.createElement('div');
-      sec.className = 'qSlotGroup' + (isMySlot ? ' mine' : '');
-      var head = document.createElement('button');
-      head.className = 'qSlotHead';
-      head.type = 'button';
-      var ttl = document.createElement('span');
-      ttl.className = 'qSlotTitle';
-      ttl.textContent = '🕒 ' + slotLabel(slotNum === null ? -1 : slotNum, day);
-      head.appendChild(ttl);
-      if (isMySlot) {
-        var mt = document.createElement('span');
-        mt.className = 'qMineTag';
-        mt.textContent = 'your slot';
-        head.appendChild(mt);
+      // With one class on the day the time adds nothing to the heading — the
+      // line is there to tell two classes on the same day apart.
+      if (manySlots || isMySlot) {
+        var line = document.createElement('div');
+        line.className = 'qSlotLine' + (isMySlot ? ' mine' : '');
+        var ttl = document.createElement('span');
+        ttl.textContent = '🕒 ' + slotLabel(slotNum === null ? -1 : slotNum, day);
+        line.appendChild(ttl);
+        if (isMySlot) {
+          var mt = document.createElement('span');
+          mt.className = 'qMineTag';
+          mt.textContent = 'your class';
+          line.appendChild(mt);
+        }
+        body.appendChild(line);
       }
-      var n = document.createElement('span');
-      n.className = 'qGroupCount';
-      n.textContent = items.length;
-      head.appendChild(n);
-      sec.appendChild(head);
-
-      var body = document.createElement('div');
-      body.className = 'qSlotBody';
       items.forEach(function (item) { body.appendChild(questionCard(item)); });
-      sec.appendChild(body);
-
-      // Everything is expanded for the teacher and for a student's own day;
-      // other days start folded so the list stays short and scannable.
-      var collapsed = mine && !isMyDay;
-      sec.classList.toggle('collapsed', !!collapsed);
-      head.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
-
-      dayWrap.appendChild(sec);
     });
+    dayWrap.appendChild(body);
+
+    // Everything is open for the teacher and for a student's own day; a
+    // student's other days start folded so their list stays short. A student
+    // who has not told us their class day has nothing to fold around, so
+    // their list opens whole.
+    dayWrap.classList.toggle('collapsed', !!(mine && myDays.length && !isMyDay));
+    dayHead.addEventListener('click', function () { dayWrap.classList.toggle('collapsed'); });
 
     list.appendChild(dayWrap);
   });
+
+  // Their class day may simply have no worksheets yet — never leave every
+  // group folded, or the list reads as empty.
+  if (!list.querySelector('.qDayGroup:not(.collapsed)')) {
+    var first = list.querySelector('.qDayGroup');
+    if (first) first.classList.remove('collapsed');
+  }
 }
 
 function markActiveQuestion() {

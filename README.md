@@ -3,6 +3,38 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Worksheets listed day by day (v1.40.0)
+
+The worksheets list is built around the class day, for students and teachers
+alike. Each day is a **coloured band** — Monday burnt orange, Tuesday amber,
+Wednesday green, Thursday blue, Friday violet, Saturday magenta, Sunday teal,
+and grey for worksheets with no class day set — with every worksheet for that
+day directly underneath it.
+
+- **Tap a day band to fold it.** A student's own class day is tagged *your
+  class day* and opens first; their other days start folded so the list stays
+  short. Teachers see every day open. If a student has not set a class day —
+  or their day has nothing on it yet — the list opens rather than showing
+  nothing but bands.
+- **Two classes on the same day** are separated by a thin `🕒 5:00 – 6:45pm`
+  line rather than another thing to open, so the list is two levels deep
+  instead of three. A student's own class time leads their day and is tagged.
+- **Newest first** within every day.
+- **My PDFs uses the same day bands**, in the same colours, with the Open /
+  Edit / Delete buttons unchanged.
+
+### Students taking both subjects
+
+A student whose profile subject is **Both** sees Maths *and* Science
+worksheets together under each day — the subject is a coloured chip on every
+card (Maths blue, Science green, Maths & Science violet), so which is which
+reads at a glance.
+
+When a list holds both subjects, **All · Mathematics · Science** chips appear
+under the drawer heading to narrow it to one subject for a moment. They are
+hidden for anyone whose list only ever holds one subject, and they never
+change what a student is allowed to see — only what is on screen.
+
 ## AI answer key (v1.39.0)
 
 The **Answer key** card in the worksheet panel has one button: **✨ Generate
