@@ -762,6 +762,23 @@
     margin-bottom: 12px;
   }
   .reviseToggleRow input { width: 17px; height: 17px; accent-color: var(--accent-deep); cursor: pointer; }
+  /* Radio rows in the AI Engine dialog — roomy cards, one per engine.
+     Scoped under .fieldRow so they beat the generic .fieldRow label/input
+     rules that would otherwise stack the radio above its own text. */
+  .fieldRow label.engineOpt {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 16px; margin-bottom: 10px;
+    border: 1px solid var(--line); border-radius: 12px;
+    font-size: 0.88rem; font-weight: normal; color: var(--ink);
+    line-height: 1.5; cursor: pointer; user-select: none;
+  }
+  .fieldRow label.engineOpt:hover { border-color: var(--accent-strong); }
+  .fieldRow .engineOpt input[type="radio"] {
+    width: 17px; height: 17px; flex: none; margin-top: 2px; padding: 0;
+    accent-color: var(--accent-deep); cursor: pointer;
+  }
+  .engineOpt strong { display: block; margin-bottom: 3px; font-size: 0.92rem; }
+  .engineOpt .engineOptNote { display: block; color: var(--ink-faint); font-size: 0.8rem; font-weight: normal; }
   #kwInput {
     width: 100%;
     font-family: var(--font);
@@ -2251,6 +2268,72 @@
   </div>
 </div>
 
+<!-- AI ENGINE (admin only) — Gemini by default, ChatGPT with your own key -->
+<div class="modalBack" id="aiEngineModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>AI Engine</h2>
+      <button class="modalClose" id="aiEngineCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro">
+        Choose which AI powers every AI feature on this worksheet — <strong>Answer</strong> and <strong>Improve</strong> on text boxes,
+        <strong>AI notes</strong>, marking, keyword extraction and Ask AI. Switch to ChatGPT gpt-5.6-sol for heavy-duty work,
+        and back to Gemini for everyday use. Your choice is saved on this device and stays until you change it.
+        If ChatGPT ever fails, the app falls back to Gemini automatically.
+      </div>
+
+      <div class="fieldRow">
+        <label>Engine</label>
+        <label class="engineOpt">
+          <input type="radio" name="aiEngineChoice" value="gemini" checked>
+          <span>
+            <strong>Gemini 3.6 Flash</strong>
+            <span class="engineOptNote">Firebase AI Logic · default · no key needed</span>
+          </span>
+        </label>
+        <label class="engineOpt">
+          <input type="radio" name="aiEngineChoice" value="openai">
+          <span>
+            <strong>ChatGPT</strong>
+            <span class="engineOptNote">OpenAI API · your own key required</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="fieldRow">
+        <label for="aiEngineModelSel">ChatGPT model</label>
+        <select id="aiEngineModelSel">
+          <option value="gpt-5.6-sol">gpt-5.6-sol — newest (recommended)</option>
+          <option value="gpt-4o-mini">gpt-4o-mini — fast &amp; cheap</option>
+          <option value="gpt-4o">gpt-4o</option>
+          <option value="gpt-4.1">gpt-4.1</option>
+        </select>
+      </div>
+
+      <div class="fieldRow">
+        <label for="aiEngineImageModelSel">ChatGPT image model</label>
+        <select id="aiEngineImageModelSel">
+          <option value="gpt-image-1">gpt-image-1 — best quality (recommended)</option>
+          <option value="gpt-image-1-mini">gpt-image-1-mini — cheaper &amp; faster</option>
+        </select>
+        <div class="fieldHint">Used only by the <strong>picture</strong> AI note card (the chat model above cannot draw). If ChatGPT image generation fails, the app falls back to the Gemini image model, then to a drawn SVG.</div>
+      </div>
+
+      <div class="fieldRow">
+        <label for="aiEngineKeyInput">OpenAI API key</label>
+        <input type="password" id="aiEngineKeyInput" placeholder="sk-..." autocomplete="off" spellcheck="false">
+        <div class="fieldHint">The key is saved only in this browser (localStorage) on this device — it is never uploaded, synced or committed anywhere. Anyone with access to this device's developer tools could read it, so paste it only on machines you control. Devices without a key simply keep using Gemini.</div>
+      </div>
+
+      <div class="modalActions">
+        <button class="btn" id="aiEngineCancelBtn">Cancel</button>
+        <button class="btn btnPrimary" id="aiEngineSaveBtn">Save AI Engine</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modalBack" id="docsModal">
   <div class="modalCard">
     <div class="modalHead">
@@ -2437,7 +2520,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.40.0';
+var APP_VERSION = 'v1.41.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -6247,6 +6330,144 @@ function deleteSelected() {
   setDirty(true);
 }
 
+/* ================= Optional ChatGPT (OpenAI) engine =================
+   Admin-only toggle (header → AI Engine), migrated from the CER Science
+   Learning Portal. The choice, model and key live in localStorage on this
+   device only — nothing is uploaded. When the engine is active, the
+   window.askGemini / window.askGeminiImage bridges at the bottom of this
+   file route through OpenAI first and fall back to Gemini on any failure,
+   so students (and any device without a key) are never affected. */
+var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', imageModel: 'ak_openai_image_model' };
+var OPENAI_DEFAULT_MODEL = 'gpt-5.6-sol';
+var OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-1';
+
+function getAiEngine() { try { return localStorage.getItem(AI_ENGINE_STORE.engine) || 'gemini'; } catch (e) { return 'gemini'; } }
+function getOpenAiKey() { try { return (localStorage.getItem(AI_ENGINE_STORE.key) || '').trim(); } catch (e) { return ''; } }
+function getOpenAiModel() { try { return localStorage.getItem(AI_ENGINE_STORE.model) || OPENAI_DEFAULT_MODEL; } catch (e) { return OPENAI_DEFAULT_MODEL; } }
+function getOpenAiImageModel() { try { return localStorage.getItem(AI_ENGINE_STORE.imageModel) || OPENAI_IMAGE_DEFAULT_MODEL; } catch (e) { return OPENAI_IMAGE_DEFAULT_MODEL; } }
+function openAiActive() { return getAiEngine() === 'openai' && !!getOpenAiKey(); }
+window.openAiActive = openAiActive;
+
+/* Same call shape as window.askGemini so the bridge can swap one for the
+   other: system instruction, inline images and strict-JSON mode all map onto
+   the chat-completions API. */
+window.askOpenAI = async function askOpenAI(prompt, opts) {
+  var o = opts || {};
+  var model = getOpenAiModel();
+  var content = [{ type: 'text', text: prompt }];
+  (o.images || []).forEach(function (img) {
+    if (!img || !img.data) return;
+    content.push({ type: 'image_url', image_url: { url: 'data:' + (img.mimeType || 'image/jpeg') + ';base64,' + img.data, detail: 'high' } });
+  });
+  var messages = [];
+  var system = o.system || '';
+  // json_object mode is refused unless the word "json" appears in the prompt.
+  if (o.json && !/json/i.test(system + ' ' + prompt)) system += (system ? '\n' : '') + 'Reply with JSON only.';
+  if (system) messages.push({ role: 'system', content: system });
+  messages.push({ role: 'user', content: content });
+
+  var body = { model: model, messages: messages, max_completion_tokens: Math.max(1024, o.maxOutputTokens || 512) };
+  if (o.json) body.response_format = { type: 'json_object' };
+  // gpt-5.x models only run at their default temperature; sending one is a 400
+  if (o.temperature !== undefined && !/^gpt-5/.test(model)) body.temperature = o.temperature;
+
+  var res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getOpenAiKey() },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    var detail = '';
+    try { var ej = await res.json(); detail = ej && ej.error ? ej.error.message : ''; } catch (e) { /* non-JSON error body */ }
+    throw new Error('OpenAI API error ' + res.status + (detail ? ': ' + detail : ''));
+  }
+  var data = await res.json();
+  var text = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if (typeof text !== 'string' || !text) throw new Error('OpenAI returned an unexpected response shape.');
+  return text.trim();
+};
+
+/* Picture generation for AI note cards. Returns { mimeType, data } with data
+   base64 (no data: prefix) — the same shape window.askGeminiImage returns. */
+window.askOpenAiImage = async function askOpenAiImage(prompt, opts) {
+  var o = opts || {};
+  if (!getOpenAiKey()) throw new Error('No OpenAI API key saved on this device');
+  var base = { model: getOpenAiImageModel(), prompt: prompt, size: o.size || '1024x1024', n: 1 };
+  var full = Object.assign({}, base, { output_format: 'png', quality: o.quality || 'high' });
+
+  async function request(payload) {
+    var res = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getOpenAiKey() },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      var detail = '';
+      try { var ej = await res.json(); detail = ej && ej.error ? ej.error.message : ''; } catch (e) { /* non-JSON error body */ }
+      var err = new Error('OpenAI image API error ' + res.status + (detail ? ': ' + detail : ''));
+      err.status = res.status; err.detail = detail;
+      throw err;
+    }
+    var data = await res.json();
+    var item = data && data.data && data.data[0];
+    if (item && item.b64_json) return { mimeType: 'image/png', data: item.b64_json };
+    throw new Error('OpenAI did not return an image');
+  }
+
+  try { return await request(full); }
+  catch (e) {
+    // Older image models (and some accounts) reject the newer extras with a
+    // 400 — retry once with the bare minimum rather than failing outright.
+    var unsupported = e && e.status === 400 && /unknown parameter|unsupported|not supported|invalid value|additional properties/i.test(e.detail || e.message || '');
+    if (!unsupported) throw e;
+    return await request(base);
+  }
+};
+
+/* ---------- AI Engine dialog (admin only) ---------- */
+function openAiEngineModal() {
+  if (!isAdmin(currentUser)) return;
+  var eng = getAiEngine();
+  var radios = document.querySelectorAll('input[name="aiEngineChoice"]');
+  for (var i = 0; i < radios.length; i++) radios[i].checked = radios[i].value === eng;
+  var modelSel = $('aiEngineModelSel');
+  modelSel.value = getOpenAiModel();
+  if (!modelSel.value) modelSel.value = OPENAI_DEFAULT_MODEL;   // stored model no longer offered
+  var imgSel = $('aiEngineImageModelSel');
+  imgSel.value = getOpenAiImageModel();
+  if (!imgSel.value) imgSel.value = OPENAI_IMAGE_DEFAULT_MODEL;
+  $('aiEngineKeyInput').value = getOpenAiKey();
+  $('aiEngineModal').classList.add('open');
+}
+
+function closeAiEngineModal() { $('aiEngineModal').classList.remove('open'); }
+
+function saveAiEngineSettings() {
+  var picked = document.querySelector('input[name="aiEngineChoice"]:checked');
+  var eng = picked ? picked.value : 'gemini';
+  var key = ($('aiEngineKeyInput').value || '').trim();
+  var model = $('aiEngineModelSel').value || OPENAI_DEFAULT_MODEL;
+  var imageModel = $('aiEngineImageModelSel').value || OPENAI_IMAGE_DEFAULT_MODEL;
+  if (eng === 'openai' && !key) { toast('Paste your OpenAI API key to use ChatGPT', 4000); return; }
+  try {
+    localStorage.setItem(AI_ENGINE_STORE.engine, eng);
+    localStorage.setItem(AI_ENGINE_STORE.model, model);
+    localStorage.setItem(AI_ENGINE_STORE.imageModel, imageModel);
+    if (key) localStorage.setItem(AI_ENGINE_STORE.key, key);
+    else localStorage.removeItem(AI_ENGINE_STORE.key);
+  } catch (e) { toast('Could not save: ' + ((e && e.message) || e), 4000); return; }
+  closeAiEngineModal();
+  renderAuthArea(); // the header button names the engine that is now on
+  toast(eng === 'openai' ? 'AI engine set to ChatGPT (' + model + ') — saved on this device' : 'AI engine set to Gemini', 3500);
+}
+
+$('aiEngineCloseBtn').addEventListener('click', closeAiEngineModal);
+$('aiEngineCancelBtn').addEventListener('click', closeAiEngineModal);
+$('aiEngineSaveBtn').addEventListener('click', saveAiEngineSettings);
+$('aiEngineModal').addEventListener('click', function (e) {
+  if (e.target === $('aiEngineModal')) closeAiEngineModal();
+});
+
 /* ================= Gemini AI helpers =================
    Gemini is reached through Firebase AI Logic on the shared mathgen--app
    project — there is no secret key in this file, and quota abuse is
@@ -8785,6 +9006,13 @@ function renderAuthArea() {
     stuBtn.title = 'Manage student levels and subjects';
     stuBtn.addEventListener('click', openStudentsModal);
     area.appendChild(stuBtn);
+    var engBtn = document.createElement('button');
+    engBtn.className = 'btn';
+    // The label doubles as the status: it names ChatGPT while that engine is on.
+    engBtn.textContent = openAiActive() ? 'AI · ChatGPT' : 'AI Engine';
+    engBtn.title = 'Choose which AI powers the app — Gemini (default) or ChatGPT with your own OpenAI key. The choice is saved on this device.';
+    engBtn.addEventListener('click', openAiEngineModal);
+    area.appendChild(engBtn);
   }
   var out = document.createElement('button');
   out.className = 'btn';
@@ -12732,7 +12960,10 @@ try {
   geminiModel = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), { model: AI_MODEL });
 } catch (e) { console.warn("Firebase AI init failed (AI disabled):", e); }
 
-window.aiReady = () => !!geminiModel;
+// The optional ChatGPT engine (classic script above) counts as ready even if
+// Firebase AI failed to start — and vice versa.
+const openAiOn = () => !!(window.openAiActive && window.openAiActive());
+window.aiReady = () => !!geminiModel || openAiOn();
 
 // thinkingLevel: "minimal" keeps Gemini "thinking" to a minimum so the token
 // budget goes to the answer (faster + cheaper for short tasks). Gemini 3.x
@@ -12742,7 +12973,17 @@ window.aiReady = () => !!geminiModel;
 // images is a list of { mimeType, data } inline attachments (base64 WITHOUT
 // the data: prefix), sent after the prompt — the vision path for worksheet
 // snapshots.
-window.askGemini = async function askGemini(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [] } = {}) {
+// When the admin has switched the engine to ChatGPT, the request goes to
+// OpenAI first and falls back to Gemini on any failure.
+window.askGemini = async function askGemini(prompt, opts = {}) {
+  if (openAiOn()) {
+    try { return await window.askOpenAI(prompt, opts); }
+    catch (e) { console.warn("ChatGPT engine failed, falling back to Gemini:", e); }
+  }
+  return askGeminiDirect(prompt, opts);
+};
+
+async function askGeminiDirect(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [] } = {}) {
   if (!geminiModel) throw new Error("AI is not configured yet");
   const generationConfig = { maxOutputTokens, temperature, thinkingConfig: { thinkingLevel: "minimal" } };
   if (json) generationConfig.responseMimeType = "application/json";
@@ -12757,14 +12998,24 @@ window.askGemini = async function askGemini(prompt, { maxOutputTokens = 512, tem
   if (system) request.systemInstruction = { parts: [{ text: system }] };
   const res = await geminiModel.generateContent(request);
   return (res.response.text() || "").trim();
-};
+}
 
 // Picture generation for AI note cards. Returns { mimeType, data } with data
 // base64 (no data: prefix), or null when the model gave text back instead.
 // The model is created on first use so a project without image generation
 // costs nothing at start-up — the caller falls back to an SVG diagram.
+// With the ChatGPT engine on, the ChatGPT image model goes first and the
+// Gemini image model is the fallback.
 let geminiImageModel = null;
 window.askGeminiImage = async function askGeminiImage(prompt) {
+  if (openAiOn()) {
+    try { return await window.askOpenAiImage(prompt); }
+    catch (e) { console.warn("ChatGPT image generation failed, falling back to Gemini:", e); }
+  }
+  return askGeminiImageDirect(prompt);
+};
+
+async function askGeminiImageDirect(prompt) {
   if (!geminiImageModel) {
     geminiImageModel = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), {
       model: AI_IMAGE_MODEL,
@@ -12784,7 +13035,7 @@ window.askGeminiImage = async function askGeminiImage(prompt) {
     }
   }
   return null;
-};
+}
 </script>
 </body>
 </html>

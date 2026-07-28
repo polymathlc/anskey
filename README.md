@@ -3,6 +3,31 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## ChatGPT engine toggle (v1.41.0)
+
+Every AI feature in the app — **Answer** and **Improve** on text boxes, **AI
+notes**, the answer key, marking, keyword extraction and Ask AI — runs on
+Gemini 3.6 Flash through Firebase AI Logic by default, with no key to manage.
+Teachers who want a second opinion (or heavier reasoning on a hard worksheet)
+can switch the whole app to **ChatGPT gpt-5.6-sol**, the same toggle the CER
+Science Learning Portal uses.
+
+- **Where:** an **AI Engine** button in the header, next to *Students*. Admin
+  only — students never see it and are never affected.
+- **What you set:** the engine (Gemini or ChatGPT), the ChatGPT chat model
+  (`gpt-5.6-sol` by default, plus `gpt-4o-mini` / `gpt-4o` / `gpt-4.1`), the
+  ChatGPT image model used by the *picture* AI note card (`gpt-image-1`), and
+  your OpenAI API key.
+- **The key stays on the device.** It is written to `localStorage` in that one
+  browser — never uploaded, synced or committed. Paste it only on machines you
+  control; any other device simply keeps using Gemini.
+- **Gemini is always the safety net.** If a ChatGPT call fails for any reason —
+  bad key, rate limit, network — the request is retried on Gemini automatically
+  and the feature carries on. Picture cards fall back ChatGPT → Gemini → drawn
+  SVG.
+- The header button reads **AI · ChatGPT** while that engine is on, so the
+  current engine is visible without opening the dialog.
+
 ## Worksheets listed day by day (v1.40.0)
 
 The worksheets list is built around the class day, for students and teachers
