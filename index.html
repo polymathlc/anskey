@@ -1699,6 +1699,56 @@
   .modalCard { max-height: 78vh; max-height: min(78dvh, calc(var(--vvh, 100vh) - 64px)); }
   #askAiThread { max-height: 42vh; max-height: min(42dvh, calc(var(--vvh, 100vh) * 0.36)); }
   .askAiRow { position: sticky; bottom: 0; background: #fff; }
+
+  /* ---------- Floating window ----------
+     The AI note / table / widget maker is not a modal. It is a small window
+     that floats over the worksheet: no dimmed backdrop, and the page stays
+     live underneath, so the class can read and copy the answers while the
+     teacher works in it. Drag the title bar to move it, the corner grip to
+     resize. Last in the sheet so it beats the mobile overrides above. */
+  .modalBack.floatWin {
+    padding: 0;
+    background: none;
+    pointer-events: none;          /* clicks fall through to the worksheet */
+    display: none;
+    z-index: 95;                   /* under the real modals, over everything else */
+  }
+  .modalBack.floatWin.open { display: block; }
+  .modalBack.floatWin .modalCard {
+    pointer-events: auto;
+    position: fixed;
+    max-width: none;
+    max-height: none;
+    width: auto;                   /* left/top/width/height come from JS */
+    animation: none;
+    overflow: hidden;
+    box-shadow: 0 20px 52px rgba(20, 20, 18, 0.26), 0 0 0 1px rgba(20, 20, 18, 0.07);
+  }
+  .modalBack.floatWin .modalHead {
+    cursor: grab;
+    touch-action: none;
+    flex: 0 0 auto;
+  }
+  .modalBack.floatWin.winDragging .modalHead { cursor: grabbing; }
+  .modalBack.floatWin.winDragging, .modalBack.floatWin.winSizing { -webkit-user-select: none; user-select: none; }
+  .modalBack.floatWin .modalBody { flex: 1 1 auto; min-height: 0; }
+  /* Keep the buttons clear of the resize grip in the corner. */
+  .modalBack.floatWin .modalActions { padding-right: 18px; }
+  .floatWinGrip { display: none; }
+  .modalBack.floatWin .floatWinGrip {
+    display: block;
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 24px; height: 24px;
+    cursor: nwse-resize;
+    touch-action: none;
+    border-bottom-right-radius: var(--radius);
+    background: linear-gradient(135deg,
+      transparent 0 46%, var(--ink-faint) 46% 54%,
+      transparent 54% 66%, var(--ink-faint) 66% 74%, transparent 74%);
+    opacity: 0.45;
+  }
+  .modalBack.floatWin .floatWinGrip:hover { opacity: 0.8; }
 </style>
 </head>
 <body>
@@ -2156,9 +2206,9 @@
   </div>
 </div>
 
-<div class="modalBack" id="aiNoteModal">
-  <div class="modalCard">
-    <div class="modalHead">
+<div class="modalBack floatWin" id="aiNoteModal">
+  <div class="modalCard" id="aiNoteCard">
+    <div class="modalHead" id="aiNoteHead" title="Drag to move — the worksheet stays live underneath">
       <h2 id="aiNoteTitle">AI notes</h2>
       <button class="modalClose" id="aiNoteCloseBtn" title="Close">✕</button>
     </div>
@@ -2183,6 +2233,7 @@
         <button class="btn btnPrimary" id="aiNoteGenBtn">✨ Generate</button>
       </div>
     </div>
+    <div class="floatWinGrip" id="aiNoteGrip" title="Drag to resize"></div>
   </div>
 </div>
 
@@ -6385,27 +6436,176 @@ function aiNoteKindInfo(k) {
   return AI_NOTE_KINDS.find(function (x) { return x.key === k; }) || AI_NOTE_KINDS[0];
 }
 
-/* ---- The chooser ---- */
+/* ---- The chooser is a window, not a modal ----
+   It floats over the worksheet with no backdrop, so the class can still read
+   and copy the answers underneath while the teacher has it open. Drag the
+   title bar to move it, the corner grip to resize it; wherever it was last
+   left is where it comes back. */
+var AI_NOTE_WIN_MIN_W = 300, AI_NOTE_WIN_MIN_H = 240;
+var AI_NOTE_WIN_KEY = 'polymath.aiNoteWindow';
+var AI_NOTE_WIN_TIP_KEY = 'polymath.aiNoteWindowTip';
+var aiNoteWin = null;   // { x, y, w, h } — the card's box in CSS pixels
+
+function aiNoteViewportH() {
+  return (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+}
+
+function clampAiNoteWin(b) {
+  var vw = window.innerWidth, vh = aiNoteViewportH(), pad = 8;
+  var w = Math.min(Math.max(b.w, AI_NOTE_WIN_MIN_W), Math.max(vw - pad * 2, 120));
+  var h = Math.min(Math.max(b.h, AI_NOTE_WIN_MIN_H), Math.max(vh - pad * 2, 120));
+  return {
+    x: Math.round(Math.max(pad, Math.min(b.x, vw - w - pad))),
+    y: Math.round(Math.max(pad, Math.min(b.y, vh - h - pad))),
+    w: Math.round(w), h: Math.round(h)
+  };
+}
+
+/* How tall the window wants to be with everything in it. Measured rather than
+   guessed, so the first open shows the whole chooser with neither a scroll bar
+   nor a gap of empty white below the buttons. The card must already be open
+   (laid out) — and nothing paints between hiding and restoring it. */
+function naturalAiNoteWinH(w) {
+  var c = $('aiNoteCard');
+  var keep = { w: c.style.width, h: c.style.height, v: c.style.visibility };
+  c.style.visibility = 'hidden';
+  c.style.width = w + 'px';
+  c.style.height = 'auto';
+  var h = Math.ceil(c.getBoundingClientRect().height);
+  c.style.width = keep.w; c.style.height = keep.h; c.style.visibility = keep.v;
+  return h || AI_NOTE_WIN_MIN_H;
+}
+
+function defaultAiNoteWin() {
+  // Off to the right by default: the worksheet — and the answer the class is
+  // copying — stays in view on the left.
+  var vw = window.innerWidth;
+  var w = Math.min(520, vw - 32);
+  return { x: vw - w - 24, y: 76, w: w, h: naturalAiNoteWinH(w) };
+}
+
+function loadAiNoteWin() {
+  try {
+    var v = JSON.parse(localStorage.getItem(AI_NOTE_WIN_KEY) || 'null');
+    if (v && ['x', 'y', 'w', 'h'].every(function (k) { return isFinite(v[k]); })) return v;
+  } catch (e) {}
+  return null;
+}
+
+function saveAiNoteWin() {
+  try { localStorage.setItem(AI_NOTE_WIN_KEY, JSON.stringify(aiNoteWin)); } catch (e) {}
+}
+
+function applyAiNoteWin() {
+  var c = $('aiNoteCard');
+  if (!c || !aiNoteWin) return;
+  c.style.left = aiNoteWin.x + 'px';
+  c.style.top = aiNoteWin.y + 'px';
+  c.style.width = aiNoteWin.w + 'px';
+  c.style.height = aiNoteWin.h + 'px';
+}
+
+function placeAiNoteWin() {
+  aiNoteWin = clampAiNoteWin(aiNoteWin || loadAiNoteWin() || defaultAiNoteWin());
+  applyAiNoteWin();
+}
+
+/* Dragging the title bar moves it; dragging the corner grip resizes it. */
+(function () {
+  var mode = null, ptr = null, sx = 0, sy = 0, start = null;
+
+  function begin(e, m) {
+    if (e.button != null && e.button !== 0) return;
+    if (!aiNoteWin) return;
+    mode = m; ptr = e.pointerId; sx = e.clientX; sy = e.clientY;
+    start = { x: aiNoteWin.x, y: aiNoteWin.y, w: aiNoteWin.w, h: aiNoteWin.h };
+    e.preventDefault();
+    e.stopPropagation();
+    try { e.currentTarget.setPointerCapture(ptr); } catch (_) {}
+    $('aiNoteModal').classList.add(m === 'move' ? 'winDragging' : 'winSizing');
+  }
+
+  function drag(e) {
+    if (!mode || e.pointerId !== ptr) return;
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    // Resizing grows towards the bottom right, so cap it at the room left
+    // there — otherwise clamping would slide the whole window up instead.
+    aiNoteWin = clampAiNoteWin(mode === 'move'
+      ? { x: start.x + dx, y: start.y + dy, w: start.w, h: start.h }
+      : { x: start.x, y: start.y,
+          w: Math.min(start.w + dx, window.innerWidth - start.x - 8),
+          h: Math.min(start.h + dy, aiNoteViewportH() - start.y - 8) });
+    applyAiNoteWin();
+    e.preventDefault();
+  }
+
+  function finish(e) {
+    if (!mode || (e && e.pointerId != null && e.pointerId !== ptr)) return;
+    mode = null; ptr = null;
+    $('aiNoteModal').classList.remove('winDragging', 'winSizing');
+    saveAiNoteWin();
+  }
+
+  var head = $('aiNoteHead'), grip = $('aiNoteGrip');
+  head.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('button')) return;   // ✕ still closes
+    begin(e, 'move');
+  });
+  grip.addEventListener('pointerdown', function (e) { begin(e, 'size'); });
+  [head, grip].forEach(function (el) {
+    el.addEventListener('pointermove', drag);
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', finish);
+  });
+  // A window left near an edge must not fall off when the browser is resized,
+  // the iPad rotates, or the on-screen keyboard opens.
+  function reflow() {
+    if (!aiNoteWin || !$('aiNoteModal').classList.contains('open')) return;
+    aiNoteWin = clampAiNoteWin(aiNoteWin);
+    applyAiNoteWin();
+  }
+  window.addEventListener('resize', reflow);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow);
+})();
+
 function openAiNoteModal(ctx) {
   if (isStudent() || isSharedVisitor()) return; // generating is teacher-only
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return;
   }
+  var wasOpen = $('aiNoteModal').classList.contains('open');
+  // The window no longer blocks the page, so a tap on the worksheet can land
+  // while it is open. Mid-generation the spot is already spoken for; the rest
+  // of the time picking a new spot just moves it, keeping what was typed.
+  if (wasOpen && aiBusy) {
+    toast('Gemini is still making the last card — wait for it to land.');
+    return;
+  }
+  var keepTyped = wasOpen && ctx.mode === 'new' &&
+    aiNoteEdit && aiNoteEdit.mode === 'new' && $('aiNoteInstr').value.trim();
   aiNoteEdit = ctx;
   var editing = ctx.mode === 'edit';
   var a = editing ? annotations.find(function (x) { return x.id === ctx.id; }) : null;
   if (editing && !a) return;
   aiNoteKind = editing ? (a.kind || 'notes') : (aiNoteKind || 'notes');
   $('aiNoteTitle').textContent = editing ? 'Redo this AI note' : 'AI notes';
-  $('aiNoteInstr').value = editing ? (a.prompt || '') : '';
+  if (!keepTyped) $('aiNoteInstr').value = editing ? (a.prompt || '') : '';
   $('aiNoteDeleteBtn').style.display = editing ? '' : 'none';
   $('aiNoteGenBtn').textContent = editing ? '✨ Generate again' : '✨ Generate';
   $('aiNoteBusy').textContent = '';
   $('aiNoteContext').checked = true;
   renderAiNoteKinds();
   $('aiNoteModal').classList.add('open');
+  placeAiNoteWin();   // needs the card laid out — it measures its own height
+  if (keepTyped) { toast('New spot picked — your instructions are still here.'); return; }
   setTimeout(function () { $('aiNoteInstr').focus(); }, 50);
+  try {
+    if (!localStorage.getItem(AI_NOTE_WIN_TIP_KEY)) {
+      localStorage.setItem(AI_NOTE_WIN_TIP_KEY, '1');
+      toast('Drag the title bar to move this window and the corner to resize it — the worksheet underneath stays live for the class.', 6000);
+    }
+  } catch (e) {}
 }
 
 function renderAiNoteKinds() {
@@ -6431,6 +6631,7 @@ function renderAiNoteKinds() {
   $('aiNoteHint').textContent = aiNoteKind === 'widget'
     ? 'The widget runs in a sandbox of its own — it cannot reach the rest of the app or the internet. Tap ▶ Use on the card to play with it; ✋ Lock it again to write over it.'
     : 'Say what you want in your own words. The card lands where you clicked and can be moved, resized or erased like anything else.';
+  $('aiNoteHint').textContent += ' This window moves too — drag its title bar, or the corner to resize — and the worksheet behind it stays live.';
 }
 
 function setAiNoteKind(k) {
@@ -6956,9 +7157,7 @@ $('aiNoteCloseBtn').addEventListener('click', closeAiNoteModal);
 $('aiNoteCancelBtn').addEventListener('click', closeAiNoteModal);
 $('aiNoteDeleteBtn').addEventListener('click', deleteAiNote);
 $('aiNoteGenBtn').addEventListener('click', generateAiNote);
-$('aiNoteModal').addEventListener('click', function (e) {
-  if (e.target === $('aiNoteModal') && !aiBusy) closeAiNoteModal();
-});
+/* No click-outside-to-close: outside is the worksheet, and it stays live. */
 $('aiNoteInstr').addEventListener('keydown', function (e) {
   // Ctrl/⌘+Enter generates without reaching for the mouse.
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); generateAiNote(); }
@@ -12102,6 +12301,12 @@ document.addEventListener('keydown', function (e) {
   // Esc leaves full screen wherever the browser has no bars of its own to
   // hand back — elsewhere the browser does it and fullscreenchange follows.
   if (e.key === 'Escape' && immersive() && !fsApiUsable()) { setImmersive(false); return; }
+  // The AI-note window has no backdrop to click away, so Esc closes it.
+  if (e.key === 'Escape' && !editingText && !aiBusy &&
+      $('aiNoteModal').classList.contains('open')) {
+    closeAiNoteModal();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDoc();
