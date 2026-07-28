@@ -3,6 +3,52 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## AI answer key (v1.39.0)
+
+The **Answer key** card in the worksheet panel has one button: **✨ Generate
+answer key**. Gemini reads the worksheet a page at a time — the printed
+questions, plus whatever answers are written on the page — and returns one
+condensed entry per question: the answer itself and a short explanation of why
+it is right.
+
+The result opens in a dialog and prints as a plain answer key, one block per
+question:
+
+```
+Question 16
+    ANSWER
+    2. (2)
+    EXPLANATION
+    Air is a gas and has no definite shape, so it takes the shape of the
+    balloon. When the balloon is twisted, the shape changes — but no air was
+    added or removed, so the mass of air is unchanged.
+```
+
+- **Multiple choice** prints the option's number in bold followed by the
+  option's own wording, exactly as it reads on the paper.
+- **Everything else** prints the final answer in bold — the value with its
+  unit, or one short sentence — condensed to what a marker needs.
+- **The teacher's own answers win.** Where the worksheet already carries
+  written or typed answers, those are attached to the request and Gemini
+  follows them; where a page has none, it works the answer out from the
+  question.
+- **The worksheet's own numbering is kept** ("16", "3a"). A question that runs
+  across a page break comes back from both pages and is merged into one entry.
+- **A page that cannot be read is named**, and the rest of the key is still
+  produced.
+
+The key is built from the pages themselves, not from the on-screen canvases —
+the viewer only rasterises the pages you can see, so each page is rendered
+again for the request.
+
+**🖨 Print / save as PDF** opens the key in a new tab and prints it; choose
+"Save as PDF" in the print dialog to keep it as a file. **📄 View the answer
+key** re-opens the last one without spending another AI call. The key lives
+for as long as the worksheet is open — opening another worksheet clears it.
+
+Like the AI answer tool, this is teacher-only: students and share-link
+visitors never see the card.
+
 ## Marking summary (v1.38.0)
 
 Every marked answer now ends with a **Summary** segment, in point form:
