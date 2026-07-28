@@ -3004,10 +3004,17 @@ function scheduleOverlays() {
 
 function renderOverlay(p) {
   var svg = p.svg;
-  while (svg.firstChild) svg.removeChild(svg.firstChild);
-  annotations.forEach(function (a) {
-    if (a.page === p.num) svg.appendChild(annNode(a));
-  });
+  // Rebuilding the overlay throws away the node of the box being typed in —
+  // and with it the caret, the focus and (on an iPad) the keyboard. Remember
+  // where the caret was and put it back once the new node exists.
+  var keptCaret = captureTextEditCaret(svg);
+  overlayRebuilding++;
+  try {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    annotations.forEach(function (a) {
+      if (a.page === p.num) svg.appendChild(annNode(a));
+    });
+  } finally { overlayRebuilding--; }
   if (showTimestamps) refreshTsLabels(p);
   if (selectedId && selectedId !== editModeId && selectedId !== editingId) {
     var selAnn = annotations.find(function (a) { return a.id === selectedId; });
@@ -3025,6 +3032,70 @@ function renderOverlay(p) {
   }
   if (lassoSel && lassoSel.page === p) renderLassoChrome(p);
   renderEditChrome(p);
+  if (keptCaret) restoreTextEditCaret(svg, keptCaret);
+}
+
+/* ---- Keeping a text box typable across re-renders ----
+   The box being typed in only stays typable while its DOM node has the
+   focus, and every overlay rebuild destroys that node. These two helpers
+   carry the focus and caret position across the rebuild. Throwing the old
+   node away also fires its blur, which must not be mistaken for the user
+   leaving the box — the counter tells the two apart. */
+var overlayRebuilding = 0;
+function captureTextEditCaret(svg) {
+  if (!editingId) return null;
+  var node = svg.querySelector('[data-id="' + editingId + '"] .annText');
+  if (!node || document.activeElement !== node) return null;
+  // The words typed so far live only in the DOM until the box is committed,
+  // and the rebuild draws from the annotation — so fold them in first, or
+  // the re-render silently throws the half-typed sentence away.
+  var a = annotations.find(function (x) { return x.id === editingId; });
+  if (a) {
+    a.text = node.innerText.replace(/\n+$/, '');
+    a.h = Math.max(node.scrollHeight, a.h || 0, a.fontSize * 1.8);
+  }
+  return { id: editingId, offset: caretOffsetIn(node) };
+}
+
+function restoreTextEditCaret(svg, kept) {
+  if (editingId !== kept.id) return; // the edit ended during the rebuild
+  var node = svg.querySelector('[data-id="' + kept.id + '"] .annText');
+  if (!node) return;
+  bindTextEditNode(node, kept.id);
+  node.contentEditable = 'true';
+  try { node.focus({ preventScroll: true }); } catch (e) { node.focus(); }
+  setCaretOffsetIn(node, kept.offset);
+}
+
+/* Caret position as a plain character offset — the node is rebuilt from
+   scratch, so nothing about the old DOM tree survives to point at. */
+function caretOffsetIn(node) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  var r = sel.getRangeAt(0);
+  if (!node.contains(r.startContainer)) return null;
+  var pre = r.cloneRange();
+  pre.selectNodeContents(node);
+  pre.setEnd(r.startContainer, r.startOffset);
+  return pre.toString().length;
+}
+
+function setCaretOffsetIn(node, offset) {
+  var range = document.createRange();
+  var placed = false;
+  if (offset !== null && offset !== undefined) {
+    var walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
+    var left = offset, tn;
+    while ((tn = walker.nextNode())) {
+      if (left <= tn.length) { range.setStart(tn, left); placed = true; break; }
+      left -= tn.length;
+    }
+  }
+  if (!placed) { range.selectNodeContents(node); }
+  range.collapse(placed ? true : false);
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 /* Only the earliest and latest timestamped annotation of a page get a
@@ -4382,7 +4453,10 @@ function attachOverlayHandlers(p) {
       // next action (e.g. a new text box) — no second tap needed.
       var editedHost = e.target.closest ? e.target.closest('[data-id]') : null;
       if (editedHost && editedHost.getAttribute('data-id') === editingId) return;
-      commitActiveTextEdit();
+      // Opening another text box with this same tap: hold the re-render back
+      // so the focus passes straight from one box to the next (see
+      // commitActiveTextEdit) and the keyboard never drops.
+      commitActiveTextEdit(tool === 'text' || tool === 'ai');
     }
     // A tap on a "Watch video solution" pill plays the video for students
     // (and share-link visitors), and opens the link editor for the teacher.
@@ -4815,8 +4889,16 @@ function attachOverlayHandlers(p) {
       pushUndo();
       annotations.push(a2);
       editingId = a2.id;
-      renderOverlay(p);
-      focusTextAnn(p, a2.id);
+      renderAfterTextCommit(p);
+      // Hand the pointer back before focusing: while the overlay still owns
+      // the capture, iPad Safari treats the focus as its own and leaves the
+      // keyboard shut, so the new box was only typable after a second tap.
+      try {
+        if (p.svg.hasPointerCapture && p.svg.hasPointerCapture(e.pointerId)) {
+          p.svg.releasePointerCapture(e.pointerId);
+        }
+      } catch (err) { /* capture already gone */ }
+      focusTextAnn(a2.id);
       setDirty(true);
       return;
     }
@@ -4906,7 +4988,7 @@ function attachOverlayHandlers(p) {
     drawing = null;
     if (draggingSel && draggingSel.page === p) draggingSel = null;
     if (resizingSel && resizingSel.page === p) resizingSel = null;
-    renderOverlay(p);
+    renderAfterTextCommit(p);
   }
   svg.addEventListener('pointercancel', cancelGesture);
 
@@ -4957,7 +5039,7 @@ function enterEditMode(id, p) {
     editingId = id;
     editModeId = null;
     renderAllOverlays();
-    focusTextAnn(p, id);
+    focusTextAnn(id);
   } else {
     if (editModeId === id) return; // already in handle mode
     if (tool !== 'select') setTool('select');
@@ -5743,66 +5825,104 @@ function translateAnn(a, dx, dy) {
   }
 }
 
-function focusTextAnn(p, id) {
-  var node = p.svg.querySelector('[data-id="' + id + '"] .annText');
-  if (!node) return;
-  node.contentEditable = 'true';
-  // Focus synchronously so it still counts as part of the user's tap —
-  // iPad Safari only opens the keyboard for in-gesture focus, so a deferred
-  // focus() would leave the box waiting for a second tap before typing.
-  function placeCaret() {
-    node.focus();
-    var range = document.createRange();
-    range.selectNodeContents(node);
-    range.collapse(false);
-    var sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-  placeCaret();
-  setTimeout(function () { if (document.activeElement !== node) placeCaret(); }, 0);
+/* The live DOM node of a text box, wherever it is. Every re-render builds a
+   brand new one, so it is looked up afresh rather than held on to. */
+function annTextNode(id) {
+  return document.querySelector('svg.overlay [data-id="' + id + '"] .annText');
+}
+
+/* Grow-with-the-text and commit-on-blur, bound to whichever node currently
+   stands for the box (idempotent — re-binding after a re-render is free). */
+function bindTextEditNode(node, id) {
+  if (node._annEditId === id) return;
+  node._annEditId = id;
   node.addEventListener('input', function () {
     var a = annotations.find(function (x) { return x.id === id; });
     if (a) {
       // Grow with the text, but never shrink a box the user drew tall.
       a.h = Math.max(node.scrollHeight, a.h || 0, a.fontSize * 1.8);
-      node.parentNode.setAttribute('height', a.h);
+      if (node.parentNode) node.parentNode.setAttribute('height', a.h);
     }
   });
   node.addEventListener('blur', function () {
-    var a = annotations.find(function (x) { return x.id === id; });
-    if (!a) return;
-    var text = node.innerText.replace(/\n+$/, '');
-    var askAi = false;
-    if (!text.trim()) {
-      annotations = annotations.filter(function (x) { return x.id !== id; });
-      if (selectedId === id) selectedId = null;
-    } else {
-      a.text = text;
-      a.h = Math.max(node.scrollHeight, a.h || 0, a.fontSize * 1.8);
-      askAi = !!a._ai;
-    }
-    delete a._ai;
-    if (editingId === id) editingId = null;
-    renderOverlay(p);
-    setDirty(true);
-    if (askAi) aiAnswer(id);
-  }, { once: true });
+    if (editingId !== id) return;          // already committed by another route
+    if (overlayRebuilding || !node.isConnected) return; // a re-render swapped
+                                           // the node out and puts the focus
+                                           // straight back — not the user
+                                           // leaving the box
+    commitActiveTextEdit();
+  });
+}
+
+/* Nothing else is holding the keyboard: the tap has not moved on to a real
+   control (a toolbar button, a dialog field, another text box). */
+function textFocusIsIdle() {
+  var ae = document.activeElement;
+  if (!ae || ae === document.body || ae === document.documentElement) return true;
+  if (ae.classList && ae.classList.contains('annText')) return true;
+  return !!(ae.closest && ae.closest('.pageWrap'));
+}
+
+/* One attempt at making the box typable. Returns 'ok' once the box holds the
+   focus, 'retry' while its node is missing or the focus refused to land, and
+   'stop' when the edit is over or the user has tapped something else.
+   `claim` takes the focus whatever currently holds it — true for the first
+   attempt, which belongs to the tap that asked for the box. */
+function assertTextFocus(id, claim) {
+  if (editingId !== id) return 'stop';
+  var node = annTextNode(id);
+  if (!node) return 'retry';
+  if (document.activeElement === node) return 'ok';
+  if (!claim && !textFocusIsIdle()) return 'stop';
+  bindTextEditNode(node, id);
+  if (node.getAttribute('contenteditable') !== 'true') node.contentEditable = 'true';
+  try { node.focus({ preventScroll: true }); } catch (e) { node.focus(); }
+  if (document.activeElement !== node) return 'retry';
+  setCaretOffsetIn(node, null); // caret at the end of whatever is there
+  return 'ok';
+}
+
+/* A new text box must be ready to type in the moment it appears — never
+   "sometimes". The focus is taken synchronously first, because iPad Safari
+   only opens the keyboard for a focus() made inside the tap itself; but that
+   focus can still be lost afterwards (a re-render replaces the node, Safari
+   drops it while releasing the pointer capture, an autosave lands). So keep
+   re-asserting it for a moment, re-finding the node each time, and stop early
+   only if the user has genuinely moved on to something else. */
+var textFocusTimer = null;
+function focusTextAnn(id) {
+  clearTimeout(textFocusTimer);
+  textFocusTimer = null;
+  // The element the tap left focused (often the toolbar button that chose the
+  // text tool) is fair game to take the focus from on a retry as well.
+  var wasFocused = document.activeElement;
+  if (assertTextFocus(id, true) === 'stop') return;
+  var delays = [0, 20, 60, 140, 300, 500];
+  var i = 0;
+  (function step() {
+    if (i >= delays.length) { textFocusTimer = null; return; }
+    textFocusTimer = setTimeout(function () {
+      textFocusTimer = null;
+      var claim = document.activeElement === wasFocused;
+      if (assertTextFocus(id, claim) === 'stop') return;
+      step();
+    }, delays[i++]);
+  })();
 }
 
 /* Commit the text box currently being typed in (if any). Used when the user
    switches tools or taps elsewhere on the page, so a single tap is enough to
    move on — no separate "click away first" step. */
-function commitActiveTextEdit() {
+function commitActiveTextEdit(deferRender) {
   if (!editingId) return;
+  clearTimeout(textFocusTimer);
+  textFocusTimer = null;
   var id = editingId;
-  var node = document.querySelector('svg.overlay [data-id="' + id + '"] .annText');
-  if (node && document.activeElement === node) {
-    node.blur(); // the blur handler saves the text and clears editingId
-    if (editingId !== id) return;
-  }
-  // Fallback (e.g. iPad Safari left the box unfocused without firing blur):
-  // read the typed text straight from the DOM and commit it here.
+  var node = annTextNode(id);
+  // Read the typed text straight from the DOM. The box is never blurred
+  // first: on an iPad, letting go of the keyboard here and asking for it
+  // again a moment later is exactly what leaves the next box untypable —
+  // the focus has to pass straight from this box to the next one.
   editingId = null;
   var a = annotations.find(function (x) { return x.id === id; });
   var askAi = false;
@@ -5819,9 +5939,33 @@ function commitActiveTextEdit() {
     delete a._ai;
     setDirty(true);
   }
-  renderAllOverlays();
+  // A caller that is about to open another text box in this same tap takes
+  // the re-render on itself, so the box the user is leaving and the one they
+  // are opening are drawn once, together — one node swap, keyboard intact.
+  if (deferRender) textCommitNeedsRender = true;
+  else renderAllOverlays();
+  flushPendingRemoteDoc(); // a live update held back while typing can land now
   if (askAi) aiAnswer(id);
 }
+
+/* Draw a commit whose re-render was handed over to the caller (see above). */
+var textCommitNeedsRender = false;
+function renderAfterTextCommit(p) {
+  if (textCommitNeedsRender) { textCommitNeedsRender = false; renderAllOverlays(); }
+  else renderOverlay(p);
+}
+
+/* Safety net: a held-back re-render must never outlive the tap that held it
+   back — the tap may turn out not to open a box at all (palm rejection,
+   pencil-only mode, a gesture the browser cancelled). Runs after the
+   overlay's own handlers, so a tap that did open a box has already drawn. */
+function flushTextCommitRender() {
+  if (!textCommitNeedsRender) return;
+  textCommitNeedsRender = false;
+  renderAllOverlays();
+}
+document.addEventListener('pointerup', flushTextCommitRender);
+document.addEventListener('pointercancel', flushTextCommitRender);
 
 function deleteSelected() {
   if (!selectedId) { toast('Select an annotation first (arrow tool).'); return; }
@@ -8168,9 +8312,9 @@ function applyRemoteDoc(d) {
   // annotations — those updates must not disturb anything on screen.
   if (json === openDocAnnJson) { renderSidebar(); return; }
 
-  // Never yank the page out from under a student mid-answer: hold the update
-  // until they have finished typing into the keyword box.
-  if (kwGuessActive) { openDocPending = d; return; }
+  // Never yank the page out from under anyone mid-typing: hold the update
+  // until the keyword box, or the text box being written in, is finished.
+  if (kwGuessActive || editingId) { openDocPending = d; return; }
 
   openDocAnnJson = json;
   var parsed;
@@ -8195,7 +8339,7 @@ function applyRemoteDoc(d) {
 
 /* Flush an update that arrived while the student was typing an answer. */
 function flushPendingRemoteDoc() {
-  if (!openDocPending || kwGuessActive) return;
+  if (!openDocPending || kwGuessActive || editingId) return;
   var d = openDocPending;
   openDocPending = null;
   applyRemoteDoc(d);
@@ -10929,6 +11073,16 @@ document.addEventListener('keydown', function (e) {
   if (editingText) {
     if (e.key === 'Escape') ae.blur();
     return;
+  }
+  // A box open for typing that has lost its focus used to send every
+  // keystroke to the tool shortcuts — typing "hello" switched tools four
+  // times. Put the focus back and let the character land in the box.
+  if (editingId && annTextNode(editingId)) {
+    if (e.key === 'Escape') { commitActiveTextEdit(); return; }
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'Tab') {
+      focusTextAnn(editingId);
+      if (document.activeElement === annTextNode(editingId)) return;
+    }
   }
   // Ahead of the role branches below: full screen is for everyone. Shift, so
   // it does not collide with plain F for fit-to-width.
