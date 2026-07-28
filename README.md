@@ -27,6 +27,10 @@ Science Learning Portal uses.
   SVG.
 - The header button reads **AI · ChatGPT** while that engine is on, so the
   current engine is visible without opening the dialog.
+- **The wording follows the engine.** Every label, hint, tooltip and busy line
+  names whichever engine is actually running — the AI notes dialog asks *"What
+  should ChatGPT make?"* and reports *"ChatGPT is making your interactive
+  widget…"* once the toggle is on, instead of always saying Gemini.
 
 ## Worksheets listed day by day (v1.40.0)
 

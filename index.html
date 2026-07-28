@@ -1809,7 +1809,7 @@
     <button class="toolBtn" data-tool="text" data-key="T" title="Text box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
     </button>
-    <button class="toolBtn" data-tool="ai" data-key="G" title="AI answer box — draw a box, type your question, and Gemini writes the answer">
+    <button class="toolBtn" data-tool="ai" data-key="G" data-ai-title="AI answer box — draw a box, type your question, and {ai} writes the answer" title="AI answer box — draw a box, type your question, and Gemini writes the answer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/></svg>
     </button>
     <button class="toolBtn" data-tool="ainote" data-key="I" title="AI notes — click a spot, choose notes, a table, a picture or an interactive widget, and say what you want">
@@ -2051,7 +2051,7 @@
   </div>
   <div class="sideCard" id="answerKeyCard" style="display:none">
     <h4>Answer key</h4>
-    <div class="sideHint">Gemini reads every page of this worksheet — the printed questions and any answers written on it — and writes one condensed answer per question with a short explanation.</div>
+    <div class="sideHint"><span class="aiName">Gemini</span> reads every page of this worksheet — the printed questions and any answers written on it — and writes one condensed answer per question with a short explanation.</div>
     <button class="btn btnPrimary practiceWide" id="genKeyBtn">✨ Generate answer key</button>
     <button class="btn practiceWide" id="viewKeyBtn" style="display:none">📄 View the answer key</button>
     <button class="btn practiceWide" id="printKeyBtn" style="display:none">🖨 Print / save as PDF</button>
@@ -2231,7 +2231,7 @@
     </div>
     <div class="modalBody">
       <div class="fieldRow">
-        <label>What should Gemini make?</label>
+        <label>What should <span class="aiName">Gemini</span> make?</label>
         <div class="aiKindGrid" id="aiNoteKinds"></div>
       </div>
       <div class="fieldRow">
@@ -2241,7 +2241,7 @@
       </div>
       <label class="reviseToggleRow" for="aiNoteContext">
         <input type="checkbox" id="aiNoteContext" checked>
-        <span>Let Gemini see this page of the worksheet first</span>
+        <span>Let <span class="aiName">Gemini</span> see this page of the worksheet first</span>
       </label>
       <div class="modalActions">
         <span class="aiNoteBusy" id="aiNoteBusy"></span>
@@ -3527,7 +3527,7 @@ function renderEditChrome(p) {
   // the text being typed.
   var sharesRow = a.type === 'text' && (practiceMode || (!isStudent() && !isSharedVisitor()));
   if (editingId === activeId && a._ai) {
-    badge.textContent = sharesRow ? '✨ Type your question' : '✨ Type your question — click outside and Gemini answers it';
+    badge.textContent = sharesRow ? '✨ Type your question' : '✨ Type your question — click outside and ' + aiEngineName() + ' answers it';
   } else if (editingId === activeId) {
     badge.textContent = sharesRow ? '✏️ Editing' : '✏️ Editing text — click outside or press Esc to finish';
   } else if (a.type === 'pen' || a.type === 'highlight') {
@@ -3612,7 +3612,7 @@ function renderPracticeBar(p, a, box) {
   bar.className = 'aiBar';
   var b = document.createElement('button');
   b.textContent = '✨ Check this answer';
-  b.title = 'Gemini marks this answer against the worksheet';
+  b.title = aiEngineName() + ' marks this answer against the worksheet';
   b.addEventListener('pointerdown', function (e) {
     e.preventDefault();
     e.stopPropagation();
@@ -3621,7 +3621,7 @@ function renderPracticeBar(p, a, box) {
   bar.appendChild(b);
   var ask = document.createElement('button');
   ask.textContent = '💬 Ask AI · ' + askCreditsLeft({ kind: 'ann', id: a.id }) + '⭐';
-  ask.title = 'Ask Gemini to explain anything featured in this question — an off-topic question costs ' + ASK_PENALTY + ' credits';
+  ask.title = 'Ask ' + aiEngineName() + ' to explain anything featured in this question — an off-topic question costs ' + ASK_PENALTY + ' credits';
   ask.addEventListener('pointerdown', function (e) {
     e.preventDefault();
     e.stopPropagation();
@@ -3693,10 +3693,10 @@ function renderAiBar(p, a, box) {
     renderAiBar(p, a, box); // rebuild in place — the text box keeps focus
   }
   if (aiBarMin) {
-    addBtn('✨', 'aiBarToggle', 'Show the Gemini Answer / Improve menu', function () { setMin(false); });
+    addBtn('✨', 'aiBarToggle', 'Show the ' + aiEngineName() + ' Answer / Improve menu', function () { setMin(false); });
   } else {
-    addBtn('✨ Answer', '', 'Gemini answers the question typed in this box', aiAnswer);
-    addBtn('✒️ Improve', '', 'Gemini fixes grammar and sentence structure without changing the content', aiImprove);
+    addBtn('✨ Answer', '', aiEngineName() + ' answers the question typed in this box', aiAnswer);
+    addBtn('✒️ Improve', '', aiEngineName() + ' fixes grammar and sentence structure without changing the content', aiImprove);
     var isDefault = defaultTextW && Math.abs(defaultTextW - (a.w || 0)) < 1;
     addBtn(isDefault ? '↔ Default ✓' : '↔ Set width', '',
       isDefault
@@ -6348,6 +6348,24 @@ function getOpenAiImageModel() { try { return localStorage.getItem(AI_ENGINE_STO
 function openAiActive() { return getAiEngine() === 'openai' && !!getOpenAiKey(); }
 window.openAiActive = openAiActive;
 
+/* Every user-facing mention of the engine goes through here, so nothing in
+   the app claims Gemini is working while ChatGPT is the engine that is on.
+   Static markup carries the default wording: a <span class="aiName"> holds
+   the name inside a sentence, and data-ai-title holds a tooltip with {ai}
+   where the name goes. Both are rewritten whenever the engine changes. */
+function aiEngineName() { return openAiActive() ? 'ChatGPT' : 'Gemini'; }
+window.aiEngineName = aiEngineName;
+
+function refreshAiEngineNames() {
+  var name = aiEngineName();
+  var spans = document.querySelectorAll('.aiName');
+  for (var i = 0; i < spans.length; i++) spans[i].textContent = name;
+  var titled = document.querySelectorAll('[data-ai-title]');
+  for (var j = 0; j < titled.length; j++) {
+    titled[j].title = titled[j].getAttribute('data-ai-title').replace(/\{ai\}/g, name);
+  }
+}
+
 /* Same call shape as window.askGemini so the bridge can swap one for the
    other: system instruction, inline images and strict-JSON mode all map onto
    the chat-completions API. */
@@ -6457,7 +6475,8 @@ function saveAiEngineSettings() {
     else localStorage.removeItem(AI_ENGINE_STORE.key);
   } catch (e) { toast('Could not save: ' + ((e && e.message) || e), 4000); return; }
   closeAiEngineModal();
-  renderAuthArea(); // the header button names the engine that is now on
+  renderAuthArea();        // the header button names the engine that is now on
+  refreshAiEngineNames();  // …and so does every label, hint and tooltip
   toast(eng === 'openai' ? 'AI engine set to ChatGPT (' + model + ') — saved on this device' : 'AI engine set to Gemini', 3500);
 }
 
@@ -6558,7 +6577,7 @@ function aiApplyText(id, text) {
 
 function aiRequest(id, systemText, userText, busyMsg, images) {
   if (isStudent()) return; // Answer/Improve write answers — teacher-only
-  if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
+  if (aiBusy) { toast(aiEngineName() + ' is still working on the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return;
@@ -6568,12 +6587,12 @@ function aiRequest(id, systemText, userText, busyMsg, images) {
   var imgs = (images || []).map(function (im) { return { mimeType: im.mimeType, data: im.data }; });
   window.askGemini(userText, { system: systemText, maxOutputTokens: 1200, temperature: 0.4, images: imgs }).then(function (text) {
     aiBusy = false;
-    if (!text) { toast('Gemini returned an empty answer — please try again.', 5000); return; }
+    if (!text) { toast(aiEngineName() + ' returned an empty answer — please try again.', 5000); return; }
     aiApplyText(id, text);
     toast('✨ Done — Ctrl+Z brings the old text back.');
   }).catch(function (err) {
     aiBusy = false;
-    toast('Gemini error: ' + ((err && err.message) || 'request failed — please try again.'), 6000);
+    toast(aiEngineName() + ' error: ' + ((err && err.message) || 'request failed — please try again.'), 6000);
   });
 }
 
@@ -6595,7 +6614,7 @@ function aiAnswer(id) {
   }
   lines.push('The teacher typed in the answer box: "' + q + '"');
   lines.push('Write only the text that should go in the box.');
-  aiRequest(id, AI_ANSWER_SYS, lines.join('\n'), '✨ Gemini is reading the worksheet…', ctx);
+  aiRequest(id, AI_ANSWER_SYS, lines.join('\n'), '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx);
 }
 
 function aiImprove(id) {
@@ -6604,7 +6623,7 @@ function aiImprove(id) {
   if (!a || a.type !== 'text') return;
   var t = (a.text || '').trim();
   if (!t) { toast('The text box is empty — nothing to improve.'); return; }
-  aiRequest(id, AI_IMPROVE_SYS, t, '✒️ Gemini is polishing the wording…');
+  aiRequest(id, AI_IMPROVE_SYS, t, '✒️ ' + aiEngineName() + ' is polishing the wording…');
 }
 
 /* ================= AI notes =================
@@ -6800,7 +6819,7 @@ function openAiNoteModal(ctx) {
   // while it is open. Mid-generation the spot is already spoken for; the rest
   // of the time picking a new spot just moves it, keeping what was typed.
   if (wasOpen && aiBusy) {
-    toast('Gemini is still making the last card — wait for it to land.');
+    toast(aiEngineName() + ' is still making the last card — wait for it to land.');
     return;
   }
   var keepTyped = wasOpen && ctx.mode === 'new' &&
@@ -6817,6 +6836,7 @@ function openAiNoteModal(ctx) {
   $('aiNoteBusy').textContent = '';
   $('aiNoteContext').checked = true;
   renderAiNoteKinds();
+  refreshAiEngineNames();  // the labels name whichever engine is on right now
   $('aiNoteModal').classList.add('open');
   placeAiNoteWin();   // needs the card laid out — it measures its own height
   if (keepTyped) { toast('New spot picked — your instructions are still here.'); return; }
@@ -6914,8 +6934,8 @@ var AI_NOTE_SYS = {
 async function generateAiNote() {
   if (!aiNoteEdit) return;
   var instr = $('aiNoteInstr').value.trim();
-  if (!instr) { toast('Say what you would like Gemini to make.'); $('aiNoteInstr').focus(); return; }
-  if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
+  if (!instr) { toast('Say what you would like ' + aiEngineName() + ' to make.'); $('aiNoteInstr').focus(); return; }
+  if (aiBusy) { toast(aiEngineName() + ' is still working on the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return;
@@ -6938,7 +6958,7 @@ async function generateAiNote() {
       };
 
   aiBusy = true;
-  setAiNoteBusy(true, 'Gemini is making your ' + aiNoteKindInfo(kind).name.toLowerCase() + '…');
+  setAiNoteBusy(true, aiEngineName() + ' is making your ' + aiNoteKindInfo(kind).name.toLowerCase() + '…');
   try {
     var built = await buildAiNotePayload(kind, instr, frame, page);
     var a = editing ? annotations.find(function (x) { return x.id === ctx.id; }) : null;
@@ -6976,7 +6996,7 @@ async function generateAiNote() {
       : '✨ Card added — drag it where you want it. Ctrl+Z undoes it.', 4200);
   } catch (err) {
     console.error('AI note failed', err);
-    toast('Gemini could not make that: ' + ((err && err.message) || 'please try again.'), 6000);
+    toast(aiEngineName() + ' could not make that: ' + ((err && err.message) || 'please try again.'), 6000);
   } finally {
     aiBusy = false;
     setAiNoteBusy(false, '');
@@ -7173,7 +7193,7 @@ function aiNoteCardNode(a) {
     redo.className = 'aiNoteBtn';
     redo.setAttribute('data-ainote-act', 'redo');
     redo.textContent = '✨';
-    redo.title = 'Ask Gemini for this card again';
+    redo.title = 'Ask ' + aiEngineName() + ' for this card again';
     head.appendChild(redo);
   }
   card.appendChild(head);
@@ -7639,7 +7659,7 @@ function updateAskAiUi(t) {
         ' — a word, an idea, a diagram. The AI explains it without giving the answer away. ' +
         'Careful: an off-topic question costs ' + ASK_PENALTY + ' of your ' + ASK_START_CREDITS + ' credits!'
       : 'Ask anything about what is on this ' + (t && t.kind === 'page' ? 'page' : 'question') +
-        ' — Gemini can read the worksheet.';
+        ' — ' + aiEngineName() + ' can read the worksheet.';
   }
   if (!askMetered()) {
     // No credit meter for the teacher.
@@ -7722,7 +7742,7 @@ function sendAskAi() {
   if (!askTargetValid(t)) { $('askAiModal').classList.remove('open'); return; }
   var q = $('askAiInput').value.trim();
   if (!q) return;
-  if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
+  if (aiBusy) { toast(aiEngineName() + ' is still working on the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return;
@@ -7775,7 +7795,7 @@ function sendAskAi() {
   }).catch(function (err) {
     aiBusy = false;
     thinking.remove();
-    thread.push({ who: 'ai', text: 'Gemini error: ' + ((err && err.message) || 'request failed — please try again.') });
+    thread.push({ who: 'ai', text: aiEngineName() + ' error: ' + ((err && err.message) || 'request failed — please try again.') });
     renderAskThread(t);
   });
 }
@@ -7947,7 +7967,7 @@ function bandJpeg(p, anns, yTop, yBottom) {
 
 function checkAnswer(explicitId) {
   if (!practiceMode) return;
-  if (aiBusy) { toast('Gemini is still marking the previous answer…'); return; }
+  if (aiBusy) { toast(aiEngineName() + ' is still marking the previous answer…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return;
@@ -7965,7 +7985,7 @@ function checkAnswer(explicitId) {
   if (!p) return;
   aiBusy = true;
   $('checkTitle').textContent = 'Checking your answer…';
-  $('checkBody').textContent = '✨ Gemini is reading the worksheet and your answer…';
+  $('checkBody').textContent = '✨ ' + aiEngineName() + ' is reading the worksheet and your answer…';
   $('checkModal').classList.add('open');
   markCluster(p, [sa]).then(function (out) {
     aiBusy = false;
@@ -8155,7 +8175,7 @@ function checkingAvailable() {
     toast('Start practice first (sidebar) — checking compares your answers with the hidden answer key.', 4500);
     return false;
   }
-  if (aiBusy) { toast('Gemini is still marking — one moment…'); return false; }
+  if (aiBusy) { toast(aiEngineName() + ' is still marking — one moment…'); return false; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return false;
@@ -8176,7 +8196,7 @@ function checkLassoSelection() {
   if (!anns.length) { toast('The lassoed items are gone — lasso your answer again.'); return; }
   aiBusy = true;
   $('checkTitle').textContent = 'Checking the selected answer…';
-  $('checkBody').textContent = '✨ Gemini is reading the worksheet and your answer…';
+  $('checkBody').textContent = '✨ ' + aiEngineName() + ' is reading the worksheet and your answer…';
   $('checkModal').classList.add('open');
   markCluster(p, anns).then(function (out) {
     aiBusy = false;
@@ -8421,7 +8441,7 @@ var AI_KEY_SYS =
 function answerKeyReady() {
   if (!pdfDoc) { toast('Open a worksheet first.'); return false; }
   if (isStudent() || isSharedVisitor()) return false;
-  if (aiBusy) { toast('Gemini is still busy — one moment…'); return false; }
+  if (aiBusy) { toast(aiEngineName() + ' is still busy — one moment…'); return false; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return false;
@@ -8464,13 +8484,13 @@ async function generateAnswerKey() {
   var keyAnns = answerAnnotations();
   aiBusy = true;
   $('checkTitle').textContent = 'Building the answer key…';
-  $('checkBody').textContent = '✨ Gemini is reading page 1 of ' + pages.length + '…';
+  $('checkBody').textContent = '✨ ' + aiEngineName() + ' is reading page 1 of ' + pages.length + '…';
   $('checkModal').classList.add('open');
   var items = [], seen = {}, failed = [];
   var prevJpeg = null;
   for (var i = 0; i < pages.length; i++) {
     var p = pages[i];
-    $('checkBody').textContent = '✨ Gemini is reading page ' + p.num + ' of ' + pages.length + '…' +
+    $('checkBody').textContent = '✨ ' + aiEngineName() + ' is reading page ' + p.num + ' of ' + pages.length + '…' +
       (items.length ? ' (' + items.length + ' question' + (items.length === 1 ? '' : 's') + ' so far)' : '');
     try {
       var clean = await keyPageJpeg(p, [], 1500);
@@ -8575,7 +8595,7 @@ function renderAnswerKey() {
   if (!key.items.length) {
     var none = document.createElement('div');
     none.className = 'checkFeedback';
-    none.textContent = 'Gemini could not find any questions to key on this worksheet. ' +
+    none.textContent = aiEngineName() + ' could not find any questions to key on this worksheet. ' +
       (key.failed.length ? 'Page' + (key.failed.length === 1 ? ' ' : 's ') + key.failed.join(', ') + ' could not be read.' : 'Try again in a moment.');
     body.appendChild(none);
     return;
@@ -8701,7 +8721,7 @@ var AI_BEAUTIFY_SYS =
 
 function beautifySelection() {
   if (!lassoSel || !lassoSel.ids.length) { toast('Lasso some workings first.'); return; }
-  if (aiBusy) { toast('Gemini is still busy with the previous request…'); return; }
+  if (aiBusy) { toast(aiEngineName() + ' is still busy with the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
     return;
@@ -8737,7 +8757,7 @@ function beautifySelection() {
   if (ctxBand) imgs.push({ mimeType: 'image/jpeg', data: ctxBand });
 
   aiBusy = true;
-  toast('✨ Gemini is reading the handwriting…', 30000);
+  toast('✨ ' + aiEngineName() + ' is reading the handwriting…', 30000);
   window.askGemini(
     'Image 1 is the handwriting to transcribe — transcribe ONLY image 1. ' +
     (imgs.length > 1 ? 'Image 2 shows the same spot on the worksheet, for context only. ' : '') +
@@ -12908,6 +12928,7 @@ var lastTool = toolStyles._lastTool;
 setTool(lastTool && document.querySelector('#toolButtons [data-tool="' + lastTool + '"]') ? lastTool : 'pen');
 syncStyleControls();
 applyRoleUI();
+refreshAiEngineNames();
 </script>
 
 <script type="module">
