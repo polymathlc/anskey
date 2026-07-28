@@ -2605,7 +2605,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.42.0';
+var APP_VERSION = 'v1.43.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -6771,9 +6771,21 @@ var AI_NOTE_KINDS = [
   {
     key: 'widget', icon: '⚙️', name: 'Interactive widget',
     what: 'A small working model the class can play with, pinned to the page.',
-    ph: 'e.g. a model showing diffusion — particles spreading from high to low concentration, with a speed slider'
+    ph: 'Leave blank to teach the question you clicked on — or say exactly what you want, e.g. a model showing diffusion, particles spreading from high to low concentration, with a speed slider'
   }
 ];
+
+/* Left blank, a widget teaches whatever the question at that spot is about.
+   That is the common case in a lesson — click beside the question, Generate,
+   carry on talking — so it is the default rather than something to type out
+   every time. The spot itself is what tells the model which question. */
+var AI_NOTE_WIDGET_DEFAULT =
+  'Build an interactive app that teaches the concept behind the question ' +
+  'printed nearest this spot on the worksheet. Work out what that question is ' +
+  'really testing, then make a hands-on model of that idea: the student changes ' +
+  'something and sees what happens, so the concept becomes obvious. Do not just ' +
+  'answer the question — teach the idea underneath it, in a way that also works ' +
+  'for the questions around it.';
 var AI_NOTE_SIZE = {
   notes:  { w: 250, h: 160 },
   table:  { w: 290, h: 150 },
@@ -6834,6 +6846,7 @@ var AI_NOTE_QUALITY = [
   }
 ];
 var AI_NOTE_QUALITY_KEY = 'polymath.aiNoteQuality';
+var AI_NOTE_KIND_KEY = 'polymath.aiNoteKind';
 var aiNoteQuality = 'high';
 
 function aiNoteQualityInfo(k) {
@@ -6841,10 +6854,12 @@ function aiNoteQualityInfo(k) {
          AI_NOTE_QUALITY.find(function (x) { return x.key === 'high'; });
 }
 
-function loadAiNoteQuality() {
+function loadAiNotePrefs() {
   try {
     var v = localStorage.getItem(AI_NOTE_QUALITY_KEY);
     if (v && AI_NOTE_QUALITY.some(function (q) { return q.key === v; })) aiNoteQuality = v;
+    var k = localStorage.getItem(AI_NOTE_KIND_KEY);
+    if (k && AI_NOTE_KINDS.some(function (x) { return x.key === k; })) aiNoteKind = k;
   } catch (e) {}
 }
 
@@ -7083,13 +7098,16 @@ function renderAiNoteKinds() {
   var info = aiNoteKindInfo(aiNoteKind);
   $('aiNoteInstr').placeholder = info.ph;
   $('aiNoteHint').textContent = aiNoteKind === 'widget'
-    ? 'The widget runs in a sandbox of its own — it cannot reach the rest of the app or the internet. Tap ▶ Use on the card to play with it; ✋ Lock it again to write over it.'
+    ? 'Leave the box empty and it builds an interactive app teaching the concept behind the question you clicked next to — press Generate and carry on. The widget runs in a sandbox of its own: it cannot reach the rest of the app or the internet. Tap ▶ Use on the card to play with it; ✋ Lock it again to write over it.'
     : 'Say what you want in your own words. The card lands where you clicked and can be moved, resized or erased like anything else.';
   $('aiNoteHint').textContent += ' Building carries on in the background — minimise or close this window, start another card, and a note in the corner tells you when each one lands.';
 }
 
 function setAiNoteKind(k) {
   aiNoteKind = k;
+  // Remembered across reloads: a teacher who lives in widgets should not have
+  // to pick "Interactive widget" every lesson.
+  try { localStorage.setItem(AI_NOTE_KIND_KEY, k); } catch (e) {}
   renderAiNoteKinds();
   $('aiNoteInstr').focus();
 }
@@ -7164,7 +7182,11 @@ function aiNoteRunningCount() {
 
 function generateAiNote() {
   if (!aiNoteEdit) return;
-  var instr = $('aiNoteInstr').value.trim();
+  var typed = $('aiNoteInstr').value.trim();
+  // A blank widget teaches the question it was dropped beside; every other
+  // kind still needs to be told what to make.
+  var useDefault = !typed && aiNoteKind === 'widget';
+  var instr = typed || (useDefault ? AI_NOTE_WIDGET_DEFAULT : '');
   if (!instr) { toast('Say what you would like ' + aiEngineName() + ' to make.'); $('aiNoteInstr').focus(); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     toast('AI is not available — check your connection and reload the page.', 5000);
@@ -7192,17 +7214,28 @@ function generateAiNote() {
       };
 
   // Snapshot the page now, not when the answer comes back — the class keeps
-  // writing on it while the job runs.
+  // writing on it while the job runs. Without an instruction the page IS the
+  // instruction, so the snapshot goes along whatever the tick box says.
   var images = [];
-  if ($('aiNoteContext').checked) {
+  if ($('aiNoteContext').checked || useDefault) {
     var snap = aiNotePageImage(page);
     if (snap) images.push(snap);
   }
+  if (useDefault && !images.length) {
+    toast('That page could not be read, so there is no question to teach — type what you want instead.', 6000);
+    $('aiNoteInstr').focus();
+    return;
+  }
 
   var job = {
-    id: ++aiNoteJobSeq, kind: kind, instr: instr, quality: aiNoteQuality,
+    // instr is what the model is told; prompt is what the card remembers, and
+    // a card built from the spot remembers nothing — reopening it gives a
+    // blank box that defaults to the spot again.
+    id: ++aiNoteJobSeq, kind: kind, instr: instr, prompt: useDefault ? '' : instr,
+    quality: aiNoteQuality,
     annId: editing ? ctx.id : null, pageNum: page.num, frame: frame,
     images: images, epoch: wsEpoch, state: 'run',
+    spot: { fromSpot: useDefault, pageW: page.baseW, pageH: page.baseH },
     name: aiNoteKindInfo(kind).name, msg: ''
   };
   aiNoteJobs.push(job);
@@ -7213,13 +7246,16 @@ function generateAiNote() {
   // another spot on the worksheet opens it again for the next card, which
   // starts building alongside this one.
   closeAiNoteModal();
-  toast('✨ Making your ' + job.name.toLowerCase() + ' in the background — it lands on page ' + job.pageNum +
-        ' by itself. Click another spot to start the next one.', 4600);
+  toast(useDefault
+    ? '✨ Building an interactive app for the question at that spot — it lands on page ' + job.pageNum +
+      ' by itself. Click another question to start the next one.'
+    : '✨ Making your ' + job.name.toLowerCase() + ' in the background — it lands on page ' + job.pageNum +
+      ' by itself. Click another spot to start the next one.', 4600);
 }
 
 async function runAiNoteJob(job) {
   try {
-    var built = await buildAiNotePayload(job.kind, job.instr, job.frame, job.images, job.quality);
+    var built = await buildAiNotePayload(job.kind, job.instr, job.frame, job.images, job.quality, job.spot);
     if (job.state === 'gone') return;                       // dismissed while it worked
     if (job.epoch !== wsEpoch) {
       finishAiJob(job, 'err', 'that worksheet was closed before it was ready');
@@ -7234,7 +7270,7 @@ async function runAiNoteJob(job) {
     if (a) {
       // Redo keeps the card where it is, at the size the teacher gave it.
       a.kind = job.kind;
-      a.prompt = job.instr;
+      a.prompt = job.prompt !== undefined ? job.prompt : job.instr;
       a.title = built.title;
       a.text = built.text || '';
       a.columns = built.columns || null;
@@ -7246,7 +7282,7 @@ async function runAiNoteJob(job) {
       a = {
         id: newAnnId(), page: page.num, type: 'ainote', kind: job.kind,
         x: job.frame.x, y: job.frame.y, w: job.frame.w, h: job.frame.h,
-        color: color, prompt: job.instr, title: built.title,
+        color: color, prompt: job.prompt !== undefined ? job.prompt : job.instr, title: built.title,
         text: built.text || '', columns: built.columns || null, rows: built.rows || null,
         src: built.src || '', html: built.html || '', live: false, ts: Date.now()
       };
@@ -7383,7 +7419,7 @@ function fitAiNoteHeight(a) {
 /* Ask the model for the card's contents. Everything comes back in the shape
    the annotation stores, so the caller only has to save it. The page snapshot
    and the quality come from the job — the window may be long gone. */
-async function buildAiNotePayload(kind, instr, frame, imgs, quality) {
+async function buildAiNotePayload(kind, instr, frame, imgs, quality, spot) {
   var q = aiNoteQualityInfo(quality);
   var lines = [];
   var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
@@ -7392,6 +7428,14 @@ async function buildAiNotePayload(kind, instr, frame, imgs, quality) {
   imgs = imgs || [];
   if (imgs.length) lines.push('Attached: the worksheet page this card goes onto — use it for context.');
   lines.push('The teacher asked for: "' + instr + '"');
+  // Nothing was typed, so the spot on the page is the whole brief: say where
+  // the card was dropped and let the model read the question sitting there.
+  if (spot && spot.fromSpot && spot.pageW && spot.pageH) {
+    lines.push('The teacher clicked at roughly ' + Math.round(100 * (frame.x + frame.w / 2) / spot.pageW) +
+               '% across and ' + Math.round(100 * frame.y / spot.pageH) + '% down that page. ' +
+               'The question to teach is the one printed nearest there — read it off the attached page. ' +
+               'If that spot sits between questions, take the one just above it.');
+  }
 
   if (kind === 'image') {
     var imgPrompt = lines.concat([AI_NOTE_SYS[kind]]).join('\n');
@@ -7414,7 +7458,11 @@ async function buildAiNotePayload(kind, instr, frame, imgs, quality) {
     if (/<html[\s>]/i.test(html) && !/<\/html>/i.test(html)) {
       throw new Error('the widget was cut off before it finished — try a higher build quality or a simpler ask');
     }
-    return { title: aiNoteHtmlTitle(html) || aiNoteTitleFrom(instr), html: html };
+    return {
+      title: aiNoteHtmlTitle(html) ||
+             aiNoteTitleFrom(spot && spot.fromSpot ? 'Interactive model' : instr),
+      html: html
+    };
   }
 
   var raw = await window.askGemini(lines.join('\n'), {
@@ -13298,7 +13346,7 @@ setTool(lastTool && document.querySelector('#toolButtons [data-tool="' + lastToo
 syncStyleControls();
 applyRoleUI();
 refreshAiEngineNames();
-loadAiNoteQuality();
+loadAiNotePrefs();
 </script>
 
 <script type="module">
