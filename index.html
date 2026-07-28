@@ -162,6 +162,119 @@
     -webkit-user-select: none;
   }
   .videoAnnBtn svg { width: 13px; height: 13px; flex: 0 0 auto; }
+
+  /* ---------- AI notes ----------
+     A generated card living on the page: written notes, a table, a picture,
+     or a small interactive widget. Everything inside is sized in page units
+     (the foreignObject scales with the zoom), so these px values are really
+     PDF points. */
+  .aiNoteCard {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #E2E0D8;
+    border-left: 3px solid #7E57C2;
+    border-radius: 6px;
+    font-family: var(--font);
+    color: #26261F;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.10);
+  }
+  .aiNoteCard.aiNoteLive { border-color: #7E57C2; box-shadow: 0 0 0 2px rgba(126,87,194,0.28); }
+  .aiNoteHead {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 6px;
+    background: linear-gradient(135deg, #F3EFFA, #EAF2FB);
+    border-bottom: 1px solid #E7E3DB;
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #5A4A85;
+    /* Fixed height, matching AI_NOTE_HEAD_H — a live widget is positioned
+       right below it. */
+    flex: 0 0 15px;
+    height: 15px;
+    box-sizing: border-box;
+  }
+  .aiNoteTitle { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .aiNoteBtn {
+    flex: 0 0 auto;
+    border: 1px solid #D8D2E8;
+    background: #fff;
+    color: #5A4A85;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 7.5px;
+    font-weight: bold;
+    font-family: var(--font);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .aiNoteBtn:hover { background: #F3EFFA; }
+  .aiNoteBody { flex: 1 1 auto; overflow: auto; padding: 5px 7px; font-size: 10px; line-height: 1.42; }
+  .aiNoteBody.aiNoteBodyFlush { padding: 0; overflow: hidden; }
+  .aiNoteBody h3 { font-size: 11px; margin: 4px 0 2px; }
+  .aiNoteBody p { margin: 0 0 4px; }
+  .aiNoteBody ul, .aiNoteBody ol { margin: 0 0 4px; padding-left: 14px; }
+  .aiNoteBody li { margin-bottom: 1px; }
+  .aiNoteBody code { background: #F3F2EC; border-radius: 3px; padding: 0 2px; font-size: 9px; }
+  .aiNoteBody table { border-collapse: collapse; width: 100%; font-size: 9px; }
+  .aiNoteBody th, .aiNoteBody td { border: 1px solid #DDD9CF; padding: 2px 4px; text-align: left; vertical-align: top; }
+  .aiNoteBody th { background: #F5F3EC; font-weight: bold; }
+  .aiNoteBody img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  /* A widget card is only a frame and a heading — the widget itself floats
+     behind it (see .aiWidgetHost), so the body must not paint over it. */
+  .aiNoteCard.aiNoteWidget, .aiNoteCard.aiNoteWidget .aiNoteBody { background: transparent; }
+  .aiNotePlaceholder {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; text-align: center; color: #8A8A84; font-size: 9px; padding: 6px;
+  }
+  /* The live widget floats over its card in the page, so rebuilding the
+     overlay (which happens after every stroke) cannot restart it. */
+  .aiWidgetHost {
+    position: absolute;
+    /* Under the overlay while it is locked, so pen strokes drawn across the
+       widget stay visible; above it once it is live, or the overlay would
+       swallow every tap meant for the widget. */
+    z-index: 1;
+    overflow: hidden;
+    background: #fff;
+    border-radius: 0 0 5px 5px;
+    pointer-events: none;
+  }
+  .aiWidgetHost.live { z-index: 4; pointer-events: auto; }
+  .aiWidgetHost iframe { display: block; width: 100%; height: 100%; border: 0; }
+
+  /* ---------- AI notes: the "what shall I make?" chooser ---------- */
+  .aiKindGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .aiKindCard {
+    text-align: left;
+    border: 1.5px solid var(--line);
+    background: #fff;
+    border-radius: var(--radius-sm);
+    padding: 9px 11px;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  }
+  .aiKindCard:hover { border-color: var(--accent-deep); transform: translateY(-1px); }
+  .aiKindCard.sel { border-color: var(--accent-deep); background: #F6F2FB; }
+  .aiKindName { font-weight: bold; font-size: 0.92rem; display: flex; align-items: center; gap: 6px; }
+  .aiKindWhat { font-size: 0.76rem; color: var(--ink-soft); margin-top: 3px; line-height: 1.35; }
+  #aiNoteInstr { min-height: 92px; resize: vertical; }
+  .aiNoteBusy { font-size: 0.82rem; color: var(--ink-soft); margin-right: auto; }
+
   .videoPop {
     position: absolute;
     z-index: 40;
@@ -754,6 +867,19 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   .fieldRow input:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .fieldRow textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--font);
+    font-size: 0.92rem;
+    line-height: 1.5;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .fieldRow textarea:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
   .fieldRow select {
     width: 100%;
     font-family: var(--font);
@@ -911,6 +1037,9 @@
     inset: 0;
     width: 100%;
     height: 100%;
+    /* Explicit, so a locked AI widget can sit underneath the ink (z-index 1)
+       and a live one on top of it (z-index 4). */
+    z-index: 2;
     touch-action: none;
     cursor: crosshair;
   }
@@ -1616,6 +1745,9 @@
     <button class="toolBtn" data-tool="ai" data-key="G" title="AI answer box — draw a box, type your question, and Gemini writes the answer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/></svg>
     </button>
+    <button class="toolBtn" data-tool="ainote" data-key="I" title="AI notes — click a spot, choose notes, a table, a picture or an interactive widget, and say what you want">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M7.5 9h5"/><path d="M7.5 12.5h9"/><path d="M7.5 16h6.5"/><path d="M16.6 5.6l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor" stroke="none"/></svg>
+    </button>
     <button class="toolBtn" data-tool="rect" data-key="R" title="Rectangle">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="1"/></svg>
     </button>
@@ -2019,6 +2151,36 @@
         <button class="btn" id="videoBtnRemoveBtn">Remove</button>
         <button class="btn" id="videoBtnCancelBtn">Cancel</button>
         <button class="btn btnPrimary" id="videoBtnSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modalBack" id="aiNoteModal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2 id="aiNoteTitle">AI notes</h2>
+      <button class="modalClose" id="aiNoteCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="fieldRow">
+        <label>What should Gemini make?</label>
+        <div class="aiKindGrid" id="aiNoteKinds"></div>
+      </div>
+      <div class="fieldRow">
+        <label for="aiNoteInstr">Your instructions</label>
+        <textarea id="aiNoteInstr" placeholder="e.g. an interactive model showing how diffusion spreads particles from high to low concentration, with a speed slider" autocomplete="off"></textarea>
+        <div class="fieldHint" id="aiNoteHint"></div>
+      </div>
+      <label class="reviseToggleRow" for="aiNoteContext">
+        <input type="checkbox" id="aiNoteContext" checked>
+        <span>Let Gemini see this page of the worksheet first</span>
+      </label>
+      <div class="modalActions">
+        <span class="aiNoteBusy" id="aiNoteBusy"></span>
+        <button class="btn" id="aiNoteDeleteBtn">Remove</button>
+        <button class="btn" id="aiNoteCancelBtn">Cancel</button>
+        <button class="btn btnPrimary" id="aiNoteGenBtn">✨ Generate</button>
       </div>
     </div>
   </div>
@@ -2757,6 +2919,8 @@ function applyScale() {
   });
   updateToolCursor();
   if (typeof positionLassoBar === 'function') positionLassoBar();
+  // Live widgets are positioned in screen pixels, so they follow the zoom.
+  if (typeof syncAllAiWidgets === 'function') syncAllAiWidgets();
   scheduleRaster();
 }
 
@@ -3032,6 +3196,7 @@ function renderOverlay(p) {
   }
   if (lassoSel && lassoSel.page === p) renderLassoChrome(p);
   renderEditChrome(p);
+  if (typeof syncAiWidgets === 'function') syncAiWidgets(p);
   if (keptCaret) restoreTextEditCaret(svg, keptCaret);
 }
 
@@ -3197,7 +3362,7 @@ function renderEditChrome(p) {
   // its amber outline but is resized with the lasso tool instead.
   if (a.rot) {
     // no handles
-  } else if (editModeId === activeId && (a.type === 'rect' || a.type === 'ellipse')) {
+  } else if (editModeId === activeId && (a.type === 'rect' || a.type === 'ellipse' || a.type === 'ainote')) {
     handles = [
       { h: 'nw', x: a.x, y: a.y }, { h: 'ne', x: a.x + a.w, y: a.y },
       { h: 'sw', x: a.x, y: a.y + a.h }, { h: 'se', x: a.x + a.w, y: a.y + a.h }
@@ -3482,6 +3647,18 @@ function annNode(a) {
     div.contentEditable = (editingId === a.id) ? 'true' : 'false';
     fo.appendChild(div);
     g.appendChild(fo);
+  } else if (a.type === 'ainote') {
+    // A generated card (notes / table / picture / widget placeholder). Like
+    // the video pill it is HTML inside the overlay, so it scales with the
+    // zoom and moves, erases and lassoes like any other annotation.
+    var nfo = el('foreignObject', {
+      x: a.x, y: a.y,
+      width: Math.max(AI_NOTE_MIN_W, a.w || AI_NOTE_MIN_W),
+      height: Math.max(AI_NOTE_MIN_H, a.h || AI_NOTE_MIN_H)
+    });
+    nfo.style.overflow = 'visible';
+    nfo.appendChild(aiNoteCardNode(a));
+    g.appendChild(nfo);
   } else if (a.type === 'video') {
     // "Watch video solution" pill — an HTML button inside the overlay so it
     // scales with zoom and moves/erases like any annotation. Taps on it are
@@ -4371,6 +4548,7 @@ function eventPoint(e, p) {
 function setTool(t) {
   if (t === 'ai' && (isStudent() || isSharedVisitor())) t = 'text'; // students and share-link visitors never get answer generation
   if (t === 'video' && (isStudent() || isSharedVisitor())) t = 'select'; // placing video buttons is teacher-only
+  if (t === 'ainote' && (isStudent() || isSharedVisitor())) t = 'select'; // generating cards is teacher-only
   commitActiveTextEdit(); // switching tools closes the text box being typed in
   if (t !== 'lasso') clearLassoSel(true);
   tool = t;
@@ -4474,6 +4652,17 @@ function attachOverlayHandlers(p) {
           else openVideoPop(p, vAnn);
           return;
         }
+      }
+    }
+    // The buttons on an AI note card (▶ Use a widget, ✨ ask for it again).
+    // Students get the ▶ button too — playing with the widget is the point.
+    var nBtn = e.target.closest ? e.target.closest('[data-ainote-act]') : null;
+    if (nBtn) {
+      var nG = nBtn.closest ? nBtn.closest('g[data-id]') : null;
+      if (nG) {
+        e.preventDefault();
+        handleAiNoteAction(nBtn.getAttribute('data-ainote-act'), nG.getAttribute('data-id'), p);
+        return;
       }
     }
     // Students read only — the page never draws or edits for them. Keyword
@@ -4610,6 +4799,14 @@ function attachOverlayHandlers(p) {
       return;
     }
 
+    if (tool === 'ainote') {
+      // Placing an AI note: pick the spot, then choose what to make and say
+      // what you want.
+      e.preventDefault();
+      openAiNoteModal({ mode: 'new', page: p, x: pt.x, y: pt.y });
+      return;
+    }
+
     if (tool === 'select') {
       // A group picked up with the select tool shows the lasso chrome — its
       // resize/rotate handles must keep working without switching tools.
@@ -4654,8 +4851,9 @@ function attachOverlayHandlers(p) {
         if (lassoSel) clearLassoSel(true);
         selectedId = id;
         if (editModeId && editModeId !== id) editModeId = null;
-        // Text boxes get their resize handles as soon as they are selected.
-        if (selA && selA.type === 'text') editModeId = id;
+        // Text boxes and AI note cards get their resize handles as soon as
+        // they are selected.
+        if (selA && (selA.type === 'text' || selA.type === 'ainote')) editModeId = id;
         renderAllOverlays();
         var node = svg.querySelector('[data-id="' + id + '"]');
         draggingSel = { id: id, startX: pt.x, startY: pt.y, node: node, page: p, snapshot: snapshot(), moved: false };
@@ -4751,6 +4949,11 @@ function attachOverlayHandlers(p) {
       var dy = pt.y - draggingSel.startY;
       if (Math.abs(dx) + Math.abs(dy) > 0.5) draggingSel.moved = true;
       if (draggingSel.node) draggingSel.node.setAttribute('transform', 'translate(' + dx + ' ' + dy + ')');
+      // A live widget floats above the overlay rather than inside it, so it
+      // has to be carried along by hand or it would stay behind until the
+      // drop redrew everything.
+      var dHost = p.wrap.querySelector('.aiWidgetHost[data-id="' + draggingSel.id + '"]');
+      if (dHost) dHost.style.transform = 'translate(' + (dx * scale) + 'px,' + (dy * scale) + 'px)';
       return;
     }
     if (!drawing || drawing.page !== p) return;
@@ -5034,7 +5237,12 @@ function enterEditMode(id, p) {
   if (!a) return;
   if (editingId === id) return; // already typing
   selectedId = id;
-  if (a.type === 'text') {
+  if (a.type === 'ainote') {
+    // Double-tap an AI card to ask Gemini for it again (or remove it).
+    if (isStudent() || isSharedVisitor()) return;
+    var np = pages.find(function (pg) { return pg.num === a.page; }) || p;
+    openAiNoteModal({ mode: 'edit', id: id, page: np });
+  } else if (a.type === 'text') {
     // Double-tap always opens the text for typing, even from handle mode.
     editingId = id;
     editModeId = null;
@@ -5805,6 +6013,17 @@ function applyHandle(a, h, pt) {
     a.h = round2(Math.max(a.fontSize * 1.8, Math.abs(pt.y - tfy)));
     return;
   }
+  if (a.type === 'ainote') {
+    // Same corner-drag as a shape, but a card has a floor size — below it
+    // the heading and the widget inside have nowhere to go.
+    var nfx = (h === 'nw' || h === 'sw') ? a.x + a.w : a.x;
+    var nfy = (h === 'nw' || h === 'ne') ? a.y + a.h : a.y;
+    a.x = round2(Math.min(nfx, pt.x));
+    a.y = round2(Math.min(nfy, pt.y));
+    a.w = round2(Math.max(AI_NOTE_MIN_W, Math.abs(pt.x - nfx)));
+    a.h = round2(Math.max(AI_NOTE_MIN_H, Math.abs(pt.y - nfy)));
+    return;
+  }
   if (a.type === 'rect' || a.type === 'ellipse') {
     // The corner opposite the dragged handle stays fixed.
     var fx = (h === 'nw' || h === 'sw') ? a.x + a.w : a.x;
@@ -6115,6 +6334,635 @@ function aiImprove(id) {
   if (!t) { toast('The text box is empty — nothing to improve.'); return; }
   aiRequest(id, AI_IMPROVE_SYS, t, '✒️ Gemini is polishing the wording…');
 }
+
+/* ================= AI notes =================
+   A note card generated by Gemini and dropped onto the worksheet: written
+   notes, a table, a picture, or a small interactive widget (a working model
+   the class can play with — diffusion, a number line, a circuit). The card
+   is an annotation like any other: it moves, resizes, erases, lassoes and
+   undoes, and it is saved with the worksheet.
+
+   Widgets are the one exception to "everything lives in the SVG overlay":
+   their generated page runs in a sandboxed iframe floating above the page,
+   because rebuilding the overlay (which happens after every pen stroke)
+   would reload the iframe and restart the simulation mid-demonstration. The
+   card drawn in the overlay stays as the widget's placeholder — that is what
+   thumbnails and the printed PDF show. */
+var AI_NOTE_KINDS = [
+  {
+    key: 'notes', icon: '📝', name: 'Written notes',
+    what: 'A tidy note card — headings and bullet points on the page.',
+    ph: 'e.g. the three states of matter, with one example of each'
+  },
+  {
+    key: 'table', icon: '📊', name: 'Table',
+    what: 'A comparison or summary table with proper headings.',
+    ph: 'e.g. compare mitosis and meiosis across 4 rows'
+  },
+  {
+    key: 'image', icon: '🖼️', name: 'Picture or diagram',
+    what: 'A generated picture or labelled diagram.',
+    ph: 'e.g. a labelled diagram of the water cycle, simple and clean'
+  },
+  {
+    key: 'widget', icon: '⚙️', name: 'Interactive widget',
+    what: 'A small working model the class can play with, pinned to the page.',
+    ph: 'e.g. a model showing diffusion — particles spreading from high to low concentration, with a speed slider'
+  }
+];
+var AI_NOTE_SIZE = {
+  notes:  { w: 250, h: 160 },
+  table:  { w: 290, h: 150 },
+  image:  { w: 230, h: 190 },
+  widget: { w: 310, h: 230 }
+};
+var AI_NOTE_HEAD_H = 15;   // page units — must match .aiNoteHead's fixed height
+var AI_NOTE_MIN_W = 90, AI_NOTE_MIN_H = 60;
+var aiNoteEdit = null;     // { mode: 'new'|'edit', page, x, y, id }
+var aiNoteKind = 'notes';
+
+function aiNoteKindInfo(k) {
+  return AI_NOTE_KINDS.find(function (x) { return x.key === k; }) || AI_NOTE_KINDS[0];
+}
+
+/* ---- The chooser ---- */
+function openAiNoteModal(ctx) {
+  if (isStudent() || isSharedVisitor()) return; // generating is teacher-only
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  aiNoteEdit = ctx;
+  var editing = ctx.mode === 'edit';
+  var a = editing ? annotations.find(function (x) { return x.id === ctx.id; }) : null;
+  if (editing && !a) return;
+  aiNoteKind = editing ? (a.kind || 'notes') : (aiNoteKind || 'notes');
+  $('aiNoteTitle').textContent = editing ? 'Redo this AI note' : 'AI notes';
+  $('aiNoteInstr').value = editing ? (a.prompt || '') : '';
+  $('aiNoteDeleteBtn').style.display = editing ? '' : 'none';
+  $('aiNoteGenBtn').textContent = editing ? '✨ Generate again' : '✨ Generate';
+  $('aiNoteBusy').textContent = '';
+  $('aiNoteContext').checked = true;
+  renderAiNoteKinds();
+  $('aiNoteModal').classList.add('open');
+  setTimeout(function () { $('aiNoteInstr').focus(); }, 50);
+}
+
+function renderAiNoteKinds() {
+  var wrap = $('aiNoteKinds');
+  wrap.innerHTML = '';
+  AI_NOTE_KINDS.forEach(function (k) {
+    var b = document.createElement('button');
+    b.className = 'aiKindCard' + (k.key === aiNoteKind ? ' sel' : '');
+    b.type = 'button';
+    var name = document.createElement('div');
+    name.className = 'aiKindName';
+    name.textContent = k.icon + ' ' + k.name;
+    var what = document.createElement('div');
+    what.className = 'aiKindWhat';
+    what.textContent = k.what;
+    b.appendChild(name);
+    b.appendChild(what);
+    b.addEventListener('click', function () { setAiNoteKind(k.key); });
+    wrap.appendChild(b);
+  });
+  var info = aiNoteKindInfo(aiNoteKind);
+  $('aiNoteInstr').placeholder = info.ph;
+  $('aiNoteHint').textContent = aiNoteKind === 'widget'
+    ? 'The widget runs in a sandbox of its own — it cannot reach the rest of the app or the internet. Tap ▶ Use on the card to play with it; ✋ Lock it again to write over it.'
+    : 'Say what you want in your own words. The card lands where you clicked and can be moved, resized or erased like anything else.';
+}
+
+function setAiNoteKind(k) {
+  aiNoteKind = k;
+  renderAiNoteKinds();
+  $('aiNoteInstr').focus();
+}
+
+function closeAiNoteModal() {
+  $('aiNoteModal').classList.remove('open');
+  aiNoteEdit = null;
+}
+
+/* ---- Generating ---- */
+var AI_NOTE_SYS_BASE =
+  'You are helping a tuition teacher at Polymath Learning Centre (Singapore, ' +
+  'students from P3 to Secondary 1) put a small card onto a PDF worksheet. ' +
+  'Match the worksheet\'s subject and the level of the students. Be accurate ' +
+  'and concise — the card is small, so every word has to earn its place. ' +
+  'Use British spelling. Never mention that you are an AI.';
+
+var AI_NOTE_SYS = {
+  notes:
+    'Write short revision notes for the card. Return JSON only: ' +
+    '{"title": "3-5 word heading", "body": "the notes"}. In "body" use a tiny ' +
+    'subset of markdown: "## " for a sub-heading, "- " for a bullet, "**bold**" ' +
+    'inside a line, and blank lines between paragraphs. No tables, no images, ' +
+    'no code fences. Aim for 40-90 words — bullets, not essays.',
+  table:
+    'Build a small table for the card. Return JSON only: ' +
+    '{"title": "3-5 word heading", "columns": ["...", "..."], "rows": [["...", "..."], ...]}. ' +
+    'Every row must have exactly as many cells as there are columns. Keep cells ' +
+    'to a few words. At most 5 columns and 8 rows.',
+  widget:
+    'Build a single self-contained HTML page: a small interactive model a ' +
+    'teacher can demonstrate on a worksheet. Return the HTML only — no ' +
+    'markdown, no code fences, no commentary.\n' +
+    'Hard requirements:\n' +
+    '- One file. Inline <style> and <script> only. No external scripts, ' +
+    'stylesheets, fonts, images or network requests of any kind — they are ' +
+    'blocked and the widget would break.\n' +
+    '- No localStorage, cookies or navigation. Everything is in memory.\n' +
+    '- It must fill its frame: html,body{margin:0;height:100%} and a layout ' +
+    'that works at roughly the size given below, and still works if resized.\n' +
+    '- Canvas or DOM animation is welcome; keep it running smoothly with ' +
+    'requestAnimationFrame and stop cleanly when the tab is hidden.\n' +
+    '- Controls (sliders, buttons) must be finger-sized — this is used on an ' +
+    'iPad in front of a class. Label them.\n' +
+    '- Plain, calm design: white background, one accent colour, system ' +
+    'sans-serif, base font 13px. No dark mode, no external branding.\n' +
+    '- Start animating by itself, and include a Reset control.\n' +
+    'Put a short <title> in the head — it becomes the card\'s heading.',
+  image:
+    'A picture for a worksheet card: clean, simple, well lit, plenty of white ' +
+    'space, no text unless the teacher asked for labels, nothing that could ' +
+    'confuse a primary-school reader.'
+};
+
+async function generateAiNote() {
+  if (!aiNoteEdit) return;
+  var instr = $('aiNoteInstr').value.trim();
+  if (!instr) { toast('Say what you would like Gemini to make.'); $('aiNoteInstr').focus(); return; }
+  if (aiBusy) { toast('Gemini is still working on the previous request…'); return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  var kind = aiNoteKind;
+  var ctx = aiNoteEdit;
+  var editing = ctx.mode === 'edit';
+  var page = editing
+    ? pages.find(function (pg) { return pg.num === (annotations.find(function (x) { return x.id === ctx.id; }) || {}).page; })
+    : ctx.page;
+  if (!page) { closeAiNoteModal(); return; }
+
+  var size = AI_NOTE_SIZE[kind] || AI_NOTE_SIZE.notes;
+  var frame = editing
+    ? annFrame(annotations.find(function (x) { return x.id === ctx.id; }))
+    : {
+        x: round2(Math.max(4, Math.min(ctx.x - size.w / 2, page.baseW - size.w - 4))),
+        y: round2(Math.max(4, Math.min(ctx.y - 12, page.baseH - size.h - 4))),
+        w: size.w, h: size.h
+      };
+
+  aiBusy = true;
+  setAiNoteBusy(true, 'Gemini is making your ' + aiNoteKindInfo(kind).name.toLowerCase() + '…');
+  try {
+    var built = await buildAiNotePayload(kind, instr, frame, page);
+    var a = editing ? annotations.find(function (x) { return x.id === ctx.id; }) : null;
+    pushUndo();
+    if (a) {
+      // Redo keeps the card where it is, at the size the teacher gave it.
+      a.kind = kind;
+      a.prompt = instr;
+      a.title = built.title;
+      a.text = built.text || '';
+      a.columns = built.columns || null;
+      a.rows = built.rows || null;
+      a.src = built.src || '';
+      a.html = built.html || '';
+      a.live = false;
+    } else {
+      a = {
+        id: newAnnId(), page: page.num, type: 'ainote', kind: kind,
+        x: frame.x, y: frame.y, w: frame.w, h: frame.h,
+        color: color, prompt: instr, title: built.title,
+        text: built.text || '', columns: built.columns || null, rows: built.rows || null,
+        src: built.src || '', html: built.html || '', live: false, ts: Date.now()
+      };
+      annotations.push(a);
+      selectedId = a.id;
+    }
+    renderAllOverlays();
+    // Written notes and tables come back whatever length Gemini made them —
+    // grow the card so nothing is cut off (it can still be resized by hand).
+    if (fitAiNoteHeight(a)) renderAllOverlays();
+    setDirty(true);
+    closeAiNoteModal();
+    toast(kind === 'widget'
+      ? '✨ Widget ready — tap ▶ Use on the card to play with it.'
+      : '✨ Card added — drag it where you want it. Ctrl+Z undoes it.', 4200);
+  } catch (err) {
+    console.error('AI note failed', err);
+    toast('Gemini could not make that: ' + ((err && err.message) || 'please try again.'), 6000);
+  } finally {
+    aiBusy = false;
+    setAiNoteBusy(false, '');
+  }
+}
+
+/* Grow a notes or table card to the height its contents actually need, up to
+   the bottom of the page. Never shrinks — a card drawn tall stays tall. */
+function fitAiNoteHeight(a) {
+  if (!a || a.type !== 'ainote' || (a.kind !== 'notes' && a.kind !== 'table')) return false;
+  var p = pages.find(function (pg) { return pg.num === a.page; });
+  var body = p && p.svg.querySelector('[data-id="' + a.id + '"] .aiNoteBody');
+  if (!body) return false;
+  var need = body.scrollHeight + AI_NOTE_HEAD_H + 4;
+  var room = p.baseH - a.y - 6;
+  var want = Math.min(Math.max(a.h || 0, need), room);
+  if (want <= (a.h || 0) + 1) return false;
+  a.h = round2(want);
+  return true;
+}
+
+function setAiNoteBusy(on, msg) {
+  $('aiNoteBusy').textContent = msg || '';
+  $('aiNoteGenBtn').disabled = !!on;
+  $('aiNoteCancelBtn').disabled = !!on;
+}
+
+/* Ask Gemini for the card's contents. Everything comes back in the shape the
+   annotation stores, so the caller only has to save it. */
+async function buildAiNotePayload(kind, instr, frame, page) {
+  var lines = [];
+  var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
+  var lvl = wsMeta && wsMeta.level ? levelLabel(wsMeta.level) : '';
+  if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
+  var imgs = [];
+  if ($('aiNoteContext').checked) {
+    var snap = aiNotePageImage(page);
+    if (snap) {
+      imgs.push(snap);
+      lines.push('Attached: the worksheet page this card goes onto — use it for context.');
+    }
+  }
+  lines.push('The teacher asked for: "' + instr + '"');
+
+  if (kind === 'image') {
+    var imgPrompt = lines.concat([AI_NOTE_SYS[kind]]).join('\n');
+    var pic = await aiNoteImage(imgPrompt, instr);
+    return { title: aiNoteTitleFrom(instr), src: pic };
+  }
+
+  if (kind === 'widget') {
+    lines.push('The card is about ' + Math.round(frame.w) + '×' + Math.round(frame.h) +
+               ' points on the page, and can be resized by the teacher afterwards.');
+    var html = await window.askGemini(lines.join('\n'), {
+      system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS.widget,
+      maxOutputTokens: 8000, temperature: 0.55, images: imgs
+    });
+    html = stripCodeFence(html);
+    if (!/[<]/.test(html)) throw new Error('the widget came back empty — try describing it again');
+    return { title: aiNoteHtmlTitle(html) || aiNoteTitleFrom(instr), html: html };
+  }
+
+  var raw = await window.askGemini(lines.join('\n'), {
+    system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS[kind],
+    maxOutputTokens: 1600, temperature: 0.4, json: true, images: imgs
+  });
+  var data = _parseAIJson(raw);
+  if (kind === 'table') {
+    var columns = Array.isArray(data.columns) ? data.columns.map(String) : [];
+    var rows = Array.isArray(data.rows) ? data.rows : [];
+    rows = rows.filter(Array.isArray).map(function (r) {
+      var out = r.map(function (c) { return c === null || c === undefined ? '' : String(c); });
+      while (columns.length && out.length < columns.length) out.push('');
+      return columns.length ? out.slice(0, columns.length) : out;
+    });
+    if (!columns.length && !rows.length) throw new Error('the table came back empty — try describing it again');
+    return { title: String(data.title || aiNoteTitleFrom(instr)), columns: columns, rows: rows };
+  }
+  var body = String(data.body || data.text || '').trim();
+  if (!body) throw new Error('the notes came back empty — try describing it again');
+  return { title: String(data.title || aiNoteTitleFrom(instr)), text: body };
+}
+
+/* Picture: the image model first, and if it is unavailable (or refuses), a
+   drawn SVG from the text model — a labelled diagram is usually what a
+   worksheet wanted anyway. */
+async function aiNoteImage(prompt, instr) {
+  if (window.askGeminiImage) {
+    try {
+      var out = await window.askGeminiImage(prompt);
+      if (out && out.data) {
+        return await shrinkImageDataUrl('data:' + (out.mimeType || 'image/png') + ';base64,' + out.data);
+      }
+    } catch (e) {
+      console.warn('Image model unavailable, falling back to an SVG diagram', e);
+    }
+  }
+  var svg = await window.askGemini(
+    prompt + '\nReturn a single self-contained SVG diagram instead of a photo.',
+    {
+      system: AI_NOTE_SYS_BASE +
+        '\nReturn ONE <svg> element and nothing else — no markdown, no code fence, no ' +
+        'commentary. It must have a viewBox, no external references, no scripts, and ' +
+        'readable labels at small sizes (font-size 11 or larger). Simple flat shapes ' +
+        'and thin strokes; white background.',
+      maxOutputTokens: 4000, temperature: 0.5
+    }
+  );
+  svg = stripCodeFence(svg);
+  var start = svg.indexOf('<svg');
+  var end = svg.lastIndexOf('</svg>');
+  if (start < 0 || end < 0) throw new Error('the picture came back empty — try describing it again');
+  svg = svg.slice(start, end + 6);
+  if (/<script/i.test(svg)) throw new Error('the picture came back with code in it — try again');
+  // Without the namespace the browser refuses to load it as an image — the
+  // card would show a broken picture and the PDF would have a blank box.
+  if (!/xmlns\s*=/.test(svg)) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+}
+
+/* Generated pictures are stored inside the worksheet, and a worksheet has to
+   fit in one Firestore document — so a photo-sized PNG is redrawn small. */
+function shrinkImageDataUrl(dataUrl, maxPx) {
+  maxPx = maxPx || 640;
+  return new Promise(function (resolve) {
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var f = Math.min(1, maxPx / Math.max(img.width, img.height));
+        if (f >= 1 && dataUrl.length < 200000) { resolve(dataUrl); return; }
+        var cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(img.width * f));
+        cv.height = Math.max(1, Math.round(img.height * f));
+        var cx = cv.getContext('2d');
+        cx.fillStyle = '#fff';
+        cx.fillRect(0, 0, cv.width, cv.height);
+        cx.drawImage(img, 0, 0, cv.width, cv.height);
+        resolve(cv.toDataURL('image/jpeg', 0.82));
+      } catch (e) { resolve(dataUrl); }
+    };
+    img.onerror = function () { resolve(dataUrl); };
+    img.src = dataUrl;
+  });
+}
+
+/* A JPEG of the page the card is going onto, for context. */
+function aiNotePageImage(p) {
+  try {
+    var shot = pageJpeg(p, 1280);
+    return shot ? { mimeType: 'image/jpeg', data: shot } : null;
+  } catch (e) { return null; }
+}
+
+function aiNoteTitleFrom(instr) {
+  var t = (instr || '').replace(/\s+/g, ' ').trim();
+  if (t.length > 42) t = t.slice(0, 40).replace(/\s\S*$/, '') + '…';
+  return t || 'AI note';
+}
+
+function aiNoteHtmlTitle(html) {
+  var m = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html || '');
+  return m ? m[1].replace(/\s+/g, ' ').trim().slice(0, 48) : '';
+}
+
+function stripCodeFence(s) {
+  return String(s || '').trim()
+    .replace(/^```[a-z]*\s*/i, '')
+    .replace(/```\s*$/, '')
+    .trim();
+}
+
+/* ---- Drawing the card ---- */
+function aiNoteCardNode(a) {
+  var card = document.createElement('div');
+  card.className = 'aiNoteCard' + (a.live ? ' aiNoteLive' : '');
+  var head = document.createElement('div');
+  head.className = 'aiNoteHead';
+  var icon = document.createElement('span');
+  icon.textContent = aiNoteKindInfo(a.kind).icon;
+  var title = document.createElement('span');
+  title.className = 'aiNoteTitle';
+  title.textContent = a.title || aiNoteKindInfo(a.kind).name;
+  head.appendChild(icon);
+  head.appendChild(title);
+  if (a.kind === 'widget') {
+    var use = document.createElement('button');
+    use.className = 'aiNoteBtn';
+    use.setAttribute('data-ainote-act', 'live');
+    use.textContent = a.live ? '✋ Lock' : '▶ Use';
+    head.appendChild(use);
+  }
+  if (!isStudent() && !isSharedVisitor()) {
+    var redo = document.createElement('button');
+    redo.className = 'aiNoteBtn';
+    redo.setAttribute('data-ainote-act', 'redo');
+    redo.textContent = '✨';
+    redo.title = 'Ask Gemini for this card again';
+    head.appendChild(redo);
+  }
+  card.appendChild(head);
+
+  var body = document.createElement('div');
+  body.className = 'aiNoteBody';
+  if (a.kind === 'image' || a.kind === 'widget') body.classList.add('aiNoteBodyFlush');
+  if (a.kind === 'notes') {
+    renderMiniMarkdown(body, a.text || '');
+  } else if (a.kind === 'table') {
+    body.appendChild(aiNoteTableNode(a));
+  } else if (a.kind === 'image') {
+    if (a.src) {
+      var img = document.createElement('img');
+      img.src = a.src;
+      img.alt = a.title || 'AI picture';
+      body.appendChild(img);
+    } else {
+      body.appendChild(aiNotePlaceholder('No picture'));
+    }
+  } else if (a.kind === 'widget') {
+    // The widget itself floats in its own frame (see syncAiWidgets); this
+    // card is its heading and its border. Only a widget that has nothing to
+    // show says so.
+    card.classList.add('aiNoteWidget');
+    if (!a.html) body.appendChild(aiNotePlaceholder('Interactive widget'));
+  }
+  card.appendChild(body);
+  return card;
+}
+
+function aiNotePlaceholder(text) {
+  var d = document.createElement('div');
+  d.className = 'aiNotePlaceholder';
+  d.textContent = text;
+  return d;
+}
+
+function aiNoteTableNode(a) {
+  var table = document.createElement('table');
+  var cols = a.columns || [];
+  if (cols.length) {
+    var thead = document.createElement('thead');
+    var htr = document.createElement('tr');
+    cols.forEach(function (c) {
+      var th = document.createElement('th');
+      th.textContent = c;
+      htr.appendChild(th);
+    });
+    thead.appendChild(htr);
+    table.appendChild(thead);
+  }
+  var tbody = document.createElement('tbody');
+  (a.rows || []).forEach(function (r) {
+    var tr = document.createElement('tr');
+    r.forEach(function (cell) {
+      var td = document.createElement('td');
+      td.textContent = cell;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
+/* The tiny markdown subset the notes prompt asks for — built as DOM nodes, so
+   nothing the model returns is ever parsed as HTML. */
+function renderMiniMarkdown(host, text) {
+  host.innerHTML = '';
+  var list = null;
+  String(text).split('\n').forEach(function (rawLine) {
+    var line = rawLine.trim();
+    if (!line) { list = null; return; }
+    if (/^#{1,6}\s/.test(line)) {
+      list = null;
+      var h = document.createElement('h3');
+      addBoldText(h, line.replace(/^#{1,6}\s*/, ''));
+      host.appendChild(h);
+      return;
+    }
+    var bullet = /^[-*•]\s+/.test(line);
+    var numbered = /^\d+[.)]\s+/.test(line);
+    if (bullet || numbered) {
+      if (!list || list.tagName !== (numbered ? 'OL' : 'UL')) {
+        list = document.createElement(numbered ? 'ol' : 'ul');
+        host.appendChild(list);
+      }
+      var li = document.createElement('li');
+      addBoldText(li, line.replace(/^([-*•]|\d+[.)])\s+/, ''));
+      list.appendChild(li);
+      return;
+    }
+    list = null;
+    var pEl = document.createElement('p');
+    addBoldText(pEl, line);
+    host.appendChild(pEl);
+  });
+}
+
+/* **bold** and `code` inside one line; everything else stays literal text. */
+function addBoldText(host, line) {
+  var re = /\*\*([^*]+)\*\*|`([^`]+)`/g;
+  var at = 0, m;
+  while ((m = re.exec(line))) {
+    if (m.index > at) host.appendChild(document.createTextNode(line.slice(at, m.index)));
+    var tag = document.createElement(m[1] ? 'strong' : 'code');
+    tag.textContent = m[1] || m[2];
+    host.appendChild(tag);
+    at = m.index + m[0].length;
+  }
+  if (at < line.length) host.appendChild(document.createTextNode(line.slice(at)));
+}
+
+/* ---- Live widgets ----
+   One sandboxed iframe per widget, floating over the page at the card's
+   position. It is only rebuilt when the generated page itself changes, so a
+   running model survives everything else that happens on the worksheet. */
+function aiWidgetDoc(html) {
+  // A content-security policy inside the document itself: no network, no
+  // plugins, no frames — whatever Gemini wrote, it stays a self-contained
+  // page. The sandbox attribute (scripts only, no same-origin) is the real
+  // wall; this stops accidental external references from hanging the widget.
+  var csp = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; ' +
+            'img-src data: blob:; media-src data: blob:; style-src \'unsafe-inline\'; ' +
+            'script-src \'unsafe-inline\'; font-src data:; connect-src \'none\'; ' +
+            'form-action \'none\'; base-uri \'none\'">';
+  if (/<head[\s>]/i.test(html)) return html.replace(/<head([^>]*)>/i, '<head$1>' + csp);
+  if (/<html[\s>]/i.test(html)) return html.replace(/<html([^>]*)>/i, '<html$1><head>' + csp + '</head>');
+  return '<!doctype html><html><head>' + csp + '</head><body>' + html + '</body></html>';
+}
+
+function syncAiWidgets(p) {
+  var seen = {};
+  annotations.forEach(function (a) {
+    if (a.page !== p.num || a.type !== 'ainote' || a.kind !== 'widget' || !a.html) return;
+    seen[a.id] = true;
+    var host = p.wrap.querySelector('.aiWidgetHost[data-id="' + a.id + '"]');
+    if (host) host.style.transform = ''; // clear any carry-along from a drag
+    if (!host) {
+      host = document.createElement('div');
+      host.className = 'aiWidgetHost';
+      host.setAttribute('data-id', a.id);
+      p.wrap.appendChild(host);
+    }
+    if (host._html !== a.html) {
+      host._html = a.html;
+      host.innerHTML = '';
+      var frame = document.createElement('iframe');
+      frame.setAttribute('sandbox', 'allow-scripts');
+      frame.setAttribute('scrolling', 'no');
+      frame.setAttribute('title', a.title || 'Interactive widget');
+      frame.srcdoc = aiWidgetDoc(a.html);
+      host.appendChild(frame);
+    }
+    var fr = annFrame(a);
+    host.style.left = (fr.x * scale) + 'px';
+    host.style.top = ((fr.y + AI_NOTE_HEAD_H) * scale) + 'px';
+    host.style.width = (fr.w * scale) + 'px';
+    host.style.height = (Math.max(10, fr.h - AI_NOTE_HEAD_H) * scale) + 'px';
+    // Only a widget switched on with ▶ Use takes taps; otherwise the tools
+    // draw straight over it as if it were printed on the page.
+    host.classList.toggle('live', !!a.live);
+  });
+  Array.prototype.forEach.call(p.wrap.querySelectorAll('.aiWidgetHost'), function (h) {
+    if (!seen[h.getAttribute('data-id')]) h.remove();
+  });
+}
+
+function syncAllAiWidgets() { pages.forEach(syncAiWidgets); }
+
+/* A tap on one of the card's own buttons (▶ Use / ✨ redo). */
+function handleAiNoteAction(act, id, p) {
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a || a.type !== 'ainote') return;
+  if (act === 'live') {
+    a.live = !a.live;
+    renderOverlay(p);
+    if (a.live) toast('Widget is live — tap ✋ Lock when you want to write over it again.', 3600);
+    return;
+  }
+  if (act === 'redo') {
+    if (isStudent() || isSharedVisitor()) return;
+    openAiNoteModal({ mode: 'edit', id: id, page: p });
+  }
+}
+
+function deleteAiNote() {
+  if (!aiNoteEdit || aiNoteEdit.mode !== 'edit') { closeAiNoteModal(); return; }
+  var id = aiNoteEdit.id;
+  pushUndo();
+  annotations = annotations.filter(function (x) { return x.id !== id; });
+  if (selectedId === id) selectedId = null;
+  if (editModeId === id) editModeId = null;
+  renderAllOverlays();
+  setDirty(true);
+  closeAiNoteModal();
+  toast('Card removed — Ctrl+Z brings it back.');
+}
+
+$('aiNoteCloseBtn').addEventListener('click', closeAiNoteModal);
+$('aiNoteCancelBtn').addEventListener('click', closeAiNoteModal);
+$('aiNoteDeleteBtn').addEventListener('click', deleteAiNote);
+$('aiNoteGenBtn').addEventListener('click', generateAiNote);
+$('aiNoteModal').addEventListener('click', function (e) {
+  if (e.target === $('aiNoteModal') && !aiBusy) closeAiNoteModal();
+});
+$('aiNoteInstr').addEventListener('keydown', function (e) {
+  // Ctrl/⌘+Enter generates without reaching for the mouse.
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); generateAiNote(); }
+});
 
 /* Tolerant JSON parse for model output (strips code fences, finds the
    array/object). Keep in sync with the other Polymath apps. */
@@ -7569,6 +8417,10 @@ function applyRoleUI() {
   // Placing video-solution buttons is teacher-only, like the AI tool.
   var videoToolBtn = document.querySelector('#toolButtons [data-tool="video"]');
   if (videoToolBtn) videoToolBtn.style.display = student ? 'none' : '';
+  // Generating AI note cards is teacher-only too — students read them (and
+  // play with the widgets), they do not make them.
+  var noteToolBtn = document.querySelector('#toolButtons [data-tool="ainote"]');
+  if (noteToolBtn) noteToolBtn.style.display = student ? 'none' : '';
   // Share-link visitors: downloading is always allowed, but uploading, cloud
   // saving, printing the answer key, AI answers and browsing the other
   // worksheets never are — whatever the link's mode.
@@ -7583,6 +8435,7 @@ function applyRoleUI() {
     $('downloadBtn').style.display = '';
     if (aiToolBtn) aiToolBtn.style.display = 'none';
     if (videoToolBtn) videoToolBtn.style.display = 'none';
+    if (noteToolBtn) noteToolBtn.style.display = 'none';
   }
   $('printCard').style.display = sharedVisitor ? 'none' : '';
   // The answer key writes out every answer on the paper — teacher-only, like
@@ -10157,6 +11010,181 @@ function annBBox(a) {
                   a clean question paper)
    opts.cover  — prepend the Polymath cover page
    opts.subtitle — the line under the cover title */
+/* ---- AI note cards in the printed/downloaded PDF ----
+   Pictures are embedded as real images; notes, tables and widgets are drawn
+   as the card the teacher sees, so a printout carries the same information
+   as the screen (a widget prints as its heading and a note that it is
+   interactive — paper cannot do sliders). */
+async function embedAiNoteImages(outDoc, anns) {
+  var out = {};
+  var wanted = (anns || []).filter(function (a) {
+    return a.type === 'ainote' && a.kind === 'image' && /^data:image\//.test(a.src || '');
+  });
+  for (var i = 0; i < wanted.length; i++) {
+    var a = wanted[i];
+    try {
+      var src = a.src;
+      // pdf-lib embeds PNG and JPEG only, so a drawn SVG diagram is painted
+      // onto a canvas first — otherwise it would be missing from the print.
+      if (/^data:image\/svg/i.test(src)) src = await rasterizeImageDataUrl(src, annFrame(a));
+      var comma = src.indexOf(',');
+      var head = src.slice(0, comma);
+      if (/svg/i.test(head)) continue; // rasterising failed — the card alone
+      var bin = atob(src.slice(comma + 1));
+      var bytes = new Uint8Array(bin.length);
+      for (var b = 0; b < bin.length; b++) bytes[b] = bin.charCodeAt(b);
+      out[a.id] = /png/i.test(head) ? await outDoc.embedPng(bytes) : await outDoc.embedJpg(bytes);
+    } catch (e) {
+      console.warn('AI note picture could not be embedded', e);
+    }
+  }
+  return out;
+}
+
+/* Paint any image the browser can display onto a canvas and hand back a PNG,
+   at roughly twice the size it prints at so it still looks sharp on paper. */
+function rasterizeImageDataUrl(src, frame) {
+  return new Promise(function (resolve) {
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var w = Math.max(160, Math.round((frame.w || 200) * 2));
+        var ratio = (img.height && img.width) ? img.height / img.width : 0.75;
+        var cvs = document.createElement('canvas');
+        cvs.width = w;
+        cvs.height = Math.max(80, Math.round(w * ratio));
+        var cx = cvs.getContext('2d');
+        cx.fillStyle = '#fff';
+        cx.fillRect(0, 0, cvs.width, cvs.height);
+        cx.drawImage(img, 0, 0, cvs.width, cvs.height);
+        resolve(cvs.toDataURL('image/png'));
+      } catch (e) { resolve(src); }
+    };
+    img.onerror = function () { resolve(src); };
+    img.src = src;
+  });
+}
+
+function drawAiNoteOnPdf(o) {
+  var a = o.ann, page = o.page, cv = o.cv, rgb = o.rgb, font = o.font, fontBold = o.fontBold;
+  var fr = annFrame(a);
+  var w = Math.max(AI_NOTE_MIN_W, fr.w), h = Math.max(AI_NOTE_MIN_H, fr.h);
+  var q1 = cv(fr.x, fr.y), q2 = cv(fr.x + w, fr.y + h);
+  var x = Math.min(q1.x, q2.x), y = Math.min(q1.y, q2.y);
+  var pw = Math.abs(q2.x - q1.x), ph = Math.abs(q2.y - q1.y);
+  var headH = Math.min(14, ph * 0.22);
+  var ink = rgb(0.15, 0.15, 0.12), soft = rgb(0.42, 0.42, 0.4);
+  var line = rgb(0.86, 0.85, 0.82);
+
+  page.drawRectangle({ x: x, y: y, width: pw, height: ph, color: rgb(1, 1, 1), borderColor: line, borderWidth: 0.8 });
+  page.drawRectangle({ x: x, y: y + ph - headH, width: pw, height: headH, color: rgb(0.95, 0.93, 0.98) });
+  page.drawRectangle({ x: x, y: y, width: 2, height: ph, color: rgb(0.49, 0.34, 0.76) });
+
+  var titleSize = Math.min(8, headH - 4.5);
+  var title = winAnsiSafe(a.title || 'AI note');
+  page.drawText(fitPdfText(title, fontBold, titleSize, pw - 12), {
+    x: x + 6, y: y + ph - headH + (headH - titleSize) / 2 + 0.8,
+    size: titleSize, font: fontBold, color: rgb(0.35, 0.29, 0.52)
+  });
+
+  var padX = 5, padY = 4;
+  var bodyX = x + padX, bodyW = pw - padX * 2;
+  var bodyTop = y + ph - headH - padY, bodyBottom = y + padY;
+  var bodyH = Math.max(0, bodyTop - bodyBottom);
+
+  if (a.kind === 'image') {
+    if (o.image) {
+      var f = Math.min(bodyW / o.image.width, bodyH / o.image.height);
+      var iw = o.image.width * f, ih = o.image.height * f;
+      page.drawImage(o.image, { x: bodyX + (bodyW - iw) / 2, y: bodyBottom + (bodyH - ih) / 2, width: iw, height: ih });
+    } else {
+      page.drawText('[picture]', { x: bodyX, y: bodyTop - 8, size: 7.5, font: font, color: soft });
+    }
+    return;
+  }
+
+  if (a.kind === 'widget') {
+    var wLines = wrapPdfText('Interactive widget - open this worksheet in Polymath to use it.', font, 7.5, bodyW);
+    wLines.slice(0, 3).forEach(function (ln, i) {
+      page.drawText(ln, { x: bodyX, y: bodyTop - 9 - i * 9.5, size: 7.5, font: font, color: soft });
+    });
+    return;
+  }
+
+  if (a.kind === 'table') {
+    var cols = (a.columns || []).map(function (c) { return winAnsiSafe(c); });
+    var rows = (a.rows || []).map(function (r) { return r.map(function (c) { return winAnsiSafe(c); }); });
+    var nCols = Math.max(1, cols.length || (rows[0] ? rows[0].length : 1));
+    var colW = bodyW / nCols;
+    var size = 6.5, rowH = 10;
+    var cy = bodyTop - rowH;
+    if (cols.length) {
+      page.drawRectangle({ x: bodyX, y: cy, width: bodyW, height: rowH, color: rgb(0.96, 0.95, 0.92) });
+      cols.forEach(function (c, i) {
+        page.drawText(fitPdfText(c, fontBold, size, colW - 4), {
+          x: bodyX + i * colW + 2, y: cy + 3, size: size, font: fontBold, color: ink
+        });
+      });
+      cy -= rowH;
+    }
+    rows.forEach(function (r) {
+      if (cy < bodyBottom) return; // the rest does not fit on the card
+      r.forEach(function (cell, i) {
+        if (i >= nCols) return;
+        page.drawText(fitPdfText(cell, font, size, colW - 4), {
+          x: bodyX + i * colW + 2, y: cy + 3, size: size, font: font, color: ink
+        });
+      });
+      page.drawLine({
+        start: { x: bodyX, y: cy + rowH }, end: { x: bodyX + bodyW, y: cy + rowH },
+        thickness: 0.4, color: line
+      });
+      cy -= rowH;
+    });
+    return;
+  }
+
+  // Written notes: the same tiny markdown the card shows, flattened.
+  var size2 = 7.5, lead = 9.5;
+  var ty = bodyTop - size2;
+  String(a.text || '').split('\n').forEach(function (rawLine) {
+    var src = rawLine.trim();
+    if (ty < bodyBottom) return;
+    if (!src) { ty -= lead * 0.5; return; }
+    var heading = /^#{1,6}\s/.test(src);
+    var bullet = /^[-*•]\s+/.test(src) || /^\d+[.)]\s+/.test(src);
+    var txt = winAnsiSafe(src.replace(/^#{1,6}\s*/, '').replace(/^([-*•]|\d+[.)])\s+/, '').replace(/\*\*/g, '').replace(/`/g, ''));
+    var useFont = heading ? fontBold : font;
+    var indent = bullet ? 7 : 0;
+    wrapPdfText(bullet ? '- ' + txt : txt, useFont, size2, bodyW - indent).forEach(function (ln, i) {
+      if (ty < bodyBottom) return;
+      page.drawText(ln, { x: bodyX + (i ? indent + 5 : indent), y: ty, size: size2, font: useFont, color: ink });
+      ty -= lead;
+    });
+  });
+}
+
+/* Break a line to a width, in the font it will be drawn in. */
+function wrapPdfText(text, font, size, maxW) {
+  var words = winAnsiSafe(text).split(/\s+/).filter(Boolean);
+  var out = [], cur = '';
+  words.forEach(function (word) {
+    var trial = cur ? cur + ' ' + word : word;
+    if (cur && font.widthOfTextAtSize(trial, size) > maxW) { out.push(cur); cur = word; }
+    else cur = trial;
+  });
+  if (cur) out.push(cur);
+  return out.length ? out : [''];
+}
+
+/* One line, trimmed with an ellipsis if it will not fit. */
+function fitPdfText(text, font, size, maxW) {
+  var s = winAnsiSafe(text);
+  if (font.widthOfTextAtSize(s, size) <= maxW) return s;
+  while (s.length > 1 && font.widthOfTextAtSize(s + '...', size) > maxW) s = s.slice(0, -1);
+  return s + '...';
+}
+
 async function buildAnnotatedPdf(includeTs, opts) {
   opts = opts || {};
   var anns = opts.anns || annotations;
@@ -10166,6 +11194,10 @@ async function buildAnnotatedPdf(includeTs, opts) {
   var LineCapStyle = PDFLib.LineCapStyle;
   var outDoc = await PDFDocument.load(pdfBytes);
   var font = await outDoc.embedFont(StandardFonts.Helvetica);
+  var fontBold = await outDoc.embedFont(StandardFonts.HelveticaBold);
+  // Pictures on AI note cards have to be embedded before the drawing pass —
+  // that pass is synchronous, and embedding is not.
+  var noteImages = await embedAiNoteImages(outDoc, anns);
 
     // Baked timestamps follow the on-screen rule: only the first and last
     // stamped annotation of each page get a label.
@@ -10278,6 +11310,11 @@ async function buildAnnotatedPdf(includeTs, opts) {
           // counter-clockwise (y up), so the angle flips sign.
           if (a.rot) tOpts.rotate = PDFLib.degrees(-a.rot);
           page.drawText(line, tOpts);
+        });
+      } else if (a.type === 'ainote') {
+        drawAiNoteOnPdf({
+          ann: a, page: page, cv: cv, rgb: rgb, font: font, fontBold: fontBold,
+          image: noteImages[a.id] || null
         });
       } else if (a.type === 'video') {
         // The pill bakes in as a purple button; a real PDF link annotation on
@@ -11129,7 +12166,7 @@ document.addEventListener('keydown', function (e) {
     return;
   }
   if (e.key === 'Escape') { drawing = null; selectedId = null; editModeId = null; clearLassoSel(false); renderAllOverlays(); return; }
-  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
+  var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', i: 'ainote', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
   var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn' };
@@ -11468,6 +12505,9 @@ const RECAPTCHA_SITE_KEY = "6Le98gwtAAAAAAzkjJTZXFM5D8tpjx_P4rtRuhuH";
 
 // Model used app-wide
 const AI_MODEL = "gemini-3.6-flash";
+// Picture generation for AI note cards. A separate model — if it is not
+// available on the project the app falls back to a drawn SVG diagram.
+const AI_IMAGE_MODEL = "gemini-2.5-flash-image";
 
 const app = initializeApp(firebaseConfig);
 
@@ -11512,6 +12552,33 @@ window.askGemini = async function askGemini(prompt, { maxOutputTokens = 512, tem
   if (system) request.systemInstruction = { parts: [{ text: system }] };
   const res = await geminiModel.generateContent(request);
   return (res.response.text() || "").trim();
+};
+
+// Picture generation for AI note cards. Returns { mimeType, data } with data
+// base64 (no data: prefix), or null when the model gave text back instead.
+// The model is created on first use so a project without image generation
+// costs nothing at start-up — the caller falls back to an SVG diagram.
+let geminiImageModel = null;
+window.askGeminiImage = async function askGeminiImage(prompt) {
+  if (!geminiImageModel) {
+    geminiImageModel = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), {
+      model: AI_IMAGE_MODEL,
+      generationConfig: { responseModalities: ["TEXT", "IMAGE"] }
+    });
+  }
+  const res = await geminiImageModel.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }]
+  });
+  const cands = (res.response && res.response.candidates) || [];
+  for (const cand of cands) {
+    for (const part of (cand.content && cand.content.parts) || []) {
+      const inline = part.inlineData;
+      if (inline && inline.data && /^image\//.test(inline.mimeType || "")) {
+        return { mimeType: inline.mimeType, data: inline.data };
+      }
+    }
+  }
+  return null;
 };
 </script>
 </body>
