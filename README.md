@@ -3,6 +3,39 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Award marks without leaving the worksheet (v1.48.0)
+
+The **Reward** button in the toolbar (shortcut **B**) opens the class you are
+teaching and hands marks out on the spot. It writes straight into the reward
+system — the same marks, the same history, the same bosses the students see in
+the points app — so nothing has to be typed up again after the lesson.
+
+- **The class is already chosen.** The worksheet's day, level and lesson time
+  pick it: a Wednesday 5pm P5 worksheet opens the P5 Wednesday 5pm register,
+  not the 7pm one. Change it in the dropdown whenever the guess is wrong.
+- **The class is remembered on the worksheet**, so next lesson it opens on the
+  right register straight away.
+- **A tap is a mark.** Choose the amount — 1, 2, 5, 10 or type your own — then
+  **+** or **−** per student, or **Award everyone** for the whole class at
+  once. Each tap shows the student's new balance and how much they have been
+  given so far in this sitting.
+- **It is logged like any other award.** Every tap appends to the marks history
+  in the points app with the worksheet's name as the reason, and can be undone
+  there. Marks earned damage the active boss, exactly as a test-paper upload
+  does.
+- **The register is editable mid-lesson.** Type a name at the bottom to add a
+  student to this class (the level is filled in from the worksheet), or press
+  **✕** on a row and say which you meant: *Take out of class* keeps the record,
+  the marks and the history and only drops this class; *Delete entirely*
+  removes them from the reward system, behind a second confirm.
+- **Teacher-only, admin-only.** The button does not exist for students, for
+  share-link visitors, or while the device is handed to a student with
+  “Practise as”. Students still earn and spend in the points app — this is only
+  the giving end.
+
+Moved here from the older annotator in the `cer` repo, which no longer has any
+reward feature.
+
 ## Scrolling a long app in the code window (v1.47.0)
 
 An app taller than the code window used to have to be scrolled from inside the
