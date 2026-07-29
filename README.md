@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Minimise a card (v1.45.0)
+
+Every card on the worksheet — a widget, notes, a table, a picture — now has a
+**–** button in its heading. It folds the card down to a small rounded
+rectangle wearing its own name: **Widget**, **Note**, **Graph** or **Picture**.
+
+- **The question underneath comes back.** A card generated beside a question
+  usually lands on top of it. Minimise it and the printed question is readable
+  again, without moving or deleting anything.
+- **A running widget keeps running.** The frame is hidden, not thrown away, so
+  a simulation mid-demonstration is exactly where it was when it comes back —
+  and a widget still switched on with ▶ Use returns live.
+- **⤢ opens it back up**, and so does a double-tap anywhere on the pill. The
+  card returns at the size it was drawn at; minimising never touches it.
+- **The pill moves like any annotation** — drag it into a margin and park it
+  there. It has no resize handles: there is nothing to resize until it is open.
+- **Remembered with the worksheet**, so a card parked out of the way stays
+  parked, and it prints minimised too — the printout matches the screen.
+- **Students get the button as well.** Reading the worksheet needs the question
+  uncovered as much as teaching it does.
+
 ## Code window (v1.44.0)
 
 A **`</>`** button in the toolbar (shortcut **J**) opens a floating code

@@ -235,6 +235,35 @@
     display: flex; align-items: center; justify-content: center;
     height: 100%; text-align: center; color: #8A8A84; font-size: 9px; padding: 6px;
   }
+  /* ---------- A minimised card ----------
+     The whole card folded down to a rounded rectangle wearing its own name,
+     so the printed question underneath is readable again. Sized in page
+     units like everything else here (see AI_NOTE_PILL_W / _H). */
+  .aiNotePill {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 0 3px 0 7px;
+    background: linear-gradient(135deg, #F3EFFA, #EAF2FB);
+    border: 1px solid #D8D2E8;
+    border-left: 3px solid #7E57C2;
+    border-radius: 999px;
+    font-family: var(--font);
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #5A4A85;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+  .aiNotePill.aiNoteLive { box-shadow: 0 0 0 2px rgba(126,87,194,0.28); }
+  .aiNotePillIcon { flex: 0 0 auto; font-size: 9px; }
+  .aiNotePillLabel { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .aiNotePillBtn { border-radius: 999px; padding: 1px 4px; }
   /* The live widget floats over its card in the page, so rebuilding the
      overlay (which happens after every stroke) cannot restart it. */
   .aiWidgetHost {
@@ -249,6 +278,9 @@
     pointer-events: none;
   }
   .aiWidgetHost.live { z-index: 4; pointer-events: auto; }
+  /* Minimised: the frame is hidden, not removed, so whatever the widget was
+     doing carries on and comes back exactly where it left off. */
+  .aiWidgetHost.aiWidgetMin { display: none; }
   .aiWidgetHost iframe { display: block; width: 100%; height: 100%; border: 0; }
 
   /* ---------- AI notes: the "what shall I make?" chooser ---------- */
@@ -2670,7 +2702,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.44.0';
+var APP_VERSION = 'v1.45.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2998,8 +3030,13 @@ function normDeg(d) {
   return round2(d);
 }
 /* Unrotated frame of an x/y/w/h annotation. Text boxes never render shorter
-   than one line, so their frame uses the same effective height everywhere. */
+   than one line, so their frame uses the same effective height everywhere.
+   A minimised AI card is only its pill: its full w/h stay stored untouched,
+   ready for the moment it is opened back up. */
 function annFrame(a) {
+  if (a.type === 'ainote' && a.min) {
+    return { x: a.x || 0, y: a.y || 0, w: AI_NOTE_PILL_W, h: AI_NOTE_PILL_H };
+  }
   var h = a.type === 'text' ? Math.max(a.h || 0, (a.fontSize || 16) * 1.8) : (a.h || 0);
   return { x: a.x || 0, y: a.y || 0, w: a.w || 0, h: h };
 }
@@ -3647,6 +3684,9 @@ function renderEditChrome(p) {
   // its amber outline but is resized with the lasso tool instead.
   if (a.rot) {
     // no handles
+  } else if (editModeId === activeId && a.type === 'ainote' && a.min) {
+    // A minimised card is a fixed-size tab — nothing to resize until it is
+    // opened back up, so it gets the amber outline and no handles.
   } else if (editModeId === activeId && (a.type === 'rect' || a.type === 'ellipse' || a.type === 'ainote')) {
     handles = [
       { h: 'nw', x: a.x, y: a.y }, { h: 'ne', x: a.x + a.w, y: a.y },
@@ -3936,10 +3976,11 @@ function annNode(a) {
     // A generated card (notes / table / picture / widget placeholder). Like
     // the video pill it is HTML inside the overlay, so it scales with the
     // zoom and moves, erases and lassoes like any other annotation.
+    var nFr = annFrame(a);
     var nfo = el('foreignObject', {
-      x: a.x, y: a.y,
-      width: Math.max(AI_NOTE_MIN_W, a.w || AI_NOTE_MIN_W),
-      height: Math.max(AI_NOTE_MIN_H, a.h || AI_NOTE_MIN_H)
+      x: nFr.x, y: nFr.y,
+      width: a.min ? nFr.w : Math.max(AI_NOTE_MIN_W, nFr.w || AI_NOTE_MIN_W),
+      height: a.min ? nFr.h : Math.max(AI_NOTE_MIN_H, nFr.h || AI_NOTE_MIN_H)
     });
     nfo.style.overflow = 'visible';
     nfo.appendChild(aiNoteCardNode(a));
@@ -5523,6 +5564,12 @@ function enterEditMode(id, p) {
   if (editingId === id) return; // already typing
   selectedId = id;
   if (a.type === 'ainote') {
+    // Minimised, the whole pill is the way back in — ⤢ is a small target on
+    // an iPad, and a student who can only read still needs to open it.
+    if (a.min) {
+      handleAiNoteAction('min', id, pages.find(function (pg) { return pg.num === a.page; }) || p);
+      return;
+    }
     // Double-tap an AI card to ask Gemini for it again (or remove it).
     if (isStudent() || isSharedVisitor()) return;
     var np = pages.find(function (pg) { return pg.num === a.page; }) || p;
@@ -6299,6 +6346,7 @@ function applyHandle(a, h, pt) {
     return;
   }
   if (a.type === 'ainote') {
+    if (a.min) return;   // a minimised card has no handles to drag
     // Same corner-drag as a shape, but a card has a floor size — below it
     // the heading and the widget inside have nowhere to go.
     var nfx = (h === 'nw' || h === 'sw') ? a.x + a.w : a.x;
@@ -6819,22 +6867,22 @@ function aiImprove(id) {
    thumbnails and the printed PDF show. */
 var AI_NOTE_KINDS = [
   {
-    key: 'notes', icon: '📝', name: 'Written notes',
+    key: 'notes', icon: '📝', name: 'Written notes', short: 'Note',
     what: 'A tidy note card — headings and bullet points on the page.',
     ph: 'e.g. the three states of matter, with one example of each'
   },
   {
-    key: 'table', icon: '📊', name: 'Table',
+    key: 'table', icon: '📊', name: 'Table', short: 'Graph',
     what: 'A comparison or summary table with proper headings.',
     ph: 'e.g. compare mitosis and meiosis across 4 rows'
   },
   {
-    key: 'image', icon: '🖼️', name: 'Picture or diagram',
+    key: 'image', icon: '🖼️', name: 'Picture or diagram', short: 'Picture',
     what: 'A generated picture or labelled diagram.',
     ph: 'e.g. a labelled diagram of the water cycle, simple and clean'
   },
   {
-    key: 'widget', icon: '⚙️', name: 'Interactive widget',
+    key: 'widget', icon: '⚙️', name: 'Interactive widget', short: 'Widget',
     what: 'A small working model the class can play with, pinned to the page.',
     ph: 'Leave blank to teach the question you clicked on — or say exactly what you want, e.g. a model showing diffusion, particles spreading from high to low concentration, with a speed slider'
   }
@@ -6859,6 +6907,10 @@ var AI_NOTE_SIZE = {
 };
 var AI_NOTE_HEAD_H = 15;   // page units — must match .aiNoteHead's fixed height
 var AI_NOTE_MIN_W = 90, AI_NOTE_MIN_H = 60;
+/* Minimised, a card shrinks to a rounded rectangle named after what it is
+   ("Widget", "Note", "Graph", "Picture"), so the question underneath is
+   readable again. Page units, matching the .aiNotePill CSS. */
+var AI_NOTE_PILL_W = 104, AI_NOTE_PILL_H = 19;
 var aiNoteEdit = null;     // { mode: 'new'|'edit', page, x, y, id }
 var aiNoteKind = 'notes';
 
@@ -7302,8 +7354,10 @@ function generateAiNote() {
   if (!page) { closeAiNoteModal(); return; }
 
   var size = AI_NOTE_SIZE[kind] || AI_NOTE_SIZE.notes;
+  // A card being rebuilt keeps the size it was drawn at — its full size, even
+  // if it is sitting minimised, or reopening it would give back a pill.
   var frame = editing
-    ? annFrame(target)
+    ? { x: target.x || 0, y: target.y || 0, w: target.w || size.w, h: target.h || size.h }
     : {
         x: round2(Math.max(4, Math.min(ctx.x - size.w / 2, page.baseW - size.w - 4))),
         y: round2(Math.max(4, Math.min(ctx.y - 12, page.baseH - size.h - 4))),
@@ -7502,6 +7556,7 @@ function aiNoteSyncTitle() {
    the bottom of the page. Never shrinks — a card drawn tall stays tall. */
 function fitAiNoteHeight(a) {
   if (!a || a.type !== 'ainote' || (a.kind !== 'notes' && a.kind !== 'table')) return false;
+  if (a.min) return false;   // a pill has no body to measure
   var p = pages.find(function (pg) { return pg.num === a.page; });
   var body = p && p.svg.querySelector('[data-id="' + a.id + '"] .aiNoteBody');
   if (!body) return false;
@@ -7676,6 +7731,7 @@ function stripCodeFence(s) {
 
 /* ---- Drawing the card ---- */
 function aiNoteCardNode(a) {
+  if (a.min) return aiNotePillNode(a);
   var card = document.createElement('div');
   card.className = 'aiNoteCard' + (a.live ? ' aiNoteLive' : '');
   var head = document.createElement('div');
@@ -7702,6 +7758,16 @@ function aiNoteCardNode(a) {
     redo.title = 'Ask ' + aiEngineName() + ' for this card again';
     head.appendChild(redo);
   }
+  // Everyone gets the minimise button — a card parked over the very question
+  // it is teaching has to be got out of the way, and a student reading the
+  // worksheet needs that as much as the teacher does.
+  var min = document.createElement('button');
+  min.className = 'aiNoteBtn';
+  min.setAttribute('data-ainote-act', 'min');
+  min.textContent = '–';
+  min.title = 'Minimise — it shrinks to a small ' + aiNoteShortName(a).toLowerCase() +
+              ' tab; a running widget carries on behind it';
+  head.appendChild(min);
   card.appendChild(head);
 
   var body = document.createElement('div');
@@ -7729,6 +7795,36 @@ function aiNoteCardNode(a) {
   }
   card.appendChild(body);
   return card;
+}
+
+/* What a minimised card calls itself: "Widget", "Note", "Graph", "Picture". */
+function aiNoteShortName(a) {
+  var info = aiNoteKindInfo(a.kind);
+  return info.short || info.name;
+}
+
+/* The minimised card: a rounded rectangle named after what it is. Tapping the
+   ⤢ opens it back up; the rest of the pill drags like any annotation, so a
+   parked card can still be tidied into a margin. */
+function aiNotePillNode(a) {
+  var pill = document.createElement('div');
+  pill.className = 'aiNotePill' + (a.live ? ' aiNoteLive' : '');
+  pill.title = (a.title || aiNoteShortName(a)) + ' — minimised';
+  var icon = document.createElement('span');
+  icon.className = 'aiNotePillIcon';
+  icon.textContent = aiNoteKindInfo(a.kind).icon;
+  var label = document.createElement('span');
+  label.className = 'aiNotePillLabel';
+  label.textContent = aiNoteShortName(a);
+  var open = document.createElement('button');
+  open.className = 'aiNoteBtn aiNotePillBtn';
+  open.setAttribute('data-ainote-act', 'min');
+  open.textContent = '⤢';
+  open.title = 'Open it back up';
+  pill.appendChild(icon);
+  pill.appendChild(label);
+  pill.appendChild(open);
+  return pill;
 }
 
 function aiNotePlaceholder(text) {
@@ -7855,14 +7951,20 @@ function syncAiWidgets(p) {
       frame.srcdoc = aiWidgetDoc(a.html);
       host.appendChild(frame);
     }
-    var fr = annFrame(a);
-    host.style.left = (fr.x * scale) + 'px';
-    host.style.top = ((fr.y + AI_NOTE_HEAD_H) * scale) + 'px';
-    host.style.width = (fr.w * scale) + 'px';
-    host.style.height = (Math.max(10, fr.h - AI_NOTE_HEAD_H) * scale) + 'px';
+    // Minimised, the pill is the whole card — the frame is hidden where it
+    // stood and keeps running; only its position is left stale, and it is
+    // rewritten the moment the card is opened back up.
+    host.classList.toggle('aiWidgetMin', !!a.min);
+    if (!a.min) {
+      var fr = annFrame(a);
+      host.style.left = (fr.x * scale) + 'px';
+      host.style.top = ((fr.y + AI_NOTE_HEAD_H) * scale) + 'px';
+      host.style.width = (fr.w * scale) + 'px';
+      host.style.height = (Math.max(10, fr.h - AI_NOTE_HEAD_H) * scale) + 'px';
+    }
     // Only a widget switched on with ▶ Use takes taps; otherwise the tools
     // draw straight over it as if it were printed on the page.
-    host.classList.toggle('live', !!a.live);
+    host.classList.toggle('live', !!a.live && !a.min);
   });
   Array.prototype.forEach.call(p.wrap.querySelectorAll('.aiWidgetHost'), function (h) {
     if (!seen[h.getAttribute('data-id')]) h.remove();
@@ -7871,10 +7973,22 @@ function syncAiWidgets(p) {
 
 function syncAllAiWidgets() { pages.forEach(syncAiWidgets); }
 
-/* A tap on one of the card's own buttons (▶ Use / ✨ redo). */
+/* A tap on one of the card's own buttons (– minimise / ⤢ open / ▶ Use /
+   ✨ redo). */
 function handleAiNoteAction(act, id, p) {
   var a = annotations.find(function (x) { return x.id === id; });
   if (!a || a.type !== 'ainote') return;
+  if (act === 'min') {
+    // Folding a card away is not a change to the work, so it does not go on
+    // the undo stack — but it is remembered with the worksheet, so a card
+    // parked out of the way stays parked next time it is opened.
+    if (a.min) delete a.min; else a.min = true;
+    // Handles sized for the full card would be left hanging in mid-air.
+    if (a.min && editModeId === id) editModeId = null;
+    renderOverlay(p);   // repositions the live widget frame with it
+    if (!isStudent() && !isSharedVisitor()) setDirty(true);
+    return;
+  }
   if (act === 'live') {
     a.live = !a.live;
     renderOverlay(p);
@@ -12277,9 +12391,32 @@ function rasterizeImageDataUrl(src, frame) {
   });
 }
 
+/* A minimised card on paper: the same small named tab, drawn as a plain
+   rectangle (pdf-lib has no rounded corners) with its coloured spine. */
+function drawAiNotePillOnPdf(a, page, cv, rgb, fontBold) {
+  var fr = annFrame(a);
+  var q1 = cv(fr.x, fr.y), q2 = cv(fr.x + fr.w, fr.y + fr.h);
+  var x = Math.min(q1.x, q2.x), y = Math.min(q1.y, q2.y);
+  var pw = Math.abs(q2.x - q1.x), ph = Math.abs(q2.y - q1.y);
+  page.drawRectangle({
+    x: x, y: y, width: pw, height: ph,
+    color: rgb(0.95, 0.93, 0.98), borderColor: rgb(0.85, 0.82, 0.91), borderWidth: 0.8
+  });
+  page.drawRectangle({ x: x, y: y, width: 2, height: ph, color: rgb(0.49, 0.34, 0.76) });
+  var size = Math.min(7, ph - 5);
+  if (size <= 0) return;
+  page.drawText(fitPdfText(winAnsiSafe(aiNoteShortName(a).toUpperCase()), fontBold, size, pw - 10), {
+    x: x + 6, y: y + (ph - size) / 2 + 0.8,
+    size: size, font: fontBold, color: rgb(0.35, 0.29, 0.52)
+  });
+}
+
 function drawAiNoteOnPdf(o) {
   var a = o.ann, page = o.page, cv = o.cv, rgb = o.rgb, font = o.font, fontBold = o.fontBold;
   var fr = annFrame(a);
+  // Minimised on screen, minimised on paper — the printout is what the class
+  // is looking at, so a folded-away card prints as its little named tab.
+  if (a.min) { drawAiNotePillOnPdf(a, page, cv, rgb, fontBold); return; }
   var w = Math.max(AI_NOTE_MIN_W, fr.w), h = Math.max(AI_NOTE_MIN_H, fr.h);
   var q1 = cv(fr.x, fr.y), q2 = cv(fr.x + w, fr.y + h);
   var x = Math.min(q1.x, q2.x), y = Math.min(q1.y, q2.y);
