@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Scrolling a long app in the code window (v1.47.0)
+
+An app taller than the code window used to have to be scrolled from inside the
+sandbox, and an app whose own CSS says `overflow: hidden` — which generated
+pages very often do — could not be scrolled at all: everything below the fold
+was simply unreachable. Now the **pane** is the scroller, not the frame.
+
+- **The frame is made as tall as the app says it is.** The hook already inside
+  the sandbox reports the content height back, and the pane scrolls over it as
+  an ordinary scroller in the app's own document — wheel, trackpad, scrollbar
+  or finger.
+- **Apps that fill the frame are untouched.** One laid out to `100vh` reports
+  exactly the frame height, so nothing scrolls and nothing changes.
+- **Finger drags are forwarded** from inside the sandbox as an absolute
+  position, so where the browser also scrolls the pane by itself the two agree
+  instead of adding up. A drag that starts on something interactive — a slider,
+  a canvas, a button — or inside a scroller of the app's own is left alone.
+- **A runaway app cannot grow forever:** the frame is stretched at most four
+  times per run, so a body sized at 200% of the window settles instead of
+  doubling on every measurement.
+
 ## Zoom what is running (v1.46.0)
 
 **−** and **+** buttons scale the app inside a frame, in both places one runs:

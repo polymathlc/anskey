@@ -408,22 +408,32 @@
     overflow: auto; resize: none;
   }
   .codeWinSrc:focus { border-color: var(--accent-deep); outline: none; }
+  /* ---- The pane the pasted app runs in ----
+     This pane is the scroller, not the frame inside it. An app taller than the
+     window used to have to be scrolled from inside the sandbox, which a mouse
+     wheel could do but a finger on an iPad could not, and an app whose own CSS
+     says overflow:hidden could not be scrolled at all. So the frame is made as
+     tall as the app says it needs (see codeWinContentH) and this pane scrolls
+     over it — an ordinary scroller in the app's own document. */
   .codeWinPreview {
     flex: 1 1 auto; min-height: 80px;
     border: 1.5px solid var(--line); border-radius: var(--radius-sm);
-    overflow: hidden; background: #fff;
-    display: flex; align-items: center; justify-content: center;
-    /* The running app is pinned to the corner and scaled from there, so the
-       zoom buttons grow it out of the top-left rather than out of the middle
-       (which would slide the part being pointed at off the screen). The empty
-       state is still centred by the flex rules above. */
+    background: #fff;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     position: relative;
   }
+  /* Holds the pane's scroll height open: the frame inside is scaled, and a
+     transform does not change the space an element takes up. */
+  .codeWinStage { position: relative; width: 100%; }
   .codeWinPreview iframe {
     display: block; border: 0;
     position: absolute; left: 0; top: 0;
-    /* Width and height are set with the zoom (100 / zoom %), so the app lays
-       itself out at its natural size and the scale magnifies the result. */
+    /* The running app is pinned to the corner and scaled from there, so the
+       zoom buttons grow it out of the top-left rather than out of the middle
+       (which would slide the part being pointed at off the screen). Width and
+       height are written by layoutCodeWinStage. */
     width: 100%; height: 100%;
     transform-origin: 0 0;
   }
@@ -436,7 +446,10 @@
     flex: 0 0 auto; font-size: 0.76rem; color: var(--ink-soft);
     min-width: 34px; text-align: center; font-variant-numeric: tabular-nums;
   }
-  .codeWinEmpty { color: var(--ink-faint); font-size: 0.82rem; text-align: center; padding: 12px; }
+  .codeWinEmpty {
+    color: var(--ink-faint); font-size: 0.82rem; text-align: center; padding: 12px;
+    height: 100%; display: flex; align-items: center; justify-content: center;
+  }
   /* Code folded away: the app fills the window for the class to look at. */
   #codeWinModal.codeFolded .codeWinSrc { display: none; }
 
@@ -2737,7 +2750,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.46.0';
+var APP_VERSION = 'v1.47.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -8278,6 +8291,9 @@ function applyCodeWin() {
   c.style.top = codeWin.y + 'px';
   c.style.width = codeWin.w + 'px';
   c.style.height = codeWinMin ? 'auto' : codeWin.h + 'px';
+  // The pane just changed size, so the room the running app is given changes
+  // with it — and the stage that holds the scroll open has to follow.
+  layoutCodeWinStage();
 }
 
 function setCodeWinMin(on) {
@@ -8295,6 +8311,7 @@ function setCodeWinFolded(on) {
   var b = $('codeWinFoldBtn');
   b.textContent = codeWinFolded ? 'Show code' : 'Hide code';
   b.title = codeWinFolded ? 'Bring the editor back' : 'Hide the code so the app fills the window';
+  layoutCodeWinStage();   // hiding the editor hands the pane the space
 }
 
 function openCodeWin() {
@@ -8337,13 +8354,54 @@ function codeWinSource() {
   return stripCodeFence($('codeWinSrc').value || '').trim();
 }
 
-/* The document that actually runs: the widget sandbox (CSP, no network) plus
-   a hook that reports script errors back, so a broken paste says why instead
-   of showing a blank white box. */
+/* The document that actually runs: the widget sandbox (CSP, no network) plus a
+   hook that talks back to the window around it. The frame is a sandbox with no
+   same-origin access, so everything it has to say goes through postMessage:
+
+   - script errors, so a broken paste says why instead of showing a blank box;
+   - how tall the app actually is, so the pane outside can be scrolled over it;
+   - finger drags, so an app the pane has already sized to fit still scrolls on
+     a touch screen. The drag is sent as an absolute position rather than a
+     nudge, so if the browser scrolls the pane by itself the two agree instead
+     of adding up. Drags that start on something interactive (a slider, a
+     canvas, a button) are left alone — those belong to the app. */
 function codeWinDoc(src) {
-  var hook = '<script>(function(){function up(m){try{parent.postMessage({__codeWin:1,msg:String(m)},"*");}catch(e){}}' +
+  var hook = '<script>(function(){' +
+    'function post(o){try{o.__codeWin=1;parent.postMessage(o,"*");}catch(e){}}' +
+    'function up(m){post({msg:String(m)});}' +
     'window.addEventListener("error",function(e){up((e.message||"Script error")+(e.lineno?" (line "+e.lineno+")":""));});' +
-    'window.addEventListener("unhandledrejection",function(e){up("Unhandled rejection: "+((e.reason&&e.reason.message)||e.reason));});})();<\/script>';
+    'window.addEventListener("unhandledrejection",function(e){up("Unhandled rejection: "+((e.reason&&e.reason.message)||e.reason));});' +
+    // How tall the app is. body.scrollHeight, not documentElement's: that one
+    // never reads shorter than the frame, so it could only ever grow.
+    'function tall(){var b=document.body,d=document.documentElement;' +
+    'var h=b?Math.max(b.scrollHeight||0,b.offsetHeight||0):0;' +
+    'if(!h&&d)h=d.scrollHeight||0;return h;}' +
+    'var sent=-1,pend=0;' +
+    'function report(){pend=0;var h=tall();if(h&&Math.abs(h-sent)>2){sent=h;post({h:h});}}' +
+    'function ping(){if(!pend){pend=1;requestAnimationFrame(report);}}' +
+    'document.addEventListener("DOMContentLoaded",ping);window.addEventListener("load",ping);' +
+    '[60,250,800,2000].forEach(function(t){setTimeout(ping,t);});' +
+    'try{new ResizeObserver(ping).observe(document.documentElement);}catch(e){}' +
+    'try{new MutationObserver(ping).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}' +
+    // Finger drags, for when the frame itself has nothing left to scroll.
+    'var SKIP="input,select,textarea,button,a,canvas,svg,video,[draggable],[contenteditable]";' +
+    'var dragY=null;' +
+    'function scrollable(){var d=document.scrollingElement||document.documentElement;' +
+    'return d&&d.scrollHeight>d.clientHeight+2;}' +
+    // A scroller of the app\'s own (a list inside a panel) keeps its drags: the
+    // finger must move one thing, not that scroller and the pane behind it.
+    'function inScroller(t){for(var n=t;n&&n.nodeType===1;n=n.parentElement){' +
+    'if(n.scrollHeight>n.clientHeight+2){var o=getComputedStyle(n).overflowY;' +
+    'if(o==="auto"||o==="scroll")return true;}}return false;}' +
+    'window.addEventListener("touchstart",function(e){dragY=null;' +
+    'if(e.touches.length!==1||scrollable())return;' +
+    'var t=e.target;if(t&&t.closest&&(t.closest(SKIP)||inScroller(t)))return;' +
+    'dragY=e.touches[0].clientY;post({dragStart:1});},{passive:true});' +
+    'window.addEventListener("touchmove",function(e){' +
+    'if(dragY===null||e.touches.length!==1)return;' +
+    'post({dragBy:dragY-e.touches[0].clientY});},{passive:true});' +
+    'window.addEventListener("touchend",function(){dragY=null;},{passive:true});' +
+    '})();<\/script>';
   var doc = aiWidgetDoc(src);
   // After the sandbox's own CSP meta, before anything the paste brought with
   // it: the policy should be the first thing the parser sees, the hook the
@@ -8364,19 +8422,68 @@ function runCodeWin() {
     return;
   }
   // A fresh iframe every run: the app restarts from the top, which is what
-  // "Run" means to anyone watching.
+  // "Run" means to anyone watching. It sits in a stage that holds the pane's
+  // scroll height open once the app says how tall it is.
+  var stage = document.createElement('div');
+  stage.className = 'codeWinStage';
   var frame = document.createElement('iframe');
   frame.setAttribute('sandbox', 'allow-scripts');
   frame.setAttribute('title', 'Code window preview');
   frame.srcdoc = codeWinDoc(src);
-  host.appendChild(frame);
-  applyCodeWinZoom();
+  stage.appendChild(frame);
+  host.appendChild(stage);
+  host.scrollTop = 0;
+  codeWinContentH = 0;
+  codeWinGrows = 0;
+  layoutCodeWinStage();
   codeWinSay('Running · ' + src.length.toLocaleString() + ' characters');
   saveCodeWinSrc();
 }
 
+/* ---- How much room the running app is given ----
+   The frame is laid out at the pane's size divided by the zoom, so the app
+   believes it has an ordinary window and the scale only magnifies the result.
+   Once the app reports a height taller than that, the frame is stretched to
+   it and the pane scrolls over the difference — the frame stops scrolling
+   inside itself, which is the point: the scroller is now an ordinary element
+   in this document, reachable with a wheel, a scrollbar or a finger. */
+var codeWinContentH = 0;   // what the app last said it needs, in its own px
+var codeWinGrows = 0;      // growth steps this run, so a 200%-tall body cannot run away
+var CODE_WIN_MAX_GROW = 4;
+var CODE_WIN_MAX_H = 20000;   // a backstop, not a limit anything real should meet
+
+function layoutCodeWinStage() {
+  var host = $('codeWinPreview');
+  var stage = host.querySelector('.codeWinStage');
+  var frame = stage && stage.querySelector('iframe');
+  if (!frame) return;
+  var z = clampZoom(codeWinZoom);
+  // The height the app gets for free: exactly the pane, before it asks for more.
+  var natural = Math.max(40, host.clientHeight / z);
+  // Zooming in shrinks the frame's layout size, so the cap on how tall it may
+  // be cannot be a multiple of that — it is the growth counter that stops a
+  // runaway app, and this is only a backstop against an absurd number.
+  var h = Math.max(natural, Math.min(codeWinContentH || 0, CODE_WIN_MAX_H));
+  frame.style.width = (100 / z) + '%';
+  frame.style.height = h + 'px';
+  frame.style.transform = z === 1 ? '' : 'scale(' + z + ')';
+  stage.style.height = (h * z) + 'px';
+}
+
+/* A height report from inside the sandbox. Only growth is acted on, and only a
+   few times per run: an app whose body is 200% of the window would otherwise
+   ask for more room every time it was given some. */
+function setCodeWinContentH(h) {
+  h = Math.round(Number(h) || 0);
+  if (!h || h <= codeWinContentH + 2) return;
+  if (codeWinGrows >= CODE_WIN_MAX_GROW) return;
+  codeWinGrows++;
+  codeWinContentH = h;
+  layoutCodeWinStage();
+}
+
 function applyCodeWinZoom() {
-  applyZoomToFrame($('codeWinPreview').querySelector('iframe'), codeWinZoom);
+  layoutCodeWinStage();
   $('codeWinZoomLbl').textContent = zoomPct(codeWinZoom);
 }
 
@@ -8437,8 +8544,20 @@ window.addEventListener('message', function (e) {
   var d = e && e.data;
   if (!d || d.__codeWin !== 1) return;
   if (!$('codeWinModal').classList.contains('open')) return;
-  codeWinSay('⚠️ ' + String(d.msg || 'the app hit an error').slice(0, 200), true);
+  if (d.h) { setCodeWinContentH(d.h); return; }
+  // A finger drag inside the sandbox, moving the pane around it. The position
+  // is absolute (where the pane sat when the finger went down, minus how far
+  // it has travelled), so a browser that scrolls the pane by itself lands on
+  // the same number instead of scrolling twice as far.
+  if (d.dragStart) { codeWinDragTop = $('codeWinPreview').scrollTop; return; }
+  if (d.dragBy !== undefined) {
+    if (codeWinDragTop === null) return;
+    $('codeWinPreview').scrollTop = codeWinDragTop + d.dragBy;
+    return;
+  }
+  if (d.msg) codeWinSay('⚠️ ' + String(d.msg).slice(0, 200), true);
 });
+var codeWinDragTop = null;   // where the pane sat when a finger went down inside
 
 $('codeWinBtn').addEventListener('click', function () {
   if ($('codeWinModal').classList.contains('open') && !codeWinMin) closeCodeWin();
