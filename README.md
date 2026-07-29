@@ -3,6 +3,24 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Zoom what is running (v1.46.0)
+
+**−** and **+** buttons scale the app inside a frame, in both places one runs:
+the **widget card** on the worksheet (in its heading, beside ▶ Use) and the
+**code window** (in its button bar, with a percentage beside them).
+
+- **The app does not restart.** The frame is restyled, never rebuilt, so a
+  simulation mid-demonstration keeps its state — zoom in on the thing you are
+  pointing at without losing where you had got to.
+- **The app does not reflow either.** The frame is laid out at its natural size
+  and the whole result is scaled, so a widget built for a phone stays built for
+  a phone — it just gets bigger, instead of rearranging itself as you zoom.
+- **Steps from 40% to 300%**, growing from the top-left corner so what you are
+  pointing at stays where it was.
+- **The percentage in the code window resets to 100%** when you click it.
+- A card's zoom is remembered with the worksheet; the code window's is
+  remembered on the device.
+
 ## Minimise a card (v1.45.0)
 
 Every card on the worksheet — a widget, notes, a table, a picture — now has a
