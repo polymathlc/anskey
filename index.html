@@ -343,6 +343,41 @@
   }
   .aiJobX:hover { background: #F1F0EE; color: var(--ink); }
 
+  /* ---------- Code window ----------
+     Paste a page of HTML in, watch it run underneath. Same sandbox as the
+     generated widgets: scripts, nothing else. */
+  .codeWinBody { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px 14px; overflow: hidden; }
+  .codeWinBar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 0 0 auto; }
+  .codeWinBar .btn { padding: 5px 10px; font-size: 0.82rem; }
+  .codeWinMsg {
+    font-size: 0.76rem; color: var(--ink-soft);
+    margin-left: auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .codeWinMsg.err { color: #C62828; }
+  .codeWinSrc {
+    flex: 0 0 32%; min-height: 64px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px; line-height: 1.45;
+    border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+    padding: 8px 10px; background: #FBFAF9; color: var(--ink);
+    /* Wrapped, not scrolled sideways: pasted HTML is often one very long
+       line, and chasing it left and right on an iPad is no fun. */
+    white-space: pre-wrap; word-break: break-word;
+    overflow: auto; resize: none;
+  }
+  .codeWinSrc:focus { border-color: var(--accent-deep); outline: none; }
+  .codeWinPreview {
+    flex: 1 1 auto; min-height: 80px;
+    border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+    overflow: hidden; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .codeWinPreview iframe { display: block; width: 100%; height: 100%; border: 0; }
+  .codeWinEmpty { color: var(--ink-faint); font-size: 0.82rem; text-align: center; padding: 12px; }
+  /* Code folded away: the app fills the window for the class to look at. */
+  #codeWinModal.codeFolded .codeWinSrc { display: none; }
+
   .videoPop {
     position: absolute;
     z-index: 40;
@@ -1841,6 +1876,8 @@
   .modalBack.floatWin.winMin .floatWinGrip { display: none; }
   .modalBack.floatWin.winMin .modalHead { border-bottom: none; padding-bottom: 18px; }
   .winBtns { display: flex; align-items: center; gap: 2px; }
+  /* Whichever floating window was touched last sits over the other. */
+  .modalBack.floatWin.winTop { z-index: 96; }
 </style>
 </head>
 <body>
@@ -1976,6 +2013,9 @@
     </button>
     <button class="toolBtn" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps — tap one to jump the lesson recording to that moment">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+    </button>
+    <button class="toolBtn" id="codeWinBtn" data-key="J" title="Code window — paste HTML and it runs in a window you can show the class">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8.5 8 4.5 12 8.5 16"/><polyline points="15.5 8 19.5 12 15.5 16"/><line x1="13.5" y1="5.5" x2="10.5" y2="18.5"/></svg>
     </button>
     <button class="toolBtn" id="thumbToggleBtn" data-key="N" title="Show / hide page thumbnails — drag the panel edge to resize them">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/><rect x="5.4" y="7" width="2.4" height="3.2"/><rect x="5.4" y="13" width="2.4" height="3.2"/></svg>
@@ -2337,6 +2377,31 @@
   </div>
 </div>
 
+<!-- CODE WINDOW — paste a page of HTML, watch it run -->
+<div class="modalBack floatWin" id="codeWinModal">
+  <div class="modalCard" id="codeWinCard">
+    <div class="modalHead" id="codeWinHead" title="Drag to move — the worksheet stays live underneath">
+      <h2 id="codeWinTitle">Code window</h2>
+      <div class="winBtns">
+        <button class="modalClose" id="codeWinMinBtn" title="Minimise — the app keeps running">–</button>
+        <button class="modalClose" id="codeWinCloseBtn" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="modalBody codeWinBody">
+      <div class="codeWinBar">
+        <button class="btn btnPrimary" id="codeWinRunBtn" title="Run the code — Ctrl/⌘ + Enter">▶ Run</button>
+        <button class="btn" id="codeWinFoldBtn" title="Hide the code so the app fills the window">Hide code</button>
+        <button class="btn" id="codeWinPinBtn" title="Drop this app onto the worksheet as a card that saves with it">📌 Pin to page</button>
+        <button class="btn" id="codeWinClearBtn" title="Empty the editor">Clear</button>
+        <span class="codeWinMsg" id="codeWinMsg"></span>
+      </div>
+      <textarea id="codeWinSrc" class="codeWinSrc" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Paste HTML here — it runs the moment you paste it. A whole page or just a snippet; a ```html code fence from a chat is fine too."></textarea>
+      <div class="codeWinPreview" id="codeWinPreview"><div class="codeWinEmpty">The app appears here</div></div>
+    </div>
+    <div class="floatWinGrip" id="codeWinGrip" title="Drag to resize"></div>
+  </div>
+</div>
+
 <div class="modalBack" id="videoModal">
   <div class="modalCard videoModalCard">
     <div class="modalHead">
@@ -2605,7 +2670,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.43.0';
+var APP_VERSION = 'v1.44.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -6898,22 +6963,105 @@ var AI_NOTE_HEAD_ONLY_H = 60;   // roughly the title bar alone, for clamping
 var aiNoteWin = null;   // { x, y, w, h } — the card's box in CSS pixels
 var aiNoteWinMin = false;   // minimised: title bar only, builds carry on behind it
 
-function aiNoteViewportH() {
+/* ================= Floating windows =================
+   Two windows float over the worksheet without blocking it: the AI notes
+   maker and the code window. Each owns its own box and its own contents; the
+   pointer handling, the on-screen clamping and the raise-on-touch are the
+   same for both and live here. */
+function floatWinViewportH() {
   return (window.visualViewport && window.visualViewport.height) || window.innerHeight;
 }
 
-function clampAiNoteWin(b) {
-  var vw = window.innerWidth, vh = aiNoteViewportH(), pad = 8;
-  var w = Math.min(Math.max(b.w, AI_NOTE_WIN_MIN_W), Math.max(vw - pad * 2, 120));
-  var h = Math.min(Math.max(b.h, AI_NOTE_WIN_MIN_H), Math.max(vh - pad * 2, 120));
-  // Minimised, only the title bar is on screen — keep the full height stored
-  // (it comes back on restore) but let the window sit lower than it allows.
-  var onScreenH = aiNoteWinMin ? Math.min(AI_NOTE_HEAD_ONLY_H, h) : h;
+/* Keep a window's box on screen. onScreenH is how much of it is actually
+   showing — a minimised window is only its title bar, so it may sit lower
+   than its stored height would allow. */
+function clampWinBox(b, minW, minH, onScreenH) {
+  var vw = window.innerWidth, vh = floatWinViewportH(), pad = 8;
+  var w = Math.min(Math.max(b.w, minW), Math.max(vw - pad * 2, 120));
+  var h = Math.min(Math.max(b.h, minH), Math.max(vh - pad * 2, 120));
+  var vis = Math.min(onScreenH || h, h);
   return {
     x: Math.round(Math.max(pad, Math.min(b.x, vw - w - pad))),
-    y: Math.round(Math.max(pad, Math.min(b.y, vh - onScreenH - pad))),
+    y: Math.round(Math.max(pad, Math.min(b.y, vh - vis - pad))),
     w: Math.round(w), h: Math.round(h)
   };
+}
+
+/* The window last touched sits on top of the other one. */
+function raiseFloatWin(modalId) {
+  Array.prototype.forEach.call(document.querySelectorAll('.modalBack.floatWin'), function (m) {
+    m.classList.toggle('winTop', m.id === modalId);
+  });
+}
+
+/* Dragging the title bar moves a window; dragging the corner grip resizes it.
+   cfg: { modal, head, grip, card, get, set, clamp, apply, save } — ids for the
+   elements, accessors for the box. */
+function attachFloatWin(cfg) {
+  var mode = null, ptr = null, sx = 0, sy = 0, start = null;
+  var modal = $(cfg.modal), head = $(cfg.head), grip = $(cfg.grip);
+
+  function begin(e, m) {
+    if (e.button != null && e.button !== 0) return;
+    var box = cfg.get();
+    if (!box) return;
+    mode = m; ptr = e.pointerId; sx = e.clientX; sy = e.clientY;
+    start = { x: box.x, y: box.y, w: box.w, h: box.h };
+    e.preventDefault();
+    e.stopPropagation();
+    try { e.currentTarget.setPointerCapture(ptr); } catch (_) {}
+    modal.classList.add(m === 'move' ? 'winDragging' : 'winSizing');
+  }
+
+  function drag(e) {
+    if (!mode || e.pointerId !== ptr) return;
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    // Resizing grows towards the bottom right, so cap it at the room left
+    // there — otherwise clamping would slide the whole window up instead.
+    cfg.set(cfg.clamp(mode === 'move'
+      ? { x: start.x + dx, y: start.y + dy, w: start.w, h: start.h }
+      : { x: start.x, y: start.y,
+          w: Math.min(start.w + dx, window.innerWidth - start.x - 8),
+          h: Math.min(start.h + dy, floatWinViewportH() - start.y - 8) }));
+    cfg.apply();
+    e.preventDefault();
+  }
+
+  function finish(e) {
+    if (!mode || (e && e.pointerId != null && e.pointerId !== ptr)) return;
+    mode = null; ptr = null;
+    modal.classList.remove('winDragging', 'winSizing');
+    cfg.save();
+  }
+
+  head.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('button')) return;   // ✕ still closes
+    begin(e, 'move');
+  });
+  grip.addEventListener('pointerdown', function (e) { begin(e, 'size'); });
+  [head, grip].forEach(function (el) {
+    el.addEventListener('pointermove', drag);
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', finish);
+  });
+  $(cfg.card).addEventListener('pointerdown', function () { raiseFloatWin(cfg.modal); }, true);
+
+  // A window left near an edge must not fall off when the browser is resized,
+  // the iPad rotates, or the on-screen keyboard opens.
+  function reflow() {
+    if (!cfg.get() || !modal.classList.contains('open')) return;
+    cfg.set(cfg.clamp(cfg.get()));
+    cfg.apply();
+  }
+  window.addEventListener('resize', reflow);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow);
+}
+
+function clampAiNoteWin(b) {
+  // Minimised, only the title bar is on screen — the full height stays stored
+  // and comes back on restore.
+  return clampWinBox(b, AI_NOTE_WIN_MIN_W, AI_NOTE_WIN_MIN_H,
+                     aiNoteWinMin ? AI_NOTE_HEAD_ONLY_H : 0);
 }
 
 /* How tall the window wants to be with everything in it. Measured rather than
@@ -6979,63 +7127,12 @@ function setAiNoteWinMin(on) {
   aiNoteSyncTitle();
 }
 
-/* Dragging the title bar moves it; dragging the corner grip resizes it. */
-(function () {
-  var mode = null, ptr = null, sx = 0, sy = 0, start = null;
-
-  function begin(e, m) {
-    if (e.button != null && e.button !== 0) return;
-    if (!aiNoteWin) return;
-    mode = m; ptr = e.pointerId; sx = e.clientX; sy = e.clientY;
-    start = { x: aiNoteWin.x, y: aiNoteWin.y, w: aiNoteWin.w, h: aiNoteWin.h };
-    e.preventDefault();
-    e.stopPropagation();
-    try { e.currentTarget.setPointerCapture(ptr); } catch (_) {}
-    $('aiNoteModal').classList.add(m === 'move' ? 'winDragging' : 'winSizing');
-  }
-
-  function drag(e) {
-    if (!mode || e.pointerId !== ptr) return;
-    var dx = e.clientX - sx, dy = e.clientY - sy;
-    // Resizing grows towards the bottom right, so cap it at the room left
-    // there — otherwise clamping would slide the whole window up instead.
-    aiNoteWin = clampAiNoteWin(mode === 'move'
-      ? { x: start.x + dx, y: start.y + dy, w: start.w, h: start.h }
-      : { x: start.x, y: start.y,
-          w: Math.min(start.w + dx, window.innerWidth - start.x - 8),
-          h: Math.min(start.h + dy, aiNoteViewportH() - start.y - 8) });
-    applyAiNoteWin();
-    e.preventDefault();
-  }
-
-  function finish(e) {
-    if (!mode || (e && e.pointerId != null && e.pointerId !== ptr)) return;
-    mode = null; ptr = null;
-    $('aiNoteModal').classList.remove('winDragging', 'winSizing');
-    saveAiNoteWin();
-  }
-
-  var head = $('aiNoteHead'), grip = $('aiNoteGrip');
-  head.addEventListener('pointerdown', function (e) {
-    if (e.target.closest('button')) return;   // ✕ still closes
-    begin(e, 'move');
-  });
-  grip.addEventListener('pointerdown', function (e) { begin(e, 'size'); });
-  [head, grip].forEach(function (el) {
-    el.addEventListener('pointermove', drag);
-    el.addEventListener('pointerup', finish);
-    el.addEventListener('pointercancel', finish);
-  });
-  // A window left near an edge must not fall off when the browser is resized,
-  // the iPad rotates, or the on-screen keyboard opens.
-  function reflow() {
-    if (!aiNoteWin || !$('aiNoteModal').classList.contains('open')) return;
-    aiNoteWin = clampAiNoteWin(aiNoteWin);
-    applyAiNoteWin();
-  }
-  window.addEventListener('resize', reflow);
-  if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow);
-})();
+attachFloatWin({
+  modal: 'aiNoteModal', card: 'aiNoteCard', head: 'aiNoteHead', grip: 'aiNoteGrip',
+  get: function () { return aiNoteWin; },
+  set: function (b) { aiNoteWin = b; },
+  clamp: clampAiNoteWin, apply: applyAiNoteWin, save: saveAiNoteWin
+});
 
 function openAiNoteModal(ctx) {
   if (isStudent() || isSharedVisitor()) return; // generating is teacher-only
@@ -7915,6 +8012,250 @@ function _repairAIJson(s) {
   while (closers.length) out += closers.pop();
   return out.replace(/,\s*([}\]])/g, '$1');
 }
+
+/* ================= Code window =================
+   Paste a page of HTML — a simulation from a chat, something written by
+   hand, a snippet off a site — and it runs in a floating window the class
+   can watch. Same sandbox as the generated widgets: scripts and nothing
+   else, no network, no storage, no way back into the app. Pin it and it
+   becomes an ordinary widget card that saves with the worksheet. */
+var CODE_WIN_KEY = 'polymath.codeWin';        // the window's box
+var CODE_WIN_SRC_KEY = 'polymath.codeWinSrc'; // what was last pasted in
+var CODE_WIN_MIN_W = 300, CODE_WIN_MIN_H = 220;
+var CODE_WIN_HEAD_ONLY_H = 60;
+var codeWin = null;
+var codeWinMin = false;
+var codeWinFolded = false;
+var codeWinSaveTimer = null;
+
+function clampCodeWin(b) {
+  return clampWinBox(b, CODE_WIN_MIN_W, CODE_WIN_MIN_H, codeWinMin ? CODE_WIN_HEAD_ONLY_H : 0);
+}
+
+function defaultCodeWin() {
+  // Bigger than the AI notes window and a little left of it: this one is for
+  // looking at, and the two should not land exactly on top of each other.
+  var vw = window.innerWidth, vh = floatWinViewportH();
+  var w = Math.min(620, Math.max(CODE_WIN_MIN_W, vw - 40));
+  var h = Math.min(560, Math.max(CODE_WIN_MIN_H, vh - 120));
+  return { x: Math.max(12, vw - w - 60), y: 92, w: w, h: h };
+}
+
+function loadCodeWinBox() {
+  try {
+    var v = JSON.parse(localStorage.getItem(CODE_WIN_KEY) || 'null');
+    if (v && ['x', 'y', 'w', 'h'].every(function (k) { return isFinite(v[k]); })) return v;
+  } catch (e) {}
+  return null;
+}
+
+function saveCodeWin() {
+  try { localStorage.setItem(CODE_WIN_KEY, JSON.stringify(codeWin)); } catch (e) {}
+}
+
+function applyCodeWin() {
+  var c = $('codeWinCard');
+  if (!c || !codeWin) return;
+  c.style.left = codeWin.x + 'px';
+  c.style.top = codeWin.y + 'px';
+  c.style.width = codeWin.w + 'px';
+  c.style.height = codeWinMin ? 'auto' : codeWin.h + 'px';
+}
+
+function setCodeWinMin(on) {
+  codeWinMin = !!on;
+  $('codeWinModal').classList.toggle('winMin', codeWinMin);
+  var b = $('codeWinMinBtn');
+  b.textContent = codeWinMin ? '▢' : '–';
+  b.title = codeWinMin ? 'Open it back up' : 'Minimise — the app keeps running';
+  if (codeWin) { codeWin = clampCodeWin(codeWin); applyCodeWin(); }
+}
+
+function setCodeWinFolded(on) {
+  codeWinFolded = !!on;
+  $('codeWinModal').classList.toggle('codeFolded', codeWinFolded);
+  var b = $('codeWinFoldBtn');
+  b.textContent = codeWinFolded ? 'Show code' : 'Hide code';
+  b.title = codeWinFolded ? 'Bring the editor back' : 'Hide the code so the app fills the window';
+}
+
+function openCodeWin() {
+  if (isStudent() || isSharedVisitor()) return;   // the teacher's demo tool
+  var modal = $('codeWinModal');
+  if (modal.classList.contains('open')) { raiseFloatWin('codeWinModal'); return; }
+  try {
+    var saved = localStorage.getItem(CODE_WIN_SRC_KEY);
+    if (saved && !$('codeWinSrc').value) $('codeWinSrc').value = saved;
+  } catch (e) {}
+  setCodeWinMin(false);
+  setCodeWinFolded(false);
+  modal.classList.add('open');
+  raiseFloatWin('codeWinModal');
+  codeWin = clampCodeWin(codeWin || loadCodeWinBox() || defaultCodeWin());
+  applyCodeWin();
+  if ($('codeWinSrc').value.trim()) runCodeWin();   // pick up where it left off
+  else setTimeout(function () { $('codeWinSrc').focus(); }, 50);
+}
+
+function closeCodeWin() {
+  $('codeWinModal').classList.remove('open');
+  // Stop whatever was running: a hidden animation loop is wasted battery on
+  // an iPad, and the app restarts from the code on the next open.
+  $('codeWinPreview').innerHTML = '<div class="codeWinEmpty">The app appears here</div>';
+}
+
+function codeWinSay(msg, isErr) {
+  var el = $('codeWinMsg');
+  el.textContent = msg || '';
+  el.classList.toggle('err', !!isErr);
+}
+
+/* The pasted source, tidied: a ```html fence from a chat window is the most
+   common way this arrives, and a fence is never valid HTML anyway. */
+function codeWinSource() {
+  return stripCodeFence($('codeWinSrc').value || '').trim();
+}
+
+/* The document that actually runs: the widget sandbox (CSP, no network) plus
+   a hook that reports script errors back, so a broken paste says why instead
+   of showing a blank white box. */
+function codeWinDoc(src) {
+  var hook = '<script>(function(){function up(m){try{parent.postMessage({__codeWin:1,msg:String(m)},"*");}catch(e){}}' +
+    'window.addEventListener("error",function(e){up((e.message||"Script error")+(e.lineno?" (line "+e.lineno+")":""));});' +
+    'window.addEventListener("unhandledrejection",function(e){up("Unhandled rejection: "+((e.reason&&e.reason.message)||e.reason));});})();<\/script>';
+  var doc = aiWidgetDoc(src);
+  // After the sandbox's own CSP meta, before anything the paste brought with
+  // it: the policy should be the first thing the parser sees, the hook the
+  // first script to run.
+  var csp = /<meta http-equiv="Content-Security-Policy"[^>]*>/i.exec(doc);
+  return csp
+    ? doc.replace(csp[0], csp[0] + hook)
+    : doc.replace(/<head([^>]*)>/i, '<head$1>' + hook);
+}
+
+function runCodeWin() {
+  var src = codeWinSource();
+  var host = $('codeWinPreview');
+  host.innerHTML = '';
+  if (!src) {
+    host.innerHTML = '<div class="codeWinEmpty">The app appears here</div>';
+    codeWinSay('Nothing to run yet — paste some HTML.');
+    return;
+  }
+  // A fresh iframe every run: the app restarts from the top, which is what
+  // "Run" means to anyone watching.
+  var frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', 'allow-scripts');
+  frame.setAttribute('title', 'Code window preview');
+  frame.srcdoc = codeWinDoc(src);
+  host.appendChild(frame);
+  codeWinSay('Running · ' + src.length.toLocaleString() + ' characters');
+  saveCodeWinSrc();
+}
+
+function saveCodeWinSrc() {
+  clearTimeout(codeWinSaveTimer);
+  codeWinSaveTimer = setTimeout(function () {
+    try { localStorage.setItem(CODE_WIN_SRC_KEY, $('codeWinSrc').value || ''); } catch (e) {}
+  }, 400);
+}
+
+/* Which page the teacher is looking at — where a pinned app lands. */
+function currentViewPage() {
+  if (!pages.length) return null;
+  var area = $('viewerArea');
+  var mid = area.scrollTop + area.clientHeight / 2;
+  var best = pages[0];
+  pages.forEach(function (p) { if (p.wrap && p.wrap.offsetTop <= mid) best = p; });
+  return best;
+}
+
+/* Drop what is in the window onto the worksheet as an ordinary widget card:
+   it saves, prints, moves and resizes like any other, and ▶ Use turns it on. */
+function pinCodeWin() {
+  var src = codeWinSource();
+  if (!src) { toast('Paste some code into the window first.'); $('codeWinSrc').focus(); return; }
+  var p = currentViewPage();
+  if (!p) { toast('Open a worksheet first — there is no page to pin it to.', 4000); return; }
+  var size = AI_NOTE_SIZE.widget || { w: 320, h: 240 };
+  var area = $('viewerArea');
+  var sc = (p.wrap.offsetHeight || 1) / (p.baseH || 1);
+  // Just below the top of whatever part of the page is on screen.
+  var top = Math.max(0, (area.scrollTop - p.wrap.offsetTop) / sc) + 24;
+  var a = {
+    id: newAnnId(), page: p.num, type: 'ainote', kind: 'widget',
+    x: round2(Math.max(4, (p.baseW - size.w) / 2)),
+    y: round2(Math.max(4, Math.min(top, p.baseH - size.h - 4))),
+    w: size.w, h: size.h,
+    color: color, prompt: '', title: aiNoteHtmlTitle(src) || 'Pasted app',
+    text: '', columns: null, rows: null, src: '', html: src, live: false, ts: Date.now()
+  };
+  pushUndo();
+  annotations.push(a);
+  selectedId = a.id;
+  renderAllOverlays();
+  setDirty(true);
+  toast('📌 Pinned to page ' + p.num + ' — tap ▶ Use on the card to play with it. Ctrl+Z undoes it.', 5000);
+}
+
+/* Script errors from inside the sandbox. The frame has no same-origin access,
+   so it shouts through postMessage and the window shows what it said. */
+window.addEventListener('message', function (e) {
+  var d = e && e.data;
+  if (!d || d.__codeWin !== 1) return;
+  if (!$('codeWinModal').classList.contains('open')) return;
+  codeWinSay('⚠️ ' + String(d.msg || 'the app hit an error').slice(0, 200), true);
+});
+
+$('codeWinBtn').addEventListener('click', function () {
+  if ($('codeWinModal').classList.contains('open') && !codeWinMin) closeCodeWin();
+  else openCodeWin();
+});
+$('codeWinCloseBtn').addEventListener('click', closeCodeWin);
+$('codeWinMinBtn').addEventListener('click', function () { setCodeWinMin(!codeWinMin); });
+$('codeWinHead').addEventListener('click', function (e) {
+  if (!codeWinMin || e.target.closest('button')) return;
+  setCodeWinMin(false);
+});
+$('codeWinRunBtn').addEventListener('click', runCodeWin);
+$('codeWinFoldBtn').addEventListener('click', function () { setCodeWinFolded(!codeWinFolded); });
+$('codeWinPinBtn').addEventListener('click', pinCodeWin);
+$('codeWinClearBtn').addEventListener('click', function () {
+  $('codeWinSrc').value = '';
+  saveCodeWinSrc();
+  runCodeWin();
+  setCodeWinFolded(false);
+  $('codeWinSrc').focus();
+});
+// Pasting is the whole point — run it straight away, once the paste has
+// actually landed in the box.
+function runPastedCode() {
+  setTimeout(function () {
+    runCodeWin();
+    $('codeWinSrc').scrollTop = 0;   // show the start of what just landed
+  }, 0);
+}
+$('codeWinSrc').addEventListener('paste', runPastedCode);
+$('codeWinSrc').addEventListener('drop', runPastedCode);
+$('codeWinSrc').addEventListener('input', saveCodeWinSrc);
+$('codeWinSrc').addEventListener('keydown', function (e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runCodeWin(); }
+  // Tab indents instead of jumping out of the editor.
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    var t = e.target, s = t.selectionStart, en = t.selectionEnd;
+    t.value = t.value.slice(0, s) + '  ' + t.value.slice(en);
+    t.selectionStart = t.selectionEnd = s + 2;
+    saveCodeWinSrc();
+  }
+});
+
+attachFloatWin({
+  modal: 'codeWinModal', card: 'codeWinCard', head: 'codeWinHead', grip: 'codeWinGrip',
+  get: function () { return codeWin; },
+  set: function (b) { codeWin = b; },
+  clamp: clampCodeWin, apply: applyCodeWin, save: saveCodeWin
+});
 
 /* ================= Practice mode =================
    Students hide the worksheet's answers, write or type their own on the
@@ -9278,6 +9619,11 @@ function applyRoleUI() {
   // play with the widgets), they do not make them.
   var noteToolBtn = document.querySelector('#toolButtons [data-tool="ainote"]');
   if (noteToolBtn) noteToolBtn.style.display = student ? 'none' : '';
+  // The code window runs pasted code — a teacher's demonstration tool, never
+  // something a student view offers.
+  var codeBtn = $('codeWinBtn');
+  if (codeBtn) codeBtn.style.display = student ? 'none' : '';
+  if (student) closeCodeWin();
   // Share-link visitors: downloading is always allowed, but uploading, cloud
   // saving, printing the answer key, AI answers and browsing the other
   // worksheets never are — whatever the link's mode.
@@ -9293,6 +9639,8 @@ function applyRoleUI() {
     if (aiToolBtn) aiToolBtn.style.display = 'none';
     if (videoToolBtn) videoToolBtn.style.display = 'none';
     if (noteToolBtn) noteToolBtn.style.display = 'none';
+    if (codeBtn) codeBtn.style.display = 'none';
+    closeCodeWin();
   }
   $('printCard').style.display = sharedVisitor ? 'none' : '';
   // The answer key writes out every answer on the paper — teacher-only, like
@@ -12972,6 +13320,12 @@ document.addEventListener('keydown', function (e) {
     closeAiNoteModal();
     return;
   }
+  // Same for the code window — but not while the cursor is in the editor,
+  // where Esc just gives the focus back to the page.
+  if (e.key === 'Escape' && !editingText && $('codeWinModal').classList.contains('open')) {
+    closeCodeWin();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDoc();
@@ -13039,7 +13393,7 @@ document.addEventListener('keydown', function (e) {
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', i: 'ainote', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
-  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn' };
+  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
     if (toolKeys[k]) setTool(toolKeys[k]);
