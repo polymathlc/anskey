@@ -1598,6 +1598,129 @@
   }
   .docEditRow .docNameInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
 
+  /* ---------- Reward window (admin only) ----------
+     Hands marks out to one class without leaving the worksheet. Every write
+     goes into the reward system's own collections (polymathlc/rewards) on this
+     same Firebase project — see the block comment above openRewardModal(). */
+  /* Taller than an ordinary card because it holds a register, but it still
+     follows --vvh so the iOS keyboard never hides the row being typed in. */
+  .modalCard.wide { max-width: 640px; max-height: 84vh; max-height: min(84dvh, calc(var(--vvh, 100vh) - 64px)); }
+  /* The controls stay put and the class list scrolls, so a long register never
+     pushes the amount buttons out of reach. */
+  .modalCard.wide .modalBody { display: flex; flex-direction: column; overflow: hidden; }
+  .rwControls, .rwClassNote { flex: 0 0 auto; }
+  .rwControls { padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+  .rwField { margin-bottom: 16px; }
+  .rwField label { display: block; font-size: 0.78rem; font-weight: bold; color: var(--ink-soft); margin-bottom: 6px; }
+  .rwField select, .rwField input {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.92rem;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .rwField select:focus, .rwField input:focus {
+    border-color: var(--accent-strong);
+    box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5);
+  }
+  #rewardList { flex: 1 1 auto; overflow-y: auto; min-height: 90px; }
+  .rwAmountRow { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .rwAmount {
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 999px;
+    padding: 8px 18px;
+    font-family: var(--font);
+    font-size: 0.86rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .rwAmount:hover { box-shadow: var(--shadow-btn); }
+  .rwAmount.active { background: var(--accent); border-color: var(--accent-deep); }
+  /* Beats the width:100% on .rwField input, so it sits inline with the chips. */
+  .rwField input.rwAmountCustom { width: 96px; flex: 0 0 auto; }
+  .rwAmountRow .rwBulkSpacer { flex: 1 1 auto; }
+  .rwClassNote {
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .rwRow {
+    display: flex; align-items: center; gap: 14px;
+    padding: 13px 12px;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s ease;
+  }
+  .rwRow + .rwRow { border-top: 1px solid var(--line); }
+  .rwRow:hover { background: #F8F7F5; }
+  .rwRowInfo { flex: 1; min-width: 0; }
+  .rwRowName { font-weight: bold; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rwRowMeta { font-size: 0.75rem; color: var(--ink-faint); margin-top: 3px; }
+  .rwRowMarks {
+    font-size: 1.05rem;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    min-width: 46px;
+    text-align: right;
+  }
+  .rwRowJust { font-size: 0.72rem; color: var(--ok); font-weight: bold; min-width: 34px; }
+  .rwStep {
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 50%;
+    width: 34px; height: 34px;
+    font-family: var(--font);
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--ink);
+    transition: box-shadow 0.15s ease, background 0.15s ease;
+  }
+  .rwStep:hover:not(:disabled) { box-shadow: var(--shadow-btn); background: #F8F7F5; }
+  .rwStep:disabled { opacity: 0.4; cursor: default; }
+  .rwStep.plus { background: var(--accent); border-color: var(--accent-strong); }
+  .rwRemove {
+    border: none; background: none; cursor: pointer;
+    font-size: 1.05rem; line-height: 1;
+    color: var(--ink-faint);
+    padding: 6px 4px 6px 8px;
+    border-radius: 8px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .rwRemove:hover { color: var(--danger); background: #F1F0EE; }
+  .rwConfirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .rwConfirm .btn { padding: 7px 12px; font-size: 0.76rem; }
+  .rwConfirm .btnDanger { color: var(--danger); border-color: #F2C7C6; }
+  .rwAddRow {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 18px;
+    margin-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .rwAddRow input {
+    font-family: var(--font);
+    font-size: 0.88rem;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: none;
+    flex: 1 1 auto;
+    min-width: 0;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .rwAddRow input:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  .rwAddRow .rwLevelInput { flex: 0 0 92px; }
+  .rwAddRow .btn { flex: 0 0 auto; }
+
   /* ---------- Toast ---------- */
   #toast {
     position: fixed;
@@ -2125,6 +2248,10 @@
     <button class="btn btnShare" id="shareBtn" title="Share — copy a link students can open this worksheet with">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
       <span class="btnLabel">Share</span>
+    </button>
+    <button class="btn" id="rewardBtn" data-key="B" title="Award marks — hand marks to this class without leaving the worksheet" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><polyline points="8.5 12.5 7 22 12 19 17 22 15.5 12.5"/></svg>
+      <span class="btnLabel">Reward</span>
     </button>
     <button class="btn" id="docsBtn" data-key="M" title="Open a previously saved PDF">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -2734,6 +2861,38 @@
   </div>
 </div>
 
+<div class="modalBack" id="rewardModal">
+  <div class="modalCard wide">
+    <div class="modalHead">
+      <h2>Award marks</h2>
+      <button class="modalClose" id="rewardCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="rwControls">
+        <div class="rwField">
+          <label for="rewardClassSelect">Class</label>
+          <select id="rewardClassSelect"></select>
+        </div>
+        <div class="rwField">
+          <label for="rewardReason">Reason — shown in the student's marks history</label>
+          <input type="text" id="rewardReason" placeholder="e.g. Wednesday worksheet" autocomplete="off">
+        </div>
+        <div class="rwField" style="margin-bottom:0">
+          <label>Marks per tap</label>
+          <div class="rwAmountRow" id="rewardAmounts"></div>
+        </div>
+      </div>
+      <div class="rwClassNote" id="rewardNote"></div>
+      <div id="rewardList"></div>
+      <div class="rwAddRow" id="rewardAddRow">
+        <input type="text" id="rewardNewName" placeholder="Add a name to this class" autocomplete="off">
+        <input type="text" id="rewardNewLevel" class="rwLevelInput" placeholder="Level" autocomplete="off">
+        <button class="btn" id="rewardAddBtn">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <!-- Cards being made in the background, one chip each -->
 <div id="aiJobTray"></div>
@@ -2750,7 +2909,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.47.0';
+var APP_VERSION = 'v1.48.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -2870,7 +3029,7 @@ var revealedKw = {};        // normalised keyword -> true, revealed during revis
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
-var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '' };  // worksheet meta (name lives in docName)
+var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '', rewardClass: '' };  // worksheet meta (name lives in docName; rewardClass is the class its marks are given to)
 
 /* ---- Share links ----
    Every saved worksheet carries share settings: who a plain link admits
@@ -3212,7 +3371,7 @@ async function loadPdf(bytes, name) {
   selectedId = null;
   editingId = null;
   editModeId = null;
-  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '' };
+  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '', rewardClass: '' };
   wsShare = { mode: 'view', passwordHash: '' };
   reviseMode = false;
   revealedKw = {};
@@ -10008,6 +10167,8 @@ function applyRoleUI() {
     s.style.display = hideTools ? 'none' : '';
   });
   if (typeof renderFavBar === 'function') renderFavBar();
+  // Awarding marks is the teacher's own tool, and only the admin's.
+  applyRewardVisibility();
   var h1 = $('emptyState').querySelector('h1');
   var para = $('emptyState').querySelector('p');
   if (student) {
@@ -10533,6 +10694,543 @@ function canSeeDoc(d) {
   return true;
 }
 
+/* ================= Reward window (admin only) =================
+   ADMIN ONLY. The toolbar's Reward button opens the class this worksheet was
+   taught to and hands marks out on the spot, without leaving the worksheet.
+
+   Nothing here belongs to this app: every write goes straight into the reward
+   system's collections (polymathlc/rewards → rewards/index.html) on this same
+   Firebase project, in exactly the shape that app's awardDoc() produces —
+
+     students/{id}  — the marks balance shown in the rewards app
+     awards/{id}    — the append-only ledger, source: "annotator", so an award
+                      made here appears in the student's marks history there
+                      and can be undone there like any other
+     bosses/{id}    — marks earned damage the active boss, exactly as they do
+                      when a student uploads a test paper in the rewards app
+
+   Change the award shape here and you change it there: ship both repos
+   together. Students never see any of this — the button, the window and every
+   award call are behind isAdmin(), and there is deliberately NO student-facing
+   earning path in this app. Students earn in the rewards app.
+
+   A "class" here is one of the reward system's own free-form slot strings
+   ("P5 Science — Wednesday 5pm–6.45pm"), which is a different thing from this
+   app's wsSlot (the 0-2 lesson session of the day). The rw* helpers below
+   parse those strings best-effort, purely to sort the dropdown and to guess
+   which class the open worksheet belongs to. */
+var RW_QUICK_AMOUNTS = [1, 2, 5, 10];   // one-tap award sizes
+var RW_DEFAULT_AMOUNT = 2;
+
+var rwStudents = [];        // every students/{id} doc, loaded when the window opens
+var rwClass = '';           // the reward-system class currently being shown
+var rwAmount = RW_DEFAULT_AMOUNT;
+var rwAwarding = {};        // student id -> true while a write is in flight
+var rwRemovingId = null;    // student id whose row is asking "take out or delete?"
+
+function rwWithId(doc) {
+  var out = { id: doc.id };
+  var data = doc.data() || {};
+  for (var k in data) out[k] = data[k];
+  return out;
+}
+
+// A student can attend several classes — older records stored a single string.
+function rwStudentClasses(s) {
+  if (!s) return [];
+  if (Array.isArray(s.slots)) return s.slots.filter(Boolean);
+  return s.slot ? [s.slot] : [];
+}
+
+var RW_DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+function rwClassDayIndex(cls) {
+  var m = (cls || '').toLowerCase().match(/\b(mon|tue|wed|thu|fri|sat|sun)/);
+  return m ? RW_DAY_KEYS.indexOf(m[1]) : -1;
+}
+function rwClassStartMinutes(cls) {
+  var text = (cls || '').toLowerCase();
+  // Prefer an explicit clock time, so a level such as "P5" in the class name is
+  // never mistaken for a 5 o'clock start.
+  var m = text.match(/(\d{1,2})(?:[:.](\d{2}))?(?:\s*[-–]\s*\d{1,2}(?:[:.]\d{2})?)?\s*(am|pm)/) ||
+    text.match(/(\d{1,2})[:.](\d{2})/);
+  if (!m) return Infinity;
+  var h = parseInt(m[1], 10);
+  var mins = parseInt(m[2] || '', 10) || 0;
+  if (m[3] === 'pm' && h < 12) h += 12;
+  if (m[3] === 'am' && h === 12) h = 0;
+  return h > 23 ? Infinity : h * 60 + mins;
+}
+
+function applyRewardVisibility() {
+  // Not for students, not for share-link visitors, and not while the teacher's
+  // device is in a student's hands.
+  var show = isAdmin(currentUser) && !actingStudent && !isSharedVisitor();
+  var btn = $('rewardBtn');
+  if (btn) btn.style.display = show ? '' : 'none';
+  if (!show) {
+    $('rewardModal').classList.remove('open');
+    rwStudents = [];
+  }
+}
+
+async function rwLoadStudents(force) {
+  if (rwStudents.length && !force) return;
+  var snap = await db.collection('students').orderBy('name').get();
+  rwStudents = [];
+  snap.forEach(function (d) { rwStudents.push(rwWithId(d)); });
+}
+
+function rwAllClasses() {
+  var seen = {};
+  rwStudents.forEach(function (s) {
+    rwStudentClasses(s).forEach(function (cls) { seen[cls] = (seen[cls] || 0) + 1; });
+  });
+  return Object.keys(seen)
+    .map(function (cls) { return { cls: cls, count: seen[cls] }; })
+    .sort(function (a, b) {
+      var da = rwClassDayIndex(a.cls), dbb = rwClassDayIndex(b.cls);
+      if (da !== dbb) return (da === -1 ? 99 : da) - (dbb === -1 ? 99 : dbb);
+      var ta = rwClassStartMinutes(a.cls), tb = rwClassStartMinutes(b.cls);
+      if (ta !== tb) return ta - tb;
+      return a.cls.localeCompare(b.cls);
+    });
+}
+
+function rwStudentsInClass(cls) {
+  if (!cls) return [];
+  return rwStudents.filter(function (s) { return rwStudentClasses(s).indexOf(cls) !== -1; });
+}
+
+/* Which class does the open worksheet belong to? A class pinned to the
+   worksheet (the last one marks were given for) wins outright. Otherwise the
+   worksheet's own day and level narrow it down, and its lesson session settles
+   what is left — a Wednesday 5pm worksheet picks the class that starts at 5,
+   not the one at 7. Anything still ambiguous is left for the teacher to pick. */
+function rwGuessClass() {
+  if (wsMeta.rewardClass) return wsMeta.rewardClass;
+  var day = dayFromISO(wsMeta.date);
+  var dayIdx = day ? RW_DAY_KEYS.indexOf(day.toLowerCase().slice(0, 3)) : -1;
+  var level = (wsMeta.level || '').toLowerCase();
+  var candidates = rwAllClasses().filter(function (o) {
+    if (dayIdx !== -1 && rwClassDayIndex(o.cls) !== dayIdx) return false;
+    if (!level) return true;
+    // Either the class names the level, or someone at that level attends it.
+    if (o.cls.toLowerCase().indexOf(level) !== -1) return true;
+    return rwStudents.some(function (s) {
+      return (s.level || '').toLowerCase() === level && rwStudentClasses(s).indexOf(o.cls) !== -1;
+    });
+  });
+  if (candidates.length > 1) {
+    var k = (wsMeta.slot === '' || wsMeta.slot === null || wsMeta.slot === undefined)
+      ? null : parseInt(wsMeta.slot, 10);
+    var band = k === null || isNaN(k) ? null : slotsForDay(day)[k];
+    if (band) {
+      var inBand = candidates.filter(function (o) {
+        var mins = rwClassStartMinutes(o.cls);
+        return mins !== Infinity && mins / 60 >= band.from && mins / 60 < band.to;
+      });
+      if (inBand.length) candidates = inBand;
+    }
+  }
+  return candidates.length === 1 ? candidates[0].cls : '';
+}
+
+/* Remember the class marks were given for on the worksheet itself, so the next
+   lesson's Reward window opens on the right register straight away. */
+async function rwPinClass(cls) {
+  wsMeta.rewardClass = cls;
+  if (!cls || !currentDocId || !isAdmin(currentUser) || actingStudent) return;
+  try {
+    await db.collection(COLLECTION).doc(currentDocId).set({ rewardClass: cls }, { merge: true });
+  } catch (e) { /* the choice still stands for this session */ }
+}
+
+async function openRewardModal() {
+  if (!isAdmin(currentUser) || actingStudent || isSharedVisitor()) return;
+  var list = $('rewardList');
+  $('rewardModal').classList.add('open');
+  list.innerHTML = '<div class="docsEmpty">Loading class…</div>';
+  try {
+    await rwLoadStudents(true);
+  } catch (e) {
+    list.innerHTML = '<div class="docsEmpty">Could not load students: ' + escHtml(e.message || e) + '</div>';
+    return;
+  }
+  var classes = rwAllClasses();
+  var sel = $('rewardClassSelect');
+  sel.innerHTML = '<option value="">— choose a class —</option>' +
+    classes.map(function (o) {
+      return '<option value="' + escHtml(o.cls) + '">' +
+        escHtml(o.cls) + ' (' + o.count + ')</option>';
+    }).join('');
+  rwClass = rwGuessClass();
+  sel.value = rwClass;
+  if (sel.value !== rwClass) rwClass = '';   // pinned class no longer exists
+  $('rewardReason').value = docName && pdfDoc ? docName : '';
+  $('rewardNewName').value = '';
+  $('rewardNewLevel').value = '';
+  rwRemovingId = null;
+  rwAmount = RW_DEFAULT_AMOUNT;
+  renderRewardAmounts();
+  renderRewardList();
+}
+
+function renderRewardAmounts() {
+  var row = $('rewardAmounts');
+  row.innerHTML = '';
+  RW_QUICK_AMOUNTS.forEach(function (n) {
+    var b = document.createElement('button');
+    b.className = 'rwAmount' + (n === rwAmount ? ' active' : '');
+    b.textContent = '+' + n;
+    b.addEventListener('click', function () {
+      rwAmount = n;
+      $('rewardCustom').value = '';
+      renderRewardAmounts();
+    });
+    row.appendChild(b);
+  });
+  var custom = document.createElement('input');
+  custom.type = 'number';
+  custom.id = 'rewardCustom';
+  custom.className = 'rwAmountCustom';
+  custom.min = '1';
+  custom.placeholder = 'Other';
+  if (RW_QUICK_AMOUNTS.indexOf(rwAmount) === -1) custom.value = rwAmount;
+  custom.addEventListener('input', function () {
+    var v = parseInt(custom.value, 10);
+    if (v > 0) {
+      rwAmount = v;
+      Array.prototype.forEach.call(row.querySelectorAll('.rwAmount'), function (b) {
+        b.classList.remove('active');
+      });
+    }
+  });
+  row.appendChild(custom);
+
+  var spacer = document.createElement('div');
+  spacer.className = 'rwBulkSpacer';
+  row.appendChild(spacer);
+
+  var all = document.createElement('button');
+  all.className = 'btn';
+  all.id = 'rewardAllBtn';
+  all.textContent = 'Award everyone';
+  all.addEventListener('click', rwAwardEveryone);
+  row.appendChild(all);
+}
+
+// What level is a new name in this class likely to be? The worksheet's level
+// wins; otherwise the level most of the class is already at.
+function rwSuggestedLevel() {
+  if (wsMeta.level) return wsMeta.level;
+  var tally = {};
+  rwStudentsInClass(rwClass).forEach(function (s) {
+    if (s.level) tally[s.level] = (tally[s.level] || 0) + 1;
+  });
+  return Object.keys(tally).sort(function (a, b) { return tally[b] - tally[a]; })[0] || '';
+}
+
+function renderRewardList() {
+  var list = $('rewardList');
+  var note = $('rewardNote');
+  var addRow = $('rewardAddRow');
+  list.innerHTML = '';
+  addRow.hidden = !rwClass;
+  if (rwClass && !$('rewardNewLevel').value) $('rewardNewLevel').value = rwSuggestedLevel();
+  if (!rwClass) {
+    note.textContent = wsMeta.rewardClass
+      ? 'This worksheet was last marked for “' + wsMeta.rewardClass + '”, but no student is in that class any more. Pick a class above.'
+      : 'Pick the class you are teaching. It is remembered on this worksheet, so next lesson it opens already chosen.';
+    list.innerHTML = '<div class="docsEmpty">No class selected.</div>';
+    if ($('rewardAllBtn')) $('rewardAllBtn').disabled = true;
+    return;
+  }
+  var students = rwStudentsInClass(rwClass);
+  note.textContent = students.length
+    ? students.length + ' student' + (students.length === 1 ? '' : 's') + ' in ' + rwClass +
+      '. Each tap awards the amount above and is logged in their marks history.'
+    : 'Nobody is in ' + rwClass + ' yet.';
+  if ($('rewardAllBtn')) $('rewardAllBtn').disabled = !students.length;
+  if (!students.length) {
+    list.innerHTML = '<div class="docsEmpty">No students in this class.</div>';
+    return;
+  }
+  students.forEach(function (s) {
+    var row = document.createElement('div');
+    row.className = 'rwRow';
+
+    var info = document.createElement('div');
+    info.className = 'rwRowInfo';
+    var nm = document.createElement('div');
+    nm.className = 'rwRowName';
+    nm.textContent = s.name || '(no name)';
+    var meta = document.createElement('div');
+    meta.className = 'rwRowMeta';
+    meta.textContent = [s.level, rwStudentClasses(s).join(', ')].filter(Boolean).join(' · ');
+    info.appendChild(nm);
+    info.appendChild(meta);
+    row.appendChild(info);
+
+    // Taking a name out is a two-tap action: the ✕ swaps the row's controls
+    // for the two things it could mean, spelled out.
+    if (rwRemovingId === s.id) {
+      var confirmBox = document.createElement('div');
+      confirmBox.className = 'rwConfirm';
+
+      var offClass = document.createElement('button');
+      offClass.className = 'btn';
+      offClass.textContent = 'Take out of class';
+      offClass.title = 'Keep the record and the marks, just not in this class';
+      offClass.addEventListener('click', function () { rwRemoveFromClass(s); });
+      confirmBox.appendChild(offClass);
+
+      var del = document.createElement('button');
+      del.className = 'btn btnDanger';
+      del.textContent = 'Delete entirely';
+      del.title = 'Remove from the reward system altogether';
+      del.addEventListener('click', function () { rwDeleteStudent(s); });
+      confirmBox.appendChild(del);
+
+      var cancel = document.createElement('button');
+      cancel.className = 'btn';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', function () { rwRemovingId = null; renderRewardList(); });
+      confirmBox.appendChild(cancel);
+
+      row.appendChild(confirmBox);
+      list.appendChild(row);
+      return;
+    }
+
+    var just = document.createElement('div');
+    just.className = 'rwRowJust';
+    just.textContent = s._just ? '+' + s._just : '';
+    row.appendChild(just);
+
+    var marks = document.createElement('div');
+    marks.className = 'rwRowMarks';
+    marks.textContent = s.marks || 0;
+    row.appendChild(marks);
+
+    var minus = document.createElement('button');
+    minus.className = 'rwStep';
+    minus.textContent = '−';
+    minus.title = 'Take marks back';
+    minus.disabled = !!rwAwarding[s.id];
+    minus.addEventListener('click', function () { rwAwardMarks(s, -rwAmount); });
+    row.appendChild(minus);
+
+    var plus = document.createElement('button');
+    plus.className = 'rwStep plus';
+    plus.textContent = '+';
+    plus.title = 'Award marks';
+    plus.disabled = !!rwAwarding[s.id];
+    plus.addEventListener('click', function () { rwAwardMarks(s, rwAmount); });
+    row.appendChild(plus);
+
+    var rm = document.createElement('button');
+    rm.className = 'rwRemove';
+    rm.textContent = '✕';
+    rm.title = 'Take ' + (s.name || 'this student') + ' off the list';
+    rm.addEventListener('click', function () { rwRemovingId = s.id; renderRewardList(); });
+    row.appendChild(rm);
+
+    list.appendChild(row);
+  });
+}
+
+/* ---- Managing who is in the class ---- */
+async function rwAddStudentToClass() {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  var nameEl = $('rewardNewName');
+  var levelEl = $('rewardNewLevel');
+  var name = nameEl.value.trim();
+  var level = levelEl.value.trim();
+  if (!rwClass) { toast('Pick a class first.'); return; }
+  if (!name) { toast('Type a name to add.'); nameEl.focus(); return; }
+  var clash = rwStudentsInClass(rwClass).some(function (s) {
+    return (s.name || '').toLowerCase() === name.toLowerCase();
+  });
+  if (clash && !window.confirm(name + ' is already in this class. Add a second record anyway?')) return;
+  var btn = $('rewardAddBtn');
+  btn.disabled = true;
+  try {
+    var payload = {
+      name: name,
+      level: level,
+      slots: [rwClass],
+      marks: 0,
+      uid: null,
+      email: null,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    var ref = await db.collection('students').add(payload);
+    rwStudents.push({
+      id: ref.id, name: name, level: level, slots: [rwClass],
+      marks: 0, uid: null, email: null
+    });
+    nameEl.value = '';
+    toast('Added ' + name + ' to ' + rwClass + '.');
+    renderRewardList();
+    nameEl.focus();
+  } catch (e) {
+    console.error(e);
+    toast('Could not add: ' + (e.message || e));
+  }
+  btn.disabled = false;
+}
+
+// Drops just this class from the student. The record, its marks and its
+// history all stay — they simply stop showing up in this class.
+async function rwRemoveFromClass(student) {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  var next = rwStudentClasses(student).filter(function (cls) { return cls !== rwClass; });
+  rwRemovingId = null;
+  try {
+    // Older records kept a single `slot` string; null it so `slots` is the
+    // only source of truth from here on.
+    await db.collection('students').doc(student.id).update({ slots: next, slot: null });
+    student.slots = next;
+    student.slot = null;
+    toast(next.length
+      ? (student.name || 'Student') + ' taken out of ' + rwClass + '.'
+      : (student.name || 'Student') + ' taken out of ' + rwClass + ' — no class left, but the record is kept.');
+  } catch (e) {
+    console.error(e);
+    toast('Could not take them out: ' + (e.message || e));
+  }
+  renderRewardList();
+}
+
+async function rwDeleteStudent(student) {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  if (!window.confirm('Delete ' + (student.name || 'this student') +
+    ' from the reward system? Their marks balance goes with them. This cannot be undone.')) return;
+  rwRemovingId = null;
+  try {
+    await db.collection('students').doc(student.id).delete();
+    rwStudents = rwStudents.filter(function (s) { return s.id !== student.id; });
+    toast((student.name || 'Student') + ' deleted from the reward system.');
+  } catch (e) {
+    console.error(e);
+    toast('Could not delete: ' + (e.message || e));
+  }
+  renderRewardList();
+}
+
+function rwReason() {
+  var typed = $('rewardReason').value.trim();
+  return typed || (docName ? 'Worksheet: ' + docName : 'Awarded in the Ans Key app');
+}
+
+function rwAwardEntry(student, delta, reason) {
+  return {
+    studentId: student.id,
+    studentName: student.name || '',
+    delta: delta,
+    reason: reason,
+    source: 'annotator',
+    by: (currentUser && currentUser.email) || 'system',
+    undone: false,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+}
+
+async function rwAwardMarks(student, delta) {
+  delta = Math.round(Number(delta) || 0);
+  if (!delta || !isAdmin(currentUser) || actingStudent || rwAwarding[student.id]) return;
+  rwAwarding[student.id] = true;
+  renderRewardList();
+  var reason = rwReason();
+  try {
+    var marks = await db.runTransaction(async function (tx) {
+      var sRef = db.collection('students').doc(student.id);
+      var sSnap = await tx.get(sRef);
+      if (!sSnap.exists) throw new Error('Student record missing');
+      var next = (sSnap.data().marks || 0) + delta;
+      tx.update(sRef, { marks: next });
+      tx.set(db.collection('awards').doc(), rwAwardEntry(student, delta, reason));
+      return next;
+    });
+    student.marks = marks;
+    student._just = (student._just || 0) + delta;
+    toast((delta > 0 ? '+' : '') + delta + ' to ' + (student.name || 'student') + ' — now ' + marks + '.');
+    if (delta > 0) rwDamageBosses(delta);
+  } catch (e) {
+    console.error(e);
+    toast('Could not award marks: ' + (e.message || e));
+  } finally {
+    delete rwAwarding[student.id];
+    renderRewardList();
+  }
+}
+
+async function rwAwardEveryone() {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  var delta = Math.round(Number(rwAmount) || 0);
+  var students = rwStudentsInClass(rwClass);
+  if (!delta || !students.length) return;
+  if (!window.confirm('Give ' + delta + ' mark' + (delta === 1 ? '' : 's') + ' to all ' +
+      students.length + ' student' + (students.length === 1 ? '' : 's') + ' in ' + rwClass + '?')) return;
+  var btn = $('rewardAllBtn');
+  if (btn) btn.disabled = true;
+  var reason = rwReason();
+  try {
+    var batch = db.batch();
+    students.forEach(function (s) {
+      batch.update(db.collection('students').doc(s.id), { marks: (s.marks || 0) + delta });
+      batch.set(db.collection('awards').doc(), rwAwardEntry(s, delta, reason));
+    });
+    await batch.commit();
+    students.forEach(function (s) {
+      s.marks = (s.marks || 0) + delta;
+      s._just = (s._just || 0) + delta;
+    });
+    toast('+' + delta + ' to ' + students.length + ' student' + (students.length === 1 ? '' : 's') + '.');
+    rwDamageBosses(delta * students.length);
+  } catch (e) {
+    console.error(e);
+    toast('Could not award the class: ' + (e.message || e));
+  } finally {
+    if (btn) btn.disabled = false;
+    renderRewardList();
+  }
+}
+
+// Marks earned anywhere in the system damage the school-wide boss. Payout on
+// defeat is handled by the admin's session in the rewards app.
+async function rwDamageBoss(ref, points) {
+  try {
+    await db.runTransaction(async function (tx) {
+      var s = await tx.get(ref);
+      if (!s.exists) return;
+      var cur = s.data();
+      if (cur.defeated || (cur.hp || 0) <= 0) return;
+      var newHp = Math.max(0, (cur.hp || 0) - points);
+      var upd = { hp: newHp };
+      if (newHp === 0) {
+        upd.defeated = true;
+        upd.defeatedAt = firebase.firestore.FieldValue.serverTimestamp();
+      }
+      tx.update(ref, upd);
+    });
+  } catch (e) { /* best effort */ }
+}
+
+async function rwDamageBosses(points) {
+  points = Math.floor(Number(points) || 0);
+  if (points <= 0) return;
+  var snap;
+  try {
+    snap = await db.collection('bosses').where('active', '==', true).get();
+  } catch (e) { return; }
+  for (var i = 0; i < snap.docs.length; i++) {
+    var b = snap.docs[i].data();
+    if (b.defeated || (b.hp || 0) <= 0) continue;
+    await rwDamageBoss(snap.docs[i].ref, points);
+  }
+}
+
 /* ================= Live "being edited now" marker =================
    While the teacher has a saved worksheet open, that worksheet carries a
    heartbeat (liveAt / liveBy). Students watch the handful of most recently
@@ -10721,6 +11419,7 @@ function applyRemoteDoc(d) {
   wsMeta.subject = d.subject || '';
   wsMeta.date = d.wsDate || '';
   wsMeta.slot = (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? d.wsSlot : '';
+  wsMeta.rewardClass = d.rewardClass || '';
   wsMeta.videoUrl = d.videoUrl || '';
   wsMeta.videoPath = d.videoPath || '';
   wsMeta.videoStart = Number(d.videoStartMs) || 0;
@@ -10883,6 +11582,7 @@ async function performSave() {
       wsDate: wsMeta.date,
       wsDay: dayFromISO(wsMeta.date),
       wsSlot: wsMeta.slot === '' || wsMeta.slot === undefined ? null : parseInt(wsMeta.slot, 10),
+      rewardClass: wsMeta.rewardClass || '',   // class the Reward window opens on
       ownerUid: currentUser.uid,
       ownerEmail: currentUser.email,
       storagePath: STORAGE_DIR + '/' + currentDocId + '.pdf',
@@ -11308,6 +12008,7 @@ async function openSavedDoc(id, data) {
     wsMeta.subject = data.subject || '';
     wsMeta.date = data.wsDate || '';
     wsMeta.slot = (data.wsSlot === 0 || data.wsSlot === 1 || data.wsSlot === 2) ? data.wsSlot : '';
+    wsMeta.rewardClass = data.rewardClass || '';
     wsMeta.videoUrl = data.videoUrl || '';
     wsMeta.videoPath = data.videoPath || '';
     wsMeta.videoStart = Number(data.videoStartMs) || 0;
@@ -13383,6 +14084,28 @@ $('studentsModal').addEventListener('click', function (e) {
 });
 
 $('burgerBtn').addEventListener('click', toggleQuestionsDrawer);
+
+/* Reward window (admin only) */
+$('rewardBtn').addEventListener('click', openRewardModal);
+$('rewardCloseBtn').addEventListener('click', function () { $('rewardModal').classList.remove('open'); });
+$('rewardModal').addEventListener('click', function (e) {
+  if (e.target === $('rewardModal')) $('rewardModal').classList.remove('open');
+});
+$('rewardClassSelect').addEventListener('change', function (e) {
+  rwClass = e.target.value;
+  rwRemovingId = null;
+  $('rewardNewLevel').value = '';
+  rwPinClass(rwClass);
+  renderRewardList();
+});
+$('rewardAddBtn').addEventListener('click', rwAddStudentToClass);
+$('rewardNewName').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); rwAddStudentToClass(); }
+});
+$('rewardNewLevel').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); rwAddStudentToClass(); }
+});
+
 $('docsBtn').addEventListener('click', openDocsModal);
 $('docsCloseBtn').addEventListener('click', function () { $('docsModal').classList.remove('open'); });
 $('docsModal').addEventListener('click', function (e) {
@@ -13771,7 +14494,7 @@ document.addEventListener('keydown', function (e) {
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', i: 'ainote', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
-  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn' };
+  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
     if (toolKeys[k]) setTool(toolKeys[k]);
