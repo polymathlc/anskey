@@ -217,6 +217,12 @@
     white-space: nowrap;
   }
   .aiNoteBtn:hover { background: #F3EFFA; }
+  /* − and + welded into one control, so the pair reads as a zoom rather than
+     as two more loose buttons beside the minimise dash. */
+  .aiNoteZoom { flex: 0 0 auto; display: inline-flex; }
+  .aiNoteZoom .aiNoteBtn { padding: 1px 4px; min-width: 11px; }
+  .aiNoteZoom .aiNoteBtn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .aiNoteZoom .aiNoteBtn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
   .aiNoteBody { flex: 1 1 auto; overflow: auto; padding: 5px 7px; font-size: 10px; line-height: 1.42; }
   .aiNoteBody.aiNoteBodyFlush { padding: 0; overflow: hidden; }
   .aiNoteBody h3 { font-size: 11px; margin: 4px 0 2px; }
@@ -281,7 +287,10 @@
   /* Minimised: the frame is hidden, not removed, so whatever the widget was
      doing carries on and comes back exactly where it left off. */
   .aiWidgetHost.aiWidgetMin { display: none; }
-  .aiWidgetHost iframe { display: block; width: 100%; height: 100%; border: 0; }
+  /* Width and height are rewritten with the zoom (100 / zoom %) and the frame
+     is scaled back down from its top-left corner, so the widget lays itself
+     out at its natural size and the zoom only magnifies the result. */
+  .aiWidgetHost iframe { display: block; width: 100%; height: 100%; border: 0; transform-origin: 0 0; }
 
   /* ---------- AI notes: the "what shall I make?" chooser ---------- */
   .aiKindGrid {
@@ -404,8 +413,29 @@
     border: 1.5px solid var(--line); border-radius: var(--radius-sm);
     overflow: hidden; background: #fff;
     display: flex; align-items: center; justify-content: center;
+    /* The running app is pinned to the corner and scaled from there, so the
+       zoom buttons grow it out of the top-left rather than out of the middle
+       (which would slide the part being pointed at off the screen). The empty
+       state is still centred by the flex rules above. */
+    position: relative;
   }
-  .codeWinPreview iframe { display: block; width: 100%; height: 100%; border: 0; }
+  .codeWinPreview iframe {
+    display: block; border: 0;
+    position: absolute; left: 0; top: 0;
+    /* Width and height are set with the zoom (100 / zoom %), so the app lays
+       itself out at its natural size and the scale magnifies the result. */
+    width: 100%; height: 100%;
+    transform-origin: 0 0;
+  }
+  /* The zoom pair reads as one control: two buttons welded together. */
+  .zoomPair { display: inline-flex; flex: 0 0 auto; }
+  .codeWinBar .zoomPair .btn { padding: 5px 9px; }
+  .zoomPair .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .zoomPair .btn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+  .zoomLbl {
+    flex: 0 0 auto; font-size: 0.76rem; color: var(--ink-soft);
+    min-width: 34px; text-align: center; font-variant-numeric: tabular-nums;
+  }
   .codeWinEmpty { color: var(--ink-faint); font-size: 0.82rem; text-align: center; padding: 12px; }
   /* Code folded away: the app fills the window for the class to look at. */
   #codeWinModal.codeFolded .codeWinSrc { display: none; }
@@ -2422,6 +2452,11 @@
     <div class="modalBody codeWinBody">
       <div class="codeWinBar">
         <button class="btn btnPrimary" id="codeWinRunBtn" title="Run the code — Ctrl/⌘ + Enter">▶ Run</button>
+        <span class="zoomPair">
+          <button class="btn" id="codeWinZoomOut" title="Zoom out — make the running app smaller">−</button>
+          <button class="btn" id="codeWinZoomIn" title="Zoom in — make the running app bigger">+</button>
+        </span>
+        <span class="zoomLbl" id="codeWinZoomLbl" title="Zoom — click to go back to 100%">100%</span>
         <button class="btn" id="codeWinFoldBtn" title="Hide the code so the app fills the window">Hide code</button>
         <button class="btn" id="codeWinPinBtn" title="Drop this app onto the worksheet as a card that saves with it">📌 Pin to page</button>
         <button class="btn" id="codeWinClearBtn" title="Empty the editor">Clear</button>
@@ -2702,7 +2737,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.45.0';
+var APP_VERSION = 'v1.46.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -7744,6 +7779,25 @@ function aiNoteCardNode(a) {
   head.appendChild(icon);
   head.appendChild(title);
   if (a.kind === 'widget') {
+    // Zoom the running model without touching the card: an app written for a
+    // laptop is unreadable from the back of the room, one written for a phone
+    // leaves the card half empty.
+    var zPair = document.createElement('span');
+    zPair.className = 'aiNoteZoom';
+    var zOut = document.createElement('button');
+    zOut.className = 'aiNoteBtn';
+    zOut.setAttribute('data-ainote-act', 'zoomout');
+    zOut.textContent = '−';
+    zOut.title = 'Zoom out — show more of the widget, smaller (now ' + zoomPct(a.zoom) + ')';
+    var zIn = document.createElement('button');
+    zIn.className = 'aiNoteBtn';
+    zIn.setAttribute('data-ainote-act', 'zoomin');
+    zIn.textContent = '+';
+    zIn.title = 'Zoom in — make the widget bigger to read (now ' + zoomPct(a.zoom) + ')';
+    zPair.appendChild(zOut);
+    zPair.appendChild(zIn);
+    head.appendChild(zPair);
+
     var use = document.createElement('button');
     use.className = 'aiNoteBtn';
     use.setAttribute('data-ainote-act', 'live');
@@ -7910,6 +7964,41 @@ function addBoldText(host, line) {
   if (at < line.length) host.appendChild(document.createTextNode(line.slice(at)));
 }
 
+/* ---- Zooming what runs in a sandboxed frame ----
+   Shared by the widget cards on the page and the code window. An app written
+   for a laptop is unreadable from the back of a classroom, and one written for
+   a phone leaves half its frame empty. The zoom scales what is running without
+   touching the code and without reloading the frame, so nothing restarts
+   mid-demonstration. */
+var ZOOM_STEPS = [0.4, 0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
+function clampZoom(z) {
+  z = Number(z) || 1;
+  return Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], Math.max(ZOOM_STEPS[0], z));
+}
+/* The next step up (dir 1) or down (dir -1) from wherever the zoom is now. */
+function zoomStep(z, dir) {
+  var cur = clampZoom(z);
+  if (dir > 0) {
+    for (var i = 0; i < ZOOM_STEPS.length; i++) if (ZOOM_STEPS[i] > cur + 0.001) return ZOOM_STEPS[i];
+    return ZOOM_STEPS[ZOOM_STEPS.length - 1];
+  }
+  for (var j = ZOOM_STEPS.length - 1; j >= 0; j--) if (ZOOM_STEPS[j] < cur - 0.001) return ZOOM_STEPS[j];
+  return ZOOM_STEPS[0];
+}
+function zoomPct(z) { return Math.round(clampZoom(z) * 100) + '%'; }
+
+/* Lay the frame out at its natural size (100 / zoom of the box) and scale the
+   result: the app inside believes it has a normal-sized window, so its own
+   layout does not reflow as the class zooms in. */
+function applyZoomToFrame(frame, z) {
+  if (!frame) return;
+  z = clampZoom(z);
+  frame.style.width = (100 / z) + '%';
+  frame.style.height = (100 / z) + '%';
+  frame.style.transform = z === 1 ? '' : 'scale(' + z + ')';
+}
+
 /* ---- Live widgets ----
    One sandboxed iframe per widget, floating over the page at the card's
    position. It is only rebuilt when the generated page itself changes, so a
@@ -7951,6 +8040,8 @@ function syncAiWidgets(p) {
       frame.srcdoc = aiWidgetDoc(a.html);
       host.appendChild(frame);
     }
+    // Restyled, never rebuilt — zooming must not restart the model.
+    applyZoomToFrame(host.querySelector('iframe'), a.zoom);
     // Minimised, the pill is the whole card — the frame is hidden where it
     // stood and keeps running; only its position is left stale, and it is
     // rewritten the moment the card is opened back up.
@@ -7973,11 +8064,22 @@ function syncAiWidgets(p) {
 
 function syncAllAiWidgets() { pages.forEach(syncAiWidgets); }
 
-/* A tap on one of the card's own buttons (– minimise / ⤢ open / ▶ Use /
-   ✨ redo). */
+/* A tap on one of the card's own buttons (− / + zoom, – minimise, ⤢ open,
+   ▶ Use, ✨ redo). */
 function handleAiNoteAction(act, id, p) {
   var a = annotations.find(function (x) { return x.id === id; });
   if (!a || a.type !== 'ainote') return;
+  if (act === 'zoomin' || act === 'zoomout') {
+    var z = zoomStep(a.zoom, act === 'zoomin' ? 1 : -1);
+    if (z === 1) delete a.zoom; else a.zoom = z;
+    // Only the card's heading is redrawn — syncAiWidgets restyles the frame
+    // that is already running rather than rebuilding it, so the model inside
+    // carries on from wherever it had got to.
+    renderOverlay(p);
+    if (!isStudent() && !isSharedVisitor()) setDirty(true);
+    toast('Widget at ' + zoomPct(z), 1400);
+    return;
+  }
   if (act === 'min') {
     // Folding a card away is not a change to the work, so it does not go on
     // the undo stack — but it is remembered with the worksheet, so a card
@@ -8135,12 +8237,14 @@ function _repairAIJson(s) {
    becomes an ordinary widget card that saves with the worksheet. */
 var CODE_WIN_KEY = 'polymath.codeWin';        // the window's box
 var CODE_WIN_SRC_KEY = 'polymath.codeWinSrc'; // what was last pasted in
+var CODE_WIN_ZOOM_KEY = 'polymath.codeWinZoom'; // how big the app is shown
 var CODE_WIN_MIN_W = 300, CODE_WIN_MIN_H = 220;
 var CODE_WIN_HEAD_ONLY_H = 60;
 var codeWin = null;
 var codeWinMin = false;
 var codeWinFolded = false;
 var codeWinSaveTimer = null;
+var codeWinZoom = 1;
 
 function clampCodeWin(b) {
   return clampWinBox(b, CODE_WIN_MIN_W, CODE_WIN_MIN_H, codeWinMin ? CODE_WIN_HEAD_ONLY_H : 0);
@@ -8200,7 +8304,10 @@ function openCodeWin() {
   try {
     var saved = localStorage.getItem(CODE_WIN_SRC_KEY);
     if (saved && !$('codeWinSrc').value) $('codeWinSrc').value = saved;
+    var savedZoom = localStorage.getItem(CODE_WIN_ZOOM_KEY);
+    if (savedZoom) codeWinZoom = clampZoom(parseFloat(savedZoom));
   } catch (e) {}
+  applyCodeWinZoom();
   setCodeWinMin(false);
   setCodeWinFolded(false);
   modal.classList.add('open');
@@ -8263,8 +8370,20 @@ function runCodeWin() {
   frame.setAttribute('title', 'Code window preview');
   frame.srcdoc = codeWinDoc(src);
   host.appendChild(frame);
+  applyCodeWinZoom();
   codeWinSay('Running · ' + src.length.toLocaleString() + ' characters');
   saveCodeWinSrc();
+}
+
+function applyCodeWinZoom() {
+  applyZoomToFrame($('codeWinPreview').querySelector('iframe'), codeWinZoom);
+  $('codeWinZoomLbl').textContent = zoomPct(codeWinZoom);
+}
+
+function setCodeWinZoom(z) {
+  codeWinZoom = clampZoom(z);
+  applyCodeWinZoom();
+  try { localStorage.setItem(CODE_WIN_ZOOM_KEY, String(codeWinZoom)); } catch (e) {}
 }
 
 function saveCodeWinSrc() {
@@ -8332,6 +8451,9 @@ $('codeWinHead').addEventListener('click', function (e) {
   setCodeWinMin(false);
 });
 $('codeWinRunBtn').addEventListener('click', runCodeWin);
+$('codeWinZoomOut').addEventListener('click', function () { setCodeWinZoom(zoomStep(codeWinZoom, -1)); });
+$('codeWinZoomIn').addEventListener('click', function () { setCodeWinZoom(zoomStep(codeWinZoom, 1)); });
+$('codeWinZoomLbl').addEventListener('click', function () { setCodeWinZoom(1); });
 $('codeWinFoldBtn').addEventListener('click', function () { setCodeWinFolded(!codeWinFolded); });
 $('codeWinPinBtn').addEventListener('click', pinCodeWin);
 $('codeWinClearBtn').addEventListener('click', function () {
