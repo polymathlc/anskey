@@ -3,6 +3,31 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Code window (v1.44.0)
+
+A **`</>`** button in the toolbar (shortcut **J**) opens a floating code
+window: paste HTML in, and the app runs underneath it. For showing the class a
+simulation you already have — from a chat, a lesson folder, or written by hand.
+
+- **Paste and it runs.** No button needed; pasting (or dropping) code runs it.
+  ▶ Run restarts it, Ctrl/⌘+Enter does the same from the keyboard.
+- **Takes what you give it.** A whole page, a bare snippet, or a ```` ```html ````
+  code fence copied straight out of a chat — the fence is stripped and a
+  snippet is wrapped into a page.
+- **Hide code** collapses the editor so the app fills the window for the class.
+  The window drags, resizes and minimises like the AI notes window, and the
+  worksheet underneath stays live.
+- **📌 Pin to page** drops the running app onto the worksheet as an ordinary
+  widget card — it saves with the worksheet, moves and resizes like any card,
+  and ▶ Use switches it on.
+- **Broken code says so.** Script errors inside the sandbox are reported in the
+  window instead of leaving a blank white box.
+- **Same sandbox as the generated widgets:** scripts only, no network, no
+  storage, no access back into the app. Teacher-only — students and share-link
+  visitors never see the button.
+- The code you pasted and the window's size and position are remembered on the
+  device.
+
 ## One-tap teaching widgets (v1.43.0)
 
 Choose **Interactive widget**, click beside a question, press Generate with the
