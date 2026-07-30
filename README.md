@@ -3,6 +3,34 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Cards move and resize by their grips (v1.50.0)
+
+Moving a widget was fiddly, and while one was running it was close to
+impossible. Three things were in the way, all fixed:
+
+- **A finger was panning the page instead.** Once the Apple Pencil has been
+  used, the app switches to pencil-only mode, where one finger on the page
+  scrolls it — and that rule was claiming the finger before the card ever saw
+  it. A finger on a card's grip now moves the card; everywhere else it still
+  pans.
+- **The heading was the only thing you could grab, and it was thin.** The
+  heading of every AI card is now an explicit **drag bar** — grip dots at the
+  left, and the whole strip drags, title and all — and it is deeper than it was
+  (18pt rather than 15pt) so it can be caught rather than aimed at. It works
+  with **whatever tool is in hand**: no switching to select first. Its buttons
+  still win over the drag, and the eraser and lasso still do their own job on a
+  card. A minimised pill drags the same way, and double-tapping it still opens
+  it back up.
+- **A live widget could not be resized at all.** The card's usual corner
+  handles are drawn in the annotation layer, which a running widget sits on top
+  of — so they were unreachable exactly when the widget was at its most useful.
+  A live widget now carries its own **⇲ resize corner** above its frame, sized
+  for a finger. Drag it and the card resizes without the model inside
+  restarting.
+
+Students see neither grip and cannot move or resize a teacher's cards; they
+still get ▶ Use, the widget itself and the minimise button.
+
 ## Widgets work under a finger (v1.49.1)
 
 A finished widget could not be used on an iPad — buttons did nothing, dragging
