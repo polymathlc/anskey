@@ -3,6 +3,32 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Widgets work under a finger (v1.49.1)
+
+A finished widget could not be used on an iPad — buttons did nothing, dragging
+did nothing. Two separate causes, both fixed:
+
+- **It arrived locked.** A new widget was created with `live: false`, so the
+  first thing you did after waiting a minute for it was tap a widget that had
+  been told to ignore taps. A freshly built widget now arrives **live**. ✋ Lock
+  is still one tap away in its heading for when the pen needs to write over it,
+  and widgets saved before this update still need ▶ Use once.
+- **The generated code was written for a mouse.** Left alone, a code model
+  writes `mousedown` / `mousemove` / `mouseup` on a canvas and `click` on a
+  `<div>` — and iOS fires neither during a finger drag. Every widget now runs
+  behind a small compatibility layer that turns finger gestures into the events
+  the app is listening for, sends the click a plain `<div>` never gets, and
+  claims the gesture so the browser's own delayed mouse burst cannot fire the
+  same button twice. Real buttons, sliders and links are left completely alone
+  — iOS already drives those properly. An app that handles touch itself is
+  detected and left alone too.
+
+Widgets are also given a proper viewport now, so iOS stops laying them out for
+an imaginary desktop window and putting the buttons where you are not pressing.
+New builds are additionally told to use Pointer Events and `touch-action:none`
+for anything draggable, so they are touch-native from the start rather than
+relying on the compatibility layer.
+
 ## The ChatGPT key is remembered, and widgets build properly (v1.49.0)
 
 **Paste the OpenAI key once.** It used to live only in this browser's

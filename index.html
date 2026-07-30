@@ -2909,7 +2909,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.49.0';
+var APP_VERSION = 'v1.49.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -7658,6 +7658,12 @@ var AI_NOTE_SYS = {
     'requestAnimationFrame and stop cleanly when the tab is hidden.\n' +
     '- Controls (sliders, buttons) must be finger-sized — this is used on an ' +
     'iPad in front of a class. Label them.\n' +
+    '- It is driven by a finger, not a mouse. Anything draggable must use ' +
+    'Pointer Events (pointerdown / pointermove / pointerup, with ' +
+    'setPointerCapture) — never mousedown alone — and carry ' +
+    'style="touch-action:none" so a drag is not stolen by the page scroll. ' +
+    'Use real <button> and <input> elements for controls rather than clickable ' +
+    'divs.\n' +
     '- Plain, calm design: white background, one accent colour, system ' +
     'sans-serif, base font 13px. No dark mode, no external branding.\n' +
     '- Start animating by itself, and include a Reset control.\n' +
@@ -7818,14 +7824,18 @@ async function runAiNoteJob(job) {
       a.rows = built.rows || null;
       a.src = built.src || '';
       a.html = built.html || '';
-      a.live = false;
+      // A widget that has just been built arrives switched on. Locked was the
+      // old default and it read as a broken widget: you tapped the thing you
+      // had just waited a minute for and nothing moved. ✋ Lock is one tap
+      // away when the pen needs to write over it.
+      a.live = job.kind === 'widget';
     } else {
       a = {
         id: newAnnId(), page: page.num, type: 'ainote', kind: job.kind,
         x: job.frame.x, y: job.frame.y, w: job.frame.w, h: job.frame.h,
         color: color, prompt: job.prompt !== undefined ? job.prompt : job.instr, title: built.title,
         text: built.text || '', columns: built.columns || null, rows: built.rows || null,
-        src: built.src || '', html: built.html || '', live: false, ts: Date.now()
+        src: built.src || '', html: built.html || '', live: job.kind === 'widget', ts: Date.now()
       };
       annotations.push(a);
     }
@@ -7904,7 +7914,7 @@ function renderAiJobTray() {
     var sub = document.createElement('div');
     sub.className = 'aiJobSub';
     sub.textContent = job.state === 'done'
-      ? (job.kind === 'widget' ? 'Ready on page ' + job.pageNum + ' — tap to see it, then ▶ Use to play with it.'
+      ? (job.kind === 'widget' ? 'Live on page ' + job.pageNum + ' — play with it straight away; ✋ Lock to write over it.'
                                : 'Landed on page ' + job.pageNum + ' — tap to see it.')
       : job.state === 'err' ? job.msg
       : aiEngineName() + ' · ' + aiNoteQualityInfo(job.quality).name.toLowerCase() + ' · page ' + job.pageNum;
@@ -8376,6 +8386,69 @@ function applyZoomToFrame(frame, z) {
    One sandboxed iframe per widget, floating over the page at the card's
    position. It is only rebuilt when the generated page itself changes, so a
    running model survives everything else that happens on the worksheet. */
+/* ---- Making a generated app work under a finger ----
+   Everything the model writes is aimed at a mouse: mousedown / mousemove /
+   mouseup on a canvas, click on a <div>. On an iPad none of that happens —
+   iOS sends a short burst of mouse events after a tap and nothing at all
+   during a drag — so a perfectly good widget sat there doing nothing. This
+   runs first inside the frame and turns finger gestures into the events the
+   app is listening for.
+
+   It stays out of the way of an app that already handles touch: it listens in
+   the bubble phase, after the app's own handlers, and drops the gesture the
+   moment the app calls preventDefault. Native controls (sliders, buttons,
+   links) are left alone entirely — iOS drives those properly by itself, and
+   sending a second set of events would double every tap. */
+var AI_WIDGET_TOUCH_SHIM = '<script>(function(){' +
+  'if(!("ontouchstart" in window))return;' +
+  'var NATIVE="input,select,textarea,button,a,label,option,summary,[contenteditable]";' +
+  'var g=null,moved=0;' +
+  'function fire(type,t,tgt,btns){try{tgt.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,' +
+  'view:window,detail:1,clientX:t.clientX,clientY:t.clientY,screenX:t.screenX,screenY:t.screenY,' +
+  'button:0,buttons:btns}));}catch(e){}}' +
+  // A drag on a drawing surface belongs to the app; anywhere else the finger
+  // is left free, so a widget with a scrolling panel still scrolls.
+  'function surface(t){for(var n=t;n&&n.nodeType===1;n=n.parentElement){' +
+  'var tag=(n.tagName||"").toLowerCase();if(tag==="canvas"||tag==="svg")return true;' +
+  'try{if(getComputedStyle(n).touchAction==="none")return true;}catch(e){}}return false;}' +
+  'document.addEventListener("touchstart",function(e){' +
+  'g=null;if(e.defaultPrevented||e.touches.length!==1)return;' +
+  'var t=e.target;if(!t||!t.closest||t.closest(NATIVE))return;' +
+  'var p=e.touches[0];g={t:t,x:p.clientX,y:p.clientY,surf:surface(t)};moved=0;' +
+  'fire("mousedown",p,t,1);},false);' +
+  'document.addEventListener("touchmove",function(e){' +
+  'if(!g||e.touches.length!==1)return;' +
+  // The app took the gesture itself — stop shadowing it.
+  'if(e.defaultPrevented){g=null;return;}' +
+  'var p=e.touches[0];' +
+  'if(Math.abs(p.clientX-g.x)>5||Math.abs(p.clientY-g.y)>5)moved=1;' +
+  'fire("mousemove",p,g.t,1);' +
+  'if(g.surf&&moved&&e.cancelable)e.preventDefault();},{passive:false});' +
+  'document.addEventListener("touchend",function(e){' +
+  'if(!g)return;var t=g.t,was=moved,mine=0;' +
+  'var p=(e.changedTouches&&e.changedTouches[0])||{clientX:g.x,clientY:g.y,screenX:g.x,screenY:g.y};' +
+  // The gesture is ours, so stop the browser sending its own delayed burst of
+  // mouse events for it as well — a button written as a <div> with a mousedown
+  // handler would otherwise count every tap twice.
+  'if(e.cancelable){e.preventDefault();mine=1;}' +
+  'fire("mouseup",p,t,0);' +
+  // iOS only sends a click where it thinks something is tappable; a plain
+  // <div> listening for clicks never gets one, so send it — and send it now
+  // rather than after the browser\'s tap delay. If the burst could not be
+  // stopped, the browser\'s own click is still coming and ours would double it.
+  'if(!was&&mine)fire("click",p,t,0);' +
+  'g=null;},{passive:false});' +
+  'document.addEventListener("touchcancel",function(){g=null;},false);' +
+  '})();<\/script>';
+
+/* Sized for a finger and readable on a tablet, whatever the model wrote:
+   no tap-highlight flash, no double-tap zoom lag on the controls, and text
+   that iOS will not silently inflate. */
+var AI_WIDGET_TOUCH_CSS =
+  '<style>html,body{-webkit-text-size-adjust:100%;}' +
+  '*{-webkit-tap-highlight-color:transparent;}' +
+  'button,select,input,label,[role="button"]{touch-action:manipulation;}</style>';
+
 function aiWidgetDoc(html) {
   // A content-security policy inside the document itself: no network, no
   // plugins, no frames — whatever Gemini wrote, it stays a self-contained
@@ -8385,9 +8458,14 @@ function aiWidgetDoc(html) {
             'img-src data: blob:; media-src data: blob:; style-src \'unsafe-inline\'; ' +
             'script-src \'unsafe-inline\'; font-src data:; connect-src \'none\'; ' +
             'form-action \'none\'; base-uri \'none\'">';
-  if (/<head[\s>]/i.test(html)) return html.replace(/<head([^>]*)>/i, '<head$1>' + csp);
-  if (/<html[\s>]/i.test(html)) return html.replace(/<html([^>]*)>/i, '<html$1><head>' + csp + '</head>');
-  return '<!doctype html><html><head>' + csp + '</head><body>' + html + '</body></html>';
+  // Without this iOS lays the frame out for an imaginary desktop window, so
+  // everything inside is drawn in the wrong place — including the buttons.
+  var vp = /<meta[^>]+name=["']?viewport/i.test(html)
+    ? '' : '<meta name="viewport" content="width=device-width, initial-scale=1">';
+  var headStart = csp + vp + AI_WIDGET_TOUCH_CSS + AI_WIDGET_TOUCH_SHIM;
+  if (/<head[\s>]/i.test(html)) return html.replace(/<head([^>]*)>/i, '<head$1>' + headStart);
+  if (/<html[\s>]/i.test(html)) return html.replace(/<html([^>]*)>/i, '<html$1><head>' + headStart + '</head>');
+  return '<!doctype html><html><head>' + headStart + '</head><body>' + html + '</body></html>';
 }
 
 function syncAiWidgets(p) {
