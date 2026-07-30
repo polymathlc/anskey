@@ -3,6 +3,55 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## The ChatGPT key is remembered, and widgets build properly (v1.49.0)
+
+**Paste the OpenAI key once.** It used to live only in this browser's
+localStorage, which iPad Safari throws away after about a week of not opening
+the site — so it had to be pasted again every school holiday. It is now also
+kept in your own teacher-only settings record (`adminSettings/{your uid}`), and
+read back the moment you sign in. A new iPad, a cleared browser, a reinstall:
+ChatGPT is already on, with the model and image model you chose. Clearing the
+box and saving forgets it in both places.
+
+> **One-time setup:** add this to the Firestore rules, or the key cannot be
+> saved (the app will say so and keep working on this device only):
+>
+> ```
+> match /adminSettings/{uid} {
+>   allow read, write: if request.auth != null
+>                      && request.auth.token.email == 'chungzhikai@gmail.com';
+> }
+> ```
+>
+> Students, share-link visitors and “Practise as” devices never read this
+> collection.
+
+**“Highest” is now “Pro build”, and it means it.** The top build-quality
+setting was still producing thumbnail-grade widgets, for three reasons that are
+all fixed:
+
+- **It was being told to keep things small.** Every card shared one brief —
+  *“the card is small, so every word has to earn its place”* — which is right
+  for a note and wrong for a teaching app. A Pro build now gets its own brief:
+  a proper stage and control panel, three to six controls, live readouts, a
+  second linked view (graph, table or trace) where it helps, real physics and
+  maths rather than a faked animation, a “what to look for” line, a challenge
+  for the class, and presentation-sized text for an iPad held up at the front.
+- **It was quietly running out of room.** A reasoning model spends its budget
+  on thinking as well as writing; at the old ceiling the thinking could eat the
+  lot, the build came back empty or half-written, and the card silently fell
+  back to Gemini. A Pro build now has no practical length limit, and if it
+  still runs out mid-page it is told to carry on from where it stopped and the
+  pieces are stitched together — the same “continue” you would press in the
+  ChatGPT app.
+- **You could not tell which engine built it.** If ChatGPT fails, Gemini still
+  steps in so a lesson never stalls — but a Pro build now says so on screen,
+  with the reason, instead of leaving you wondering why it came back plain.
+
+Pro-build cards are also drawn larger to begin with (430×320 instead of
+310×230), so a full app is not squeezed into a thumbnail. Still resizable, as
+always. The other three settings are unchanged.
+
 ## Award marks without leaving the worksheet (v1.48.0)
 
 The **Reward** button in the toolbar (shortcut **B**) opens the class you are

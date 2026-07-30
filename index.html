@@ -2678,7 +2678,7 @@
       <div class="fieldRow">
         <label for="aiEngineKeyInput">OpenAI API key</label>
         <input type="password" id="aiEngineKeyInput" placeholder="sk-..." autocomplete="off" spellcheck="false">
-        <div class="fieldHint">The key is saved only in this browser (localStorage) on this device — it is never uploaded, synced or committed anywhere. Anyone with access to this device's developer tools could read it, so paste it only on machines you control. Devices without a key simply keep using Gemini.</div>
+        <div class="fieldHint">Paste it once. It is kept in this browser <em>and</em> in your own teacher-only settings record, so every device you sign in with — a new iPad, a cleared browser, a reinstall — picks it up again by itself and never asks for it twice. Only your admin account can read it; students and share-link visitors cannot, and they simply keep using Gemini. Clear the box and save to forget it everywhere.</div>
       </div>
 
       <div class="modalActions">
@@ -2909,7 +2909,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.48.0';
+var APP_VERSION = 'v1.49.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -6738,14 +6738,27 @@ function deleteSelected() {
 
 /* ================= Optional ChatGPT (OpenAI) engine =================
    Admin-only toggle (header → AI Engine), migrated from the CER Science
-   Learning Portal. The choice, model and key live in localStorage on this
-   device only — nothing is uploaded. When the engine is active, the
-   window.askGemini / window.askGeminiImage bridges at the bottom of this
-   file route through OpenAI first and fall back to Gemini on any failure,
-   so students (and any device without a key) are never affected. */
+   Learning Portal. When the engine is active, the window.askGemini /
+   window.askGeminiImage bridges at the bottom of this file route through
+   OpenAI first and fall back to Gemini on any failure, so students (and any
+   device without a key) are never affected.
+
+   Where the key lives: localStorage for the request itself, mirrored into the
+   admin's own settings doc in Firestore so it only ever has to be pasted once.
+   localStorage alone was not enough — iPad Safari throws a site's storage away
+   after a week of not opening it, which meant fishing the key out again every
+   school holiday. On sign-in the doc is read back and localStorage refilled, so
+   a new device, a cleared browser or a fresh install all come back with the key
+   already in place. That doc is admin-only by Firestore rule (see README) —
+   nothing about it is student-readable. */
 var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', imageModel: 'ak_openai_image_model' };
+var AI_ENGINE_COLLECTION = 'adminSettings';   // one doc per admin uid
 var OPENAI_DEFAULT_MODEL = 'gpt-5.6-sol';
 var OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-1';
+/* Hard ceiling for one OpenAI answer. A "Pro build" widget is allowed to run
+   right up to it, and past it the answer is carried on in a second request
+   rather than being cut short. */
+var OPENAI_MAX_OUTPUT = 120000;
 
 function getAiEngine() { try { return localStorage.getItem(AI_ENGINE_STORE.engine) || 'gemini'; } catch (e) { return 'gemini'; } }
 function getOpenAiKey() { try { return (localStorage.getItem(AI_ENGINE_STORE.key) || '').trim(); } catch (e) { return ''; } }
@@ -6790,7 +6803,11 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
   if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: content });
 
-  var body = { model: model, messages: messages, max_completion_tokens: Math.max(1024, o.maxOutputTokens || 512) };
+  // Only the gpt-5 family will take an answer this long; asking a 4-series
+  // model for 110k is a 400, which would drop the card to Gemini for no reason.
+  var modelCap = /^gpt-5/.test(model) ? OPENAI_MAX_OUTPUT : 16000;
+  var budget = Math.min(modelCap, Math.max(1024, o.maxOutputTokens || 512));
+  var body = { model: model, messages: messages, max_completion_tokens: budget };
   if (o.json) body.response_format = { type: 'json_object' };
   // Build quality: the gpt-5 family thinks harder when asked to. The budget
   // above has to cover those reasoning tokens as well as the answer, which is
@@ -6815,6 +6832,16 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
     return res.json();
   }
 
+  function pickText(d) {
+    var c = d && d.choices && d.choices[0];
+    var t = c && c.message && c.message.content;
+    return typeof t === 'string' ? t : '';
+  }
+  function ranOut(d) {
+    var c = d && d.choices && d.choices[0];
+    return !!c && c.finish_reason === 'length';
+  }
+
   var data;
   try { data = await send(body); }
   catch (e) {
@@ -6827,8 +6854,49 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
       data = await send(body);
     } else throw e;
   }
-  var text = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  if (typeof text !== 'string' || !text) throw new Error('OpenAI returned an unexpected response shape.');
+
+  var text = pickText(data);
+
+  // A reasoning model spends the same budget on thinking as on writing. Think
+  // hard enough and the whole allowance can go on thought, leaving nothing at
+  // all — which used to read as "ChatGPT failed" and quietly hand the card to
+  // Gemini. Give it more room and ask again instead.
+  if (!text && ranOut(data) && body.max_completion_tokens < modelCap) {
+    body.max_completion_tokens = Math.min(modelCap, body.max_completion_tokens * 3);
+    console.warn('OpenAI spent the whole budget thinking — retrying with ' + body.max_completion_tokens + ' tokens');
+    data = await send(body);
+    text = pickText(data);
+  }
+
+  // A long build (a Pro-build widget is the usual one) can outrun even the
+  // biggest single answer. Rather than handing back half a page, carry on from
+  // exactly where it stopped and stitch the pieces together — the same thing
+  // the chat app does when it says "continue".
+  if (o.continueOnLength && text) {
+    var rounds = 0;
+    while (ranOut(data) && rounds < 6) {
+      rounds++;
+      var contBody = Object.assign({}, body, {
+        messages: messages.concat([
+          { role: 'assistant', content: text },
+          { role: 'user', content:
+            'You ran out of room. Carry straight on from the very last character above — ' +
+            'do not repeat anything you have already written, do not start again, and do ' +
+            'not add commentary, apologies or code fences. Just continue, and finish the ' +
+            'whole thing this time.' }
+        ])
+      });
+      var more;
+      try { more = await send(contBody); }
+      catch (e) { console.warn('Could not continue the answer, using what came back', e); break; }
+      var chunk = pickText(more);
+      if (!chunk) break;
+      text += chunk;
+      data = more;
+    }
+  }
+
+  if (!text) throw new Error('OpenAI returned an unexpected response shape.');
   return text.trim();
 };
 
@@ -6870,6 +6938,60 @@ window.askOpenAiImage = async function askOpenAiImage(prompt, opts) {
   }
 };
 
+/* ---------- Remembering the key across devices and reloads ----------
+   Paste it once, on any device, and every later sign-in picks it back up.
+   The doc is written only from the AI Engine dialog and read only by the
+   admin; students never touch this collection. */
+function aiEngineDocRef(user) {
+  var u = user || currentUser;
+  if (!u || !isAdmin(u) || typeof db === 'undefined' || !db) return null;
+  return db.collection(AI_ENGINE_COLLECTION).doc(u.uid);
+}
+
+/* Push whatever this device now has up to the settings doc. Clearing the key
+   in the dialog clears it in the cloud too, so "forget it" really forgets. */
+function saveAiEngineToCloud(user) {
+  var ref = aiEngineDocRef(user);
+  if (!ref) return Promise.resolve(false);
+  var key = getOpenAiKey();
+  var payload = {
+    engine: getAiEngine(),
+    model: getOpenAiModel(),
+    imageModel: getOpenAiImageModel(),
+    openAiKey: key || firebase.firestore.FieldValue.delete(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  return ref.set(payload, { merge: true }).then(function () { return true; });
+}
+
+/* Called on every admin sign-in. A doc that already has a key refills this
+   device; a device that has a key the cloud has not seen yet pushes it up, so
+   the very next load after this update is the last time it has to be pasted. */
+async function loadAiEngineFromCloud(user) {
+  var ref = aiEngineDocRef(user);
+  if (!ref) return;
+  var snap;
+  try { snap = await ref.get(); }
+  catch (e) { console.warn('Could not read the saved AI engine settings', e); return; }
+  var d = (snap && snap.exists && snap.data()) || null;
+  if (!d || !d.openAiKey) {
+    // Nothing saved yet — if this device is the one holding the key, keep it.
+    if (getOpenAiKey()) saveAiEngineToCloud(user).catch(function (e) {
+      console.warn('Could not save the AI engine settings', e);
+    });
+    return;
+  }
+  try {
+    localStorage.setItem(AI_ENGINE_STORE.key, String(d.openAiKey).trim());
+    if (d.engine) localStorage.setItem(AI_ENGINE_STORE.engine, d.engine);
+    if (d.model) localStorage.setItem(AI_ENGINE_STORE.model, d.model);
+    if (d.imageModel) localStorage.setItem(AI_ENGINE_STORE.imageModel, d.imageModel);
+  } catch (e) { console.warn('Could not store the AI engine settings on this device', e); return; }
+  // The header button and every "Gemini"/"ChatGPT" label now say the right name.
+  renderAuthArea();
+  refreshAiEngineNames();
+}
+
 /* ---------- AI Engine dialog (admin only) ---------- */
 function openAiEngineModal() {
   if (!isAdmin(currentUser)) return;
@@ -6905,7 +7027,16 @@ function saveAiEngineSettings() {
   closeAiEngineModal();
   renderAuthArea();        // the header button names the engine that is now on
   refreshAiEngineNames();  // …and so does every label, hint and tooltip
-  toast(eng === 'openai' ? 'AI engine set to ChatGPT (' + model + ') — saved on this device' : 'AI engine set to Gemini', 3500);
+  var what = eng === 'openai' ? 'AI engine set to ChatGPT (' + model + ')' : 'AI engine set to Gemini';
+  // Saved to the admin's own settings doc as well, so this is the last time the
+  // key has to be typed anywhere — a new iPad, a cleared browser or a reinstall
+  // all pick it back up at sign-in.
+  saveAiEngineToCloud(currentUser).then(function (synced) {
+    toast(what + (synced ? ' — remembered for every device you sign in on' : ' — saved on this device'), 4000);
+  }).catch(function (e) {
+    console.warn('Could not save the AI engine settings', e);
+    toast(what + ' — saved on this device only (it could not be synced: ' + ((e && e.message) || e) + ')', 6000);
+  });
 }
 
 $('aiEngineCloseBtn').addEventListener('click', closeAiEngineModal);
@@ -7110,7 +7241,10 @@ var AI_NOTE_SIZE = {
   notes:  { w: 250, h: 160 },
   table:  { w: 290, h: 150 },
   image:  { w: 230, h: 190 },
-  widget: { w: 310, h: 230 }
+  widget: { w: 310, h: 230 },
+  // A Pro build is a full app with a control panel and a second view; dropped
+  // into a thumbnail-sized card it looks cramped however good it is.
+  widgetPro: { w: 430, h: 320 }
 };
 var AI_NOTE_HEAD_H = 15;   // page units — must match .aiNoteHead's fixed height
 var AI_NOTE_MIN_W = 90, AI_NOTE_MIN_H = 60;
@@ -7132,7 +7266,10 @@ function aiNoteKindInfo(k) {
    the output budget, turn the reasoning up (ChatGPT reasoning_effort / Gemini
    thinkingLevel) and ask for more of the model in the prompt itself.
    tokens: widget = the generated page, text = notes/table JSON, svg = the
-   drawn-diagram fallback. */
+   drawn-diagram fallback.
+   The top tier is deliberately not a "bigger Standard": it drops the small-card
+   framing altogether and asks for the sort of build the ChatGPT app itself
+   produces when nothing is holding it back — see AI_NOTE_WIDGET_PRO. */
 var AI_NOTE_QUALITY = [
   {
     key: 'fast', name: 'Quick', what: 'Fastest — one simple idea, a control or two.',
@@ -7156,17 +7293,18 @@ var AI_NOTE_QUALITY = [
          'own code before answering — no unclosed tags, no undefined variables.'
   },
   {
-    key: 'max', name: 'Highest', what: 'The most detailed build. Slowest.',
+    key: 'max', name: 'Pro build',
+    what: 'A full app, built as long as it needs to be. Slowest.',
     effort: 'high', think: 'high', imageQuality: 'high',
-    tokens: { widget: 32000, text: 3200, svg: 8000 },
-    sys: 'Make this genuinely good: a clear labelled layout, two to four useful ' +
-         'controls, live readouts of the numbers that matter, smooth animation, and ' +
-         'defaults chosen so the idea is obvious the moment it opens. Re-read your ' +
-         'own code before answering — no unclosed tags, no undefined variables.\n' +
-         'Take the time to get it right: add one short caption line saying what to ' +
-         'look for, keep the science and the maths accurate, survive the extreme ' +
-         'value of every control without breaking, and stay readable on an iPad ' +
-         'held at arm\'s length in front of a class.'
+    // Nothing is held back here: the widget may run to the model's whole
+    // answer, and if it still runs out the answer is continued rather than
+    // cut off (see askOpenAI's continueOnLength).
+    tokens: { widget: 110000, text: 4000, svg: 10000 },
+    unrestricted: true,
+    sys: 'Take the time to get this right. Accuracy first, then finish: correct ' +
+         'science and maths for the level, sensible units and significant figures, ' +
+         'and nothing hand-waved. Re-read your own code before answering — no ' +
+         'unclosed tags, no undefined variables, nothing left half-written.'
   }
 ];
 var AI_NOTE_QUALITY_KEY = 'polymath.aiNoteQuality';
@@ -7206,8 +7344,10 @@ function renderAiNoteQuality() {
     b.addEventListener('click', function () { setAiNoteQuality(q.key); });
     wrap.appendChild(b);
   });
-  $('aiNoteQualityHint').textContent = aiNoteQualityInfo(aiNoteQuality).what +
-    ' Higher settings think for longer and are allowed a much longer answer, so widgets come back finished instead of cut short.';
+  var qi = aiNoteQualityInfo(aiNoteQuality);
+  $('aiNoteQualityHint').textContent = qi.what + ' ' + (qi.unrestricted
+    ? 'Nothing is held back: no length limit on the build, a bigger card, and if ChatGPT runs out of room mid-page it carries on rather than stopping — the same as asking for it in the ChatGPT app itself. Expect a minute or two.'
+    : 'Higher settings think for longer and are allowed a much longer answer, so widgets come back finished instead of cut short.');
 }
 
 /* ---- The chooser is a window, not a modal ----
@@ -7481,6 +7621,16 @@ var AI_NOTE_SYS_BASE =
   'and concise — the card is small, so every word has to earn its place. ' +
   'Use British spelling. Never mention that you are an AI.';
 
+/* The same brief for a Pro-build widget, minus the "keep it small" — that one
+   is right for a note card and wrong for a teaching app the class will spend
+   ten minutes on. */
+var AI_NOTE_SYS_WIDGET_BASE =
+  'You are building a teaching app for a tuition teacher at Polymath Learning ' +
+  'Centre (Singapore, students from P3 to Secondary 1) to demonstrate on a PDF ' +
+  'worksheet in front of a class. Match the worksheet\'s subject and the level ' +
+  'of the students. Be accurate above all — a wrong model taught confidently is ' +
+  'worse than no model. Use British spelling. Never mention that you are an AI.';
+
 var AI_NOTE_SYS = {
   notes:
     'Write short revision notes for the card. Return JSON only: ' +
@@ -7512,6 +7662,36 @@ var AI_NOTE_SYS = {
     'sans-serif, base font 13px. No dark mode, no external branding.\n' +
     '- Start animating by itself, and include a Reset control.\n' +
     'Put a short <title> in the head — it becomes the card\'s heading.',
+  /* Pro build. Everything above still holds — it is what keeps the page alive
+     inside the sandbox — but the "small card, every word earns its place"
+     framing is lifted. The complaint this answers is a Highest-quality widget
+     that still came back looking like a thumbnail: the model was being told to
+     keep it small, and was quietly running out of room mid-build. */
+  widgetPro:
+    'This widget IS the lesson, not a thumbnail, and there is no length limit ' +
+    'on your answer. Build it as completely as you would for a paid interactive ' +
+    'textbook. Never trim, simplify or drop a feature to save space — if you ' +
+    'run out of room you will be asked to continue, so the only real failure is ' +
+    'leaving the page unfinished.\n' +
+    'What a finished build looks like:\n' +
+    '- A proper layout: title, a main stage that takes most of the room, a ' +
+    'labelled control panel, and live numeric readouts of every quantity that ' +
+    'matters.\n' +
+    '- Three to six controls that each visibly change something, with sensible ' +
+    'ranges and units shown next to the value.\n' +
+    '- Where it helps, a second linked view — a graph that plots as it runs, a ' +
+    'table that fills in, a step-by-step trace, or a before/after comparison — ' +
+    'kept in sync with the main stage.\n' +
+    '- Model the actual physics, chemistry or maths rather than faking the ' +
+    'animation, and keep it right at the extreme of every control: no NaN, no ' +
+    'overflow, no freeze, no divide-by-zero.\n' +
+    '- One short "What to look for" line, and a small challenge or worked ' +
+    'example the class can try on it.\n' +
+    '- Presentation-grade on an iPad held up in front of a class: base font ' +
+    '14px or larger, generous spacing, big finger-sized controls, clear ' +
+    'contrast. Overriding the 13px rule above is expected here.\n' +
+    '- Comment the tricky parts of the code, so it can be edited later.\n' +
+    'Write the whole page in one go and close every tag.',
   image:
     'A picture for a worksheet card: clean, simple, well lit, plenty of white ' +
     'space, no text unless the teacher asked for labels, nothing that could ' +
@@ -7561,6 +7741,9 @@ function generateAiNote() {
   if (!page) { closeAiNoteModal(); return; }
 
   var size = AI_NOTE_SIZE[kind] || AI_NOTE_SIZE.notes;
+  // Pro-build widgets are drawn bigger from the start — still resizable, still
+  // clamped to the page below.
+  if (kind === 'widget' && aiNoteQualityInfo(aiNoteQuality).unrestricted) size = AI_NOTE_SIZE.widgetPro;
   // A card being rebuilt keeps the size it was drawn at — its full size, even
   // if it is sitting minimised, or reopening it would give back a pill.
   var frame = editing
@@ -7805,17 +7988,35 @@ async function buildAiNotePayload(kind, instr, frame, imgs, quality, spot) {
   if (kind === 'widget') {
     lines.push('The card is about ' + Math.round(frame.w) + '×' + Math.round(frame.h) +
                ' points on the page, and can be resized by the teacher afterwards.');
+    // A Pro build is not a small card, so it does not get the small-card brief:
+    // the "every word has to earn its place" line was working against the very
+    // thing the top setting is for.
+    var wSys = q.unrestricted
+      ? AI_NOTE_SYS_WIDGET_BASE + '\n' + AI_NOTE_SYS.widget + '\n' + AI_NOTE_SYS.widgetPro + (q.sys ? '\n' + q.sys : '')
+      : AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS.widget + (q.sys ? '\n' + q.sys : '');
+    if (q.unrestricted) {
+      lines.push('Build it at full size and full detail — the teacher can stretch the card ' +
+                 'to fit, and will. Do not shrink the app to match those numbers.');
+    }
     var html = await window.askGemini(lines.join('\n'), {
-      system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS.widget + (q.sys ? '\n' + q.sys : ''),
+      system: wSys,
       maxOutputTokens: q.tokens.widget, temperature: 0.55, images: imgs,
-      effort: q.effort, thinkingLevel: q.think
+      effort: q.effort, thinkingLevel: q.think,
+      // Long builds are carried on rather than cut short (ChatGPT engine only).
+      continueOnLength: !!q.unrestricted
     });
+    // Silently answering with the other engine is how a Pro build ends up
+    // looking like a cheap one, so say so instead of leaving it a mystery.
+    if (q.unrestricted && window.aiLastCall && window.aiLastCall.fellBack) {
+      toast('ChatGPT could not finish this one (' + (window.aiLastCall.error || 'no reason given') +
+            ') — Gemini built it instead.', 8000);
+    }
     html = stripCodeFence(html);
     if (!/[<]/.test(html)) throw new Error('the widget came back empty — try describing it again');
     // A page that opens a tag it never closes ran out of room mid-build. It
     // would render as a half-widget, so say what happened instead.
     if (/<html[\s>]/i.test(html) && !/<\/html>/i.test(html)) {
-      throw new Error('the widget was cut off before it finished — try a higher build quality or a simpler ask');
+      throw new Error('the widget was cut off before it finished — try a simpler ask, or the Pro build setting, which carries on instead of stopping');
     }
     return {
       title: aiNoteHtmlTitle(html) ||
@@ -10332,6 +10533,9 @@ auth.onAuthStateChanged(function (user) {
   stopLivePresence(false);
   subscribeLive();
   if (currentDocId) startLivePresence();
+  // The teacher's own AI settings — including the OpenAI key — follow the
+  // account, so signing in is all it takes to have ChatGPT working again.
+  if (user && isAdmin(user)) loadAiEngineFromCloud(user);
   if (user && !isAdmin(user) && !user.isAnonymous) {
     // Students: fetch their profile, and ask for it on their very first login.
     loadStudentProfile(user).then(function () {
@@ -14869,16 +15073,34 @@ window.aiReady = () => !!geminiModel || openAiOn();
 // snapshots.
 // When the admin has switched the engine to ChatGPT, the request goes to
 // OpenAI first and falls back to Gemini on any failure.
+// window.aiLastCall records which engine actually answered. A silent fallback
+// is exactly how a top-quality build comes back looking cheap, so the AI note
+// jobs read this and tell the teacher when ChatGPT dropped out.
+window.aiLastCall = { engine: "gemini", fellBack: false, error: "" };
 window.askGemini = async function askGemini(prompt, opts = {}) {
   if (openAiOn()) {
-    try { return await window.askOpenAI(prompt, opts); }
-    catch (e) { console.warn("ChatGPT engine failed, falling back to Gemini:", e); }
+    try {
+      const out = await window.askOpenAI(prompt, opts);
+      window.aiLastCall = { engine: "openai", fellBack: false, error: "" };
+      return out;
+    } catch (e) {
+      console.warn("ChatGPT engine failed, falling back to Gemini:", e);
+      window.aiLastCall = { engine: "gemini", fellBack: true, error: (e && e.message) || String(e) };
+    }
+  } else {
+    window.aiLastCall = { engine: "gemini", fellBack: false, error: "" };
   }
   return askGeminiDirect(prompt, opts);
 };
 
+// Gemini's ceiling is far below what a Pro-build widget is allowed to ask
+// OpenAI for, and an over-large budget is a 400 rather than a long answer —
+// so the fallback path quietly clamps instead of failing the card outright.
+const GEMINI_MAX_OUTPUT = 32000;
+
 async function askGeminiDirect(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [], thinkingLevel = "minimal" } = {}) {
   if (!geminiModel) throw new Error("AI is not configured yet");
+  maxOutputTokens = Math.min(maxOutputTokens || 512, GEMINI_MAX_OUTPUT);
   const parts = [{ text: prompt }];
   for (const img of images) {
     if (img && img.data) parts.push({ inlineData: { mimeType: img.mimeType || "image/jpeg", data: img.data } });
