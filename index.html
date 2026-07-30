@@ -197,10 +197,28 @@
     text-transform: uppercase;
     color: #5A4A85;
     /* Fixed height, matching AI_NOTE_HEAD_H — a live widget is positioned
-       right below it. */
-    flex: 0 0 15px;
-    height: 15px;
+       right below it. It is also the card's drag bar, so it is deep enough to
+       be caught with a finger rather than aimed at. */
+    flex: 0 0 18px;
+    height: 18px;
     box-sizing: border-box;
+    cursor: grab;
+  }
+  .aiNoteHead:active { cursor: grabbing; }
+  /* The grip. The whole heading drags, but a bar of dots is the bit people
+     reach for, so it is drawn where the eye expects it and given a target
+     wider than it looks. */
+  .aiNoteGrip {
+    flex: 0 0 auto;
+    width: 9px;
+    height: 12px;
+    margin-right: 1px;
+    border-radius: 3px;
+    background-image: radial-gradient(#8F7FB8 40%, transparent 42%);
+    background-size: 3px 3px;
+    background-position: 1px 1px;
+    background-repeat: round;
+    opacity: 0.75;
   }
   .aiNoteTitle { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .aiNoteBtn {
@@ -284,6 +302,37 @@
     pointer-events: none;
   }
   .aiWidgetHost.live { z-index: 4; pointer-events: auto; }
+  /* The corner grip for resizing a live widget. The frame swallows everything
+     that lands on it, so the card's own resize handles are unreachable while
+     the model is running — this one sits above the frame instead. Sized for a
+     finger, in screen pixels: it must stay grabbable however far the page is
+     zoomed out. */
+  .aiWidgetGrip {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    height: 30px;
+    display: none;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 3px;
+    box-sizing: border-box;
+    cursor: nwse-resize;
+    touch-action: none;
+    color: #6B5A9E;
+    font-size: 13px;
+    line-height: 1;
+    background: linear-gradient(135deg, transparent 46%, rgba(126,87,194,0.16) 47%);
+    border-bottom-right-radius: 5px;
+    z-index: 2;
+  }
+  .aiWidgetHost.live .aiWidgetGrip { display: flex; }
+  /* Students play with widgets; they do not resize the teacher's cards. This
+     has to out-specify the .live rule above, or it never takes. */
+  body.studentMode .aiWidgetHost.live .aiWidgetGrip { display: none; }
+  body.studentMode .aiNoteGrip { display: none; }
+  body.studentMode .aiNoteHead { cursor: default; }
   /* Minimised: the frame is hidden, not removed, so whatever the widget was
      doing carries on and comes back exactly where it left off. */
   .aiWidgetHost.aiWidgetMin { display: none; }
@@ -2909,7 +2958,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.49.1';
+var APP_VERSION = 'v1.50.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -5227,6 +5276,53 @@ function attachOverlayHandlers(p) {
     // Touches claimed by the navigation engine (finger pan, two-finger
     // pan / pinch-zoom) never reach the drawing tools.
     if (e.pointerType === 'touch' && nav.mode) { e.preventDefault(); return; }
+    /* ---- The card's grip ----
+       A card's heading (and a minimised pill) drags the card whatever tool is
+       in hand — no switching to select first, and no aiming at the sliver of
+       heading between the buttons. Two reasons it is checked this early:
+       a live widget covers everything except its heading, so without it a
+       running widget cannot be moved at all; and in pencil-only mode a finger
+       on a drawing tool is handed to the page-panning code a few lines down,
+       which is exactly the finger that is trying to move the card. The
+       heading's own buttons were dealt with further up, so they still win. */
+    var gripEl = e.target.closest ? e.target.closest('[data-ainote-grip]') : null;
+    // The eraser and the lasso keep their own meaning for a tap on a card — a
+    // grip that swallowed those would make a card impossible to rub out.
+    if (gripEl && !isStudent() && !isSharedVisitor() && !reviseMode &&
+        tool !== 'eraser' && tool !== 'lasso') {
+      var gG = gripEl.closest ? gripEl.closest('g[data-id]') : null;
+      var gId = gG && gG.getAttribute('data-id');
+      var gAnn = gId && annotations.find(function (x) { return x.id === gId; });
+      if (gAnn) {
+        e.preventDefault();
+        // Double-tap still opens a minimised pill back up: ⤢ is a small target
+        // on an iPad and the whole pill has always been the way back in.
+        var gTap = Date.now();
+        if (lastTap.id === gId && gTap - lastTap.t < 450) {
+          lastTap = { id: null, t: 0 };
+          enterEditMode(gId, p);
+          return;
+        }
+        lastTap = { id: gId, t: gTap };
+        if (lassoSel) clearLassoSel(true);
+        selectedId = gId;
+        // The resize handles come with it, so moving and resizing are one
+        // gesture's worth of setting up — except on a live widget, whose
+        // handles sit under its frame; that one has its own corner grip.
+        editModeId = gAnn.min ? null : gId;
+        renderAllOverlays();
+        var gPt = eventPoint(e, p);
+        draggingSel = {
+          id: gId, startX: gPt.x, startY: gPt.y,
+          node: svg.querySelector('[data-id="' + gId + '"]'),
+          page: p, snapshot: snapshot(), moved: false
+        };
+        claimPointer(e);
+        svg.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
     // In pencil-only mode a finger on a drawing tool pans the page instead
     // of drawing — the Pencil remains the only thing that makes marks.
     if (stylusOnly && e.pointerType === 'touch' && isDrawTool(tool) && !reviseMode) return;
@@ -7246,7 +7342,7 @@ var AI_NOTE_SIZE = {
   // into a thumbnail-sized card it looks cramped however good it is.
   widgetPro: { w: 430, h: 320 }
 };
-var AI_NOTE_HEAD_H = 15;   // page units — must match .aiNoteHead's fixed height
+var AI_NOTE_HEAD_H = 18;   // page units — must match .aiNoteHead's fixed height
 var AI_NOTE_MIN_W = 90, AI_NOTE_MIN_H = 60;
 /* Minimised, a card shrinks to a rounded rectangle named after what it is
    ("Widget", "Note", "Graph", "Picture"), so the question underneath is
@@ -8154,11 +8250,20 @@ function aiNoteCardNode(a) {
   card.className = 'aiNoteCard' + (a.live ? ' aiNoteLive' : '');
   var head = document.createElement('div');
   head.className = 'aiNoteHead';
+  // The heading is the card's drag bar, whatever tool is in hand. It is the
+  // only part of a live widget the frame does not cover, so for a widget it is
+  // the only way to move it at all — hence the grip, and hence a bar deep
+  // enough to catch with a finger.
+  head.setAttribute('data-ainote-grip', '1');
+  head.title = 'Drag to move this card' + (a.kind === 'widget' ? ' — the widget carries on running' : '');
+  var grip = document.createElement('span');
+  grip.className = 'aiNoteGrip';
   var icon = document.createElement('span');
   icon.textContent = aiNoteKindInfo(a.kind).icon;
   var title = document.createElement('span');
   title.className = 'aiNoteTitle';
   title.textContent = a.title || aiNoteKindInfo(a.kind).name;
+  head.appendChild(grip);
   head.appendChild(icon);
   head.appendChild(title);
   if (a.kind === 'widget') {
@@ -8246,7 +8351,10 @@ function aiNoteShortName(a) {
 function aiNotePillNode(a) {
   var pill = document.createElement('div');
   pill.className = 'aiNotePill' + (a.live ? ' aiNoteLive' : '');
-  pill.title = (a.title || aiNoteShortName(a)) + ' — minimised';
+  pill.title = (a.title || aiNoteShortName(a)) + ' — minimised. Drag to move it.';
+  // A parked pill drags with any tool too, so it can be tidied into a margin
+  // without going back to the select tool for it.
+  pill.setAttribute('data-ainote-grip', '1');
   var icon = document.createElement('span');
   icon.className = 'aiNotePillIcon';
   icon.textContent = aiNoteKindInfo(a.kind).icon;
@@ -8507,10 +8615,67 @@ function syncAiWidgets(p) {
     // Only a widget switched on with ▶ Use takes taps; otherwise the tools
     // draw straight over it as if it were printed on the page.
     host.classList.toggle('live', !!a.live && !a.min);
+    // Its own resize corner, above the frame. The card's normal handles are
+    // drawn in the overlay, which a live widget sits on top of — so while the
+    // model is running they cannot be reached. Rebuilt with the frame, so it
+    // has to be checked for every time rather than only on creation.
+    if (!host.querySelector('.aiWidgetGrip')) host.appendChild(aiWidgetGripNode(a.id, p));
   });
   Array.prototype.forEach.call(p.wrap.querySelectorAll('.aiWidgetHost'), function (h) {
     if (!seen[h.getAttribute('data-id')]) h.remove();
   });
+}
+
+/* The resize corner on a live widget. It cannot go through the overlay's
+   pointer handling like every other handle — the overlay is underneath the
+   frame — so it captures the pointer itself and edits the card's size
+   directly. Only the corner is offered: dragging the heading already moves the
+   card, and between the two there is nothing a teacher needs mid-lesson. */
+function aiWidgetGripNode(id, p) {
+  var grip = document.createElement('div');
+  grip.className = 'aiWidgetGrip';
+  grip.textContent = '⇲';
+  grip.title = 'Drag to resize the widget';
+  var st = null;
+
+  grip.addEventListener('pointerdown', function (e) {
+    if (isStudent() || isSharedVisitor()) return;
+    var a = annotations.find(function (x) { return x.id === id; });
+    if (!a) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var pt = eventPoint(e, p);
+    st = { x: pt.x, y: pt.y, w: a.w, h: a.h, snap: snapshot(), moved: false };
+    try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  grip.addEventListener('pointermove', function (e) {
+    if (!st) return;
+    var a = annotations.find(function (x) { return x.id === id; });
+    if (!a) { st = null; return; }
+    var pt = eventPoint(e, p);
+    // Clamped to the page, the same as every other resize: a card dragged off
+    // the edge can never be got hold of again.
+    var w = Math.max(AI_NOTE_MIN_W, Math.min(round2(st.w + pt.x - st.x), p.baseW - a.x - 2));
+    var h = Math.max(AI_NOTE_MIN_H, Math.min(round2(st.h + pt.y - st.y), p.baseH - a.y - 2));
+    if (w === a.w && h === a.h) return;
+    a.w = w; a.h = h;
+    st.moved = true;
+    // Restyles the running frame rather than rebuilding it, so the model
+    // inside carries on from wherever it had got to.
+    renderOverlay(p);
+  });
+
+  function done(e) {
+    if (!st) return;
+    if (st.moved) { pushUndo(st.snap); setDirty(true); }
+    st = null;
+    try { grip.releasePointerCapture(e.pointerId); } catch (err) {}
+    renderOverlay(p);
+  }
+  grip.addEventListener('pointerup', done);
+  grip.addEventListener('pointercancel', done);
+  return grip;
 }
 
 function syncAllAiWidgets() { pages.forEach(syncAiWidgets); }
@@ -14594,7 +14759,12 @@ viewerArea.addEventListener('pointerdown', function (e) {
       nav.vx = 0; nav.vy = 0; nav.lastT = e.timeStamp;
     }
   } else if (nav.pts.size === 1 && stylusOnly && isDrawTool(tool) && !reviseMode && !editingId &&
-             e.target.closest && e.target.closest('svg.overlay')) {
+             e.target.closest && e.target.closest('svg.overlay') &&
+             // …but not a finger that has taken hold of a card's grip. This
+             // runs in the capture phase, ahead of the overlay, so without
+             // this the finger trying to move a card panned the page instead
+             // and the card never budged.
+             !e.target.closest('[data-ainote-grip]')) {
     // Pencil-only mode: one finger on the page pans it.
     nav.mode = 'pan';
     nav.cx = e.clientX; nav.cy = e.clientY;
