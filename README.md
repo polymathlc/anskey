@@ -3,6 +3,29 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## A widget can take the whole screen, or a tab of its own (v1.51.0)
+
+A widget card is drawn to sit beside the question it teaches, which is the
+wrong size for a model the back of the room is meant to read. Two new buttons
+on every finished widget's heading:
+
+- **⛶ Full screen.** The running widget fills the whole screen — the same
+  frame, never rebuilt, so whatever it was doing carries straight on. It goes
+  live for as long as it is up (and back to however you left it afterwards),
+  and the browser's own bars go too wherever that request holds (not on iPadOS
+  Safari, which drops it again at the first drag — there the widget still goes
+  edge to edge inside Safari). Come back with the **✕ Exit full screen** button
+  floating over it, or with Esc.
+- **↗ New tab.** The widget opens in a tab of its own, filling it, and the
+  worksheet stays exactly where it was — so a widget can be put on the board
+  while the marked-up page stays in front of you. The tab has its own
+  **⛶ Full screen** button for real full screen. The widget keeps the sandbox
+  it has on the worksheet: it runs in a sandboxed frame there too, with no
+  reach into the app, its sign-in or the network.
+
+Both buttons are everyone's — a student handed a share link is exactly who
+needs the model at a readable size.
+
 ## Cards move and resize by their grips (v1.50.0)
 
 Moving a widget was fiddly, and while one was running it was close to

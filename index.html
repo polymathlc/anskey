@@ -340,6 +340,53 @@
      is scaled back down from its top-left corner, so the widget lays itself
      out at its natural size and the zoom only magnifies the result. */
   .aiWidgetHost iframe { display: block; width: 100%; height: 100%; border: 0; transform-origin: 0 0; }
+  /* ---------- A widget with the screen to itself ----------
+     Two halves, and only one of them can fail. The frame is pinned over the
+     whole window in CSS — that holds on every browser, and on an iPad it is
+     most of the win — and where the Fullscreen API is dependable (see
+     fsApiUsable) the browser's own bars go with it. The inline left/top/width/
+     height the frame normally carries are cleared while this is on, or they
+     would out-rank the rule below. */
+  .aiWidgetHost.aiWidgetFull {
+    position: fixed;
+    display: block;
+    inset: 0;
+    width: auto;
+    height: auto;
+    z-index: 150;                  /* over the toolbar and the modals, under the toasts */
+    border-radius: 0;
+    pointer-events: auto;
+    background: #fff;
+  }
+  /* The way back out, floated over the running model. It is the only chrome
+     left on the screen, so it is given room rather than tucked into a corner. */
+  .aiWidgetFullBar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    z-index: 3;
+  }
+  .aiWidgetHost.aiWidgetFull .aiWidgetFullBar { display: flex; }
+  /* Resizing a card nobody can see the edges of means nothing. */
+  .aiWidgetHost.aiWidgetFull .aiWidgetGrip { display: none; }
+  .aiWidgetFullBtn {
+    border: 1px solid #D8D2E8;
+    background: rgba(255,255,255,0.94);
+    color: #5A4A85;
+    font-family: var(--font);
+    font-size: 0.78rem;
+    font-weight: bold;
+    padding: 9px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.16);
+  }
+  .aiWidgetFullBtn:hover { background: #F3EFFA; }
 
   /* ---------- AI notes: the "what shall I make?" chooser ---------- */
   .aiKindGrid {
@@ -2958,7 +3005,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.50.0';
+var APP_VERSION = 'v1.51.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -8286,6 +8333,28 @@ function aiNoteCardNode(a) {
     zPair.appendChild(zIn);
     head.appendChild(zPair);
 
+    // A card is sized to sit beside a question, which is the wrong size for a
+    // model the whole class is reading. Two ways out of it, and neither
+    // disturbs the worksheet: fill the screen here, or hand the widget a tab
+    // of its own and leave the page exactly as it was.
+    if (a.html) {
+      var full = document.createElement('button');
+      full.className = 'aiNoteBtn';
+      full.setAttribute('data-ainote-act', 'full');
+      full.textContent = '⛶';
+      full.title = aiWidgetFullOn(a.id)
+        ? 'Leave full screen'
+        : 'Full screen — fill the screen with this widget';
+      head.appendChild(full);
+
+      var tab = document.createElement('button');
+      tab.className = 'aiNoteBtn';
+      tab.setAttribute('data-ainote-act', 'tab');
+      tab.textContent = '↗';
+      tab.title = 'Open this widget full screen in a new tab — the worksheet stays where it is';
+      head.appendChild(tab);
+    }
+
     var use = document.createElement('button');
     use.className = 'aiNoteBtn';
     use.setAttribute('data-ainote-act', 'live');
@@ -8599,6 +8668,20 @@ function syncAiWidgets(p) {
       frame.srcdoc = aiWidgetDoc(a.html);
       host.appendChild(frame);
     }
+    // With the screen to itself the frame is laid out for the screen: the
+    // card's position, size and zoom all stand down until it comes back, and
+    // the inline styles that carry them are cleared so the CSS can take over.
+    var isFull = aiWidgetFullId === a.id;
+    host.classList.toggle('aiWidgetFull', isFull);
+    if (isFull) {
+      host.style.left = host.style.top = host.style.width = host.style.height = '';
+      applyZoomToFrame(host.querySelector('iframe'), 1);
+      host.classList.remove('aiWidgetMin');
+      host.classList.add('live');
+      if (!host.querySelector('.aiWidgetFullBar')) host.appendChild(aiWidgetFullBarNode());
+      if (!host.querySelector('.aiWidgetGrip')) host.appendChild(aiWidgetGripNode(a.id, p));
+      return;
+    }
     // Restyled, never rebuilt — zooming must not restart the model.
     applyZoomToFrame(host.querySelector('iframe'), a.zoom);
     // Minimised, the pill is the whole card — the frame is hidden where it
@@ -8680,11 +8763,166 @@ function aiWidgetGripNode(id, p) {
 
 function syncAllAiWidgets() { pages.forEach(syncAiWidgets); }
 
-/* A tap on one of the card's own buttons (− / + zoom, – minimise, ⤢ open,
-   ▶ Use, ✨ redo). */
+/* ---- A widget with the screen to itself ----
+   A card is drawn to sit beside the question it teaches, which is far too
+   small for a model the back of the room is meant to read. ⛶ pins the running
+   frame over the whole window — and, where the Fullscreen API is dependable,
+   takes the browser's bars with it — without rebuilding the frame, so whatever
+   the widget was doing carries straight on. ↗ does the same in a tab of its
+   own and leaves the worksheet untouched. */
+var aiWidgetFullId = null;
+var aiWidgetFullPg = null;
+var aiWidgetFullWasLive = false;
+
+function aiWidgetFullBarNode() {
+  var bar = document.createElement('div');
+  bar.className = 'aiWidgetFullBar';
+  var out = document.createElement('button');
+  out.type = 'button';
+  out.className = 'aiWidgetFullBtn';
+  out.textContent = '✕ Exit full screen';
+  out.title = 'Back to the worksheet — the widget carries on running in its card';
+  // The page underneath is still listening for pointers; this button is the
+  // widget's, not the worksheet's.
+  out.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+  out.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    exitAiWidgetFull();
+  });
+  bar.appendChild(out);
+  return bar;
+}
+
+/* Full screen for real, not just remembered: a worksheet closed or reloaded
+   while a widget was up takes its frame with it, and the id left behind must
+   not turn the button into a dead "leave full screen". */
+function aiWidgetFullOn(id) {
+  if (!id || aiWidgetFullId !== id) return false;
+  var p = aiWidgetFullPg;
+  return !!(p && p.wrap && p.wrap.querySelector('.aiWidgetHost[data-id="' + id + '"]'));
+}
+
+function toggleAiWidgetFull(a, p) {
+  if (aiWidgetFullOn(a.id)) { exitAiWidgetFull(); return; }
+  if (aiWidgetFullId) exitAiWidgetFull();  // another widget had it, or a stale id
+  if (!a.html) { toast('This widget has nothing to show yet.'); return; }
+  aiWidgetFullId = a.id;
+  aiWidgetFullPg = p;
+  // Filling the screen and refusing every tap would be a poster, not a widget
+  // — so it goes live for as long as it is up, and back to however the teacher
+  // left it afterwards.
+  aiWidgetFullWasLive = !!a.live;
+  a.live = true;
+  if (a.min) delete a.min;
+  renderOverlay(p);  // syncAiWidgets pins the frame that is already running
+  // The browser's own bars as well, but only where that request holds: on
+  // iPadOS Safari it is dropped again at the first drag (see fsApiUsable), and
+  // the CSS half above has already done the useful part.
+  if (fsApiUsable()) {
+    var host = p.wrap.querySelector('.aiWidgetHost[data-id="' + a.id + '"]');
+    try {
+      if (host && host.requestFullscreen) {
+        var r = host.requestFullscreen();
+        if (r && r.catch) r.catch(function () {});
+      } else if (host && host.webkitRequestFullscreen) {
+        host.webkitRequestFullscreen();
+      }
+    } catch (e) {}
+  }
+  toast('Full screen — tap “✕ Exit full screen” (or press Esc) to come back.', 3600);
+}
+
+function exitAiWidgetFull() {
+  if (!aiWidgetFullId) return;
+  var id = aiWidgetFullId, p = aiWidgetFullPg;
+  var host = p && p.wrap.querySelector('.aiWidgetHost[data-id="' + id + '"]');
+  aiWidgetFullId = null;
+  aiWidgetFullPg = null;
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (a) a.live = aiWidgetFullWasLive;
+  // Only ours is handed back: the whole app may itself be in full screen
+  // (immersive mode), and that is not this button's to close.
+  var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  if (host && fsEl === host) { try { fsLeave(); } catch (e) {} }
+  if (p) renderOverlay(p); else renderAllOverlays();
+}
+
+['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
+  document.addEventListener(ev, function () {
+    if (!aiWidgetFullId) return;
+    var p = aiWidgetFullPg;
+    var host = p && p.wrap.querySelector('.aiWidgetHost[data-id="' + aiWidgetFullId + '"]');
+    // Esc, or the browser's own control: leave the mode, not just the browser
+    // half of it, or the frame is left pinned over a page nobody can reach.
+    var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (host && fsEl !== host) exitAiWidgetFull();
+  });
+});
+
+/* Escaped for an HTML attribute — the generated page is handed to the new tab
+   inside a srcdoc, so every angle bracket and quote in it has to survive the
+   trip as text. */
+function aiWidgetAttrEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* The widget in a tab of its own, filling it. The tab is written here rather
+   than linked to, because the generated page has to keep the sandbox it has on
+   the worksheet: it goes into a sandboxed frame inside the new tab, so it
+   still cannot reach this app, its sign-in or the network. */
+function openAiWidgetTab(a) {
+  if (!a.html) { toast('This widget has nothing to show yet.'); return; }
+  var win = window.open('', '_blank');
+  if (!win) {
+    toast('The browser blocked the new tab — allow pop-ups for this site, then tap ↗ again.', 6000);
+    return;
+  }
+  var title = a.title || 'Interactive widget';
+  var esc = aiWidgetAttrEsc;
+  var page =
+    '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>' + esc(title) + ' — Ans Key</title>' +
+    '<style>html,body{margin:0;height:100%;overflow:hidden;background:#fff;}' +
+    'iframe{display:block;width:100%;height:100%;border:0;}' +
+    // One tap to lose the browser's bars too, offered rather than forced: a
+    // tab cannot go full screen on its own without a gesture.
+    '#fs{position:fixed;top:14px;right:18px;z-index:2;padding:9px 16px;border-radius:999px;' +
+    'border:1px solid #D8D2E8;background:rgba(255,255,255,0.94);color:#5A4A85;' +
+    'font:bold 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;' +
+    'box-shadow:0 2px 10px rgba(0,0,0,0.16);}' +
+    '#fs:hover{background:#F3EFFA;}</style></head><body>' +
+    '<button id="fs" type="button">⛶ Full screen</button>' +
+    '<iframe sandbox="allow-scripts" title="' + esc(title) + '" srcdoc="' +
+    esc(aiWidgetDoc(a.html)) + '"></iframe>' +
+    '<script>(function(){var b=document.getElementById("fs");' +
+    'var el=document.documentElement;' +
+    'if(!el.requestFullscreen&&!el.webkitRequestFullscreen){b.style.display="none";return;}' +
+    'b.addEventListener("click",function(){try{' +
+    'if(document.fullscreenElement||document.webkitFullscreenElement){' +
+    '(document.exitFullscreen||document.webkitExitFullscreen).call(document);}' +
+    'else if(el.requestFullscreen){var r=el.requestFullscreen();if(r&&r.catch)r.catch(function(){});}' +
+    'else el.webkitRequestFullscreen();}catch(e){}});' +
+    '})();<\/script>' +
+    '</body></html>';
+  win.document.open();
+  win.document.write(page);
+  win.document.close();
+  try { win.document.title = title + ' — Ans Key'; } catch (e) {}
+}
+
+/* A tap on one of the card's own buttons (− / + zoom, ⛶ full screen, ↗ new
+   tab, – minimise, ⤢ open, ▶ Use, ✨ redo). */
 function handleAiNoteAction(act, id, p) {
   var a = annotations.find(function (x) { return x.id === id; });
   if (!a || a.type !== 'ainote') return;
+  // Both ways of making the widget big are everyone's — a student handed a
+  // share link is exactly who needs the model at a readable size.
+  if (act === 'full') { toggleAiWidgetFull(a, p); return; }
+  if (act === 'tab') { openAiWidgetTab(a); return; }
   if (act === 'zoomin' || act === 'zoomout') {
     var z = zoomStep(a.zoom, act === 'zoomin' ? 1 : -1);
     if (z === 1) delete a.zoom; else a.zoom = z;
@@ -14864,6 +15102,10 @@ document.addEventListener('keydown', function (e) {
   var editingText = ae && (ae.isContentEditable ||
     ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT');
   if (e.key === 'Escape') closeVideoPops(); // Esc always folds an open video away
+  // A widget filling the screen takes Esc before anything else — where the
+  // browser drove the full screen it hands Esc back itself and
+  // fullscreenchange has already done this; this covers everywhere it did not.
+  if (e.key === 'Escape' && aiWidgetFullId) { e.preventDefault(); exitAiWidgetFull(); return; }
   // Esc leaves full screen wherever the browser has no bars of its own to
   // hand back — elsewhere the browser does it and fullscreenchange follows.
   if (e.key === 'Escape' && immersive() && !fsApiUsable()) { setImmersive(false); return; }
