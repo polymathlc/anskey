@@ -3,6 +3,42 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Recordings go to your own Google Drive (v1.53.0)
+
+Recordings were landing in the app's Firebase Storage bucket, which is small
+and shared with every worksheet PDF. They now go into **your Google Drive**,
+where the 20 TB is — and the pill on the page links to the Drive file behind
+the scenes, so nothing about watching one changes.
+
+- **A folder of its own.** Everything the app records goes into a folder
+  called *Ans Key recordings* in your Drive, named after the worksheet and the
+  time: `Speed & Density WS3 — recording 2026-08-03 14.32.mp4`.
+- **Connect once a session.** The recorder window has a Drive card at the top
+  with a **Connect** button. It asks Google for the same account you are
+  already signed in as, with one extra permission (`drive.file`) — per-file
+  access, so Ans Key can only ever see the folder and the recordings it made
+  itself. Nothing else in your Drive is reachable by it. Google's access lasts
+  about an hour, and the card says how much is left; **Start** waits until you
+  are connected.
+- **Shared as “anyone with the link”.** Each recording is set to link-sharing
+  as it is uploaded, so students (and share-link visitors) open it without a
+  Google account. If your Drive refuses to make it public, you are told —
+  the file is still there to share yourself.
+- **Nothing gets lost.** A recording is held in the app until it is safely
+  uploaded. If Drive access has expired, the corner card offers **Retry**,
+  which reconnects and carries on; if Drive turns the file away for any other
+  reason, it goes into Firebase Storage instead and a message says so. There
+  is a **Use Firebase** button there as well.
+- **Give it a minute.** Drive processes a newly uploaded video before it will
+  play, so a recording watched seconds after it goes up may say it is still
+  processing.
+
+Recordings uploaded before this version keep working exactly as they did.
+
+**Setting it up once:** the Google Cloud project behind this app
+(`mathgen--app`) needs the **Google Drive API** switched on, and `drive.file`
+listed on its OAuth consent screen. Both are console settings, not code.
+
 ## Record a video answer without leaving the worksheet (v1.52.0)
 
 Explaining a question used to mean recording somewhere else, uploading it
