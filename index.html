@@ -588,6 +588,116 @@
     display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000;
   }
 
+  /* ---------- Recorder ---------- */
+  .recPreviewBox {
+    position: relative;
+    background: #111;
+    border-radius: var(--radius);
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+  }
+  .recPreviewBox video {
+    display: block; width: 100%; height: 100%;
+    object-fit: contain; background: #000;
+  }
+  .recPlaceholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; padding: 24px;
+    color: rgba(255,255,255,0.72); font-size: 0.82rem; text-align: center; line-height: 1.6;
+  }
+  .recPlaceholder svg { width: 36px; height: 36px; opacity: 0.6; }
+  .recBadge {
+    position: absolute; top: 12px; left: 12px;
+    display: none; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    background: rgba(0,0,0,0.55);
+    border-radius: 999px;
+    color: #fff; font-size: 0.78rem; font-weight: bold;
+    font-variant-numeric: tabular-nums;
+  }
+  .recBadge.live { display: inline-flex; }
+  .recDot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #FF5252;
+    animation: recPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes recPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+  .recSourceRow { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .recSource {
+    display: flex; align-items: center; gap: 9px;
+    padding: 11px 16px;
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    cursor: pointer;
+    font-family: var(--font); font-size: 0.82rem; color: var(--ink-soft);
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .recSource svg { width: 17px; height: 17px; flex: 0 0 auto; }
+  .recSource:hover { border-color: var(--accent-strong); }
+  .recSource.active {
+    border-color: var(--accent-deep);
+    background: var(--accent);
+    color: var(--ink);
+    font-weight: bold;
+  }
+  .recSource:disabled { opacity: 0.45; cursor: not-allowed; }
+  .recStatus {
+    margin-top: 16px;
+    font-size: 0.78rem; color: var(--ink-faint); line-height: 1.6;
+    min-height: 1.2em;
+  }
+  .recActions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+  .recActions .recSpacer { flex: 1; }
+  .btnRec {
+    background: #E53935; color: #fff; border-color: #E53935;
+  }
+  .btnRec:hover { background: #C62828; border-color: #C62828; }
+
+  /* The background-upload tray — recordings carry on uploading while the
+     lesson goes on, so the progress lives in its own corner card. */
+  #recTray {
+    position: fixed;
+    left: 18px; bottom: 18px;
+    z-index: 120;
+    width: 300px; max-width: calc(100vw - 36px);
+    display: none;
+    flex-direction: column; gap: 12px;
+    padding: 16px 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-modal);
+  }
+  #recTray.open { display: flex; }
+  .recTrayHead {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.76rem; font-weight: bold; color: var(--ink-soft);
+    letter-spacing: 0.02em;
+  }
+  .recJob { display: flex; flex-direction: column; gap: 8px; }
+  .recJobTop { display: flex; align-items: baseline; gap: 10px; }
+  .recJobName { flex: 1; font-size: 0.8rem; color: var(--ink); }
+  .recJobPct { font-size: 0.76rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .recJobBar { height: 6px; border-radius: 999px; background: #F1F0EE; overflow: hidden; }
+  .recJobFill {
+    height: 100%; width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #42A5F5, #7E57C2);
+    transition: width 0.3s ease;
+  }
+  .recJobFoot { display: flex; align-items: center; gap: 10px; }
+  .recJobHint { flex: 1; font-size: 0.72rem; color: var(--ink-faint); }
+  .recJobBtn {
+    border: none; background: none; cursor: pointer;
+    font-family: var(--font); font-size: 0.72rem; color: var(--ink-faint);
+    padding: 3px 8px; border-radius: 7px;
+  }
+  .recJobBtn:hover { background: #F1F0EE; color: var(--ink); }
+  /* A pill still waiting on its upload reads as busy rather than tappable. */
+  .videoAnnBtn.pending { background: linear-gradient(135deg, #90A4AE, #78909C); }
+
   /* ---------- Toolbar ---------- */
   #toolbar {
     display: flex;
@@ -2308,6 +2418,9 @@
     <button class="toolBtn" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps — tap one to jump the lesson recording to that moment">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
     </button>
+    <button class="toolBtn" id="recordBtn" data-key="Shift+R" title="Record a video — camera and microphone, saved to the cloud and dropped on the page as a button students tap to watch">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5 21.5 7v10l-6-3.5z"/><circle cx="9" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+    </button>
     <button class="toolBtn" id="codeWinBtn" data-key="J" title="Code window — paste HTML and it runs in a window you can show the class">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8.5 8 4.5 12 8.5 16"/><polyline points="15.5 8 19.5 12 15.5 16"/><line x1="13.5" y1="5.5" x2="10.5" y2="18.5"/></svg>
     </button>
@@ -2627,13 +2740,61 @@
         <div class="fieldHint">Dropbox: the normal “Copy link” share link works — the video plays right on the page with full controls (including full screen). Move the button afterwards with the Select tool (V); erase or lasso it like any annotation.</div>
       </div>
       <div class="modalActions">
-        <button class="btn" id="videoBtnWatchBtn" style="margin-right:auto">▶ Watch</button>
+        <div class="videoBtnRow" style="margin:0 auto 0 0">
+          <button class="btn" id="videoBtnRecBtn" title="Record a video with your camera and microphone instead of pasting a link">🎥 Record</button>
+          <button class="btn" id="videoBtnWatchBtn" style="display:none">▶ Watch</button>
+        </div>
         <button class="btn" id="videoBtnRemoveBtn">Remove</button>
         <button class="btn" id="videoBtnCancelBtn">Cancel</button>
         <button class="btn btnPrimary" id="videoBtnSaveBtn">Save</button>
       </div>
     </div>
   </div>
+</div>
+
+<div class="modalBack" id="recModal">
+  <div class="modalCard wide">
+    <div class="modalHead">
+      <h2>Record a video</h2>
+      <button class="modalClose" id="recCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="recSourceRow" id="recSourceRow">
+        <button class="recSource active" data-recsrc="camera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5 21.5 7v10l-6-3.5z"/></svg>
+          Camera + microphone
+        </button>
+        <button class="recSource" data-recsrc="screen" id="recScreenSrc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          This screen + microphone
+        </button>
+        <button class="recSource" data-recsrc="audio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg>
+          Microphone only
+        </button>
+      </div>
+      <div class="recPreviewBox">
+        <video id="recPreview" muted playsinline autoplay></video>
+        <div class="recPlaceholder" id="recPlaceholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5 21.5 7v10l-6-3.5z"/></svg>
+          <span id="recPlaceholderText">Choose what to record, then press Start — the camera only switches on once you do.</span>
+        </div>
+        <div class="recBadge" id="recBadge"><span class="recDot"></span><span id="recTimer">0:00</span></div>
+      </div>
+      <div class="recStatus" id="recStatus">Recorded at 720p to keep the file small. The video uploads in the background and lands on the page as a button students tap to watch — full screen included.</div>
+      <div class="recActions">
+        <button class="btn btnRec" id="recStartBtn">● Start recording</button>
+        <button class="btn btnPrimary" id="recStopBtn" style="display:none">■ Stop &amp; upload</button>
+        <div class="recSpacer"></div>
+        <button class="btn" id="recCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="recTray">
+  <div class="recTrayHead">🎥 <span id="recTrayTitle">Uploading recording</span></div>
+  <div id="recTrayJobs"></div>
 </div>
 
 <div class="modalBack floatWin" id="aiNoteModal">
@@ -3005,7 +3166,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.51.0';
+var APP_VERSION = 'v1.52.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -4295,13 +4456,13 @@ function annNode(a) {
     var vfo = el('foreignObject', { x: a.x, y: a.y, width: a.w || 150, height: a.h || 30 });
     vfo.style.overflow = 'visible';
     var vbtn = document.createElement('div');
-    vbtn.className = 'videoAnnBtn';
+    vbtn.className = 'videoAnnBtn' + (recUploads[a.id] ? ' pending' : '');
     var vicon = el('svg', { viewBox: '0 0 24 24' });
     vicon.appendChild(el('circle', { cx: 12, cy: 12, r: 10, fill: 'rgba(255,255,255,0.25)' }));
     vicon.appendChild(el('path', { d: 'M10 8.3v7.4l6-3.7z', fill: '#fff' }));
     vbtn.appendChild(vicon);
     var vlabel = document.createElement('span');
-    vlabel.textContent = 'Watch video solution';
+    vlabel.textContent = videoPillLabel(a);
     vbtn.appendChild(vlabel);
     vfo.appendChild(vbtn);
     g.appendChild(vfo);
@@ -4867,6 +5028,11 @@ function videoEmbedInfo(url, startSec) {
     return { kind: 'video', seek: 'media', src: src };
   }
   if (/\.(mp4|m4v|webm|mov)($|\?)/i.test(url)) return { kind: 'video', seek: 'media', src: url };
+  // Anything recorded in the app and uploaded to our own Storage bucket —
+  // the download link carries a token, so match on the host, not the name.
+  if (/^https?:\/\/(firebasestorage\.googleapis\.com|[\w.-]*\.firebasestorage\.app)\//i.test(url)) {
+    return { kind: 'video', seek: 'media', src: url };
+  }
   return { kind: 'link', seek: 'none', src: url };
 }
 
@@ -5013,6 +5179,8 @@ function openVideoBtnModal(ctx) {
   $('videoBtnTitle').textContent = editing ? 'Video solution button' : 'New video solution button';
   $('videoBtnWatchBtn').style.display = editing && a && a.url ? '' : 'none';
   $('videoBtnRemoveBtn').style.display = editing ? '' : 'none';
+  $('videoBtnRecBtn').style.display = recSupported() ? '' : 'none';
+  $('videoBtnRecBtn').textContent = editing && a && a.url ? '🎥 Record over it' : '🎥 Record';
   $('videoBtnModal').classList.add('open');
   setTimeout(function () { $('videoBtnUrlInput').focus(); }, 50);
 }
@@ -5074,6 +5242,15 @@ function watchVideoBtnFromModal() {
   if (a && p) openVideoPop(p, a);
 }
 
+/* Record straight into this pill instead of hunting for a link to paste —
+   the spot (or the pill being edited) carries over to the recorder. */
+function recordIntoVideoBtn() {
+  if (!videoBtnEdit) return;
+  var ctx = videoBtnEdit;
+  closeVideoBtnModal();
+  openRecModal(ctx);
+}
+
 var videoPopDocClose = null; // tap-outside-to-close listener while a pop is open
 
 function closeVideoPops() {
@@ -5090,7 +5267,13 @@ function closeVideoPops() {
    play/pause, scrubbing and full screen. */
 function openVideoPop(p, a) {
   closeVideoPops();
-  if (!a.url) { toast('No video link on this button yet.'); return; }
+  if (!a.url) {
+    var job = recUploads[a.id];
+    toast(job
+      ? 'Still uploading — ' + job.pct + '% done. The button plays as soon as it lands.'
+      : 'No video on this button yet.', job ? 4000 : 2600);
+    return;
+  }
   var info = videoEmbedInfo(a.url);
   if (info.kind === 'link') {
     // Nothing we can embed — open the link itself.
@@ -5163,6 +5346,532 @@ function openVideoPop(p, a) {
     if (!pop.contains(ev.target)) closeVideoPops();
   };
   document.addEventListener('pointerdown', videoPopDocClose, true);
+}
+
+/* ================= Recording =================
+   The teacher records a video answer without leaving the worksheet: camera +
+   microphone, this screen + microphone, or microphone only. The capture is
+   pinned to 720p and a modest bitrate so a lesson-length clip stays small
+   enough to upload over a classroom connection.
+
+   Stopping closes the window straight away — the file is packed up and
+   uploaded to Firebase Storage in the background while the lesson carries on,
+   with a tray in the corner showing how far along it is. What lands on the
+   page is an ordinary video-solution pill: students tap it and the player
+   opens right there, native controls and full screen included. */
+var REC_MAX_MS = 20 * 60 * 1000;   // one recording's ceiling — it stops itself
+var REC_VIDEO_BPS = 1200000;       // ~9 MB a minute at 720p
+var REC_AUDIO_BPS = 96000;
+var REC_VIDEO_CONSTRAINTS = {
+  // max as well as ideal: a camera that only offers 1080p is scaled down by
+  // the browser rather than handed to us full size.
+  width: { ideal: 1280, max: 1280 },
+  height: { ideal: 720, max: 720 },
+  frameRate: { ideal: 30, max: 30 }
+};
+var REC_AUDIO_CONSTRAINTS = { echoCancellation: true, noiseSuppression: true };
+
+var recSource = 'camera';   // 'camera' | 'screen' | 'audio'
+var recTarget = null;       // where the finished pill goes; null = drop it on the page in view
+var recStream = null;       // the composed stream handed to the recorder
+var recRawStreams = [];     // every stream we opened, so all of them get stopped
+var recAudioCtx = null;     // only when a screen's sound and a mic are mixed
+var recRecorder = null;
+var recChunks = [];
+var recHadVideo = false;
+var recDiscard = false;     // Cancel mid-recording throws the clip away
+var recStartedAt = 0;
+var recTimer = null;
+var recUploads = {};        // annotation id -> { pct, task, name, mb }
+
+function recSupported() {
+  return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+function recScreenSupported() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+}
+
+/* mp4 first — it plays on every device a student might open the link on.
+   webm is the fallback for browsers that will not write mp4. */
+function recPickMime(withVideo) {
+  var list = withVideo
+    ? ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4',
+       'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    : ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+  for (var i = 0; i < list.length; i++) {
+    try { if (MediaRecorder.isTypeSupported(list[i])) return list[i]; } catch (e) {}
+  }
+  return '';
+}
+
+function recExt(mime) {
+  if (/mp4|mpeg/i.test(mime)) return /^audio\//i.test(mime) ? 'm4a' : 'mp4';
+  if (/webm/i.test(mime)) return 'webm';
+  if (/ogg/i.test(mime)) return 'ogg';
+  return 'bin';
+}
+
+function recFmtTime(ms) {
+  var s = Math.max(0, Math.floor(ms / 1000));
+  var m = Math.floor(s / 60);
+  return m + ':' + ('0' + (s % 60)).slice(-2);
+}
+
+function recBusy() {
+  return !!(recRecorder && recRecorder.state === 'recording');
+}
+
+/* ---- the recorder window ---- */
+function openRecModal(ctx) {
+  if (isStudent() || isSharedVisitor()) return; // recording is teacher-only
+  if (!recSupported()) {
+    toast('This browser cannot record video. Chrome, Edge or Safari 15+ can.', 5500);
+    return;
+  }
+  if (!pages.length) { toast('Open a worksheet first — the recording lands on a page as a button.', 4500); return; }
+  recTarget = ctx || null;
+  recDiscard = false;
+  $('recScreenSrc').disabled = !recScreenSupported();
+  if (!recScreenSupported() && recSource === 'screen') recSetSource('camera');
+  recResetUI();
+  $('recModal').classList.add('open');
+}
+
+function closeRecModal(keepClip) {
+  if (recBusy()) {
+    if (!keepClip) recDiscard = true;
+    try { recRecorder.stop(); } catch (e) {}
+  } else {
+    recStopTracks();
+  }
+  $('recModal').classList.remove('open');
+  if (!keepClip) recTarget = null;
+}
+
+function recSetSource(src) {
+  if (recBusy()) return; // no swapping horses mid-recording
+  recSource = src;
+  document.querySelectorAll('#recSourceRow .recSource').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-recsrc') === src);
+  });
+  $('recStatus').textContent = recIdleHint();
+}
+
+function recIdleHint() {
+  if (recSource === 'screen') return 'Your screen and your voice, recorded at up to 720p. The browser asks which window or tab to share when you press Start.';
+  if (recSource === 'audio') return 'Voice only — the smallest file of the lot, and it still lands on the page as a button.';
+  return 'Camera and microphone at 720p, so a long answer still uploads quickly.';
+}
+
+function recResetUI() {
+  $('recBadge').classList.remove('live');
+  $('recTimer').textContent = '0:00';
+  $('recStartBtn').style.display = '';
+  $('recStartBtn').disabled = false;
+  $('recStopBtn').style.display = 'none';
+  $('recCancelBtn').textContent = 'Cancel';
+  $('recPreview').style.display = 'none';
+  $('recPlaceholder').style.display = '';
+  $('recPlaceholderText').textContent = 'Choose what to record, then press Start — the camera only switches on once you do.';
+  $('recStatus').textContent = recIdleHint();
+  document.querySelectorAll('#recSourceRow .recSource').forEach(function (b) {
+    b.disabled = b.id === 'recScreenSrc' && !recScreenSupported();
+  });
+}
+
+/* ---- capture ---- */
+function recMixAudio(streams) {
+  var Ctx = window.AudioContext || window.webkitAudioContext;
+  var ctx = new Ctx();
+  var dest = ctx.createMediaStreamDestination();
+  streams.forEach(function (s) {
+    if (s && s.getAudioTracks().length) ctx.createMediaStreamSource(s).connect(dest);
+  });
+  return { ctx: ctx, track: dest.stream.getAudioTracks()[0] };
+}
+
+async function recGetStream(src) {
+  if (src === 'audio') {
+    var micOnly = await navigator.mediaDevices.getUserMedia({ audio: REC_AUDIO_CONSTRAINTS });
+    recRawStreams.push(micOnly);
+    return micOnly;
+  }
+  if (src === 'screen') {
+    var disp = await navigator.mediaDevices.getDisplayMedia({
+      video: { width: { max: 1280 }, height: { max: 720 }, frameRate: { max: 30 } },
+      audio: true
+    });
+    recRawStreams.push(disp);
+    // A screen share often starts at the full monitor size whatever we asked
+    // for; pulling it back to 720p here keeps the file honest.
+    try {
+      await disp.getVideoTracks()[0].applyConstraints({
+        width: { max: 1280 }, height: { max: 720 }, frameRate: { max: 30 }
+      });
+    } catch (e) { /* the browser kept its own size — the bitrate cap still holds */ }
+    var mic = null;
+    try {
+      mic = await navigator.mediaDevices.getUserMedia({ audio: REC_AUDIO_CONSTRAINTS });
+      recRawStreams.push(mic);
+    } catch (e) { /* no microphone allowed — a silent screen recording still works */ }
+    var out = new MediaStream(disp.getVideoTracks());
+    var dispAudio = disp.getAudioTracks();
+    if (dispAudio.length && mic) {
+      // A recorder writes one audio track, so the tab's sound and the
+      // teacher's voice are mixed together before it sees them.
+      var mixed = recMixAudio([disp, mic]);
+      recAudioCtx = mixed.ctx;
+      out.addTrack(mixed.track);
+    } else if (mic) {
+      out.addTrack(mic.getAudioTracks()[0]);
+    } else if (dispAudio.length) {
+      out.addTrack(dispAudio[0]);
+    }
+    return out;
+  }
+  var cam = await navigator.mediaDevices.getUserMedia({
+    video: REC_VIDEO_CONSTRAINTS, audio: REC_AUDIO_CONSTRAINTS
+  });
+  recRawStreams.push(cam);
+  return cam;
+}
+
+function recPermissionMessage(e) {
+  var name = (e && (e.name || e.code)) || '';
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    return 'Permission was refused. Allow the camera and microphone for this site, then press Start again.';
+  }
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+    return 'No camera or microphone was found on this device.';
+  }
+  if (name === 'NotReadableError') {
+    return 'The camera is busy — close anything else using it and try again.';
+  }
+  return 'Could not start recording: ' + ((e && e.message) || e);
+}
+
+async function recStart() {
+  if (recBusy()) return;
+  var startBtn = $('recStartBtn');
+  startBtn.disabled = true;
+  $('recStatus').textContent = 'Waiting for permission…';
+  try {
+    recStream = await recGetStream(recSource);
+  } catch (e) {
+    recStopTracks();
+    startBtn.disabled = false;
+    $('recStatus').textContent = recPermissionMessage(e);
+    return;
+  }
+  recHadVideo = recStream.getVideoTracks().length > 0;
+  var mime = recPickMime(recHadVideo);
+  var opts = { audioBitsPerSecond: REC_AUDIO_BPS };
+  if (mime) opts.mimeType = mime;
+  if (recHadVideo) opts.videoBitsPerSecond = REC_VIDEO_BPS;
+  try {
+    recRecorder = new MediaRecorder(recStream, opts);
+  } catch (e) {
+    try { recRecorder = new MediaRecorder(recStream); }
+    catch (e2) {
+      recStopTracks();
+      startBtn.disabled = false;
+      $('recStatus').textContent = 'This browser refused to record that source: ' + ((e2 && e2.message) || e2);
+      return;
+    }
+  }
+  recChunks = [];
+  recRecorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) recChunks.push(ev.data); };
+  recRecorder.onstop = recFinish;
+  recRecorder.onerror = function () { toast('The recording stopped unexpectedly — whatever was captured is still uploaded.', 5000); };
+  try {
+    recRecorder.start(1000); // a chunk a second, so a crash costs at most a second
+  } catch (e) {
+    recStopTracks();
+    startBtn.disabled = false;
+    $('recStatus').textContent = 'Could not start recording: ' + ((e && e.message) || e);
+    return;
+  }
+  // Ending the share from the browser's own bar ends the recording too.
+  recStream.getTracks().forEach(function (t) {
+    t.addEventListener('ended', function () { if (recBusy()) recStop(); });
+  });
+  // Preview: muted, so the room never hears itself.
+  var prev = $('recPreview');
+  prev.srcObject = recHadVideo ? recStream : null;
+  prev.muted = true;
+  prev.style.display = recHadVideo ? '' : 'none';
+  $('recPlaceholder').style.display = recHadVideo ? 'none' : '';
+  if (!recHadVideo) $('recPlaceholderText').textContent = 'Microphone only — nothing to see, but your voice is going down.';
+  if (recHadVideo) { try { prev.play(); } catch (e) {} }
+  recStartedAt = Date.now();
+  $('recBadge').classList.add('live');
+  $('recTimer').textContent = '0:00';
+  startBtn.style.display = 'none';
+  $('recStopBtn').style.display = '';
+  $('recCancelBtn').textContent = 'Discard';
+  $('recStatus').textContent = 'Recording. Stop when you are done — the upload then happens in the background, so you can carry on with the lesson.';
+  document.querySelectorAll('#recSourceRow .recSource').forEach(function (b) { b.disabled = true; });
+  clearInterval(recTimer);
+  recTimer = setInterval(recTick, 250);
+}
+
+function recTick() {
+  var ms = Date.now() - recStartedAt;
+  $('recTimer').textContent = recFmtTime(ms);
+  if (ms >= REC_MAX_MS) {
+    toast('20 minutes is the most one recording holds — stopping and uploading it now.', 6000);
+    recStop();
+  }
+}
+
+function recStop() {
+  if (!recBusy()) return;
+  clearInterval(recTimer);
+  recTimer = null;
+  $('recStopBtn').disabled = true;
+  $('recStatus').textContent = 'Packing the recording up…';
+  try { recRecorder.stop(); } catch (e) { /* onstop still runs */ }
+}
+
+/* Let go of the camera, the microphone and any screen share. */
+function recStopTracks() {
+  clearInterval(recTimer);
+  recTimer = null;
+  recRawStreams.forEach(function (s) {
+    try { s.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+  });
+  recRawStreams = [];
+  if (recStream) {
+    try { recStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+    recStream = null;
+  }
+  if (recAudioCtx) {
+    try { recAudioCtx.close(); } catch (e) {}
+    recAudioCtx = null;
+  }
+  var prev = $('recPreview');
+  if (prev) { prev.srcObject = null; prev.style.display = 'none'; }
+}
+
+/* MediaRecorder has handed over the last chunk: the window closes and
+   everything from here on happens in the background. */
+function recFinish() {
+  var type = (recRecorder && recRecorder.mimeType) || (recChunks[0] && recChunks[0].type) || 'video/webm';
+  var blob = recChunks.length ? new Blob(recChunks, { type: type }) : null;
+  var hadVideo = recHadVideo;
+  var target = recTarget;
+  var discarded = recDiscard;
+  recChunks = [];
+  recRecorder = null;
+  recDiscard = false;
+  recTarget = null;
+  recStopTracks();
+  $('recStopBtn').disabled = false;
+  recResetUI();
+  $('recModal').classList.remove('open');
+  if (discarded) { toast('Recording discarded.'); return; }
+  if (!blob || !blob.size) { toast('Nothing was captured — try recording again.', 4500); return; }
+  recPlaceAndUpload(blob, hadVideo, target);
+}
+
+/* ---- where the pill goes ---- */
+/* No spot was picked, so it lands near the top of whatever page is on
+   screen, stepping down past any pill already sitting there. */
+function recDropSpot() {
+  var p = pages[Math.max(0, currentPageNum() - 1)];
+  if (!p) return null;
+  var area = $('viewerArea');
+  var scale = p.baseH / (p.wrap.clientHeight || p.baseH);
+  var intoPage = Math.max(0, area.scrollTop - p.wrap.offsetTop);
+  var y = Math.max(6, Math.min((intoPage + 26) * scale, p.baseH - VIDEO_BTN_H - 6));
+  var x = Math.max(4, (p.baseW - VIDEO_BTN_W) / 2);
+  var taken = function (yy) {
+    return annotations.some(function (a) {
+      return a.type === 'video' && a.page === p.num && Math.abs(a.y - yy) < 8 && Math.abs(a.x - x) < 40;
+    });
+  };
+  var guard = 0;
+  while (taken(y) && guard++ < 24 && y < p.baseH - VIDEO_BTN_H - 6) y += VIDEO_BTN_H + 8;
+  return { page: p, x: x, y: Math.min(y, p.baseH - VIDEO_BTN_H - 6) };
+}
+
+function recPlaceAndUpload(blob, hadVideo, target) {
+  var label = hadVideo ? 'Watch the recording' : 'Play the audio note';
+  var ann = null;
+  if (target && target.mode === 'edit') {
+    ann = annotations.find(function (x) { return x.id === target.id; });
+  }
+  pushUndo();
+  if (ann) {
+    ann.url = '';
+    ann.label = label;
+  } else {
+    var spot = (target && target.mode === 'new' && target.page)
+      ? {
+          page: target.page,
+          x: Math.max(4, Math.min(target.x - VIDEO_BTN_W / 2, target.page.baseW - VIDEO_BTN_W - 4)),
+          y: Math.max(4, Math.min(target.y, target.page.baseH - VIDEO_BTN_H - 4))
+        }
+      : recDropSpot();
+    if (!spot) { toast('Open a worksheet first — the recording needs a page to sit on.', 4500); return; }
+    ann = {
+      id: newAnnId(), page: spot.page.num, type: 'video',
+      x: round2(spot.x), y: round2(spot.y),
+      w: VIDEO_BTN_W, h: VIDEO_BTN_H, url: '', label: label, ts: Date.now()
+    };
+    annotations.push(ann);
+  }
+  renderAllOverlays();
+  setDirty(true);
+  recUpload(ann.id, blob, hadVideo);
+}
+
+/* ---- the background upload ---- */
+function recUpload(annId, blob, hadVideo) {
+  // Same folder as the worksheets themselves, so one Storage rule covers both.
+  var path = STORAGE_DIR + '/rec-' + (currentDocId || 'loose') + '-' +
+    Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + '.' + recExt(blob.type);
+  var task;
+  try {
+    task = storage.ref(path).put(blob, {
+      contentType: blob.type || 'video/webm',
+      cacheControl: 'public, max-age=31536000'
+    });
+  } catch (e) {
+    toast('Could not start the upload: ' + ((e && e.message) || e), 6000);
+    return;
+  }
+  recUploads[annId] = {
+    pct: 0, task: task, mb: blob.size / 1048576,
+    name: hadVideo ? 'Recording' : 'Audio note'
+  };
+  renderRecTray();
+  recSyncPill(annId);
+  task.on('state_changed', function (snap) {
+    var job = recUploads[annId];
+    if (!job) return;
+    job.pct = snap.totalBytes ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100) : 0;
+    renderRecTray();
+    recSyncPill(annId);
+  }, function (err) {
+    delete recUploads[annId];
+    renderRecTray();
+    recSyncPill(annId);
+    if (err && err.code === 'storage/canceled') return;
+    toast('The recording did not upload: ' + ((err && err.message) || err) +
+      ' The button is still on the page — record into it again to retry.', 8000);
+  }, function () {
+    task.snapshot.ref.getDownloadURL().then(function (url) {
+      var a = annotations.find(function (x) { return x.id === annId; });
+      delete recUploads[annId];
+      renderRecTray();
+      if (!a) return; // the pill was deleted while it uploaded
+      a.url = url;
+      a.recPath = path;
+      renderAllOverlays();
+      setDirty(true);
+      toast(currentDocId
+        ? 'Recording uploaded — tapping the button on the page plays it.'
+        : 'Recording uploaded — save the worksheet to keep the button with it.', 4200);
+    }).catch(function (e) {
+      delete recUploads[annId];
+      renderRecTray();
+      recSyncPill(annId);
+      toast('The recording uploaded but its link could not be read: ' + ((e && e.message) || e), 7000);
+    });
+  });
+}
+
+function recCancelUpload(annId) {
+  var job = recUploads[annId];
+  if (!job) return;
+  try { job.task.cancel(); } catch (e) {}
+  delete recUploads[annId];
+  var a = annotations.find(function (x) { return x.id === annId; });
+  if (a && !a.url) {
+    pushUndo();
+    annotations = annotations.filter(function (x) { return x.id !== annId; });
+    renderAllOverlays();
+    setDirty(true);
+  }
+  renderRecTray();
+  toast('Upload stopped — the button was taken off the page.');
+}
+
+function recUploadsPending() {
+  return Object.keys(recUploads).length;
+}
+
+function renderRecTray() {
+  var tray = $('recTray');
+  var wrap = $('recTrayJobs');
+  if (!tray || !wrap) return;
+  var ids = Object.keys(recUploads);
+  tray.classList.toggle('open', ids.length > 0);
+  $('recTrayTitle').textContent = ids.length > 1
+    ? 'Uploading ' + ids.length + ' recordings'
+    : 'Uploading recording';
+  wrap.innerHTML = '';
+  ids.forEach(function (id) {
+    var job = recUploads[id];
+    var row = document.createElement('div');
+    row.className = 'recJob';
+    var top = document.createElement('div');
+    top.className = 'recJobTop';
+    var nm = document.createElement('div');
+    nm.className = 'recJobName';
+    nm.textContent = job.name + ' · ' + job.mb.toFixed(1) + ' MB';
+    var pct = document.createElement('div');
+    pct.className = 'recJobPct';
+    pct.textContent = job.pct + '%';
+    top.appendChild(nm);
+    top.appendChild(pct);
+    var bar = document.createElement('div');
+    bar.className = 'recJobBar';
+    var fill = document.createElement('div');
+    fill.className = 'recJobFill';
+    fill.style.width = job.pct + '%';
+    bar.appendChild(fill);
+    var foot = document.createElement('div');
+    foot.className = 'recJobFoot';
+    var hint = document.createElement('div');
+    hint.className = 'recJobHint';
+    hint.textContent = job.pct >= 100 ? 'Finishing off…' : 'Carry on — this keeps going.';
+    var stop = document.createElement('button');
+    stop.className = 'recJobBtn';
+    stop.textContent = 'Stop';
+    stop.title = 'Cancel this upload and take the button off the page';
+    stop.addEventListener('click', function () { recCancelUpload(id); });
+    foot.appendChild(hint);
+    foot.appendChild(stop);
+    row.appendChild(top);
+    row.appendChild(bar);
+    row.appendChild(foot);
+    wrap.appendChild(row);
+  });
+}
+
+/* What the pill on the page says — an upload in flight reports its progress
+   rather than pretending there is something to watch. */
+function videoPillLabel(a) {
+  var job = recUploads[a.id];
+  if (job) return job.pct >= 100 ? 'Finishing upload…' : 'Uploading… ' + job.pct + '%';
+  if (!a.url) return 'Video not uploaded';
+  return a.label || 'Watch video solution';
+}
+
+/* Repaint one pill in place — cheaper than re-rendering every overlay on
+   each progress event. */
+function recSyncPill(annId) {
+  var a = annotations.find(function (x) { return x.id === annId; });
+  if (!a) return;
+  var g = document.querySelector('g[data-id="' + annId + '"]');
+  var btn = g && g.querySelector('.videoAnnBtn');
+  if (!btn) return;
+  btn.classList.toggle('pending', !!recUploads[annId]);
+  var span = btn.querySelector('span');
+  if (span) span.textContent = videoPillLabel(a);
 }
 
 /* ================= Pointer interaction ================= */
@@ -10820,6 +11529,10 @@ function applyRoleUI() {
   var codeBtn = $('codeWinBtn');
   if (codeBtn) codeBtn.style.display = student ? 'none' : '';
   if (student) closeCodeWin();
+  // Recording is the teacher making the answer — students only ever watch.
+  var recBtn = $('recordBtn');
+  if (recBtn) recBtn.style.display = student ? 'none' : '';
+  if (student && typeof closeRecModal === 'function' && $('recModal').classList.contains('open')) closeRecModal(false);
   // Share-link visitors: downloading is always allowed, but uploading, cloud
   // saving, printing the answer key, AI answers and browsing the other
   // worksheets never are — whatever the link's mode.
@@ -10836,6 +11549,7 @@ function applyRoleUI() {
     if (videoToolBtn) videoToolBtn.style.display = 'none';
     if (noteToolBtn) noteToolBtn.style.display = 'none';
     if (codeBtn) codeBtn.style.display = 'none';
+    if (recBtn) recBtn.style.display = 'none';
     closeCodeWin();
   }
   $('printCard').style.display = sharedVisitor ? 'none' : '';
@@ -14302,7 +15016,7 @@ async function buildAnnotatedPdf(includeTs, opts) {
           x: vx, y: vy, width: vw, height: vh,
           color: rgb(0.42, 0.45, 0.85), borderColor: rgb(0.33, 0.35, 0.72), borderWidth: 1
         });
-        var vLabel = 'Watch video solution';
+        var vLabel = a.label || 'Watch video solution';
         var vSize = 9.5;
         var vTextW = font.widthOfTextAtSize(vLabel, vSize);
         var vTriX = vx + Math.max(6, (vw - vTextW - 12) / 2);
@@ -14841,6 +15555,22 @@ $('videoBtnModal').addEventListener('click', function (e) {
 $('videoBtnUrlInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); saveVideoBtn(); }
 });
+$('videoBtnRecBtn').addEventListener('click', recordIntoVideoBtn);
+
+/* ---- recorder ---- */
+$('recordBtn').addEventListener('click', function () { openRecModal(null); });
+$('recStartBtn').addEventListener('click', recStart);
+$('recStopBtn').addEventListener('click', recStop);
+$('recCancelBtn').addEventListener('click', function () { closeRecModal(false); });
+$('recCloseBtn').addEventListener('click', function () { closeRecModal(false); });
+$('recModal').addEventListener('click', function (e) {
+  // A stray tap on the backdrop must never bin a recording in progress.
+  if (e.target === $('recModal') && !recBusy()) closeRecModal(false);
+});
+$('recSourceRow').addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('.recSource') : null;
+  if (b && !b.disabled) recSetSource(b.getAttribute('data-recsrc'));
+});
 
 $('videoAttachBtn').addEventListener('click', attachVideoLink);
 $('videoRemoveBtn').addEventListener('click', removeVideo);
@@ -15121,6 +15851,12 @@ document.addEventListener('keydown', function (e) {
     closeCodeWin();
     return;
   }
+  // Esc closes the recorder, but never throws away a recording in progress —
+  // that takes a deliberate Discard.
+  if (e.key === 'Escape' && !editingText && $('recModal').classList.contains('open')) {
+    if (!recBusy()) closeRecModal(false);
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDoc();
@@ -15145,6 +15881,12 @@ document.addEventListener('keydown', function (e) {
   if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'f') {
     e.preventDefault();
     if (fsSupported()) toggleFullscreen();
+    return;
+  }
+  // Shift+R opens the recorder — plain R is the rectangle tool.
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'r') {
+    e.preventDefault();
+    if (!isStudent() && !isSharedVisitor()) openRecModal(null);
     return;
   }
   if (isStudent() && !practiceMode) {
@@ -15253,6 +15995,13 @@ document.addEventListener('keydown', function (e) {
 })();
 
 window.addEventListener('beforeunload', function () { stopLivePresence(true); });
+// A recording still on its way up is lost if the tab goes — worth a prompt
+// even when everything else is saved.
+window.addEventListener('beforeunload', function (e) {
+  if (!recBusy() && !recUploadsPending()) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 window.addEventListener('beforeunload', function (e) {
   if (!dirty || !annotations.length) return;
   saveDraftNow(); // last-chance flush into the local draft failsafe
