@@ -3,6 +3,41 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Record a video answer without leaving the worksheet (v1.52.0)
+
+Explaining a question used to mean recording somewhere else, uploading it
+somewhere else again, and pasting the link back in. The new **🎥 record button**
+in the toolbar (or **Shift+R**) does the lot from inside the app.
+
+- **Three things to record.** *Camera + microphone* for a talking-head answer,
+  *this screen + microphone* for a walkthrough with your voice over it (the
+  screen's own sound and your voice are mixed into one track), or *microphone
+  only* for a quick spoken note. The screen option hides itself on devices that
+  cannot share a screen, such as an iPad.
+- **720p, deliberately.** The capture is capped at 1280×720 at 30fps and about
+  1.2 Mbit/s, so a long answer is a few megabytes a minute rather than tens —
+  small enough to upload over classroom wifi and quick for a student to open.
+  A recording stops itself at 20 minutes.
+- **Stop, and get on with the lesson.** The window closes the moment you stop.
+  Packing the file up and uploading it to Firebase Storage happens in the
+  background, with a small card in the corner showing how far along it is (and
+  a **Stop** if you change your mind). Nothing blocks the worksheet in the
+  meantime.
+- **What lands on the page is a button.** The recording drops onto the page in
+  view as an ordinary video-solution pill. It sits greyed out reading
+  *Uploading… 42%* while it goes up, then turns into **Watch the recording** —
+  tap it and the player opens right there, with scrubbing and full screen, for
+  students and share-link visitors alike. Move it, erase it or lasso it like
+  any other annotation, and it bakes into the downloaded PDF as a tappable
+  link, same as a pasted one.
+- **Or record into a pill you have already placed.** The video-solution window
+  now has a **🎥 Record** button beside the link box, so you can put the button
+  exactly where you want it first — and **Record over it** replaces the video
+  on a pill that already has one.
+
+Recording is the teacher's, like the AI tools: students, share-link visitors
+and a device handed over with "Practise as" never see the button.
+
 ## A widget can take the whole screen, or a tab of its own (v1.51.0)
 
 A widget card is drawn to sit beside the question it teaches, which is the
