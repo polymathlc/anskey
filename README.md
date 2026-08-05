@@ -3,6 +3,43 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## No size limit on a worksheet's annotations (v1.55.0)
+
+Saving a heavily marked-up worksheet could fail with *“…is longer than
+1048487 bytes”*. That is Firebase's hard cap on a single Firestore document,
+and a lesson's worth of pen strokes, AI note cards and widgets goes past it.
+**A save is never refused for being too big any more.**
+
+- **Big annotations get a file of their own.** When the annotations no longer
+  fit in the worksheet's document, they are written next to the PDF in Storage
+  as `pdf-annotator/{id}.annotations.json`, and the document keeps a pointer to
+  it. Nothing about using the app changes — Save, auto-save, opening, share
+  links, live updates on a student's screen and downloads all work exactly as
+  before, at any size.
+- **Small worksheets are untouched.** Anything that still fits is saved
+  inline, the same way as always, so nothing needed converting.
+- **And if it still refuses.** Should Firebase turn a write away for size even
+  so, the app immediately re-saves it into Storage instead of showing an
+  error. The one thing a save must never do is fail.
+- **Steadier auto-save on the big ones.** A worksheet whose annotations live in
+  Storage re-uploads the whole file each time, so auto-save waits ~9s after the
+  last change instead of ~4s. Identical bytes are never uploaded twice.
+- **Nothing is ever silently emptied.** If the annotations file cannot be
+  downloaded, the worksheet refuses to open rather than opening blank — a blank
+  worksheet would otherwise be auto-saved over the real one.
+
+**If you have tightened the Firestore rules for edit-mode share links** (see
+*One-time Firebase setup for share links* below), let a visitor's write touch
+the two new fields as well, or their saving stops once a worksheet grows past
+the cap:
+
+```
+.hasOnly(['annotations', 'annotationsPath', 'annotationsStamp', 'updatedAt'])
+```
+
+The Storage side needs nothing new: the file sits in the same `pdf-annotator/`
+folder as the PDF, so the existing rules and CORS setup already cover it.
+
 ## A button that always brings the toolbar back (v1.54.0)
 
 The toolbar can fold away — from the favourites bar, or with full screen — and
@@ -630,7 +667,8 @@ drawer, no save/print/AI — but Download always works.
        && (request.auth.token.email == 'chungzhikai@gmail.com'
            || (resource.data.share.mode == 'edit'
                && request.resource.data.diff(resource.data).affectedKeys()
-                    .hasOnly(['annotations', 'updatedAt'])));
+                    .hasOnly(['annotations', 'annotationsPath',
+                              'annotationsStamp', 'updatedAt'])));
    }
    ```
 3. **Storage rules** must allow signed-in reads of `pdf-annotator/` (see the

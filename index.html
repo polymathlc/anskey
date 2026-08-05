@@ -3244,7 +3244,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.54.0';
+var APP_VERSION = 'v1.55.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -3697,6 +3697,7 @@ async function loadPdf(bytes, name) {
   pdfBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   docName = name || 'Untitled';
   currentDocId = null;
+  annOverflow = false;  // nothing of this worksheet's is in Storage yet
   practiceMode = false; // a new document always starts outside practice
   teacherAnswers = null;
   lastAnswerKey = null; // a key belongs to the worksheet it was built from
@@ -13295,10 +13296,13 @@ function unsubscribeOpenDoc() {
   openDocAnnJson = '';
 }
 
-function subscribeOpenDoc(id) {
+function subscribeOpenDoc(id, key) {
   unsubscribeOpenDoc();
   if (!id) return;
-  openDocAnnJson = JSON.stringify(annotations);
+  // What is already on screen, in the same form applyRemoteDoc compares — for
+  // a worksheet whose annotations live in Storage that is its pointer, not
+  // the JSON, so opening one does not immediately re-download it.
+  openDocAnnJson = key || JSON.stringify(annotations);
   try {
     openDocUnsub = db.collection(COLLECTION).doc(id).onSnapshot(function (snap) {
       if (!snap.exists || currentDocId !== id) return;
@@ -13323,16 +13327,41 @@ function applyRemoteDoc(d) {
   wsMeta.coverTitle = d.coverTitle || '';
   wsShare = normalizeShare(d.share);
 
-  var json = d.annotations || '[]';
+  var key = annKey(d);
   // The LIVE heartbeat rewrites the document every 30s without touching the
   // annotations — those updates must not disturb anything on screen.
-  if (json === openDocAnnJson) { renderSidebar(); return; }
+  if (key === openDocAnnJson) { renderSidebar(); return; }
 
   // Never yank the page out from under anyone mid-typing: hold the update
   // until the keyword box, or the text box being written in, is finished.
   if (kwGuessActive || editingId) { openDocPending = d; return; }
 
-  openDocAnnJson = json;
+  openDocAnnJson = key;
+  annOverflow = !!d.annotationsPath;
+
+  // Annotations kept in Storage are a download away, so this update lands a
+  // moment later; anything newer that arrives meanwhile wins.
+  if (d.annotationsPath) {
+    var id = currentDocId;
+    var seq = ++applyRemoteSeq;
+    readAnnotationJson(d).then(function (json) {
+      if (seq !== applyRemoteSeq || currentDocId !== id) return;
+      applyRemoteAnnotations(json);
+    }).catch(function (e) {
+      console.warn('Live annotations download failed', e);
+      // Leave what is on screen alone and let the next update try again.
+      if (openDocAnnJson === key) openDocAnnJson = '';
+    });
+    renderSidebar();
+    return;
+  }
+
+  applyRemoteAnnotations(key);
+}
+
+var applyRemoteSeq = 0;
+
+function applyRemoteAnnotations(json) {
   var parsed;
   try { parsed = JSON.parse(json); } catch (e) { return; }
 
@@ -13451,6 +13480,126 @@ function setSelectValue(sel, value) {
   }
 }
 
+/* ================= Annotations too big for one Firestore document =================
+   Firestore refuses any document over about 1,048,487 bytes, and a worksheet
+   with a lesson's worth of pen strokes, AI note cards and widgets goes past
+   that easily — the save then failed outright, which is the one thing a save
+   must never do.
+
+   So the annotations no longer have to fit. Anything too big for the document
+   is written next to the PDF in Storage, as `pdf-annotator/{id}.annotations.json`,
+   and the document keeps a pointer to it (`annotationsPath`) plus a short
+   content stamp (`annotationsStamp`) so a live viewer can tell whether the
+   file has changed without downloading it. Same folder as the PDF on purpose:
+   the Storage rules and the CORS setup that already let a worksheet's PDF
+   download cover this file too, students and share-link visitors included.
+
+   Worksheets that still fit are written exactly as before — annotations
+   inline, no extra fields — so the older annotator in polymathlc/cer keeps
+   reading everything it could read before. */
+var ANN_INLINE_LIMIT = 600000;   // bytes of JSON still carried inside the doc
+var annOverflow = false;         // is the open worksheet's copy in Storage?
+var lastAnnUpload = { path: '', stamp: '' };
+
+function annStoragePath(id) { return STORAGE_DIR + '/' + id + '.annotations.json'; }
+
+function annByteLength(json) {
+  try { return new Blob([json]).size; } catch (e) { return json.length * 3; }
+}
+
+/* A cheap content stamp — enough to tell one version of the file from the
+   next, which is all a live listener needs. */
+function annStamp(json) {
+  var h = 2166136261;
+  for (var i = 0; i < json.length; i++) {
+    h ^= json.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  return json.length.toString(36) + '-' + h.toString(36);
+}
+
+/* What a snapshot's annotations *are*, as one comparable string: the JSON
+   itself when it is inline, the pointer and stamp when it is in Storage. */
+function annKey(d) {
+  if (d && d.annotationsPath) return '@' + d.annotationsPath + '#' + (d.annotationsStamp || '');
+  return (d && d.annotations) || '[]';
+}
+
+/* The annotation fields for a Firestore write. `force` skips the size check
+   for the retry below. */
+async function annotationFields(id, json, force) {
+  if (!force && annByteLength(json) <= ANN_INLINE_LIMIT) {
+    var fields = { annotations: json };
+    // Only touch the pointer fields when this worksheet actually has them —
+    // an edit-link visitor's write is allowed to affect `annotations` and
+    // `updatedAt` alone under the suggested Firestore rules.
+    if (annOverflow) {
+      fields.annotationsPath = firebase.firestore.FieldValue.delete();
+      fields.annotationsStamp = firebase.firestore.FieldValue.delete();
+    }
+    return { fields: fields, overflow: false };
+  }
+  var path = annStoragePath(id);
+  var stamp = annStamp(json);
+  // Auto-save runs often; the same bytes are never uploaded twice.
+  if (lastAnnUpload.path !== path || lastAnnUpload.stamp !== stamp) {
+    await storage.ref(path).put(new Blob([json], { type: 'application/json' }), {
+      contentType: 'application/json',
+      cacheControl: 'no-cache'   // a live viewer must never get yesterday's copy
+    });
+    lastAnnUpload = { path: path, stamp: stamp };
+  }
+  return {
+    fields: { annotations: '', annotationsPath: path, annotationsStamp: stamp },
+    overflow: true
+  };
+}
+
+/* Firestore's own complaint when a document is over the size cap. */
+function annTooBigError(e) {
+  var msg = ((e && e.message) || '') + '';
+  return /maximum allowed size|too large|longer than|exceeds/i.test(msg) ||
+         (e && e.code === 'invalid-argument');
+}
+
+/* Save the worksheet's annotations, whatever they weigh: inline when they
+   fit, in Storage when they do not — and in Storage on a second attempt if
+   Firestore still says no. `extra` carries any other fields going up in the
+   same write. */
+async function writeAnnotations(id, json, extra) {
+  async function attempt(force) {
+    var made = await annotationFields(id, json, force);
+    var payload = Object.assign({}, extra || {}, made.fields);
+    payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection(COLLECTION).doc(id).set(payload, { merge: true });
+    annOverflow = made.overflow;
+  }
+  try {
+    await attempt(false);
+  } catch (e) {
+    if (!annTooBigError(e)) throw e;
+    await attempt(true);   // over the cap after all — put it in Storage instead
+  }
+}
+
+/* Read them back from wherever they were put. Throws rather than returning
+   an empty page: annotations that failed to download must never look like a
+   worksheet with nothing on it, or the next auto-save would write that over
+   the real thing. */
+async function readAnnotationJson(d) {
+  if (!d || !d.annotationsPath) return (d && d.annotations) || '[]';
+  var url = await storage.ref(d.annotationsPath).getDownloadURL();
+  var resp;
+  try {
+    resp = await fetch(url, { cache: 'no-store' });
+  } catch (netErr) {
+    throw new Error('the annotations file could not be downloaded (see the CORS note in README.md), or the network dropped.');
+  }
+  if (!resp.ok) throw new Error('the annotations file could not be downloaded (HTTP ' + resp.status + ').');
+  var text = await resp.text();
+  return text || '[]';
+}
+
 async function performSave() {
   var btn = $('saveBtn');
   var label = btn.querySelector('.btnLabel');
@@ -13488,12 +13637,11 @@ async function performSave() {
       videoStartMs: wsMeta.videoStart || 0,
       coverTitle: wsMeta.coverTitle || '',
       pageCount: pdfDoc.numPages,
-      annotations: JSON.stringify(annotations),
-      share: { mode: wsShare.mode, passwordHash: wsShare.passwordHash },
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      share: { mode: wsShare.mode, passwordHash: wsShare.passwordHash }
     };
     if (isNew) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-    await db.collection(COLLECTION).doc(currentDocId).set(payload, { merge: true });
+    // The annotations go wherever they fit — see writeAnnotations.
+    await writeAnnotations(currentDocId, JSON.stringify(annotations), payload);
     startLivePresence(); // now it exists, it can advertise that it is live
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
@@ -13517,6 +13665,7 @@ async function performSave() {
    app never stutters mid-stroke. The page being hidden or closed flushes any
    pending save immediately. */
 var AUTOSAVE_DELAY = 4000;
+var AUTOSAVE_BIG_DELAY = 9000;   // annotations kept in Storage (see writeAnnotations)
 var autoSaveTimer = null;
 var autoSaveInFlight = false;
 var autoSaveQueued = false;
@@ -13533,7 +13682,9 @@ function canAutoSave() {
 function scheduleAutoSave() {
   if (!canAutoSave()) return;
   clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(autoSave, AUTOSAVE_DELAY);
+  // A worksheet whose annotations live in Storage re-uploads the whole file
+  // each time, so it waits a little longer between saves.
+  autoSaveTimer = setTimeout(autoSave, annOverflow ? AUTOSAVE_BIG_DELAY : AUTOSAVE_DELAY);
 }
 
 async function autoSave() {
@@ -13542,10 +13693,7 @@ async function autoSave() {
   if (autoSaveInFlight) { autoSaveQueued = true; return; }
   autoSaveInFlight = true;
   try {
-    await db.collection(COLLECTION).doc(currentDocId).set({
-      annotations: JSON.stringify(annotations),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    await writeAnnotations(currentDocId, JSON.stringify(annotations));
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
     var btn = $('saveBtn');
@@ -13898,7 +14046,11 @@ async function openSavedDoc(id, data) {
     if (!resp.ok) throw new Error('download failed (HTTP ' + resp.status + '). The file may have been deleted or access was denied.');
     var buf = await resp.arrayBuffer();
     await loadPdf(new Uint8Array(buf), data.name || 'Untitled');
-    annotations = JSON.parse(data.annotations || '[]');
+    // Before currentDocId is set, deliberately: if the annotations cannot be
+    // read the open fails outright rather than leaving a blank worksheet that
+    // auto-save would then write over the real one.
+    annotations = JSON.parse(await readAnnotationJson(data) || '[]');
+    annOverflow = !!data.annotationsPath;
     currentDocId = id;
     startLivePresence();
     wsMeta.level = data.level || '';
@@ -13914,7 +14066,7 @@ async function openSavedDoc(id, data) {
     setDirty(false);
     renderAllOverlays();
     renderSidebar();
-    subscribeOpenDoc(id); // keep it in step with the teacher from now on
+    subscribeOpenDoc(id, annKey(data)); // keep it in step with the teacher from now on
   } catch (e) {
     console.error(e);
     toast('Could not open: ' + (e.message || e));
@@ -14369,6 +14521,8 @@ async function deleteSavedDoc(id, data, rowEl) {
   try {
     await db.collection(COLLECTION).doc(id).delete();
     try { await storage.ref(data.storagePath).delete(); } catch (e) { /* file may be gone */ }
+    // Annotations that outgrew the document have a file of their own.
+    try { await storage.ref(data.annotationsPath || annStoragePath(id)).delete(); } catch (e) { /* usually there is none */ }
     if (rowEl) rowEl.remove();
     if (currentDocId === id) { stopLivePresence(false); currentDocId = null; }
     toast('Deleted.');
