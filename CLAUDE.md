@@ -17,6 +17,13 @@ Guidance for Claude when working in this repo.
 - `pdfAnnotator` is shared with the older annotator in `polymathlc/cer` (`pdf-annotator.html`), so
   keep field names compatible: `wsSlot` is this app's 0–2 lesson session, `slot` is that app's
   free-form class string.
+- Annotations bigger than `ANN_INLINE_LIMIT` do not fit in a Firestore document (~1 MB), so they
+  go to Storage as `pdf-annotator/{id}.annotations.json` with `annotationsPath` +
+  `annotationsStamp` on the doc and `annotations: ''` (see `writeAnnotations` /
+  `readAnnotationJson`). Worksheets that fit are still written inline, unchanged. The `cer` app
+  knows nothing about the pointer, so it reads such a worksheet as having no annotations — it
+  could never have saved one that big either. Read annotations through `readAnnotationJson(d)`
+  and write them through `writeAnnotations()`; never write the `annotations` field directly.
 
 ## Reward system — ADMIN ONLY (`#rewardBtn` / `#rewardModal`, all `rw*` code)
 - The Reward window hands marks to one class mid-lesson. It writes **only** into the reward
