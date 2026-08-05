@@ -3,6 +3,28 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## A button that always brings the toolbar back (v1.54.0)
+
+The toolbar can fold away — from the favourites bar, or with full screen — and
+until now only the teacher's favourites bar could bring it back. On a device
+where it was already folded away, the toolbar simply looked like it had gone
+missing.
+
+- **Top-right corner of the worksheet.** A rounded **Hide toolbar / Show
+  toolbar** button now floats in the top-right corner of the working area,
+  above the page you are annotating.
+- **One press puts it back, the next folds it away.** While the toolbar is
+  away the button turns amber and reads *Show toolbar* — pressing it brings the
+  toolbar back whichever way it went, full screen included. Pressing it again
+  hides the toolbar, with a message reminding you that the same button brings
+  it back.
+- **Everyone gets it.** Teacher, student and share-link visitor alike, so
+  nobody is ever left on a device with no toolbar and no way to it.
+- **It follows the chrome.** The button parks itself against the top of the
+  working area, so it stays put when the banner is hidden, when the toolbar
+  wraps onto a second row, and on any screen size. In full screen it sits just
+  below *Exit full screen*.
+
 ## Recordings go to your own Google Drive (v1.53.0)
 
 Recordings were landing in the app's Firebase Storage bucket, which is small
