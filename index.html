@@ -780,6 +780,54 @@
   body.immersive #immersiveExitBtn { display: inline-flex; }
   #immersiveExitBtn:hover { background: #fff; }
   #immersiveExitBtn svg { width: 15px; height: 15px; flex: 0 0 auto; }
+
+  /* ---------- Toolbar toggle ----------
+     The toolbar can be folded away from three places (this button, the
+     favourites bar, full screen), and until now only the teacher's favourites
+     bar could bring it back — so a hidden toolbar could look like a toolbar
+     that had vanished for good. This button floats in the top-right corner of
+     the working area for everyone: press it once and the toolbar is always
+     back, press it again and it folds away. JS parks it (see
+     placeToolbarToggle) because the chrome above it changes height. */
+  #toolbarToggleBtn {
+    position: fixed;
+    top: 14px; right: 14px;        /* JS refines both against the working area */
+    z-index: 59;                   /* over the worksheet, under the lasso bar */
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 15px;
+    font-family: var(--font);
+    font-size: 0.76rem;
+    font-weight: bold;
+    color: var(--ink-soft);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  }
+  #toolbarToggleBtn:hover { background: #fff; color: var(--ink); }
+  #toolbarToggleBtn svg { width: 16px; height: 16px; flex: 0 0 auto; }
+  /* Hidden toolbar: the button is the only way back, so it says so plainly. */
+  #toolbarToggleBtn.isHidden {
+    background: var(--accent);
+    border-color: var(--accent-strong);
+    color: var(--ink);
+  }
+  #toolbarToggleBtn .ttbShow { display: none; }
+  #toolbarToggleBtn.isHidden .ttbShow { display: inline; }
+  #toolbarToggleBtn.isHidden .ttbHide { display: none; }
+  @media (max-width: 700px) {
+    #toolbarToggleBtn { padding: 9px 12px; }
+    #toolbarToggleBtn .ttbLabel { display: none; }
+  }
   .toolBtn:hover { background: #F1F0EE; transform: translateY(-1px); }
   .toolBtn.active {
     background: var(--accent);
@@ -2498,6 +2546,11 @@
   Exit full screen
 </button>
 
+<button id="toolbarToggleBtn" title="Hide the toolbar" aria-label="Hide the toolbar">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><line x1="6.5" y1="7" x2="6.5" y2="7"/><line x1="10" y1="7" x2="10" y2="7"/><line x1="13.5" y1="7" x2="13.5" y2="7"/><path d="M4 15h16"/><path d="M4 19h10"/></svg>
+  <span class="ttbLabel"><span class="ttbShow">Show toolbar</span><span class="ttbHide">Hide toolbar</span></span>
+</button>
+
 <div id="mainRow">
 <div id="panelScrim"></div>
 <aside id="qDrawer">
@@ -3191,7 +3244,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.53.0';
+var APP_VERSION = 'v1.54.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -11992,6 +12045,8 @@ function applyRoleUI() {
     s.style.display = hideTools ? 'none' : '';
   });
   if (typeof renderFavBar === 'function') renderFavBar();
+  // The toolbar just gained or lost buttons, so it may have changed height.
+  if (typeof placeToolbarToggle === 'function') placeToolbarToggle();
   // Awarding marks is the teacher's own tool, and only the admin's.
   applyRewardVisibility();
   var h1 = $('emptyState').querySelector('h1');
@@ -15701,6 +15756,7 @@ $('saveNameInput').addEventListener('keydown', function (e) { if (e.key === 'Ent
 $('focusBtn').addEventListener('click', function () {
   var hidden = document.body.classList.toggle('headerHidden');
   $('focusBtn').classList.toggle('active', hidden);
+  placeToolbarToggle();   // the working area just moved up or down
   toast(hidden ? 'Top banner hidden — more space for the worksheet.' : 'Top banner shown again.');
 });
 /* ================= Full screen =================
@@ -15774,6 +15830,7 @@ async function setImmersive(on) {
     }
   }
   syncFsBtn();
+  syncToolbarToggle();    // full screen takes the toolbar with it
   handleViewportResize(); // the usable height just changed — re-fit the page
   if (!on) return;
   if (isIOS() && !standaloneApp() && !fsHomeScreenHintShown) {
@@ -16600,6 +16657,47 @@ function setToolbarMin(on) {
   document.body.classList.toggle('toolbarMin', toolbarMin);
   saveFavState();
   placeFavBar();
+  syncToolbarToggle();
+}
+
+/* ================= Toolbar toggle =================
+   One button, floating in the top-right corner of the working area, that
+   everybody gets — teacher, student and share-link visitor alike. Pressing it
+   while the toolbar is away always brings it back, whichever way it went
+   (folded from the favourites bar, or full screen); pressing it again folds
+   it away. Without this a device that had the toolbar hidden looked like a
+   device whose toolbar had disappeared, with no way back. */
+function toolbarIsHidden() {
+  return document.body.classList.contains('toolbarMin') ||
+         document.body.classList.contains('immersive');
+}
+
+/* The chrome above the worksheet changes height — the banner hides, the
+   toolbar wraps onto a second row, full screen takes both away — so the
+   button is parked against the working area itself rather than the window. */
+function placeToolbarToggle() {
+  var btn = $('toolbarToggleBtn');
+  if (!btn) return;
+  var area = $('viewerArea');
+  var r = area ? area.getBoundingClientRect() : null;
+  var top = (r ? r.top : 0) + 14;
+  // Full screen already floats its own way out in that corner — sit under it.
+  if (document.body.classList.contains('immersive')) top += 48;
+  var scrollbar = area ? Math.max(0, area.offsetWidth - area.clientWidth) : 0;
+  var right = (r ? Math.max(0, window.innerWidth - r.right) : 0) + scrollbar + 14;
+  btn.style.top = Math.round(top) + 'px';
+  btn.style.right = Math.round(right) + 'px';
+}
+
+function syncToolbarToggle() {
+  var btn = $('toolbarToggleBtn');
+  if (!btn) return;
+  var hidden = toolbarIsHidden();
+  btn.classList.toggle('isHidden', hidden);
+  var label = hidden ? 'Show the toolbar' : 'Hide the toolbar';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  placeToolbarToggle();
 }
 
 /* ---- The picker ---- */
@@ -16666,6 +16764,16 @@ function openFavModal() {
 
 $('favAddBtn').addEventListener('click', openFavModal);
 $('favToolbarBtn').addEventListener('click', function () { setToolbarMin(!toolbarMin); });
+$('toolbarToggleBtn').addEventListener('click', function () {
+  if (toolbarIsHidden()) {
+    // Back, whatever took it away.
+    if (document.body.classList.contains('immersive')) setImmersive(false);
+    setToolbarMin(false);
+  } else {
+    setToolbarMin(true);
+    toast('Toolbar hidden — press the same button to bring it back.');
+  }
+});
 $('favCloseBtn').addEventListener('click', function () { $('favModal').classList.remove('open'); });
 $('favDoneBtn').addEventListener('click', function () { $('favModal').classList.remove('open'); });
 $('favModal').addEventListener('click', function (e) {
@@ -16678,9 +16786,12 @@ $('favResetBtn').addEventListener('click', function () {
   openFavModal();
 });
 window.addEventListener('resize', placeFavBar);
+window.addEventListener('resize', placeToolbarToggle);
+window.addEventListener('orientationchange', placeToolbarToggle);
 
 loadFavState();
 document.body.classList.toggle('toolbarMin', toolbarMin);
+syncToolbarToggle();
 
 // Pick up where the last session left off: same tool, same remembered styles.
 var lastTool = toolStyles._lastTool;
