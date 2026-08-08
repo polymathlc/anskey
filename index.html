@@ -34,6 +34,11 @@
     --line: #ECECEA;
     --danger: #E53935;
     --ok: #43A047;
+    /* The starred worksheet's gold — deeper than the app's amber accent, so
+       "open this one" never reads as just another highlighted card. */
+    --star-ink: #B8791C;
+    --star-line: #E7BD72;
+    --star-tint: #FFF9EE;
     --radius: 14px;
     --radius-sm: 10px;
     --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
@@ -959,6 +964,68 @@
   .qItemName { font-size: 0.88rem; font-weight: bold; line-height: 1.35; overflow-wrap: break-word; color: var(--ink); }
   .qItemMeta { font-size: 0.73rem; color: var(--ink-faint); margin-top: 5px; line-height: 1.5; }
 
+  /* ---------- Starred worksheet — "open this one" ----------
+     The teacher stars the worksheet the lesson needs; whoever opens the list
+     next has to see it without reading a single name. So a starred card gets
+     a gold ring of its own and its own band at the very top of the list. */
+  .qItemRow { position: relative; margin-bottom: 10px; }
+  .qItemRow .qItem { margin-bottom: 0; }
+  .qItemRow.canStar .qItem { padding-right: 46px; }
+  .qStarBtn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    color: #C9C7C1;
+    background: none;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  }
+  .qStarBtn:hover { background: #FBF2E2; color: var(--star-ink, #B8791C); transform: scale(1.1); }
+  .qStarBtn.on { color: var(--star-ink, #B8791C); }
+  .qStarBtn:disabled { opacity: 0.5; cursor: default; transform: none; }
+  @media (pointer: coarse) { .qStarBtn { width: 40px; height: 40px; top: 5px; right: 5px; } }
+  .qItem.starred {
+    border-color: var(--star-line, #E7BD72);
+    background: var(--star-tint, #FFF9EE);
+    box-shadow: 0 0 0 2px rgba(184, 121, 28, 0.16), var(--shadow-card);
+  }
+  .qItem.starred .qItemName { color: var(--star-ink, #B8791C); }
+  .qStarGroup { margin-bottom: 22px; }
+  .qStarHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: var(--star-ink, #B8791C);
+    background: var(--star-tint, #FFF9EE);
+    border: 1px solid var(--star-line, #E7BD72);
+    border-left: 5px solid var(--star-ink, #B8791C);
+    border-radius: var(--radius-sm);
+    padding: 11px 12px;
+    margin-bottom: 12px;
+  }
+  .qStarHead .qGroupCount {
+    color: var(--star-ink, #B8791C);
+    background: #fff;
+    border: 1px solid var(--star-line, #E7BD72);
+  }
+  .qStarHint {
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    line-height: 1.5;
+    margin: -4px 2px 12px;
+  }
+
   /* ---------- Worksheets grouped by class day ----------
      The day is what everyone scans this list for, so it carries the strongest
      signal on screen: its own colour, a band across the top of the group, and
@@ -1023,7 +1090,7 @@
     color: var(--ink-soft);
     margin: 0 2px 8px;
   }
-  .qSlotLine + .qSlotLine, .qItem + .qSlotLine { margin-top: 14px; }
+  .qSlotLine + .qSlotLine, .qItemRow + .qSlotLine { margin-top: 14px; }
   .qSlotLine.mine { color: var(--accent-deep); }
   /* Subject filter — only shown to someone whose list holds more than one. */
   .qFilterRow { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
@@ -3244,7 +3311,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.55.1';
+var APP_VERSION = 'v1.56.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -12112,6 +12179,11 @@ function applyRoleUI() {
     s.style.display = hideTools ? 'none' : '';
   });
   if (typeof renderFavBar === 'function') renderFavBar();
+  // The ★ that marks a worksheet as the one to open is the teacher's own
+  // control: handing the device to a student takes it away with everything
+  // else, though the gold highlight it leaves behind stays on for them.
+  if (typeof renderQuestionList === 'function' && qDocs.length &&
+      $('qDrawer').classList.contains('open')) renderQuestionList();
   // The toolbar just gained or lost buttons, so it may have changed height.
   if (typeof placeToolbarToggle === 'function') placeToolbarToggle();
   // Awarding marks is the teacher's own tool, and only the admin's.
@@ -14337,10 +14409,42 @@ function renderQuestionList() {
     return;
   }
   var hasDayPref = !isAdmin(currentUser) && studentProfile && studentProfile.days && studentProfile.days.length;
+  // Starred worksheets leave their day and lead the list instead — the whole
+  // point is that they are seen before anything is read.
+  var starred = docs.filter(function (i) { return !!i.data.starred; });
+  var rest = docs.filter(function (i) { return !i.data.starred; });
   $('qDrawerSub').textContent = docs.length + ' worksheet' + (docs.length === 1 ? '' : 's') +
+    (starred.length ? ' · ★ ' + starred.length + ' to open' : '') +
     ' · grouped by class day, newest first' + (hasDayPref ? ' · your day first' : '');
-  renderQuestionGroups(list, docs);
+  if (starred.length) renderStarredBand(list, starred);
+  renderQuestionGroups(list, rest);
   syncDrawerHeadOffset();
+}
+
+/* The gold band at the top of the drawer: the worksheets the teacher has
+   marked as the ones to open. Their day and class time move onto the cards,
+   since they are sitting outside the day headings up here. */
+function renderStarredBand(list, starred) {
+  var wrap = document.createElement('div');
+  wrap.className = 'qStarGroup';
+  var head = document.createElement('div');
+  head.className = 'qStarHead';
+  var name = document.createElement('span');
+  name.textContent = '★ Open ' + (starred.length === 1 ? 'this one' : 'these');
+  head.appendChild(name);
+  var n = document.createElement('span');
+  n.className = 'qGroupCount';
+  n.textContent = starred.length;
+  head.appendChild(n);
+  wrap.appendChild(head);
+  if (canStarWorksheets()) {
+    var hint = document.createElement('div');
+    hint.className = 'qStarHint';
+    hint.textContent = 'Everyone who opens this list sees these first. Tap ★ on any card to add or remove one.';
+    wrap.appendChild(hint);
+  }
+  starred.forEach(function (item) { wrap.appendChild(questionCard(item, { showDay: true })); });
+  list.appendChild(wrap);
 }
 
 /* The day bands stick just below the drawer's heading, so the heading is
@@ -14353,11 +14457,16 @@ function syncDrawerHeadOffset() {
 window.addEventListener('resize', syncDrawerHeadOffset);
 
 /* Build one card per worksheet — kept separate so the grouped renderer can
-   place it under the right day and time-slot heading. */
-function questionCard(item) {
+   place it under the right day and time-slot heading. `opts.showDay` spells
+   the class out on the card, for the starred band at the top of the list
+   where the cards sit outside their day heading. */
+function questionCard(item, opts) {
   var d = item.data;
+  var row = document.createElement('div');
+  row.className = 'qItemRow';
   var btn = document.createElement('button');
-  btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '');
+  btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '') +
+    (d.starred ? ' starred' : '');
   btn.setAttribute('data-qid', item.id);
   var nm = document.createElement('div');
   nm.className = 'qItemName';
@@ -14378,6 +14487,7 @@ function questionCard(item) {
   }
   var bits = [];
   if (isAdmin(currentUser) && (!d.level || !d.subject)) bits.push('⚠ unassigned — hidden from students');
+  if (opts && opts.showDay) bits.push(d.wsDay ? d.wsDay + ' · ' + slotLabel(slotOf(d), d.wsDay) : 'No class day set');
   if (d.wsDate) bits.push(prettyDate(d.wsDate));
   bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
   if (d.videoUrl) bits.push('🎬 recording');
@@ -14389,7 +14499,64 @@ function questionCard(item) {
     if (panelsFloat()) toggleQuestionsDrawer();
   });
   markLiveCard(btn, item.id);
-  return btn;
+  row.appendChild(btn);
+  // The star is the teacher's alone — it is an instruction to whoever opens
+  // the list next, not a bookmark each reader keeps for themselves.
+  if (canStarWorksheets()) {
+    row.classList.add('canStar');
+    row.appendChild(starToggleBtn(item));
+  }
+  return row;
+}
+
+/* ---- "Open this one" ----
+   One worksheet in the list can be marked out for whoever teaches next: the
+   card turns gold and floats into a band of its own at the very top, on every
+   device that opens the list. The mark lives on the worksheet itself
+   (`starred` on its Firestore document, written with merge so a save never
+   clears it), so it is the same mark for everybody. Any number can be
+   starred — a day with two lessons needs two. */
+function canStarWorksheets() {
+  return !!currentUser && isAdmin(currentUser) && !actingStudent && !isSharedVisitor();
+}
+
+function starToggleBtn(item) {
+  var star = document.createElement('button');
+  star.type = 'button';
+  star.className = 'qStarBtn' + (item.data.starred ? ' on' : '');
+  star.textContent = item.data.starred ? '★' : '☆';
+  star.title = item.data.starred
+    ? 'Starred — showing at the top of everyone’s list. Tap to unstar.'
+    : 'Star this worksheet so whoever opens the list next knows to open it';
+  star.setAttribute('aria-label', star.title);
+  star.addEventListener('click', function (e) {
+    e.stopPropagation();       // the card underneath opens the worksheet
+    toggleWorksheetStar(item, star);
+  });
+  return star;
+}
+
+async function toggleWorksheetStar(item, btn) {
+  if (!canStarWorksheets()) return;
+  var next = !item.data.starred;
+  btn.disabled = true;
+  try {
+    await db.collection(COLLECTION).doc(item.id).set({
+      starred: next,
+      starredAt: next ? firebase.firestore.FieldValue.serverTimestamp() : null
+    }, { merge: true });
+  } catch (e) {
+    btn.disabled = false;
+    toast('Could not star that: ' + (e.message || e), 5000);
+    return;
+  }
+  item.data.starred = next;
+  // Re-render rather than restyle in place: the card moves between the
+  // starred band and its class day.
+  renderQuestionList();
+  toast(next
+    ? '★ “' + (item.data.name || 'Untitled') + '” is at the top of the list now.'
+    : 'Unstarred “' + (item.data.name || 'Untitled') + '”.');
 }
 
 /* ---- The list, day by day ----
