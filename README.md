@@ -3,6 +3,22 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## A text box lands on the cursor and types straight away (v1.55.1)
+
+- **It appears exactly where you clicked.** A new text box used to sit slightly
+  right of and below the pointer — the first letter started a padding's width
+  in, and the whole line hung below the tap. The box is now placed so the first
+  letter begins on the pointer and the first line is centred on it, matching
+  the middle of the I-beam cursor.
+- **You can type immediately.** The keyboard occasionally failed to land in a
+  brand new box, and it took a second click — often slightly to the right,
+  where the words are — before typing worked. The box now keeps hold of the
+  focus for longer, and takes it back whenever a re-render (an auto-save, a
+  live update) swaps its node out mid-sentence.
+- **Clicking inside the box you are typing in always works.** A tap on the
+  box's padding or edge, rather than on the words themselves, now puts the
+  caret where you tapped instead of leaving the box looking open but deaf.
+
 ## No size limit on a worksheet's annotations (v1.55.0)
 
 Saving a heavily marked-up worksheet could fail with *“…is longer than
