@@ -3,7 +3,7 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
-## Star the worksheet to open next (v1.56.0)
+## Star the worksheet to open next (v1.56.1)
 
 Whoever teaches the next lesson opens the ☰ questions list and has to work out
 which worksheet is the right one. Now the teacher can just point at it.
@@ -12,11 +12,13 @@ which worksheet is the right one. Now the teacher can just point at it.
   star in its corner. Tap it and the worksheet is marked as the one to open.
   Tap again to unstar. Star as many as you like — a day with two lessons needs
   two.
-- **The card turns gold.** A starred worksheet's rectangle gets a gold ring and
-  a gold tint, so it stands out from every other card at a glance.
-- **And it moves to the top.** Starred worksheets lead the list under an
-  “★ Open this one” band, above the class days, with their day and lesson time
-  printed on the card so nothing is lost by lifting them out of their day.
+- **The card turns gold.** A starred worksheet's rectangle gets a gold ring, a
+  gold tint and an “★ Open this one” tag, so it stands out from every other
+  card at a glance.
+- **It stays where it belongs.** The card keeps its place under its class day
+  and lesson time — the highlight is the whole signal, so nothing has to be
+  hunted for anywhere else. A day holding a starred worksheet never starts
+  folded, and the list's subtitle counts them (“· ★ 1 to open”).
 - **Everyone sees the same mark.** The star lives on the worksheet itself, so
   it is there on every device that opens the list — that is the whole point.
   Only the teacher can add or remove one; students (and the teacher's own

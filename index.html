@@ -999,31 +999,17 @@
     box-shadow: 0 0 0 2px rgba(184, 121, 28, 0.16), var(--shadow-card);
   }
   .qItem.starred .qItemName { color: var(--star-ink, #B8791C); }
-  .qStarGroup { margin-bottom: 22px; }
-  .qStarHead {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9rem;
+  .qStarTag {
+    display: inline-block;
+    font-size: 0.66rem;
     font-weight: bold;
-    color: var(--star-ink, #B8791C);
-    background: var(--star-tint, #FFF9EE);
-    border: 1px solid var(--star-line, #E7BD72);
-    border-left: 5px solid var(--star-ink, #B8791C);
-    border-radius: var(--radius-sm);
-    padding: 11px 12px;
-    margin-bottom: 12px;
-  }
-  .qStarHead .qGroupCount {
+    letter-spacing: 0.02em;
     color: var(--star-ink, #B8791C);
     background: #fff;
     border: 1px solid var(--star-line, #E7BD72);
-  }
-  .qStarHint {
-    font-size: 0.72rem;
-    color: var(--ink-faint);
-    line-height: 1.5;
-    margin: -4px 2px 12px;
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-bottom: 8px;
   }
 
   /* ---------- Worksheets grouped by class day ----------
@@ -3311,7 +3297,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.56.0';
+var APP_VERSION = 'v1.56.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -14409,42 +14395,15 @@ function renderQuestionList() {
     return;
   }
   var hasDayPref = !isAdmin(currentUser) && studentProfile && studentProfile.days && studentProfile.days.length;
-  // Starred worksheets leave their day and lead the list instead — the whole
-  // point is that they are seen before anything is read.
-  var starred = docs.filter(function (i) { return !!i.data.starred; });
-  var rest = docs.filter(function (i) { return !i.data.starred; });
+  // A starred worksheet stays exactly where it belongs — under its class day
+  // and lesson time. The gold card is what marks it out, not a place of its
+  // own; the count here just says how many there are to find.
+  var starred = docs.filter(function (i) { return !!i.data.starred; }).length;
   $('qDrawerSub').textContent = docs.length + ' worksheet' + (docs.length === 1 ? '' : 's') +
-    (starred.length ? ' · ★ ' + starred.length + ' to open' : '') +
+    (starred ? ' · ★ ' + starred + ' to open' : '') +
     ' · grouped by class day, newest first' + (hasDayPref ? ' · your day first' : '');
-  if (starred.length) renderStarredBand(list, starred);
-  renderQuestionGroups(list, rest);
+  renderQuestionGroups(list, docs);
   syncDrawerHeadOffset();
-}
-
-/* The gold band at the top of the drawer: the worksheets the teacher has
-   marked as the ones to open. Their day and class time move onto the cards,
-   since they are sitting outside the day headings up here. */
-function renderStarredBand(list, starred) {
-  var wrap = document.createElement('div');
-  wrap.className = 'qStarGroup';
-  var head = document.createElement('div');
-  head.className = 'qStarHead';
-  var name = document.createElement('span');
-  name.textContent = '★ Open ' + (starred.length === 1 ? 'this one' : 'these');
-  head.appendChild(name);
-  var n = document.createElement('span');
-  n.className = 'qGroupCount';
-  n.textContent = starred.length;
-  head.appendChild(n);
-  wrap.appendChild(head);
-  if (canStarWorksheets()) {
-    var hint = document.createElement('div');
-    hint.className = 'qStarHint';
-    hint.textContent = 'Everyone who opens this list sees these first. Tap ★ on any card to add or remove one.';
-    wrap.appendChild(hint);
-  }
-  starred.forEach(function (item) { wrap.appendChild(questionCard(item, { showDay: true })); });
-  list.appendChild(wrap);
 }
 
 /* The day bands stick just below the drawer's heading, so the heading is
@@ -14457,10 +14416,8 @@ function syncDrawerHeadOffset() {
 window.addEventListener('resize', syncDrawerHeadOffset);
 
 /* Build one card per worksheet — kept separate so the grouped renderer can
-   place it under the right day and time-slot heading. `opts.showDay` spells
-   the class out on the card, for the starred band at the top of the list
-   where the cards sit outside their day heading. */
-function questionCard(item, opts) {
+   place it under the right day and time-slot heading. */
+function questionCard(item) {
   var d = item.data;
   var row = document.createElement('div');
   row.className = 'qItemRow';
@@ -14468,6 +14425,15 @@ function questionCard(item, opts) {
   btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '') +
     (d.starred ? ' starred' : '');
   btn.setAttribute('data-qid', item.id);
+  if (d.starred) {
+    // Said in words as well as in gold: the card is read at a glance, but a
+    // teacher scanning a busy day should not have to work out what the
+    // colour means.
+    var tag = document.createElement('div');
+    tag.className = 'qStarTag';
+    tag.textContent = '★ Open this one';
+    btn.appendChild(tag);
+  }
   var nm = document.createElement('div');
   nm.className = 'qItemName';
   nm.textContent = d.name || 'Untitled';
@@ -14487,7 +14453,6 @@ function questionCard(item, opts) {
   }
   var bits = [];
   if (isAdmin(currentUser) && (!d.level || !d.subject)) bits.push('⚠ unassigned — hidden from students');
-  if (opts && opts.showDay) bits.push(d.wsDay ? d.wsDay + ' · ' + slotLabel(slotOf(d), d.wsDay) : 'No class day set');
   if (d.wsDate) bits.push(prettyDate(d.wsDate));
   bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
   if (d.videoUrl) bits.push('🎬 recording');
@@ -14671,6 +14636,9 @@ function renderQuestionGroups(list, docs) {
       return av - bv;
     });
     var dayCount = slotKeys.reduce(function (n, k) { return n + byDay[day][k].length; }, 0);
+    var dayStarred = slotKeys.some(function (k) {
+      return byDay[day][k].some(function (it) { return !!it.data.starred; });
+    });
     var colour = dayColour(day);
 
     var dayWrap = document.createElement('div');
@@ -14728,8 +14696,9 @@ function renderQuestionGroups(list, docs) {
     // Everything is open for the teacher and for a student's own day; a
     // student's other days start folded so their list stays short. A student
     // who has not told us their class day has nothing to fold around, so
-    // their list opens whole.
-    dayWrap.classList.toggle('collapsed', !!(mine && myDays.length && !isMyDay));
+    // their list opens whole. A day holding a starred worksheet never starts
+    // folded — a mark nobody can see is no mark at all.
+    dayWrap.classList.toggle('collapsed', !!(mine && myDays.length && !isMyDay && !dayStarred));
     dayHead.addEventListener('click', function () { dayWrap.classList.toggle('collapsed'); });
 
     list.appendChild(dayWrap);
