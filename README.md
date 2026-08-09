@@ -3,6 +3,28 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Double-tapping a calculator key no longer breaks the sum (v1.62.1)
+
+Double-click any key and it was typed twice. On the digits that is harmless —
+77 is a number — but on everything else it made nonsense: `77//88`, `2..5`,
+`÷÷`. The screen filled with a red *“That sum is not finished.”* instead of the
+number you were after, and the double-click also selected the key's label, so
+the pad went blue.
+
+- **A second operator replaces the first.** Two taps on ÷ is one ÷, and
+  pressing × after ÷ means × — the way every calculator behaves. The same for
+  the a/b fraction bar.
+- **One decimal point per number.** A second point in the same number is
+  ignored; the next number gets its own.
+- **x² needs something to square.** Pressed with nothing in front of it, or
+  straight after an operator, it does nothing instead of writing a broken sum.
+- **An operator needs something to work on**, except a minus, which is allowed
+  to be a sign at the start of a sum or straight after a bracket.
+- **Nothing highlights blue.** The keypad is no longer selectable text. The
+  screen still is, so an answer can be copied.
+
+Roots deliberately still stack: `√√9` is a real thing to ask for.
+
 ## Smooth pinch zoom, and the pencil ready from the start (v1.62.0)
 
 **The zoom follows your fingers now.** Two things were making it lurch:
