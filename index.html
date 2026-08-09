@@ -2609,6 +2609,10 @@
   .calcWhole { margin-right: 3px; }
   .calcPad {
     flex: 1 1 auto;
+    /* A double-tap on a key selected its label and painted the pad blue. The
+       screen above stays selectable so an answer can still be copied. */
+    -webkit-user-select: none;
+    user-select: none;
     min-height: 0;
     overflow: auto;            /* only the keys give way when the window is small */
     display: grid;
@@ -2646,6 +2650,8 @@
   .calcEq:active { background: #D9963C; }
   .calcHint {
     flex: 0 0 auto;
+    -webkit-user-select: none;
+    user-select: none;
     font-size: 0.72rem;
     color: var(--ink-faint);
     line-height: 1.5;
@@ -3623,7 +3629,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.62.0';
+var APP_VERSION = 'v1.62.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -11644,12 +11650,37 @@ function calcError(msg) {
   calcLast = null;
 }
 
+/* The operators that sit between two numbers. Two of them in a row is not a
+   sum, it is a slip — a double-tap on ÷, or a change of mind. */
+var CALC_BINARY = '+−×÷^/';
+function calcEndsOpen() {
+  var last = calcSrc.slice(-1);
+  return !last || last === '(' || CALC_BINARY.indexOf(last) !== -1;
+}
+
 function calcAppend(text) {
   // After “=”, a digit starts a new sum and an operator carries the answer on.
   if (calcJustDone) {
     calcJustDone = false;
     if (/^[0-9.π√∛(]/.test(text)) { calcSrc = ''; calcShowValue(null); }
     else calcSrc = 'Ans';
+  }
+  // Double-tapping a key used to type it twice, and “77//88” is not a sum —
+  // the screen filled with an error instead of the number that was wanted.
+  // A second operator now replaces the first, the way every calculator does.
+  if (text.length === 1 && CALC_BINARY.indexOf(text) !== -1) {
+    // `last` is '' on an empty expression, and indexOf('') is 0 — so it has to
+    // be tested for before the lookup, or nothing looks like an operator.
+    var last = calcSrc.slice(-1);
+    if (last && CALC_BINARY.indexOf(last) !== -1) calcSrc = calcSrc.slice(0, -1);
+    // Nothing to operate on yet. A minus is the exception: it is a sign.
+    else if ((!calcSrc || last === '(') && text !== '−') return;
+  } else if (text === '^2' && calcEndsOpen()) {
+    return;                       // x² with nothing in front of it
+  } else if (text === '.') {
+    // One decimal point per number.
+    var tail = /[0-9.]*$/.exec(calcSrc)[0];
+    if (tail.indexOf('.') !== -1) return;
   }
   calcSrc += text;
   calcRender();
