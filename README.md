@@ -3,6 +3,30 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Star the pages still to be done (v1.57.0)
+
+A 59-page worksheet has maybe six pages that matter this lesson, and nothing on
+screen said which. Now the page previews do.
+
+- **★ on every preview.** Open the page thumbnails (the toolbar's page button,
+  or `N`) and each preview has a star in its corner. Tap it to mark that page
+  as important and not done yet; tap again to clear it once it's finished. The
+  outline stays out of the way until you hover a preview — only the marked ones
+  keep their star showing.
+- **The marked page stands out.** A starred preview gets the same gold ring the
+  starred worksheet cards use, and its page number turns gold, so the pages to
+  do are findable at a glance while scrolling the strip.
+- **A running tally at the top.** When any page is marked, a small gold bar sits
+  at the top of the strip — “★ 3 pages still to do”. Tap it to jump straight to
+  the next marked page below where you are, wrapping round to the first.
+- **It belongs to the worksheet, not the device.** The marks are saved on the
+  worksheet the moment they're made (`starPages` on its Firestore document), so
+  they're there next lesson, on any device, and they reach every student who has
+  the worksheet open live — no reopening needed.
+- **Teacher-only marking.** Students (and a device handed over with “Practise
+  as”) see the pages you marked and the tally, but never the empty outlines, and
+  can't mark or clear a page.
+
 ## The answer key covers the MCQs too (v1.56.2)
 
 The generated answer key was coming back with only the open-ended questions on

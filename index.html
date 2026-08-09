@@ -1527,6 +1527,76 @@
     font-variant-numeric: tabular-nums;
   }
   .thumbItem.current .thumbNum { color: var(--accent-deep); font-weight: bold; }
+  /* ---------- Pages still to be done ----------
+     A star on a page preview marks a page that matters and is not finished
+     yet. An unmarked page keeps its star quiet (invisible until the preview
+     is hovered) so a 59-page worksheet is not a wall of outlines. */
+  .thumbStar {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.92rem;
+    line-height: 1;
+    color: #C9C7C1;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.15s ease, color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  }
+  .thumbItem:hover .thumbStar, .thumbStar:focus-visible { opacity: 1; }
+  .thumbStar:hover { color: var(--star-ink, #B8791C); transform: scale(1.12); }
+  .thumbStar.on {
+    opacity: 1;
+    color: var(--star-ink, #B8791C);
+    border-color: var(--star-line, #E7BD72);
+    background: #fff;
+  }
+  .thumbStar.readonly { cursor: default; pointer-events: none; }
+  @media (pointer: coarse) {
+    /* No hover on a tablet — the outline stays faintly there so it can be tapped. */
+    .thumbStar { width: 32px; height: 32px; opacity: 0.42; }
+  }
+  .thumbItem.starred .thumbPage {
+    border-color: var(--star-line, #E7BD72);
+    box-shadow: 0 0 0 2px rgba(184, 121, 28, 0.18), var(--shadow-card);
+  }
+  .thumbItem.starred.current .thumbPage {
+    border-color: var(--accent-deep);
+    box-shadow: 0 0 0 2px rgba(232, 165, 75, 0.35), 0 0 0 4px rgba(184, 121, 28, 0.18), var(--shadow-card);
+  }
+  .thumbItem.starred .thumbNum { color: var(--star-ink, #B8791C); font-weight: bold; }
+  /* The running tally, pinned to the top of the strip. */
+  #thumbStarBar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: none;
+    width: 100%;
+    margin: 0 0 14px;
+    padding: 11px 13px;
+    text-align: left;
+    font-family: var(--font);
+    font-size: 0.74rem;
+    line-height: 1.5;
+    font-weight: bold;
+    color: var(--star-ink, #B8791C);
+    background: var(--star-tint, #FFF9EE);
+    border: 1px solid var(--star-line, #E7BD72);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  #thumbStarBar.on { display: block; }
+  #thumbStarBar:hover { box-shadow: var(--shadow-btn); }
+  #thumbStarBar span { display: block; font-weight: normal; color: var(--ink-soft); margin-top: 3px; }
 
   /* ---------- Viewer ---------- */
   #viewerArea {
@@ -2712,6 +2782,7 @@
 </aside>
 
 <aside id="thumbPanel">
+  <button id="thumbStarBar" type="button" title="Jump to the next page still to be done"></button>
   <div id="thumbList"></div>
 </aside>
 <div id="thumbResizer" title="Drag to resize thumbnails"></div>
@@ -3297,7 +3368,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.56.2';
+var APP_VERSION = 'v1.57.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -3417,7 +3488,7 @@ var revealedKw = {};        // normalised keyword -> true, revealed during revis
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
-var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '', rewardClass: '' };  // worksheet meta (name lives in docName; rewardClass is the class its marks are given to)
+var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '', rewardClass: '', starPages: [] };  // worksheet meta (name lives in docName; rewardClass is the class its marks are given to)
 
 /* ---- Share links ----
    Every saved worksheet carries share settings: who a plain link admits
@@ -3760,7 +3831,7 @@ async function loadPdf(bytes, name) {
   selectedId = null;
   editingId = null;
   editModeId = null;
-  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '', rewardClass: '' };
+  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, coverTitle: '', rewardClass: '', starPages: [] };
   wsShare = { mode: 'view', passwordHash: '' };
   reviseMode = false;
   revealedKw = {};
@@ -3952,13 +4023,23 @@ function buildThumbs() {
     var num = document.createElement('div');
     num.className = 'thumbNum';
     num.textContent = p.num;
+    // The star that marks this page as important and not done yet.
+    var star = document.createElement('button');
+    star.type = 'button';
+    star.className = 'thumbStar';
+    star.textContent = '☆';
+    box.appendChild(star);
     item.appendChild(box);
     item.appendChild(num);
     list.appendChild(item);
+    star.addEventListener('click', function (e) {
+      e.stopPropagation();               // starring a page must not scroll to it
+      togglePageStar(p.num);
+    });
     item.addEventListener('click', function () {
       $('viewerArea').scrollTop = p.wrap.offsetTop - 20;
     });
-    var t = { item: item, canvas: canvas, svg: svg, renderTask: null, timer: null, dirty: false };
+    var t = { item: item, canvas: canvas, svg: svg, star: star, renderTask: null, timer: null, dirty: false };
     /* Mirror the page overlay onto the thumbnail. This used to serialise the
        whole overlay to a string and reparse it 250ms after ANY change —
        including every `d` attribute written while a pen stroke was being
@@ -3996,6 +4077,109 @@ function buildThumbs() {
   });
   renderAllThumbCanvases();
   markCurrentThumb();
+  syncThumbStars();
+}
+
+/* ================= Pages still to be done =================
+   A star on a page preview says "this page matters and it is not finished".
+   The marks belong to the worksheet, not to the device: they are kept on the
+   Firestore document as `starPages` (a list of page numbers), so they follow
+   the worksheet to every student who opens it and come straight through the
+   live listener mid-lesson. Only the teacher sets them — a student's preview
+   shows the marked pages and nothing else. */
+function starredPages() { return wsMeta.starPages || []; }
+function isPageStarred(num) { return starredPages().indexOf(num) !== -1; }
+
+/* Whatever came off a document or an old draft, as a clean sorted list. */
+function normalizeStarPages(v) {
+  if (!Array.isArray(v)) return [];
+  var seen = {}, out = [];
+  v.forEach(function (n) {
+    n = parseInt(n, 10);
+    if (!(n > 0) || seen[n]) return;
+    seen[n] = 1;
+    out.push(n);
+  });
+  return out.sort(function (a, b) { return a - b; });
+}
+
+function canStarPages() {
+  return isAdmin(currentUser) && !actingStudent && !isSharedVisitor() && !practiceMode;
+}
+
+function togglePageStar(num) {
+  if (!canStarPages()) return;
+  var list = starredPages().slice();
+  var at = list.indexOf(num);
+  if (at === -1) list.push(num); else list.splice(at, 1);
+  list.sort(function (a, b) { return a - b; });
+  wsMeta.starPages = list;
+  syncThumbStars();
+  savePageStars();
+  scheduleDraftSave();
+  toast(at === -1
+    ? '★ Page ' + num + ' marked — still to be done.'
+    : 'Page ' + num + ' is no longer marked.');
+}
+
+/* The marks are their own small write: auto-save only ever carries the
+   annotations, so a star would otherwise sit unsaved until the next Save. */
+function savePageStars() {
+  if (!currentDocId || !canStarPages()) return;
+  db.collection(COLLECTION).doc(currentDocId).set({
+    starPages: starredPages(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true }).catch(function (e) {
+    console.warn('Could not save the page marks', e);
+    toast('Could not save the page marks: ' + (e.message || e), 5000);
+  });
+}
+
+function syncThumbStars() {
+  if (!thumbs || !thumbs.length) { syncThumbStarBar(); return; }
+  var editable = canStarPages();
+  thumbs.forEach(function (t, i) {
+    var p = pages[i];
+    if (!p || !t.star) return;
+    var on = isPageStarred(p.num);
+    t.star.classList.toggle('on', on);
+    t.star.classList.toggle('readonly', !editable);
+    // Nothing to offer a student on a page that was never marked.
+    t.star.style.display = (!editable && !on) ? 'none' : '';
+    t.star.textContent = on ? '★' : '☆';
+    t.star.title = !editable
+      ? 'Page ' + p.num + ' is still to be done'
+      : (on
+        ? 'Page ' + p.num + ' is marked as still to be done — tap to clear it'
+        : 'Mark page ' + p.num + ' as important and not done yet');
+    t.item.classList.toggle('starred', on);
+  });
+  syncThumbStarBar();
+}
+
+function syncThumbStarBar() {
+  var bar = $('thumbStarBar');
+  if (!bar) return;
+  var n = starredPages().filter(function (num) { return num <= (pages ? pages.length : 0); }).length;
+  bar.classList.toggle('on', n > 0);
+  if (!n) { bar.textContent = ''; return; }
+  bar.textContent = '★ ' + n + ' page' + (n === 1 ? '' : 's') + ' still to do';
+  var hint = document.createElement('span');
+  hint.textContent = 'Tap to jump to the next one';
+  bar.appendChild(hint);
+}
+
+/* Next marked page below whatever is on screen, wrapping round to the first. */
+function goToNextStarredPage() {
+  var marked = starredPages()
+    .map(function (num) { return pages[num - 1]; })
+    .filter(Boolean);
+  if (!marked.length) return;
+  var area = $('viewerArea');
+  var from = area.scrollTop + 24;
+  var next = marked.filter(function (p) { return p.wrap.offsetTop > from; })[0] || marked[0];
+  area.scrollTop = next.wrap.offsetTop - 20;
+  toast('Page ' + next.num + ' — still to be done.', 1600);
 }
 
 /* Mirrors skipped while the panel was closed are caught up when it opens. */
@@ -12223,6 +12407,9 @@ function applyRoleUI() {
   // else, though the gold highlight it leaves behind stays on for them.
   if (typeof renderQuestionList === 'function' && qDocs.length &&
       $('qDrawer').classList.contains('open')) renderQuestionList();
+  // Same for the ★ on a page preview: a student sees which pages are still to
+  // be done, but never marks or clears one.
+  if (typeof syncThumbStars === 'function') syncThumbStars();
   // The toolbar just gained or lost buttons, so it may have changed height.
   if (typeof placeToolbarToggle === 'function') placeToolbarToggle();
   // Awarding marks is the teacher's own tool, and only the admin's.
@@ -13502,7 +13689,12 @@ function applyRemoteDoc(d) {
   wsMeta.videoPath = d.videoPath || '';
   wsMeta.videoStart = Number(d.videoStartMs) || 0;
   wsMeta.coverTitle = d.coverTitle || '';
+  wsMeta.starPages = normalizeStarPages(d.starPages);
   wsShare = normalizeShare(d.share);
+  // The pages still to be done are their own small write, so they land here
+  // without the annotations having changed at all — sync them before the
+  // "nothing new" exit below.
+  syncThumbStars();
 
   var key = annKey(d);
   // The LIVE heartbeat rewrites the document every 30s without touching the
@@ -13813,6 +14005,7 @@ async function performSave() {
       videoPath: wsMeta.videoPath || '',
       videoStartMs: wsMeta.videoStart || 0,
       coverTitle: wsMeta.coverTitle || '',
+      starPages: starredPages(),               // pages marked as still to be done
       pageCount: pdfDoc.numPages,
       share: { mode: wsShare.mode, passwordHash: wsShare.passwordHash }
     };
@@ -13983,7 +14176,9 @@ async function restoreDraft(d) {
   startLivePresence();
   try { annotations = JSON.parse(d.annotations || '[]'); } catch (e) { annotations = []; }
   if (d.wsMeta) wsMeta = d.wsMeta;
+  wsMeta.starPages = normalizeStarPages(wsMeta.starPages);
   renderAllOverlays();
+  syncThumbStars();
   renderSidebar();
   setDirty(true);
   toast(currentDocId
@@ -14239,9 +14434,11 @@ async function openSavedDoc(id, data) {
     wsMeta.videoPath = data.videoPath || '';
     wsMeta.videoStart = Number(data.videoStartMs) || 0;
     wsMeta.coverTitle = data.coverTitle || '';
+    wsMeta.starPages = normalizeStarPages(data.starPages);
     wsShare = normalizeShare(data.share);
     setDirty(false);
     renderAllOverlays();
+    syncThumbStars();
     renderSidebar();
     subscribeOpenDoc(id, annKey(data)); // keep it in step with the teacher from now on
   } catch (e) {
@@ -16278,6 +16475,7 @@ $('sideToggleBtn').addEventListener('click', function () {
 $('thumbToggleBtn').addEventListener('click', function () {
   setThumbPanelOpen(!$('thumbPanel').classList.contains('open'));
 });
+$('thumbStarBar').addEventListener('click', goToNextStarredPage);
 /* On a tablet the panels float over the worksheet, so they need a way out
    that isn't hunting for the button that opened them. */
 $('qDrawerCloseBtn').addEventListener('click', function () {
