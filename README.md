@@ -3,6 +3,36 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## A calculator, in a window you can drag (v1.61.0)
+
+A calculator button in the toolbar (or press **K**). It opens a window that
+floats over the worksheet, moves wherever you drag its title bar, resizes from
+the corner, and comes back where you left it next time.
+
+- **Fractions stay fractions.** `1/3 + 1/6` comes back as **1/2**, not
+  0.4999999999999999; `6/8` shows as **3/4** and `3/4 + 1/2` as **5/4**, with
+  “= 1 1/4 = 1.25” underneath. Fractions are drawn the way they are written on
+  paper, one number over the other. Even a typed decimal is exact — 2.75 is
+  11/4 — so it stays a fraction all the way through the sum.
+- **Powers and roots.** x², xʸ, √ and ∛, and they stay exact when they can:
+  √(9/4) is 3/2, ∛(8/27) is 2/3, (1/2)³ is 1/8, 2⁻² is 1/4. π is there too.
+  Anything that cannot be a fraction — π, most roots — carries on as a decimal,
+  and the answer says which of the two it is. **F↔D** swaps between them.
+- **No trigonometry.** Nothing on these papers needs sin or cos, and every key
+  not there is one less to hunt past.
+- **Written the way it is said.** `2π`, `3(4+1)` and `2√9` all work — the × is
+  put in for you. `±` flips the number you just typed rather than starting
+  again, and `Ans` carries the last answer into the next sum.
+- **Type it or tap it.** The keyboard works while the calculator has focus —
+  `/` makes a fraction, `^` a power, Enter works it out, Esc closes it — and
+  those keystrokes stay inside the calculator, so the app's own one-letter
+  shortcuts do not fire while a sum is being typed.
+- **Everybody gets one.** Teacher, student and share-link visitor alike.
+
+Exactness is never faked: every step checks its numbers are still whole numbers
+a browser can hold exactly, and the moment they are not the answer becomes a
+decimal rather than a wrong fraction.
+
 ## ChatGPT gpt-5.6-sol is the default engine (v1.60.0)
 
 Every AI feature — the answer key, Answer and Improve, AI notes, marking,
