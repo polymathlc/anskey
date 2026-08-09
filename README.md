@@ -3,6 +3,31 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## The answer key covers the MCQs too (v1.56.2)
+
+The generated answer key was coming back with only the open-ended questions on
+it — every multiple-choice question was missing. Three things were dropping
+them, all fixed:
+
+- **Two sections, one set of numbers.** A paper with a multiple-choice section
+  followed by an open-ended section numbers both from 1. The key folded any two
+  entries sharing a number into one and kept the fuller of them — which is
+  always the open-ended one, so every clashing MCQ answer was thrown away.
+  Entries are now only merged when they are genuinely one question split across
+  a page break: same number, same kind of question, and on this page or the one
+  before. When a number really does appear twice, each entry says which page it
+  is on.
+- **The reply ran out of room.** A page of 15–20 multiple-choice questions
+  needs far more room than the four or five on an open-ended page, and the
+  answer ran out mid-sentence — losing the tail of the page, or the page
+  entirely. The budget is now three times bigger, and if a page still does not
+  fit it is asked again for the answers alone rather than being dropped.
+- **It was never told they count.** The instructions now say in as many words
+  that every question is keyed whatever its form — multiple choice, fill in the
+  blank, true or false, matching, tables and diagrams included — that a page of
+  nothing but MCQs must come back with one entry each, and that the count must
+  be checked against the page before answering.
+
 ## Star the worksheet to open next (v1.56.1)
 
 Whoever teaches the next lesson opens the ☰ questions list and has to work out

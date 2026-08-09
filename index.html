@@ -3297,7 +3297,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.56.1';
+var APP_VERSION = 'v1.56.2';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -11689,6 +11689,15 @@ var AI_KEY_SYS =
   '"explanation":"why this is the answer"}]}. Rules: one entry for every ' +
   'question actually PRINTED on the page being keyed, in the order they ' +
   'appear, keeping the worksheet\'s own numbering in "number" ("16", "3a"). ' +
+  'EVERY question is keyed, whatever form it takes — multiple choice, fill ' +
+  'in the blank, true or false, matching, a table or diagram to complete, ' +
+  'and open-ended parts alike. Multiple-choice questions are NOT optional ' +
+  'and are the ones most often left out: a page holding nothing but ' +
+  'multiple-choice questions must come back with one entry for each of them, ' +
+  'numbered 1 to however many there are. Never skip a question because it is ' +
+  'multiple choice, because it looks easy, or because nothing was written on ' +
+  'it. Count the questions printed on the page before you reply and check ' +
+  'your list has that many entries. ' +
   'Never invent a question that is not on the page — a cover, an ' +
   'instructions page or a blank page returns {"questions":[]}. For a ' +
   'multiple-choice question, "option" is the correct option\'s number or ' +
@@ -11697,7 +11706,9 @@ var AI_KEY_SYS =
   'empty and put the final answer in "answer", condensed to what a marker ' +
   'needs — the value with its unit, or one short sentence. "explanation" is ' +
   '2-4 sentences saying WHY, in plain language the student\'s level can ' +
-  'follow, with the working when there is working to show. Plain text only ' +
+  'follow, with the working when there is working to show; one or two ' +
+  'sentences is enough for a multiple-choice question, so keep them short ' +
+  'and a page full of them still fits in one reply. Plain text only ' +
   'in every field: no markdown, no bullets, no line breaks. When the ' +
   'teacher\'s own answers are attached they are authoritative — follow them, ' +
   'and read the handwriting generously; where they are absent or unreadable, ' +
@@ -11733,12 +11744,27 @@ async function keyPageJpeg(p, anns, maxDim) {
 }
 
 /* Question numbers are the worksheet's, not ours: a question that runs over a
-   page break comes back from both pages, so entries are keyed on the number
-   with punctuation and case ignored, and the fuller of the two is kept. */
+   page break comes back from both pages, so the two entries are folded into
+   one and the fuller of them is kept. */
 function keyNumKey(n) { return String(n == null ? '' : n).toLowerCase().replace(/[^a-z0-9]+/g, ''); }
 
 function keyEntryWeight(q) {
   return String((q && q.answer) || '').length + String((q && q.explanation) || '').length;
+}
+
+/* …but only a question SPLIT ACROSS A PAGE BREAK is the same question twice.
+   A paper that puts its multiple-choice section first and its open-ended
+   section after it numbers both from 1, so plain number-matching folded
+   "Question 3 (MCQ)" into "Question 3 (open-ended)" — and since the fuller
+   entry wins, every multiple-choice answer lost and vanished from the key.
+   Same number is now not enough: it has to be the same kind of question, on
+   this page or the one before. */
+function keySameQuestion(a, b) {
+  if (!a || !b) return false;
+  var k = keyNumKey(a.number);
+  if (!k || k !== keyNumKey(b.number)) return false;
+  if (!a.option !== !b.option) return false;   // an MCQ is never the open-ended one
+  return Math.abs((a.page || 0) - (b.page || 0)) <= 1;
 }
 
 async function generateAnswerKey() {
@@ -11751,7 +11777,7 @@ async function generateAnswerKey() {
   $('checkTitle').textContent = 'Building the answer key…';
   $('checkBody').textContent = '✨ ' + aiEngineName() + ' is reading page 1 of ' + pages.length + '…';
   $('checkModal').classList.add('open');
-  var items = [], seen = {}, failed = [];
+  var items = [], failed = [];
   var prevJpeg = null;
   for (var i = 0; i < pages.length; i++) {
     var p = pages[i];
@@ -11783,11 +11809,27 @@ async function generateAnswerKey() {
       lines.push('Attached: ' + labels.join('; ') + '.');
       if (typed.length) lines.push('The teacher also typed on this page: "' + typed.join('" / "') + '"');
       if (!pageAnns.length) lines.push('No teacher answers were written on this page — work the answers out from the question itself.');
-      lines.push('Key every question printed on page ' + p.num + '.');
-      var raw = await window.askGemini(lines.join('\n'), {
-        system: AI_KEY_SYS, maxOutputTokens: 4000, temperature: 0.2, json: true, images: imgs
-      });
-      var res = _parseAIJson(raw);
+      lines.push('Key every question printed on page ' + p.num +
+        ', multiple-choice questions included.');
+      // A page of multiple-choice questions is 15-20 entries, not the 4 or 5
+      // an open-ended page comes to. At the old budget the reply ran out of
+      // room mid-JSON and the tail of the page — the multiple-choice half of
+      // most papers — was lost with it.
+      var keyOpts = { system: AI_KEY_SYS, maxOutputTokens: 12000, temperature: 0.2, json: true, images: imgs };
+      var res;
+      try {
+        res = _parseAIJson(await window.askGemini(lines.join('\n'), keyOpts));
+      } catch (longErr) {
+        // Still too long, or the JSON came back broken. Ask again for the
+        // answers alone: a page keyed without its explanations beats a page
+        // missing from the key altogether.
+        console.warn('Answer key: retrying page ' + p.num + ' without explanations', longErr);
+        $('checkBody').textContent = '✨ ' + aiEngineName() + ' is re-reading page ' + p.num +
+          ' — answers only, it has a lot of questions…';
+        res = _parseAIJson(await window.askGemini(
+          lines.join('\n') + '\nANSWERS ONLY this time: leave every "explanation" empty ' +
+          'so that every question on the page fits in one reply.', keyOpts));
+      }
       var qs = (res && Array.isArray(res.questions)) ? res.questions : [];
       qs.forEach(function (q) {
         if (!q) return;
@@ -11799,13 +11841,15 @@ async function generateAnswerKey() {
           explanation: String(q.explanation == null ? '' : q.explanation).trim()
         };
         if (!entry.answer && !entry.option) return;   // nothing to key
-        var k = keyNumKey(entry.number);
-        if (k && k in seen) {
-          var prior = items[seen[k]];
-          if (keyEntryWeight(entry) > keyEntryWeight(prior)) items[seen[k]] = entry;
-          return;
+        // Only the tail of the list can hold the other half of a question
+        // that ran over the page break — nothing further back is a duplicate.
+        for (var j = items.length - 1; j >= 0; j--) {
+          if ((items[j].page || 0) < p.num - 1) break;
+          if (keySameQuestion(items[j], entry)) {
+            if (keyEntryWeight(entry) > keyEntryWeight(items[j])) items[j] = entry;
+            return;
+          }
         }
-        if (k) seen[k] = items.length;
         items.push(entry);
       });
       prevJpeg = clean;
@@ -11815,6 +11859,14 @@ async function generateAnswerKey() {
     }
   }
   aiBusy = false;
+  // Two sections of one paper can each hold a "Question 3" — both are kept
+  // now, so each says which page it is on or the key reads as a repeat.
+  var numCounts = {};
+  items.forEach(function (q) {
+    var k = keyNumKey(q.number);
+    if (k) numCounts[k] = (numCounts[k] || 0) + 1;
+  });
+  items.forEach(function (q) { q.showPage = numCounts[keyNumKey(q.number)] > 1; });
   lastAnswerKey = {
     name: docName,
     level: wsMeta.level, subject: wsMeta.subject,
@@ -11830,7 +11882,8 @@ async function generateAnswerKey() {
    and sometimes “Question 16”, and only one of those reads well as a heading. */
 function keyHeading(q, i) {
   var n = (q.number || '').replace(/^\s*(question|qn?)[\s.:]*/i, '').trim();
-  return n ? 'Question ' + n : 'Question ' + (i + 1);
+  return (n ? 'Question ' + n : 'Question ' + (i + 1)) +
+    (q.showPage && q.page ? ' · page ' + q.page : '');
 }
 
 /* The answer line: an MCQ prints its option number in bold ahead of the
