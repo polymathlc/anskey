@@ -3,6 +3,38 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Why the answer key disagreed with ChatGPT (v1.61.1)
+
+The same paper, the same model, two different answer keys. The model was never
+the difference — **how hard it was allowed to think was**.
+
+- **The reasoning was never turned on.** The answer key asked for a reply
+  without setting a reasoning level at all, so ChatGPT ran at its default
+  effort while the ChatGPT app was on *Extra High*, and Gemini ran at
+  `thinkingLevel: "minimal"` — the app-wide default, which is barely thinking.
+  A P5 word problem is four or five steps of units and model drawing; a model
+  answering off the top of its head gets them wrong. The key now asks for the
+  most reasoning either engine will give (`xhigh` / `high`), with the budget
+  raised to cover the thinking as well as the answer. If a model refuses that
+  level it steps down to `high` rather than giving up on reasoning altogether,
+  which is what used to happen.
+- **The page went up too small to read.** Pages were sent at 1500px and JPEG
+  0.85 — on a dense worksheet "$140.20" and "$14.20" are the same few pixels,
+  and one misread number makes every step after it wrong. Now 2200px at 0.92,
+  which is about twice the detail.
+- **It is asked to check itself.** Every page is now told to work each question
+  out step by step and check the arithmetic back against the numbers printed on
+  the page before answering.
+- **The key says which model worked it out.** On screen, in the print-out and
+  in the PDF: *"by ChatGPT gpt-5.6-sol"* or *"by Gemini gemini-3.6-flash"*.
+  Choosing ChatGPT in AI Engine is not the same as using it — with no OpenAI
+  key saved every call quietly goes to Gemini, and a failed ChatGPT call falls
+  back to Gemini mid-key. Both cases now say so out loud when the key finishes.
+
+**If your key still disagrees with the ChatGPT app, read the line under the
+title first.** A key that says *Gemini* was never gpt-5.6-sol's work — paste
+your OpenAI key into AI Engine and generate it again.
+
 ## A calculator, in a window you can drag (v1.61.0)
 
 A calculator button in the toolbar (or press **K**). It opens a window that
