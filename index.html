@@ -3437,7 +3437,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.59.0';
+var APP_VERSION = 'v1.59.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -3567,7 +3567,6 @@ var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPa
 var wsShare = { mode: 'view', passwordHash: '' };  // settings of the worksheet on screen
 var sharedLink = null;         // { id, mode } while a visitor is here via a share link
 var shareOpenInProgress = false;  // suppress profile prompts while the link resolves
-var studentListOpened = false;    // the worksheet list is auto-opened once per session
 var shareSaveBlocked = false;  // edit-link cloud save hit permission-denied — stop retrying
 var SHARE_OPEN_ID = new URLSearchParams(location.search).get('share') || '';
 var shareOpenHandled = false;
@@ -12877,17 +12876,12 @@ auth.onAuthStateChanged(function (user) {
       // Visitors on a share link never get nagged about a student profile.
       if (!studentProfile && !sharedLink && !shareOpenInProgress && !SHARE_OPEN_ID) openProfileModal(true);
       if ($('qDrawer').classList.contains('open')) loadQuestionsList();
-      // A student's first move is always "which worksheet?", and the burger
-      // was not discoverable enough to be the only way in. Open the list for
-      // them once, unless they arrived straight into a shared worksheet.
-      else if (studentProfile && !sharedLink && !SHARE_OPEN_ID && !studentListOpened) {
-        studentListOpened = true;
-        toggleQuestionsDrawer();
-      }
+      applyDefaultPanels();   // open for a student, shut for the teacher
     });
   } else {
     // Refresh the questions drawer for the new auth state if it is open
     if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+    applyDefaultPanels();
   }
   // The page was opened through a share link: resolve it once the initial
   // auth state is known (signed in, remembered session, or signed out).
@@ -13002,6 +12996,7 @@ async function saveStudentProfile() {
     $('profileModal').classList.remove('open');
     renderAuthArea();
     if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+    applyDefaultPanels();   // the level is set — now the list can open for them
     if (changedLS) {
       toast('Updated to ' + levelLabel(profilePick.level) + ' ' + subjectLabel(profilePick.subject) +
         ' — that was your one change. Ask Mr Chung if you ever need another.', 4500);
@@ -14747,7 +14742,42 @@ async function openSavedDoc(id, data) {
    A collapsible left column listing every saved question in chronological
    order (by worksheet date, oldest first). Students and admin both see it —
    any signed-in user can browse and open a question. */
+/* ---- Who the Worksheets list opens itself for ----
+   It is the student's way in: the first thing they need is "which worksheet?",
+   and the burger button was never discoverable enough to be the only way to
+   it. It is not the teacher's — they open a worksheet from "My PDFs" or
+   already have one on screen, so for them the list is a column of the page
+   given away for nothing. So it opens itself for a student and stays shut for
+   the teacher, decided once, as soon as the account is known.
+
+   A panel opened or closed by hand always wins: the first manual toggle
+   settles it and nothing moves it again for the rest of the session. */
+var panelDefaultsDone = false;
+
+function applyDefaultPanels() {
+  if (panelDefaultsDone) return;
+  // A share link goes straight to one worksheet — there is no list to open.
+  if (sharedLink || SHARE_OPEN_ID || shareOpenInProgress || isSharedVisitor()) {
+    panelDefaultsDone = true;
+    return;
+  }
+  if (!currentUser) return;                 // the account is not known yet
+  var open = $('qDrawer').classList.contains('open');
+  if (!isStudent()) {                       // the teacher, at their own desk
+    panelDefaultsDone = true;
+    // Left open by whoever was signed in on this device before.
+    if (open) toggleQuestionsDrawer();
+    return;
+  }
+  // A student still choosing their level has the profile window in front of
+  // them — the list opens once that is done.
+  if (!studentProfile) return;
+  panelDefaultsDone = true;
+  if (!open) toggleQuestionsDrawer();
+}
+
 function toggleQuestionsDrawer() {
+  panelDefaultsDone = true;   // opened or closed by hand — leave it alone now
   var open = $('qDrawer').classList.toggle('open');
   $('burgerBtn').classList.toggle('active', open);
   if (open) loadQuestionsList();
@@ -15009,7 +15039,13 @@ function questionCard(item) {
   btn.appendChild(meta);
   btn.addEventListener('click', function () {
     openSavedDoc(item.id, d).then(markActiveQuestion);
-    if (panelsFloat()) toggleQuestionsDrawer();
+    // The teacher opens the list to fetch one worksheet; once it is on screen
+    // the list is a column of the page given away for nothing, so it closes
+    // behind them. Students are browsing — theirs stays, except on a tablet
+    // where the panel floats over the worksheet it just opened.
+    if ((panelsFloat() || !isStudent()) && $('qDrawer').classList.contains('open')) {
+      toggleQuestionsDrawer();
+    }
   });
   markLiveCard(btn, item.id);
   row.appendChild(btn);
