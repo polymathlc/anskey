@@ -2719,6 +2719,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span class="btnLabel">My PDFs</span>
     </button>
+    <button class="btn" id="keyPdfBtn" title="Answer key — AI reads the blank worksheet (never the annotations) and downloads a full answer key with explanations">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><polyline points="14 4 14 10 20 10"/><polyline points="7.5 14.5 9.2 16.2 12.5 12.9"/><line x1="14.5" y1="15.5" x2="17.5" y2="15.5"/><line x1="7.5" y1="19" x2="17.5" y2="19"/></svg>
+      <span class="btnLabel">Answer key</span>
+    </button>
   </div>
 </div>
 
@@ -3433,7 +3437,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.58.0';
+var APP_VERSION = 'v1.59.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -12062,12 +12066,35 @@ function keySameQuestion(a, b) {
   return Math.abs((a.page || 0) - (b.page || 0)) <= 1;
 }
 
+/* Explanations for a key nobody is standing next to: the worksheet is blank,
+   so every answer is worked out from the question and shown in full. */
+var AI_KEY_DETAIL_SYS = AI_KEY_SYS.replace(
+  '"explanation" is ' +
+  '2-4 sentences saying WHY, in plain language the student\'s level can ' +
+  'follow, with the working when there is working to show; one or two ' +
+  'sentences is enough for a multiple-choice question, so keep them short ' +
+  'and a page full of them still fits in one reply.',
+  '"explanation" is a full worked explanation — every question gets one, ' +
+  'none is ever left empty. Say WHY in plain language the student\'s level ' +
+  'can follow: name the concept being tested, give the working line by line ' +
+  'with the numbers substituted in, and end with the answer stated. For a ' +
+  'multiple-choice question say why the correct option is right AND why the ' +
+  'tempting wrong ones are wrong. Three to six sentences for most questions.'
+);
+
 async function generateAnswerKey() {
   if (!answerKeyReady()) return;
   commitActiveTextEdit();
   // Practising hides the worksheet's real answers in `teacherAnswers` — the
   // key always means the teacher's, never the attempt on screen.
-  var keyAnns = answerAnnotations();
+  await runAnswerKey(answerAnnotations(), false);
+  renderAnswerKey();
+}
+
+/* `keyAnns` empty means the pages go up exactly as they were printed — see
+   downloadAnswerKeyPdf, where that is the whole point. */
+async function runAnswerKey(keyAnns, detailed) {
+  var blank = !keyAnns || !keyAnns.length;
   aiBusy = true;
   $('checkTitle').textContent = 'Building the answer key…';
   $('checkBody').textContent = '✨ ' + aiEngineName() + ' is reading page 1 of ' + pages.length + '…';
@@ -12081,7 +12108,7 @@ async function generateAnswerKey() {
     try {
       var clean = await keyPageJpeg(p, [], 1500);
       if (!clean) { failed.push(p.num); continue; }
-      var pageAnns = keyAnns.filter(function (a) { return a.page === p.num; });
+      var pageAnns = blank ? [] : keyAnns.filter(function (a) { return a.page === p.num; });
       var marked = pageAnns.length ? await keyPageJpeg(p, pageAnns, 1500) : null;
       var imgs = [];
       var labels = [];
@@ -12103,14 +12130,21 @@ async function generateAnswerKey() {
       if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
       lines.push('Attached: ' + labels.join('; ') + '.');
       if (typed.length) lines.push('The teacher also typed on this page: "' + typed.join('" / "') + '"');
-      if (!pageAnns.length) lines.push('No teacher answers were written on this page — work the answers out from the question itself.');
+      if (!pageAnns.length) lines.push(blank
+        ? 'This is the blank worksheet exactly as it is printed — there are no answers on it to read. Work every answer out yourself from the question.'
+        : 'No teacher answers were written on this page — work the answers out from the question itself.');
       lines.push('Key every question printed on page ' + p.num +
         ', multiple-choice questions included.');
+      if (detailed) lines.push('Every question gets a full worked explanation — none may be left empty.');
       // A page of multiple-choice questions is 15-20 entries, not the 4 or 5
       // an open-ended page comes to. At the old budget the reply ran out of
       // room mid-JSON and the tail of the page — the multiple-choice half of
       // most papers — was lost with it.
-      var keyOpts = { system: AI_KEY_SYS, maxOutputTokens: 12000, temperature: 0.2, json: true, images: imgs };
+      var keyOpts = {
+        system: detailed ? AI_KEY_DETAIL_SYS : AI_KEY_SYS,
+        maxOutputTokens: detailed ? 20000 : 12000,
+        temperature: 0.2, json: true, images: imgs
+      };
       var res;
       try {
         res = _parseAIJson(await window.askGemini(lines.join('\n'), keyOpts));
@@ -12167,10 +12201,11 @@ async function generateAnswerKey() {
     level: wsMeta.level, subject: wsMeta.subject,
     when: new Date(),
     items: items,
-    failed: failed
+    failed: failed,
+    fromBlank: blank
   };
   updateAnswerKeyCard();
-  renderAnswerKey();
+  return lastAnswerKey;
 }
 
 /* The number as it is printed on the paper — Gemini sometimes returns “16”
@@ -12258,7 +12293,10 @@ function answerKeyMeta(key) {
   return [
     key.level && levelLabel(key.level),
     key.subject && subjectLabel(key.subject),
-    key.when.toLocaleDateString()
+    key.when.toLocaleDateString(),
+    // Which key this is: one worked out from the paper alone reads very
+    // differently from one that followed the teacher's own answers.
+    key.fromBlank ? 'worked from the blank worksheet' : ''
   ].filter(Boolean).join(' · ');
 }
 
@@ -12299,6 +12337,128 @@ function printAnswerKey() {
   w.focus();
 }
 
+/* A download name browsers will actually keep. Chromium throws the whole
+   suggested name away and saves the file as "download" if it does not like a
+   character in it — an em dash is enough to do it — so a worksheet called
+   “P5 Science — Revision (1)” gave a file nobody could tell apart from the
+   next one. Anything outside a plain, filename-safe set becomes a hyphen. */
+function safeFileName(s) {
+  return String(s || '')
+    .replace(/[‒-―−]/g, '-')      // – — ― −
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '')
+    .replace(/[^A-Za-z0-9 ._,()\[\]&+'-]/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/\s{2,}/g, ' ')
+    .trim() || 'Worksheet';
+}
+
+/* ================= Answer key, downloaded =================
+   The button beside "My PDFs". It reads the worksheet exactly as it was
+   printed — the annotations are never rendered into the images it sends, so
+   nothing already written on the page can lead the answers — works every
+   question out from scratch with a full explanation, and downloads the lot as
+   a PDF. Nothing is written to the worksheet and nothing on screen changes. */
+async function downloadAnswerKeyPdf() {
+  if (!answerKeyReady()) return;
+  var btn = $('keyPdfBtn');
+  var label = btn.querySelector('.btnLabel');
+  commitActiveTextEdit();
+  btn.disabled = true;
+  if (label) label.textContent = 'Working…';
+  try {
+    var key = await runAnswerKey([], true);
+    if (!key || !key.items.length) {
+      renderAnswerKey();   // says which pages could not be read
+      return;
+    }
+    $('checkBody').textContent = '✨ Building the PDF…';
+    var bytes = await answerKeyPdfBytes(key);
+    var blob = new Blob([bytes], { type: 'application/pdf' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = safeFileName((key.name || 'Worksheet') + ' - Answer key') + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+    $('checkModal').classList.remove('open');
+    toast('Answer key downloaded — ' + key.items.length + ' question' +
+      (key.items.length === 1 ? '' : 's') +
+      (key.failed.length ? ' · page' + (key.failed.length === 1 ? ' ' : 's ') +
+        key.failed.join(', ') + ' could not be read' : '') + '.', 5000);
+  } catch (e) {
+    console.error(e);
+    aiBusy = false;
+    toast('Could not build the answer key: ' + (e.message || e), 6000);
+  }
+  btn.disabled = false;
+  if (label) label.textContent = 'Answer key';
+}
+
+/* The key as a document: A4, one flowing column, a question never split from
+   its own heading. Drawn with pdf-lib so it needs no browser print dialog and
+   comes out the same on an iPad as on a laptop. */
+async function answerKeyPdfBytes(key) {
+  var PDFDocument = PDFLib.PDFDocument;
+  var rgb = PDFLib.rgb;
+  var StandardFonts = PDFLib.StandardFonts;
+  var doc = await PDFDocument.create();
+  var body = await doc.embedFont(StandardFonts.Helvetica);
+  var bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  var W = 595.28, H = 841.89;
+  var M = mm(18), TOP = H - mm(18), BOTTOM = mm(20);
+  var colW = W - M * 2;
+  var ink = rgb(0.1, 0.1, 0.1), soft = rgb(0.42, 0.42, 0.4), faint = rgb(0.62, 0.62, 0.6);
+  var page = null, y = 0;
+
+  function newPage() {
+    page = doc.addPage([W, H]);
+    y = TOP;
+  }
+  function room(need) { if (!page || y - need < BOTTOM) newPage(); }
+  function line(text, font, size, colour, lead, indent) {
+    page.drawText(text, { x: M + (indent || 0), y: y, size: size, font: font, color: colour });
+    y -= lead;
+  }
+  function para(text, font, size, colour, lead, indent) {
+    wrapPdfText(text, font, size, colW - (indent || 0)).forEach(function (ln) {
+      room(lead);
+      line(ln, font, size, colour, lead, indent);
+    });
+  }
+
+  newPage();
+  para(key.name || 'Worksheet', bold, 17, ink, 22);
+  y -= 2;
+  para('Answer key', body, 10.5, soft, 15);
+  para(answerKeyMeta(key), body, 9.5, faint, 15);
+  if (key.failed.length) {
+    para('Page' + (key.failed.length === 1 ? ' ' : 's ') + key.failed.join(', ') +
+      ' could not be read.', body, 9.5, faint, 15);
+  }
+  y -= mm(6);
+
+  key.items.forEach(function (q, i) {
+    var answer = (q.option ? (/[.)]$/.test(q.option) ? q.option : q.option + '.') +
+      (q.answer ? ' ' + q.answer : '') : q.answer);
+    // Never leave a heading stranded at the foot of a page.
+    room(20 + 13 + 15 + 13);
+    para(keyHeading(q, i), bold, 12, ink, 17);
+    y -= 3;
+    para('ANSWER', bold, 7.5, faint, 12, mm(5));
+    para(answer, bold, 11, ink, 15.5, mm(5));
+    if (q.explanation) {
+      y -= 4;
+      para('EXPLANATION', bold, 7.5, faint, 12, mm(5));
+      para(q.explanation, body, 10.5, rgb(0.16, 0.16, 0.16), 15.5, mm(5));
+    }
+    y -= mm(6);
+  });
+
+  return doc.save();
+}
+
 function updateAnswerKeyCard() {
   var card = $('answerKeyCard');
   if (!card) return;
@@ -12310,6 +12470,7 @@ function updateAnswerKeyCard() {
 }
 
 $('genKeyBtn').addEventListener('click', generateAnswerKey);
+$('keyPdfBtn').addEventListener('click', downloadAnswerKeyPdf);
 $('viewKeyBtn').addEventListener('click', function () {
   if (!lastAnswerKey) return;
   $('checkModal').classList.add('open');
@@ -12489,6 +12650,10 @@ function applyRoleUI() {
   var sharedVisitor = isSharedVisitor();
   $('burgerBtn').style.display = sharedVisitor ? 'none' : '';
   $('docsBtn').style.display = sharedVisitor ? 'none' : '';
+  // Working the answers out is the teacher's tool — a student's list of
+  // worksheets never comes with the key to them.
+  var keyPdfBtn = $('keyPdfBtn');
+  if (keyPdfBtn) keyPdfBtn.style.display = (student || sharedVisitor) ? 'none' : '';
   if (sharedVisitor) {
     ['uploadBtn', 'saveBtn', 'printQBtn', 'printABtn', 'shareBtn'].forEach(function (id) {
       var elm = $(id);
@@ -16789,7 +16954,8 @@ async function downloadAnnotated() {
     // While practising, the page holds the student's own work and the
     // teacher's answers are hidden — name the file so it can't be mistaken
     // for the answer key later.
-    a.download = (docName || 'annotated') + (practiceMode ? ' (my answers)' : ' (annotated)') + '.pdf';
+    a.download = safeFileName((docName || 'annotated') +
+      (practiceMode ? ' (my answers)' : ' (annotated)')) + '.pdf';
     document.body.appendChild(a);
     a.click();
     a.remove();
