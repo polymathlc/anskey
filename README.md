@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## The Worksheets list knows whose it is (v1.59.1)
+
+The list on the left is the student's way in and the teacher's errand. It now
+behaves like it.
+
+- **Shut for the teacher, open for a student.** Which one it is is decided once,
+  as soon as the account is known. A student signing in gets the list open —
+  their first question is always "which worksheet?" — and a teacher never does.
+  A device where a student had been signed in has the list closed again when the
+  teacher takes it back.
+- **It closes behind the teacher.** Picking a worksheet from the list used to
+  leave it open, taking a column of the page for the rest of the lesson (it only
+  ever got out of the way on a tablet). The teacher came for one worksheet, so
+  once it is on screen the list closes. A student's list stays open — they are
+  browsing — except on a tablet, where it floats over the worksheet as before.
+- **A panel moved by hand is left alone.** The first time the list is opened or
+  closed by hand it settles for the session; nothing opens or closes it again
+  behind the user's back.
+- **Share links are untouched** — a visitor arriving at one worksheet never gets
+  a list of the others.
+
 ## Answer key button — worked from the blank paper (v1.59.0)
 
 A new **Answer key** button sits beside “My PDFs” in the toolbar. Press it and
