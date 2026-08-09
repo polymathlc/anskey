@@ -3,6 +3,32 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## A starred page stays starred (v1.57.1)
+
+Marking a page and finding the star gone later. The mark was being saved — it
+was the *opening* that threw it away, and the same fault was quietly rolling
+back annotations too.
+
+- **A worksheet now opens from the live document.** The ☰ questions list is
+  fetched once, when the drawer is opened, and on a desktop the drawer then
+  stays open for the whole lesson. Opening a worksheet from it a second time
+  replayed that snapshot — the worksheet exactly as it was when the list was
+  loaded, before the page was ever starred. Every open now re-reads the
+  worksheet first, so the marks, the annotations and the details are whatever
+  they actually are. (This was losing more than stars: writing added after the
+  list was loaded came back missing, and the next auto-save wrote that stale
+  copy over the real one.)
+- **A failed mark says so.** A mark that could not reach the cloud used to fail
+  in the console only. It now says so on screen, and stays on the page.
+- **Every save carries the marks.** The teacher's auto-save re-states the pages
+  still to be done, so a mark whose own write failed — or a worksheet saved by
+  the older annotator, which knows nothing about the field — is put right by the
+  next stroke on the page.
+- **The device remembers them too.** The marks are mirrored into this browser
+  per worksheet. A worksheet that comes back without any marks at all gets them
+  from that memory and writes them back; clearing a page still clears it
+  everywhere, because a cleared list is saved as an empty list, not as nothing.
+
 ## Star the pages still to be done (v1.57.0)
 
 A 59-page worksheet has maybe six pages that matter this lesson, and nothing on

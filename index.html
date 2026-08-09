@@ -3368,7 +3368,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.57.0';
+var APP_VERSION = 'v1.57.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -4115,6 +4115,7 @@ function togglePageStar(num) {
   list.sort(function (a, b) { return a - b; });
   wsMeta.starPages = list;
   syncThumbStars();
+  rememberStarPages(currentDocId, list);
   savePageStars();
   scheduleDraftSave();
   toast(at === -1
@@ -4122,17 +4123,62 @@ function togglePageStar(num) {
     : 'Page ' + num + ' is no longer marked.');
 }
 
+/* ---- The marks, kept on this device as well ----
+   A mark is one tap and it has to stick. The cloud copy is the real one, but
+   a refused write, a dropped connection or another app saving the worksheet
+   without knowing about `starPages` would otherwise lose it silently, so the
+   list is mirrored into localStorage per worksheet and used to put the marks
+   back whenever the document comes back without the field at all. */
+function starMemoryKey(id) { return 'anskeyStarPages:' + id; }
+
+function rememberStarPages(id, list) {
+  if (!id) return;
+  try { localStorage.setItem(starMemoryKey(id), JSON.stringify(list || [])); }
+  catch (e) { /* private mode or full — the cloud copy still has it */ }
+}
+
+function recallStarPages(id) {
+  if (!id) return null;
+  try {
+    var raw = localStorage.getItem(starMemoryKey(id));
+    if (!raw) return null;
+    return normalizeStarPages(JSON.parse(raw));
+  } catch (e) { return null; }
+}
+
+/* What a worksheet write should carry for the marks, or nothing at all when
+   the marks are not this viewer's to write (a student, a share link, a
+   practising device — their copy must never overwrite the teacher's). */
+function pageStarFields() {
+  return canStarPages() ? { starPages: starredPages() } : null;
+}
+
 /* The marks are their own small write: auto-save only ever carries the
-   annotations, so a star would otherwise sit unsaved until the next Save. */
+   annotations, so a star would otherwise sit unsaved until the next Save.
+   Failures are said out loud — a mark that silently did not save is exactly
+   the thing this feature must not do. */
 function savePageStars() {
-  if (!currentDocId || !canStarPages()) return;
-  db.collection(COLLECTION).doc(currentDocId).set({
+  if (!currentDocId || !canStarPages()) return Promise.resolve();
+  return db.collection(COLLECTION).doc(currentDocId).set({
     starPages: starredPages(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true }).catch(function (e) {
     console.warn('Could not save the page marks', e);
-    toast('Could not save the page marks: ' + (e.message || e), 5000);
+    toast('That page mark did not reach the cloud (' + (e.message || e) +
+      ') — it is still here on this device and the next save will carry it.', 6000);
   });
+}
+
+/* Put the marks back on a document that came back without them — an older
+   worksheet, or one saved by an app that does not know the field. Only the
+   teacher's device does this, and only from its own memory of that worksheet. */
+function restoreStarPagesFrom(id, data) {
+  var fromDoc = Array.isArray(data && data.starPages) ? normalizeStarPages(data.starPages) : null;
+  if (fromDoc) { wsMeta.starPages = fromDoc; rememberStarPages(id, fromDoc); return; }
+  var remembered = recallStarPages(id);
+  wsMeta.starPages = remembered || [];
+  // Written back so the next device to open this worksheet sees them too.
+  if (remembered && remembered.length && canStarPages()) savePageStars();
 }
 
 function syncThumbStars() {
@@ -13689,12 +13735,16 @@ function applyRemoteDoc(d) {
   wsMeta.videoPath = d.videoPath || '';
   wsMeta.videoStart = Number(d.videoStartMs) || 0;
   wsMeta.coverTitle = d.coverTitle || '';
-  wsMeta.starPages = normalizeStarPages(d.starPages);
-  wsShare = normalizeShare(d.share);
   // The pages still to be done are their own small write, so they land here
   // without the annotations having changed at all — sync them before the
-  // "nothing new" exit below.
-  syncThumbStars();
+  // "nothing new" exit below. A document that arrives without the field is
+  // one that never had it, not one whose marks were cleared (clearing writes
+  // an empty list), so it leaves what is on screen alone.
+  if (Array.isArray(d.starPages)) {
+    wsMeta.starPages = normalizeStarPages(d.starPages);
+    syncThumbStars();
+  }
+  wsShare = normalizeShare(d.share);
 
   var key = annKey(d);
   // The LIVE heartbeat rewrites the document every 30s without touching the
@@ -14012,6 +14062,7 @@ async function performSave() {
     if (isNew) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
     // The annotations go wherever they fit — see writeAnnotations.
     await writeAnnotations(currentDocId, JSON.stringify(annotations), payload);
+    rememberStarPages(currentDocId, starredPages());
     startLivePresence(); // now it exists, it can advertise that it is live
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
@@ -14063,7 +14114,10 @@ async function autoSave() {
   if (autoSaveInFlight) { autoSaveQueued = true; return; }
   autoSaveInFlight = true;
   try {
-    await writeAnnotations(currentDocId, JSON.stringify(annotations));
+    // Every teacher save re-states the pages still to be done, so a mark that
+    // failed its own write — or a document another app saved without the
+    // field — is put right by the next stroke on the page.
+    await writeAnnotations(currentDocId, JSON.stringify(annotations), pageStarFields());
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
     var btn = $('saveBtn');
@@ -14405,6 +14459,18 @@ async function openSavedDoc(id, data) {
   $('docsModal').classList.remove('open');
   toast('Opening “' + (data.name || 'Untitled') + '”…');
   try {
+    // Whatever the caller is holding can be old news. The questions drawer
+    // loads its list once, when it is opened, and on a desktop it then stays
+    // open all lesson — so a worksheet opened from it a second time used to
+    // come back as it was when the list was fetched. That lost every mark,
+    // annotation and detail written since, and the next auto-save wrote the
+    // stale copy back over the real one. Always open from the live document.
+    try {
+      var fresh = await db.collection(COLLECTION).doc(id).get();
+      if (fresh.exists) data = fresh.data();
+    } catch (e) {
+      console.warn('Could not refresh the worksheet before opening it', e);
+    }
     var url = await storage.ref(data.storagePath).getDownloadURL();
     var resp;
     try {
@@ -14434,7 +14500,7 @@ async function openSavedDoc(id, data) {
     wsMeta.videoPath = data.videoPath || '';
     wsMeta.videoStart = Number(data.videoStartMs) || 0;
     wsMeta.coverTitle = data.coverTitle || '';
-    wsMeta.starPages = normalizeStarPages(data.starPages);
+    restoreStarPagesFrom(id, data);
     wsShare = normalizeShare(data.share);
     setDirty(false);
     renderAllOverlays();
