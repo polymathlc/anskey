@@ -2535,6 +2535,132 @@
   .winBtns { display: flex; align-items: center; gap: 2px; }
   /* Whichever floating window was touched last sits over the other. */
   .modalBack.floatWin.winTop { z-index: 96; }
+
+  /* ---------- Calculator ----------
+     A window of its own, dragged wherever it is wanted. The screen is given
+     real room — the working, the answer and the same answer said the other
+     way each get their own line — and the keys are big enough to hit with a
+     finger on an iPad without looking. */
+  .calcCard { min-width: 0; }
+  .calcBody {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 16px 18px;
+    overflow: hidden;          /* the working and the answer never scroll away */
+  }
+  .calcScreen {
+    flex: 0 0 auto;
+    background: #FBFAF8;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px 15px;
+    text-align: right;
+    /* Fixed, not minimum: an answer appearing must not shove the keys down,
+       and a stacked fraction is two lines tall where a decimal is one. */
+    height: 124px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+  .calcExpr {
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .calcResult {
+    font-size: 1.6rem;
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1.3;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    min-height: 1.3em;
+  }
+  .calcResult.calcErr { font-size: 0.95rem; font-weight: normal; color: var(--danger); white-space: normal; }
+  .calcAlt {
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    line-height: 1.5;
+    min-height: 1.2em;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  /* A fraction written the way it is on paper: one number over the other. */
+  .calcFrac {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    line-height: 1.15;
+    margin: 0 2px;
+  }
+  .calcFrac span { display: block; padding: 0 3px; }
+  /* A stacked fraction is two lines, so it is set a little smaller than the
+     decimal it stands in for — the screen stays the same height either way. */
+  .calcResult .calcFrac { font-size: 0.82em; }
+  .calcAlt .calcFrac { font-size: 0.92em; }
+  .calcFrac .calcDen { border-top: 1.5px solid currentColor; }
+  .calcWhole { margin-right: 3px; }
+  .calcPad {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;            /* only the keys give way when the window is small */
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    /* The keys share out whatever height the window has, down to a floor no
+       finger can miss — so the pad fits at any size worth opening. */
+    grid-auto-rows: minmax(44px, 1fr);
+    gap: 8px;
+  }
+  .calcKey {
+    font-family: var(--font);
+    font-size: 1.02rem;
+    font-weight: bold;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 10px 6px;
+    min-height: 0;
+    cursor: pointer;
+    box-shadow: var(--shadow-btn);
+    transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .calcKey:hover { box-shadow: var(--shadow-btn-hover); }
+  .calcKey:active { transform: translateY(1px); background: #F5F3EF; }
+  .calcFn { background: #F7F6F3; color: var(--ink-soft); font-size: 0.95rem; }
+  .calcOp { background: var(--accent); color: var(--accent-deep); }
+  .calcEq {
+    background: var(--accent-deep);
+    color: #fff;
+    border-color: var(--accent-deep);
+    grid-row: span 2;
+  }
+  .calcEq:active { background: #D9963C; }
+  .calcHint {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    line-height: 1.5;
+    text-align: center;
+  }
+  .calcHint b { color: var(--ink-soft); }
+  @media (pointer: coarse) {
+    .calcPad { grid-auto-rows: minmax(50px, 1fr); }
+    .calcKey { font-size: 1.08rem; }
+  }
+  @media (max-width: 420px) {
+    .calcBody { padding: 12px 12px 14px; gap: 11px; }
+    .calcPad { gap: 6px; }
+    .calcHint { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -2676,6 +2802,9 @@
     </button>
     <button class="toolBtn" id="codeWinBtn" data-key="J" title="Code window — paste HTML and it runs in a window you can show the class">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8.5 8 4.5 12 8.5 16"/><polyline points="15.5 8 19.5 12 15.5 16"/><line x1="13.5" y1="5.5" x2="10.5" y2="18.5"/></svg>
+    </button>
+    <button class="toolBtn" id="calcBtn" data-key="K" title="Calculator — fractions, powers and roots, in a window you can drag anywhere">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="16" height="19" rx="2.5"/><rect x="7" y="5.5" width="10" height="3.5" rx="1"/><line x1="8.2" y1="13" x2="8.2" y2="13"/><line x1="12" y1="13" x2="12" y2="13"/><line x1="15.8" y1="13" x2="15.8" y2="13"/><line x1="8.2" y1="17.5" x2="8.2" y2="17.5"/><line x1="12" y1="17.5" x2="12" y2="17.5"/><line x1="15.8" y1="17.5" x2="15.8" y2="17.5"/></svg>
     </button>
     <button class="toolBtn" id="thumbToggleBtn" data-key="N" title="Show / hide page thumbnails — drag the panel edge to resize them">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/><rect x="5.4" y="7" width="2.4" height="3.2"/><rect x="5.4" y="13" width="2.4" height="3.2"/></svg>
@@ -3137,6 +3266,62 @@
   </div>
 </div>
 
+<div class="modalBack floatWin" id="calcModal">
+  <div class="modalCard calcCard" id="calcCard" tabindex="-1">
+    <div class="modalHead" id="calcHead" title="Drag to move — the worksheet stays live underneath">
+      <h2>Calculator</h2>
+      <div class="winBtns">
+        <button class="modalClose" id="calcCloseBtn" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="modalBody calcBody">
+      <div class="calcScreen">
+        <div class="calcExpr" id="calcExpr">0</div>
+        <div class="calcResult" id="calcResult"></div>
+        <div class="calcAlt" id="calcAlt"></div>
+      </div>
+      <div class="calcPad" id="calcPad">
+        <button class="calcKey calcFn" data-calc="clear">C</button>
+        <button class="calcKey calcFn" data-calc="back" title="Delete the last thing typed">⌫</button>
+        <button class="calcKey calcFn" data-calc="(">(</button>
+        <button class="calcKey calcFn" data-calc=")">)</button>
+        <button class="calcKey calcOp" data-calc="÷">÷</button>
+
+        <button class="calcKey calcFn" data-calc="sq" title="Square — x²">x²</button>
+        <button class="calcKey calcFn" data-calc="^" title="To the power of">xʸ</button>
+        <button class="calcKey calcFn" data-calc="sqrt" title="Square root">√</button>
+        <button class="calcKey calcFn" data-calc="cbrt" title="Cube root">∛</button>
+        <button class="calcKey calcOp" data-calc="×">×</button>
+
+        <button class="calcKey" data-calc="7">7</button>
+        <button class="calcKey" data-calc="8">8</button>
+        <button class="calcKey" data-calc="9">9</button>
+        <button class="calcKey calcFn" data-calc="π" title="Pi">π</button>
+        <button class="calcKey calcOp" data-calc="−">−</button>
+
+        <button class="calcKey" data-calc="4">4</button>
+        <button class="calcKey" data-calc="5">5</button>
+        <button class="calcKey" data-calc="6">6</button>
+        <button class="calcKey calcFn" data-calc="frac" title="Fraction — the bar between the top and bottom numbers">a/b</button>
+        <button class="calcKey calcOp" data-calc="+">+</button>
+
+        <button class="calcKey" data-calc="1">1</button>
+        <button class="calcKey" data-calc="2">2</button>
+        <button class="calcKey" data-calc="3">3</button>
+        <button class="calcKey calcFn" data-calc="neg" title="Plus or minus">±</button>
+        <button class="calcKey calcEq" data-calc="=" title="Work it out">=</button>
+
+        <button class="calcKey" data-calc="0">0</button>
+        <button class="calcKey" data-calc=".">.</button>
+        <button class="calcKey calcFn" data-calc="ans" title="The last answer">Ans</button>
+        <button class="calcKey calcFn" data-calc="fd" title="Show the answer as a fraction or as a decimal">F↔D</button>
+      </div>
+      <div class="calcHint">Type on the keyboard too — <b>/</b> makes a fraction, <b>^</b> a power, <b>Enter</b> works it out.</div>
+    </div>
+    <div class="floatWinGrip" id="calcGrip" title="Drag to resize"></div>
+  </div>
+</div>
+
 <div class="modalBack" id="videoModal">
   <div class="modalCard videoModalCard">
     <div class="modalHead">
@@ -3438,7 +3623,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.60.0';
+var APP_VERSION = 'v1.61.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -11097,6 +11282,494 @@ attachFloatWin({
   clamp: clampCodeWin, apply: applyCodeWin, save: saveCodeWin
 });
 
+/* ================= Calculator =================
+   A scientific calculator in a window of its own, for the maths these papers
+   actually ask for: fractions that stay fractions, powers, square and cube
+   roots, and π. Trigonometry is deliberately left out — nothing on a P3-to-
+   Sec 1 worksheet needs it, and every key not there is one less to hunt past.
+
+   Everything is worked out in exact fractions wherever it can be, which is the
+   whole point of a calculator a primary class is allowed to use: 1/3 + 1/6
+   comes back as 1/2, not 0.4999999999999999, and 6/8 shows as 3/4. A number
+   that cannot be a fraction — π, most roots — carries on as a decimal from
+   there, and the answer always says which of the two it is.
+
+   Exactness is never faked. Every step checks that its integers are still
+   whole numbers a double can hold, and the moment they are not the value
+   becomes a decimal rather than a wrong fraction. */
+
+/* A value is either an exact fraction (n/d, d > 0, reduced) or a decimal.
+   `v` is always the number, so anything can fall back to arithmetic. */
+function cvNum(v) { return { exact: false, n: 0, d: 1, v: v }; }
+
+function cvInt(x) { return Number.isSafeInteger(x); }
+
+/* Multiply two integers only if the answer is still exact. */
+function cvMul2(a, b) {
+  var p = a * b;
+  return cvInt(p) ? p : NaN;
+}
+
+function cvGcd(a, b) {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) { var t = a % b; a = b; b = t; }
+  return a || 1;
+}
+
+function cvMake(n, d) {
+  if (!cvInt(n) || !cvInt(d) || d === 0) return cvNum(n / d);
+  if (d < 0) { n = -n; d = -d; }
+  var g = cvGcd(n, d);
+  return { exact: true, n: n / g, d: d / g, v: (n / g) / (d / g) };
+}
+
+/* A typed number: 2.75 is exactly 11/4, and saying so keeps it a fraction all
+   the way through the sum. */
+function cvParse(text) {
+  var s = String(text);
+  var dot = s.indexOf('.');
+  if (dot === -1) {
+    var i = Number(s);
+    return cvInt(i) ? cvMake(i, 1) : cvNum(i);
+  }
+  var digits = s.length - dot - 1;
+  var scaled = Number(s.replace('.', ''));
+  var den = Math.pow(10, digits);
+  if (!cvInt(scaled) || !cvInt(den)) return cvNum(Number(s));
+  return cvMake(scaled, den);
+}
+
+function cvAdd(a, b) {
+  if (a.exact && b.exact) {
+    var l = cvMul2(a.n, b.d), r = cvMul2(b.n, a.d), d = cvMul2(a.d, b.d);
+    if (cvInt(l) && cvInt(r) && cvInt(d) && cvInt(l + r)) return cvMake(l + r, d);
+  }
+  return cvNum(a.v + b.v);
+}
+
+function cvNeg(a) { return a.exact ? cvMake(-a.n, a.d) : cvNum(-a.v); }
+function cvSub(a, b) { return cvAdd(a, cvNeg(b)); }
+
+function cvMul(a, b) {
+  if (a.exact && b.exact) {
+    var n = cvMul2(a.n, b.n), d = cvMul2(a.d, b.d);
+    if (cvInt(n) && cvInt(d)) return cvMake(n, d);
+  }
+  return cvNum(a.v * b.v);
+}
+
+function cvDiv(a, b) {
+  if (b.v === 0) throw new Error('Nothing can be divided by zero.');
+  if (a.exact && b.exact) {
+    var n = cvMul2(a.n, b.d), d = cvMul2(a.d, b.n);
+    if (cvInt(n) && cvInt(d)) return cvMake(n, d);
+  }
+  return cvNum(a.v / b.v);
+}
+
+/* An exact fraction to a whole-number power stays exact — (2/3)³ is 8/27 —
+   as long as the top and bottom stay whole. Anything else is a decimal. */
+function cvPow(a, b) {
+  if (a.v === 0 && b.v < 0) throw new Error('Nothing can be divided by zero.');
+  if (a.exact && b.exact && b.d === 1 && Math.abs(b.n) <= 64) {
+    var e = Math.abs(b.n), n = 1, d = 1, ok = true;
+    for (var i = 0; i < e; i++) {
+      n = cvMul2(n, a.n); d = cvMul2(d, a.d);
+      if (!cvInt(n) || !cvInt(d)) { ok = false; break; }
+    }
+    if (ok) return b.n < 0 ? cvMake(d, n) : cvMake(n, d);
+  }
+  var v = Math.pow(a.v, b.v);
+  if (!isFinite(v)) throw new Error('That is too big to work out.');
+  return cvNum(v);
+}
+
+function cvIntRoot(x, k) {
+  var r = Math.round(Math.pow(x, 1 / k));
+  var p = 1;
+  for (var i = 0; i < k; i++) p *= r;
+  return p === x ? r : null;
+}
+
+/* √(9/4) is exactly 3/2, and a class that is taught fractions should see it
+   that way. Only when the root is not whole does it become a decimal. */
+function cvSqrt(a) {
+  if (a.v < 0) throw new Error('A negative number has no square root.');
+  if (a.exact) {
+    var rn = cvIntRoot(a.n, 2), rd = cvIntRoot(a.d, 2);
+    if (rn !== null && rd !== null) return cvMake(rn, rd);
+  }
+  return cvNum(Math.sqrt(a.v));
+}
+
+function cvCbrt(a) {
+  if (a.exact) {
+    var sign = a.n < 0 ? -1 : 1;
+    var rn = cvIntRoot(Math.abs(a.n), 3), rd = cvIntRoot(a.d, 3);
+    if (rn !== null && rd !== null) return cvMake(sign * rn, rd);
+  }
+  return cvNum(Math.cbrt(a.v));
+}
+
+/* ---- Reading what was typed ---- */
+var CALC_OPS = {
+  '+': { prec: 1, run: cvAdd },
+  '−': { prec: 1, run: cvSub },
+  '×': { prec: 2, run: cvMul },
+  '÷': { prec: 2, run: cvDiv },
+  '/': { prec: 2, run: cvDiv },      // the fraction bar
+  '^': { prec: 4, run: cvPow, right: true }
+};
+var CALC_FUNCS = { '√': cvSqrt, '∛': cvCbrt };
+
+function calcTokenize(src) {
+  var out = [], i = 0;
+  while (i < src.length) {
+    var ch = src[i];
+    if (ch === ' ') { i++; continue; }
+    if (/[0-9.]/.test(ch)) {
+      var num = '';
+      while (i < src.length && /[0-9.]/.test(src[i])) num += src[i++];
+      if ((num.match(/\./g) || []).length > 1) throw new Error('“' + num + '” has too many decimal points.');
+      out.push({ t: 'num', v: cvParse(num) });
+      continue;
+    }
+    if (src.slice(i, i + 3) === 'Ans') { out.push({ t: 'num', v: calcAns }); i += 3; continue; }
+    if (ch === 'π') { out.push({ t: 'num', v: cvNum(Math.PI) }); i++; continue; }
+    if (CALC_FUNCS[ch]) { out.push({ t: 'fn', v: ch }); i++; continue; }
+    if (CALC_OPS[ch]) { out.push({ t: 'op', v: ch }); i++; continue; }
+    if (ch === '(' || ch === ')') { out.push({ t: ch }); i++; continue; }
+    throw new Error('“' + ch + '” is not something this calculator knows.');
+  }
+  return out;
+}
+
+/* “2π”, “3(4+1)” and “2√9” are all written that way on paper, so the × is put
+   in for them. A minus with nothing in front of it is a sign, not a subtraction. */
+function calcPrepare(tokens) {
+  var out = [];
+  tokens.forEach(function (tk) {
+    var prev = out[out.length - 1];
+    var opensValue = tk.t === 'num' || tk.t === 'fn' || tk.t === '(';
+    var closesValue = prev && (prev.t === 'num' || prev.t === ')');
+    if (prev && opensValue && closesValue) out.push({ t: 'op', v: '×' });
+    if (tk.t === 'op' && tk.v === '−' && (!prev || prev.t === 'op' || prev.t === '(' || prev.t === 'fn')) {
+      out.push({ t: 'neg' });
+      return;
+    }
+    out.push(tk);
+  });
+  return out;
+}
+
+function calcEvaluate(src) {
+  var tokens = calcPrepare(calcTokenize(src));
+  if (!tokens.length) return null;
+  var vals = [], ops = [];
+
+  function apply() {
+    var op = ops.pop();
+    if (op.t === 'neg') {
+      if (!vals.length) throw new Error('That sum is not finished.');
+      vals.push(cvNeg(vals.pop()));
+      return;
+    }
+    if (op.t === 'fn') {
+      if (!vals.length) throw new Error('That sum is not finished.');
+      vals.push(CALC_FUNCS[op.v](vals.pop()));
+      return;
+    }
+    if (vals.length < 2) throw new Error('That sum is not finished.');
+    var b = vals.pop(), a = vals.pop();
+    vals.push(CALC_OPS[op.v].run(a, b));
+  }
+  function prec(op) {
+    if (op.t === 'neg') return 3;
+    if (op.t === 'fn') return 5;
+    return CALC_OPS[op.v].prec;
+  }
+
+  tokens.forEach(function (tk) {
+    if (tk.t === 'num') { vals.push(tk.v); return; }
+    if (tk.t === '(') { ops.push(tk); return; }
+    if (tk.t === ')') {
+      while (ops.length && ops[ops.length - 1].t !== '(') apply();
+      if (!ops.length) throw new Error('There is a “)” with no “(” to match it.');
+      ops.pop();
+      return;
+    }
+    if (tk.t === 'fn' || tk.t === 'neg') { ops.push(tk); return; }
+    var right = CALC_OPS[tk.v].right;
+    while (ops.length && ops[ops.length - 1].t !== '(' &&
+           (right ? prec(ops[ops.length - 1]) > prec(tk) : prec(ops[ops.length - 1]) >= prec(tk))) {
+      apply();
+    }
+    ops.push(tk);
+  });
+  while (ops.length) {
+    if (ops[ops.length - 1].t === '(') throw new Error('There is a “(” that was never closed.');
+    apply();
+  }
+  if (vals.length !== 1) throw new Error('That sum is not finished.');
+  if (!isFinite(vals[0].v)) throw new Error('That does not come out to a number.');
+  return vals[0];
+}
+
+/* ---- Saying the answer ---- */
+function cvDecStr(x) {
+  if (!isFinite(x)) return '—';
+  if (x === 0) return '0';
+  var a = Math.abs(x);
+  // The minus sign the rest of the calculator uses, not the hyphen JavaScript
+  // writes — the two do not look alike next to a worksheet's own printing.
+  var s = (a >= 1e12 || a < 1e-9) ? x.toExponential(6) : String(parseFloat(x.toPrecision(12)));
+  return s.replace(/^-/, '−');
+}
+
+/* A fraction written the way it is on paper, one number over the other. */
+function cvFracNode(n, d, whole) {
+  var wrap = document.createElement('span');
+  if (whole !== undefined && whole !== null) {
+    var w = document.createElement('span');
+    w.className = 'calcWhole';
+    w.textContent = whole;
+    wrap.appendChild(w);
+  }
+  var f = document.createElement('span');
+  f.className = 'calcFrac';
+  var top = document.createElement('span');
+  top.textContent = n;
+  var bot = document.createElement('span');
+  bot.className = 'calcDen';
+  bot.textContent = d;
+  f.appendChild(top);
+  f.appendChild(bot);
+  wrap.appendChild(f);
+  return wrap;
+}
+
+function cvIsFraction(val) { return val.exact && val.d !== 1; }
+
+/* The answer, and the same answer said the other way underneath it. */
+function calcShowValue(val) {
+  var main = $('calcResult'), alt = $('calcAlt');
+  main.className = 'calcResult';
+  main.textContent = '';
+  alt.textContent = '';
+  if (!val) return;
+  if (cvIsFraction(val) && !calcDecimal) {
+    main.appendChild(cvFracNode(Math.abs(val.n), val.d, val.n < 0 ? '−' : null));
+    var bits = [];
+    if (Math.abs(val.n) > val.d) {
+      var whole = Math.trunc(Math.abs(val.n) / val.d);
+      var rest = Math.abs(val.n) % val.d;
+      alt.appendChild(document.createTextNode('= '));
+      alt.appendChild(cvFracNode(rest, val.d, (val.n < 0 ? '−' : '') + whole));
+      alt.appendChild(document.createTextNode('  = ' + cvDecStr(val.v)));
+    } else {
+      alt.textContent = '= ' + cvDecStr(val.v);
+    }
+    return;
+  }
+  main.textContent = cvDecStr(val.v);
+  if (cvIsFraction(val)) {
+    alt.appendChild(document.createTextNode('= '));
+    alt.appendChild(cvFracNode(Math.abs(val.n), val.d, val.n < 0 ? '−' : null));
+  } else if (!val.exact) {
+    alt.textContent = 'decimal — this one is not a fraction';
+  }
+}
+
+/* ---- The keys ---- */
+var calcSrc = '';                 // what has been typed, in the app's own symbols
+var calcAns = cvMake(0, 1);       // the last answer, for the Ans key
+var calcLast = null;              // the value on screen, for the F↔D toggle
+var calcDecimal = false;          // show answers as decimals instead of fractions
+var calcJustDone = false;         // = was the last thing pressed
+
+function calcRender() {
+  $('calcExpr').textContent = calcSrc || '0';
+  var expr = $('calcExpr');
+  expr.scrollLeft = expr.scrollWidth;   // the caret end is the end that matters
+}
+
+function calcError(msg) {
+  var main = $('calcResult');
+  main.className = 'calcResult calcErr';
+  main.textContent = msg;
+  $('calcAlt').textContent = '';
+  calcLast = null;
+}
+
+function calcAppend(text) {
+  // After “=”, a digit starts a new sum and an operator carries the answer on.
+  if (calcJustDone) {
+    calcJustDone = false;
+    if (/^[0-9.π√∛(]/.test(text)) { calcSrc = ''; calcShowValue(null); }
+    else calcSrc = 'Ans';
+  }
+  calcSrc += text;
+  calcRender();
+}
+
+/* ± flips the last thing typed rather than starting a new sum. */
+function calcToggleSign() {
+  calcJustDone = false;
+  var wrapped = /\(−(\d+\.?\d*|π|Ans)\)$/.exec(calcSrc);
+  if (wrapped) {
+    calcSrc = calcSrc.slice(0, wrapped.index) + wrapped[1];
+    calcRender();
+    return;
+  }
+  var plain = /(\d+\.?\d*|π|Ans)$/.exec(calcSrc);
+  if (plain) {
+    calcSrc = calcSrc.slice(0, plain.index) + '(−' + plain[1] + ')';
+    calcRender();
+    return;
+  }
+  calcAppend('(−');
+}
+
+function calcBackspace() {
+  calcJustDone = false;
+  if (calcSrc.slice(-3) === 'Ans') calcSrc = calcSrc.slice(0, -3);
+  else calcSrc = calcSrc.slice(0, -1);
+  calcRender();
+  if (!calcSrc) { calcShowValue(null); calcLast = null; }
+}
+
+function calcClear() {
+  calcSrc = '';
+  calcJustDone = false;
+  calcLast = null;
+  calcRender();
+  calcShowValue(null);
+}
+
+function calcEquals() {
+  if (!calcSrc.trim()) return;
+  var val;
+  try { val = calcEvaluate(calcSrc); }
+  catch (e) { calcError(e.message || 'That sum cannot be worked out.'); return; }
+  if (!val) return;
+  calcAns = val;
+  calcLast = val;
+  calcJustDone = true;
+  calcShowValue(val);
+}
+
+function calcKey(k) {
+  switch (k) {
+    case 'clear': calcClear(); return;
+    case 'back': calcBackspace(); return;
+    case '=': calcEquals(); return;
+    case 'neg': calcToggleSign(); return;
+    case 'ans': calcAppend('Ans'); return;
+    case 'frac': calcAppend('/'); return;
+    case 'sq': calcAppend('^2'); return;
+    case 'sqrt': calcAppend('√'); return;
+    case 'cbrt': calcAppend('∛'); return;
+    case 'fd':
+      calcDecimal = !calcDecimal;
+      if (calcLast) calcShowValue(calcLast);
+      toast(calcDecimal ? 'Answers as decimals.' : 'Answers as fractions where they are exact.', 2200);
+      return;
+    default: calcAppend(k);
+  }
+}
+
+/* ---- The window ---- */
+var CALC_WIN_KEY = 'polymath.calcWin';
+var CALC_MIN_W = 268, CALC_MIN_H = 468;
+var calcWin = null;
+
+function clampCalcWin(b) { return clampWinBox(b, CALC_MIN_W, CALC_MIN_H, 0); }
+
+function defaultCalcWin() {
+  var vw = window.innerWidth, vh = floatWinViewportH();
+  var w = Math.min(320, Math.max(CALC_MIN_W, vw - 32));
+  var h = Math.min(600, Math.max(CALC_MIN_H, vh - 100));
+  return { x: Math.max(12, vw - w - 28), y: Math.max(12, Math.round((vh - h) / 2)), w: w, h: h };
+}
+
+function loadCalcWinBox() {
+  try {
+    var v = JSON.parse(localStorage.getItem(CALC_WIN_KEY) || 'null');
+    if (v && ['x', 'y', 'w', 'h'].every(function (k) { return isFinite(v[k]); })) return v;
+  } catch (e) {}
+  return null;
+}
+
+function saveCalcWin() {
+  try { localStorage.setItem(CALC_WIN_KEY, JSON.stringify(calcWin)); } catch (e) {}
+}
+
+function applyCalcWin() {
+  var c = $('calcCard');
+  if (!c || !calcWin) return;
+  c.style.left = calcWin.x + 'px';
+  c.style.top = calcWin.y + 'px';
+  c.style.width = calcWin.w + 'px';
+  c.style.height = calcWin.h + 'px';
+}
+
+function calcOpen() {
+  return $('calcModal').classList.contains('open');
+}
+
+function openCalc() {
+  var modal = $('calcModal');
+  if (modal.classList.contains('open')) { raiseFloatWin('calcModal'); return; }
+  modal.classList.add('open');
+  raiseFloatWin('calcModal');
+  calcWin = clampCalcWin(calcWin || loadCalcWinBox() || defaultCalcWin());
+  applyCalcWin();
+  calcRender();
+  $('calcBtn').classList.add('active');
+  // Focused so the keyboard works straight away — and so the app's own
+  // one-letter shortcuts stay out of the way while a sum is being typed.
+  setTimeout(function () { try { $('calcCard').focus(); } catch (e) {} }, 30);
+}
+
+function closeCalc() {
+  $('calcModal').classList.remove('open');
+  $('calcBtn').classList.remove('active');
+}
+
+function toggleCalc() { calcOpen() ? closeCalc() : openCalc(); }
+
+$('calcBtn').addEventListener('click', toggleCalc);
+$('calcCloseBtn').addEventListener('click', closeCalc);
+$('calcPad').addEventListener('click', function (e) {
+  var btn = e.target.closest('[data-calc]');
+  if (btn) calcKey(btn.getAttribute('data-calc'));
+});
+
+/* Typed as well as tapped. Every key that lands inside the calculator stays
+   inside it — the page's own single-letter shortcuts must not fire while a
+   sum is being typed. */
+var CALC_TYPED = { '*': '×', 'x': '×', '/': '/', '-': '−', '+': '+', '^': '^', '(': '(', ')': ')', 'p': 'π' };
+$('calcCard').addEventListener('keydown', function (e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // browser shortcuts still work
+  var k = e.key;
+  if (k === 'Tab') return;                          // leave focus alone
+  e.stopPropagation();
+  if (/^[0-9.]$/.test(k)) { calcKey(k); }
+  else if (CALC_TYPED[k]) { calcKey(CALC_TYPED[k]); }
+  else if (k === 'Enter' || k === '=') { calcKey('='); }
+  else if (k === 'Backspace') { calcKey('back'); }
+  else if (k === 'Delete' || k === 'Escape') { k === 'Escape' ? closeCalc() : calcKey('clear'); }
+  else return;
+  e.preventDefault();
+});
+
+attachFloatWin({
+  modal: 'calcModal', card: 'calcCard', head: 'calcHead', grip: 'calcGrip',
+  get: function () { return calcWin; },
+  set: function (b) { calcWin = b; },
+  clamp: clampCalcWin, apply: applyCalcWin, save: saveCalcWin
+});
+
 /* ================= Practice mode =================
    Students hide the worksheet's answers, write or type their own on the
    page, then select one and have Gemini mark it against the teacher's
@@ -17852,7 +18525,7 @@ document.addEventListener('keydown', function (e) {
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', i: 'ainote', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
-  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn' };
+  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn', k: 'calcBtn' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
     if (toolKeys[k]) setTool(toolKeys[k]);
