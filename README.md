@@ -3,6 +3,32 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Smooth pinch zoom, and the pencil ready from the start (v1.62.0)
+
+**The zoom follows your fingers now.** Two things were making it lurch:
+
+- **It ignored anything under 2%.** The pinch only moved the page when the
+  fingers had changed the distance between them by more than 2% — and then it
+  applied all of it at once. Fingers move smoothly; the page arrived in jumps.
+  Every scrap of the gesture now counts.
+- **It did a full day's work on every touch report.** An iPad reports a pinch up
+  to 120 times a second, and each report resized all sixty pages of a worksheet
+  and then read the scroll position back — two forced layouts per report. The
+  reports are now collected and turned into exactly one zoom per animation
+  frame, which is as often as the screen can show one: 120 pointer moves came
+  out as 6 zooms in testing, landing on precisely the scale the fingers asked
+  for. Nothing is dropped, twenty times less work is done.
+- **The pages no longer re-sharpen mid-pinch.** Rasterising a page throws its
+  picture away and paints a new one — a visible stutter if it happened while
+  you merely paused with your fingers still down. It now waits for the fingers
+  to come off, then sharpens.
+
+**Pencil-only mode is on from the start.** The Apple Pencil draws, fingers
+scroll the page, and a resting palm does nothing — no more discovering that a
+palm has drawn across a worksheet. It used to wait until a pencil had touched
+the screen once before switching itself on. Turning it off is still one tap on
+the pencil button, and the device remembers that choice from then on.
+
 ## Why the answer key disagreed with ChatGPT (v1.61.1)
 
 The same paper, the same model, two different answer keys. The model was never
