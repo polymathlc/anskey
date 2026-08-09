@@ -3161,25 +3161,26 @@
     <div class="modalBody">
       <div class="profileIntro">
         Choose which AI powers every AI feature on this worksheet — <strong>Answer</strong> and <strong>Improve</strong> on text boxes,
-        <strong>AI notes</strong>, marking, keyword extraction and Ask AI. Switch to ChatGPT gpt-5.6-sol for heavy-duty work,
-        and back to Gemini for everyday use. Your choice is saved on this device and stays until you change it.
-        If ChatGPT ever fails, the app falls back to Gemini automatically.
+        the <strong>Answer key</strong>, <strong>AI notes</strong>, marking, keyword extraction and Ask AI.
+        The app starts on <strong>ChatGPT gpt-5.6-sol</strong>; paste your key below once and it is used everywhere.
+        Gemini needs no key and is what runs until a key is saved — and whenever ChatGPT fails, the app falls back to it
+        by itself, so the AI never simply stops working.
       </div>
 
       <div class="fieldRow">
         <label>Engine</label>
         <label class="engineOpt">
-          <input type="radio" name="aiEngineChoice" value="gemini" checked>
+          <input type="radio" name="aiEngineChoice" value="openai" checked>
           <span>
-            <strong>Gemini 3.6 Flash</strong>
-            <span class="engineOptNote">Firebase AI Logic · default · no key needed</span>
+            <strong>ChatGPT</strong>
+            <span class="engineOptNote">OpenAI API · default · your own key required</span>
           </span>
         </label>
         <label class="engineOpt">
-          <input type="radio" name="aiEngineChoice" value="openai">
+          <input type="radio" name="aiEngineChoice" value="gemini">
           <span>
-            <strong>ChatGPT</strong>
-            <span class="engineOptNote">OpenAI API · your own key required</span>
+            <strong>Gemini 3.6 Flash</strong>
+            <span class="engineOptNote">Firebase AI Logic · no key needed · the fallback</span>
           </span>
         </label>
       </div>
@@ -3437,7 +3438,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.59.1';
+var APP_VERSION = 'v1.60.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -8512,7 +8513,15 @@ var OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-1';
    rather than being cut short. */
 var OPENAI_MAX_OUTPUT = 120000;
 
-function getAiEngine() { try { return localStorage.getItem(AI_ENGINE_STORE.engine) || 'gemini'; } catch (e) { return 'gemini'; } }
+/* ChatGPT gpt-5.6-sol is what the app starts on now. The key is the one thing
+   that can never live in this file: the app is served from a public address,
+   so a key written here would be in the page source of every student's browser
+   and in the repository's history for good. It is pasted once into the AI
+   Engine dialog instead and kept in the admin's own settings record, which
+   only their account can read — see saveAiEngineToCloud. Until a key is there
+   `openAiActive()` is false and every AI feature quietly runs on Gemini, so
+   students and share-link visitors are unaffected either way. */
+function getAiEngine() { try { return localStorage.getItem(AI_ENGINE_STORE.engine) || 'openai'; } catch (e) { return 'openai'; } }
 function getOpenAiKey() { try { return (localStorage.getItem(AI_ENGINE_STORE.key) || '').trim(); } catch (e) { return ''; } }
 function getOpenAiModel() { try { return localStorage.getItem(AI_ENGINE_STORE.model) || OPENAI_DEFAULT_MODEL; } catch (e) { return OPENAI_DEFAULT_MODEL; } }
 function getOpenAiImageModel() { try { return localStorage.getItem(AI_ENGINE_STORE.imageModel) || OPENAI_IMAGE_DEFAULT_MODEL; } catch (e) { return OPENAI_IMAGE_DEFAULT_MODEL; } }
@@ -8731,6 +8740,7 @@ async function loadAiEngineFromCloud(user) {
     if (getOpenAiKey()) saveAiEngineToCloud(user).catch(function (e) {
       console.warn('Could not save the AI engine settings', e);
     });
+    else promptForOpenAiKey();   // no key anywhere yet — ask for it once
     return;
   }
   try {
@@ -8742,6 +8752,31 @@ async function loadAiEngineFromCloud(user) {
   // The header button and every "Gemini"/"ChatGPT" label now say the right name.
   renderAuthArea();
   refreshAiEngineNames();
+  promptForOpenAiKey();
+}
+
+/* ---- The one thing that cannot be shipped in the file ----
+   ChatGPT is the engine the app starts on, and it needs a key. A key cannot
+   be written into this page: it is served publicly, so it would be in the
+   source of every student's browser and in the repository's history for good,
+   and OpenAI revokes keys that turn up in public code anyway. So it is asked
+   for once, here: the admin signs in, there is no key on this device and none
+   in their settings record, and the dialog opens itself ready to paste into.
+   Saving it puts it in their own teacher-only record, and every device they
+   sign in on afterwards fills itself in. Asked once per device — cancel it and
+   it stays out of the way; the AI button in the header opens it any time. */
+var AI_KEY_PROMPTED = 'ak_openai_prompted';
+
+function promptForOpenAiKey() {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  if (getAiEngine() !== 'openai' || getOpenAiKey()) return;
+  try {
+    if (localStorage.getItem(AI_KEY_PROMPTED)) return;
+    localStorage.setItem(AI_KEY_PROMPTED, '1');
+  } catch (e) { /* private mode — ask this once and let it go */ }
+  openAiEngineModal();
+  toast('ChatGPT ' + getOpenAiModel() + ' is the engine now. Paste your OpenAI key once — ' +
+    'every device you sign in on picks it up after that. Until then everything keeps running on Gemini.', 8000);
 }
 
 /* ---------- AI Engine dialog (admin only) ---------- */
@@ -8764,7 +8799,7 @@ function closeAiEngineModal() { $('aiEngineModal').classList.remove('open'); }
 
 function saveAiEngineSettings() {
   var picked = document.querySelector('input[name="aiEngineChoice"]:checked');
-  var eng = picked ? picked.value : 'gemini';
+  var eng = picked ? picked.value : 'openai';
   var key = ($('aiEngineKeyInput').value || '').trim();
   var model = $('aiEngineModelSel').value || OPENAI_DEFAULT_MODEL;
   var imageModel = $('aiEngineImageModelSel').value || OPENAI_IMAGE_DEFAULT_MODEL;
@@ -12843,7 +12878,7 @@ function renderAuthArea() {
     engBtn.className = 'btn';
     // The label doubles as the status: it names ChatGPT while that engine is on.
     engBtn.textContent = openAiActive() ? 'AI · ChatGPT' : 'AI Engine';
-    engBtn.title = 'Choose which AI powers the app — Gemini (default) or ChatGPT with your own OpenAI key. The choice is saved on this device.';
+    engBtn.title = 'Choose which AI powers the app — ChatGPT gpt-5.6-sol (default, needs your OpenAI key) or Gemini, which needs none and catches anything ChatGPT drops.';
     engBtn.addEventListener('click', openAiEngineModal);
     area.appendChild(engBtn);
   }

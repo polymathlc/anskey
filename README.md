@@ -3,6 +3,35 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## ChatGPT gpt-5.6-sol is the default engine (v1.60.0)
+
+Every AI feature — the answer key, Answer and Improve, AI notes, marking,
+keywords, Ask AI — now runs on **ChatGPT gpt-5.6-sol** unless it is switched
+back. Gemini stays as the engine that needs no key, and as the automatic
+fallback whenever ChatGPT fails, so the AI never simply stops working.
+
+- **The key is asked for once, in the app.** Sign in as the teacher on a device
+  with no key saved and the AI Engine window opens by itself, ready to paste
+  into. Saving it puts it in your own teacher-only settings record, so every
+  device you sign in on afterwards fills itself in and never asks again. Cancel
+  and it stays out of the way — the AI button in the header opens it whenever
+  you are ready. Asked at most once per device.
+- **Nothing changes for students.** Until a key is saved, `openAiActive()` is
+  false and everything runs on Gemini exactly as before. Students and
+  share-link visitors have no key and never will, so they always use Gemini —
+  and every "Gemini"/"ChatGPT" label on screen names the engine that actually
+  answered, so nothing ever claims ChatGPT while Gemini is doing the work.
+
+### Why the key is never in this repository
+
+`index.html` is served as a public web page. A key written into it would be in
+the page source of every student's browser, in the repository's history for
+good, and — since OpenAI and GitHub both scan public code for keys — revoked
+within minutes of being pushed. So the app has no place to hardcode one: it is
+pasted into the AI Engine window and kept in the admin's own `adminSettings`
+record, which only that account can read. If a key ever does get committed,
+treat it as public: revoke it at platform.openai.com and issue a new one.
+
 ## The Worksheets list knows whose it is (v1.59.1)
 
 The list on the left is the student's way in and the teacher's errand. It now
