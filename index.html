@@ -3623,7 +3623,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.61.0';
+var APP_VERSION = 'v1.61.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -8794,10 +8794,27 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
     // A model that will not take a reasoning setting should still answer at
     // its default effort — quietly dropping to the other engine would be a
     // worse surprise than a slightly less considered card.
-    if (body.reasoning_effort && e.status === 400 && /reasoning_effort|unsupported|unknown parameter/i.test(e.detail || e.message || '')) {
-      console.warn('reasoning_effort not supported by ' + model + ' — retrying without it');
-      delete body.reasoning_effort;
-      data = await send(body);
+    if (body.reasoning_effort && e.status === 400 &&
+        /reasoning_effort|unsupported|unknown parameter|invalid value/i.test(e.detail || e.message || '')) {
+      // A level this model does not know is a reason to think slightly less
+      // hard, not to stop thinking: step down to the level every reasoning
+      // model takes before giving the setting up altogether.
+      if (body.reasoning_effort !== 'high') {
+        console.warn('reasoning_effort "' + body.reasoning_effort + '" not supported by ' + model + ' — stepping down to high');
+        body.reasoning_effort = 'high';
+        try {
+          data = await send(body);
+        } catch (e2) {
+          if (e2.status !== 400) throw e2;
+          console.warn('reasoning_effort not supported by ' + model + ' — retrying without it');
+          delete body.reasoning_effort;
+          data = await send(body);
+        }
+      } else {
+        console.warn('reasoning_effort not supported by ' + model + ' — retrying without it');
+        delete body.reasoning_effort;
+        data = await send(body);
+      }
     } else throw e;
   }
 
@@ -12731,12 +12748,17 @@ function answerKeyReady() {
   return true;
 }
 
+/* How big a page goes up to be read. The whole key rests on the numbers being
+   read off the paper correctly, so this is deliberately generous. */
+var KEY_PAGE_PX = 2200;
+
 /* A page rendered on its own canvas, with the given annotations composited in.
    The viewer only keeps the pages you can see rasterised, so the key cannot
    read `p.canvas` the way marking does — it renders each page itself. */
 async function keyPageJpeg(p, anns, maxDim) {
   if (!p || !p.page) return null;
-  var want = Math.min(2.5, Math.max(0.6, (maxDim || 1500) / Math.max(p.baseW, p.baseH)));
+  // The cap used to be 2.5, which held an A4 page below the size asked for.
+  var want = Math.min(3.2, Math.max(0.6, (maxDim || 1500) / Math.max(p.baseW, p.baseH)));
   var viewport = p.page.getViewport({ scale: want });
   var cnv = document.createElement('canvas');
   cnv.width = Math.floor(viewport.width);
@@ -12746,7 +12768,9 @@ async function keyPageJpeg(p, anns, maxDim) {
   ctx.fillRect(0, 0, cnv.width, cnv.height);
   await p.page.render({ canvasContext: ctx, viewport: viewport }).promise;
   if (anns && anns.length) drawAnnsOnCtx(ctx, cnv.width / p.baseW, cnv.height / p.baseH, anns, p.num);
-  return cnv.toDataURL('image/jpeg', 0.85).split(',')[1];
+  // Small print survives 0.92 where it smears at 0.85 — this image is only
+  // ever read by a model, and a misread digit is a wrong answer key.
+  return cnv.toDataURL('image/jpeg', 0.92).split(',')[1];
 }
 
 /* Question numbers are the worksheet's, not ours: a question that runs over a
@@ -12800,6 +12824,27 @@ async function generateAnswerKey() {
 
 /* `keyAnns` empty means the pages go up exactly as they were printed — see
    downloadAnswerKeyPdf, where that is the whole point. */
+/* Which model actually worked a key out — the first question to ask of a key
+   that disagrees with the one the ChatGPT app gives for the same paper. An
+   engine chosen in the settings is not necessarily the engine that answered:
+   with no OpenAI key saved every call quietly goes to Gemini, and a ChatGPT
+   call that fails falls back to Gemini mid-key. So it is recorded per page and
+   said on the key itself. */
+var keyEngines = {}, keyFellBack = false;
+
+function noteKeyEngine() {
+  var last = window.aiLastCall || {};
+  keyEngines[last.engine || 'gemini'] = true;
+  if (last.fellBack) keyFellBack = true;
+}
+
+function keyEngineLabel() {
+  var names = [];
+  if (keyEngines.openai) names.push('ChatGPT ' + getOpenAiModel());
+  if (keyEngines.gemini) names.push('Gemini ' + (window.AI_GEMINI_MODEL || ''));
+  return names.join(' + ');
+}
+
 async function runAnswerKey(keyAnns, detailed) {
   var blank = !keyAnns || !keyAnns.length;
   aiBusy = true;
@@ -12808,15 +12853,22 @@ async function runAnswerKey(keyAnns, detailed) {
   $('checkModal').classList.add('open');
   var items = [], failed = [];
   var prevJpeg = null;
+  keyEngines = {};
+  keyFellBack = false;
   for (var i = 0; i < pages.length; i++) {
     var p = pages[i];
     $('checkBody').textContent = '✨ ' + aiEngineName() + ' is reading page ' + p.num + ' of ' + pages.length + '…' +
       (items.length ? ' (' + items.length + ' question' + (items.length === 1 ? '' : 's') + ' so far)' : '');
     try {
-      var clean = await keyPageJpeg(p, [], 1500);
+      // Read at something close to the paper's own resolution. At 1500px a
+      // dense page's small print is a guess — "$140.20" and "$14.20" are the
+      // same handful of pixels — and one misread number makes every step
+      // after it wrong. The ChatGPT app is handed the file itself; this is
+      // the nearest an in-browser render gets to that.
+      var clean = await keyPageJpeg(p, [], KEY_PAGE_PX);
       if (!clean) { failed.push(p.num); continue; }
       var pageAnns = blank ? [] : keyAnns.filter(function (a) { return a.page === p.num; });
-      var marked = pageAnns.length ? await keyPageJpeg(p, pageAnns, 1500) : null;
+      var marked = pageAnns.length ? await keyPageJpeg(p, pageAnns, KEY_PAGE_PX) : null;
       var imgs = [];
       var labels = [];
       imgs.push({ mimeType: 'image/jpeg', data: clean });
@@ -12842,14 +12894,27 @@ async function runAnswerKey(keyAnns, detailed) {
         : 'No teacher answers were written on this page — work the answers out from the question itself.');
       lines.push('Key every question printed on page ' + p.num +
         ', multiple-choice questions included.');
+      lines.push('Work every question out properly before you answer it: set the units or the model ' +
+        'out step by step, then check the arithmetic back against the numbers printed on the page. ' +
+        'A quick wrong answer on an answer key is worse than no answer at all.');
       if (detailed) lines.push('Every question gets a full worked explanation — none may be left empty.');
       // A page of multiple-choice questions is 15-20 entries, not the 4 or 5
       // an open-ended page comes to. At the old budget the reply ran out of
       // room mid-JSON and the tail of the page — the multiple-choice half of
       // most papers — was lost with it.
+      // Reasoning, turned all the way up. This is the setting that decides
+      // whether the key is right: a P5 word problem is four or five steps of
+      // units and model drawing, and a model that answers off the top of its
+      // head gets them wrong. Left unset, ChatGPT ran at its default effort
+      // and Gemini at thinkingLevel "minimal" — barely thinking at all —
+      // which is why the same model, asked the same page in the ChatGPT app
+      // at Extra High, came back with different answers.
       var keyOpts = {
         system: detailed ? AI_KEY_DETAIL_SYS : AI_KEY_SYS,
-        maxOutputTokens: detailed ? 20000 : 12000,
+        // The budget has to cover the thinking as well as the answer.
+        maxOutputTokens: detailed ? 32000 : 20000,
+        effort: 'xhigh',          // ChatGPT — the app's "Extra High"
+        thinkingLevel: 'high',    // Gemini
         temperature: 0.2, json: true, images: imgs
       };
       var res;
@@ -12866,6 +12931,7 @@ async function runAnswerKey(keyAnns, detailed) {
           lines.join('\n') + '\nANSWERS ONLY this time: leave every "explanation" empty ' +
           'so that every question on the page fits in one reply.', keyOpts));
       }
+      noteKeyEngine();
       var qs = (res && Array.isArray(res.questions)) ? res.questions : [];
       qs.forEach(function (q) {
         if (!q) return;
@@ -12909,9 +12975,18 @@ async function runAnswerKey(keyAnns, detailed) {
     when: new Date(),
     items: items,
     failed: failed,
-    fromBlank: blank
+    fromBlank: blank,
+    by: keyEngineLabel()
   };
   updateAnswerKeyCard();
+  if (keyFellBack) {
+    toast('ChatGPT could not be reached for part of this key — Gemini worked those pages out instead.', 7000);
+  } else if (keyEngines.gemini && !keyEngines.openai && getAiEngine() === 'openai') {
+    // The commonest surprise of all: the engine says ChatGPT, but with no key
+    // saved every call has quietly been going to Gemini all along.
+    toast('This key was worked out by Gemini — paste your OpenAI key in AI Engine to have ' +
+      getOpenAiModel() + ' do it instead.', 7000);
+  }
   return lastAnswerKey;
 }
 
@@ -13003,7 +13078,10 @@ function answerKeyMeta(key) {
     key.when.toLocaleDateString(),
     // Which key this is: one worked out from the paper alone reads very
     // differently from one that followed the teacher's own answers.
-    key.fromBlank ? 'worked from the blank worksheet' : ''
+    key.fromBlank ? 'worked from the blank worksheet' : '',
+    // And by which model — so a key can always be told from the one the
+    // ChatGPT app gives for the same paper.
+    key.by ? 'by ' + key.by : ''
   ].filter(Boolean).join(' · ');
 }
 
@@ -18924,6 +19002,8 @@ const RECAPTCHA_SITE_KEY = "6Le98gwtAAAAAAzkjJTZXFM5D8tpjx_P4rtRuhuH";
 
 // Model used app-wide
 const AI_MODEL = "gemini-3.6-flash";
+// Named on the answer key, so a key can always say which model worked it out.
+window.AI_GEMINI_MODEL = AI_MODEL;
 // Picture generation for AI note cards. A separate model — if it is not
 // available on the project the app falls back to a drawn SVG diagram.
 const AI_IMAGE_MODEL = "gemini-2.5-flash-image";
