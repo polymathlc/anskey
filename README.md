@@ -3,6 +3,26 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Two quick taps no longer zoom the whole app in (v1.62.2)
+
+Tapping a calculator key twice quickly set Safari's double-tap zoom off: the
+whole app magnified, and getting back meant pinching out again — a chore in the
+middle of a lesson, every time.
+
+Buttons now say `touch-action: manipulation`, which keeps ordinary scrolling and
+pinch-zoom of the page and drops only the double-tap gesture. It covers the
+calculator (every part of it, keys included), the toolbar and header buttons,
+the worksheet cards, the page-preview stars and the panel buttons — anything
+you tap in a hurry. Two quick taps on a key are simply two presses now.
+
+The parts that are *meant* to claim a touch keep doing so: the calculator's
+title bar and resize grip, the ⠿ grip on a worksheet card, and the page overlay
+you write on.
+
+As a bonus, `manipulation` also removes the small tap delay Safari holds while
+it waits to see whether a second tap is coming, so every button answers
+immediately.
+
 ## Double-tapping a calculator key no longer breaks the sum (v1.62.1)
 
 Double-click any key and it was typed twice. On the digits that is harmless —
