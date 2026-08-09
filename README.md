@@ -3,6 +3,33 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Drag a worksheet where it belongs (v1.58.0)
+
+The list orders itself newest-first inside every class, which is right until it
+isn't: the worksheets for one lesson have an order the teacher knows and the
+dates do not. Now they can just be moved.
+
+- **Pick one up by its grip.** Every card in the ☰ worksheets list has a ⠿ grip
+  on its left. Drag it up or down to set the order inside its class; the list
+  opens a space as the card passes. On a desktop the card itself can be dragged
+  too — on a touchscreen only the grip does, so a finger on a card still
+  scrolls the list and a tap still opens the worksheet.
+- **Across to another class time.** Drop it under the day's other lesson and its
+  class time changes with it.
+- **Across to another day.** Drop it on another day's band or between its cards.
+  The worksheet's date moves to the nearest date that falls on that day — a
+  worksheet dragged from Tuesday 21 Jul to Monday becomes Monday 20 Jul — so the
+  date on the card still means something and saving it later keeps it there.
+- **Empty classes count.** While a card is in the air, every class of every day
+  appears in the list, including the lessons and days with nothing in them yet,
+  so there is always somewhere to drop it. They vanish again when it lands.
+- **It is the same list for everybody.** The arrangement is saved on the
+  worksheets themselves, so students see the order their teacher set. A
+  worksheet saved after the arranging sits at the top of its class until it is
+  dragged, which is where a new worksheet belongs anyway.
+- **Teacher only.** Students and share-link visitors have no grip and cannot
+  move anything. A drop that cannot be saved puts the card back and says so.
+
 ## A starred page stays starred (v1.57.1)
 
 Marking a page and finding the star gone later. The mark was being saved — it
