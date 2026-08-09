@@ -2332,6 +2332,23 @@
      magnifier callout when a hand rests on a panel. */
   .btn, .toolBtn, .colorChip, .qItem, .pickChip, .shareOpt,
   .docRow, .modalClose, .thumbItem, .aiBar button { -webkit-tap-highlight-color: transparent; }
+  /* Two quick taps on a button is two presses, never "zoom the whole page in".
+     Safari's double-tap zoom does not care that the thing tapped was a key on
+     a calculator — it magnifies the app and leaves you to pinch your way back
+     out, which mid-lesson is a chore nobody asked for. `manipulation` keeps
+     scrolling and pinch-zoom of the page, and drops only the double-tap. */
+  .btn, .toolBtn, .colorChip, .qItem, .pickChip, .shareOpt, .docRow, .modalClose,
+  .thumbItem, .thumbStar, .qStarBtn, .qFilterChip, .aiBar button,
+  .panelCloseBtn, .modalActions button {
+    touch-action: manipulation;
+  }
+  /* The calculator is the one people really do tap twice, and its keypad is a
+     scroller of its own — so every part of it says so itself rather than
+     relying on the value being inherited past that scroller. The title bar and
+     the resize grip keep `none`: they claim the gesture to drag the window. */
+  .calcCard, .calcBody, .calcScreen, .calcPad, .calcKey, .calcHint {
+    touch-action: manipulation;
+  }
   .polymath-header, #toolbar, #sideBar, #qDrawer, #thumbPanel, .modalHead, #lassoBar {
     -webkit-user-select: none;
     user-select: none;
@@ -3629,7 +3646,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.62.1';
+var APP_VERSION = 'v1.62.2';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
