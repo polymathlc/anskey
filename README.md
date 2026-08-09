@@ -3,6 +3,35 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Answer key button — worked from the blank paper (v1.59.0)
+
+A new **Answer key** button sits beside “My PDFs” in the toolbar. Press it and
+the whole worksheet is worked out from scratch and a PDF answer key lands in
+your downloads.
+
+- **It reads the paper, not the markings.** The pages sent to the AI are
+  rendered without a single annotation on them, and nothing that was written on
+  the worksheet — pen, text boxes, note cards — is mentioned in what it is
+  asked. The answers are worked out from the printed questions alone, so the key
+  is an independent check rather than a tidy-up of what is already there.
+- **Every question, explained properly.** Each entry gives the answer and a full
+  worked explanation: the concept being tested, the working line by line with
+  the numbers in, and the answer stated at the end. A multiple-choice question
+  also says why the tempting wrong options are wrong.
+- **Downloaded as a PDF.** Laid out as a document — A4, one question after
+  another, never a heading stranded at the foot of a page — and saved as
+  “<worksheet> - Answer key.pdf”. Nothing is written to the worksheet and
+  nothing on screen is changed.
+- **Filenames that survive.** A download name with an em dash in it made
+  Chromium throw the whole name away and save the file as “download”. Both
+  downloads (this one and the annotated PDF) now clean the name first.
+- **Teacher only.** The button is not there for students, for a device handed
+  over with “Practise as”, or for a share link.
+
+The sidebar's own *Generate answer key* is unchanged — that one still reads the
+teacher's handwritten answers and treats them as authoritative. This button is
+the other half: the answer key when there is nothing on the page yet.
+
 ## Drag a worksheet where it belongs (v1.58.0)
 
 The list orders itself newest-first inside every class, which is right until it
