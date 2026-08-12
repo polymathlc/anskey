@@ -25,6 +25,43 @@ Guidance for Claude when working in this repo.
   could never have saved one that big either. Read annotations through `readAnnotationJson(d)`
   and write them through `writeAnnotations()`; never write the `annotations` field directly.
 
+## Teaching notes & AI style training (`#notesBtn` / `#notesModal`, all `notes*` / `style*` code)
+- **Every AI feature in this app is grounded through ONE function, `aiGrounding(kind)`** — the ✨
+  Answer box, the Answer key, AI note cards, Ask AI and practice marking each append it to their
+  system prompt. Adding an AI feature means calling it too; grounding one call site and not another
+  is how the AI ends up answering in the teacher's voice on one button and not the next. `kind` is
+  `'answer'` (writing an answer), `'mark'` (marking a student) or `'teach'` (explaining / a card):
+  marking gets the marking standards and never the exemplar answers, everything else gets the key
+  facts and the exemplars. **The authority order is stated in the digest and never changes**: what
+  the worksheet itself prints wins, then the notes, then ordinary syllabus knowledge — and when
+  marking, the teacher's model answer on the page beats all of it.
+- **The notes live at `users/{adminUid}/teachingNotes/{id}`, which is the SAME collection the
+  Science Learning Portal (`polymathlc/cer`, `app.js`) writes** — one notebook grounding both apps.
+  Keep the fields compatible: `topics` is reserved for that app's syllabus list and this app writes
+  it **empty**, so a note uploaded here reads as a general note there instead of one tagged with
+  topics it has never heard of. This app's own wording goes in `noteTopics` / `subjects` / `levels`.
+- **A student's device reads the notes too** (marking and Ask AI run there), and learns whose notes
+  to read from the `ownerUid` on the first worksheet it opens (`notesNoteOwner`, remembered in
+  `localStorage`). A read that is denied is not an error worth showing — the AI simply carries on
+  ungrounded, exactly as it did before the feature existed. Only the admin ever writes.
+- **The style corpus is `users/{adminUid}/aiTraining/answerStyle`** — the answers the teacher has
+  already written on their own worksheets, and the profile distilled from them. Three ways in:
+  `styleHarvestOnSave()` takes the typed answers on every save for free, `styleLearnOpenWorksheet()`
+  reads the open worksheet page by page with the vision model so **handwriting** counts, and
+  `styleLearnAllWorksheets()` sweeps every saved worksheet (typed answers only, so no AI cost).
+  Samples are keyed (`docId:annId`) so nothing is learned twice, trimmed, and capped at
+  `STYLE_SAMPLE_MAX` — it is ONE Firestore document, which dies at ~1 MB.
+- **The samples never reach a prompt; only the profile does.** `styleDistil()` turns the corpus into
+  a few hundred characters plus up to `STYLE_EX_MAX` real answers, and re-runs itself in the
+  background once `STYLE_DISTIL_EVERY` new answers have piled up — that is the "gets better over
+  time" part, and it must stay automatic.
+- **Students never see any of this**: the button, the window and every write are behind `isAdmin()`
+  and off for `actingStudent` / share-link visitors (`applyNotesVisibility`, called from
+  `applyRoleUI`).
+- **`.modalCard.wide` is the reward register's class and its body is deliberately
+  `overflow: hidden`.** These two windows scroll as a whole, so they use `.modalCard.tnWide`, which
+  sets the width and nothing else. Reusing `.wide` clips the notes list with no way to scroll it.
+
 ## Reward system — ADMIN ONLY (`#rewardBtn` / `#rewardModal`, all `rw*` code)
 - The Reward window hands marks to one class mid-lesson. It writes **only** into the reward
   system's collections in the separate `polymathlc/rewards` repo (`rewards/index.html`, same
@@ -70,6 +107,11 @@ to know whether the upload/deploy went through.
   system.
 
 ## House rules
+- After touching **teaching notes or the style training** (`aiGrounding`, `notesBlock`,
+  `styleBlock`, `notesRelevant`, `styleAddSamples`, `styleHarvestTyped`, `notesCardHtml`), run
+  `node tools/notes-tests.mjs`. It loads the REAL section out of `index.html` and runs it against
+  stubs. Every failure here is silent — a digest that comes back empty is just an ungrounded
+  prompt, and nothing throws.
 - After editing `index.html`, syntax-check the script block, e.g.
   `python3 -c "import re;open('/tmp/c.js','w').write(re.findall(r'<script>\n(.*?)\n</script>', open('index.html').read(), re.S)[-1])" && node --check /tmp/c.js`
 - Commit messages and pushed artifacts must not contain the model identifier.

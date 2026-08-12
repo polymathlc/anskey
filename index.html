@@ -1585,6 +1585,91 @@
     color: var(--ink);
   }
   .profileIntro { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.55; margin-bottom: 20px; }
+
+  /* ---------- Teaching notes window ---------- */
+  /* NOT .modalCard.wide: that one is the reward register, whose body is
+     deliberately overflow:hidden so its list scrolls on its own. These two
+     windows scroll as a whole, so they take the width and nothing else. */
+  .modalCard.tnWide { max-width: 720px; max-height: 84vh; max-height: min(84dvh, calc(var(--vvh, 100vh) - 64px)); }
+  .tnPanel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-card);
+  }
+  .tnPanel h3 { font-size: 1rem; margin-bottom: 8px; }
+  .tnSub { font-size: 0.85rem; color: var(--ink-soft); line-height: 1.6; margin-bottom: 18px; }
+  .tnHint { font-size: 0.76rem; color: var(--ink-faint); line-height: 1.5; }
+  .tnBtnRow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+  .tnBtnRow .btn { font-size: 0.8rem; padding: 8px 14px; }
+  .tnStatus {
+    font-size: 0.83rem;
+    color: var(--accent-deep);
+    font-weight: bold;
+    line-height: 1.55;
+    margin-top: 16px;
+  }
+  .tnStats { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
+  .tnStat {
+    flex: 1 1 120px;
+    background: #FAFAF8;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .tnStat b { display: block; font-size: 1.35rem; line-height: 1.2; }
+  .tnStat span { font-size: 0.74rem; color: var(--ink-faint); }
+  .tnProfile { margin-top: 18px; }
+  .tnListHead { display: flex; align-items: baseline; gap: 10px; margin: 26px 2px 14px; }
+  .tnListHead h3 { font-size: 1rem; }
+  .tnCard {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-card);
+  }
+  .tnCardHead { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+  .tnCardId { flex: 1; min-width: 190px; }
+  .tnCardTitle { font-size: 0.98rem; font-weight: bold; line-height: 1.4; }
+  .tnCardMeta { font-size: 0.74rem; color: var(--ink-faint); margin-top: 4px; line-height: 1.5; }
+  .tnCardBtns { display: flex; gap: 8px; }
+  .tnCardBtns .btn { padding: 6px 12px; font-size: 0.76rem; }
+  .tnRow { display: flex; gap: 14px; align-items: flex-start; padding: 8px 0; }
+  .tnLabel { flex: none; width: 132px; font-size: 0.75rem; font-weight: bold; color: var(--ink-faint); padding-top: 3px; }
+  .tnChips { display: flex; flex-wrap: wrap; gap: 7px; flex: 1; }
+  .tnChip {
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 4px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #FAFAF8;
+    color: var(--ink-soft);
+  }
+  .tnChipTopic { background: var(--accent); border-color: var(--accent-strong); color: var(--ink); }
+  .tnChipKw { background: var(--star-tint); border-color: var(--star-line); color: var(--star-ink); }
+  .tnText { flex: 1; font-size: 0.85rem; line-height: 1.6; color: var(--ink); white-space: pre-wrap; }
+  .tnTextSoft { color: var(--ink-soft); font-style: italic; }
+  .tnNone { font-size: 0.8rem; color: var(--ink-faint); }
+  .tnFacts { margin-top: 12px; }
+  .tnFacts summary { font-size: 0.79rem; font-weight: bold; color: var(--ink-faint); cursor: pointer; }
+  .tnFacts .tnText { margin-top: 10px; }
+  .tnEmpty {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.87rem;
+    line-height: 1.6;
+    padding: 30px 20px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+  }
+  @media (max-width: 620px) {
+    .tnRow { flex-direction: column; gap: 5px; }
+    .tnLabel { width: auto; }
+  }
   body.headerHidden .polymath-header { display: none; }
   body.studentMode .pageWrap svg.overlay { touch-action: pan-x pan-y; cursor: default; }
   .chipRow.locked .pickChip { opacity: 0.45; pointer-events: none; }
@@ -2955,6 +3040,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><polyline points="8.5 12.5 7 22 12 19 17 22 15.5 12.5"/></svg>
       <span class="btnLabel">Reward</span>
     </button>
+    <button class="btn" id="notesBtn" title="Teaching notes — upload your own notes and let the AI learn from the answers you have written, so everything it writes follows your syllabus and your style" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19a1 1 0 0 1 1 1v14.5"/><path d="M6 17h14v4H6a2 2 0 0 1 0-4z"/><line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="8.5" y1="11" x2="13.5" y2="11"/></svg>
+      <span class="btnLabel">Notes</span>
+    </button>
     <button class="btn" id="docsBtn" data-key="M" title="Open a previously saved PDF">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span class="btnLabel">My PDFs</span>
@@ -3719,6 +3808,70 @@
   </div>
 </div>
 
+<div class="modalBack" id="notesModal">
+  <div class="modalCard tnWide">
+    <div class="modalHead">
+      <h2>Teaching notes</h2>
+      <button class="modalClose" id="notesCloseBtn" title="Close">&#10005;</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro">
+        Everything the AI writes on this worksheet &mdash; answers, the answer key, explanations, note cards and every mark
+        it gives a student &mdash; is written from what is on this page: <strong>your notes</strong>, and
+        <strong>the answers you have already written on your own worksheets</strong>. Nothing here is shown to students.
+      </div>
+      <div id="notesBody"></div>
+    </div>
+  </div>
+</div>
+<input type="file" id="notesFileInput" accept="application/pdf,image/*" multiple hidden>
+
+<div class="modalBack" id="noteEditModal">
+  <div class="modalCard tnWide">
+    <div class="modalHead">
+      <h2>Edit these notes</h2>
+      <button class="modalClose" id="noteEditCloseBtn" title="Close">&#10005;</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro">
+        Fine-tune what the AI pulled out &mdash; above all the keywords, which it looks for when marking and reaches for when it writes.
+      </div>
+      <div class="fieldRow">
+        <label for="nteTitle">Title</label>
+        <input type="text" id="nteTitle" placeholder="e.g. P5 Heat &amp; Temperature revision notes" autocomplete="off">
+      </div>
+      <div class="fieldRow">
+        <label for="nteSubjects">Subjects <span style="font-weight:normal;color:var(--ink-faint)">(math, science &mdash; leave empty for every subject)</span></label>
+        <input type="text" id="nteSubjects" placeholder="e.g. science" autocomplete="off">
+      </div>
+      <div class="fieldRow">
+        <label for="nteLevels">Levels <span style="font-weight:normal;color:var(--ink-faint)">(P3, P4, P5, P6, S1 &mdash; leave empty for every level)</span></label>
+        <input type="text" id="nteLevels" placeholder="e.g. P5, P6" autocomplete="off">
+      </div>
+      <div class="fieldRow">
+        <label for="nteKeywords">Keywords <span style="font-weight:normal;color:var(--ink-faint)">(comma-separated &mdash; the exact wording an answer must use)</span></label>
+        <textarea id="nteKeywords" rows="4" placeholder="e.g. gains heat, expands, good conductor of heat"></textarea>
+      </div>
+      <div class="fieldRow">
+        <label for="nteStandards">Marking standards <span style="font-weight:normal;color:var(--ink-faint)">(what earns full marks)</span></label>
+        <textarea id="nteStandards" rows="4"></textarea>
+      </div>
+      <div class="fieldRow">
+        <label for="nteFacts">Key facts <span style="font-weight:normal;color:var(--ink-faint)">(one per line)</span></label>
+        <textarea id="nteFacts" rows="6"></textarea>
+      </div>
+      <div class="fieldRow">
+        <label for="nteComment">Your comment <span style="font-weight:normal;color:var(--ink-faint)">(extra guidance for the AI, optional)</span></label>
+        <textarea id="nteComment" rows="3"></textarea>
+      </div>
+      <div class="modalActions">
+        <button class="btn" id="noteEditCancelBtn">Cancel</button>
+        <button class="btn btnPrimary" id="noteEditSaveBtn">Save notes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <!-- Cards being made in the background, one chip each -->
 <div id="aiJobTray"></div>
@@ -3735,7 +3888,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.63.0';
+var APP_VERSION = 'v1.64.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -9173,6 +9326,856 @@ $('aiEngineModal').addEventListener('click', function (e) {
   if (e.target === $('aiEngineModal')) closeAiEngineModal();
 });
 
+/* ================= Teaching notes & AI style training =================
+   The teacher's own notebook, and the thing every AI feature in this app
+   reads before it writes a word.
+
+   TWO SOURCES, ONE VOICE
+   ----------------------
+   1. TEACHING NOTES — PDFs and photos of the teacher's own notes, uploaded
+      on the 📚 Teaching notes window. Gemini reads each upload once and
+      pulls out the topics, the KEYWORDS students must use, the marking
+      standards and the key facts. They live at
+        users/{adminUid}/teachingNotes/{id}
+      which is the SAME collection the Science Learning Portal (the `cer`
+      repo) writes — so notes uploaded in either app ground both. Fields are
+      kept compatible on purpose: `topics` stays reserved for that app's
+      syllabus list (this app writes it empty, so its notes read as general
+      notes there and still apply to everything), and this app's own free
+      wording goes in `noteTopics` / `subjects` / `levels`.
+   2. THE ANSWERS ALREADY ON THE WORKSHEETS — every answer the teacher has
+      written into a PDF in this app. Typed answers are harvested for free on
+      every save; handwritten ones are read off the page by the model when
+      the teacher presses "Learn from this worksheet". They accumulate at
+        users/{adminUid}/aiTraining/answerStyle
+      and are distilled into a short STYLE PROFILE — how this teacher phrases
+      an answer, how long it runs, which words it insists on, what earns the
+      mark. That profile is what makes the AI sound like the teacher, and it
+      sharpens every time more worksheets are learned from.
+
+   The digests below are appended to the SYSTEM prompt of every AI feature —
+   answers, the answer key, marking, Ask AI and note cards. Authority order
+   is stated in each of them and never changes: what the worksheet itself
+   says beats the notes, and the notes beat the model's own general
+   knowledge.
+
+   Students read the notes too (marking and Ask AI run on their device), but
+   only the admin sees the window and only the admin ever writes. */
+
+var TEACHING_NOTES_COLL = 'teachingNotes';
+var AI_TRAINING_COLL = 'aiTraining';
+var AI_STYLE_DOC = 'answerStyle';
+/* A student's device has no idea who the teacher is until it opens one of
+   their worksheets — every worksheet carries `ownerUid`, so the first one
+   opened teaches the app where the notes live, and it is remembered. */
+var NOTES_OWNER_KEY = 'anskeyNotesOwnerUid';
+
+var teachingNotes = [];       // [{ id, title, keywords[], markingStandards, keyFacts, … }]
+var aiStyle = null;           // { samples: [], profile: {}, profileSamples, learnedDocs: {} }
+var notesOwnerUid = '';
+var notesLoaded = false;
+var notesLoading = null;      // in-flight load, so ten callers make one read
+var notesBusy = false;        // an upload / learning run is going on
+
+/* How much of the notebook reaches a prompt. Every AI call in the app pays
+   for these tokens, so they are deliberately tight — the digest is a
+   reminder of house style, not the notes themselves. */
+var NOTES_KW_MAX = 40;
+var NOTES_STD_CHARS = 900;
+var NOTES_FACT_CHARS = 1400;
+var STYLE_RULE_CHARS = 800;
+var STYLE_EX_MAX = 6;
+/* The corpus itself. One Firestore document holds the lot, and a document
+   dies at ~1 MB — so a sample is trimmed and the oldest fall off the end. */
+var STYLE_SAMPLE_MAX = 400;
+var STYLE_SAMPLE_CHARS = 420;
+var STYLE_Q_CHARS = 220;
+var STYLE_DISTIL_SAMPLES = 140;   // sent to the model when the profile is rebuilt
+var STYLE_DISTIL_MIN = 6;         // fewer than this teaches nothing
+var STYLE_DISTIL_EVERY = 25;      // new samples before the profile refreshes itself
+var STYLE_LEARN_PAGES_MAX = 24;   // vision pages read in one "learn from this worksheet"
+
+function notesOwner() {
+  if (isAdmin(currentUser)) return currentUser.uid;
+  if (notesOwnerUid) return notesOwnerUid;
+  try { return localStorage.getItem(NOTES_OWNER_KEY) || ''; } catch (e) { return ''; }
+}
+function notesCollRef(owner) {
+  return db.collection('users').doc(owner).collection(TEACHING_NOTES_COLL);
+}
+function styleDocRef(owner) {
+  return db.collection('users').doc(owner).collection(AI_TRAINING_COLL).doc(AI_STYLE_DOC);
+}
+
+/* A worksheet was opened: it knows whose worksheet it is, so the notes can
+   be fetched on a student's device too. */
+function notesNoteOwner(data) {
+  var uid = data && data.ownerUid;
+  if (!uid || uid === notesOwnerUid) return;
+  notesOwnerUid = uid;
+  try { localStorage.setItem(NOTES_OWNER_KEY, uid); } catch (e) {}
+  if (!isAdmin(currentUser)) { notesLoaded = false; loadTeachingNotes(true); }
+}
+
+/* Notes + style profile in one go. A read that fails (a student whose rules
+   do not allow the teacher's notes, an offline device) is not an error worth
+   showing: the AI simply carries on ungrounded, exactly as it did before. */
+function loadTeachingNotes(force) {
+  if (notesLoaded && !force) return Promise.resolve(teachingNotes);
+  if (notesLoading) return notesLoading;
+  var owner = notesOwner();
+  if (!owner) return Promise.resolve(teachingNotes);
+  notesLoading = Promise.all([
+    notesCollRef(owner).get().then(function (snap) {
+      var list = [];
+      snap.forEach(function (d) {
+        var n = d.data();
+        if (n) { n.id = d.id; list.push(n); }
+      });
+      list.sort(function (a, b) {
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      });
+      teachingNotes = list;
+    }).catch(function (e) { console.warn('Teaching notes could not be read', e); }),
+    styleDocRef(owner).get().then(function (snap) {
+      aiStyle = snap.exists ? snap.data() : null;
+    }).catch(function (e) { console.warn('AI style profile could not be read', e); })
+  ]).then(function () {
+    notesLoaded = true;
+    notesLoading = null;
+    if ($('notesModal') && $('notesModal').classList.contains('open')) renderNotesBody();
+    return teachingNotes;
+  });
+  return notesLoading;
+}
+
+/* ---- Which notes apply here ----
+   A note may name the subjects and levels it belongs to; one that names
+   neither is general and applies to every worksheet. If nothing matches the
+   worksheet in front of us the whole notebook is used rather than none of
+   it — a teacher who uploaded notes expects them to be read. */
+function noteAppliesHere(n) {
+  var subj = (wsMeta && wsMeta.subject) || '';
+  var lvl = (wsMeta && wsMeta.level) || '';
+  var subs = Array.isArray(n.subjects) ? n.subjects.filter(Boolean) : [];
+  var lvls = Array.isArray(n.levels) ? n.levels.filter(Boolean) : [];
+  if (subs.length && subj && subs.indexOf(subj) === -1 && subs.indexOf('both') === -1 && subj !== 'both') return false;
+  if (lvls.length && lvl && lvls.indexOf(lvl) === -1) return false;
+  return true;
+}
+function notesRelevant() {
+  if (!teachingNotes.length) return [];
+  var rel = teachingNotes.filter(noteAppliesHere);
+  return rel.length ? rel : teachingNotes;
+}
+function notesJoinField(rel, field, cap) {
+  var s = rel.map(function (n) { return String(n[field] || '').trim(); })
+             .filter(Boolean).join('\n').trim();
+  return s.length > cap ? s.slice(0, cap) : s;
+}
+function notesKeywordList(rel) {
+  var seen = {}, out = [];
+  rel.forEach(function (n) {
+    (n.keywords || []).forEach(function (k) {
+      var s = String(k).trim();
+      var key = s.toLowerCase();
+      if (s && !seen[key] && out.length < NOTES_KW_MAX) { seen[key] = 1; out.push(s); }
+    });
+  });
+  return out;
+}
+
+/* ---- The style profile, in prompt form ---- */
+function styleProfile() {
+  return (aiStyle && aiStyle.profile) || null;
+}
+function styleExemplars() {
+  var p = styleProfile();
+  var ex = (p && Array.isArray(p.exemplars)) ? p.exemplars : [];
+  return ex.filter(function (e) { return e && e.a; }).slice(0, STYLE_EX_MAX);
+}
+function styleBlock(kind) {
+  var p = styleProfile();
+  if (!p) return '';
+  var bits = [];
+  var rules = String(p.styleRules || '').trim().slice(0, STYLE_RULE_CHARS);
+  var phrasing = String(p.phrasing || '').trim().slice(0, 400);
+  var marking = String(p.markingStandards || '').trim().slice(0, 500);
+  if (rules) bits.push('How this teacher writes answers: ' + rules);
+  if (phrasing) bits.push('Phrasing: ' + phrasing);
+  if (kind === 'mark' && marking) bits.push('How this teacher marks: ' + marking);
+  var kw = (Array.isArray(p.keywords) ? p.keywords : []).slice(0, 24)
+             .map(function (s) { return String(s).trim(); }).filter(Boolean);
+  if (kw.length) bits.push('Words the teacher uses again and again: ' + kw.join(', ') + '.');
+  if (kind !== 'mark') {
+    var ex = styleExemplars();
+    if (ex.length) {
+      bits.push('Real answers this teacher has written on past worksheets — match their length, tone and level of detail:\n' +
+        ex.map(function (e) {
+          var q = String(e.q || '').trim().slice(0, STYLE_Q_CHARS);
+          return '• ' + (q ? q + ' → ' : '') + String(e.a).trim().slice(0, 260);
+        }).join('\n'));
+    }
+  }
+  if (!bits.length) return '';
+  return "\n\nTHE TEACHER'S OWN STYLE (learned from " +
+    ((aiStyle && aiStyle.profileSamples) || styleSamples().length) +
+    ' answers they have written on their own worksheets):\n' + bits.join('\n');
+}
+
+/* ---- The notebook, in prompt form ----
+   kind: 'answer'  writing an answer or an answer key
+         'mark'    marking a student's answer
+         'teach'   explaining, or building a note card */
+function notesBlock(kind) {
+  var rel = notesRelevant();
+  if (!rel.length) return '';
+  var kw = notesKeywordList(rel);
+  var std = notesJoinField(rel, 'markingStandards', NOTES_STD_CHARS);
+  var facts = notesJoinField(rel, 'keyFacts', NOTES_FACT_CHARS);
+  var com = notesJoinField(rel, 'comment', 300);
+  var bits = [];
+  if (kw.length) {
+    bits.push(kind === 'mark'
+      ? 'Preferred keywords — expect and accept these exact terms in a full-mark answer: ' + kw.join(', ') + '.'
+      : 'Preferred vocabulary — use these exact terms wherever they fit: ' + kw.join(', ') + '.');
+  }
+  if (std) bits.push('Marking standards from those notes: ' + std);
+  if (facts && kind !== 'mark') bits.push('Key facts taught:\n' + facts);
+  if (com) bits.push("The teacher's own guidance on these notes: " + com);
+  if (!bits.length) return '';
+  return "\n\nTHE TEACHER'S REFERENCE NOTES (their own uploaded notes — the syllabus as THEY teach it):\n" +
+    bits.join('\n');
+}
+
+/* Everything the AI should know about this teacher, appended to a system
+   prompt. One call site per AI feature, so nothing can be grounded on the
+   notes in one place and not another. */
+function aiGrounding(kind) {
+  var notes = notesBlock(kind);
+  var style = styleBlock(kind);
+  if (!notes && !style) return '';
+  var authority = kind === 'mark'
+    ? "\n\nAUTHORITY ORDER: the teacher's model answer on the worksheet (when one is attached) always wins — never mark against it. Use the notes and the style above for the keywords, the phrasing and the standard expected; fall back to ordinary syllabus knowledge only where they say nothing."
+    : "\n\nAUTHORITY ORDER: what the worksheet itself prints or shows always wins — never contradict it. Otherwise base the content AND the wording on the notes and the style above, and fall back to ordinary syllabus knowledge only where they say nothing.";
+  return notes + style + authority;
+}
+
+/* ================= Learning from the answers already on the PDFs =========
+   Two harvests feed one corpus. The cheap one runs on every save and reads
+   the text boxes the teacher typed; the thorough one reads a whole worksheet
+   with the model, so handwritten answers count too. Both write samples of
+   the same shape, keyed so nothing is ever learned twice. */
+function styleSamples() {
+  return (aiStyle && Array.isArray(aiStyle.samples)) ? aiStyle.samples : [];
+}
+function styleEnsure() {
+  if (!aiStyle) aiStyle = { samples: [], profile: null, profileSamples: 0, learnedDocs: {} };
+  if (!Array.isArray(aiStyle.samples)) aiStyle.samples = [];
+  if (!aiStyle.learnedDocs) aiStyle.learnedDocs = {};
+  return aiStyle;
+}
+function styleTrim(s, cap) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  return s.length > cap ? s.slice(0, cap) : s;
+}
+/* An answer worth learning from is a sentence, not a tick or a page number. */
+function styleWorthLearning(text) {
+  var t = String(text || '').trim();
+  if (t.length < 4) return false;
+  if (!/[a-z]/i.test(t)) return false;          // "12", "✓" — no wording to learn
+  if (/^(q\s*\d+|page\s*\d+|name|date|class)\b/i.test(t)) return false;
+  return true;
+}
+/* Merge new samples in, newest last, dropping anything already learned and
+   letting the oldest fall off the end when the corpus is full. */
+function styleAddSamples(list) {
+  var st = styleEnsure();
+  var have = {};
+  st.samples.forEach(function (s) { if (s && s.k) have[s.k] = 1; });
+  var added = 0;
+  list.forEach(function (s) {
+    if (!s || !s.a || (s.k && have[s.k])) return;
+    if (s.k) have[s.k] = 1;
+    st.samples.push(s);
+    added++;
+  });
+  if (st.samples.length > STYLE_SAMPLE_MAX) {
+    st.samples = st.samples.slice(st.samples.length - STYLE_SAMPLE_MAX);
+  }
+  return added;
+}
+function styleSave() {
+  if (!isAdmin(currentUser)) return Promise.resolve();
+  var st = styleEnsure();
+  st.updatedAt = new Date().toISOString();
+  return styleDocRef(currentUser.uid).set({
+    samples: st.samples,
+    profile: st.profile || null,
+    profileSamples: st.profileSamples || 0,
+    profileAt: st.profileAt || '',
+    learnedDocs: st.learnedDocs || {},
+    updatedAt: st.updatedAt
+  }).catch(function (e) {
+    console.warn('Could not save what was learned', e);
+  });
+}
+
+/* The free harvest: every text box the teacher typed onto this worksheet.
+   Answers written by hand are not here — those are what the vision pass
+   below is for. */
+function styleHarvestTyped(anns, docId, meta) {
+  var out = [];
+  (anns || []).forEach(function (a) {
+    if (!a || a.type !== 'text' || !styleWorthLearning(a.text)) return;
+    out.push({
+      k: (docId || 'local') + ':' + a.id,
+      q: '',
+      a: styleTrim(a.text, STYLE_SAMPLE_CHARS),
+      lvl: (meta && meta.level) || '',
+      sub: (meta && meta.subject) || '',
+      ws: styleTrim((meta && meta.name) || '', 80),
+      at: new Date().toISOString()
+    });
+  });
+  return out;
+}
+
+/* Called after every save. Silent: the teacher asked to save a worksheet,
+   not to be told the AI read it. When enough new answers have piled up the
+   style profile quietly rebuilds itself, which is the "gets better over
+   time" part. */
+function styleHarvestOnSave() {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  var added = styleAddSamples(styleHarvestTyped(annotations, currentDocId, {
+    level: wsMeta.level, subject: wsMeta.subject, name: docName
+  }));
+  if (!added) return;
+  styleSave().then(function () {
+    var st = styleEnsure();
+    if (st.samples.length - (st.profileSamples || 0) >= STYLE_DISTIL_EVERY) {
+      styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
+    }
+  });
+}
+
+/* The thorough harvest: the model reads each annotated page of the worksheet
+   that is open and returns the questions with the teacher's OWN answers as
+   written on the paper — handwriting included. Same shape, same corpus. */
+var STYLE_READ_SYS =
+  'You are reading one page of a worksheet a teacher has already answered, so ' +
+  'that an AI can learn how THIS teacher writes answers. Reply with STRICT ' +
+  'JSON only: {"pairs":[{"q":"the question, condensed to one line","a":"the ' +
+  "teacher's answer exactly as written on the page\"}]}. Rules: one entry per " +
+  'question the teacher has actually answered on this page — typed or ' +
+  'handwritten. Transcribe the answer EXACTLY: never correct it, complete it, ' +
+  'improve it or add to it, and keep the teacher\'s own words, symbols and ' +
+  'working. Skip any question that has no answer written on it. A page with ' +
+  'no answers at all returns {"pairs":[]}. Plain text in every field: no ' +
+  'markdown, no bullets, no line breaks.';
+
+async function styleLearnOpenWorksheet() {
+  if (!isAdmin(currentUser)) return;
+  if (!pdfDoc || !pages.length) { toast('Open a worksheet first.'); return; }
+  if (notesBusy) { toast('Still working on the last one — one moment…'); return; }
+  if (aiBusy) { toast(aiEngineName() + ' is busy — one moment…'); return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  // The typed answers cost nothing, so they go in whatever happens next.
+  styleAddSamples(styleHarvestTyped(annotations, currentDocId, {
+    level: wsMeta.level, subject: wsMeta.subject, name: docName
+  }));
+
+  var withAnns = pages.filter(function (p) {
+    return annotations.some(function (a) { return a.page === p.num; });
+  }).slice(0, STYLE_LEARN_PAGES_MAX);
+  if (!withAnns.length) {
+    await styleSave();
+    renderNotesBody();
+    toast('Nothing is written on this worksheet yet — there is nothing to learn from.', 5000);
+    return;
+  }
+
+  notesBusy = true;
+  aiBusy = true;
+  renderNotesBody();
+  var found = 0, failed = 0;
+  try {
+    for (var i = 0; i < withAnns.length; i++) {
+      var p = withAnns[i];
+      notesSetStatus('📖 Reading page ' + p.num + ' of ' + withAnns.length + ' — ' + found + ' answers learned so far…');
+      var anns = annotations.filter(function (a) { return a.page === p.num; });
+      try {
+        var img = await keyPageJpeg(p, anns, KEY_PAGE_PX);
+        if (!img) continue;
+        var lines = [];
+        var subj = wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
+        var lvl = wsMeta.level ? levelLabel(wsMeta.level) : '';
+        if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
+        lines.push('Attached: page ' + p.num + ' of the worksheet, with the teacher\'s answers on it.');
+        lines.push('Return the questions with the answers the teacher wrote.');
+        var raw = await window.askGemini(lines.join('\n'), {
+          system: STYLE_READ_SYS, maxOutputTokens: 2200, temperature: 0.1, json: true,
+          images: [{ mimeType: 'image/jpeg', data: img }]
+        });
+        var res = _parseAIJson(raw);
+        var pairs = (res && Array.isArray(res.pairs)) ? res.pairs : [];
+        var batch = [];
+        pairs.forEach(function (pair, n) {
+          if (!pair || !styleWorthLearning(pair.a)) return;
+          batch.push({
+            k: (currentDocId || 'local') + ':p' + p.num + ':' + n + ':' + styleTrim(pair.a, 24).toLowerCase(),
+            q: styleTrim(pair.q, STYLE_Q_CHARS),
+            a: styleTrim(pair.a, STYLE_SAMPLE_CHARS),
+            lvl: wsMeta.level || '', sub: wsMeta.subject || '',
+            ws: styleTrim(docName || '', 80),
+            at: new Date().toISOString()
+          });
+        });
+        found += styleAddSamples(batch);
+      } catch (e) {
+        failed++;
+        console.warn('Could not read page ' + p.num, e);
+      }
+    }
+    var st = styleEnsure();
+    if (currentDocId) st.learnedDocs[currentDocId] = Date.now();
+    await styleSave();
+  } finally {
+    notesBusy = false;
+    aiBusy = false;
+    notesSetStatus('');
+  }
+  toast(found
+    ? '📖 Learned ' + found + ' of your own answers from this worksheet' + (failed ? ' (' + failed + ' page(s) could not be read)' : '') + ' — rebuilding your style…'
+    : 'No new answers found on this worksheet.', 5000);
+  renderNotesBody();
+  if (found) await styleDistil(false);
+}
+
+/* Every worksheet already saved, read straight out of Firestore — the typed
+   answers only, so it costs one read per worksheet and no AI at all. This is
+   the button that turns years of saved worksheets into a style overnight. */
+async function styleLearnAllWorksheets() {
+  if (!isAdmin(currentUser)) return;
+  if (notesBusy) { toast('Still working on the last one — one moment…'); return; }
+  notesBusy = true;
+  renderNotesBody();
+  var docsRead = 0, added = 0, failed = 0;
+  try {
+    notesSetStatus('📚 Fetching your saved worksheets…');
+    var snap = await db.collection(COLLECTION).get();
+    var rows = [];
+    snap.forEach(function (d) { rows.push({ id: d.id, data: d.data() }); });
+    rows = rows.filter(function (r) { return !r.data.ownerUid || r.data.ownerUid === currentUser.uid; });
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      notesSetStatus('📚 Reading worksheet ' + (i + 1) + ' of ' + rows.length + ' — ' + added + ' answers learned so far…');
+      try {
+        var json = await readAnnotationJson(r.data);
+        var anns = JSON.parse(json || '[]');
+        added += styleAddSamples(styleHarvestTyped(anns, r.id, {
+          level: r.data.level, subject: r.data.subject, name: r.data.name
+        }));
+        docsRead++;
+      } catch (e) {
+        failed++;
+        console.warn('Could not read the annotations of "' + (r.data.name || r.id) + '"', e);
+      }
+    }
+    await styleSave();
+  } catch (e) {
+    console.error('Learning from saved worksheets failed', e);
+    toast('Could not read your saved worksheets: ' + ((e && e.message) || e), 6000);
+  } finally {
+    notesBusy = false;
+    notesSetStatus('');
+  }
+  toast('📚 Read ' + docsRead + ' worksheet(s) — ' + added + ' new answers learned' +
+        (failed ? ' (' + failed + ' could not be opened)' : '') + '.', 5000);
+  renderNotesBody();
+  if (added) await styleDistil(false);
+}
+
+/* Turn the corpus into the short profile the prompts actually carry. The
+   samples themselves never reach a prompt — only what they add up to, plus
+   a handful of real answers as exemplars. */
+var STYLE_DISTIL_SYS =
+  'You are studying a tuition teacher\'s own answers, taken off the worksheets ' +
+  'they have marked for their P3-to-Secondary-1 students in Singapore, so that ' +
+  'an AI can write answers that sound like theirs. Reply with STRICT JSON ' +
+  'only, exactly this shape: {"styleRules":"","phrasing":"","markingStandards":"",' +
+  '"keywords":[],"exemplars":[{"q":"","a":""}]}. "styleRules" (at most 700 ' +
+  'characters) is how this teacher answers: typical length, whether they show ' +
+  'working, whether they answer in full sentences or fragments, how they open ' +
+  'an explanation, what they always include and what they leave out. ' +
+  '"phrasing" (at most 300 characters) is their habitual wording and sentence ' +
+  'patterns, quoted where you can. "markingStandards" (at most 400 characters) ' +
+  'is what their answers show is expected for full marks. "keywords" is 10 to ' +
+  '25 terms they use over and over, exactly as they write them. "exemplars" is ' +
+  'up to 6 of the given answers, copied VERBATIM, chosen because they are the ' +
+  'most typical of the teacher. Describe what is actually there — never invent ' +
+  'a habit the answers do not show. Plain text in every field, no markdown.';
+
+async function styleDistil(quiet) {
+  if (!isAdmin(currentUser)) return;
+  var st = styleEnsure();
+  if (st.samples.length < STYLE_DISTIL_MIN) {
+    if (!quiet) toast('Only ' + st.samples.length + ' answers learned so far — learn from a worksheet or two first.', 5000);
+    return;
+  }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    if (!quiet) toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  if (!quiet) { notesBusy = true; notesSetStatus('🧠 Working out how you write…'); renderNotesBody(); }
+  try {
+    var recent = st.samples.slice(-STYLE_DISTIL_SAMPLES);
+    var lines = ['These are ' + recent.length + " answers the teacher wrote on their own worksheets."];
+    recent.forEach(function (s, i) {
+      var tag = [levelLabel(s.lvl), subjectLabel(s.sub)].filter(Boolean).join(' ');
+      lines.push((i + 1) + '.' + (tag ? ' [' + tag + ']' : '') + (s.q ? ' Q: ' + s.q : '') + ' A: ' + s.a);
+    });
+    lines.push('Describe how this teacher writes, and pick the exemplars.');
+    var raw = await window.askGemini(lines.join('\n'), {
+      system: STYLE_DISTIL_SYS, maxOutputTokens: 2200, temperature: 0.3, json: true
+    });
+    var p = _parseAIJson(raw) || {};
+    st.profile = {
+      styleRules: styleTrim(p.styleRules, 900),
+      phrasing: styleTrim(p.phrasing, 400),
+      markingStandards: styleTrim(p.markingStandards, 500),
+      keywords: (Array.isArray(p.keywords) ? p.keywords : [])
+        .map(function (s) { return styleTrim(s, 40); }).filter(Boolean).slice(0, 25),
+      exemplars: (Array.isArray(p.exemplars) ? p.exemplars : [])
+        .filter(function (e) { return e && e.a; })
+        .map(function (e) { return { q: styleTrim(e.q, STYLE_Q_CHARS), a: styleTrim(e.a, 300) }; })
+        .slice(0, STYLE_EX_MAX)
+    };
+    st.profileSamples = st.samples.length;
+    st.profileAt = new Date().toISOString();
+    await styleSave();
+    if (!quiet) toast('🧠 Your style is up to date — every AI answer follows it from now on.', 5000);
+  } catch (e) {
+    console.error('Style profile failed', e);
+    if (!quiet) toast('Could not work out your style: ' + ((e && e.message) || e), 6000);
+  } finally {
+    if (!quiet) { notesBusy = false; notesSetStatus(''); }
+    renderNotesBody();
+  }
+}
+
+async function styleForget() {
+  if (!isAdmin(currentUser)) return;
+  if (!confirm('Forget everything the AI has learned from your worksheets?\n\nYour uploaded teaching notes are kept — only the learned answers and the style profile are cleared.')) return;
+  aiStyle = { samples: [], profile: null, profileSamples: 0, learnedDocs: {} };
+  await styleSave();
+  renderNotesBody();
+  toast('Learned answers cleared.');
+}
+
+/* ================= Uploading notes ================= */
+function notesFileToBase64(f) {
+  return new Promise(function (resolve, reject) {
+    var r = new FileReader();
+    r.onload = function () { resolve(String(r.result).split(',')[1]); };
+    r.onerror = function () { reject(new Error('could not read “' + f.name + '”')); };
+    r.readAsDataURL(f);
+  });
+}
+
+async function notesHandleFiles(files) {
+  files = Array.isArray(files) ? files : [files];
+  if (!files.length || !isAdmin(currentUser)) return;
+  if (notesBusy) { toast('Still working on the last upload — one moment…'); return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    var ok = f.type === 'application/pdf' || (f.type && f.type.indexOf('image/') === 0);
+    if (!ok) { toast('“' + f.name + '” is not a PDF or an image — choose PDFs and/or photos only.', 5000); return; }
+  }
+  var total = files.reduce(function (s, f) { return s + f.size; }, 0);
+  if (total > 18 * 1024 * 1024) {
+    toast('Those files are too big together (about 18 MB per upload) — split them into two uploads.', 6000);
+    return;
+  }
+  var comment = ($('notesComment') ? $('notesComment').value : '').trim();
+  notesBusy = true;
+  renderNotesBody();
+  notesSetStatus(files.length === 1
+    ? '⏳ Reading “' + files[0].name + '” — pulling out the keywords, the marking standards and the key facts…'
+    : '⏳ Reading ' + files.length + ' files together — pulling out the keywords, the marking standards and the key facts…');
+  try {
+    var media = [];
+    for (var j = 0; j < files.length; j++) {
+      media.push({ mimeType: files[j].type, data: await notesFileToBase64(files[j]) });
+    }
+    var docDesc = files.length === 1
+      ? 'the attached ' + (files[0].type === 'application/pdf' ? 'PDF' : 'image')
+      : 'the ' + files.length + ' attached files, which together form ONE set of notes — read them in the order attached and analyse them as a single document';
+    var prompt =
+      "You are analysing a tuition teacher's own reference notes (" + docDesc + ') for a ' +
+      'Singapore primary-to-lower-secondary (P3 to Sec 1) worksheet app that writes answers, ' +
+      'answer keys and explanations in that teacher\'s style.\n' +
+      (comment ? 'The teacher says about this document: "' + comment + '".\n' : '') +
+      'Extract the teaching content and return ONLY JSON:\n' +
+      '{"title":"a short descriptive title for these notes",' +
+      '"subjects":["math and/or science — only the subjects this document is about, from EXACTLY: math; science"],' +
+      '"levels":["only the levels this document is for, from EXACTLY: ' + LEVELS.join('; ') + ' — leave empty if it suits every level"],' +
+      '"noteTopics":["the topics this document covers, in the document\'s own words"],' +
+      '"keywords":["the EXACT terms and key phrases students are expected to use in their answers, most important first — copy the document\'s own wording"],' +
+      '"markingStandards":"how answers should be phrased and marked according to this document: required sentence patterns, terms that MUST appear for full marks, acceptable alternatives, common mistakes to penalise (plain text, at most 1200 characters)",' +
+      '"keyFacts":"the key facts, rules, formulas and methods taught, one short line each, separated by \\n (plain text, at most 1500 characters)"}\n' +
+      'Rules:\n- 10 to 40 keywords, each 1-4 words, no duplicates, most important first.\n' +
+      '- "subjects" and "levels" only from the lists given, and only when the document really is limited to them; an empty list means it applies to everything.\n' +
+      '- Plain text only, no markdown.';
+    var raw = await window.askGemini(prompt, {
+      system: 'You read a teacher\'s notes and return strict JSON. No markdown, no commentary.',
+      maxOutputTokens: 3072, temperature: 0.2, json: true, images: media
+    });
+    var p = _parseAIJson(raw) || {};
+    var subjOk = { math: 1, science: 1 };
+    var note = {
+      title: styleTrim(p.title, 140) || files[0].name || 'Untitled notes',
+      fileName: files.map(function (f) { return f.name || ''; }).filter(Boolean).join(', '),
+      comment: comment,
+      // `topics` belongs to the Science Learning Portal's syllabus list — left
+      // empty here so a note uploaded in this app reads as a general note
+      // there instead of one tagged with topics it has never heard of.
+      topics: [],
+      noteTopics: (Array.isArray(p.noteTopics) ? p.noteTopics : [])
+        .map(function (s) { return styleTrim(s, 60); }).filter(Boolean).slice(0, 20),
+      subjects: (Array.isArray(p.subjects) ? p.subjects : [])
+        .map(function (s) { return String(s).toLowerCase().trim(); })
+        .filter(function (s) { return subjOk[s]; }),
+      levels: (Array.isArray(p.levels) ? p.levels : [])
+        .map(function (s) { return String(s).toUpperCase().trim(); })
+        .filter(function (s) { return LEVELS.indexOf(s) !== -1; }),
+      keywords: (Array.isArray(p.keywords) ? p.keywords : [])
+        .map(function (s) { return styleTrim(s, 60); }).filter(Boolean).slice(0, 60),
+      markingStandards: styleTrim(p.markingStandards, 1600),
+      keyFacts: String(p.keyFacts || '').trim().slice(0, 2000),
+      source: 'anskey',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    var id = 'note_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    await notesCollRef(currentUser.uid).doc(id).set(note);
+    note.id = id;
+    teachingNotes.unshift(note);
+    if ($('notesComment')) $('notesComment').value = '';
+    toast('✅ “' + note.title + '” analysed — ' + note.keywords.length + ' keywords. Every AI answer follows them from now on.', 6000);
+  } catch (e) {
+    console.error('Notes analysis failed', e);
+    toast('Could not read those notes: ' + ((e && e.message) || e), 6000);
+  } finally {
+    notesBusy = false;
+    notesSetStatus('');
+    renderNotesBody();
+  }
+}
+
+async function notesDelete(id) {
+  var n = teachingNotes.filter(function (x) { return x.id === id; })[0];
+  if (!n || !isAdmin(currentUser)) return;
+  if (!confirm('Delete “' + (n.title || n.fileName || 'this note') + '”?\n\nThe AI stops using its keywords and marking standards.')) return;
+  try {
+    await notesCollRef(currentUser.uid).doc(id).delete();
+    teachingNotes = teachingNotes.filter(function (x) { return x.id !== id; });
+    renderNotesBody();
+    toast('Note deleted.');
+  } catch (e) {
+    toast('Could not delete: ' + ((e && e.message) || e), 5000);
+  }
+}
+
+/* ---- Editing what the AI extracted ---- */
+var noteEditId = null;
+function notesEditOpen(id) {
+  var n = teachingNotes.filter(function (x) { return x.id === id; })[0];
+  if (!n) return;
+  noteEditId = id;
+  $('nteTitle').value = n.title || '';
+  $('nteSubjects').value = (n.subjects || []).join(', ');
+  $('nteLevels').value = (n.levels || []).join(', ');
+  $('nteKeywords').value = (n.keywords || []).join(', ');
+  $('nteStandards').value = n.markingStandards || '';
+  $('nteFacts').value = n.keyFacts || '';
+  $('nteComment').value = n.comment || '';
+  $('noteEditModal').classList.add('open');
+  setTimeout(function () { $('nteTitle').focus(); }, 50);
+}
+function notesEditClose() {
+  $('noteEditModal').classList.remove('open');
+  noteEditId = null;
+}
+async function notesEditSave() {
+  var n = teachingNotes.filter(function (x) { return x.id === noteEditId; })[0];
+  if (!n || !isAdmin(currentUser)) { notesEditClose(); return; }
+  var subjOk = { math: 1, science: 1 };
+  n.title = styleTrim($('nteTitle').value, 140) || n.fileName || 'Untitled notes';
+  n.subjects = $('nteSubjects').value.split(',').map(function (s) { return s.toLowerCase().trim(); })
+    .filter(function (s) { return subjOk[s]; });
+  n.levels = $('nteLevels').value.split(',').map(function (s) { return s.toUpperCase().trim(); })
+    .filter(function (s) { return LEVELS.indexOf(s) !== -1; });
+  n.keywords = $('nteKeywords').value.split(/[,\n]/).map(function (s) { return styleTrim(s, 60); })
+    .filter(Boolean).slice(0, 60);
+  n.markingStandards = styleTrim($('nteStandards').value, 1600);
+  n.keyFacts = $('nteFacts').value.trim().slice(0, 2000);
+  n.comment = $('nteComment').value.trim();
+  n.updatedAt = new Date().toISOString();
+  try {
+    var id = n.id;
+    var data = {};
+    for (var k in n) { if (k !== 'id') data[k] = n[k]; }
+    await notesCollRef(currentUser.uid).doc(id).set(data);
+    notesEditClose();
+    renderNotesBody();
+    toast('Note updated.');
+  } catch (e) {
+    toast('Could not save: ' + ((e && e.message) || e), 5000);
+  }
+}
+
+/* ================= The 📚 Teaching notes window ================= */
+function applyNotesVisibility() {
+  var show = isAdmin(currentUser) && !actingStudent && !isSharedVisitor();
+  var btn = $('notesBtn');
+  if (btn) btn.style.display = show ? '' : 'none';
+  if (!show) {
+    if ($('notesModal')) $('notesModal').classList.remove('open');
+    if ($('noteEditModal')) $('noteEditModal').classList.remove('open');
+  }
+}
+
+function openNotesModal() {
+  if (!isAdmin(currentUser)) return;
+  $('notesModal').classList.add('open');
+  renderNotesBody();
+  loadTeachingNotes(true).then(renderNotesBody);
+}
+function closeNotesModal() { $('notesModal').classList.remove('open'); }
+
+function notesSetStatus(msg) {
+  var el = $('notesStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? '' : 'none';
+}
+
+function notesWhenText(iso) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function notesCardHtml(n) {
+  var tags = []
+    .concat((n.subjects || []).map(function (s) { return subjectLabel(s) || s; }))
+    .concat((n.levels || []).map(function (l) { return levelLabel(l); }))
+    .concat(n.noteTopics || [])
+    .concat(n.topics || []);
+  var tagHtml = tags.length
+    ? tags.map(function (t) { return '<span class="tnChip tnChipTopic">' + escHtml(t) + '</span>'; }).join('')
+    : '<span class="tnNone">Applies to every worksheet</span>';
+  var kwHtml = (n.keywords || []).length
+    ? (n.keywords || []).map(function (k) { return '<span class="tnChip tnChipKw">' + escHtml(k) + '</span>'; }).join('')
+    : '<span class="tnNone">No keywords yet — add some with Edit</span>';
+  var std = String(n.markingStandards || '').trim();
+  var facts = String(n.keyFacts || '').trim();
+  var com = String(n.comment || '').trim();
+  var when = notesWhenText(n.createdAt);
+  return '<div class="tnCard">' +
+    '<div class="tnCardHead">' +
+      '<div class="tnCardId">' +
+        '<div class="tnCardTitle">' + escHtml(n.title || n.fileName || 'Untitled notes') + '</div>' +
+        '<div class="tnCardMeta">' + escHtml(n.fileName || '') + (when ? ' · uploaded ' + escHtml(when) : '') +
+          (n.source === 'anskey' ? '' : ' · from the Learning Portal') + '</div>' +
+      '</div>' +
+      '<div class="tnCardBtns">' +
+        '<button class="btn" onclick="notesEditOpen(\'' + n.id + '\')">✎ Edit</button>' +
+        '<button class="btn" onclick="notesDelete(\'' + n.id + '\')">✕ Delete</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="tnRow"><div class="tnLabel">Used for</div><div class="tnChips">' + tagHtml + '</div></div>' +
+    '<div class="tnRow"><div class="tnLabel">Keywords</div><div class="tnChips">' + kwHtml + '</div></div>' +
+    (std ? '<div class="tnRow"><div class="tnLabel">Marking standards</div><div class="tnText">' + escHtml(std) + '</div></div>' : '') +
+    (com ? '<div class="tnRow"><div class="tnLabel">Your comment</div><div class="tnText tnTextSoft">' + escHtml(com) + '</div></div>' : '') +
+    (facts ? '<details class="tnFacts"><summary>Key facts</summary><div class="tnText">' + escHtml(facts).replace(/\n/g, '<br>') + '</div></details>' : '') +
+  '</div>';
+}
+
+function notesTrainingHtml() {
+  var st = styleEnsure();
+  var n = st.samples.length;
+  var p = st.profile;
+  var learned = Object.keys(st.learnedDocs || {}).length;
+  var stale = p ? Math.max(0, n - (st.profileSamples || 0)) : n;
+  var profileHtml = p
+    ? '<div class="tnProfile">' +
+        (p.styleRules ? '<div class="tnRow"><div class="tnLabel">How you write</div><div class="tnText">' + escHtml(p.styleRules) + '</div></div>' : '') +
+        (p.phrasing ? '<div class="tnRow"><div class="tnLabel">Your phrasing</div><div class="tnText">' + escHtml(p.phrasing) + '</div></div>' : '') +
+        (p.markingStandards ? '<div class="tnRow"><div class="tnLabel">Your standard</div><div class="tnText">' + escHtml(p.markingStandards) + '</div></div>' : '') +
+        ((p.keywords || []).length ? '<div class="tnRow"><div class="tnLabel">Your words</div><div class="tnChips">' +
+          p.keywords.map(function (k) { return '<span class="tnChip tnChipKw">' + escHtml(k) + '</span>'; }).join('') + '</div></div>' : '') +
+        '<div class="tnCardMeta" style="margin-top:10px">Worked out from ' + (st.profileSamples || 0) + ' of your answers' +
+          (st.profileAt ? ' on ' + escHtml(notesWhenText(st.profileAt)) : '') +
+          (stale ? ' · ' + stale + ' newer answers are not in it yet' : '') + '</div>' +
+      '</div>'
+    : '<div class="tnEmpty">Nothing learned yet. Learn from a worksheet you have already answered and the AI starts writing the way you do.</div>';
+  return '<div class="tnPanel">' +
+    '<h3>🧠 Learning from your own answers</h3>' +
+    '<p class="tnSub">Every answer you type onto a worksheet is picked up when you save it. Press the buttons below to go further: the first reads the worksheet on screen with the AI, <b>handwriting included</b>, and the second sweeps every worksheet you have ever saved. What comes out is a picture of how <i>you</i> answer — and every AI answer, answer key, explanation and mark follows it.</p>' +
+    '<div class="tnStats">' +
+      '<div class="tnStat"><b>' + n + '</b><span>answers learned</span></div>' +
+      '<div class="tnStat"><b>' + learned + '</b><span>worksheets read</span></div>' +
+      '<div class="tnStat"><b>' + teachingNotes.length + '</b><span>sets of notes</span></div>' +
+    '</div>' +
+    '<div class="tnBtnRow">' +
+      '<button class="btn" onclick="styleLearnOpenWorksheet()"' + (notesBusy ? ' disabled' : '') + '>📖 Learn from this worksheet</button>' +
+      '<button class="btn" onclick="styleLearnAllWorksheets()"' + (notesBusy ? ' disabled' : '') + '>📚 Learn from all my saved worksheets</button>' +
+      '<button class="btn" onclick="styleDistil(false)"' + (notesBusy ? ' disabled' : '') + '>🧠 Rebuild my style</button>' +
+      (n ? '<button class="btn" onclick="styleForget()"' + (notesBusy ? ' disabled' : '') + '>Forget what was learned</button>' : '') +
+    '</div>' +
+    profileHtml +
+  '</div>';
+}
+
+function renderNotesBody() {
+  var body = $('notesBody');
+  if (!body) return;
+  if (!isAdmin(currentUser)) {
+    body.innerHTML = '<div class="tnEmpty">Teaching notes are the teacher\'s own.</div>';
+    return;
+  }
+  var status = ($('notesStatus') && $('notesStatus').textContent) || '';
+  var cards = teachingNotes.length
+    ? teachingNotes.map(notesCardHtml).join('')
+    : '<div class="tnEmpty">No notes yet — upload your first PDF above. Everything the AI pulls out of it stays editable.</div>';
+  body.innerHTML =
+    '<div class="tnPanel">' +
+      '<h3>📚 Upload your notes</h3>' +
+      '<p class="tnSub">PDFs and photos of your own notes, answer keys and summaries — pick several at once and they are read <b>together as one set</b>. The AI pulls out the keywords your students must use, the marking standards and the key facts, then follows them whenever it writes an answer, builds an answer key, explains something or marks a student. These notes are shared with your Science Learning Portal, so anything uploaded there already counts here.</p>' +
+      '<div class="fieldRow">' +
+        '<label for="notesComment">Anything to tell the AI about this upload <span style="font-weight:normal;color:var(--ink-faint)">(optional)</span></label>' +
+        '<textarea id="notesComment" rows="2" placeholder="e.g. follow the keywords in the summary table at the back"></textarea>' +
+      '</div>' +
+      '<div class="tnBtnRow">' +
+        '<button class="btn btnPrimary" onclick="$(\'notesFileInput\').click()"' + (notesBusy ? ' disabled' : '') + '>📄 Choose file(s) &amp; read them</button>' +
+        '<span class="tnHint">PDFs and/or photos, about 18 MB per upload</span>' +
+      '</div>' +
+      '<div id="notesStatus" class="tnStatus"' + (status ? '' : ' style="display:none"') + '>' + escHtml(status) + '</div>' +
+    '</div>' +
+    notesTrainingHtml() +
+    '<div class="tnListHead"><h3>Your notes (' + teachingNotes.length + ')</h3></div>' +
+    cards;
+}
+
 /* ================= Gemini AI helpers =================
    Gemini is reached through Firebase AI Logic on the shared mathgen--app
    project — there is no secret key in this file, and quota abuse is
@@ -9305,7 +10308,7 @@ function aiAnswer(id) {
   }
   lines.push('The teacher typed in the answer box: "' + q + '"');
   lines.push('Write only the text that should go in the box.');
-  aiRequest(id, AI_ANSWER_SYS, lines.join('\n'), '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx);
+  aiRequest(id, AI_ANSWER_SYS + aiGrounding('answer'), lines.join('\n'), '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx);
 }
 
 function aiImprove(id) {
@@ -10163,7 +11166,7 @@ async function buildAiNotePayload(kind, instr, frame, imgs, quality, spot) {
   }
 
   var raw = await window.askGemini(lines.join('\n'), {
-    system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS[kind] + (q.sys ? '\nTake the care this deserves — accuracy first.' : ''),
+    system: AI_NOTE_SYS_BASE + '\n' + AI_NOTE_SYS[kind] + (q.sys ? '\nTake the care this deserves — accuracy first.' : '') + aiGrounding('teach'),
     maxOutputTokens: q.tokens.text, temperature: 0.4, json: true, images: imgs,
     effort: q.effort, thinkingLevel: q.think
   });
@@ -12228,7 +13231,7 @@ function sendAskAi() {
   lines.push((metered ? 'The student asks: "' : 'The teacher asks: "') + q + '"');
 
   window.askGemini(lines.join('\n'), {
-    system: metered ? AI_EXPLAIN_SYS : AI_TEACHER_ASK_SYS,
+    system: (metered ? AI_EXPLAIN_SYS : AI_TEACHER_ASK_SYS) + aiGrounding('teach'),
     maxOutputTokens: 900, temperature: 0.4, json: true,
     images: imgs.map(function (im) { return { mimeType: im.mimeType, data: im.data }; })
   }).then(function (raw) {
@@ -12496,7 +13499,7 @@ function markCluster(p, seedAnns) {
   lines.push('Mark the student\'s answer to the question nearest it.');
 
   return window.askGemini(lines.join('\n'), {
-    system: AI_MARK_SYS, maxOutputTokens: 1400, temperature: 0.2, json: true,
+    system: AI_MARK_SYS + aiGrounding('mark'), maxOutputTokens: 1400, temperature: 0.2, json: true,
     images: imgs.map(function (im) { return { mimeType: im.mimeType, data: im.data }; })
   }).then(function (raw) {
     return { res: _parseAIJson(raw), band: qBand };
@@ -13073,7 +14076,7 @@ async function runAnswerKey(keyAnns, detailed) {
       // which is why the same model, asked the same page in the ChatGPT app
       // at Extra High, came back with different answers.
       var keyOpts = {
-        system: detailed ? AI_KEY_DETAIL_SYS : AI_KEY_SYS,
+        system: (detailed ? AI_KEY_DETAIL_SYS : AI_KEY_SYS) + aiGrounding('answer'),
         // The budget has to cover the thinking as well as the answer.
         maxOutputTokens: detailed ? 32000 : 20000,
         effort: 'xhigh',          // ChatGPT — the app's "Extra High"
@@ -13644,6 +14647,8 @@ function applyRoleUI() {
   if (typeof placeToolbarToggle === 'function') placeToolbarToggle();
   // Awarding marks is the teacher's own tool, and only the admin's.
   applyRewardVisibility();
+  // The teaching notes the AI writes from are the teacher's own too.
+  applyNotesVisibility();
   var h1 = $('emptyState').querySelector('h1');
   var para = $('emptyState').querySelector('p');
   if (student) {
@@ -13824,6 +14829,15 @@ auth.onAuthStateChanged(function (user) {
   // The teacher's own AI settings — including the OpenAI key — follow the
   // account, so signing in is all it takes to have ChatGPT working again.
   if (user && isAdmin(user)) loadAiEngineFromCloud(user);
+  // The teaching notes and the learned style ground every AI feature, so
+  // they are fetched the moment we know who is here. Whatever the last
+  // account had is dropped first — the new one keeps only what its own read
+  // is allowed to bring back. A student's device learns whose notes to read
+  // from the first worksheet it opens.
+  teachingNotes = [];
+  aiStyle = null;
+  notesLoaded = false;
+  if (user) loadTeachingNotes(true);
   if (user && !isAdmin(user) && !user.isAnonymous) {
     // Students: fetch their profile, and ask for it on their very first login.
     loadStudentProfile(user).then(function () {
@@ -15243,6 +16257,7 @@ async function performSave() {
     // The annotations go wherever they fit — see writeAnnotations.
     await writeAnnotations(currentDocId, JSON.stringify(annotations), payload);
     rememberStarPages(currentDocId, starredPages());
+    styleHarvestOnSave();   // every answer typed onto this worksheet teaches the AI your style
     startLivePresence(); // now it exists, it can advertise that it is live
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
@@ -15680,6 +16695,7 @@ async function openSavedDoc(id, data) {
     wsMeta.videoPath = data.videoPath || '';
     wsMeta.videoStart = Number(data.videoStartMs) || 0;
     wsMeta.coverTitle = data.coverTitle || '';
+    notesNoteOwner(data);   // whose worksheet this is = whose notes the AI reads
     restoreStarPagesFrom(id, data);
     wsShare = normalizeShare(data.share);
     setDirty(false);
@@ -18453,6 +19469,22 @@ $('studentsModal').addEventListener('click', function (e) {
 $('burgerBtn').addEventListener('click', toggleQuestionsDrawer);
 
 /* Reward window (admin only) */
+$('notesBtn').addEventListener('click', openNotesModal);
+$('notesCloseBtn').addEventListener('click', closeNotesModal);
+$('notesModal').addEventListener('click', function (e) {
+  if (e.target === $('notesModal')) closeNotesModal();
+});
+$('notesFileInput').addEventListener('change', function () {
+  var fs = [].slice.call(this.files);
+  this.value = '';
+  if (fs.length) notesHandleFiles(fs);
+});
+$('noteEditCloseBtn').addEventListener('click', notesEditClose);
+$('noteEditCancelBtn').addEventListener('click', notesEditClose);
+$('noteEditSaveBtn').addEventListener('click', notesEditSave);
+$('noteEditModal').addEventListener('click', function (e) {
+  if (e.target === $('noteEditModal')) notesEditClose();
+});
 $('rewardBtn').addEventListener('click', openRewardModal);
 $('rewardCloseBtn').addEventListener('click', function () { $('rewardModal').classList.remove('open'); });
 $('rewardModal').addEventListener('click', function (e) {
