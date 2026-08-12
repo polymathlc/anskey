@@ -3,6 +3,50 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Teaching notes, and an AI that learns how you answer (v1.64.0)
+
+**The AI now writes from your notebook, not from the internet's.** A new
+📚 **Notes** button on the toolbar (teacher only) opens the Teaching Notes
+window, and everything the AI writes on a worksheet — the ✨ **Answer** on a
+text box, the **Answer key**, **AI note cards**, **Ask AI**, and every mark it
+gives a student in practice mode — is written from what is in there.
+
+- **Upload your own notes.** PDFs and photos, several at once (they are read
+  *together* as one set). The AI pulls out the **keywords** your students must
+  use, your **marking standards** and the **key facts**, and everything it
+  extracts stays editable — the keywords above all, since they are what it
+  looks for when marking and reaches for when it writes.
+- **Notes can name their subject and level**, or name neither and apply
+  everywhere. If nothing matches the worksheet on screen the whole notebook is
+  used rather than none of it.
+- **They are the same notes as the Science Learning Portal's.** Both apps read
+  and write one notebook, so anything uploaded on either side already counts on
+  the other.
+- **The order of authority never changes**: what the worksheet itself prints
+  always wins, then your notes, then ordinary syllabus knowledge. When marking,
+  your model answer on the page beats everything.
+
+**And it learns from the answers you have already written.** Every answer you
+type onto a worksheet is picked up quietly when you save it, and the window has
+two buttons for going further:
+
+- **📖 Learn from this worksheet** reads the worksheet on screen page by page,
+  **handwriting included**, and takes down the answers you wrote in your own
+  words.
+- **📚 Learn from all my saved worksheets** sweeps every worksheet you have
+  ever saved in one go.
+
+What comes out is a short profile of *how you answer* — how long, how phrased,
+what you always include, which words you insist on, what you accept for full
+marks — with a handful of your real answers carried along as examples. It
+rebuilds itself as more answers pile up, so the AI sounds a little more like you
+every week. The window shows the profile in plain words, and **Forget what was
+learned** clears it without touching your uploaded notes.
+
+Students never see any of this: the button, the window and every write are the
+teacher's own. Their device does read the notes, so the AI marks their practice
+against your standards and not its own.
+
 ## Day dots on the toolbar, and a slimmer toolbar to hang them on (v1.63.0)
 
 **Six pastel circles — M T W T F S.** They sit on the toolbar just after
