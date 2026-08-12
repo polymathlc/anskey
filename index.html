@@ -720,13 +720,17 @@
   /* A pill still waiting on its upload reads as busy rather than tappable. */
   .videoAnnBtn.pending { background: linear-gradient(135deg, #90A4AE, #78909C); }
 
-  /* ---------- Toolbar ---------- */
+  /* ---------- Toolbar ----------
+     Short and sweet: the bar is chrome, not the work. Every icon is trimmed
+     to the smallest size that still reads and still takes a finger, so the
+     whole set lands in one row on a laptop and leaves the worksheet the room
+     it deserves. */
   #toolbar {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 14px;
+    gap: 4px;
+    padding: 6px 10px;
     border-bottom: 1px solid var(--line);
     background: #FCFCFB;
     /* flex-shrink AND min-height:auto: without them a short viewport (an
@@ -735,10 +739,15 @@
     min-height: auto;
   }
   body.toolbarMin #toolbar { display: none; }
-  .tGroup { display: flex; align-items: center; gap: 5px; }
-  .tSep { width: 1px; height: 26px; background: var(--line); margin: 0 6px; }
+  .tGroup { display: flex; align-items: center; gap: 3px; }
+  .tSep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+  /* The file buttons sit in the same bar, so they shrink with everything
+     else — the base .btn is left alone for the modals that use it. */
+  #toolbar .btn { padding: 7px 12px; font-size: 0.8rem; gap: 6px; }
+  #toolbar .btn svg { width: 15px; height: 15px; }
+  #toolbar .btnIcon { padding: 7px 8px; }
   .toolBtn {
-    width: 32px; height: 32px;
+    width: 28px; height: 28px;
     display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -748,7 +757,7 @@
     transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
     position: relative;
   }
-  .toolBtn svg { width: 17px; height: 17px; display: block; }
+  .toolBtn svg { width: 16px; height: 16px; display: block; }
   /* One button, two glyphs: expand while windowed, contract while full screen. */
   #fsBtn .fsExit { display: none; }
   body.immersive #fsBtn .fsEnter { display: none; }
@@ -840,8 +849,42 @@
     color: var(--ink);
     box-shadow: var(--shadow-btn);
   }
+  /* ---------- Class-day dots ----------
+     One pastel circle per class day, Monday to Saturday (nobody teaches on a
+     Sunday). Tap one and the Worksheets list opens on that day alone, split
+     into its lesson times. Tap it again and the whole week comes back. The
+     letter is the day; the colour is the same one the day wears everywhere
+     else in the app, so the dot and the band in the list are read as one
+     thing. */
+  #dayDots { gap: 5px; }
+  .dayDot {
+    width: 26px; height: 26px;
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font);
+    font-size: 0.72rem;
+    font-weight: bold;
+    line-height: 1;
+    color: var(--dayInk, var(--ink-soft));
+    background: var(--dayTint, #F3F2F0);
+    border: 1px solid var(--dayLine, var(--line));
+    border-radius: 50%;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease;
+  }
+  .dayDot:hover { transform: translateY(-1px); box-shadow: var(--shadow-btn-hover); }
+  .dayDot.today { box-shadow: inset 0 0 0 1px var(--dayInk, var(--ink-soft)); }
+  .dayDot.active {
+    color: #fff;
+    background: var(--dayInk, var(--ink-soft));
+    border-color: var(--dayInk, var(--ink-soft));
+    box-shadow: var(--shadow-btn);
+  }
+  @media (pointer: coarse) { .dayDot { width: 30px; height: 30px; font-size: 0.76rem; } }
+
   .colorChip {
-    width: 24px; height: 24px;
+    width: 21px; height: 21px;
     border-radius: 50%;
     border: 2px solid #fff;
     box-shadow: 0 0 0 1px var(--line), var(--shadow-btn);
@@ -851,22 +894,22 @@
   .colorChip:hover { transform: translateY(-1px) scale(1.08); }
   .colorChip.active { box-shadow: 0 0 0 2px var(--ink), var(--shadow-btn); }
   #customColor {
-    width: 26px; height: 26px; padding: 0; border: none;
+    width: 23px; height: 23px; padding: 0; border: none;
     border-radius: 50%; cursor: pointer; background: none;
   }
   #customColor::-webkit-color-swatch-wrapper { padding: 0; }
   #customColor::-webkit-color-swatch { border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); }
   .sliderCtl {
-    gap: 6px;
-    padding: 5px 9px;
+    gap: 5px;
+    padding: 3px 7px;
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
     background: #fff;
   }
-  .sliderCtl .sliderIcon { width: 16px; height: 16px; color: var(--ink-soft); flex: 0 0 auto; }
-  .sliderAa { font-size: 0.78rem; font-weight: 600; color: var(--ink-soft); }
+  .sliderCtl .sliderIcon { width: 15px; height: 15px; color: var(--ink-soft); flex: 0 0 auto; }
+  .sliderAa { font-size: 0.74rem; font-weight: 600; color: var(--ink-soft); }
   .sliderVal {
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     min-width: 3ch;
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -875,8 +918,8 @@
   .sliderCtl input[type=range] {
     -webkit-appearance: none;
     appearance: none;
-    width: 88px;
-    height: 26px;
+    width: 66px;
+    height: 22px;
     margin: 0;
     background: transparent;
     cursor: pointer;
@@ -899,9 +942,9 @@
     box-shadow: var(--shadow-btn);
   }
   #zoomLabel {
-    font-size: 0.8rem;
+    font-size: 0.74rem;
     color: var(--ink-soft);
-    min-width: 48px;
+    min-width: 40px;
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
@@ -1066,19 +1109,59 @@
     background: #fff;
     border: 1px solid var(--dayLine, var(--line));
   }
-  /* The class within the day — a label, not another thing to open. */
+  /* The class within the day — a coloured banner, not a whisper. Two lessons
+     on the same day are the thing most easily muddled in this list, so each
+     lesson time carries its own colour and says its hours out loud. */
   .qSlotLine {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.73rem;
+    font-size: 0.75rem;
     font-weight: bold;
-    color: var(--ink-soft);
-    margin: 0 2px 8px;
+    color: var(--slotInk, var(--ink-soft));
+    background: var(--slotTint, #F3F2F0);
+    border: 1px solid var(--slotLine, var(--line));
+    border-left: 4px solid var(--slotInk, var(--ink-soft));
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    margin: 0 2px 11px;
   }
-  .qSlotLine + .qSlotLine, .qItemRow + .qSlotLine { margin-top: 14px; }
-  .qSlotLine.mine { color: var(--accent-deep); }
-  .qSlotSection + .qSlotSection { margin-top: 14px; }
+  .qSlotLine + .qSlotLine, .qItemRow + .qSlotLine { margin-top: 16px; }
+  .qSlotLine.mine { box-shadow: 0 0 0 2px rgba(184, 121, 28, 0.18); }
+  .qSlotSection + .qSlotSection { margin-top: 16px; }
+
+  /* The banner in the drawer's head while one day is picked out — it names
+     the day and is the way back to the whole week. */
+  .qDayFilterBar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 8px 8px 8px 12px;
+    font-size: 0.76rem;
+    font-weight: bold;
+    color: var(--dayInk, var(--ink-soft));
+    background: var(--dayTint, #F3F2F0);
+    border: 1px solid var(--dayLine, var(--line));
+    border-left: 4px solid var(--dayInk, var(--ink-soft));
+    border-radius: var(--radius-sm);
+  }
+  .qDayFilterName { flex: 1; min-width: 0; }
+  .qDayFilterClear {
+    font-family: var(--font);
+    font-size: 0.7rem;
+    font-weight: bold;
+    color: var(--dayInk, var(--ink-soft));
+    background: #fff;
+    border: 1px solid var(--dayLine, var(--line));
+    border-radius: 999px;
+    padding: 5px 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .qDayFilterClear:active { background: #F1F0EE; }
+  @media (pointer: coarse) { .qDayFilterClear { padding: 8px 14px; } }
 
   /* ---------- Arranging the list ----------
      The teacher drags a worksheet by its grip: up and down inside a class, or
@@ -2238,7 +2321,7 @@
     .polymath-logo { height: 38px; }
     .headerSub { display: none; }
     .authInfo { display: none; }
-    #toolbar { padding: 8px 10px; gap: 5px; }
+    #toolbar { padding: 6px 8px; gap: 4px; }
     .btn { padding: 8px 11px; font-size: 0.78rem; }
     .btnLabel { display: none; }
     #pagesContainer { padding: 16px 8px 70px; }
@@ -2407,7 +2490,7 @@
   }
   .favTools::-webkit-scrollbar { display: none; }
   .favBtn {
-    width: 36px; height: 36px;
+    width: 32px; height: 32px;
     display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -2419,14 +2502,14 @@
     flex: 0 0 auto;
     -webkit-tap-highlight-color: transparent;
   }
-  .favBtn svg { width: 17px; height: 17px; display: block; }
+  .favBtn svg { width: 16px; height: 16px; display: block; }
   .favBtn:active { background: #E8E6E3; }
   .favBtn.active {
     background: var(--accent);
     border-color: var(--accent-strong);
     color: var(--ink);
   }
-  .favMeta { color: var(--ink-faint); border-top: 1px solid var(--line); border-radius: 0; height: 32px; }
+  .favMeta { color: var(--ink-faint); border-top: 1px solid var(--line); border-radius: 0; height: 28px; }
   .favEmpty { font-size: 0.6rem; color: var(--ink-faint); text-align: center; padding: 4px 2px; line-height: 1.3; }
   body.toolbarMin #favToolbarBtn { background: var(--accent); color: var(--ink); }
 
@@ -2711,6 +2794,11 @@
   </div>
   <div class="tSep"></div>
 
+  <!-- Monday to Saturday, filled in by renderDayDots() so the colours come
+       from the same DAY_COLOURS the list uses. -->
+  <div class="tGroup" id="dayDots"></div>
+  <div class="tSep"></div>
+
   <div class="tGroup" id="toolButtons">
     <button class="toolBtn" data-tool="select" data-key="V" title="Select / move — double-click an element to edit it">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2.5-7.5L21 10z"/></svg>
@@ -2905,6 +2993,7 @@
     </div>
     <div class="qDrawerSub" id="qDrawerSub">All saved questions, grouped by class day.</div>
     <div class="qFilterRow" id="qFilterRow" style="display:none"></div>
+    <div class="qDayFilterBar" id="qDayFilterBar" style="display:none"></div>
   </div>
   <div id="qList"></div>
 </aside>
@@ -3646,7 +3735,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.62.2';
+var APP_VERSION = 'v1.63.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -13509,6 +13598,12 @@ function applyRoleUI() {
   var sharedVisitor = isSharedVisitor();
   $('burgerBtn').style.display = sharedVisitor ? 'none' : '';
   $('docsBtn').style.display = sharedVisitor ? 'none' : '';
+  // A share link is one worksheet — there is no week to pick a day out of.
+  var dots = $('dayDots');
+  if (dots) {
+    dots.style.display = sharedVisitor ? 'none' : '';
+    if (sharedVisitor) qDayFilter = 'all';
+  }
   // Working the answers out is the teacher's tool — a student's list of
   // worksheets never comes with the key to them.
   var keyPdfBtn = $('keyPdfBtn');
@@ -15665,6 +15760,26 @@ var SLOTS_WEEKEND = [
 var SLOTS = SLOTS_WEEKDAY; // kept for anything that just wants three entries
 var SLOT_OTHER = 'other';
 
+/* One colour per lesson time, so the banner over a class in the list is told
+   apart at a glance from the class above it. The slot NUMBER carries the
+   colour, not the clock, so first-class-of-the-day looks the same whether it
+   starts at 3pm on a Tuesday or 9am on a Saturday. */
+var SLOT_COLOURS = [
+  { ink: '#0E7490', tint: '#E7F4F8', line: '#B2DAE6' },
+  { ink: '#B45309', tint: '#FDF4E6', line: '#F0D6A9' },
+  { ink: '#6D28D9', tint: '#F1ECFC', line: '#CFC1F2' }
+];
+var SLOT_COLOUR_OTHER = { ink: '#55554F', tint: '#F3F2F0', line: '#DCDAD5' };
+function slotColour(k) {
+  return (k === 0 || k === 1 || k === 2) ? SLOT_COLOURS[k] : SLOT_COLOUR_OTHER;
+}
+function paintSlot(elm, k) {
+  var c = slotColour(k);
+  elm.style.setProperty('--slotInk', c.ink);
+  elm.style.setProperty('--slotTint', c.tint);
+  elm.style.setProperty('--slotLine', c.line);
+}
+
 /* Sunday follows Saturday's morning timings — only Saturday was specified,
    but a weekend morning class is far closer to the truth than a weekday
    evening one, and a slot set by hand always overrides this anyway. */
@@ -15766,7 +15881,10 @@ async function loadQuestionsList() {
     list.innerHTML = '';
     if (!docs.length) {
       qSubjectFilter = 'all';
+      qDayFilter = 'all';
       renderSubjectFilter();
+      renderDayDots();
+      renderDayFilterBar();
       list.innerHTML = isAdmin(currentUser)
         ? '<div class="qEmpty">No questions saved yet.<br>Open a PDF, annotate it and press Save.</div>'
         : '<div class="qEmpty">No questions for ' + escHtml(levelLabel(studentProfile.level)) + ' ' +
@@ -15789,14 +15907,96 @@ async function loadQuestionsList() {
    so a single-subject student never sees a control that does nothing. */
 var qDocs = [];                 // everything this user may see, newest first
 var qSubjectFilter = 'all';     // 'all' | 'math' | 'science'
+var qDayFilter = 'all';         // 'all' | 'Monday' … 'Saturday'
 
 function docHasSubject(d, subject) {
   if (subject === 'all') return true;
   return d.subject === subject || d.subject === 'both';
 }
 
+function docOnDay(d, day) {
+  return day === 'all' || (d.wsDay || DAY_UNDATED) === day;
+}
+
 function filteredQDocs() {
-  return qDocs.filter(function (item) { return docHasSubject(item.data, qSubjectFilter); });
+  return qDocs.filter(function (item) {
+    return docHasSubject(item.data, qSubjectFilter) && docOnDay(item.data, qDayFilter);
+  });
+}
+
+/* ---- The class-day dots on the toolbar ----
+   Six pastel circles — M T W T F S, because nobody has a lesson on a Sunday.
+   Tapping one opens the Worksheets list on that day alone, split into the
+   lesson times it holds; tapping the same one again brings the whole week
+   back. The colours come from DAY_COLOURS, the very same ones the day bands
+   in the list wear, so a dot and its band are obviously the same day. */
+var DAY_DOT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/* Today's day name, so the dot for it carries a quiet ring. */
+function todayDayName() {
+  return DAY_ORDER[(new Date().getDay() + 6) % 7];
+}
+
+function renderDayDots() {
+  var row = $('dayDots');
+  if (!row) return;
+  row.innerHTML = '';
+  var today = todayDayName();
+  DAY_DOT_DAYS.forEach(function (day) {
+    var c = dayColour(day);
+    var on = qDayFilter === day;
+    var dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'dayDot' + (on ? ' active' : '') + (day === today ? ' today' : '');
+    dot.setAttribute('data-day', day);
+    dot.style.setProperty('--dayInk', c.ink);
+    dot.style.setProperty('--dayTint', c.tint);
+    dot.style.setProperty('--dayLine', c.line);
+    dot.textContent = day.charAt(0);
+    dot.title = on
+      ? day + ' only — tap again for the whole week'
+      : day + ' — show this day’s worksheets, class by class';
+    dot.addEventListener('click', function () { pickDayFilter(day); });
+    row.appendChild(dot);
+  });
+}
+
+/* Pick a day (or unpick the one already picked) and show the result. */
+function pickDayFilter(day) {
+  qDayFilter = (qDayFilter === day) ? 'all' : day;
+  renderDayDots();
+  renderDayFilterBar();
+  if (!$('qDrawer').classList.contains('open')) {
+    toggleQuestionsDrawer();          // opens the list and loads it
+  } else if (qDocs.length) {
+    renderQuestionList();
+  } else {
+    loadQuestionsList();
+  }
+}
+
+/* The banner in the drawer's head naming the day being shown. */
+function renderDayFilterBar() {
+  var bar = $('qDayFilterBar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  if (qDayFilter === 'all') { bar.style.display = 'none'; syncDrawerHeadOffset(); return; }
+  var c = dayColour(qDayFilter);
+  bar.style.display = '';
+  bar.style.setProperty('--dayInk', c.ink);
+  bar.style.setProperty('--dayTint', c.tint);
+  bar.style.setProperty('--dayLine', c.line);
+  var name = document.createElement('span');
+  name.className = 'qDayFilterName';
+  name.textContent = qDayFilter + ' only';
+  bar.appendChild(name);
+  var clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'qDayFilterClear';
+  clear.textContent = '✕ Whole week';
+  clear.addEventListener('click', function () { pickDayFilter(qDayFilter); });
+  bar.appendChild(clear);
+  syncDrawerHeadOffset();
 }
 
 function renderSubjectFilter() {
@@ -15823,11 +16023,19 @@ function renderSubjectFilter() {
 function renderQuestionList() {
   var list = $('qList');
   var docs = filteredQDocs();
+  renderDayDots();
+  renderDayFilterBar();
   list.innerHTML = '';
   if (!docs.length) {
-    list.innerHTML = '<div class="qEmpty">No ' + escHtml(subjectLabel(qSubjectFilter) || 'matching') +
-      ' worksheets in your list yet.</div>';
-    $('qDrawerSub').textContent = 'Grouped by class day, newest first.';
+    list.innerHTML = '<div class="qEmpty">' +
+      (qDayFilter === 'all'
+        ? 'No ' + escHtml(subjectLabel(qSubjectFilter) || 'matching') + ' worksheets in your list yet.'
+        : 'Nothing for ' + escHtml(qDayFilter) + ' yet — tap the day again for the whole week.') +
+      '</div>';
+    $('qDrawerSub').textContent = qDayFilter === 'all'
+      ? 'Grouped by class day, newest first.'
+      : qDayFilter + ' only — tap the dot again for the whole week.';
+    syncDrawerHeadOffset();
     return;
   }
   var hasDayPref = !isAdmin(currentUser) && studentProfile && studentProfile.days && studentProfile.days.length;
@@ -15837,7 +16045,9 @@ function renderQuestionList() {
   var starred = docs.filter(function (i) { return !!i.data.starred; }).length;
   $('qDrawerSub').textContent = docs.length + ' worksheet' + (docs.length === 1 ? '' : 's') +
     (starred ? ' · ★ ' + starred + ' to open' : '') +
-    ' · grouped by class day, newest first' + (hasDayPref ? ' · your day first' : '') +
+    (qDayFilter === 'all'
+      ? ' · grouped by class day, newest first' + (hasDayPref ? ' · your day first' : '')
+      : ' on ' + qDayFilter + ' · by lesson time') +
     (canArrangeWorksheets() ? ' · drag ⠿ to rearrange' : '');
   renderQuestionGroups(list, docs);
   syncDrawerHeadOffset();
@@ -16000,7 +16210,10 @@ var DAY_UNDATED = 'Undated';
 /* One hue per day, dark enough on its own tint to read at a glance. */
 var DAY_COLOURS = {
   Monday:    { ink: '#C2410C', tint: '#FDF1E8', line: '#F2C9AC' },
-  Tuesday:   { ink: '#B45309', tint: '#FDF6E7', line: '#F0D9A6' },
+  /* Tuesday sits next to Monday on the toolbar dots, so its amber is pushed
+     well clear of Monday's burnt orange — two circles a letter apart have to
+     be told apart by colour too. */
+  Tuesday:   { ink: '#A16207', tint: '#FBF6DC', line: '#E7D593' },
   Wednesday: { ink: '#15803D', tint: '#EDF7F0', line: '#B7DEC4' },
   Thursday:  { ink: '#1D6FA5', tint: '#EBF4FA', line: '#AFD2E9' },
   Friday:    { ink: '#6D28D9', tint: '#F2EEFC', line: '#CDBDF0' },
@@ -16060,6 +16273,9 @@ function docsDayHeading(day, count) {
 function renderQuestionGroups(list, docs) {
   var mine = (!isAdmin(currentUser) || actingStudent) && studentProfile ? studentProfile : null;
   var myDays = (mine && mine.days) || [];
+  // One day picked out by its dot: nothing is folded away and every lesson
+  // time gets its banner, because the times are what is being looked at.
+  var oneDay = qDayFilter !== 'all';
   var mySlot = mine && (mine.slot === 0 || mine.slot === 1 || mine.slot === 2) ? mine.slot : null;
 
   // day name -> slot key -> [items], each list already newest first
@@ -16139,10 +16355,13 @@ function renderQuestionGroups(list, docs) {
       section.className = 'qSlotSection';
       section.setAttribute('data-slot', k);
       // With one class on the day the time adds nothing to the heading — the
-      // line is there to tell two classes on the same day apart.
-      if (manySlots || isMySlot) {
+      // banner is there to tell two classes on the same day apart. Picking a
+      // day out with its dot is the exception: the whole point of that view
+      // is the lesson times, so every one of them is named.
+      if (manySlots || isMySlot || oneDay) {
         var line = document.createElement('div');
         line.className = 'qSlotLine' + (isMySlot ? ' mine' : '');
+        paintSlot(line, slotNum);
         var ttl = document.createElement('span');
         ttl.textContent = '🕒 ' + slotLabel(slotNum === null ? -1 : slotNum, day);
         line.appendChild(ttl);
@@ -16165,7 +16384,8 @@ function renderQuestionGroups(list, docs) {
     // who has not told us their class day has nothing to fold around, so
     // their list opens whole. A day holding a starred worksheet never starts
     // folded — a mark nobody can see is no mark at all.
-    dayWrap.classList.toggle('collapsed', !!(mine && myDays.length && !isMyDay && !dayStarred));
+    dayWrap.classList.toggle('collapsed',
+      !oneDay && !!(mine && myDays.length && !isMyDay && !dayStarred));
     dayHead.addEventListener('click', function () { dayWrap.classList.toggle('collapsed'); });
 
     list.appendChild(dayWrap);
@@ -16441,6 +16661,7 @@ function emptySlotSection(k, day) {
   section.setAttribute('data-slot', String(k));
   var line = document.createElement('div');
   line.className = 'qSlotLine';
+  paintSlot(line, k);
   var ttl = document.createElement('span');
   ttl.textContent = '🕒 ' + slotLabel(k, day);
   line.appendChild(ttl);
@@ -19071,6 +19292,7 @@ syncToolbarToggle();
 var lastTool = toolStyles._lastTool;
 setTool(lastTool && document.querySelector('#toolButtons [data-tool="' + lastTool + '"]') ? lastTool : 'pen');
 syncStyleControls();
+renderDayDots();
 applyRoleUI();
 refreshAiEngineNames();
 loadAiNotePrefs();
