@@ -3,6 +3,38 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Day dots on the toolbar, and a slimmer toolbar to hang them on (v1.63.0)
+
+**Six pastel circles — M T W T F S.** They sit on the toolbar just after
+*Open PDF*, one per class day (nobody teaches on a Sunday, so there is no
+seventh). Tap one and the Worksheets list opens on that day and nothing else.
+Tap the same circle again and the whole week comes back — so does the
+*✕ Whole week* button on the banner at the top of the list.
+
+- **The colours are the day's own.** A dot wears exactly the colour its day
+  wears as a band in the list, so the circle you tapped and the heading you
+  land on are obviously the same day. Tuesday's amber has been pushed clear of
+  Monday's burnt orange, because two circles one letter apart have to be told
+  apart by colour too.
+- **Today's dot carries a thin ring**, so the day you are actually teaching is
+  the easy one to find.
+- **Everybody gets them** — a student's fastest route to "what did we do on
+  Wednesday?" A share link is still one worksheet, so the dots stay out of it.
+
+**Lesson times are banners now, not whispers.** The class time inside a day
+used to be a small grey line; it is now a coloured banner with its own hue per
+lesson — 3:00pm teal, 5:00pm amber, 7:00pm violet (and the same three on the
+weekend morning timings, since the colour follows the *session*, not the
+clock). Two classes on one day can no longer blur into each other. While a day
+is picked out, every lesson gets its banner, even a day holding a single class,
+and nothing starts folded — the times are the whole point of that view.
+
+**The toolbar itself is short and sweet.** Every icon, chip, slider and file
+button was trimmed: 28px tool buttons with 16px glyphs, tighter gaps and
+padding, smaller colour chips and shorter sliders. Even with six new circles on
+it the bar is *shorter* than it was before them, and the worksheet gets the
+space back. The floating favourites bar was trimmed to match.
+
 ## Two quick taps no longer zoom the whole app in (v1.62.2)
 
 Tapping a calculator key twice quickly set Safari's double-tap zoom off: the
