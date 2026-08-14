@@ -3,6 +3,25 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## The AI runs on Gemini 3.7 Flash (v1.66.0)
+
+Every Gemini call in the app — **Answer** and **Improve**, AI note cards, the
+answer key, marking, keyword extraction and Ask AI — now goes to
+**gemini-3.7-flash**. The ChatGPT engine is untouched: still your own key on
+your own device, still tried first when you have switched to it, still falling
+back to Gemini if it fails.
+
+Two things had to move with the model, because 3.7 Flash **dropped the
+"minimal" thinking level 3.6 accepted** and a level the model does not know
+comes back as an error rather than a worse answer:
+
+- The floor every ordinary call asks for is now `low`, kept in one named
+  constant so the next model change is one edit.
+- **Build quality** on AI note cards keeps its four real steps. Quick and
+  Standard would both have landed on `low`, which would have made the choice
+  between them change nothing, so Standard now asks for `medium` — Gemini's own
+  default. Quick is still the cheap one; High and Pro build are unchanged.
+
 ## You can read the worksheet through the text box's bar (v1.65.1)
 
 The floating bar sits over the page, so for as long as a text box was open it
@@ -202,7 +221,7 @@ the difference — **how hard it was allowed to think was**.
   out step by step and check the arithmetic back against the numbers printed on
   the page before answering.
 - **The key says which model worked it out.** On screen, in the print-out and
-  in the PDF: *"by ChatGPT gpt-5.6-sol"* or *"by Gemini gemini-3.6-flash"*.
+  in the PDF: *"by ChatGPT gpt-5.6-sol"* or *"by Gemini gemini-3.7-flash"*.
   Choosing ChatGPT in AI Engine is not the same as using it — with no OpenAI
   key saved every call quietly goes to Gemini, and a failed ChatGPT call falls
   back to Gemini mid-key. Both cases now say so out loud when the key finishes.
@@ -889,7 +908,7 @@ ambitious came back half-built.
 
 Every AI feature in the app — **Answer** and **Improve** on text boxes, **AI
 notes**, the answer key, marking, keyword extraction and Ask AI — runs on
-Gemini 3.6 Flash through Firebase AI Logic by default, with no key to manage.
+Gemini 3.7 Flash through Firebase AI Logic by default, with no key to manage.
 Teachers who want a second opinion (or heavier reasoning on a hard worksheet)
 can switch the whole app to **ChatGPT gpt-5.6-sol**, the same toggle the CER
 Science Learning Portal uses.
