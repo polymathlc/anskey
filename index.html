@@ -1986,6 +1986,51 @@
     font-weight: normal;
     padding: 4px 8px;
   }
+  /* Colour and size live on this bar too, so restyling the box you are
+     typing in never means reaching back up to the toolbar and losing the
+     keyboard on the way. Same palette and same shapes as the toolbar. */
+  .aiBarSep {
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 1px;
+    margin: 3px 3px;
+    background: var(--line, #E2E0DC);
+  }
+  /* The bar wraps on a narrow page; these keep the five colours together on
+     one row rather than leaving one dot stranded on the next. */
+  .aiBarGroup {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .aiBarDot {
+    flex: 0 0 auto;
+    align-self: center;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px var(--line);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .aiBarDot:hover { transform: scale(1.12); }
+  .aiBarDot.active { box-shadow: 0 0 0 2px var(--ink); transform: scale(1.12); }
+  .aiBarSize {
+    flex: 0 0 auto;
+    align-self: center;
+    min-width: 20px;
+    padding: 0 2px;
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .aiBar button.aiBarStep {
+    padding: 4px 7px;
+    font-size: 0.82rem;
+  }
 
   /* ---------- Ask AI about a question (practice mode) ---------- */
   .askAiCredits {
@@ -2450,6 +2495,8 @@
     .authInfo.clickable:hover { background: transparent; }
     #thumbResizer:hover:not(.dragging) { background: transparent; }
     .aiBar button:hover { background: none; }
+    .aiBarDot:hover { transform: none; }
+    .aiBarDot.active:hover { transform: scale(1.12); }
     .modalClose:hover { background: none; }
     .docRow:hover { background: transparent; }
     svg.overlay.kwMode .annText span[data-w]:hover { outline: none; }
@@ -2468,15 +2515,20 @@
        hit area grows without moving anything: the visual size is kept and
        an invisible centred pad extends the tappable region. */
     .toolBtn { width: 32px; height: 32px; }
-    .colorChip, #customColor, .modalClose, .aiBar button, .reviseToggleRow input { position: relative; }
+    .colorChip, #customColor, .modalClose, .aiBar button, .aiBarDot, .reviseToggleRow input { position: relative; }
     .colorChip::after, #customColor::after, .modalClose::after,
-    .aiBar button::after, .reviseToggleRow input::after {
+    .aiBar button::after, .aiBarDot::after, .reviseToggleRow input::after {
       content: '';
       position: absolute;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       width: 44px; height: 44px;
     }
+    /* The colour dots sit shoulder to shoulder on a narrow floating bar, so
+       a full 44px square would have every dot covering its neighbours. They
+       grow a little instead, and their pad takes the height, not the width. */
+    .aiBarDot { width: 24px; height: 24px; }
+    .aiBarDot::after { width: 28px; height: 40px; }
     .btn { min-height: 44px; }
     /* A 6px drag strip is unusable by finger — widen the grab area only. */
     #thumbResizer { flex-basis: 22px; width: 22px; margin-right: -16px; }
@@ -2499,14 +2551,14 @@
   /* No grey iOS tap flash on chrome; no accidental text selection or
      magnifier callout when a hand rests on a panel. */
   .btn, .toolBtn, .colorChip, .qItem, .pickChip, .shareOpt,
-  .docRow, .modalClose, .thumbItem, .aiBar button { -webkit-tap-highlight-color: transparent; }
+  .docRow, .modalClose, .thumbItem, .aiBar button, .aiBarDot { -webkit-tap-highlight-color: transparent; }
   /* Two quick taps on a button is two presses, never "zoom the whole page in".
      Safari's double-tap zoom does not care that the thing tapped was a key on
      a calculator — it magnifies the app and leaves you to pinch your way back
      out, which mid-lesson is a chore nobody asked for. `manipulation` keeps
      scrolling and pinch-zoom of the page, and drops only the double-tap. */
   .btn, .toolBtn, .colorChip, .qItem, .pickChip, .shareOpt, .docRow, .modalClose,
-  .thumbItem, .thumbStar, .qStarBtn, .qFilterChip, .aiBar button,
+  .thumbItem, .thumbStar, .qStarBtn, .qFilterChip, .aiBar button, .aiBarDot,
   .panelCloseBtn, .modalActions button {
     touch-action: manipulation;
   }
@@ -3888,7 +3940,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.64.0';
+var APP_VERSION = 'v1.65.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -3946,7 +3998,7 @@ var TOOL_STYLE_DEFAULTS = {
 var toolStyles = loadToolStyles();
 
 function loadToolStyles() {
-  var out = { _lastTool: '', _textW: 0 };
+  var out = { _lastTool: '' };
   Object.keys(TOOL_STYLE_DEFAULTS).forEach(function (t) {
     out[t] = Object.assign({}, TOOL_STYLE_DEFAULTS[t]);
   });
@@ -3960,15 +4012,12 @@ function loadToolStyles() {
       if (out[t].fontSize !== undefined && isFinite(s.fontSize) && s.fontSize >= 8 && s.fontSize <= 48) out[t].fontSize = +s.fontSize;
     });
     if (typeof saved._lastTool === 'string' && /^[a-z]+$/.test(saved._lastTool)) out._lastTool = saved._lastTool;
-    var tw = parseFloat(saved._textW);
-    if (isFinite(tw) && tw >= 40 && tw <= 2000) out._textW = tw;
   } catch (e) {}
   return out;
 }
 
 function saveToolStyles() {
   toolStyles._lastTool = tool;
-  toolStyles._textW = defaultTextW || 0;
   try { localStorage.setItem(STYLE_KEY, JSON.stringify(toolStyles)); } catch (e) {}
 }
 
@@ -5240,33 +5289,99 @@ function renderPracticeBar(p, a, box) {
 var aiBarMin = false;
 try { aiBarMin = localStorage.getItem('aiBarMin') === '1'; } catch (e) {}
 
-/* Remembered width for new text boxes. Without it every box came out at a
-   width derived from where it was tapped, so a teacher who wants a
-   consistent column had to drag each one to size. Pressing the button on a
-   box you have already sized makes that width the default; pressing it
-   again on the same width goes back to automatic. Survives reloads. */
-var defaultTextW = 0;
-try {
-  var savedTextW = parseFloat(toolStyles._textW);
-  if (isFinite(savedTextW) && savedTextW >= 40 && savedTextW <= 2000) defaultTextW = savedTextW;
-} catch (e) {}
+/* ---- Colour and size, restyled from the floating bar ----
+   Both used to mean leaving the box, going up to the toolbar and coming
+   back — which on an iPad drops the keyboard and ends the edit. So they
+   restyle the box in place instead: the annotation is updated, the live
+   node is restyled by hand, and nothing is re-rendered. A full render
+   would swap the node being typed in out from under the caret.
+   The choice also becomes the tool's colour/size, exactly as picking it on
+   the toolbar would, so the next box carries it over. */
+var AI_BAR_FONT_MIN = 8;
+var AI_BAR_FONT_MAX = 48;
 
-function setDefaultTextWidth(id) {
-  commitActiveTextEdit(); // a re-render must not throw away what is being typed
-  var a = annotations.find(function (x) { return x.id === id; });
-  if (!a || a.type !== 'text') return;
-  var w = Math.round(a.w || 0);
-  if (w < 40) { toast('Drag this box wider first, then set it as the default.'); return; }
-  if (defaultTextW && Math.abs(defaultTextW - w) < 1) {
-    defaultTextW = 0;
-    saveToolStyles();
-    toast('New text boxes go back to sizing themselves.');
-  } else {
-    defaultTextW = w;
-    saveToolStyles();
-    toast('Every new text box will now be this wide across.');
+/* The dots are the toolbar's own palette, read straight off `#colorChips` so
+   the two surfaces can never drift apart — one palette, two places to reach
+   it. The literal is only there so an empty read cannot quietly leave the
+   bar with no colours at all. */
+var aiBarColorCache = null;
+function aiBarColors() {
+  if (!aiBarColorCache) {
+    aiBarColorCache = Array.prototype.map.call(
+      document.querySelectorAll('#colorChips .colorChip'),
+      function (chip) { return { hex: chip.getAttribute('data-color'), name: chip.title || 'Colour' }; }
+    ).filter(function (c) { return /^#[0-9a-fA-F]{6}$/.test(c.hex || ''); });
+    if (!aiBarColorCache.length) {
+      aiBarColorCache = [
+        { hex: '#1A1A1A', name: 'Black' }, { hex: '#E53935', name: 'Red' },
+        { hex: '#1E88E5', name: 'Blue' }, { hex: '#43A047', name: 'Green' },
+        { hex: '#FFEB3B', name: 'Yellow' }
+      ];
+    }
   }
-  renderAllOverlays(); // the button relabels itself
+  return aiBarColorCache;
+}
+
+/* Consecutive presses inside this window are one undo step, so nudging the
+   size up five times is undone once rather than five times. */
+var AI_BAR_UNDO_GAP = 1200;
+var aiBarUndoAt = 0;
+var aiBarUndoKey = '';
+function aiBarPushUndo(key, now) {
+  if (aiBarUndoKey === key && now - aiBarUndoAt < AI_BAR_UNDO_GAP) {
+    aiBarUndoAt = now;
+    return;
+  }
+  pushUndo();
+  aiBarUndoKey = key;
+  aiBarUndoAt = now;
+}
+
+/* Restyle without a re-render while the box is being typed in; a box merely
+   in edit mode has no caret to protect, so that one renders normally. */
+function aiBarRestyle(a, apply) {
+  apply();
+  setDirty(true);
+  if (editingId === a.id) {
+    var node = annTextNode(a.id);
+    if (node) {
+      node.style.color = a.color;
+      node.style.fontSize = a.fontSize + 'px';
+      var fo = node.parentNode;
+      if (fo && fo.setAttribute) {
+        // Same rule the typing handler uses: grow to fit, never shrink a
+        // box that was deliberately dragged tall.
+        a.h = Math.max(node.scrollHeight, a.h || 0, a.fontSize * 1.8);
+        fo.setAttribute('height', a.h);
+      }
+    }
+  } else {
+    scheduleOverlays();
+  }
+}
+
+function aiBarSetColor(a, c) {
+  if (a.color !== c) {
+    aiBarPushUndo('color:' + a.id, Date.now());
+    aiBarRestyle(a, function () { a.color = c; });
+  }
+  if (color !== c) {
+    color = c;
+    rememberToolStyle();
+    syncStyleControls(); // the toolbar shows the same choice
+  }
+}
+
+function aiBarStepFont(a, delta) {
+  var next = Math.round(Math.min(AI_BAR_FONT_MAX, Math.max(AI_BAR_FONT_MIN, (a.fontSize || 16) + delta)));
+  if (next === a.fontSize) return;
+  aiBarPushUndo('font:' + a.id, Date.now());
+  aiBarRestyle(a, function () { a.fontSize = next; });
+  if (fontSize !== next) {
+    fontSize = next;
+    rememberToolStyle();
+    syncStyleControls();
+  }
 }
 
 function renderAiBar(p, a, box) {
@@ -5274,7 +5389,7 @@ function renderAiBar(p, a, box) {
   if (old) old.remove();
   var bar = document.createElement('div');
   bar.className = 'aiBar';
-  function addBtn(label, cls, title, fn) {
+  function addBtn(label, cls, title, fn, parent) {
     var b = document.createElement('button');
     b.textContent = label;
     if (cls) b.className = cls;
@@ -5284,8 +5399,35 @@ function renderAiBar(p, a, box) {
       e.stopPropagation();
       fn(a.id);
     });
-    bar.appendChild(b);
+    (parent || bar).appendChild(b);
     return b;
+  }
+  function addSep() {
+    var s = document.createElement('div');
+    s.className = 'aiBarSep';
+    bar.appendChild(s);
+  }
+  function addGroup() {
+    var g = document.createElement('div');
+    g.className = 'aiBarGroup';
+    bar.appendChild(g);
+    return g;
+  }
+  /* Same pointerdown-and-swallow contract as the buttons: the press must
+     never reach the text box, or the box blurs, commits and takes this bar
+     down with it before the dot has done anything. */
+  function addDot(c, name, parent) {
+    var d = document.createElement('div');
+    d.className = 'aiBarDot' + (a.color === c ? ' active' : '');
+    d.style.background = c;
+    d.title = 'Recolour this box — ' + name;
+    d.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      aiBarSetColor(a, c);
+      renderAiBar(p, a, box); // the ring moves to the new colour
+    });
+    parent.appendChild(d);
   }
   function setMin(min) {
     aiBarMin = min;
@@ -5297,12 +5439,19 @@ function renderAiBar(p, a, box) {
   } else {
     addBtn('✨ Answer', '', aiEngineName() + ' answers the question typed in this box', aiAnswer);
     addBtn('✒️ Improve', '', aiEngineName() + ' fixes grammar and sentence structure without changing the content', aiImprove);
-    var isDefault = defaultTextW && Math.abs(defaultTextW - (a.w || 0)) < 1;
-    addBtn(isDefault ? '↔ Default ✓' : '↔ Set width', '',
-      isDefault
-        ? 'This width is the default for new text boxes — press to go back to automatic'
-        : 'Use this box\'s width for every new text box from now on',
-      setDefaultTextWidth);
+    addSep();
+    var dots = addGroup();
+    aiBarColors().forEach(function (c) { addDot(c.hex, c.name, dots); });
+    addSep();
+    var sizeGrp = addGroup();
+    addBtn('A−', 'aiBarStep', 'Smaller text', function () { aiBarStepFont(a, -1); renderAiBar(p, a, box); }, sizeGrp);
+    var size = document.createElement('span');
+    size.className = 'aiBarSize';
+    size.textContent = String(Math.round(a.fontSize || 16));
+    size.title = 'Text size';
+    sizeGrp.appendChild(size);
+    addBtn('A+', 'aiBarStep', 'Bigger text', function () { aiBarStepFont(a, 1); renderAiBar(p, a, box); }, sizeGrp);
+    addSep();
     addBtn('—', 'aiBarToggle', 'Minimise this menu', function () { setMin(true); });
   }
   placeBarBesideBadge(p, box, bar);
@@ -7835,9 +7984,7 @@ function attachOverlayHandlers(p) {
         // the I-beam's hot spot is its middle, not its top.
         a2.x = round2(Math.max(0, a2.x - TEXT_PAD_X));
         a2.y = round2(Math.max(0, a2.y - TEXT_PAD_Y - a2.fontSize * (TEXT_LINE_H / 2)));
-        a2.w = defaultTextW
-          ? Math.max(60, Math.min(defaultTextW, p.baseW - a2.x - 10))
-          : Math.max(80, Math.min(220, p.baseW - a2.x - 10));
+        a2.w = Math.max(80, Math.min(220, p.baseW - a2.x - 10));
       }
       a2.w = Math.max(60, a2.w);
       a2.h = Math.max(a2.h || 0, a2.fontSize * 1.9);
