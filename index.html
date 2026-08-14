@@ -3631,7 +3631,7 @@
         <label class="engineOpt">
           <input type="radio" name="aiEngineChoice" value="gemini">
           <span>
-            <strong>Gemini 3.6 Flash</strong>
+            <strong>Gemini 3.7 Flash</strong>
             <span class="engineOptNote">Firebase AI Logic · no key needed · the fallback</span>
           </span>
         </label>
@@ -3954,7 +3954,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.65.1';
+var APP_VERSION = 'v1.66.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -10564,13 +10564,16 @@ function aiNoteKindInfo(k) {
 var AI_NOTE_QUALITY = [
   {
     key: 'fast', name: 'Quick', what: 'Fastest — one simple idea, a control or two.',
-    effort: 'low', think: 'minimal', imageQuality: 'medium',
+    effort: 'low', think: 'low', imageQuality: 'medium',
     tokens: { widget: 6000, text: 1200, svg: 3000 },
     sys: 'Keep this one small and quick: a single clear idea, one or two controls, no extras.'
   },
   {
     key: 'standard', name: 'Standard', what: 'Balanced — good for most cards.',
-    effort: 'medium', think: 'low', imageQuality: 'medium',
+    // 'medium' is Gemini's own default, and it is what keeps this a real step
+    // above Quick: 3.7 Flash dropped "minimal", so both tiers would otherwise
+    // sit on 'low' and the picker would offer a choice that changed nothing.
+    effort: 'medium', think: 'medium', imageQuality: 'medium',
     tokens: { widget: 12000, text: 1600, svg: 4000 },
     sys: ''
   },
@@ -14233,7 +14236,7 @@ async function runAnswerKey(keyAnns, detailed) {
       // whether the key is right: a P5 word problem is four or five steps of
       // units and model drawing, and a model that answers off the top of its
       // head gets them wrong. Left unset, ChatGPT ran at its default effort
-      // and Gemini at thinkingLevel "minimal" — barely thinking at all —
+      // and Gemini at its lowest thinking level — barely thinking at all —
       // which is why the same model, asked the same page in the ChatGPT app
       // at Extra High, came back with different answers.
       var keyOpts = {
@@ -20518,7 +20521,13 @@ const firebaseConfig = {
 const RECAPTCHA_SITE_KEY = "6Le98gwtAAAAAAzkjJTZXFM5D8tpjx_P4rtRuhuH";
 
 // Model used app-wide
-const AI_MODEL = "gemini-3.6-flash";
+const AI_MODEL = "gemini-3.7-flash";
+// The FLOOR of the thinking scale, and the level every ordinary call asks for.
+// Gemini 3.7 Flash dropped the "minimal" level 3.6 accepted — sending it now
+// comes back 400 INVALID_ARGUMENT, so every AI feature in the app would fail.
+// The scale is low / medium / high (medium is the model's own default); "low"
+// is the nearest thing to the old "minimal". Change the model, change this.
+const AI_THINK_MIN = "low";
 // Named on the answer key, so a key can always say which model worked it out.
 window.AI_GEMINI_MODEL = AI_MODEL;
 // Picture generation for AI note cards. A separate model — if it is not
@@ -20548,9 +20557,10 @@ try {
 const openAiOn = () => !!(window.openAiActive && window.openAiActive());
 window.aiReady = () => !!geminiModel || openAiOn();
 
-// thinkingLevel: "minimal" keeps Gemini "thinking" to a minimum so the token
-// budget goes to the answer (faster + cheaper for short tasks). Gemini 3.x
-// rejects the older numeric thinkingBudget with 400 INVALID_ARGUMENT.
+// AI_THINK_MIN keeps Gemini "thinking" to a minimum so the token budget goes
+// to the answer (faster + cheaper for short tasks). Gemini 3.x rejects the
+// older numeric thinkingBudget with 400 INVALID_ARGUMENT, and 3.7 rejects the
+// "minimal" level too — see AI_THINK_MIN.
 // json: true switches on
 // strict-JSON response mode. system adds a systemInstruction to the request.
 // images is a list of { mimeType, data } inline attachments (base64 WITHOUT
@@ -20583,7 +20593,7 @@ window.askGemini = async function askGemini(prompt, opts = {}) {
 // so the fallback path quietly clamps instead of failing the card outright.
 const GEMINI_MAX_OUTPUT = 32000;
 
-async function askGeminiDirect(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [], thinkingLevel = "minimal" } = {}) {
+async function askGeminiDirect(prompt, { maxOutputTokens = 512, temperature = 0.3, json = false, system = "", images = [], thinkingLevel = AI_THINK_MIN } = {}) {
   if (!geminiModel) throw new Error("AI is not configured yet");
   maxOutputTokens = Math.min(maxOutputTokens || 512, GEMINI_MAX_OUTPUT);
   const parts = [{ text: prompt }];
@@ -20600,14 +20610,17 @@ async function askGeminiDirect(prompt, { maxOutputTokens = 512, temperature = 0.
     return (res.response.text() || "").trim();
   }
 
-  // The AI note "build quality" picker turns this up. If a level the model
-  // does not take is sent it answers 400 INVALID_ARGUMENT — fall back to the
-  // level that has always worked rather than failing the card outright.
+  // The AI note "build quality" picker turns this up, and a model that has
+  // just changed under us may not take a level an older one did — a level the
+  // model does not know is 400 INVALID_ARGUMENT, so fall back to the floor
+  // rather than failing the card outright. Retrying is only worth anything
+  // while the floor is not what was asked for: retrying AI_THINK_MIN at
+  // AI_THINK_MIN would just send the same rejected request a second time.
   try { return await run(thinkingLevel); }
   catch (e) {
-    if (thinkingLevel === "minimal") throw e;
-    console.warn("thinkingLevel " + thinkingLevel + " rejected, retrying at minimal:", e);
-    return run("minimal");
+    if (thinkingLevel === AI_THINK_MIN) throw e;
+    console.warn("thinkingLevel " + thinkingLevel + " rejected, retrying at " + AI_THINK_MIN + ":", e);
+    return run(AI_THINK_MIN);
   }
 }
 

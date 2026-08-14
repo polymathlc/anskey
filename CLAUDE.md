@@ -107,6 +107,15 @@ to know whether the upload/deploy went through.
   system.
 
 ## House rules
+- **The Gemini model is `AI_MODEL` and its thinking floor is `AI_THINK_MIN`, and the two move
+  TOGETHER** (v1.66.0). Every model has its own thinking scale, and a level it does not know is a
+  **400 INVALID_ARGUMENT on every AI feature in the app** — not a worse answer, no answer at all.
+  `gemini-3.7-flash` takes `low` / `medium` / `high` and **dropped the `"minimal"` 3.6 accepted**,
+  exactly as 3.x had already dropped 2.x's numeric `thinkingBudget`. So the floor is a named
+  constant, `askGeminiDirect`'s retry steps down to it (retrying the floor *at* the floor would
+  just re-send the request that was refused), and `AI_NOTE_QUALITY`'s four steps have to stay four
+  real steps — Quick and Standard both landing on `low` is a picker offering a choice that changes
+  nothing. `polymathlc/cer` carries the same pair; keep the two in step.
 - After touching **teaching notes or the style training** (`aiGrounding`, `notesBlock`,
   `styleBlock`, `notesRelevant`, `styleAddSamples`, `styleHarvestTyped`, `notesCardHtml`), run
   `node tools/notes-tests.mjs`. It loads the REAL section out of `index.html` and runs it against
