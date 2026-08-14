@@ -3,6 +3,18 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## You can read the worksheet through the text box's bar (v1.65.1)
+
+The floating bar sits over the page, so for as long as a text box was open it
+hid whatever it landed on — a diagram, the question, the very line being
+answered. **The bar is now 80% see-through**, and the words underneath read
+straight through it.
+
+Only the panel fades; the buttons, the colour dots and the size stay at full
+strength, so nothing gets harder to use. Reaching for the bar (or pressing it)
+turns it solid again. The student's **Check this answer / Ask AI** bar in
+practice mode is the same bar, so it clears the page too.
+
 ## Colour and text size on the text box's own bar (v1.65.0)
 
 **Restyling the box you are writing in no longer means leaving it.** The

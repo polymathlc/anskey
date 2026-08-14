@@ -1958,14 +1958,28 @@
     z-index: 36;
     display: flex;
     gap: 6px;
-    background: #fff;
-    border: 1px solid var(--line, #E2E0DC);
+    /* The bar floats over the worksheet, so a solid panel hides whatever it
+       lands on for as long as the box is open — a diagram, the question,
+       the very line being answered. The PANEL is 80% see-through instead,
+       and the buttons and dots on it are left at full strength: the words
+       underneath read straight through, and the controls stay crisp. Fading
+       the whole bar with `opacity` would have washed out the labels too and
+       still left a white haze over the page — much worse on both counts.
+       Reaching for the bar brings the panel back to solid. */
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(236, 236, 234, 0.6);
     border-radius: 999px;
     padding: 4px 6px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
+    transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     /* Rebuilt on every overlay render — see .editBadge above. */
     max-width: calc(100% - 8px);
     flex-wrap: wrap;
+  }
+  .aiBar:hover, .aiBar:active, .aiBar:focus-within {
+    background: #fff;
+    border-color: var(--line, #E2E0DC);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
   }
   .aiBar button {
     border: none;
@@ -3940,7 +3954,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.65.0';
+var APP_VERSION = 'v1.65.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
