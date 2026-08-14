@@ -3,6 +3,26 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Colour and text size on the text box's own bar (v1.65.0)
+
+**Restyling the box you are writing in no longer means leaving it.** The
+floating bar above an open text box — the one carrying ✨ **Answer** and
+✒️ **Improve** — now carries the colour and the text size as well.
+
+- **Five colour dots**, the same palette as the toolbar, with a ring around
+  the one the box is currently written in. Tapping one recolours the box
+  straight away.
+- **A− / A+** step the text size, with the current size between them.
+- **Nothing is lost on the way.** The change is applied to the box in place,
+  so on an iPad the keyboard stays up and the caret stays where it was —
+  reaching up to the toolbar mid-sentence used to end the edit.
+- **The choice carries over** to the toolbar and to the next text box, exactly
+  as picking it on the toolbar does. Nudging the size up several times in a
+  row is a single undo, not one per press.
+
+**↔ Set width is gone**, and with it the remembered width for new text boxes —
+new boxes size themselves from where you tap again, as they did before.
+
 ## Teaching notes, and an AI that learns how you answer (v1.64.0)
 
 **The AI now writes from your notebook, not from the internet's.** A new
