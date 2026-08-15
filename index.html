@@ -2918,6 +2918,176 @@
     .calcPad { gap: 6px; }
     .calcHint { display: none; }
   }
+
+  /* ---------- Mindmap ----------
+     The mindmap board from the Mindmap app, living in a window of its own
+     over the worksheet. Three bands stacked in the window: the tools along
+     the top, the board in the middle taking whatever room is left, and the
+     strip along the bottom that only appears when something is selected —
+     colours, text and the link. Everything is given room to breathe, the
+     same scale as the rest of the app, so it reads as one design. */
+  .mmCard { min-width: 0; }
+  .mmBody {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .mmBar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: #FBFBFA;
+  }
+  .mmBar .mmSep {
+    width: 1px;
+    align-self: stretch;
+    margin: 2px 4px;
+    background: var(--line);
+  }
+  .mmTool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px; height: 34px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--ink-soft);
+    font-family: var(--font);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  .mmTool svg { width: 19px; height: 19px; }
+  .mmTool:hover { background: #F1F0EE; color: var(--ink); }
+  .mmTool.active {
+    background: var(--accent);
+    border-color: var(--accent-strong);
+    color: #6B4A12;
+  }
+  .mmTool:disabled { opacity: 0.35; cursor: default; background: none; }
+  .mmStage {
+    flex: 1 1 auto;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 1px 1px, #DEDDD9 1px, transparent 0) 0 0 / 22px 22px,
+      #FCFCFB;
+  }
+  .mmStage canvas { display: block; touch-action: none; }
+  /* The box being typed into sits over the board at the box's own place. */
+  .mmEdit {
+    position: absolute;
+    display: none;
+    z-index: 3;
+  }
+  .mmEdit textarea {
+    display: block;
+    border: 2px solid var(--accent-deep);
+    border-radius: 8px;
+    padding: 6px 8px;
+    background: #fff;
+    color: var(--ink);
+    font-family: var(--font);
+    line-height: 1.3;
+    text-align: center;
+    resize: none;
+    outline: none;
+    box-shadow: 0 6px 18px rgba(20, 20, 18, 0.18);
+  }
+  /* "Click the first box, now the second" — said where it can be seen. */
+  .mmHint {
+    position: absolute;
+    left: 50%; top: 12px;
+    transform: translateX(-50%);
+    display: none;
+    z-index: 2;
+    padding: 7px 15px;
+    border-radius: 999px;
+    background: rgba(26, 26, 26, 0.82);
+    color: #fff;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .mmHint.show { display: block; }
+  .mmEmpty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.86rem;
+    line-height: 1.7;
+    pointer-events: none;
+  }
+  .mmEmpty b { color: var(--ink-soft); font-weight: 600; }
+  .mmProps {
+    flex: 0 0 auto;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 11px 14px;
+    border-top: 1px solid var(--line);
+    background: #FBFBFA;
+  }
+  .mmProps.show { display: flex; }
+  .mmField {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+  }
+  .mmField > label { -webkit-user-select: none; user-select: none; }
+  .mmSwatches { display: inline-flex; gap: 4px; }
+  .mmSwatch {
+    width: 20px; height: 20px;
+    border: 1px solid rgba(20, 20, 18, 0.16);
+    border-radius: 6px;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.12s ease;
+  }
+  .mmSwatch:hover { transform: scale(1.14); }
+  .mmProps input[type="color"] {
+    width: 30px; height: 26px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+  }
+  .mmProps input[type="range"] { width: 92px; }
+  .mmProps select {
+    font-family: var(--font);
+    font-size: 0.78rem;
+    color: var(--ink);
+    padding: 4px 6px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+  }
+  .mmProps .btn { padding: 5px 11px; font-size: 0.78rem; }
+  .mmLinkOn { color: var(--ok); font-weight: 600; }
+  @media (pointer: coarse) {
+    .mmTool { width: 40px; height: 40px; }
+    .mmSwatch { width: 26px; height: 26px; }
+  }
 </style>
 </head>
 <body>
@@ -3067,6 +3237,9 @@
     </button>
     <button class="toolBtn" id="calcBtn" data-key="K" title="Calculator — fractions, powers and roots, in a window you can drag anywhere">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="16" height="19" rx="2.5"/><rect x="7" y="5.5" width="10" height="3.5" rx="1"/><line x1="8.2" y1="13" x2="8.2" y2="13"/><line x1="12" y1="13" x2="12" y2="13"/><line x1="15.8" y1="13" x2="15.8" y2="13"/><line x1="8.2" y1="17.5" x2="8.2" y2="17.5"/><line x1="12" y1="17.5" x2="12" y2="17.5"/><line x1="15.8" y1="17.5" x2="15.8" y2="17.5"/></svg>
+    </button>
+    <button class="toolBtn" id="mmBtn" data-key="Y" title="Mindmap — a board you can drag anywhere, with boxes, arrows, pictures and links">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9.6" width="6" height="4.8" rx="1.4"/><rect x="1.5" y="2.5" width="5.2" height="4" rx="1.3"/><rect x="17.3" y="2.5" width="5.2" height="4" rx="1.3"/><rect x="1.5" y="17.5" width="5.2" height="4" rx="1.3"/><rect x="17.3" y="17.5" width="5.2" height="4" rx="1.3"/><path d="M9 10.6 6.5 6.4M15 10.6l2.5-4.2M9 13.4l-2.5 4.2M15 13.4l2.5 4.2"/></svg>
     </button>
     <button class="toolBtn" id="thumbToggleBtn" data-key="N" title="Show / hide page thumbnails — drag the panel edge to resize them">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/><rect x="5.4" y="7" width="2.4" height="3.2"/><rect x="5.4" y="13" width="2.4" height="3.2"/></svg>
@@ -3593,6 +3766,108 @@
   </div>
 </div>
 
+<!-- The mindmap board, from the Mindmap app. A window like the calculator
+     and the code window: drag the title bar to move it, the corner to
+     resize it, and the worksheet stays live underneath the whole time. -->
+<div class="modalBack floatWin" id="mmModal">
+  <div class="modalCard mmCard" id="mmCard" tabindex="-1">
+    <div class="modalHead" id="mmHead" title="Drag to move — the worksheet stays live underneath">
+      <h2>Mindmap</h2>
+      <div class="winBtns">
+        <button class="modalClose" id="mmMinBtn" title="Minimise — the board is kept">–</button>
+        <button class="modalClose" id="mmCloseBtn" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="modalBody mmBody">
+      <div class="mmBar" id="mmBar">
+        <button class="mmTool" data-mmtool="select" title="Select / move — drag a box, drag the board itself, double-click to type">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.2 18.4 11l-5.7 1.6-2.3 5.5z"/></svg>
+        </button>
+        <button class="mmTool" data-mmtool="rect" title="Box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/></svg>
+        </button>
+        <button class="mmTool" data-mmtool="circle" title="Bubble">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg>
+        </button>
+        <button class="mmTool" data-mmtool="diamond" title="Diamond">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5 20.5 12 12 20.5 3.5 12z"/></svg>
+        </button>
+        <button class="mmTool" data-mmtool="text" title="Words on their own — no box around them">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6.5V5h14v1.5M12 5v14M8.5 19h7"/></svg>
+        </button>
+        <span class="mmSep"></span>
+        <button class="mmTool" data-mmtool="connect" title="Join two boxes — click one, then the other, and an arrow follows them about">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 17.5h6a3 3 0 0 0 3-3v-5a3 3 0 0 1 3-3h4"/><path d="M16.5 3.5 20.5 6.5 16.5 9.5"/></svg>
+        </button>
+        <button class="mmTool" data-mmtool="line" title="Straight line">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="19" x2="20" y2="5"/></svg>
+        </button>
+        <button class="mmTool" data-mmtool="arrow" title="Arrow drawn free-hand">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="19" x2="19" y2="6"/><polyline points="11.5 5.5 19.5 5.5 19.5 13.5"/></svg>
+        </button>
+        <span class="mmSep"></span>
+        <button class="mmTool" id="mmPicBtn" title="Picture — choose a file, or just paste one with Ctrl+V, or drop one on the board">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m3.8 17 4.7-4.7 3.5 3.5 3-3 5.2 5.2"/></svg>
+        </button>
+        <button class="mmTool" id="mmUndoBtn" title="Undo (Ctrl+Z)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H8"/><polyline points="7.5 4.5 3 9 7.5 13.5"/></svg>
+        </button>
+        <button class="mmTool" id="mmRedoBtn" title="Redo (Ctrl+Y)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 9h-9.5a5.5 5.5 0 0 0 0 11H16"/><polyline points="16.5 4.5 21 9 16.5 13.5"/></svg>
+        </button>
+        <button class="mmTool" id="mmDelBtn" title="Delete what is selected (Del)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16M9.5 6.5V4h5v2.5M6.5 6.5 7.5 20h9l1-13.5"/></svg>
+        </button>
+        <span class="mmSep"></span>
+        <button class="mmTool" id="mmFitBtn" title="Fit the whole mindmap in the window">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9V3.5H9M15 3.5h5.5V9M20.5 15v5.5H15M9 20.5H3.5V15"/></svg>
+        </button>
+        <button class="mmTool" id="mmSaveImgBtn" title="Save the mindmap as a picture">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11"/><polyline points="7.5 10 12 14.5 16.5 10"/><path d="M4 16.5v2.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-2.5"/></svg>
+        </button>
+        <button class="mmTool" id="mmClearBtn" title="Start a new mindmap — everything on the board is cleared">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H6.5A1.5 1.5 0 0 0 5 5v14a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5z"/><polyline points="14 3.5 14 8.5 19 8.5"/></svg>
+        </button>
+      </div>
+      <div class="mmStage" id="mmStage">
+        <canvas id="mmCanvas"></canvas>
+        <div class="mmEmpty" id="mmEmpty">
+          <div><b>Pick a shape above and click the board.</b></div>
+          <div>Type straight onto a selected box. <b>Tab</b> adds the next one along, <b>Enter</b> one below.<br>Paste a picture with <b>Ctrl+V</b>. Join two boxes with the arrow tool.</div>
+        </div>
+        <div class="mmHint" id="mmHintBar"></div>
+        <div class="mmEdit" id="mmEdit"></div>
+      </div>
+      <div class="mmProps" id="mmProps">
+        <span class="mmField" id="mmFillField">
+          <label>Box</label>
+          <span class="mmSwatches" id="mmFillSwatches"></span>
+          <input type="color" id="mmFillPick" title="Any other colour for the box">
+        </span>
+        <span class="mmField" id="mmStrokeField">
+          <label>Border</label>
+          <input type="color" id="mmStrokePick" title="The colour of the outline">
+        </span>
+        <span class="mmField" id="mmTextField">
+          <label>Text</label>
+          <span class="mmSwatches" id="mmTextSwatches"></span>
+          <input type="color" id="mmTextPick" title="Any other colour for the words">
+        </span>
+        <span class="mmField" id="mmSizeField">
+          <label>Size</label>
+          <input type="range" id="mmFontSize" min="9" max="48" step="1" title="How big the words are">
+        </span>
+        <span class="mmField" id="mmFontField">
+          <label>Font</label>
+          <select id="mmFontFamily" title="Which typeface the words use"></select>
+        </span>
+        <button class="btn" id="mmLinkBtn" title="Attach a link — a small chain shows on the box, and clicking it opens the page">🔗 Link</button>
+      </div>
+    </div>
+    <div class="floatWinGrip" id="mmGrip" title="Drag to resize"></div>
+  </div>
+</div>
+
 <div class="modalBack" id="videoModal">
   <div class="modalCard videoModalCard">
     <div class="modalHead">
@@ -3991,7 +4266,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.67.0';
+var APP_VERSION = 'v1.68.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -13273,6 +13548,1677 @@ attachFloatWin({
   clamp: clampCalcWin, apply: applyCalcWin, save: saveCalcWin
 });
 
+/* ================= Mindmap =================
+   The board out of the Mindmap app (polymathlc/mindmap), brought over here
+   as a floating window like the calculator and the code window: the class
+   watches a mindmap being built while the worksheet stays live underneath.
+
+   The engine is this app's own port of that app's canvas, so the two must
+   stay in step — the element shape (type / x / y / width / height / fill /
+   stroke / strokeWidth / text / fontSize / fontFamily) and the connection
+   shape (from / to / controlPoints) are the ones that app saves, so a board
+   built here reads the same way there and back again. Four things this port
+   adds, and the Mindmap app carries the same four:
+     - a text colour of its own, so words are not always near-black;
+     - a link on any box or picture, shown as a small chain and opened by
+       tapping it;
+     - pictures pasted, dropped or chosen, and kept in proportion whenever
+       they are resized;
+     - pointer events rather than mouse events, so all of it works with a
+       finger and an Apple Pencil, pinch to zoom included.
+
+   The board is remembered per worksheet in this browser (never in Firestore,
+   so nothing about the shared `pdfAnnotator` document changes). It is read
+   when the window opens, so opening a different worksheet and opening the
+   window again brings up that worksheet's own board. */
+var MM_WIN_KEY = 'polymath.mmWin';        // the window's box
+var MM_BOARD_KEY = 'polymath.mmBoard';    // + ':' + worksheet id
+var MM_MIN_W = 460, MM_MIN_H = 380;
+var MM_HEAD_ONLY_H = 60;
+var MM_MAX_HISTORY = 60;
+var MM_MIN_SIZE = 24;                     // smallest a box may be dragged to
+var MM_HANDLE = 8;                        // resize handle, in screen pixels
+var MM_GRAB = 11;                         // how near a handle counts, screen px
+
+/* The Mindmap app's pastels, and the darker outline it derives from each. */
+var MM_PASTELS = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#E0BBE4', '#D4F0F0', '#FFFFFF'];
+var MM_INKS = ['#1A1A1A', '#C62828', '#1565C0', '#2E7D32', '#6A1B9A', '#FFFFFF'];
+var MM_FONTS = ['Century Gothic', 'Patrick Hand', 'Arial', 'Georgia', 'Trebuchet MS', 'Times New Roman', 'Verdana', 'Comic Sans MS'];
+
+var mmWin = null;
+var mmWinMin = false;
+var mmKey = null;             // which worksheet's board is on the table
+var mmSaveTimer = null;
+var mmCtx = null;
+var mmDpr = 1;
+
+/* Everything on the board, and everything being done to it. */
+var mmBoard = {
+  el: [], con: [], sel: [], selCon: null,
+  tool: 'select',
+  zoom: 1, pan: { x: 0, y: 0 },
+  fill: '#BAE1FF', stroke: '#5DADE2', strokeW: 2,
+  textColor: '#1A1A1A', fontSize: 15, fontFamily: 'Century Gothic',
+  history: [], hIndex: -1,
+  drag: null,                 // what the pointer is currently doing
+  temp: null,                 // the shape being drawn out
+  guides: [],                 // the dashed alignment lines
+  connectFrom: null,          // first box picked with the join tool
+  pointers: {},               // live pointers, for pinch-to-zoom
+  pinch: null,
+  editing: null
+};
+
+/* ---- Colours ---- */
+
+/* A pastel's outline: the same colour, walked towards black. */
+function mmDarken(hex, by) {
+  var h = String(hex || '').replace('#', '');
+  if (h.length !== 6) return '#8A8A84';
+  var out = '#';
+  for (var i = 0; i < 3; i++) {
+    var v = Math.max(0, parseInt(h.substr(i * 2, 2), 16) - (by == null ? 45 : by));
+    out += v.toString(16).padStart(2, '0');
+  }
+  return out;
+}
+
+function mmRandomPastel() {
+  return MM_PASTELS[Math.floor(Math.random() * (MM_PASTELS.length - 1))];
+}
+
+/* ---- The window ---- */
+
+function clampMmWin(b) {
+  return clampWinBox(b, MM_MIN_W, MM_MIN_H, mmWinMin ? MM_HEAD_ONLY_H : 0);
+}
+
+function defaultMmWin() {
+  var vw = window.innerWidth, vh = floatWinViewportH();
+  var w = Math.min(760, Math.max(MM_MIN_W, vw - 40));
+  var h = Math.min(600, Math.max(MM_MIN_H, vh - 110));
+  return { x: Math.max(12, Math.round((vw - w) / 2)), y: 84, w: w, h: h };
+}
+
+function loadMmWinBox() {
+  try {
+    var v = JSON.parse(localStorage.getItem(MM_WIN_KEY) || 'null');
+    if (v && ['x', 'y', 'w', 'h'].every(function (k) { return isFinite(v[k]); })) return v;
+  } catch (e) {}
+  return null;
+}
+
+function saveMmWin() {
+  try { localStorage.setItem(MM_WIN_KEY, JSON.stringify(mmWin)); } catch (e) {}
+}
+
+function applyMmWin() {
+  var c = $('mmCard');
+  if (!c || !mmWin) return;
+  c.style.left = mmWin.x + 'px';
+  c.style.top = mmWin.y + 'px';
+  c.style.width = mmWin.w + 'px';
+  c.style.height = mmWinMin ? 'auto' : mmWin.h + 'px';
+  mmSizeCanvas();
+}
+
+function setMmWinMin(on) {
+  mmWinMin = !!on;
+  $('mmModal').classList.toggle('winMin', mmWinMin);
+  var b = $('mmMinBtn');
+  b.textContent = mmWinMin ? '▢' : '–';
+  b.title = mmWinMin ? 'Open it back up' : 'Minimise — the board is kept';
+  if (mmWin) { mmWin = clampMmWin(mmWin); applyMmWin(); }
+}
+
+function mmOpen() {
+  return $('mmModal').classList.contains('open');
+}
+
+function openMm() {
+  var modal = $('mmModal');
+  if (modal.classList.contains('open')) { raiseFloatWin('mmModal'); return; }
+  modal.classList.add('open');
+  raiseFloatWin('mmModal');
+  $('mmBtn').classList.add('active');
+  mmWin = clampMmWin(mmWin || loadMmWinBox() || defaultMmWin());
+  applyMmWin();
+  setMmWinMin(false);
+  mmLoadBoard();
+  mmSetTool(mmBoard.tool);
+  mmSizeCanvas();
+  setTimeout(function () { try { $('mmCard').focus(); } catch (e) {} }, 30);
+}
+
+function closeMm() {
+  mmCommitEdit();
+  mmFlushBoard();
+  $('mmModal').classList.remove('open');
+  $('mmBtn').classList.remove('active');
+}
+
+function toggleMm() { mmOpen() ? closeMm() : openMm(); }
+
+/* ---- Remembering the board ---- */
+
+function mmBoardKey() { return MM_BOARD_KEY + ':' + (currentDocId || '_'); }
+
+/* Everything worth keeping, and nothing that cannot survive JSON: the loaded
+   Image objects go, the connections become a pair of indices. */
+function mmSerialise() {
+  var idx = function (el) { return mmBoard.el.indexOf(el); };
+  return {
+    el: mmBoard.el.map(function (e) {
+      var o = {};
+      Object.keys(e).forEach(function (k) { if (k !== 'img') o[k] = e[k]; });
+      return o;
+    }),
+    con: mmBoard.con
+      .filter(function (c) { return idx(c.from) >= 0 && idx(c.to) >= 0; })
+      .map(function (c) {
+        return { from: idx(c.from), to: idx(c.to), color: c.color, width: c.width,
+                 controlPoints: c.controlPoints || null };
+      }),
+    zoom: mmBoard.zoom, pan: { x: mmBoard.pan.x, y: mmBoard.pan.y }
+  };
+}
+
+function mmDeserialise(data) {
+  mmBoard.el = (data && Array.isArray(data.el) ? data.el : []).map(function (e) {
+    var el = Object.assign({}, e);
+    if (el.src) mmAttachImage(el, el.src);
+    return el;
+  });
+  mmBoard.con = (data && Array.isArray(data.con) ? data.con : [])
+    .filter(function (c) { return mmBoard.el[c.from] && mmBoard.el[c.to] && mmBoard.el[c.from] !== mmBoard.el[c.to]; })
+    .map(function (c) {
+      return { from: mmBoard.el[c.from], to: mmBoard.el[c.to], color: c.color, width: c.width,
+               controlPoints: c.controlPoints || null };
+    });
+  mmBoard.sel = [];
+  mmBoard.selCon = null;
+  if (data && isFinite(data.zoom)) mmBoard.zoom = Math.max(0.15, Math.min(4, data.zoom));
+  if (data && data.pan && isFinite(data.pan.x)) mmBoard.pan = { x: data.pan.x, y: data.pan.y };
+}
+
+/* Pictures live on the board as data URLs, so a board reopens complete even
+   with no network — the same way the picture arrived from the clipboard. */
+function mmAttachImage(el, src) {
+  var img = new Image();
+  img.onload = function () { mmRender(); };
+  img.src = src;
+  el.img = img;
+}
+
+function mmLoadBoard() {
+  mmKey = mmBoardKey();
+  var data = null;
+  try { data = JSON.parse(localStorage.getItem(mmKey) || 'null'); } catch (e) {}
+  mmDeserialise(data);
+  mmBoard.history = [];
+  mmBoard.hIndex = -1;
+  mmPush();
+  mmRender();
+  mmSyncProps();
+}
+
+/* localStorage has a few megabytes at most, and a pasted photo eats them
+   fast — a board too big to keep is said so once rather than failing mute. */
+function mmFlushBoard() {
+  clearTimeout(mmSaveTimer);
+  if (!mmKey) return;
+  try {
+    localStorage.setItem(mmKey, JSON.stringify(mmSerialise()));
+  } catch (e) {
+    toast('The mindmap is too big to remember on this device — save it as a picture instead.', 4200);
+  }
+}
+
+function mmTouchBoard() {
+  clearTimeout(mmSaveTimer);
+  mmSaveTimer = setTimeout(mmFlushBoard, 600);
+}
+
+/* ---- Undo / redo ---- */
+
+function mmPush() {
+  mmBoard.history = mmBoard.history.slice(0, mmBoard.hIndex + 1);
+  mmBoard.history.push(JSON.stringify(mmSerialise()));
+  if (mmBoard.history.length > MM_MAX_HISTORY) mmBoard.history.shift();
+  mmBoard.hIndex = mmBoard.history.length - 1;
+  mmTouchBoard();
+  mmSyncBar();
+}
+
+/* Undo puts the boxes back where they were; it does not put the view back.
+   Panning and zooming are how the board is looked at, not what is on it —
+   having Ctrl+Z throw the view about was more startling than helpful. */
+function mmRestore(json) {
+  var zoom = mmBoard.zoom, pan = { x: mmBoard.pan.x, y: mmBoard.pan.y };
+  mmDeserialise(JSON.parse(json));
+  mmBoard.zoom = zoom;
+  mmBoard.pan = pan;
+  mmRender();
+  mmSyncProps();
+  mmSyncBar();
+  mmTouchBoard();
+}
+
+function mmUndo() {
+  if (mmBoard.hIndex <= 0) return;
+  mmBoard.hIndex--;
+  mmRestore(mmBoard.history[mmBoard.hIndex]);
+}
+
+function mmRedo() {
+  if (mmBoard.hIndex >= mmBoard.history.length - 1) return;
+  mmBoard.hIndex++;
+  mmRestore(mmBoard.history[mmBoard.hIndex]);
+}
+
+/* ---- Geometry ---- */
+
+/* A length in screen pixels, said in board units — so a handle stays the
+   same size under the finger however far the board is zoomed. The Mindmap
+   app measured these in board units, which made the handles unusable once
+   the board was zoomed out. */
+function mmS(px) { return px / mmBoard.zoom; }
+
+function mmBounds(el) {
+  if (el.type === 'line' || el.type === 'arrow') {
+    return {
+      x: Math.min(el.x, el.x2), y: Math.min(el.y, el.y2),
+      width: Math.abs(el.x2 - el.x) || 1, height: Math.abs(el.y2 - el.y) || 1
+    };
+  }
+  return { x: el.x, y: el.y, width: el.width || 0, height: el.height || 0 };
+}
+
+function mmCentre(el) {
+  var b = mmBounds(el);
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+}
+
+function mmCombinedBounds(list) {
+  if (!list.length) return null;
+  var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  list.forEach(function (el) {
+    var b = mmBounds(el);
+    x1 = Math.min(x1, b.x); y1 = Math.min(y1, b.y);
+    x2 = Math.max(x2, b.x + b.width); y2 = Math.max(y2, b.y + b.height);
+  });
+  return { left: x1, top: y1, right: x2, bottom: y2,
+           centerX: (x1 + x2) / 2, centerY: (y1 + y2) / 2,
+           width: x2 - x1, height: y2 - y1 };
+}
+
+function mmIsShape(el) {
+  return !!el && el.type !== 'line' && el.type !== 'arrow';
+}
+
+function mmPointIn(pos, el) {
+  var b = mmBounds(el);
+  var pad = mmS(4);
+  return pos.x >= b.x - pad && pos.x <= b.x + b.width + pad &&
+         pos.y >= b.y - pad && pos.y <= b.y + b.height + pad;
+}
+
+function mmElementAt(pos) {
+  for (var i = mmBoard.el.length - 1; i >= 0; i--) {
+    if (mmPointIn(pos, mmBoard.el[i])) return mmBoard.el[i];
+  }
+  return null;
+}
+
+function mmHandles(el) {
+  if (el.type === 'line' || el.type === 'arrow') {
+    return [{ x: el.x, y: el.y, type: 'start' }, { x: el.x2, y: el.y2, type: 'end' }];
+  }
+  var b = mmBounds(el);
+  var x = b.x, y = b.y, w = b.width, h = b.height;
+  return [
+    { x: x, y: y, type: 'nw' }, { x: x + w / 2, y: y, type: 'n' }, { x: x + w, y: y, type: 'ne' },
+    { x: x + w, y: y + h / 2, type: 'e' }, { x: x + w, y: y + h, type: 'se' },
+    { x: x + w / 2, y: y + h, type: 's' }, { x: x, y: y + h, type: 'sw' },
+    { x: x, y: y + h / 2, type: 'w' }
+  ];
+}
+
+function mmHandleAt(pos) {
+  var grab = mmS(MM_GRAB);
+  for (var i = 0; i < mmBoard.sel.length; i++) {
+    var handles = mmHandles(mmBoard.sel[i]);
+    for (var j = 0; j < handles.length; j++) {
+      var h = handles[j];
+      if (Math.abs(pos.x - h.x) <= grab && Math.abs(pos.y - h.y) <= grab) {
+        return { el: mmBoard.sel[i], handle: h };
+      }
+    }
+  }
+  return null;
+}
+
+/* The chain badge sits just inside the top-right corner of a box. */
+function mmLinkRect(el) {
+  if (!el.link || !mmIsShape(el)) return null;
+  var b = mmBounds(el);
+  var s = Math.max(15, Math.min(22, mmS(20)));
+  return { x: b.x + b.width - s - mmS(4), y: b.y + mmS(4), w: s, h: s };
+}
+
+function mmLinkAt(pos) {
+  for (var i = mmBoard.el.length - 1; i >= 0; i--) {
+    var r = mmLinkRect(mmBoard.el[i]);
+    if (r && pos.x >= r.x && pos.x <= r.x + r.w && pos.y >= r.y && pos.y <= r.y + r.h) return mmBoard.el[i];
+  }
+  return null;
+}
+
+/* ---- Connections ---- */
+
+function mmConnect(from, to) {
+  if (!from || !to || from === to) return;
+  var exists = mmBoard.con.some(function (c) {
+    return (c.from === from && c.to === to) || (c.from === to && c.to === from);
+  });
+  if (exists) return;
+  mmBoard.con.push({ from: from, to: to, color: '#7A7A74', width: 2, controlPoints: null });
+  mmPush();
+}
+
+/* The right-angled route between two boxes, exactly as the Mindmap app draws
+   it: out of the nearer side, a bend halfway, in at the other. */
+function mmPath(con) {
+  var fromC = mmCentre(con.from), toC = mmCentre(con.to);
+  var fb = mmBounds(con.from), tb = mmBounds(con.to);
+  var dx = toC.x - fromC.x, dy = toC.y - fromC.y;
+  var start, end, mid;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    start = { x: dx > 0 ? fb.x + fb.width : fb.x, y: fromC.y };
+    end = { x: dx > 0 ? tb.x : tb.x + tb.width, y: toC.y };
+    mid = (start.x + end.x) / 2;
+    if (con.controlPoints && con.controlPoints.length === 2) {
+      return [start, con.controlPoints[0], con.controlPoints[1], end];
+    }
+    return [start, { x: mid, y: start.y }, { x: mid, y: end.y }, end];
+  }
+  start = { x: fromC.x, y: dy > 0 ? fb.y + fb.height : fb.y };
+  end = { x: toC.x, y: dy > 0 ? tb.y : tb.y + tb.height };
+  mid = (start.y + end.y) / 2;
+  if (con.controlPoints && con.controlPoints.length === 2) {
+    return [start, con.controlPoints[0], con.controlPoints[1], end];
+  }
+  return [start, { x: start.x, y: mid }, { x: end.x, y: mid }, end];
+}
+
+function mmDistToSegment(p, a, b) {
+  var dx = b.x - a.x, dy = b.y - a.y;
+  var len = dx * dx + dy * dy;
+  if (!len) return Math.hypot(p.x - a.x, p.y - a.y);
+  var t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+function mmConnectionAt(pos) {
+  var near = mmS(8);
+  for (var i = mmBoard.con.length - 1; i >= 0; i--) {
+    var path = mmBoard.con[i]._path;
+    if (!path) continue;
+    for (var j = 0; j < path.length - 1; j++) {
+      if (mmDistToSegment(pos, path[j], path[j + 1]) < near) return mmBoard.con[i];
+    }
+  }
+  return null;
+}
+
+/* ---- Snapping ---- */
+
+/* Dragged boxes line up with the ones already on the board, and a box joined
+   to another prefers to sit square with it so the arrow between them comes
+   out straight. The straight-arrow pull wins, exactly as it does over there. */
+function mmSnap(dragged, dx, dy) {
+  mmBoard.guides = [];
+  var box = mmCombinedBounds(dragged);
+  if (!box) return { dx: dx, dy: dy };
+  var near = mmS(8), nearCon = mmS(16);
+  var snappedX = false, snappedY = false;
+
+  var joined = mmBoard.con.filter(function (c) {
+    return (dragged.indexOf(c.from) >= 0) !== (dragged.indexOf(c.to) >= 0);
+  });
+  var bestX = null, bestY = null, dX = nearCon, dY = nearCon;
+  joined.forEach(function (c) {
+    var moving = dragged.indexOf(c.from) >= 0 ? c.from : c.to;
+    var still = dragged.indexOf(c.from) >= 0 ? c.to : c.from;
+    var mb = mmBounds(moving), sb = mmBounds(still);
+    var mx = mb.x + mb.width / 2 + dx, my = mb.y + mb.height / 2 + dy;
+    var sx = sb.x + sb.width / 2, sy = sb.y + sb.height / 2;
+    if (Math.abs(my - sy) < dY) { dY = Math.abs(my - sy); bestY = { target: sy, now: my - dy, a: mb, b: sb }; }
+    if (Math.abs(mx - sx) < dX) { dX = Math.abs(mx - sx); bestX = { target: sx, now: mx - dx, a: mb, b: sb }; }
+  });
+  if (bestY) {
+    dy += bestY.target - (bestY.now + dy);
+    snappedY = true;
+    mmBoard.guides.push({ type: 'h', v: bestY.target, a: Math.min(bestY.a.x, bestY.b.x) - 30,
+      b: Math.max(bestY.a.x + bestY.a.width, bestY.b.x + bestY.b.width) + 30, joined: true });
+  }
+  if (bestX) {
+    dx += bestX.target - (bestX.now + dx);
+    snappedX = true;
+    mmBoard.guides.push({ type: 'v', v: bestX.target, a: Math.min(bestX.a.y, bestX.b.y) - 30,
+      b: Math.max(bestX.a.y + bestX.a.height, bestX.b.y + bestX.b.height) + 30, joined: true });
+  }
+  if (snappedX && snappedY) return { dx: dx, dy: dy };
+
+  var others = mmBoard.el.filter(function (el) { return dragged.indexOf(el) < 0 && mmIsShape(el); });
+  var xs = [], ys = [];
+  others.forEach(function (el) {
+    var b = mmBounds(el);
+    xs.push({ v: b.x, b: b }, { v: b.x + b.width / 2, b: b }, { v: b.x + b.width, b: b });
+    ys.push({ v: b.y, b: b }, { v: b.y + b.height / 2, b: b }, { v: b.y + b.height, b: b });
+  });
+
+  function best(mine, theirs) {
+    var hit = null, dist = near;
+    mine.forEach(function (m) {
+      theirs.forEach(function (t) {
+        var d = Math.abs(m - t.v);
+        if (d < dist) { dist = d; hit = { from: m, to: t.v, b: t.b }; }
+      });
+    });
+    return hit;
+  }
+
+  if (!snappedX) {
+    var hx = best([box.left + dx, box.centerX + dx, box.right + dx], xs);
+    if (hx) {
+      dx += hx.to - hx.from;
+      mmBoard.guides.push({ type: 'v', v: hx.to, a: Math.min(box.top + dy, hx.b.y) - 20,
+        b: Math.max(box.bottom + dy, hx.b.y + hx.b.height) + 20 });
+    }
+  }
+  if (!snappedY) {
+    var hy = best([box.top + dy, box.centerY + dy, box.bottom + dy], ys);
+    if (hy) {
+      dy += hy.to - hy.from;
+      mmBoard.guides.push({ type: 'h', v: hy.to, a: Math.min(box.left + dx, hy.b.x) - 20,
+        b: Math.max(box.right + dx, hy.b.x + hy.b.width) + 20 });
+    }
+  }
+  return { dx: dx, dy: dy };
+}
+
+/* A line drawn within a few degrees of level or upright is straightened. */
+function mmSnapEnd(x1, y1, x2, y2) {
+  var angle = Math.abs(Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI);
+  if (angle <= 8 || angle >= 172) return { x: x2, y: y1 };
+  if (Math.abs(angle - 90) <= 8) return { x: x1, y: y2 };
+  return { x: x2, y: y2 };
+}
+
+/* ---- Drawing ---- */
+
+function mmSizeCanvas() {
+  var stage = $('mmStage'), cv = $('mmCanvas');
+  if (!stage || !cv) return;
+  var r = stage.getBoundingClientRect();
+  if (r.width < 2 || r.height < 2) return;
+  mmDpr = window.devicePixelRatio || 1;
+  cv.style.width = r.width + 'px';
+  cv.style.height = r.height + 'px';
+  cv.width = Math.round(r.width * mmDpr);
+  cv.height = Math.round(r.height * mmDpr);
+  mmBoard.viewW = r.width;
+  mmBoard.viewH = r.height;
+  mmCtx = cv.getContext('2d');
+  mmRender();
+}
+
+/* Words broken to the box's width, then shrunk until they fit its height. */
+function mmWrap(ctx, text, maxW, size, family) {
+  ctx.font = size + 'px "' + (family || 'Century Gothic') + '", sans-serif';
+  var out = [];
+  String(text).split('\n').forEach(function (para) {
+    if (!para) { out.push(''); return; }
+    var line = '';
+    para.split(' ').forEach(function (word) {
+      var test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxW && line) { out.push(line); line = word; }
+      else line = test;
+    });
+    if (line) out.push(line);
+  });
+  return out;
+}
+
+function mmFitText(ctx, text, maxW, maxH, base, pad, family) {
+  var w = Math.max(8, maxW - pad * 2), h = Math.max(8, maxH - pad * 2);
+  for (var size = base; size >= 8; size--) {
+    var lines = mmWrap(ctx, text, w, size, family);
+    if (lines.length * size * 1.3 <= h) return { size: size, lines: lines };
+  }
+  return { size: 8, lines: mmWrap(ctx, text, w, 8, family) };
+}
+
+function mmTextPad(el) {
+  if (el.type === 'diamond') return Math.min(el.width, el.height) * 0.25;
+  if (el.type === 'circle') return Math.min(el.width, el.height) * 0.15;
+  if (el.type === 'text') return 5;
+  return 10;
+}
+
+function mmDrawText(ctx, el) {
+  if (!el.text) return;
+  var pad = mmTextPad(el);
+  var fit = mmFitText(ctx, el.text, el.width, el.height, el.fontSize || 15, pad, el.fontFamily);
+  ctx.save();
+  ctx.fillStyle = el.textColor || '#1A1A1A';
+  ctx.font = '600 ' + fit.size + 'px "' + (el.fontFamily || 'Century Gothic') + '", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  var lineH = fit.size * 1.3;
+  var top = el.y + el.height / 2 - (fit.lines.length * lineH) / 2 + lineH / 2;
+  fit.lines.forEach(function (line, i) {
+    ctx.fillText(line, el.x + el.width / 2, top + i * lineH);
+  });
+  ctx.restore();
+}
+
+function mmShapePath(ctx, el) {
+  var x = el.x, y = el.y, w = el.width, h = el.height;
+  ctx.beginPath();
+  if (el.type === 'circle') {
+    ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+  } else if (el.type === 'diamond') {
+    ctx.moveTo(x + w / 2, y);
+    ctx.lineTo(x + w, y + h / 2);
+    ctx.lineTo(x + w / 2, y + h);
+    ctx.lineTo(x, y + h / 2);
+    ctx.closePath();
+  } else {
+    ctx.roundRect(x, y, w, h, Math.min(10, Math.abs(w) / 4, Math.abs(h) / 4));
+  }
+}
+
+function mmArrowHead(ctx, from, to, size) {
+  var a = Math.atan2(to.y - from.y, to.x - from.x);
+  var len = size || 13;
+  ctx.beginPath();
+  ctx.moveTo(to.x, to.y);
+  ctx.lineTo(to.x - len * Math.cos(a - Math.PI / 6), to.y - len * Math.sin(a - Math.PI / 6));
+  ctx.lineTo(to.x - len * Math.cos(a + Math.PI / 6), to.y - len * Math.sin(a + Math.PI / 6));
+  ctx.closePath();
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.fill();
+}
+
+function mmDrawLink(ctx, el) {
+  var r = mmLinkRect(el);
+  if (!r) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(r.x, r.y, r.w, r.h, r.w * 0.3);
+  ctx.fillStyle = 'rgba(26, 26, 26, 0.78)';
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = (r.h * 0.62) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🔗', r.x + r.w / 2, r.y + r.h / 2 + r.h * 0.04);
+  ctx.restore();
+}
+
+function mmDrawElement(ctx, el) {
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = el.stroke || '#8A8A84';
+  ctx.lineWidth = el.strokeW == null ? 2 : el.strokeW;
+
+  if (el.type === 'line' || el.type === 'arrow') {
+    ctx.beginPath();
+    ctx.moveTo(el.x, el.y);
+    ctx.lineTo(el.x2, el.y2);
+    ctx.stroke();
+    if (el.type === 'arrow') mmArrowHead(ctx, { x: el.x, y: el.y }, { x: el.x2, y: el.y2 }, 15);
+    ctx.restore();
+    return;
+  }
+
+  if (el.type === 'image') {
+    if (el.img && el.img.complete && el.img.naturalWidth) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(el.x, el.y, el.width, el.height, 8);
+      ctx.clip();
+      ctx.drawImage(el.img, el.x, el.y, el.width, el.height);
+      ctx.restore();
+      if (el.stroke && el.stroke !== 'transparent' && el.strokeW > 0) {
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, el.width, el.height, 8);
+        ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle = '#EFEEEC';
+      ctx.fillRect(el.x, el.y, el.width, el.height);
+    }
+    mmDrawLink(ctx, el);
+    ctx.restore();
+    return;
+  }
+
+  if (el.type === 'text') {
+    if (el.fill && el.fill !== 'transparent') {
+      ctx.fillStyle = el.fill;
+      ctx.fillRect(el.x, el.y, el.width, el.height);
+    }
+    if (el.stroke && el.stroke !== 'transparent' && el.strokeW > 0) {
+      ctx.strokeRect(el.x, el.y, el.width, el.height);
+    }
+  } else {
+    mmShapePath(ctx, el);
+    if (el.fill && el.fill !== 'transparent') { ctx.fillStyle = el.fill; ctx.fill(); }
+    if (el.stroke && el.stroke !== 'transparent' && el.strokeW > 0) ctx.stroke();
+  }
+  mmDrawText(ctx, el);
+  mmDrawLink(ctx, el);
+  ctx.restore();
+}
+
+function mmDrawConnection(ctx, con, selected) {
+  var path = mmPath(con);
+  con._path = path;
+  ctx.save();
+  ctx.strokeStyle = con.color || '#7A7A74';
+  ctx.lineWidth = con.width || 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(path[0].x, path[0].y);
+  ctx.bezierCurveTo(path[1].x, path[1].y, path[2].x, path[2].y, path[3].x, path[3].y);
+  ctx.stroke();
+  mmArrowHead(ctx, path[2], path[3], 12);
+  if (selected) {
+    ctx.fillStyle = '#E8A54B';
+    [path[1], path[2]].forEach(function (p) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, mmS(5), 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+  ctx.restore();
+}
+
+function mmDrawSelection(ctx, el) {
+  var b = mmBounds(el);
+  var pad = mmS(4), size = mmS(MM_HANDLE);
+  ctx.save();
+  ctx.strokeStyle = '#E8A54B';
+  ctx.lineWidth = mmS(1.6);
+  ctx.setLineDash([mmS(5), mmS(4)]);
+  ctx.strokeRect(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2);
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#E8A54B';
+  ctx.lineWidth = mmS(1.6);
+  mmHandles(el).forEach(function (h) {
+    ctx.beginPath();
+    ctx.rect(h.x - size / 2, h.y - size / 2, size, size);
+    ctx.fill();
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function mmRender() {
+  var ctx = mmCtx, cv = $('mmCanvas');
+  if (!ctx || !cv) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.save();
+  ctx.scale(mmDpr, mmDpr);
+  ctx.translate(mmBoard.pan.x, mmBoard.pan.y);
+  ctx.scale(mmBoard.zoom, mmBoard.zoom);
+
+  mmBoard.con.forEach(function (c) {
+    if (mmBoard.el.indexOf(c.from) >= 0 && mmBoard.el.indexOf(c.to) >= 0) {
+      mmDrawConnection(ctx, c, c === mmBoard.selCon);
+    }
+  });
+  mmBoard.el.forEach(function (el) { mmDrawElement(ctx, el); });
+  if (mmBoard.temp) mmDrawElement(ctx, mmBoard.temp);
+  mmBoard.sel.forEach(function (el) { mmDrawSelection(ctx, el); });
+
+  if (mmBoard.connectFrom) {
+    var b = mmBounds(mmBoard.connectFrom);
+    ctx.save();
+    ctx.strokeStyle = '#43A047';
+    ctx.lineWidth = mmS(2.5);
+    ctx.setLineDash([mmS(6), mmS(4)]);
+    ctx.strokeRect(b.x - mmS(5), b.y - mmS(5), b.width + mmS(10), b.height + mmS(10));
+    ctx.restore();
+  }
+
+  if (mmBoard.marquee) {
+    var m = mmBoard.marquee;
+    ctx.save();
+    ctx.strokeStyle = '#E8A54B';
+    ctx.fillStyle = 'rgba(232, 165, 75, 0.12)';
+    ctx.lineWidth = mmS(1);
+    ctx.setLineDash([mmS(4), mmS(4)]);
+    var x = Math.min(m.x1, m.x2), y = Math.min(m.y1, m.y2);
+    ctx.fillRect(x, y, Math.abs(m.x2 - m.x1), Math.abs(m.y2 - m.y1));
+    ctx.strokeRect(x, y, Math.abs(m.x2 - m.x1), Math.abs(m.y2 - m.y1));
+    ctx.restore();
+  }
+
+  if (mmBoard.guides.length) {
+    ctx.save();
+    ctx.setLineDash([mmS(4), mmS(4)]);
+    mmBoard.guides.forEach(function (g) {
+      ctx.strokeStyle = g.joined ? '#43A047' : '#E53935';
+      ctx.lineWidth = mmS(g.joined ? 1.8 : 1);
+      ctx.beginPath();
+      if (g.type === 'v') { ctx.moveTo(g.v, g.a); ctx.lineTo(g.v, g.b); }
+      else { ctx.moveTo(g.a, g.v); ctx.lineTo(g.b, g.v); }
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  ctx.restore();
+  $('mmEmpty').style.display = mmBoard.el.length ? 'none' : 'flex';
+}
+
+/* ---- Making things ---- */
+
+function mmNewShape(type, x, y, w, h) {
+  var fill = mmRandomPastel();
+  var el = {
+    type: type, x: x, y: y, width: w, height: h,
+    fill: fill, stroke: mmDarken(fill), strokeW: mmBoard.strokeW,
+    text: '', textColor: mmBoard.textColor, fontSize: mmBoard.fontSize, fontFamily: mmBoard.fontFamily
+  };
+  if (type === 'text') {
+    el.fill = 'transparent';
+    el.stroke = 'transparent';
+    el.strokeW = 0;
+    el.fontSize = Math.max(16, mmBoard.fontSize);
+  }
+  return el;
+}
+
+function mmPlaceShape(type, pos) {
+  var w = type === 'text' ? 170 : 130, h = type === 'text' ? 44 : 84;
+  var el = mmNewShape(type, pos.x - w / 2, pos.y - h / 2, w, h);
+  mmBoard.el.push(el);
+  mmBoard.sel = [el];
+  mmBoard.selCon = null;
+  mmPush();
+  mmRender();
+  mmSyncProps();
+  mmSetTool('select');
+  mmEditText(el, '');
+}
+
+/* Tab makes the next box along and joins it on; Enter makes one below, on
+   the same branch as the box it came from. */
+function mmFreeSpot(x, y, w, h) {
+  for (var i = 0; i < 200; i++) {
+    var clash = mmBoard.el.some(function (el) {
+      var b = mmBounds(el);
+      return x - 8 < b.x + b.width && x + w + 8 > b.x && y - 8 < b.y + b.height && y + h + 8 > b.y;
+    });
+    if (!clash) break;
+    y += h + 20;
+  }
+  return { x: x, y: y };
+}
+
+function mmAddChild() {
+  if (mmBoard.sel.length !== 1 || !mmIsShape(mmBoard.sel[0])) return;
+  var parent = mmBoard.sel[0], pb = mmBounds(parent);
+  var kids = mmBoard.con.filter(function (c) { return c.from === parent && mmIsShape(c.to); }).map(function (c) { return c.to; });
+  var y = pb.y + pb.height / 2 - pb.height / 2;
+  if (kids.length) {
+    y = kids.reduce(function (acc, k) { var b = mmBounds(k); return Math.max(acc, b.y + b.height); }, -Infinity) + 20;
+  }
+  var spot = mmFreeSpot(pb.x + pb.width + 80, y, pb.width, pb.height);
+  var child = mmNewShape(parent.type === 'text' ? 'rect' : parent.type, spot.x, spot.y, pb.width, pb.height);
+  child.fontFamily = parent.fontFamily;
+  child.textColor = parent.textColor;
+  mmBoard.el.push(child);
+  mmBoard.sel = [child];
+  mmConnect(parent, child);
+  mmPush();
+  mmRender();
+  mmSyncProps();
+  mmEditText(child, '');
+}
+
+function mmAddSibling() {
+  if (mmBoard.sel.length !== 1 || !mmIsShape(mmBoard.sel[0])) return;
+  var cur = mmBoard.sel[0], cb = mmBounds(cur);
+  var spot = mmFreeSpot(cb.x, cb.y + cb.height + 30, cb.width, cb.height);
+  var sib = mmNewShape(cur.type, spot.x, spot.y, cb.width, cb.height);
+  sib.fontFamily = cur.fontFamily;
+  sib.textColor = cur.textColor;
+  mmBoard.el.push(sib);
+  var parent = mmBoard.con.find(function (c) { return c.to === cur; });
+  mmBoard.sel = [sib];
+  if (parent) mmConnect(parent.from, sib);
+  mmPush();
+  mmRender();
+  mmSyncProps();
+  mmEditText(sib, '');
+}
+
+/* ---- Typing into a box ---- */
+
+function mmEditText(el, initial) {
+  mmCommitEdit();
+  var wrap = $('mmEdit');
+  var ta = document.createElement('textarea');
+  var b = mmBounds(el);
+  ta.value = initial == null ? (el.text || '') : initial;
+  ta.style.width = Math.max(b.width * mmBoard.zoom, 120) + 'px';
+  ta.style.height = Math.max(b.height * mmBoard.zoom, 44) + 'px';
+  ta.style.fontSize = Math.max(12, (el.fontSize || 15) * mmBoard.zoom) + 'px';
+  ta.style.fontFamily = '"' + (el.fontFamily || 'Century Gothic') + '", sans-serif';
+  ta.style.color = el.textColor || '#1A1A1A';
+  wrap.innerHTML = '';
+  wrap.appendChild(ta);
+  wrap.style.display = 'block';
+  wrap.style.left = (b.x * mmBoard.zoom + mmBoard.pan.x) + 'px';
+  wrap.style.top = (b.y * mmBoard.zoom + mmBoard.pan.y) + 'px';
+  mmBoard.editing = el;
+  ta.focus();
+  if (initial == null) ta.select();
+  else ta.setSelectionRange(ta.value.length, ta.value.length);
+
+  ta.addEventListener('blur', function () { mmCommitEdit(); });
+  ta.addEventListener('keydown', function (e) {
+    e.stopPropagation();
+    if (e.key === 'Escape') { mmBoard.editing = null; wrap.style.display = 'none'; mmRender(); }
+    else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); mmCommitEdit(); }
+    else if (e.key === 'Tab') { e.preventDefault(); mmCommitEdit(); mmAddChild(); }
+  });
+}
+
+function mmCommitEdit() {
+  var el = mmBoard.editing;
+  if (!el) return;
+  var wrap = $('mmEdit');
+  var ta = wrap.querySelector('textarea');
+  mmBoard.editing = null;
+  wrap.style.display = 'none';
+  if (ta && (ta.value || '') !== (el.text || '')) {
+    el.text = ta.value;
+    mmPush();
+  }
+  wrap.innerHTML = '';
+  mmRender();
+}
+
+/* ---- Pictures ---- */
+
+/* A picture arrives the same way whichever door it came through: pasted,
+   dropped or chosen. Dropped on a box, it fills that box's background; on
+   bare board, it becomes a picture of its own, scaled to something sensible
+   and never wider than the window. */
+function mmAddImage(src, pos, intoEl) {
+  var probe = new Image();
+  probe.onload = function () {
+    if (intoEl && mmIsShape(intoEl) && intoEl.type !== 'image') {
+      intoEl.src = src;
+      intoEl.type = 'image';
+      intoEl.ratio = probe.naturalWidth / probe.naturalHeight;
+      intoEl.height = intoEl.width / intoEl.ratio;
+      mmAttachImage(intoEl, src);
+      mmBoard.sel = [intoEl];
+    } else {
+      var max = Math.min(360, (mmBoard.viewW || 400) / mmBoard.zoom * 0.6);
+      var w = probe.naturalWidth, h = probe.naturalHeight;
+      var k = Math.min(max / w, max / h, 1);
+      w = Math.round(w * k); h = Math.round(h * k);
+      var at = pos || mmViewCentre();
+      var el = {
+        type: 'image', x: at.x - w / 2, y: at.y - h / 2, width: w, height: h,
+        src: src, ratio: probe.naturalWidth / probe.naturalHeight,
+        stroke: 'transparent', strokeW: 0, text: '',
+        textColor: mmBoard.textColor, fontSize: mmBoard.fontSize, fontFamily: mmBoard.fontFamily
+      };
+      mmAttachImage(el, src);
+      mmBoard.el.push(el);
+      mmBoard.sel = [el];
+    }
+    mmBoard.selCon = null;
+    mmPush();
+    mmRender();
+    mmSyncProps();
+  };
+  probe.onerror = function () { toast('That picture could not be opened.'); };
+  probe.src = src;
+}
+
+function mmImageFromFile(file, pos, intoEl) {
+  if (!file || !/^image\//.test(file.type)) return;
+  var fr = new FileReader();
+  fr.onload = function (ev) { mmAddImage(ev.target.result, pos, intoEl); };
+  fr.readAsDataURL(file);
+}
+
+function mmViewCentre() {
+  return {
+    x: ((mmBoard.viewW || 400) / 2 - mmBoard.pan.x) / mmBoard.zoom,
+    y: ((mmBoard.viewH || 300) / 2 - mmBoard.pan.y) / mmBoard.zoom
+  };
+}
+
+/* ---- Links ---- */
+
+function mmAskLink() {
+  var el = mmBoard.sel.length === 1 ? mmBoard.sel[0] : null;
+  if (!el || !mmIsShape(el)) { toast('Pick one box or picture first.'); return; }
+  var now = el.link || '';
+  var v = window.prompt('Link for this box — paste a web address, or leave it empty to take the link off:', now);
+  if (v === null) return;
+  v = v.trim();
+  if (!v) { delete el.link; }
+  else {
+    if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+    el.link = v;
+  }
+  mmPush();
+  mmRender();
+  mmSyncProps();
+}
+
+function mmOpenLink(el) {
+  if (!el || !el.link) return;
+  window.open(el.link, '_blank', 'noopener');
+}
+
+/* ---- Pointer handling ---- */
+
+function mmPos(e) {
+  var r = $('mmCanvas').getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left - mmBoard.pan.x) / mmBoard.zoom,
+    y: (e.clientY - r.top - mmBoard.pan.y) / mmBoard.zoom
+  };
+}
+
+function mmDown(e) {
+  var cv = $('mmCanvas');
+  mmBoard.pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+
+  // Two fingers on the board pinch it bigger and smaller.
+  var ids = Object.keys(mmBoard.pointers);
+  if (ids.length === 2) {
+    var a = mmBoard.pointers[ids[0]], b = mmBoard.pointers[ids[1]];
+    mmBoard.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: mmBoard.zoom,
+                 mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, pan: { x: mmBoard.pan.x, y: mmBoard.pan.y } };
+    mmBoard.drag = null;
+    mmBoard.temp = null;
+    mmBoard.marquee = null;
+    return;
+  }
+  if (ids.length > 2) return;
+  // The middle button always shoves the board about, whatever tool is up.
+  if (e.button === 1) {
+    mmBoard.drag = { kind: 'pan', from: { x: e.clientX, y: e.clientY }, pan: { x: mmBoard.pan.x, y: mmBoard.pan.y } };
+    e.preventDefault();
+    return;
+  }
+  if (e.button != null && e.button > 0) return;
+
+  mmCommitEdit();
+  var pos = mmPos(e);
+
+  // The chain badge is the first thing under the finger, before anything can
+  // be selected or dragged — that is the whole point of putting it there.
+  var linked = mmLinkAt(pos);
+  if (linked) { mmOpenLink(linked); return; }
+
+  if (mmBoard.tool === 'connect') {
+    var hit = mmElementAt(pos);
+    if (!hit || !mmIsShape(hit)) { mmBoard.connectFrom = null; mmSayHint('Click the first box'); mmRender(); return; }
+    if (!mmBoard.connectFrom) {
+      mmBoard.connectFrom = hit;
+      mmSayHint('Now click the box to join it to');
+      mmRender();
+      return;
+    }
+    mmConnect(mmBoard.connectFrom, hit);
+    mmBoard.connectFrom = null;
+    mmSetTool('select');
+    mmRender();
+    return;
+  }
+
+  if (mmBoard.tool === 'line' || mmBoard.tool === 'arrow') {
+    mmBoard.temp = { type: mmBoard.tool, x: pos.x, y: pos.y, x2: pos.x, y2: pos.y,
+                stroke: '#55554F', strokeW: Math.max(2, mmBoard.strokeW) };
+    mmBoard.drag = { kind: 'draw', from: pos };
+    return;
+  }
+
+  if (mmBoard.tool !== 'select') { mmPlaceShape(mmBoard.tool, pos); return; }
+
+  var handle = mmHandleAt(pos);
+  if (handle) {
+    mmBoard.drag = { kind: 'resize', el: handle.el, handle: handle.handle,
+                start: Object.assign({}, handle.el) };
+    return;
+  }
+
+  var el = mmElementAt(pos);
+  if (el) {
+    // Ctrl/⌘-click opens the link without having to find the little chain.
+    if ((e.ctrlKey || e.metaKey) && el.link) { mmOpenLink(el); return; }
+    mmBoard.selCon = null;
+    if (e.shiftKey) {
+      if (mmBoard.sel.indexOf(el) < 0) mmBoard.sel.push(el);
+    } else if (mmBoard.sel.indexOf(el) < 0) {
+      mmBoard.sel = [el];
+    }
+    mmBoard.drag = { kind: 'move', from: pos, was: mmBoard.sel.map(function (s) {
+      return { el: s, x: s.x, y: s.y, x2: s.x2, y2: s.y2 };
+    }), moved: false };
+    mmSyncProps();
+    mmRender();
+    return;
+  }
+
+  var con = mmConnectionAt(pos);
+  if (con) {
+    mmBoard.selCon = con;
+    mmBoard.sel = [];
+    mmSyncProps();
+    mmRender();
+    return;
+  }
+
+  // Bare board: the middle button and a two-finger-less drag both pan; a
+  // shift-drag draws a box round several things at once.
+  if (!e.shiftKey) { mmBoard.sel = []; mmBoard.selCon = null; mmSyncProps(); }
+  if (e.shiftKey) mmBoard.drag = { kind: 'marquee', from: pos };
+  else mmBoard.drag = { kind: 'pan', from: { x: e.clientX, y: e.clientY }, pan: { x: mmBoard.pan.x, y: mmBoard.pan.y } };
+  mmRender();
+}
+
+function mmMove(e) {
+  if (mmBoard.pointers[e.pointerId]) { mmBoard.pointers[e.pointerId] = { x: e.clientX, y: e.clientY }; }
+
+  if (mmBoard.pinch) {
+    var ids = Object.keys(mmBoard.pointers);
+    if (ids.length < 2) return;
+    var a = mmBoard.pointers[ids[0]], b = mmBoard.pointers[ids[1]];
+    var dist = Math.hypot(a.x - b.x, a.y - b.y);
+    if (!mmBoard.pinch.dist) return;
+    var next = Math.max(0.15, Math.min(4, mmBoard.pinch.zoom * (dist / mmBoard.pinch.dist)));
+    var r = $('mmCanvas').getBoundingClientRect();
+    var mx = mmBoard.pinch.mid.x - r.left, my = mmBoard.pinch.mid.y - r.top;
+    mmBoard.pan.x = mx - (mx - mmBoard.pinch.pan.x) * (next / mmBoard.pinch.zoom);
+    mmBoard.pan.y = my - (my - mmBoard.pinch.pan.y) * (next / mmBoard.pinch.zoom);
+    mmBoard.zoom = next;
+    mmRender();
+    return;
+  }
+
+  var d = mmBoard.drag;
+  if (!d) { mmCursor(mmPos(e)); return; }
+  var pos = mmPos(e);
+
+  if (d.kind === 'pan') {
+    mmBoard.pan.x = d.pan.x + (e.clientX - d.from.x);
+    mmBoard.pan.y = d.pan.y + (e.clientY - d.from.y);
+    mmRender();
+    return;
+  }
+  if (d.kind === 'marquee') {
+    mmBoard.marquee = { x1: d.from.x, y1: d.from.y, x2: pos.x, y2: pos.y };
+    mmRender();
+    return;
+  }
+  if (d.kind === 'draw' && mmBoard.temp) {
+    var snapped = mmSnapEnd(mmBoard.temp.x, mmBoard.temp.y, pos.x, pos.y);
+    mmBoard.temp.x2 = snapped.x;
+    mmBoard.temp.y2 = snapped.y;
+    mmRender();
+    return;
+  }
+  if (d.kind === 'move') {
+    var snap = mmSnap(d.was.map(function (w) { return w.el; }), pos.x - d.from.x, pos.y - d.from.y);
+    if (Math.abs(snap.dx) > 0.5 || Math.abs(snap.dy) > 0.5) d.moved = true;
+    d.was.forEach(function (w) {
+      w.el.x = w.x + snap.dx;
+      w.el.y = w.y + snap.dy;
+      if (w.x2 != null) { w.el.x2 = w.x2 + snap.dx; w.el.y2 = w.y2 + snap.dy; }
+    });
+    mmRender();
+    return;
+  }
+  if (d.kind === 'resize') {
+    mmResize(d, pos, e.shiftKey);
+    mmRender();
+  }
+}
+
+function mmUp(e) {
+  delete mmBoard.pointers[e.pointerId];
+  try { $('mmCanvas').releasePointerCapture(e.pointerId); } catch (_) {}
+  if (Object.keys(mmBoard.pointers).length < 2) mmBoard.pinch = null;
+
+  var d = mmBoard.drag;
+  mmBoard.drag = null;
+  mmBoard.guides = [];
+  if (!d) { mmRender(); return; }
+
+  if (d.kind === 'marquee' && mmBoard.marquee) {
+    var m = mmBoard.marquee;
+    var x1 = Math.min(m.x1, m.x2), y1 = Math.min(m.y1, m.y2);
+    var x2 = Math.max(m.x1, m.x2), y2 = Math.max(m.y1, m.y2);
+    mmBoard.marquee = null;
+    mmBoard.el.forEach(function (el) {
+      var b = mmBounds(el);
+      if (b.x >= x1 && b.x + b.width <= x2 && b.y >= y1 && b.y + b.height <= y2 &&
+          mmBoard.sel.indexOf(el) < 0) mmBoard.sel.push(el);
+    });
+    mmSyncProps();
+  } else if (d.kind === 'draw' && mmBoard.temp) {
+    var len = Math.hypot(mmBoard.temp.x2 - mmBoard.temp.x, mmBoard.temp.y2 - mmBoard.temp.y);
+    if (len > 10) {
+      mmBoard.el.push(mmBoard.temp);
+      mmBoard.sel = [mmBoard.temp];
+      mmBoard.temp = null;
+      mmPush();
+      mmSetTool('select');
+      mmSyncProps();
+    } else {
+      mmBoard.temp = null;
+    }
+  } else if (d.kind === 'move' && d.moved) {
+    mmPush();
+  } else if (d.kind === 'resize') {
+    mmPush();
+    mmSyncProps();
+  }
+  mmRender();
+}
+
+/* Dragging a handle. A picture always keeps its proportions, and Shift keeps
+   any box's proportions — neither was true in the Mindmap app, where a
+   photo stretched out of shape the moment a corner was pulled. */
+function mmResize(d, pos, shiftKey) {
+  var el = d.el, h = d.handle.type, s = d.start;
+
+  if (el.type === 'line' || el.type === 'arrow') {
+    if (h === 'start') {
+      var a = mmSnapEnd(el.x2, el.y2, pos.x, pos.y);
+      el.x = a.x; el.y = a.y;
+    } else {
+      var b = mmSnapEnd(el.x, el.y, pos.x, pos.y);
+      el.x2 = b.x; el.y2 = b.y;
+    }
+    return;
+  }
+
+  var left = s.x, top = s.y, right = s.x + s.width, bottom = s.y + s.height;
+  if (h.indexOf('w') >= 0) left = Math.min(pos.x, right - MM_MIN_SIZE);
+  if (h.indexOf('e') >= 0) right = Math.max(pos.x, left + MM_MIN_SIZE);
+  if (h.indexOf('n') >= 0) top = Math.min(pos.y, bottom - MM_MIN_SIZE);
+  if (h.indexOf('s') >= 0) bottom = Math.max(pos.y, top + MM_MIN_SIZE);
+
+  var w = right - left, hh = bottom - top;
+  var keep = el.type === 'image' || shiftKey;
+  var corner = h.length === 2;
+  if (keep && corner) {
+    var ratio = el.type === 'image' && el.ratio ? el.ratio : s.width / s.height;
+    if (ratio > 0) {
+      if (w / hh > ratio) w = hh * ratio; else hh = w / ratio;
+      if (h.indexOf('w') >= 0) left = right - w;
+      if (h.indexOf('n') >= 0) top = bottom - hh;
+    }
+  } else if (el.type === 'image' && el.ratio && !corner) {
+    // A side handle on a picture takes the other side with it.
+    if (h === 'e' || h === 'w') hh = w / el.ratio; else w = hh * el.ratio;
+    if (h === 'n') top = bottom - hh;
+    if (h === 'w') left = right - w;
+  }
+
+  el.x = left; el.y = top;
+  el.width = Math.max(MM_MIN_SIZE, w);
+  el.height = Math.max(MM_MIN_SIZE, hh);
+}
+
+function mmCursor(pos) {
+  var cv = $('mmCanvas');
+  if (mmBoard.tool !== 'select') { cv.style.cursor = 'crosshair'; return; }
+  if (mmLinkAt(pos)) { cv.style.cursor = 'pointer'; return; }
+  var h = mmHandleAt(pos);
+  if (h) {
+    var map = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize',
+                n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize',
+                start: 'move', end: 'move' };
+    cv.style.cursor = map[h.handle.type] || 'move';
+    return;
+  }
+  cv.style.cursor = mmElementAt(pos) ? 'move' : 'grab';
+}
+
+function mmSayHint(msg) {
+  var bar = $('mmHintBar');
+  bar.textContent = msg || '';
+  bar.classList.toggle('show', !!msg);
+}
+
+/* ---- Tools, toolbar and the strip along the bottom ---- */
+
+function mmSetTool(tool) {
+  mmBoard.tool = tool;
+  mmBoard.connectFrom = null;
+  document.querySelectorAll('#mmBar [data-mmtool]').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-mmtool') === tool);
+  });
+  mmSayHint(tool === 'connect' ? 'Click the first box' : '');
+  var cv = $('mmCanvas');
+  if (cv) cv.style.cursor = tool === 'select' ? 'grab' : 'crosshair';
+}
+
+function mmSyncBar() {
+  $('mmUndoBtn').disabled = mmBoard.hIndex <= 0;
+  $('mmRedoBtn').disabled = mmBoard.hIndex >= mmBoard.history.length - 1;
+  $('mmDelBtn').disabled = !mmBoard.sel.length && !mmBoard.selCon;
+}
+
+/* The strip only shows what the selection can actually change: a picture has
+   no fill and no font, a line has neither those nor a link. */
+function mmSyncProps() {
+  mmSyncBar();
+  var props = $('mmProps');
+  var el = mmBoard.sel.length === 1 ? mmBoard.sel[0] : null;
+  var many = mmBoard.sel.length > 1;
+  if (!el && !many) { props.classList.remove('show'); return; }
+  props.classList.add('show');
+
+  var shapes = mmBoard.sel.filter(mmIsShape);
+  // A picture has no fill and no words in it; a line has neither, and no
+  // link either. Only offer what the selection can actually take.
+  var textish = shapes.some(function (s) { return s.type !== 'image'; });
+
+  $('mmFillField').style.display = textish ? '' : 'none';
+  $('mmTextField').style.display = textish ? '' : 'none';
+  $('mmSizeField').style.display = textish ? '' : 'none';
+  $('mmFontField').style.display = textish ? '' : 'none';
+  $('mmLinkBtn').style.display = el && mmIsShape(el) ? '' : 'none';
+
+  var ref = el || mmBoard.sel[0];
+  if (ref) {
+    if (ref.fill && ref.fill !== 'transparent') $('mmFillPick').value = mmHexOrDefault(ref.fill, '#BAE1FF');
+    $('mmStrokePick').value = mmHexOrDefault(ref.stroke, '#8A8A84');
+    $('mmTextPick').value = mmHexOrDefault(ref.textColor, '#1A1A1A');
+    $('mmFontSize').value = ref.fontSize || mmBoard.fontSize;
+    $('mmFontFamily').value = ref.fontFamily || mmBoard.fontFamily;
+  }
+  var lb = $('mmLinkBtn');
+  lb.classList.toggle('mmLinkOn', !!(el && el.link));
+  lb.textContent = el && el.link ? '🔗 Link set' : '🔗 Link';
+  lb.title = el && el.link ? el.link : 'Attach a link — a small chain shows on the box, and clicking it opens the page';
+}
+
+function mmHexOrDefault(v, fallback) {
+  return /^#[0-9a-f]{6}$/i.test(String(v || '')) ? v : fallback;
+}
+
+/* Every colour, size and font change goes through here: whatever is selected
+   takes it, and it becomes the setting the next new box is made with. */
+function mmApplyToSelection(field, value, commit) {
+  var touched = false;
+  mmBoard.sel.forEach(function (el) {
+    if (field === 'fill' && el.type === 'image') return;
+    if ((field === 'textColor' || field === 'fontSize' || field === 'fontFamily') && el.type === 'image') return;
+    if ((field === 'textColor' || field === 'fontSize' || field === 'fontFamily') && !mmIsShape(el)) return;
+    if (field === 'fill' && !mmIsShape(el)) return;
+    el[field === 'strokeColor' ? 'stroke' : field] = value;
+    if (field === 'fill' && el.type !== 'text' && (!el.stroke || el.stroke === 'transparent')) {
+      el.stroke = mmDarken(value);
+    }
+    touched = true;
+  });
+  if (mmBoard.selCon && (field === 'strokeColor')) { mmBoard.selCon.color = value; touched = true; }
+  if (field === 'fill') mmBoard.fill = value;
+  if (field === 'strokeColor') mmBoard.stroke = value;
+  if (field === 'textColor') mmBoard.textColor = value;
+  if (field === 'fontSize') mmBoard.fontSize = value;
+  if (field === 'fontFamily') mmBoard.fontFamily = value;
+  if (touched) {
+    mmRender();
+    if (commit) mmPush();
+  }
+}
+
+function mmDeleteSelected() {
+  if (mmBoard.selCon) {
+    mmBoard.con = mmBoard.con.filter(function (c) { return c !== mmBoard.selCon; });
+    mmBoard.selCon = null;
+    mmPush();
+    mmRender();
+    mmSyncProps();
+    return;
+  }
+  if (!mmBoard.sel.length) return;
+  var gone = mmBoard.sel;
+  mmBoard.con = mmBoard.con.filter(function (c) { return gone.indexOf(c.from) < 0 && gone.indexOf(c.to) < 0; });
+  mmBoard.el = mmBoard.el.filter(function (el) { return gone.indexOf(el) < 0; });
+  mmBoard.sel = [];
+  mmPush();
+  mmRender();
+  mmSyncProps();
+}
+
+function mmDuplicate() {
+  if (!mmBoard.sel.length) return;
+  var copies = mmBoard.sel.map(function (el) {
+    var c = Object.assign({}, el);
+    delete c.img;
+    c.x += 22; c.y += 22;
+    if (c.x2 != null) { c.x2 += 22; c.y2 += 22; }
+    if (c.src) mmAttachImage(c, c.src);
+    return c;
+  });
+  mmBoard.el = mmBoard.el.concat(copies);
+  mmBoard.sel = copies;
+  mmPush();
+  mmRender();
+  mmSyncProps();
+}
+
+/* Fit everything on the board into the window, with a margin round it. */
+function mmFit() {
+  if (!mmBoard.el.length || !mmBoard.viewW) { mmBoard.zoom = 1; mmBoard.pan = { x: 0, y: 0 }; mmRender(); return; }
+  var b = mmCombinedBounds(mmBoard.el);
+  var pad = 40;
+  var k = Math.min((mmBoard.viewW - pad * 2) / Math.max(1, b.width), (mmBoard.viewH - pad * 2) / Math.max(1, b.height), 2);
+  mmBoard.zoom = Math.max(0.15, Math.min(4, k));
+  mmBoard.pan.x = mmBoard.viewW / 2 - b.centerX * mmBoard.zoom;
+  mmBoard.pan.y = mmBoard.viewH / 2 - b.centerY * mmBoard.zoom;
+  mmRender();
+  mmTouchBoard();
+}
+
+/* The board saved as a picture, drawn again on a canvas of its own so the
+   window's zoom, the selection outlines and the dotted paper stay out of it. */
+function mmSaveImage() {
+  if (!mmBoard.el.length) { toast('There is nothing on the board yet.'); return; }
+  var b = mmCombinedBounds(mmBoard.el);
+  var pad = 40, scale = 2;
+  var cv = document.createElement('canvas');
+  cv.width = Math.round((b.width + pad * 2) * scale);
+  cv.height = Math.round((b.height + pad * 2) * scale);
+  var ctx = cv.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.scale(scale, scale);
+  ctx.translate(pad - b.left, pad - b.top);
+  var wasZoom = mmBoard.zoom;
+  mmBoard.zoom = 1;   // handles and dashes are sized off it; nothing here uses them
+  mmBoard.con.forEach(function (c) {
+    if (mmBoard.el.indexOf(c.from) >= 0 && mmBoard.el.indexOf(c.to) >= 0) mmDrawConnection(ctx, c, false);
+  });
+  mmBoard.el.forEach(function (el) { mmDrawElement(ctx, el); });
+  mmBoard.zoom = wasZoom;
+  cv.toBlob(function (blob) {
+    if (!blob) { toast('The picture could not be made.'); return; }
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (docName ? docName.replace(/\.pdf$/i, '') + ' — ' : '') + 'mindmap.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    toast('Mindmap saved as a picture.');
+  }, 'image/png');
+}
+
+function mmClear() {
+  if (!mmBoard.el.length) return;
+  if (!confirm('Clear the whole board and start a new mindmap?')) return;
+  mmBoard.el = [];
+  mmBoard.con = [];
+  mmBoard.sel = [];
+  mmBoard.selCon = null;
+  mmBoard.zoom = 1;
+  mmBoard.pan = { x: 0, y: 0 };
+  mmPush();
+  mmRender();
+  mmSyncProps();
+}
+
+/* ---- Wiring ---- */
+
+(function mmWire() {
+  var cv = $('mmCanvas');
+
+  cv.addEventListener('pointerdown', mmDown);
+  cv.addEventListener('pointermove', mmMove);
+  cv.addEventListener('pointerup', mmUp);
+  cv.addEventListener('pointercancel', mmUp);
+  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  cv.addEventListener('dblclick', function (e) {
+    var pos = mmPos(e);
+    var el = mmElementAt(pos);
+    if (el && mmIsShape(el) && el.type !== 'image') { mmEditText(el, null); return; }
+    if (el) return;
+    mmPlaceShape('text', pos);
+  });
+
+  cv.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var k = e.deltaY > 0 ? 0.92 : 1.08;
+    var next = Math.max(0.15, Math.min(4, mmBoard.zoom * k));
+    var r = cv.getBoundingClientRect();
+    var mx = e.clientX - r.left, my = e.clientY - r.top;
+    mmBoard.pan.x = mx - (mx - mmBoard.pan.x) * (next / mmBoard.zoom);
+    mmBoard.pan.y = my - (my - mmBoard.pan.y) * (next / mmBoard.zoom);
+    mmBoard.zoom = next;
+    mmRender();
+    mmTouchBoard();
+  }, { passive: false });
+
+  // Dropping a picture straight onto the board, or onto a box to fill it.
+  ['dragenter', 'dragover'].forEach(function (t) {
+    cv.addEventListener(t, function (e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  });
+  cv.addEventListener('drop', function (e) {
+    e.preventDefault();
+    var pos = mmPos(e);
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length) { mmImageFromFile(files[0], pos, mmElementAt(pos)); return; }
+    var text = e.dataTransfer && e.dataTransfer.getData('text/plain');
+    if (text && /^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg)/i.test(text.trim())) mmAddImage(text.trim(), pos, null);
+  });
+
+  // Pasting: a picture off the clipboard, a picture's address, or plain words
+  // straight into the box that is selected.
+  document.addEventListener('paste', function (e) {
+    if (!mmOpen() || mmBoard.editing) return;
+    var card = $('mmCard');
+    if (!card.contains(document.activeElement)) return;
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    var file = null, plain = null;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image/') === 0 && !file) file = items[i].getAsFile();
+      else if (items[i].type === 'text/plain' && !plain) plain = items[i];
+    }
+    var one = mmBoard.sel.length === 1 ? mmBoard.sel[0] : null;
+    if (file) {
+      e.preventDefault();
+      mmImageFromFile(file, one ? null : mmViewCentre(), one && one.type !== 'image' ? one : null);
+      return;
+    }
+    if (!plain) return;
+    plain.getAsString(function (text) {
+      text = (text || '').trim();
+      if (!text) return;
+      if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg)/i.test(text)) { mmAddImage(text, mmViewCentre(), null); return; }
+      if (one && mmIsShape(one) && one.type !== 'image') {
+        one.text = one.text ? one.text + '\n' + text : text;
+        mmPush();
+        mmRender();
+        return;
+      }
+      var el = mmNewShape('rect', mmViewCentre().x - 80, mmViewCentre().y - 45, 160, 90);
+      el.text = text;
+      mmBoard.el.push(el);
+      mmBoard.sel = [el];
+      mmPush();
+      mmRender();
+      mmSyncProps();
+    });
+    e.preventDefault();
+  });
+
+  document.querySelectorAll('#mmBar [data-mmtool]').forEach(function (b) {
+    b.addEventListener('click', function () { mmSetTool(b.getAttribute('data-mmtool')); });
+  });
+
+  $('mmBtn').addEventListener('click', toggleMm);
+  $('mmCloseBtn').addEventListener('click', closeMm);
+  $('mmMinBtn').addEventListener('click', function () { setMmWinMin(!mmWinMin); });
+  $('mmUndoBtn').addEventListener('click', mmUndo);
+  $('mmRedoBtn').addEventListener('click', mmRedo);
+  $('mmDelBtn').addEventListener('click', mmDeleteSelected);
+  $('mmFitBtn').addEventListener('click', mmFit);
+  $('mmSaveImgBtn').addEventListener('click', mmSaveImage);
+  $('mmClearBtn').addEventListener('click', mmClear);
+  $('mmLinkBtn').addEventListener('click', mmAskLink);
+
+  var picker = document.createElement('input');
+  picker.type = 'file';
+  picker.accept = 'image/*';
+  picker.style.display = 'none';
+  document.body.appendChild(picker);
+  picker.addEventListener('change', function () {
+    var one = mmBoard.sel.length === 1 ? mmBoard.sel[0] : null;
+    mmImageFromFile(picker.files && picker.files[0], one ? null : mmViewCentre(),
+      one && one.type !== 'image' ? one : null);
+    picker.value = '';
+  });
+  $('mmPicBtn').addEventListener('click', function () { picker.click(); });
+
+  // The colour rows, built once from the palettes.
+  function swatches(host, colours, field) {
+    colours.forEach(function (c) {
+      var b = document.createElement('button');
+      b.className = 'mmSwatch';
+      b.style.background = c;
+      b.title = c;
+      b.addEventListener('click', function () { mmApplyToSelection(field, c, true); mmSyncProps(); });
+      host.appendChild(b);
+    });
+  }
+  swatches($('mmFillSwatches'), MM_PASTELS, 'fill');
+  swatches($('mmTextSwatches'), MM_INKS, 'textColor');
+
+  MM_FONTS.forEach(function (f) {
+    var o = document.createElement('option');
+    o.value = f;
+    o.textContent = f;
+    o.style.fontFamily = '"' + f + '", sans-serif';
+    $('mmFontFamily').appendChild(o);
+  });
+
+  $('mmFillPick').addEventListener('input', function () { mmApplyToSelection('fill', this.value, false); });
+  $('mmFillPick').addEventListener('change', function () { mmApplyToSelection('fill', this.value, true); });
+  $('mmStrokePick').addEventListener('input', function () { mmApplyToSelection('strokeColor', this.value, false); });
+  $('mmStrokePick').addEventListener('change', function () { mmApplyToSelection('strokeColor', this.value, true); });
+  $('mmTextPick').addEventListener('input', function () { mmApplyToSelection('textColor', this.value, false); });
+  $('mmTextPick').addEventListener('change', function () { mmApplyToSelection('textColor', this.value, true); });
+  $('mmFontSize').addEventListener('input', function () { mmApplyToSelection('fontSize', parseInt(this.value, 10), false); });
+  $('mmFontSize').addEventListener('change', function () { mmApplyToSelection('fontSize', parseInt(this.value, 10), true); });
+  $('mmFontFamily').addEventListener('change', function () { mmApplyToSelection('fontFamily', this.value, true); });
+
+  /* Every key pressed inside the window stays inside it — otherwise the
+     page's own one-letter tool shortcuts fire while a mindmap is being
+     built, exactly as they would while a sum is being typed. */
+  $('mmCard').addEventListener('keydown', function (e) {
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+    if (e.altKey) return;
+    e.stopPropagation();
+    var k = e.key.toLowerCase();
+
+    if (e.ctrlKey || e.metaKey) {
+      if (k === 'z') { e.preventDefault(); e.shiftKey ? mmRedo() : mmUndo(); }
+      else if (k === 'y') { e.preventDefault(); mmRedo(); }
+      else if (k === 'd') { e.preventDefault(); mmDuplicate(); }
+      else if (k === 'a') { e.preventDefault(); mmBoard.sel = mmBoard.el.slice(); mmBoard.selCon = null; mmRender(); mmSyncProps(); }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (mmBoard.connectFrom) { mmBoard.connectFrom = null; mmSetTool('select'); }
+      else if (mmBoard.sel.length || mmBoard.selCon) { mmBoard.sel = []; mmBoard.selCon = null; mmSyncProps(); }
+      else closeMm();
+      mmRender();
+      return;
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); mmDeleteSelected(); return; }
+    if (e.key === 'Tab') { e.preventDefault(); mmAddChild(); return; }
+    if (e.key === 'Enter') { e.preventDefault(); mmAddSibling(); return; }
+
+    if (mmBoard.sel.length && e.key.indexOf('Arrow') === 0) {
+      e.preventDefault();
+      var step = e.shiftKey ? 12 : 2;
+      var dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+      var dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+      mmBoard.sel.forEach(function (el) {
+        el.x += dx; el.y += dy;
+        if (el.x2 != null) { el.x2 += dx; el.y2 += dy; }
+      });
+      mmPush();
+      mmRender();
+      return;
+    }
+
+    var toolKeys = { v: 'select', r: 'rect', c: 'circle', d: 'diamond', t: 'text', l: 'line', a: 'connect' };
+    // A single letter types into the box that is selected — the shortcuts
+    // only get the key when nothing is waiting for words.
+    if (mmBoard.sel.length === 1 && mmIsShape(mmBoard.sel[0]) && mmBoard.sel[0].type !== 'image' && e.key.length === 1) {
+      e.preventDefault();
+      mmEditText(mmBoard.sel[0], e.key);
+      return;
+    }
+    if (toolKeys[k]) { e.preventDefault(); mmSetTool(toolKeys[k]); }
+  });
+
+  attachFloatWin({
+    modal: 'mmModal', card: 'mmCard', head: 'mmHead', grip: 'mmGrip',
+    get: function () { return mmWin; },
+    set: function (b) { mmWin = b; },
+    clamp: clampMmWin, apply: applyMmWin, save: function () { saveMmWin(); mmSizeCanvas(); }
+  });
+
+  // The window is resized by its own grip, by the browser and by an iPad
+  // turning over — the board has to follow every one of them.
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { mmSizeCanvas(); }).observe($('mmStage'));
+  } else {
+    window.addEventListener('resize', function () { if (mmOpen()) mmSizeCanvas(); });
+  }
+  window.addEventListener('beforeunload', function () { if (mmOpen()) mmFlushBoard(); });
+
+  mmSetTool('select');
+  mmSyncBar();
+})();
+
 /* ================= Practice mode =================
    Students hide the worksheet's answers, write or type their own on the
    page, then select one and have Gemini mark it against the teacher's
@@ -20298,7 +22244,7 @@ document.addEventListener('keydown', function (e) {
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', i: 'ainote', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
-  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn', k: 'calcBtn' };
+  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn', k: 'calcBtn', y: 'mmBtn' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
     if (toolKeys[k]) setTool(toolKeys[k]);

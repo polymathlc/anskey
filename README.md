@@ -3,6 +3,57 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Mindmap — the Mindmap app, in a window over the worksheet (v1.68.0)
+
+A **new mindmap button on the toolbar** (or press **Y**) opens the board from
+the Mindmap app in a window of its own, floating over the worksheet. Drag the
+title bar to move it, the corner to resize it, the **–** to fold it down to its
+title bar — the worksheet stays live underneath the whole time, so a map can be
+built beside the question it belongs to.
+
+**Building a map**
+
+- Pick a shape — box, bubble, diamond or plain words — and click the board.
+  Type straight away; typing on a box that is already selected replaces what is
+  in it.
+- **Tab** adds the next box along and joins it on. **Enter** adds one below on
+  the same branch. Both open for typing immediately, so a whole map can be
+  built without touching the mouse.
+- The join tool links two boxes with an arrow that follows them wherever they
+  are dragged. Straight lines and free-hand arrows are there too.
+- Boxes line up with the ones already on the board as they are dragged, and a
+  box joined to another is pulled square with it so the arrow between them comes
+  out straight — the guides show in red and green while you drag.
+- Wheel to zoom, drag the bare board to pan, **pinch to zoom** on an iPad. The
+  fit button puts the whole map back on screen.
+
+**What is new over the Mindmap app**
+
+- **Text colour of its own.** Box fill, border and the words are now three
+  separate colours, each with a row of quick swatches and a full picker behind
+  it. Text size and typeface are on the same strip.
+- **Links.** Any box or picture can carry a web address. A small chain appears
+  in its corner; tapping it opens the page (Ctrl/⌘-click anywhere on the box
+  does the same).
+- **Pictures, properly.** Paste one with **Ctrl+V**, drop one on the board, or
+  choose a file. Dropped or pasted onto a box, it fills that box. Pictures
+  **keep their proportions** whenever they are resized, from any handle — no
+  more squashed photos.
+- **Resizing that works when zoomed.** The handles stay the same size under your
+  finger however far in or out the board is zoomed, and Shift holds a box's
+  proportions.
+- **Finger and Apple Pencil.** The whole board runs on pointer events, so
+  everything works on an iPad, pinch-to-zoom included.
+
+**Keeping it**
+
+The board is remembered **per worksheet, on this device** — open the same
+worksheet tomorrow, press Y, and it is still there. Nothing about the worksheet
+saved to the cloud changes. The download button saves the map as a picture at
+double resolution, with the dotted paper and the selection outlines left out.
+
+Everyone gets it — teacher and student alike, exactly like the calculator.
+
 ## Add note — a house rule in ten seconds (v1.67.0)
 
 Teaching the AI something used to mean uploading a document. **A new

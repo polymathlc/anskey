@@ -91,6 +91,36 @@ Guidance for Claude when working in this repo.
 - This feature lives HERE, not in `polymathlc/cer` — it was moved out of that repo's
   `pdf-annotator.html` deliberately. Do not add it back there.
 
+## Mindmap window (`#mmBtn` / `#mmModal`, all `mm*` code + the `mmBoard` object)
+- **The board is this app's port of the Mindmap app's canvas (`polymathlc/mindmap`, `js/app.js`),
+  and the two must stay in step.** The element shape (`type` / `x` / `y` / `width` / `height` /
+  `fill` / `stroke` / `strokeW` / `text` / `fontSize` / `fontFamily`) and the connection shape
+  (`from` / `to` / `controlPoints`) are that app's, so a board built here reads the same way there.
+  Four things this port added and that app now carries too: a **text colour** (`textColor`), a
+  **link** on any box or picture (`link`), pictures kept **in proportion** on resize, and
+  **pointer** events instead of mouse events. Ship engine changes to both repos together.
+- **The state object is `mmBoard`, never `mm` — `mm(v)` is the millimetres-to-points helper the
+  whole PDF cover-page and answer-key export is built on.** A global `var mm = {...}` silently
+  clobbers it and every print and export breaks. Everything else in the feature is `mm`-prefixed
+  (`mmRender`, `mmSnap`, `mmBoardKey`), which is fine — only the bare name is taken.
+- **The board never touches Firestore.** It is remembered per worksheet in `localStorage` under
+  `polymath.mmBoard:{docId}`, read when the window opens, so opening another worksheet and
+  reopening the window brings up that worksheet's board. Nothing about the shared `pdfAnnotator`
+  document changes, and the `cer` app is unaffected. Pictures are data URLs, so a board that has
+  grown past what `localStorage` will take says so once (`mmFlushBoard`) instead of failing mute.
+- **It is a floating window like the calculator and the code window** — `.modalBack.floatWin`,
+  `attachFloatWin`, `clampWinBox`. Every keystroke inside `#mmCard` is stopped there, or the page's
+  own one-letter tool shortcuts fire while a mindmap is being built.
+- **Sizes measured in screen pixels are divided by the board's zoom** (`mmS`) — handles, grab
+  radius, guide dashes. Measuring them in board units is what made the Mindmap app's handles
+  unusable once the board was zoomed out.
+- Everyone gets this one — teacher, student and share-link visitor, like the calculator. It is not
+  behind `applyRoleUI()`.
+- After touching it, run `node tools/mindmap-tests.mjs`. It loads the REAL section out of
+  `index.html` (up to `/* ---- Wiring ---- */`) and runs the geometry, snapping, resizing and
+  save/reload round trip against stubs. These fail quietly in the app: an arrow dropped on the way
+  through JSON is just an arrow that is not there any more.
+
 ## Versioning convention — applies to EVERY change (do this every time)
 1. **Bump the version.** In `index.html`, update `var APP_VERSION = 'vX.Y.Z'` (search
    `APP_VERSION`). Patch bump for fixes/small tweaks, minor bump for new features.
