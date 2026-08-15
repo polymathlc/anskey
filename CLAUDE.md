@@ -35,6 +35,13 @@ Guidance for Claude when working in this repo.
   facts and the exemplars. **The authority order is stated in the digest and never changes**: what
   the worksheet itself prints wins, then the notes, then ordinary syllabus knowledge — and when
   marking, the teacher's model answer on the page beats all of it.
+- **`guidance` is the hand-typed note (`#quickNoteBtn` / `#quickNoteModal`, all `quickNote*` code)
+  and it is the ONLY field that reaches every `kind`, marking included** — it goes in verbatim
+  through `guidanceBlock()`, ahead of `notesBlock`/`styleBlock`, and the authority order names it
+  right after the worksheet. Nothing is sent to the AI when one is saved: it is a note with empty
+  `subjects`/`levels` (so it applies everywhere) and empty `keywords`/`keyFacts`/`markingStandards`,
+  written straight to Firestore. `guidance` is this app's own field — the `cer` app shares the
+  collection and ignores it, which is why the shared fields are still written, empty.
 - **The notes live at `users/{adminUid}/teachingNotes/{id}`, which is the SAME collection the
   Science Learning Portal (`polymathlc/cer`, `app.js`) writes** — one notebook grounding both apps.
   Keep the fields compatible: `topics` is reserved for that app's syllabus list and this app writes
