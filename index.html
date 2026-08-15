@@ -3110,6 +3110,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19a1 1 0 0 1 1 1v14.5"/><path d="M6 17h14v4H6a2 2 0 0 1 0-4z"/><line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="8.5" y1="11" x2="13.5" y2="11"/></svg>
       <span class="btnLabel">Notes</span>
     </button>
+    <button class="btn" id="quickNoteBtn" title="Add a note — type a house rule and the AI follows it everywhere, on every worksheet" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"/><line x1="8" y1="8.5" x2="13" y2="8.5"/><line x1="8" y1="12" x2="12" y2="12"/><line x1="8" y1="15.5" x2="11" y2="15.5"/><line x1="18" y1="3" x2="18" y2="9"/><line x1="15" y1="6" x2="21" y2="6"/></svg>
+      <span class="btnLabel">Add note</span>
+    </button>
     <button class="btn" id="docsBtn" data-key="M" title="Open a previously saved PDF">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span class="btnLabel">My PDFs</span>
@@ -3892,6 +3896,35 @@
 </div>
 <input type="file" id="notesFileInput" accept="application/pdf,image/*" multiple hidden>
 
+<div class="modalBack" id="quickNoteModal">
+  <div class="modalCard tnWide">
+    <div class="modalHead">
+      <h2>Add a note</h2>
+      <button class="modalClose" id="quickNoteCloseBtn" title="Close">&#10005;</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro">
+        Type it and it is in. This goes straight into your <strong>general guidance</strong> &mdash; the standing
+        instructions the AI reads on <strong>every</strong> worksheet, whether it is writing an answer, building an
+        answer key, explaining something or marking a student. No file, no waiting, nothing shown to students.
+      </div>
+      <div class="fieldRow">
+        <label for="qnText">Your note</label>
+        <textarea id="qnText" rows="7" placeholder="e.g. Always answer in full sentences and name the process before explaining it. Never accept “it gets hotter” without “gains heat”."></textarea>
+      </div>
+      <div class="fieldRow">
+        <label for="qnTitle">Title <span style="font-weight:normal;color:var(--ink-faint)">(optional &mdash; the first line is used if you leave this empty)</span></label>
+        <input type="text" id="qnTitle" placeholder="e.g. House rules for science answers" autocomplete="off">
+      </div>
+      <div id="qnStatus" class="tnStatus" style="display:none"></div>
+      <div class="modalActions">
+        <button class="btn" id="quickNoteCancelBtn">Cancel</button>
+        <button class="btn btnPrimary" id="quickNoteSaveBtn">Add to general guidance</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modalBack" id="noteEditModal">
   <div class="modalCard tnWide">
     <div class="modalHead">
@@ -3927,6 +3960,10 @@
         <textarea id="nteFacts" rows="6"></textarea>
       </div>
       <div class="fieldRow">
+        <label for="nteGuide">General guidance <span style="font-weight:normal;color:var(--ink-faint)">(standing instructions the AI follows everywhere &mdash; answering, explaining and marking)</span></label>
+        <textarea id="nteGuide" rows="5"></textarea>
+      </div>
+      <div class="fieldRow">
         <label for="nteComment">Your comment <span style="font-weight:normal;color:var(--ink-faint)">(extra guidance for the AI, optional)</span></label>
         <textarea id="nteComment" rows="3"></textarea>
       </div>
@@ -3954,7 +3991,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.66.0';
+var APP_VERSION = 'v1.67.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -9544,6 +9581,9 @@ var notesBusy = false;        // an upload / learning run is going on
 var NOTES_KW_MAX = 40;
 var NOTES_STD_CHARS = 900;
 var NOTES_FACT_CHARS = 1400;
+/* Standing instructions are typed by hand and meant to be obeyed, so they get
+   their own budget and reach EVERY kind of AI call — marking included. */
+var NOTES_GUIDE_CHARS = 1600;
 var STYLE_RULE_CHARS = 800;
 var STYLE_EX_MAX = 6;
 /* The corpus itself. One Firestore document holds the lot, and a document
@@ -9709,17 +9749,33 @@ function notesBlock(kind) {
     bits.join('\n');
 }
 
+/* ---- The general guidance, in prompt form ----
+   The teacher's own standing instructions, typed straight into the app with
+   "Add note". Unlike the extracted fields these are house rules, so they go
+   to every kind of call — answering, explaining AND marking — and they lead
+   the digest. */
+function notesGuidance() {
+  return notesJoinField(notesRelevant(), 'guidance', NOTES_GUIDE_CHARS);
+}
+function guidanceBlock() {
+  var guide = notesGuidance();
+  if (!guide) return '';
+  return "\n\nTHE TEACHER'S GENERAL GUIDANCE (standing instructions they typed themselves — house rules for this app, obey them on every question):\n" +
+    guide;
+}
+
 /* Everything the AI should know about this teacher, appended to a system
    prompt. One call site per AI feature, so nothing can be grounded on the
    notes in one place and not another. */
 function aiGrounding(kind) {
+  var guide = guidanceBlock();
   var notes = notesBlock(kind);
   var style = styleBlock(kind);
-  if (!notes && !style) return '';
+  if (!guide && !notes && !style) return '';
   var authority = kind === 'mark'
-    ? "\n\nAUTHORITY ORDER: the teacher's model answer on the worksheet (when one is attached) always wins — never mark against it. Use the notes and the style above for the keywords, the phrasing and the standard expected; fall back to ordinary syllabus knowledge only where they say nothing."
-    : "\n\nAUTHORITY ORDER: what the worksheet itself prints or shows always wins — never contradict it. Otherwise base the content AND the wording on the notes and the style above, and fall back to ordinary syllabus knowledge only where they say nothing.";
-  return notes + style + authority;
+    ? "\n\nAUTHORITY ORDER: the teacher's model answer on the worksheet (when one is attached) always wins — never mark against it. Then the general guidance above. Use the notes and the style for the keywords, the phrasing and the standard expected; fall back to ordinary syllabus knowledge only where they say nothing."
+    : "\n\nAUTHORITY ORDER: what the worksheet itself prints or shows always wins — never contradict it. Then the general guidance above. Otherwise base the content AND the wording on the notes and the style, and fall back to ordinary syllabus knowledge only where they say nothing.";
+  return guide + notes + style + authority;
 }
 
 /* ================= Learning from the answers already on the PDFs =========
@@ -10141,6 +10197,82 @@ async function notesHandleFiles(files) {
   }
 }
 
+/* ================= Adding a note by hand =================
+   The shortcut. No file, no AI call, no waiting: what is typed is saved
+   verbatim as a note with no subject and no level — so it applies to every
+   worksheet — and carried into every AI call as a standing instruction.
+   `guidance` is this app's own field; the Science Learning Portal shares the
+   collection and simply ignores it, which is why the general fields
+   (`topics`, `keywords`, …) are still written, empty. */
+function quickNoteTitleFrom(text) {
+  var first = String(text || '').split('\n')[0].replace(/\s+/g, ' ').trim();
+  if (!first) return 'Quick note';
+  return first.length > 60 ? first.slice(0, 60).trim() + '…' : first;
+}
+function quickNoteStatus(msg) {
+  var el = $('qnStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? '' : 'none';
+}
+function openQuickNoteModal() {
+  if (!isAdmin(currentUser)) return;
+  quickNoteStatus('');
+  $('quickNoteModal').classList.add('open');
+  setTimeout(function () { if ($('qnText')) $('qnText').focus(); }, 50);
+}
+function closeQuickNoteModal() { $('quickNoteModal').classList.remove('open'); }
+
+async function quickNoteSave() {
+  if (!isAdmin(currentUser)) return;
+  var text = ($('qnText') ? $('qnText').value : '').trim();
+  if (!text) {
+    quickNoteStatus('Type the note first — one line is enough.');
+    if ($('qnText')) $('qnText').focus();
+    return;
+  }
+  var typed = ($('qnTitle') ? $('qnTitle').value : '').trim();
+  var note = {
+    title: styleTrim(typed, 140) || quickNoteTitleFrom(text),
+    fileName: '',
+    comment: '',
+    guidance: text.slice(0, 4000),
+    noteKind: 'guidance',
+    // `topics` belongs to the Science Learning Portal's syllabus list — left
+    // empty here, exactly as an uploaded note leaves it.
+    topics: [],
+    noteTopics: [],
+    subjects: [],
+    levels: [],
+    keywords: [],
+    markingStandards: '',
+    keyFacts: '',
+    source: 'anskey',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  var btn = $('quickNoteSaveBtn');
+  if (btn) btn.disabled = true;
+  quickNoteStatus('⏳ Saving…');
+  try {
+    var id = 'note_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    await notesCollRef(currentUser.uid).doc(id).set(note);
+    note.id = id;
+    teachingNotes.unshift(note);
+    if ($('qnText')) $('qnText').value = '';
+    if ($('qnTitle')) $('qnTitle').value = '';
+    quickNoteStatus('');
+    closeQuickNoteModal();
+    renderNotesBody();
+    toast('✅ Noted — the AI follows “' + note.title + '” from now on.', 5000);
+  } catch (e) {
+    console.error('Quick note failed', e);
+    quickNoteStatus('Could not save: ' + ((e && e.message) || e));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function notesDelete(id) {
   var n = teachingNotes.filter(function (x) { return x.id === id; })[0];
   if (!n || !isAdmin(currentUser)) return;
@@ -10167,6 +10299,7 @@ function notesEditOpen(id) {
   $('nteKeywords').value = (n.keywords || []).join(', ');
   $('nteStandards').value = n.markingStandards || '';
   $('nteFacts').value = n.keyFacts || '';
+  $('nteGuide').value = n.guidance || '';
   $('nteComment').value = n.comment || '';
   $('noteEditModal').classList.add('open');
   setTimeout(function () { $('nteTitle').focus(); }, 50);
@@ -10188,6 +10321,7 @@ async function notesEditSave() {
     .filter(Boolean).slice(0, 60);
   n.markingStandards = styleTrim($('nteStandards').value, 1600);
   n.keyFacts = $('nteFacts').value.trim().slice(0, 2000);
+  n.guidance = $('nteGuide').value.trim().slice(0, 4000);
   n.comment = $('nteComment').value.trim();
   n.updatedAt = new Date().toISOString();
   try {
@@ -10208,9 +10342,12 @@ function applyNotesVisibility() {
   var show = isAdmin(currentUser) && !actingStudent && !isSharedVisitor();
   var btn = $('notesBtn');
   if (btn) btn.style.display = show ? '' : 'none';
+  var quick = $('quickNoteBtn');
+  if (quick) quick.style.display = show ? '' : 'none';
   if (!show) {
     if ($('notesModal')) $('notesModal').classList.remove('open');
     if ($('noteEditModal')) $('noteEditModal').classList.remove('open');
+    if ($('quickNoteModal')) $('quickNoteModal').classList.remove('open');
   }
 }
 
@@ -10250,13 +10387,17 @@ function notesCardHtml(n) {
   var std = String(n.markingStandards || '').trim();
   var facts = String(n.keyFacts || '').trim();
   var com = String(n.comment || '').trim();
+  var guide = String(n.guidance || '').trim();
   var when = notesWhenText(n.createdAt);
+  var meta = [];
+  if (n.fileName) meta.push(escHtml(n.fileName));
+  if (when) meta.push((guide && !n.fileName ? 'written ' : 'uploaded ') + escHtml(when));
+  if (n.source !== 'anskey') meta.push('from the Learning Portal');
   return '<div class="tnCard">' +
     '<div class="tnCardHead">' +
       '<div class="tnCardId">' +
         '<div class="tnCardTitle">' + escHtml(n.title || n.fileName || 'Untitled notes') + '</div>' +
-        '<div class="tnCardMeta">' + escHtml(n.fileName || '') + (when ? ' · uploaded ' + escHtml(when) : '') +
-          (n.source === 'anskey' ? '' : ' · from the Learning Portal') + '</div>' +
+        '<div class="tnCardMeta">' + meta.join(' · ') + '</div>' +
       '</div>' +
       '<div class="tnCardBtns">' +
         '<button class="btn" onclick="notesEditOpen(\'' + n.id + '\')">✎ Edit</button>' +
@@ -10264,7 +10405,9 @@ function notesCardHtml(n) {
       '</div>' +
     '</div>' +
     '<div class="tnRow"><div class="tnLabel">Used for</div><div class="tnChips">' + tagHtml + '</div></div>' +
-    '<div class="tnRow"><div class="tnLabel">Keywords</div><div class="tnChips">' + kwHtml + '</div></div>' +
+    (guide ? '<div class="tnRow"><div class="tnLabel">General guidance</div><div class="tnText">' + escHtml(guide) + '</div></div>' : '') +
+    (guide && !(n.keywords || []).length ? '' :
+      '<div class="tnRow"><div class="tnLabel">Keywords</div><div class="tnChips">' + kwHtml + '</div></div>') +
     (std ? '<div class="tnRow"><div class="tnLabel">Marking standards</div><div class="tnText">' + escHtml(std) + '</div></div>' : '') +
     (com ? '<div class="tnRow"><div class="tnLabel">Your comment</div><div class="tnText tnTextSoft">' + escHtml(com) + '</div></div>' : '') +
     (facts ? '<details class="tnFacts"><summary>Key facts</summary><div class="tnText">' + escHtml(facts).replace(/\n/g, '<br>') + '</div></details>' : '') +
@@ -10315,10 +10458,23 @@ function renderNotesBody() {
     return;
   }
   var status = ($('notesStatus') && $('notesStatus').textContent) || '';
-  var cards = teachingNotes.length
-    ? teachingNotes.map(notesCardHtml).join('')
-    : '<div class="tnEmpty">No notes yet — upload your first PDF above. Everything the AI pulls out of it stays editable.</div>';
+  var guideNotes = teachingNotes.filter(function (n) { return String(n.guidance || '').trim(); });
+  var fileNotes = teachingNotes.filter(function (n) { return !String(n.guidance || '').trim(); });
+  var cards = fileNotes.length
+    ? fileNotes.map(notesCardHtml).join('')
+    : '<div class="tnEmpty">No uploaded notes yet — upload your first PDF above. Everything the AI pulls out of it stays editable.</div>';
   body.innerHTML =
+    '<div class="tnPanel">' +
+      '<h3>📌 General guidance</h3>' +
+      '<p class="tnSub">House rules in your own words. They apply to <b>every</b> worksheet and go into the prompt exactly as you typed them — nothing is extracted, nothing is summarised — so the AI follows them whenever it writes an answer, builds an answer key, explains something <b>or marks a student</b>. This is the quickest way in: type it and it is live.</p>' +
+      '<div class="tnBtnRow">' +
+        '<button class="btn btnPrimary" onclick="openQuickNoteModal()">✍️ Add a note</button>' +
+        '<span class="tnHint">Also on the toolbar, so you never have to open this window</span>' +
+      '</div>' +
+    '</div>' +
+    (guideNotes.length
+      ? guideNotes.map(notesCardHtml).join('')
+      : '<div class="tnEmpty">Nothing here yet. Add a note and every AI answer, key, explanation and mark follows it from the next question onwards.</div>') +
     '<div class="tnPanel">' +
       '<h3>📚 Upload your notes</h3>' +
       '<p class="tnSub">PDFs and photos of your own notes, answer keys and summaries — pick several at once and they are read <b>together as one set</b>. The AI pulls out the keywords your students must use, the marking standards and the key facts, then follows them whenever it writes an answer, builds an answer key, explains something or marks a student. These notes are shared with your Science Learning Portal, so anything uploaded there already counts here.</p>' +
@@ -10333,7 +10489,7 @@ function renderNotesBody() {
       '<div id="notesStatus" class="tnStatus"' + (status ? '' : ' style="display:none"') + '>' + escHtml(status) + '</div>' +
     '</div>' +
     notesTrainingHtml() +
-    '<div class="tnListHead"><h3>Your notes (' + teachingNotes.length + ')</h3></div>' +
+    '<div class="tnListHead"><h3>Uploaded notes (' + fileNotes.length + ')</h3></div>' +
     cards;
 }
 
@@ -19648,6 +19804,26 @@ $('noteEditCancelBtn').addEventListener('click', notesEditClose);
 $('noteEditSaveBtn').addEventListener('click', notesEditSave);
 $('noteEditModal').addEventListener('click', function (e) {
   if (e.target === $('noteEditModal')) notesEditClose();
+});
+$('quickNoteBtn').addEventListener('click', openQuickNoteModal);
+$('quickNoteCloseBtn').addEventListener('click', closeQuickNoteModal);
+$('quickNoteCancelBtn').addEventListener('click', closeQuickNoteModal);
+$('quickNoteSaveBtn').addEventListener('click', quickNoteSave);
+$('quickNoteModal').addEventListener('click', function (e) {
+  if (e.target === $('quickNoteModal')) closeQuickNoteModal();
+});
+/* Esc closes it from inside the box too — caught here so the page's own Esc
+   handling (which would only blur the textarea) never sees it. */
+$('quickNoteModal').addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') { e.stopPropagation(); closeQuickNoteModal(); }
+});
+/* Ctrl/⌘+Enter saves without reaching for the mouse — this window is meant
+   to be over in seconds. */
+$('qnText').addEventListener('keydown', function (e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); quickNoteSave(); }
+});
+$('qnTitle').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); quickNoteSave(); }
 });
 $('rewardBtn').addEventListener('click', openRewardModal);
 $('rewardCloseBtn').addEventListener('click', function () { $('rewardModal').classList.remove('open'); });

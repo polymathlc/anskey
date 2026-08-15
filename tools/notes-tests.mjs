@@ -41,7 +41,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, notesKeywordList, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples() };')();
+const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, notesKeywordList, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples() };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -63,6 +63,24 @@ const m = mod.aiGrounding('mark');
 ok('marking gets the standards', /Must name the heat gain/.test(m));
 ok('marking never overrides the model answer', /never mark against it/.test(m));
 ok('marking is not padded with key facts', !/Matter expands/.test(m));
+
+console.log('\nA note typed by hand is general guidance, and reaches every kind of call');
+mod.setNotes([{ id: 'q1', guidance: 'Always answer in full sentences.', subjects: [], levels: [], keywords: [] }]);
+mod.setMeta({ level: 'P5', subject: 'science' });
+ok('answering hears it', /Always answer in full sentences/.test(mod.aiGrounding('answer')));
+ok('teaching hears it', /Always answer in full sentences/.test(mod.aiGrounding('teach')));
+ok('marking hears it too', /Always answer in full sentences/.test(mod.aiGrounding('mark')));
+ok('it is named as the guidance, not as uploaded notes', /GENERAL GUIDANCE/.test(mod.aiGrounding('answer')));
+ok('the authority order places it', /general guidance/.test(mod.aiGrounding('mark')));
+ok('guidance alone is enough to ground a prompt', mod.aiGrounding('answer') !== '');
+ok('a note with no guidance adds none', (mod.setNotes([{ id: 'z', keywords: ['x'] }]), mod.guidanceBlock() === ''));
+mod.setNotes([{ id: 'g1', guidance: 'Rule one.' }, { id: 'g2', guidance: 'Rule two.' }]);
+ok('every guidance note is carried', /Rule one\.[\s\S]*Rule two\./.test(mod.notesGuidance()));
+mod.setNotes([{ id: 'g3', guidance: 'x', subjects: ['math'], levels: ['P6'] }, { id: 'g4', guidance: 'science only', subjects: ['science'], levels: ['P5'] }]);
+ok('guidance still follows the note it belongs to', mod.notesGuidance() === 'science only');
+ok('a title is taken off the first line', mod.quickNoteTitleFrom('Full sentences always\nand name the process') === 'Full sentences always');
+ok('an empty note still gets a title', mod.quickNoteTitleFrom('') === 'Quick note');
+mod.setNotes([]);
 
 console.log('\nA note names its subject and level');
 mod.setNotes([

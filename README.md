@@ -3,6 +3,30 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Add note — a house rule in ten seconds (v1.67.0)
+
+Teaching the AI something used to mean uploading a document. **A new
+✍️ *Add note* button on the toolbar** takes a note the short way: type it, press
+save, and it is live on the very next question.
+
+- It lands in a new **General guidance** section of the Teaching notes window —
+  standing instructions with no subject and no level, so they apply to **every**
+  worksheet.
+- The wording goes into the prompt **exactly as you typed it**. Nothing is sent
+  to the AI to be read, extracted or summarised, so there is no waiting and no
+  cost.
+- Guidance is the one thing that reaches **every** AI call — writing an answer,
+  the answer key, an explanation, a note card **and marking a student**. Only
+  the worksheet in front of it (and, when marking, your own model answer)
+  outranks it.
+- Ctrl/⌘ + Enter saves, Esc closes. Leave the title empty and the first line
+  becomes the title.
+- Every note stays editable and deletable like any other, and the Teaching notes
+  window now lists your guidance first, uploaded notes below. Any uploaded set of
+  notes can be given standing instructions of its own from **✎ Edit**.
+
+Students never see any of it, exactly as before.
+
 ## The AI runs on Gemini 3.7 Flash (v1.66.0)
 
 Every Gemini call in the app — **Answer** and **Improve**, AI note cards, the
