@@ -3,6 +3,32 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Two prints a student can read, and no generated cover (v1.69.0)
+
+**The two print buttons now say what a student is actually choosing between.**
+They have always been there for everyone — a student can print any worksheet
+they can open — but they were named for the teacher's side of the desk. Signed
+in as a student (or with the teacher's device handed over with *Practise as*),
+they now read:
+
+- **🖨 Print without working** — the worksheet on its own, every working, mark,
+  text box and timestamp taken out, so it can be tried again from scratch.
+- **🖨 Print with working** — the same worksheet with all the workings and
+  answers on it, to revise from. While a student is practising, this is still
+  the *teacher's* answer key, never their own attempt.
+
+The toolbar pair (`Ctrl+P` / `Ctrl+Shift+P`), the pair in the **Print** card and
+the toasts all follow the same wording. The teacher keeps **Questions** and
+**Answers** — same two PDFs, same buttons, one set of words each.
+
+**The generated cover page is gone.** Most worksheets already print their own
+cover, so a second one in front of it was a page to throw away. Both prints are
+now the worksheet itself from its first page — nothing prepended, no *Add a
+Polymath cover page* toggle, no *Cover title* box, and the `coverTitle` field is
+no longer written to the worksheet. The QR code that put a lesson recording on
+the cover goes with it; the recording is still on the worksheet, in the **Video**
+card and behind the video buttons on the page, exactly as before.
+
 ## Mindmap — the Mindmap app, in a window over the worksheet (v1.68.0)
 
 A **new mindmap button on the toolbar** (or press **Y**) opens the board from
@@ -1157,29 +1183,9 @@ students and teachers:
   in, timestamps included when they are switched on. While a student is
   practising, this prints the *teacher's* answer key, not their own attempt.
 
-### The cover page
-
-Both prints can start with a Polymath cover — logo, title, subtitle, and Name
-/ Date lines. It is drawn straight into the PDF, so it needs no browser
-rendering step and comes out identical on an iPad and a laptop.
-
-- **Toggle it on or off** with “Add a Polymath cover page” in the Print card.
-  The choice is remembered per device.
-- **The title follows the worksheet name.** Admin accounts get a *Cover title*
-  box to override it; the override is saved with the worksheet, so everyone
-  who prints it gets the same cover. Leave it empty to go back to the name.
-- **The footer follows the level and subject** — “Primary Mathematics” or
-  “Primary Science” (and “Secondary …” for Sec 1 worksheets).
-- **A lesson recording adds a QR code** to the top right, with the link
-  underneath in a small font, so students can scan the printed sheet and watch.
-
-The QR encoder is built in (byte mode, EC level M, versions 1-15) rather than
-pulled from a CDN, and is verified module-for-module against the
-`qrcode-generator` reference implementation.
-
-The logo is fetched from Dropbox once per session. If the network or CORS
-swallows it, the cover falls back to a plain `POLYMATH` wordmark rather than
-failing the print.
+Both prints are the worksheet itself, first page onwards — nothing is put in
+front of it. (v1.35.0-v1.68.0 could prepend a generated Polymath cover page;
+that was taken out in v1.69.0, since the worksheets already carry their own.)
 
 ## Sharing a worksheet (v1.32.0)
 
