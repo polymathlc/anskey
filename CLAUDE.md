@@ -100,7 +100,7 @@ Guidance for Claude when working in this repo.
   **link** on any box or picture (`link`), pictures kept **in proportion** on resize, and
   **pointer** events instead of mouse events. Ship engine changes to both repos together.
 - **The state object is `mmBoard`, never `mm` — `mm(v)` is the millimetres-to-points helper the
-  whole PDF cover-page and answer-key export is built on.** A global `var mm = {...}` silently
+  whole PDF answer-key and flattened export is built on.** A global `var mm = {...}` silently
   clobbers it and every print and export breaks. Everything else in the feature is `mm`-prefixed
   (`mmRender`, `mmSnap`, `mmBoardKey`), which is fine — only the bare name is taken.
 - **The board never touches Firestore.** It is remembered per worksheet in `localStorage` under
