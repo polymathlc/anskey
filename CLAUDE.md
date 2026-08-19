@@ -16,7 +16,10 @@ Guidance for Claude when working in this repo.
   the single place that decides what each role sees — put new teacher-only UI through it.
 - `pdfAnnotator` is shared with the older annotator in `polymathlc/cer` (`pdf-annotator.html`), so
   keep field names compatible: `wsSlot` is this app's 0–2 lesson session, `slot` is that app's
-  free-form class string.
+  free-form class string. `hidden` is this app's own field — the **Hidden** category
+  (v1.70.0), checked in `canSeeDoc()` before the level and subject are, so a hidden worksheet
+  reaches no student list anywhere here; a share link still opens it, and the `cer` app knows
+  nothing about the field, so a worksheet hidden here is still listed there.
 - Annotations bigger than `ANN_INLINE_LIMIT` do not fit in a Firestore document (~1 MB), so they
   go to Storage as `pdf-annotator/{id}.annotations.json` with `annotationsPath` +
   `annotationsStamp` on the doc and `annotations: ''` (see `writeAnnotations` /

@@ -3,6 +3,39 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Hidden worksheets — a category of your own (v1.70.0)
+
+**A worksheet can now be saved as hidden.** The **Save worksheet** dialog has a
+*Who can see it* switch — **🔒 Hidden — keep this out of every student's list** — and a
+worksheet saved with it on is filed under **Hidden**, a category of its own at
+the foot of your Worksheets list and of **My PDFs**.
+
+**Students never see one, anywhere.** Hidden is checked before the level and
+the subject are, so a hidden worksheet reaches no student list, no day band, no
+subject chip and no count — not even one tagged for exactly their class. The
+teacher's own device follows the same rule while it is handed over with
+*Practise as*. The one way in stays open on purpose: a **share link you send
+still opens it**, because sending that link is a deliberate act of its own.
+
+**Hiding and unhiding takes one tap.** Every card in the Worksheets list carries
+a padlock beside its star: 🔓 files the worksheet under Hidden, 🔒 puts it back
+under its class day. The switch is also on the **Edit** row in My PDFs, so a
+worksheet can be filed away without opening it, and the Save dialog remembers
+the setting the next time that worksheet is saved.
+
+**What a hidden worksheet looks like.** A dashed grey card saying *🔒 Hidden from
+students* instead of the gold a starred one wears, gathered under one folded
+**🔒 Hidden** band in the grey that means "no class day". The band stays folded
+until you open it, whatever day or subject is being filtered — a file you have
+put away is not something to go hunting for through the filters. With one on
+screen, the sidebar says so under the worksheet's date.
+
+The mark lives on the worksheet itself (`hidden` on its Firestore document,
+written with merge so a save never clears it), so a worksheet hidden on the
+tablet is hidden on the laptop too. The Hidden category is deliberately not a
+class day: a card cannot be dragged into or out of it, because dropping one
+there would file it under a day called "hidden".
+
 ## Two prints a student can read, and no generated cover (v1.69.0)
 
 **The two print buttons now say what a student is actually choosing between.**

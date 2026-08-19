@@ -1055,6 +1055,66 @@
     margin-bottom: 8px;
   }
 
+  /* ---------- Hidden worksheets ----------
+     A worksheet the teacher has filed away out of every student's sight. It is
+     the opposite of the gold a starred card wears: grey, dashed and quiet, with
+     a padlock to put it back, and a category of its own at the foot of the
+     list. */
+  .qItemRow.canHide .qItem { padding-right: 78px; }
+  .qHideBtn {
+    position: absolute;
+    top: 8px;
+    right: 42px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.92rem;
+    line-height: 1;
+    color: #C9C7C1;
+    background: none;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  }
+  .qHideBtn:hover { background: #EFEEEB; color: var(--ink-soft); transform: scale(1.1); }
+  .qHideBtn.on { color: var(--ink-soft); }
+  .qHideBtn:disabled { opacity: 0.5; cursor: default; transform: none; }
+  @media (pointer: coarse) {
+    .qHideBtn { width: 40px; height: 40px; top: 5px; right: 48px; }
+    .qItemRow.canHide .qItem { padding-right: 92px; }
+  }
+  .qItem.hiddenWs { border-style: dashed; background: #F7F6F5; }
+  .qItem.hiddenWs .qItemName { color: var(--ink-soft); }
+  .qHiddenTag {
+    display: inline-block;
+    font-size: 0.66rem;
+    font-weight: bold;
+    letter-spacing: 0.02em;
+    color: #55554F;
+    background: #fff;
+    border: 1px solid #DCDAD5;
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-bottom: 8px;
+  }
+  /* The category itself wears the same band as a class day, in the grey that
+     means "no class". It is deliberately NOT a .qDayGroup: a card dropped into
+     it would be filed under a day called "hidden", so nothing can be dragged
+     in or out of it. */
+  .qHiddenGroup { margin-bottom: 20px; }
+  .qHiddenGroup.collapsed .qHiddenBody { display: none; }
+  .qHiddenGroup.collapsed .qDayHead { margin-bottom: 0; }
+  .qHiddenGroup.collapsed .qDayHead::after { content: '\25B8'; }
+  .qHiddenNote {
+    font-size: 0.73rem;
+    color: var(--ink-faint);
+    line-height: 1.6;
+    padding: 0 4px 12px;
+  }
+
   /* ---------- Worksheets grouped by class day ----------
      The day is what everyone scans this list for, so it carries the strongest
      signal on screen: its own colour, a band across the top of the group, and
@@ -1307,6 +1367,18 @@
     transition: opacity 0.5s ease;
   }
   .updatedPill.fading { opacity: 0; }
+  .hiddenPill {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 0.68rem;
+    font-weight: bold;
+    color: #55554F;
+    background: #F0EFEC;
+    border: 1px solid #DCDAD5;
+    border-radius: 999px;
+    padding: 3px 10px;
+    white-space: nowrap;
+  }
   .qItem.live {
     border-color: var(--danger, #E53935);
     background: #FFF6F5;
@@ -2257,6 +2329,11 @@
   .akAnswer { margin-bottom: 13px; }
   .akExplain { line-height: 1.6; white-space: pre-wrap; }
   .docEditRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .docHideToggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.8rem; color: var(--ink-soft); white-space: nowrap; cursor: pointer;
+  }
+  .docHideToggle input { width: 16px; height: 16px; accent-color: var(--accent-deep); cursor: pointer; }
   .docEditRow select { font: inherit; font-size: 0.85rem; padding: 4px 6px; border: 1px solid var(--line, #E2E0DC); border-radius: 6px; background: #fff; }
   .docEditRow .docNameInput {
     font: inherit; font-size: 0.85rem; padding: 4px 8px; min-width: 200px; flex: 1 1 220px;
@@ -3327,6 +3404,7 @@
     </div>
     <div class="sideDay" id="wsDay"></div>
     <div class="sideDate" id="wsDate"></div>
+    <div class="hiddenPill" id="wsHidden" style="display:none">🔒 Hidden — students can’t see this</div>
     <div class="livePill" id="wsLive" style="display:none"><span class="liveDot"></span>LIVE</div>
     <div class="updatedPill" id="wsUpdated" style="display:none">✓ Updated just now</div>
   </div>
@@ -3464,6 +3542,15 @@
           <option value="2">7:00 – 8:45pm</option>
         </select>
         <div class="fieldHint">Only needed if you prepared this outside class hours.</div>
+      </div>
+      <div class="fieldRow">
+        <label>Who can see it</label>
+        <label class="reviseToggleRow" for="saveHiddenInput">
+          <input type="checkbox" id="saveHiddenInput">
+          <span>🔒 Hidden — keep this out of every student’s list</span>
+        </label>
+        <div class="fieldHint">A hidden worksheet is filed under <b>Hidden</b> in your own list and reaches no student
+          anywhere. A share link you send still opens it.</div>
       </div>
       <div class="modalActions">
         <button class="btn" id="saveCancelBtn">Cancel</button>
@@ -4242,7 +4329,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.69.0';
+var APP_VERSION = 'v1.70.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -4359,7 +4446,7 @@ var revealedKw = {};        // normalised keyword -> true, revealed during revis
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
 var kwGuessActive = null;   // { span, input, annId, wordIndex, answer, page } while typing in a box
 var reviseHintShown = false;
-var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, rewardClass: '', starPages: [] };  // worksheet meta (name lives in docName; rewardClass is the class its marks are given to)
+var wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, rewardClass: '', starPages: [], hidden: false };  // worksheet meta (name lives in docName; rewardClass is the class its marks are given to)
 
 /* ---- Share links ----
    Every saved worksheet carries share settings: who a plain link admits
@@ -4712,7 +4799,7 @@ async function loadPdf(bytes, name) {
   selectedId = null;
   editingId = null;
   editModeId = null;
-  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, rewardClass: '', starPages: [] };
+  wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, rewardClass: '', starPages: [], hidden: false };
   wsShare = { mode: 'view', passwordHash: '' };
   reviseMode = false;
   revealedKw = {};
@@ -6135,6 +6222,9 @@ function renderSidebar() {
   $('wsRenameBtn').style.display = (isAdmin(currentUser) && !actingStudent && pdfDoc) ? 'inline-flex' : 'none';
   $('wsDay').textContent = dayFromISO(wsMeta.date);
   $('wsDate').textContent = prettyDate(wsMeta.date);
+  // The teacher has to be able to tell at a glance that the worksheet they are
+  // marking up is one nobody else can see.
+  $('wsHidden').style.display = (pdfDoc && wsMeta.hidden) ? 'inline-block' : 'none';
   updateKwPanel();
   if (typeof updatePracticeCard === 'function') updatePracticeCard();
   renderVideoCard();
@@ -17430,6 +17520,11 @@ function canSeeDoc(d) {
   // While the teacher's device is handed to a student, filter exactly as if
   // that student were signed in.
   if (!currentUser || (isAdmin(currentUser) && !actingStudent)) return true;
+  // A hidden worksheet is the teacher's own file. It is filed under Hidden in
+  // their list and reaches no student list, chip or count anywhere — not even
+  // the right level and subject let it through. A share link the teacher sent
+  // still opens it: sending that link is a deliberate act of its own.
+  if (d.hidden) return false;
   if (!studentProfile) return false; // profile not set up yet
   // Students only see worksheets explicitly assigned to their level AND
   // subject. A worksheet with no level/subject set (saved before tagging
@@ -18171,6 +18266,7 @@ function applyRemoteDoc(d) {
   wsMeta.date = d.wsDate || '';
   wsMeta.slot = (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? d.wsSlot : '';
   wsMeta.rewardClass = d.rewardClass || '';
+  wsMeta.hidden = !!d.hidden;
   wsMeta.videoUrl = d.videoUrl || '';
   wsMeta.videoPath = d.videoPath || '';
   wsMeta.videoStart = Number(d.videoStartMs) || 0;
@@ -18294,6 +18390,7 @@ async function saveDoc() {
   $('saveDateInput').value = wsMeta.date || new Date().toISOString().slice(0, 10);
   refreshSaveSlotOptions(dayFromISO($('saveDateInput').value));
   setSelectValue($('saveSlotInput'), wsMeta.slot === 0 || wsMeta.slot ? String(wsMeta.slot) : '');
+  $('saveHiddenInput').checked = !!wsMeta.hidden;
   updateSaveDayPreview();
   $('saveModal').classList.add('open');
   setTimeout(function () { $('saveNameInput').focus(); }, 50);
@@ -18468,6 +18565,7 @@ async function performSave() {
   wsMeta.subject = $('saveSubjectInput').value;
   wsMeta.date = $('saveDateInput').value;
   wsMeta.slot = $('saveSlotInput').value;
+  wsMeta.hidden = $('saveHiddenInput').checked;
   $('saveModal').classList.remove('open');
   renderSidebar();
   btn.disabled = true;
@@ -18487,6 +18585,7 @@ async function performSave() {
       wsDay: dayFromISO(wsMeta.date),
       wsSlot: wsMeta.slot === '' || wsMeta.slot === undefined ? null : parseInt(wsMeta.slot, 10),
       rewardClass: wsMeta.rewardClass || '',   // class the Reward window opens on
+      hidden: !!wsMeta.hidden,                 // filed under Hidden, out of every student's list
       ownerUid: currentUser.uid,
       ownerEmail: currentUser.email,
       storagePath: STORAGE_DIR + '/' + currentDocId + '.pdf',
@@ -18507,9 +18606,11 @@ async function performSave() {
     scheduleDraftSave(); // mark the local draft clean too
     btn.classList.add('btnSaved');
     if (label) label.textContent = '✓ Saved';
-    toast(isNew
+    toast((isNew
       ? 'Saved “' + docName + '” — auto-save is now on for this worksheet.'
-      : 'Saved “' + docName + '” to the cloud.');
+      : 'Saved “' + docName + '” to the cloud.') +
+      (wsMeta.hidden ? ' 🔒 Hidden — it is filed under Hidden, out of every student’s list.' : ''),
+      wsMeta.hidden ? 5500 : undefined);
   } catch (e) {
     console.error(e);
     toast('Save failed: ' + (e.message || e));
@@ -18740,17 +18841,10 @@ async function openDocsModal() {
     }
     // Same day headings as the worksheets drawer, in the same colours: the
     // rows keep their Open / Edit / Delete buttons, but they sit under the
-    // class day they belong to instead of in one long run.
-    var lastDayHead = null;
-    orderDocsByDay(docs, function (s) { return s.data(); }).forEach(function (docSnap) {
-      var d = docSnap.data();
-      var day = d.wsDay || DAY_UNDATED;
-      if (day !== lastDayHead) {
-        lastDayHead = day;
-        list.appendChild(docsDayHeading(day, docs.filter(function (s) {
-          return (s.data().wsDay || DAY_UNDATED) === day;
-        }).length));
-      }
+    // class day they belong to instead of in one long run. Hidden worksheets
+    // come out of the class days altogether and gather under one Hidden
+    // heading at the very bottom, exactly as they do in the drawer.
+    function addDocRow(docSnap, d) {
       var row = document.createElement('div');
       row.className = 'docRow';
       var info = document.createElement('div');
@@ -18765,6 +18859,7 @@ async function openDocsModal() {
         var bits = [];
         if (d.level) bits.push(levelLabel(d.level));
         if (d.subject) bits.push(subjectLabel(d.subject));
+        if (d.hidden) bits.push('🔒 hidden from students');
         if (!d.level || !d.subject) bits.push('⚠ unassigned — hidden from students, press Edit');
         if (d.wsDate) bits.push((d.wsDay ? d.wsDay + ' ' : '') + prettyDate(d.wsDate));
         // Show which class slot students will find this under, so a wrongly
@@ -18799,7 +18894,26 @@ async function openDocsModal() {
         row.appendChild(delBtn);
       }
       list.appendChild(row);
+    }
+
+    var shownDocs = docs.filter(function (snapDoc) { return !snapDoc.data().hidden; });
+    var hiddenDocs = docs.filter(function (snapDoc) { return !!snapDoc.data().hidden; });
+    var lastDayHead = null;
+    orderDocsByDay(shownDocs, function (snapDoc) { return snapDoc.data(); }).forEach(function (docSnap) {
+      var d = docSnap.data();
+      var day = d.wsDay || DAY_UNDATED;
+      if (day !== lastDayHead) {
+        lastDayHead = day;
+        list.appendChild(docsDayHeading(day, shownDocs.filter(function (snapDoc) {
+          return (snapDoc.data().wsDay || DAY_UNDATED) === day;
+        }).length));
+      }
+      addDocRow(docSnap, d);
     });
+    if (hiddenDocs.length) {
+      list.appendChild(docsHiddenHeading(hiddenDocs.length));
+      hiddenDocs.forEach(function (docSnap) { addDocRow(docSnap, docSnap.data()); });
+    }
   } catch (e) {
     console.error(e);
     list.innerHTML = '<div class="docsEmpty">Could not load documents: ' + (e.message || e) + '</div>';
@@ -18840,6 +18954,16 @@ function editDocMeta(id, d, info, refreshMeta) {
     var o = document.createElement('option'); o.value = String(s.key); o.textContent = s.label; slotSel.appendChild(o);
   });
   setSelectValue(slotSel, (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2) ? String(d.wsSlot) : '');
+  // Filing it away without opening it: the same `hidden` flag the padlock in
+  // the worksheets drawer sets.
+  var hideLab = document.createElement('label');
+  hideLab.className = 'docHideToggle';
+  hideLab.title = 'Keep this worksheet out of every student’s list';
+  var hideIn = document.createElement('input');
+  hideIn.type = 'checkbox';
+  hideIn.checked = !!d.hidden;
+  hideLab.appendChild(hideIn);
+  hideLab.appendChild(document.createTextNode('🔒 Hidden'));
   var okBtn = document.createElement('button');
   okBtn.className = 'btn btnPrimary';
   okBtn.textContent = 'Save';
@@ -18852,12 +18976,15 @@ function editDocMeta(id, d, info, refreshMeta) {
       level: lvlSel.value,
       subject: subSel.value,
       wsSlot: slotSel.value === '' ? null : parseInt(slotSel.value, 10),
+      hidden: hideIn.checked,
+      hiddenAt: hideIn.checked ? firebase.firestore.FieldValue.serverTimestamp() : null,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).then(function () {
       d.name = newName;
       d.level = lvlSel.value;
       d.subject = subSel.value;
       d.wsSlot = slotSel.value === '' ? null : parseInt(slotSel.value, 10);
+      d.hidden = hideIn.checked;
       var nmEl = info.querySelector('.docRowName');
       if (nmEl) nmEl.textContent = newName;
       refreshMeta();
@@ -18868,11 +18995,13 @@ function editDocMeta(id, d, info, refreshMeta) {
         wsMeta.level = d.level;
         wsMeta.subject = d.subject;
         wsMeta.slot = slotSel.value;
+        wsMeta.hidden = d.hidden;
         renderSidebar();
       }
-      toast(renamed
+      toast((renamed
         ? 'Renamed to “' + newName + '” — ' + levelLabel(d.level) + ' ' + subjectLabel(d.subject) + '.'
-        : '“' + newName + '” is now ' + levelLabel(d.level) + ' ' + subjectLabel(d.subject) + '.');
+        : '“' + newName + '” is now ' + levelLabel(d.level) + ' ' + subjectLabel(d.subject) + '.') +
+        (d.hidden ? ' 🔒 Hidden from students.' : ''));
     }).catch(function (e) {
       okBtn.disabled = false;
       toast('Could not update: ' + (e.message || e), 5000);
@@ -18889,6 +19018,7 @@ function editDocMeta(id, d, info, refreshMeta) {
   wrap.appendChild(lvlSel);
   wrap.appendChild(subSel);
   wrap.appendChild(slotSel);
+  wrap.appendChild(hideLab);
   wrap.appendChild(okBtn);
   wrap.appendChild(cancelBtn);
   info.appendChild(wrap);
@@ -18935,6 +19065,7 @@ async function openSavedDoc(id, data) {
     wsMeta.date = data.wsDate || '';
     wsMeta.slot = (data.wsSlot === 0 || data.wsSlot === 1 || data.wsSlot === 2) ? data.wsSlot : '';
     wsMeta.rewardClass = data.rewardClass || '';
+    wsMeta.hidden = !!data.hidden;
     wsMeta.videoUrl = data.videoUrl || '';
     wsMeta.videoPath = data.videoPath || '';
     wsMeta.videoStart = Number(data.videoStartMs) || 0;
@@ -19177,10 +19308,23 @@ function docOnDay(d, day) {
   return day === 'all' || (d.wsDay || DAY_UNDATED) === day;
 }
 
+/* Hidden worksheets are the teacher's own files. They are lifted clean out of
+   the day-by-day list — no day band, no lesson time, no subject chip counts
+   them — and gathered under one Hidden category at the foot of it. */
+function docIsHidden(d) { return !!d.hidden; }
+
 function filteredQDocs() {
   return qDocs.filter(function (item) {
-    return docHasSubject(item.data, qSubjectFilter) && docOnDay(item.data, qDayFilter);
+    return !docIsHidden(item.data) &&
+      docHasSubject(item.data, qSubjectFilter) && docOnDay(item.data, qDayFilter);
   });
+}
+
+/* Everything filed away, whatever day or subject is being filtered: a file you
+   have hidden is not something to go hunting for through the filters. Only the
+   teacher ever has any — canSeeDoc keeps them out of every other list. */
+function hiddenQDocs() {
+  return qDocs.filter(function (item) { return docIsHidden(item.data); });
 }
 
 /* ---- The class-day dots on the toolbar ----
@@ -19261,8 +19405,9 @@ function renderDayFilterBar() {
 function renderSubjectFilter() {
   var row = $('qFilterRow');
   row.innerHTML = '';
-  var hasMath = qDocs.some(function (i) { return docHasSubject(i.data, 'math'); });
-  var hasSci = qDocs.some(function (i) { return docHasSubject(i.data, 'science'); });
+  var shown = qDocs.filter(function (i) { return !docIsHidden(i.data); });
+  var hasMath = shown.some(function (i) { return docHasSubject(i.data, 'math'); });
+  var hasSci = shown.some(function (i) { return docHasSubject(i.data, 'science'); });
   if (!(hasMath && hasSci)) { row.style.display = 'none'; qSubjectFilter = 'all'; return; }
   row.style.display = '';
   [['all', 'All'], ['math', 'Mathematics'], ['science', 'Science']].forEach(function (opt) {
@@ -19282,6 +19427,7 @@ function renderSubjectFilter() {
 function renderQuestionList() {
   var list = $('qList');
   var docs = filteredQDocs();
+  var hidden = hiddenQDocs();
   renderDayDots();
   renderDayFilterBar();
   list.innerHTML = '';
@@ -19291,9 +19437,13 @@ function renderQuestionList() {
         ? 'No ' + escHtml(subjectLabel(qSubjectFilter) || 'matching') + ' worksheets in your list yet.'
         : 'Nothing for ' + escHtml(qDayFilter) + ' yet — tap the day again for the whole week.') +
       '</div>';
-    $('qDrawerSub').textContent = qDayFilter === 'all'
+    $('qDrawerSub').textContent = (qDayFilter === 'all'
       ? 'Grouped by class day, newest first.'
-      : qDayFilter + ' only — tap the dot again for the whole week.';
+      : qDayFilter + ' only — tap the dot again for the whole week.') +
+      (hidden.length ? ' 🔒 ' + hidden.length + ' hidden.' : '');
+    // Everything the teacher has filed away is still one tap down the list,
+    // even on a day that has nothing else on it.
+    renderHiddenGroup(list, hidden);
     syncDrawerHeadOffset();
     return;
   }
@@ -19307,8 +19457,10 @@ function renderQuestionList() {
     (qDayFilter === 'all'
       ? ' · grouped by class day, newest first' + (hasDayPref ? ' · your day first' : '')
       : ' on ' + qDayFilter + ' · by lesson time') +
+    (hidden.length ? ' · 🔒 ' + hidden.length + ' hidden' : '') +
     (canArrangeWorksheets() ? ' · drag ⠿ to rearrange' : '');
   renderQuestionGroups(list, docs);
+  renderHiddenGroup(list, hidden);
   syncDrawerHeadOffset();
 }
 
@@ -19330,7 +19482,7 @@ function questionCard(item) {
   row.setAttribute('data-qid', item.id);
   var btn = document.createElement('button');
   btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '') +
-    (d.starred ? ' starred' : '');
+    (d.starred ? ' starred' : '') + (d.hidden ? ' hiddenWs' : '');
   btn.setAttribute('data-qid', item.id);
   if (d.starred) {
     // Said in words as well as in gold: the card is read at a glance, but a
@@ -19340,6 +19492,14 @@ function questionCard(item) {
     tag.className = 'qStarTag';
     tag.textContent = '★ Open this one';
     btn.appendChild(tag);
+  }
+  if (d.hidden) {
+    // Said in words too: a dashed grey card is a difference nobody should have
+    // to decode when the whole point is that students cannot see this one.
+    var hTag = document.createElement('div');
+    hTag.className = 'qHiddenTag';
+    hTag.textContent = '🔒 Hidden from students';
+    btn.appendChild(hTag);
   }
   var nm = document.createElement('div');
   nm.className = 'qItemName';
@@ -19384,8 +19544,14 @@ function questionCard(item) {
     row.classList.add('canStar');
     row.appendChild(starToggleBtn(item));
   }
-  // So is the order of the list.
-  if (canArrangeWorksheets()) {
+  // And so is filing one away out of the students' sight.
+  if (canHideWorksheets()) {
+    row.classList.add('canHide');
+    row.appendChild(hideToggleBtn(item));
+  }
+  // So is the order of the list — but a hidden worksheet sits in a category of
+  // its own, with no day or lesson time to be dragged around inside.
+  if (canArrangeWorksheets() && !d.hidden) {
     row.classList.add('canArrange');
     row.appendChild(dragHandleBtn());
     // A mouse can drag the card itself — there is no scrolling gesture to get
@@ -19450,6 +19616,103 @@ async function toggleWorksheetStar(item, btn) {
   toast(next
     ? '★ “' + (item.data.name || 'Untitled') + '” is at the top of the list now.'
     : 'Unstarred “' + (item.data.name || 'Untitled') + '”.');
+}
+
+/* ---- Hidden worksheets ----
+   The padlock on a card takes that worksheet out of every student's list and
+   files it under Hidden at the foot of the teacher's own. Like the star, the
+   mark lives on the worksheet itself (`hidden` on its Firestore document,
+   written with merge so a save never clears it) rather than on the device, so
+   a worksheet hidden on the tablet is hidden on the laptop too — and canSeeDoc
+   is what actually keeps it away from students, everywhere in the app. */
+function canHideWorksheets() { return canStarWorksheets(); }
+
+function hideToggleBtn(item) {
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'qHideBtn' + (item.data.hidden ? ' on' : '');
+  btn.textContent = item.data.hidden ? '🔒' : '🔓';
+  btn.title = item.data.hidden
+    ? 'Hidden — filed under Hidden, out of every student’s list. Tap to put it back.'
+    : 'Hide this worksheet — file it under Hidden, where no student can see it';
+  btn.setAttribute('aria-label', btn.title);
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();       // the card underneath opens the worksheet
+    toggleWorksheetHidden(item, btn);
+  });
+  return btn;
+}
+
+async function toggleWorksheetHidden(item, btn) {
+  if (!canHideWorksheets()) return;
+  var next = !item.data.hidden;
+  btn.disabled = true;
+  try {
+    await db.collection(COLLECTION).doc(item.id).set({
+      hidden: next,
+      hiddenAt: next ? firebase.firestore.FieldValue.serverTimestamp() : null
+    }, { merge: true });
+  } catch (e) {
+    btn.disabled = false;
+    toast('Could not change that: ' + (e.message || e), 5000);
+    return;
+  }
+  item.data.hidden = next;
+  // The worksheet on screen must agree with its card, or the next Save would
+  // write the old setting straight back over this one.
+  if (currentDocId === item.id) { wsMeta.hidden = next; renderSidebar(); }
+  if (next) qHiddenOpen = true;   // so the card is visibly somewhere, not just gone
+  renderQuestionList();
+  markActiveQuestion();
+  toast(next
+    ? '🔒 “' + (item.data.name || 'Untitled') + '” is hidden — filed under Hidden, out of every student’s list.'
+    : '“' + (item.data.name || 'Untitled') + '” is back under its class day, where students can see it.', 4500);
+}
+
+/* The Hidden category: one band at the foot of the list, in the grey that
+   means "no class day", holding every worksheet filed away. It starts folded —
+   these are the ones being kept out of the way — and it is deliberately not a
+   .qDayGroup, so a card can never be dragged into it and end up filed under a
+   day called "hidden". */
+var qHiddenOpen = false;   // kept open across re-renders once the teacher opens it
+
+function renderHiddenGroup(list, items) {
+  if (!items || !items.length) return;
+  var c = DAY_COLOUR_OTHER;
+  var wrap = document.createElement('div');
+  wrap.className = 'qHiddenGroup' + (qHiddenOpen ? '' : ' collapsed');
+  wrap.style.setProperty('--dayInk', c.ink);
+  wrap.style.setProperty('--dayTint', c.tint);
+  wrap.style.setProperty('--dayLine', c.line);
+
+  var head = document.createElement('button');
+  head.className = 'qDayHead';
+  head.type = 'button';
+  var name = document.createElement('span');
+  name.className = 'qDayName';
+  name.textContent = '🔒 Hidden';
+  head.appendChild(name);
+  var n = document.createElement('span');
+  n.className = 'qGroupCount';
+  n.textContent = items.length;
+  head.appendChild(n);
+  head.addEventListener('click', function () {
+    qHiddenOpen = wrap.classList.contains('collapsed');
+    wrap.classList.toggle('collapsed');
+  });
+  wrap.appendChild(head);
+
+  var body = document.createElement('div');
+  body.className = 'qHiddenBody';
+  var note = document.createElement('div');
+  note.className = 'qHiddenNote';
+  note.textContent = 'Only you see these. Tap the padlock on a card to put it back under its class day.';
+  body.appendChild(note);
+  items.slice()
+    .sort(function (a, b) { return questionSortTime(b.data) - questionSortTime(a.data); })
+    .forEach(function (item) { body.appendChild(questionCard(item)); });
+  wrap.appendChild(body);
+  list.appendChild(wrap);
 }
 
 /* ---- The list, day by day ----
@@ -19522,6 +19785,25 @@ function docsDayHeading(day, count) {
     tag.textContent = 'your class day';
     head.appendChild(tag);
   }
+  var n = document.createElement('span');
+  n.className = 'qGroupCount';
+  n.textContent = count;
+  head.appendChild(n);
+  return head;
+}
+
+/* The same band for the worksheets filed away — the grey of "no class day",
+   at the foot of the My PDFs list. */
+function docsHiddenHeading(count) {
+  var c = DAY_COLOUR_OTHER;
+  var head = document.createElement('div');
+  head.className = 'docsDayHead';
+  head.style.setProperty('--dayInk', c.ink);
+  head.style.setProperty('--dayTint', c.tint);
+  head.style.setProperty('--dayLine', c.line);
+  var name = document.createElement('span');
+  name.textContent = '🔒 Hidden — only you see these';
+  head.appendChild(name);
   var n = document.createElement('span');
   n.className = 'qGroupCount';
   n.textContent = count;
