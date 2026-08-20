@@ -18,7 +18,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Polymath">
 <meta name="theme-color" content="#FFE0B2">
-<link rel="apple-touch-icon" href="https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj">
+<!-- The icons sit next to this file rather than on the brand's file host: a
+     device that cannot reach that host (a filtered network, a content blocker)
+     was left with no icon at all, and an icon that fails is a blank tile on
+     the Home Screen. Opaque and square on purpose — iOS fills transparency
+     with black and rounds the corners itself. -->
+<link rel="apple-touch-icon" sizes="192x192" href="logo-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="logo-512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="logo-192.png">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <style>
@@ -72,7 +79,30 @@
     flex: 0 0 auto;
     min-height: auto;
   }
-  .polymath-logo { height: 46px; display: block; }
+  /* The logo is drawn in the page AND fetched from the brand's own host. The
+     drawing is what is on screen until the picture has actually decoded, so a
+     device that cannot reach that host — a filtered school network, an iPad
+     with a content blocker, a flaky lesson wifi — still shows a logo instead
+     of the 0px-wide gap a broken <img> leaves behind. */
+  .polymath-logo {
+    position: relative;
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    display: block;
+  }
+  .polymath-logo .brandMark,
+  .polymath-logo .brandImg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+  }
+  .polymath-logo .brandImg { opacity: 0; transition: opacity 0.2s ease; }
+  .polymath-logo.brandReady .brandImg { opacity: 1; }
+  .polymath-logo.brandReady .brandMark { opacity: 0; }
   .headerTitle { font-size: 1.15rem; font-weight: bold; letter-spacing: 0.01em; }
   .headerSub { font-size: 0.78rem; color: var(--ink-faint); margin-top: 2px; }
   .versionTag { font-size: 0.7rem; color: var(--ink-faint); margin-left: 4px; font-weight: normal; }
@@ -2519,7 +2549,7 @@
   @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 
   @media (max-width: 640px) {
-    .polymath-logo { height: 38px; }
+    .polymath-logo { width: 38px; height: 38px; }
     .headerSub { display: none; }
     .authInfo { display: none; }
     #toolbar { padding: 6px 8px; gap: 4px; }
@@ -3159,8 +3189,16 @@
   <button class="toolBtn" id="burgerBtn" data-key="Q" title="All questions — show / hide the list">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
   </button>
-  <img src="https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj"
-       alt="Polymath Learning Centre" class="polymath-logo" />
+  <span class="polymath-logo" id="brandLogo" role="img" aria-label="Polymath Learning Centre">
+    <svg class="brandMark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="#C2185B"/>
+      <path fill="#FFFFFF" fill-rule="evenodd"
+            d="M22 16h14a11 11 0 0 1 0 22h-7v10h-7Z M29 23h7a4 4 0 0 1 0 8h-7Z"/>
+    </svg>
+    <img class="brandImg" id="brandLogoImg" alt="" width="46" height="46"
+         decoding="async" referrerpolicy="no-referrer"
+         src="https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj" />
+  </span>
   <div>
     <div class="headerTitle">PDF Annotator <span class="versionTag" id="versionTag"></span></div>
     <div class="headerSub">Upload · mark up · save to the cloud</div>
@@ -4329,7 +4367,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.70.0';
+var APP_VERSION = 'v1.70.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -4337,6 +4375,55 @@ var STORAGE_DIR = 'pdf-annotator';
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
 document.getElementById('versionTag').textContent = APP_VERSION;
+
+/* ---- The header logo ----
+   The picture lives on the brand's file host, which a device is not always
+   allowed to reach: a filtered school network, a content blocker or Lockdown
+   Mode on an iPad, or simply lesson wifi that drops the request. When that
+   happens the browser leaves the <img> at zero width and the header shows a
+   gap where the logo should be, silently — which is exactly what an iPad was
+   doing. So the mark drawn in the markup is what is on screen by default, the
+   picture is only swapped in once it has really decoded, and a request that
+   goes nowhere is given one more try (a dropped one usually is a one-off)
+   before the drawing is left to stand for good. */
+(function brandLogo() {
+  var box = document.getElementById('brandLogo');
+  var img = box && document.getElementById('brandLogoImg');
+  if (!img) return;
+  var src = img.getAttribute('src');
+  var tries = 0;
+  var timer = null;
+  var done = false;
+
+  function shown() { return img.complete && img.naturalWidth > 0; }
+  function finish(ok) {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    if (ok) { box.classList.add('brandReady'); return; }
+    box.classList.remove('brandReady');     // blocked for good — the drawn mark stays
+    if (img.parentNode) img.parentNode.removeChild(img);
+  }
+  function settle() {
+    if (done) return;
+    if (shown()) { finish(true); return; }
+    if (tries < 1) {           // one retry: a dropped request is usually a one-off
+      tries++;
+      watch();
+      img.src = src + (src.indexOf('?') < 0 ? '?' : '&') + 'r=' + tries;
+      return;
+    }
+    finish(false);
+  }
+  /* Safari can leave a blocked request pending without ever firing `error`,
+     so the wait is capped rather than left to the browser to end. */
+  function watch() { clearTimeout(timer); timer = setTimeout(settle, 6000); }
+
+  img.addEventListener('load', settle);
+  img.addEventListener('error', settle);
+  if (shown()) { finish(true); return; }    // straight out of the browser cache
+  watch();
+})();
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
