@@ -46,14 +46,23 @@ Guidance for Claude when working in this repo.
   written straight to Firestore. `guidance` is this app's own field — the `cer` app shares the
   collection and ignores it, which is why the shared fields are still written, empty.
 - **The notes live at `users/{adminUid}/teachingNotes/{id}`, which is the SAME collection the
-  Science Learning Portal (`polymathlc/cer`, `app.js`) writes** — one notebook grounding both apps.
+  Science Learning Portal (`polymathlc/cer`, `app.js`) and the **Scan app** (`polymathlc/scan`,
+  `index.html`) write** — one notebook grounding three apps.
   Keep the fields compatible: `topics` is reserved for that app's syllabus list and this app writes
   it **empty**, so a note uploaded here reads as a general note there instead of one tagged with
   topics it has never heard of. This app's own wording goes in `noteTopics` / `subjects` / `levels`.
+  **`guidance` is read by all three** since cer v1.309.0 and scan v1.0.0; it was this app's own
+  field, and for a while the Portal simply ignored it — a house rule typed here that was obeyed on
+  one screen and not the next. The Scan app is a straight port of this whole section
+  (`aiGrounding`, the digests, the quick note): a fix to either belongs in both.
 - **A student's device reads the notes too** (marking and Ask AI run there), and learns whose notes
   to read from the `ownerUid` on the first worksheet it opens (`notesNoteOwner`, remembered in
   `localStorage`). A read that is denied is not an error worth showing — the AI simply carries on
   ungrounded, exactly as it did before the feature existed. Only the admin ever writes.
+- **The Scan app READS the style profile and never writes to it.** Nothing photographed there is
+  an answer the teacher wrote, so there is nothing honest for it to learn from — the corpus is
+  grown HERE, and every answer that app writes sharpens with it. Do not add a harvest path there
+  without deciding first whose answers those are.
 - **The style corpus is `users/{adminUid}/aiTraining/answerStyle`** — the answers the teacher has
   already written on their own worksheets, and the profile distilled from them. Three ways in:
   `styleHarvestOnSave()` takes the typed answers on every save for free, `styleLearnOpenWorksheet()`
