@@ -3,6 +3,32 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## The logo shows on every device now (v1.70.1)
+
+**The header logo was missing on the iPad.** It was loaded from the brand's
+Dropbox file host, and a device that is not allowed to reach that host — a
+filtered school or centre network, a content blocker, Lockdown Mode, or just
+lesson wifi dropping the request — got nothing back. A picture that fails to
+load leaves an `<img>` zero pixels wide, so the header simply showed a gap
+between the ☰ button and the title, with nothing to say anything had gone
+wrong.
+
+**The logo is now drawn in the page itself.** A "P" mark in the Polymath
+magenta is part of the markup, so it is on screen the moment the page opens, on
+any device, with no network involved. The photographic logo is still fetched
+and quietly takes its place once it has really decoded; a request that goes
+nowhere gets one more try (a dropped one is usually a one-off) before the drawn
+mark is left to stand. A blocked request that Safari never finishes is given
+six seconds rather than being waited on forever.
+
+**The Home Screen icon is fixed the same way.** `logo-192.png` and
+`logo-512.png` now sit beside `index.html` and are what the manifest and the
+apple-touch-icon point at, so *Add to Home Screen* gets a real icon instead of
+a blank tile on a device that cannot reach the file host. They are square and
+opaque on purpose: iOS fills transparency with black and rounds the corners
+itself. **Upload those two files alongside `index.html`** — the header logo
+needs nothing but `index.html`, the app icon needs the PNGs.
+
 ## Hidden worksheets — a category of your own (v1.70.0)
 
 **A worksheet can now be saved as hidden.** The **Save worksheet** dialog has a
