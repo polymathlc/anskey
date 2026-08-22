@@ -59,6 +59,16 @@ Guidance for Claude when working in this repo.
   to read from the `ownerUid` on the first worksheet it opens (`notesNoteOwner`, remembered in
   `localStorage`). A read that is denied is not an error worth showing — the AI simply carries on
   ungrounded, exactly as it did before the feature existed. Only the admin ever writes.
+- **A rule can be typed on an ANSWER CARD in the Scan app, and it lands here** (scan v1.5.0, this
+  app v1.71.0). When a scanned answer is not good enough the teacher corrects it there and says what
+  should have happened; that is written as an ordinary note in this collection — `guidance` for the
+  rule, `keyFacts` for the corrected answer with its question above it, and `sourceQuestion` for the
+  question it was written against. **`sourceQuestion` is for the READER, never for a prompt**: it is
+  shown on the card here ("Written against") so a rule still makes sense once the paper is gone, and
+  putting the whole question into `guidance` would drown the rule in a paragraph repeated on every
+  question. `noteSourceLabel` is why the card names the right app: it used to file everything that
+  was not this app's under the Learning Portal, so every rule typed on a phone over a worksheet was
+  attributed to the wrong app.
 - **The Scan app READS the style profile and never writes to it.** Nothing photographed there is
   an answer the teacher wrote, so there is nothing honest for it to learn from — the corpus is
   grown HERE, and every answer that app writes sharpens with it. Do not add a harvest path there
@@ -166,7 +176,8 @@ to know whether the upload/deploy went through.
   real steps — Quick and Standard both landing on `low` is a picker offering a choice that changes
   nothing. `polymathlc/cer` carries the same pair; keep the two in step.
 - After touching **teaching notes or the style training** (`aiGrounding`, `notesBlock`,
-  `styleBlock`, `notesRelevant`, `styleAddSamples`, `styleHarvestTyped`, `notesCardHtml`), run
+  `styleBlock`, `notesRelevant`, `styleAddSamples`, `styleHarvestTyped`, `notesCardHtml`,
+  `noteSourceLabel`), run
   `node tools/notes-tests.mjs`. It loads the REAL section out of `index.html` and runs it against
   stubs. Every failure here is silent — a digest that comes back empty is just an ungrounded
   prompt, and nothing throws.
