@@ -4367,7 +4367,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.70.1';
+var APP_VERSION = 'v1.71.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -10803,6 +10803,18 @@ function notesWhenText(iso) {
   return isNaN(d) ? '' : d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/* One notebook, THREE apps: a note written in the Scan app or the Science
+   Learning Portal lands in this very collection, so the card says which one it
+   came from rather than filing everything that is not this app's under the
+   Portal — which is what it did, and which named the wrong app for every rule
+   typed on a phone over a worksheet. */
+function noteSourceLabel(n) {
+  var src = String((n && n.source) || '').toLowerCase();
+  if (src === 'anskey') return '';
+  if (src === 'scan') return 'from Scan & Answer';
+  return 'from the Learning Portal';
+}
+
 function notesCardHtml(n) {
   var tags = []
     .concat((n.subjects || []).map(function (s) { return subjectLabel(s) || s; }))
@@ -10819,11 +10831,13 @@ function notesCardHtml(n) {
   var facts = String(n.keyFacts || '').trim();
   var com = String(n.comment || '').trim();
   var guide = String(n.guidance || '').trim();
+  var askedAbout = String(n.sourceQuestion || '').trim();
   var when = notesWhenText(n.createdAt);
   var meta = [];
   if (n.fileName) meta.push(escHtml(n.fileName));
   if (when) meta.push((guide && !n.fileName ? 'written ' : 'uploaded ') + escHtml(when));
-  if (n.source !== 'anskey') meta.push('from the Learning Portal');
+  var src = noteSourceLabel(n);
+  if (src) meta.push(src);
   return '<div class="tnCard">' +
     '<div class="tnCardHead">' +
       '<div class="tnCardId">' +
@@ -10837,6 +10851,10 @@ function notesCardHtml(n) {
     '</div>' +
     '<div class="tnRow"><div class="tnLabel">Used for</div><div class="tnChips">' + tagHtml + '</div></div>' +
     (guide ? '<div class="tnRow"><div class="tnLabel">General guidance</div><div class="tnText">' + escHtml(guide) + '</div></div>' : '') +
+    // A rule typed while looking at a question reads very differently once the
+    // question is gone. It is shown, never sent: the whole question in every
+    // prompt would drown the rule it was written to carry.
+    (askedAbout ? '<div class="tnRow"><div class="tnLabel">Written against</div><div class="tnText tnTextSoft">' + escHtml(askedAbout) + '</div></div>' : '') +
     (guide && !(n.keywords || []).length ? '' :
       '<div class="tnRow"><div class="tnLabel">Keywords</div><div class="tnChips">' + kwHtml + '</div></div>') +
     (std ? '<div class="tnRow"><div class="tnLabel">Marking standards</div><div class="tnText">' + escHtml(std) + '</div></div>' : '') +
@@ -10897,7 +10915,7 @@ function renderNotesBody() {
   body.innerHTML =
     '<div class="tnPanel">' +
       '<h3>📌 General guidance</h3>' +
-      '<p class="tnSub">House rules in your own words. They apply to <b>every</b> worksheet and go into the prompt exactly as you typed them — nothing is extracted, nothing is summarised — so the AI follows them whenever it writes an answer, builds an answer key, explains something <b>or marks a student</b>. This is the quickest way in: type it and it is live.</p>' +
+      '<p class="tnSub">House rules in your own words. They apply to <b>every</b> worksheet and go into the prompt exactly as you typed them — nothing is extracted, nothing is summarised — so the AI follows them whenever it writes an answer, builds an answer key, explains something <b>or marks a student</b>. This is the quickest way in: type it and it is live. Rules you type on an answer card in <b>Scan &amp; Answer</b> land here too, with the question they were written against.</p>' +
       '<div class="tnBtnRow">' +
         '<button class="btn btnPrimary" onclick="openQuickNoteModal()">✍️ Add a note</button>' +
         '<span class="tnHint">Also on the toolbar, so you never have to open this window</span>' +

@@ -3,6 +3,25 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Corrections typed on a scanned answer land in your notebook (v1.71.0)
+
+The **Scan & Answer** app now lets the teacher fix an answer it got wrong and,
+in the same breath, say what should have happened. That rule is written into
+**this** app's notebook — `users/{adminUid}/teachingNotes`, the collection all
+three apps share — so it is obeyed here from the very next answer, key,
+explanation or mark, without anybody retyping it.
+
+Two things changed here so those notes read as what they are:
+
+- **The card names the right app.** Any note that was not written here was
+  labelled *from the Learning Portal*, so every rule typed on a phone over a
+  worksheet was attributed to the wrong app. It now says *from Scan & Answer*
+  where that is where it came from.
+- **A correction shows the question it was written against.** A rule typed
+  while looking at a question reads very differently once the question is gone,
+  so the card carries a *Written against* line. It is shown, never sent — the
+  whole question in every prompt would drown the rule it was written to carry.
+
 ## The logo shows on every device now (v1.70.1)
 
 **The header logo was missing on the iPad.** It was loaded from the brand's

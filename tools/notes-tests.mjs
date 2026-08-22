@@ -41,7 +41,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, notesKeywordList, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples() };')();
+const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples() };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -144,6 +144,21 @@ const card = mod.notesCardHtml({ id: 'n1', title: 'Heat <b>notes</b>', keywords:
 ok('the title is escaped', card.includes('Heat &lt;b&gt;notes&lt;/b&gt;'));
 ok('the keyword is escaped', card.includes('a &amp; b'));
 ok('the subject and level are shown', card.includes('Science') && card.includes('P5'));
+
+console.log('\nOne notebook, three apps — the card says which one wrote the note');
+ok('a note written here is not labelled at all', mod.noteSourceLabel({ source: 'anskey' }) === '');
+ok('a note written in the Scan app names the Scan app', mod.noteSourceLabel({ source: 'scan' }) === 'from Scan & Answer');
+ok('anything else is the Learning Portal, as it always was', mod.noteSourceLabel({}) === 'from the Learning Portal');
+const corr = mod.notesCardHtml({
+  id: 'n9', title: 'Name the process', source: 'scan', noteKind: 'correction',
+  guidance: 'Always name the process.', sourceQuestion: 'How would this affect the peaches?',
+  keyFacts: 'Question: How would this affect the peaches?\nThe answer is: They grow larger.',
+  keywords: [], subjects: [], levels: []
+});
+ok('a correction from the Scan app says so', corr.includes('from Scan &amp; Answer') || corr.includes('from Scan & Answer'));
+ok('the rule is shown as guidance', corr.includes('Always name the process.'));
+ok('and the question it was written against is shown with it', corr.includes('Written against'));
+ok('the corrected answer is kept as a key fact', corr.includes('They grow larger.'));
 
 console.log(fails ? '\n' + fails + ' FAILED\n' : '\nAll good.\n');
 process.exit(fails ? 1 : 0);
