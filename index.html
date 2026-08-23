@@ -4009,6 +4009,13 @@
           </span>
         </label>
         <label class="engineOpt">
+          <input type="radio" name="aiEngineChoice" value="kimi">
+          <span>
+            <strong>Kimi</strong>
+            <span class="engineOptNote">Moonshot AI · a third supplier, on its own bill and its own cap · your own key required</span>
+          </span>
+        </label>
+        <label class="engineOpt">
           <input type="radio" name="aiEngineChoice" value="gemini">
           <span>
             <strong>Gemini 3.7 Flash</strong>
@@ -4040,6 +4047,22 @@
         <label for="aiEngineKeyInput">OpenAI API key</label>
         <input type="password" id="aiEngineKeyInput" placeholder="sk-..." autocomplete="off" spellcheck="false">
         <div class="fieldHint">Paste it once. It is kept in this browser <em>and</em> in your own teacher-only settings record, so every device you sign in with — a new iPad, a cleared browser, a reinstall — picks it up again by itself and never asks for it twice. Only your admin account can read it; students and share-link visitors cannot, and they simply keep using Gemini. Clear the box and save to forget it everywhere.</div>
+      </div>
+
+      <div class="fieldRow">
+        <label for="aiEngineKimiModelInput">Kimi model</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="aiEngineKimiModelInput" list="aiEngineKimiModels" placeholder="kimi-k3" autocomplete="off" spellcheck="false" style="flex:1;">
+          <button type="button" class="btn" id="aiEngineKimiLoadBtn">🔄 Load models</button>
+        </div>
+        <datalist id="aiEngineKimiModels"></datalist>
+        <div class="fieldHint">Moonshot renames its flagship with every release, so this is a <strong>box, not a fixed list</strong>: <strong>🔄 Load models</strong> asks your own Kimi account which ids it will answer to. If Kimi starts refusing every call, an out-of-date id here is the first thing to check — the error names the model it tried.</div>
+      </div>
+
+      <div class="fieldRow">
+        <label for="aiEngineKimiKeyInput">Kimi API key</label>
+        <input type="password" id="aiEngineKimiKeyInput" placeholder="sk-..." autocomplete="off" spellcheck="false">
+        <div class="fieldHint">Paste it once. Like the OpenAI key it is kept in this browser <em>and</em> in your own teacher-only settings record, so every device you sign in with picks it up again by itself. Only your admin account can read it. Clear the box and save to forget it everywhere.</div>
       </div>
 
       <div class="modalActions">
@@ -4367,7 +4390,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.71.0';
+var APP_VERSION = 'v1.72.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -9609,7 +9632,7 @@ function deleteSelected() {
    a new device, a cleared browser or a fresh install all come back with the key
    already in place. That doc is admin-only by Firestore rule (see README) —
    nothing about it is student-readable. */
-var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', imageModel: 'ak_openai_image_model' };
+var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', imageModel: 'ak_openai_image_model', kimiKey: 'ak_kimi_key', kimiModel: 'ak_kimi_model' };
 var AI_ENGINE_COLLECTION = 'adminSettings';   // one doc per admin uid
 var OPENAI_DEFAULT_MODEL = 'gpt-5.6-sol';
 var OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-1';
@@ -9633,12 +9656,94 @@ function getOpenAiImageModel() { try { return localStorage.getItem(AI_ENGINE_STO
 function openAiActive() { return getAiEngine() === 'openai' && !!getOpenAiKey(); }
 window.openAiActive = openAiActive;
 
+/* ── 🌙 KIMI (Moonshot AI) — THE THIRD ENGINE ─────────────────────────
+   Gemini and ChatGPT are two suppliers on two bills, so "the other one" has
+   never been more than one deep. Kimi is a third account with its own cap and
+   its own outage — which is the point of it: the morning the Firebase project
+   is capped AND the OpenAI balance is at zero is a morning that happens.
+
+   It is reached exactly the way ChatGPT is here — a key pasted once into the
+   AI Engine dialog and kept in the admin's own settings record, so a new
+   iPad, a cleared browser or a reinstall all pick it back up. It speaks the
+   OpenAI chat-completions dialect, so `askKimi` has the same call shape as
+   `window.askGemini` and `window.askOpenAI` and the bridge can swap one for
+   another. What it will NOT take is a PDF: that is an OpenAI `file` part and
+   Moonshot has no such part.
+
+   THE MODEL IS A FIELD, NOT A CONSTANT. Moonshot renames its flagship with
+   every release (kimi-k2-…, kimi-k3-…), so an id hard-coded here is a 404 on
+   every call a few months from now with nothing on screen to say the id is
+   merely out of date. 🔄 Load models asks the account itself. */
+var KIMI_API_BASE = 'https://api.moonshot.ai/v1';
+var KIMI_DEFAULT_MODEL = 'kimi-k3';
+var KIMI_MAX_OUTPUT = 32000;
+function getKimiKey() { try { return (localStorage.getItem(AI_ENGINE_STORE.kimiKey) || '').trim(); } catch (e) { return ''; } }
+function getKimiModel() { try { return (localStorage.getItem(AI_ENGINE_STORE.kimiModel) || '').trim() || KIMI_DEFAULT_MODEL; } catch (e) { return KIMI_DEFAULT_MODEL; } }
+function kimiActive() { return getAiEngine() === 'kimi' && !!getKimiKey(); }
+window.kimiActive = kimiActive;
+
+window.askKimi = async function askKimi(prompt, opts) {
+  var o = opts || {};
+  var model = getKimiModel();
+  var content = [{ type: 'text', text: prompt }];
+  (o.images || []).forEach(function (img) {
+    if (!img || !img.data) return;
+    content.push({ type: 'image_url', image_url: { url: 'data:' + (img.mimeType || 'image/jpeg') + ';base64,' + img.data } });
+  });
+  var messages = [];
+  var system = o.system || '';
+  // json_object mode is refused unless the word "json" appears in the prompt.
+  if (o.json && !/json/i.test(system + ' ' + prompt)) system += (system ? '\n' : '') + 'Reply with JSON only.';
+  if (system) messages.push({ role: 'system', content: system });
+  messages.push({ role: 'user', content: content });
+  var body = {
+    model: model,
+    messages: messages,
+    max_tokens: Math.min(KIMI_MAX_OUTPUT, Math.max(1024, o.maxOutputTokens || 512))
+  };
+  if (o.json) body.response_format = { type: 'json_object' };
+  if (o.temperature !== undefined) body.temperature = o.temperature;
+  var res = await fetch(KIMI_API_BASE + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getKimiKey() },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    var detail = '';
+    try { var ej = await res.json(); detail = ej && ej.error ? (ej.error.message || '') : ''; } catch (e) { /* non-JSON error body */ }
+    // The model id rides in the message on purpose: an id a release out of
+    // date is the commonest way this engine dies, and unsaid it reads as
+    // "Kimi is broken" rather than "press 🔄 Load models".
+    var err = new Error('Kimi API error ' + res.status + ' (model ' + model + ')' + (detail ? ': ' + detail : ''));
+    err.status = res.status; err.detail = detail;
+    throw err;
+  }
+  var data = await res.json();
+  var c = data && data.choices && data.choices[0];
+  var text = c && c.message && c.message.content;
+  if (typeof text !== 'string' || !text.trim()) throw new Error('Kimi returned an unexpected response shape.');
+  return text.trim();
+};
+
+/* What the account itself says it will answer to. A list of ids typed into
+   this file goes stale on Moonshot's release schedule rather than ours. */
+async function kimiListModels(key) {
+  var k = (key || getKimiKey() || '').trim();
+  if (!k) throw new Error('Paste a Kimi key first — the list is read from the account it belongs to.');
+  var res = await fetch(KIMI_API_BASE + '/models', { headers: { 'Authorization': 'Bearer ' + k } });
+  if (!res.ok) throw new Error('Kimi API error ' + res.status);
+  var data = await res.json();
+  var ids = (((data && data.data) || []).map(function (m) { return m && m.id; }).filter(Boolean)).sort();
+  if (!ids.length) throw new Error('That account listed no models.');
+  return ids;
+}
+
 /* Every user-facing mention of the engine goes through here, so nothing in
    the app claims Gemini is working while ChatGPT is the engine that is on.
    Static markup carries the default wording: a <span class="aiName"> holds
    the name inside a sentence, and data-ai-title holds a tooltip with {ai}
    where the name goes. Both are rewritten whenever the engine changes. */
-function aiEngineName() { return openAiActive() ? 'ChatGPT' : 'Gemini'; }
+function aiEngineName() { return openAiActive() ? 'ChatGPT' : kimiActive() ? 'Kimi' : 'Gemini'; }
 window.aiEngineName = aiEngineName;
 
 function refreshAiEngineNames() {
@@ -9837,11 +9942,14 @@ function saveAiEngineToCloud(user) {
   var ref = aiEngineDocRef(user);
   if (!ref) return Promise.resolve(false);
   var key = getOpenAiKey();
+  var kimiKey = getKimiKey();
   var payload = {
     engine: getAiEngine(),
     model: getOpenAiModel(),
     imageModel: getOpenAiImageModel(),
     openAiKey: key || firebase.firestore.FieldValue.delete(),
+    kimiKey: kimiKey || firebase.firestore.FieldValue.delete(),
+    kimiModel: getKimiModel(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
   return ref.set(payload, { merge: true }).then(function () { return true; });
@@ -9857,6 +9965,15 @@ async function loadAiEngineFromCloud(user) {
   try { snap = await ref.get(); }
   catch (e) { console.warn('Could not read the saved AI engine settings', e); return; }
   var d = (snap && snap.exists && snap.data()) || null;
+  if (d && d.kimiKey) {
+    // Read BEFORE the OpenAI early-out below, or a Kimi key saved on the iPad
+    // is picked up on no other device — the very thing this record is for.
+    try {
+      localStorage.setItem(AI_ENGINE_STORE.kimiKey, String(d.kimiKey).trim());
+      if (d.kimiModel) localStorage.setItem(AI_ENGINE_STORE.kimiModel, String(d.kimiModel).trim());
+      if (d.engine) localStorage.setItem(AI_ENGINE_STORE.engine, d.engine);
+    } catch (e) { console.warn('Could not store the Kimi settings on this device', e); }
+  }
   if (!d || !d.openAiKey) {
     // Nothing saved yet — if this device is the one holding the key, keep it.
     if (getOpenAiKey()) saveAiEngineToCloud(user).catch(function (e) {
@@ -9914,6 +10031,8 @@ function openAiEngineModal() {
   imgSel.value = getOpenAiImageModel();
   if (!imgSel.value) imgSel.value = OPENAI_IMAGE_DEFAULT_MODEL;
   $('aiEngineKeyInput').value = getOpenAiKey();
+  if ($('aiEngineKimiModelInput')) $('aiEngineKimiModelInput').value = getKimiModel();
+  if ($('aiEngineKimiKeyInput')) $('aiEngineKimiKeyInput').value = getKimiKey();
   $('aiEngineModal').classList.add('open');
 }
 
@@ -9925,18 +10044,26 @@ function saveAiEngineSettings() {
   var key = ($('aiEngineKeyInput').value || '').trim();
   var model = $('aiEngineModelSel').value || OPENAI_DEFAULT_MODEL;
   var imageModel = $('aiEngineImageModelSel').value || OPENAI_IMAGE_DEFAULT_MODEL;
+  var kimiKey = (($('aiEngineKimiKeyInput') && $('aiEngineKimiKeyInput').value) || '').trim();
+  var kimiModel = (($('aiEngineKimiModelInput') && $('aiEngineKimiModelInput').value) || '').trim() || KIMI_DEFAULT_MODEL;
   if (eng === 'openai' && !key) { toast('Paste your OpenAI API key to use ChatGPT', 4000); return; }
+  if (eng === 'kimi' && !kimiKey) { toast('Paste your Kimi API key to use Kimi', 4000); return; }
   try {
     localStorage.setItem(AI_ENGINE_STORE.engine, eng);
     localStorage.setItem(AI_ENGINE_STORE.model, model);
     localStorage.setItem(AI_ENGINE_STORE.imageModel, imageModel);
     if (key) localStorage.setItem(AI_ENGINE_STORE.key, key);
     else localStorage.removeItem(AI_ENGINE_STORE.key);
+    localStorage.setItem(AI_ENGINE_STORE.kimiModel, kimiModel);
+    if (kimiKey) localStorage.setItem(AI_ENGINE_STORE.kimiKey, kimiKey);
+    else localStorage.removeItem(AI_ENGINE_STORE.kimiKey);
   } catch (e) { toast('Could not save: ' + ((e && e.message) || e), 4000); return; }
   closeAiEngineModal();
   renderAuthArea();        // the header button names the engine that is now on
   refreshAiEngineNames();  // …and so does every label, hint and tooltip
-  var what = eng === 'openai' ? 'AI engine set to ChatGPT (' + model + ')' : 'AI engine set to Gemini';
+  var what = eng === 'openai' ? 'AI engine set to ChatGPT (' + model + ')'
+    : eng === 'kimi' ? 'AI engine set to Kimi (' + kimiModel + ')'
+    : 'AI engine set to Gemini';
   // Saved to the admin's own settings doc as well, so this is the last time the
   // key has to be typed anywhere — a new iPad, a cleared browser or a reinstall
   // all pick it back up at sign-in.
@@ -9951,6 +10078,20 @@ function saveAiEngineSettings() {
 $('aiEngineCloseBtn').addEventListener('click', closeAiEngineModal);
 $('aiEngineCancelBtn').addEventListener('click', closeAiEngineModal);
 $('aiEngineSaveBtn').addEventListener('click', saveAiEngineSettings);
+/* The account's own model list, in one call — because a list of ids typed
+   into this file goes stale on Moonshot's schedule rather than ours, and a
+   stale id is a 404 on every call with nothing on screen to say why. */
+if ($('aiEngineKimiLoadBtn')) $('aiEngineKimiLoadBtn').addEventListener('click', async function () {
+  var btn = $('aiEngineKimiLoadBtn'), dl = $('aiEngineKimiModels'), keyEl = $('aiEngineKimiKeyInput');
+  btn.disabled = true; btn.textContent = 'Loading…';
+  try {
+    var ids = await kimiListModels((keyEl && keyEl.value) || '');
+    if (dl) dl.innerHTML = ids.map(function (id) { return '<option value="' + id.replace(/"/g, '&quot;') + '"></option>'; }).join('');
+    toast(ids.length + ' Kimi models loaded — open the model box and pick one', 4000);
+  } catch (e) {
+    toast("Could not read Kimi's model list: " + ((e && e.message) || e), 5000);
+  } finally { btn.disabled = false; btn.textContent = '🔄 Load models'; }
+});
 $('aiEngineModal').addEventListener('click', function (e) {
   if (e.target === $('aiEngineModal')) closeAiEngineModal();
 });
@@ -17243,7 +17384,7 @@ function renderAuthArea() {
     var engBtn = document.createElement('button');
     engBtn.className = 'btn';
     // The label doubles as the status: it names ChatGPT while that engine is on.
-    engBtn.textContent = openAiActive() ? 'AI · ChatGPT' : 'AI Engine';
+    engBtn.textContent = openAiActive() ? 'AI · ChatGPT' : kimiActive() ? 'AI · Kimi' : 'AI Engine';
     engBtn.title = 'Choose which AI powers the app — ChatGPT gpt-5.6-sol (default, needs your OpenAI key) or Gemini, which needs none and catches anything ChatGPT drops.';
     engBtn.addEventListener('click', openAiEngineModal);
     area.appendChild(engBtn);
@@ -22496,7 +22637,8 @@ try {
 // The optional ChatGPT engine (classic script above) counts as ready even if
 // Firebase AI failed to start — and vice versa.
 const openAiOn = () => !!(window.openAiActive && window.openAiActive());
-window.aiReady = () => !!geminiModel || openAiOn();
+const kimiOn = () => !!(window.kimiActive && window.kimiActive());
+window.aiReady = () => !!geminiModel || openAiOn() || kimiOn();
 
 // AI_THINK_MIN keeps Gemini "thinking" to a minimum so the token budget goes
 // to the answer (faster + cheaper for short tasks). Gemini 3.x rejects the
@@ -22521,6 +22663,15 @@ window.askGemini = async function askGemini(prompt, opts = {}) {
       return out;
     } catch (e) {
       console.warn("ChatGPT engine failed, falling back to Gemini:", e);
+      window.aiLastCall = { engine: "gemini", fellBack: true, error: (e && e.message) || String(e) };
+    }
+  } else if (kimiOn()) {
+    try {
+      const out = await window.askKimi(prompt, opts);
+      window.aiLastCall = { engine: "kimi", fellBack: false, error: "" };
+      return out;
+    } catch (e) {
+      console.warn("Kimi engine failed, falling back to Gemini:", e);
       window.aiLastCall = { engine: "gemini", fellBack: true, error: (e && e.message) || String(e) };
     }
   } else {
