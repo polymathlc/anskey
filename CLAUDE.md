@@ -165,6 +165,39 @@ to know whether the upload/deploy went through.
 - Keep spacing scale consistent across the whole app so every surface feels like the same design
   system.
 
+## 🌙 Kimi — the third engine (`kimiActive` / `window.askKimi` / `kimiListModels`)
+
+Everything here answers through Gemini on the shared `mathgen--app` project or
+through ChatGPT on the admin's own key — two suppliers on two bills. The
+morning the Firebase project is capped **and** the OpenAI balance is at zero is
+a morning that happens, and it used to leave every Polymath app dead at once.
+Kimi (Moonshot AI) is a third company on a third account.
+
+- **It is reached exactly the way ChatGPT is here** — a key pasted once into
+  the AI Engine dialog and kept in the admin's own `adminSettings` record, so a
+  new iPad, a cleared browser or a reinstall pick it back up. It speaks the
+  OpenAI chat-completions dialect, so `window.askKimi` has the SAME call shape
+  as `window.askGemini` and `window.askOpenAI` and the bridge swaps one for
+  another. Students and share-link visitors have no key, so they keep running
+  on Gemini, unaffected — the same as ChatGPT.
+- **`loadAiEngineFromCloud` reads the Kimi key BEFORE its OpenAI early-out.**
+  That function used to give up entirely when the record held no `openAiKey`,
+  which would have left a Kimi key saved on the iPad and picked up on no other
+  device — the very thing the record exists for.
+- **`aiEngineName()` is the ONE place the engine is named**, so the header
+  button, every `.aiName` span and every `{ai}` tooltip say *Kimi* when Kimi is
+  the engine that is on. An app claiming Gemini while ChatGPT answers was the
+  bug that function was written for; a third engine is a third way to make it.
+- **THE MODEL IS A FIELD, NOT A CONSTANT.** Moonshot renames its flagship with
+  every release (`kimi-k2-…`, `kimi-k3-…`), so an id hard-coded here is a 404
+  on every call a few months from now — and a 404 on every call reads as "Kimi
+  is broken" rather than "the id is a release out of date". 🔄 **Load models**
+  asks the account itself, and every Kimi error names the model it tried.
+- **The key can never live in this file.** The app is served from a public
+  address, so a key written here would be in the page source of every student's
+  browser and in the repository's history for good — the same rule the OpenAI
+  key has always had.
+
 ## House rules
 - **The Gemini model is `AI_MODEL` and its thinking floor is `AI_THINK_MIN`, and the two move
   TOGETHER** (v1.66.0). Every model has its own thinking scale, and a level it does not know is a
