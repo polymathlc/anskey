@@ -37,10 +37,32 @@ const fakeCtx = {
  'fillText', 'translate', 'scale', 'setTransform', 'setLineDash', 'bezierCurveTo', 'toBlob']
   .forEach((k) => { fakeCtx[k] = () => {}; });
 
-const store = {};
+/* A localStorage that really stores, so "the worksheet's own board is not
+   clobbered by a board opened from a card" can be checked rather than assumed
+   — it was a bare {} before, so every setItem threw into mmFlushBoard's own
+   catch and nothing was ever written. */
+const storeData = {};
+const store = {
+  getItem: (k) => (Object.prototype.hasOwnProperty.call(storeData, k) ? storeData[k] : null),
+  setItem: (k, v) => { storeData[k] = String(v); },
+  removeItem: (k) => { delete storeData[k]; }
+};
 const prelude = `
 var currentDocId = 'doc1';
 var docName = 'Heat worksheet.pdf';
+// Pinning a mindmap to the page and the AI bar are the teacher's own, so the
+// section now asks who is here. Nothing below draws a card or calls the model.
+function isStudent() { return false; }
+function isSharedVisitor() { return false; }
+function aiGrounding() { return ''; }
+function aiEngineName() { return 'Gemini'; }
+var pdfDoc = null, pages = [], annotations = [];
+function newAnnId() { return 'a' + (annotations.length + 1); }
+function round2(v) { return Math.round(v * 100) / 100; }
+function pushUndo() {}
+function setDirty() {}
+function renderAllOverlays() {}
+function _parseAIJson(s) { return JSON.parse(s); }
 function $(id) { return STUB_EL(id); }
 function toast() {}
 function clampWinBox(b) { return b; }
@@ -71,6 +93,10 @@ const mod = new Function('STUB_EL', 'STORE', 'WINDOW_PROMPT_GET', `
            mmSerialise, mmDeserialise, mmPush, mmUndo, mmRedo, mmNewShape, mmResize,
            mmDeleteSelected, mmDuplicate, mmFreeSpot, mmAddChild, mmAddSibling,
            mmApplyToSelection, mmHexOrDefault, mmBoardKey, mmFlushBoard, mmLoadBoard,
+           mmAiLayout, mmAiPlace, mmAttachX, mmAttachY, mmRenderToDataUrl,
+           attachedId: function () { return mmAttachedId; },
+           annotations: function () { return annotations; },
+           setAttachedId: function (v) { mmAttachedId = v; },
            reset: function () { mmBoard.el = []; mmBoard.con = []; mmBoard.sel = []; mmBoard.selCon = null;
              mmBoard.zoom = 1; mmBoard.pan = { x: 0, y: 0 }; mmBoard.history = []; mmBoard.hIndex = -1; },
            ctx: function () { return CTX; } };
@@ -357,6 +383,138 @@ ok('words on their own come with no box round them',
 
 console.log('\nThe board is filed under the worksheet it belongs to');
 ok('the key names the worksheet', M.mmBoardKey() === 'polymath.mmBoard:doc1');
+
+
+/* ================= The AI bar's layout =================
+   The model returns nodes and links; where they GO is worked out here, in
+   code, so the same reply always comes out readable. A model asked for
+   coordinates puts boxes on top of each other, and a board nobody can read is
+   a board the teacher redraws by hand. */
+console.log('\nThe AI lays a map out so it can be read');
+{
+  const nodes = [{ id: 'c', text: 'Water cycle' }];
+  for (let i = 0; i < 8; i++) nodes.push({ id: 'n' + i, text: 'stage ' + i });
+  const links = nodes.slice(1).map(n => ({ from: 'c', to: n.id }));
+  const lay = mod.mmAiLayout(nodes, links);
+  ok('every node is given a place', nodes.every(n => lay.pos[n.id]));
+  ok('the centre really is at the centre', Math.abs(lay.pos.c.x + lay.W / 2) < 1 && Math.abs(lay.pos.c.y + lay.H / 2) < 1);
+  ok('the centre is ring 0 and its children are ring 1',
+     lay.depth.c === 0 && nodes.slice(1).every(n => lay.depth[n.id] === 1));
+  /* Two boxes in the same place is the one failure that makes the whole
+     feature useless, and it is the one a bigger map causes. */
+  const boxes = nodes.map(n => ({ x: lay.pos[n.id].x, y: lay.pos[n.id].y, w: lay.W, h: lay.H }));
+  let overlap = 0;
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+    const a = boxes[i], b = boxes[j];
+    if (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) overlap++;
+  }
+  ok('no two boxes sit on top of each other', overlap === 0, overlap + ' overlapping pairs');
+}
+{
+  /* Twenty on one ring is where a fixed radius stops working. */
+  const nodes = [{ id: 'c', text: 'Centre' }];
+  for (let i = 0; i < 20; i++) nodes.push({ id: 'n' + i, text: 'idea ' + i });
+  const lay = mod.mmAiLayout(nodes, nodes.slice(1).map(n => ({ from: 'c', to: n.id })));
+  const ring = nodes.slice(1).map(n => lay.pos[n.id]);
+  let overlap = 0;
+  for (let i = 0; i < ring.length; i++) for (let j = i + 1; j < ring.length; j++) {
+    if (ring[i].x < ring[j].x + lay.W && ring[i].x + lay.W > ring[j].x &&
+        ring[i].y < ring[j].y + lay.H && ring[i].y + lay.H > ring[j].y) overlap++;
+  }
+  ok('a crowded ring grows rather than piling up', overlap === 0, overlap + ' overlapping pairs');
+}
+{
+  /* A node the model forgot to link is still an idea the teacher asked for. */
+  const nodes = [{ id: 'c', text: 'Centre' }, { id: 'a', text: 'linked' }, { id: 'orphan', text: 'forgotten' }];
+  const lay = mod.mmAiLayout(nodes, [{ from: 'c', to: 'a' }]);
+  ok('an unlinked node is still placed', !!lay.pos.orphan);
+  ok('...on a real ring, not on top of the centre', lay.depth.orphan >= 1);
+}
+
+console.log('\nThe map becomes real boxes and real arrows');
+{
+  mod.reset();
+  const nodes = [{ id: 'c', text: 'Centre' }, { id: 'a', text: 'One' }, { id: 'b', text: 'Two' }];
+  mod.mmAiPlace(nodes, [{ from: 'c', to: 'a' }, { from: 'c', to: 'b' }, { from: 'a', to: 'a' }], false);
+  ok('one box per node', mod.mmBoard.el.length === 3);
+  ok('the words are in the boxes', mod.mmBoard.el.map(e => e.text).sort().join('|') === 'Centre|One|Two');
+  ok('one arrow per link', mod.mmBoard.con.length === 2);
+  ok('a node joined to itself is refused', !mod.mmBoard.con.some(c => c.from === c.to));
+  ok('the centre is drawn differently from its branches',
+     mod.mmBoard.el.filter(e => e.type === 'circle').length === 1);
+}
+{
+  /* "Add to it" must not draw through the teacher's own work. */
+  mod.reset();
+  mod.mmBoard.el.push(mod.mmNewShape('rect', 0, 0, 120, 60));
+  mod.mmBoard.el[0].text = 'mine';
+  const before = mod.mmBoard.el[0];
+  /* A WIDE map: its ring reaches far to the left of its own centre, which is
+     what catches an offset measured from the centre instead of from the
+     map's own left edge — half the new map drawn through the teacher's work. */
+  const wideNodes = [{ id: 'c', text: 'New' }];
+  for (let i = 0; i < 9; i++) wideNodes.push({ id: 'w' + i, text: 'branch ' + i });
+  mod.mmAiPlace(wideNodes, wideNodes.slice(1).map(n => ({ from: 'c', to: n.id })), true);
+  ok('what was already there is kept', mod.mmBoard.el.indexOf(before) >= 0);
+  ok('the new map is added beside it', mod.mmBoard.el.length === 1 + wideNodes.length);
+  const added = mod.mmBoard.el.filter(e => e !== before);
+  ok('and clear of it, not through it', added.every(e => e.x >= 120),
+     'leftmost new box at ' + Math.min.apply(null, added.map(e => e.x)));
+  /* ...and building fresh REPLACES, or a second Build stacks two maps. */
+  mod.mmAiPlace([{ id: 'c', text: 'Fresh' }], [], false);
+  ok('building fresh clears the board first', mod.mmBoard.el.length === 1 && mod.mmBoard.el[0].text === 'Fresh');
+}
+
+console.log('\nA pinned card is not silently overwritten by the next one');
+{
+  mod.setAttachedId('ann-7');
+  ok('the card being edited is remembered', mod.attachedId() === 'ann-7');
+  /* Loading the worksheet's own board must FORGET it, or the next pin writes
+     this board over a card holding a completely different mindmap. */
+  mod.mmLoadBoard();
+  ok('loading the worksheet board forgets it', mod.attachedId() === null);
+}
+
+console.log('\nA board opened from a card is written back to THAT card');
+{
+  mod.reset();
+  mod.setAttachedId(null);
+  mod.mmLoadBoard();                       // the worksheet's own board
+  mod.mmBoard.el.push(mod.mmNewShape('rect', 0, 0, 100, 50));
+  mod.mmBoard.el[0].text = 'the worksheet board';
+  mod.mmFlushBoard();
+  const worksheetSlot = storeData[mod.mmBoardKey()];
+  ok('the worksheet board is remembered on the device', /the worksheet board/.test(worksheetSlot || ''));
+
+  /* Now edit a PINNED card's board. Writing it to the worksheet's own slot
+     would quietly destroy the board above — the one silent data loss this
+     feature can cause. */
+  const card = { id: 'ann-9', type: 'ainote', kind: 'mindmap', mm: null };
+  mod.annotations().push(card);
+  mod.setAttachedId('ann-9');
+  mod.reset();
+  mod.mmBoard.el.push(mod.mmNewShape('rect', 0, 0, 100, 50));
+  mod.mmBoard.el[0].text = 'the card board';
+  mod.mmFlushBoard();
+  ok('the card keeps the board it was given', !!card.mm && /the card board/.test(JSON.stringify(card.mm)));
+  ok('and the worksheet board is left exactly as it was', storeData[mod.mmBoardKey()] === worksheetSlot);
+
+  /* A card deleted while its board is open must not leave writes with nowhere
+     to go — the board becomes an ordinary one again. */
+  mod.annotations().length = 0;
+  mod.mmFlushBoard();
+  ok('a deleted card releases the board', mod.attachedId() === null);
+}
+
+console.log('\nA card lands somewhere on the paper, never off the edge');
+{
+  const page = { num: 1, baseW: 600, baseH: 800, wrap: null };
+  const x = mod.mmAttachX(page, 340), y = mod.mmAttachY(page, 240);
+  ok('inside the page across', x >= 8 && x + 340 <= 600);
+  ok('inside the page down', y >= 8 && y + 240 <= 800);
+  const wide = mod.mmAttachX({ baseW: 200, baseH: 800 }, 340);
+  ok('a card wider than the page still starts on it', wide >= 8, String(wide));
+}
 
 console.log(fails ? '\n' + fails + ' failed\n' : '\nAll passed\n');
 process.exit(fails ? 1 : 0);

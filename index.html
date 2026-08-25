@@ -3076,6 +3076,31 @@
     color: #6B4A12;
   }
   .mmTool:disabled { opacity: 0.35; cursor: default; background: none; }
+  .mmAiBar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--line);
+    background: #FFFDF7;
+  }
+  .mmAiBar.mmAiHidden { display: none; }
+  .mmAiIcon { font-size: 0.95rem; line-height: 1; }
+  .mmAiInput {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 8px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    font-family: var(--font);
+    font-size: 0.86rem;
+    color: var(--ink);
+  }
+  .mmAiInput:focus { outline: none; border-color: var(--accent-strong); }
+  .mmAiGo { flex: 0 0 auto; padding: 8px 14px; font-size: 0.82rem; }
+  .mmAiGo:disabled { opacity: 0.45; cursor: default; }
   .mmStage {
     flex: 1 1 auto;
     position: relative;
@@ -3933,12 +3958,22 @@
         <button class="mmTool" id="mmFitBtn" title="Fit the whole mindmap in the window">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9V3.5H9M15 3.5h5.5V9M20.5 15v5.5H15M9 20.5H3.5V15"/></svg>
         </button>
+        <button class="mmTool" id="mmPinBtn" title="Put this mindmap on the worksheet page — it then moves, resizes and saves like any other card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-6"/><path d="M8.5 3h7l-.8 5.2 2.8 2.6v1.7H6.5v-1.7l2.8-2.6z"/></svg>
+        </button>
         <button class="mmTool" id="mmSaveImgBtn" title="Save the mindmap as a picture">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11"/><polyline points="7.5 10 12 14.5 16.5 10"/><path d="M4 16.5v2.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-2.5"/></svg>
         </button>
         <button class="mmTool" id="mmClearBtn" title="Start a new mindmap — everything on the board is cleared">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H6.5A1.5 1.5 0 0 0 5 5v14a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5z"/><polyline points="14 3.5 14 8.5 19 8.5"/></svg>
         </button>
+      </div>
+      <div class="mmAiBar" id="mmAiBar">
+        <span class="mmAiIcon">✨</span>
+        <input id="mmAiInput" class="mmAiInput" type="text"
+               placeholder="Describe a mindmap and it is drawn — e.g. the water cycle, or how a food chain works" />
+        <button class="btn btnPrimary mmAiGo" id="mmAiBtn">Build</button>
+        <button class="btn mmAiGo" id="mmAiAddBtn" title="Grow what is already on the board instead of replacing it">Add to it</button>
       </div>
       <div class="mmStage" id="mmStage">
         <canvas id="mmCanvas"></canvas>
@@ -4400,7 +4435,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.73.0';
+var APP_VERSION = 'v1.74.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -8665,6 +8700,9 @@ function enterEditMode(id, p) {
     }
     // Double-tap an AI card to ask Gemini for it again (or remove it).
     if (isStudent() || isSharedVisitor()) return;
+    // …except a mindmap, which was drawn rather than prompted: the AI note
+    // dialog would offer to regenerate a card that never came from a prompt.
+    if (a.kind === 'mindmap') { mmEditAttached(id); return; }
     var np = pages.find(function (pg) { return pg.num === a.page; }) || p;
     openAiNoteModal({ mode: 'edit', id: id, page: np });
   } else if (a.type === 'text') {
@@ -11489,6 +11527,7 @@ var AI_NOTE_SIZE = {
   table:  { w: 290, h: 150 },
   image:  { w: 230, h: 190 },
   widget: { w: 310, h: 230 },
+  mindmap: { w: 340, h: 240 },
   // A Pro build is a full app with a control panel and a second view; dropped
   // into a thumbnail-sized card it looks cramped however good it is.
   widgetPro: { w: 430, h: 320 }
@@ -11502,7 +11541,13 @@ var AI_NOTE_PILL_W = 104, AI_NOTE_PILL_H = 19;
 var aiNoteEdit = null;     // { mode: 'new'|'edit', page, x, y, id }
 var aiNoteKind = 'notes';
 
+/* MM_NOTE_KIND is deliberately NOT in AI_NOTE_KINDS: a mindmap is DRAWN on
+   the board and pinned, never asked for in the ✨ Generate chooser, so it must
+   not appear as a fifth tile there. It is still a kind the card renderer
+   knows, which is what gets it move / resize / erase / lasso / undo / print
+   for free. */
 function aiNoteKindInfo(k) {
+  if (k === 'mindmap') return MM_NOTE_KIND;
   return AI_NOTE_KINDS.find(function (x) { return x.key === k; }) || AI_NOTE_KINDS[0];
 }
 
@@ -12471,9 +12516,14 @@ function aiNoteCardNode(a) {
   if (!isStudent() && !isSharedVisitor()) {
     var redo = document.createElement('button');
     redo.className = 'aiNoteBtn';
-    redo.setAttribute('data-ainote-act', 'redo');
-    redo.textContent = '✨';
-    redo.title = 'Ask ' + aiEngineName() + ' for this card again';
+    // A mindmap was drawn, not prompted, so there is nothing to ask the model
+    // for again — ✎ opens the board back up in the editor instead.
+    var isMm = a.kind === 'mindmap';
+    redo.setAttribute('data-ainote-act', isMm ? 'mmedit' : 'redo');
+    redo.textContent = isMm ? '✎' : '✨';
+    redo.title = isMm
+      ? 'Open this mindmap in the board editor — press 📌 there to put your changes back on the page'
+      : 'Ask ' + aiEngineName() + ' for this card again';
     head.appendChild(redo);
   }
   // Everyone gets the minimise button — a card parked over the very question
@@ -12490,19 +12540,19 @@ function aiNoteCardNode(a) {
 
   var body = document.createElement('div');
   body.className = 'aiNoteBody';
-  if (a.kind === 'image' || a.kind === 'widget') body.classList.add('aiNoteBodyFlush');
+  if (a.kind === 'image' || a.kind === 'widget' || a.kind === 'mindmap') body.classList.add('aiNoteBodyFlush');
   if (a.kind === 'notes') {
     renderMiniMarkdown(body, a.text || '');
   } else if (a.kind === 'table') {
     body.appendChild(aiNoteTableNode(a));
-  } else if (a.kind === 'image') {
+  } else if (a.kind === 'image' || a.kind === 'mindmap') {
     if (a.src) {
       var img = document.createElement('img');
       img.src = a.src;
-      img.alt = a.title || 'AI picture';
+      img.alt = a.title || (a.kind === 'mindmap' ? 'Mindmap' : 'AI picture');
       body.appendChild(img);
     } else {
-      body.appendChild(aiNotePlaceholder('No picture'));
+      body.appendChild(aiNotePlaceholder(a.kind === 'mindmap' ? 'Empty mindmap' : 'No picture'));
     }
   } else if (a.kind === 'widget') {
     // The widget itself floats in its own frame (see syncAiWidgets); this
@@ -13056,6 +13106,11 @@ function handleAiNoteAction(act, id, p) {
     a.live = !a.live;
     renderOverlay(p);
     if (a.live) toast('Widget is live — tap ✋ Lock when you want to write over it again.', 3600);
+    return;
+  }
+  if (act === 'mmedit') {
+    if (isStudent() || isSharedVisitor()) return;
+    mmEditAttached(id);
     return;
   }
   if (act === 'redo') {
@@ -14211,6 +14266,7 @@ function openMm() {
   setMmWinMin(false);
   mmLoadBoard();
   mmSetTool(mmBoard.tool);
+  mmAiSyncBar();
   mmSizeCanvas();
   setTimeout(function () { try { $('mmCard').focus(); } catch (e) {} }, 30);
 }
@@ -14218,6 +14274,7 @@ function openMm() {
 function closeMm() {
   mmCommitEdit();
   mmFlushBoard();
+  mmRefreshAttachedPicture();
   $('mmModal').classList.remove('open');
   $('mmBtn').classList.remove('active');
 }
@@ -14277,6 +14334,7 @@ function mmAttachImage(el, src) {
 
 function mmLoadBoard() {
   mmKey = mmBoardKey();
+  mmAttachedId = null;
   var data = null;
   try { data = JSON.parse(localStorage.getItem(mmKey) || 'null'); } catch (e) {}
   mmDeserialise(data);
@@ -14285,18 +14343,53 @@ function mmLoadBoard() {
   mmPush();
   mmRender();
   mmSyncProps();
+  mmAiSyncBar();
 }
 
 /* localStorage has a few megabytes at most, and a pasted photo eats them
    fast — a board too big to keep is said so once rather than failing mute. */
 function mmFlushBoard() {
   clearTimeout(mmSaveTimer);
+  /* A board opened FROM a pinned card belongs to that card. Writing it to the
+     worksheet's own localStorage slot would quietly overwrite the separate
+     board the teacher keeps there — so it is written back onto the annotation
+     instead, which is also what makes an edit impossible to lose: the card is
+     current the moment it is typed, and 📌 only has to refresh the picture. */
+  if (mmAttachedId) {
+    var att = annotations.find(function (x) { return x.id === mmAttachedId && x.type === 'ainote'; });
+    if (att) {
+      att.mm = mmSerialise();
+      if (!isStudent() && !isSharedVisitor()) setDirty(true);
+    } else {
+      // The card was deleted while its board was open: it is an ordinary
+      // board again rather than a write with nowhere to go.
+      mmAttachedId = null;
+      mmKey = mmBoardKey();
+    }
+    return;
+  }
   if (!mmKey) return;
   try {
     localStorage.setItem(mmKey, JSON.stringify(mmSerialise()));
   } catch (e) {
     toast('The mindmap is too big to remember on this device — save it as a picture instead.', 4200);
   }
+}
+
+/* The picture on the card, brought back into step with the board. Cheap
+   enough on close and on 📌; not cheap enough to do on every keystroke, which
+   is why the BOARD is what is written continuously and the picture is not. */
+function mmRefreshAttachedPicture() {
+  if (!mmAttachedId) return;
+  var a = annotations.find(function (x) { return x.id === mmAttachedId && x.type === 'ainote'; });
+  if (!a) { mmAttachedId = null; return; }
+  var shot = mmRenderToDataUrl(2);
+  if (!shot) return;
+  a.src = shot.src;
+  a.mm = mmSerialise();
+  a.ts = Date.now();
+  if (!isStudent() && !isSharedVisitor()) setDirty(true);
+  renderAllOverlays();
 }
 
 function mmTouchBoard() {
@@ -15363,6 +15456,8 @@ function mmSyncBar() {
    no fill and no font, a line has neither those nor a link. */
 function mmSyncProps() {
   mmSyncBar();
+  // "Add to it" needs something to add to, so the AI bar follows the board.
+  mmAiSyncBar();
   var props = $('mmProps');
   var el = mmBoard.sel.length === 1 ? mmBoard.sel[0] : null;
   var many = mmBoard.sel.length > 1;
@@ -15523,6 +15618,354 @@ function mmClear() {
   mmSyncProps();
 }
 
+
+/* ================= THE MINDMAP ON THE PAGE =================
+   A board kept in localStorage is a board that lives on one device and never
+   reaches the worksheet — it could be exported as a picture and that was all.
+   📌 Attach puts it ON the page as an annotation, so from then on it moves,
+   resizes, erases, lassoes, undoes, prints and SAVES exactly like every other
+   annotation, and it travels with the worksheet to whoever opens it.
+
+   It is an `ainote` card of kind 'mindmap', NOT a new annotation type. That
+   is the whole trick: a new type would have to be taught to the frame maths,
+   the resize handles, the hit test, the eraser, the lasso, the thumbnails and
+   both print paths — nine places, each silent when missed. A kind the card
+   renderer already knows needs none of them.
+
+   The BOARD ITSELF rides along on `a.mm`, not just the picture, so ✎ opens it
+   back up in the editor with every box still a box. */
+var MM_NOTE_KIND = {
+  key: 'mindmap', icon: '🧠', name: 'Mindmap', short: 'Mindmap',
+  what: 'A mindmap board pinned to the worksheet.'
+};
+
+/* Which annotation the open board belongs to, so ✎ round-trips and a second
+   📌 UPDATES the card already on the page rather than stacking another one on
+   top of it. Cleared whenever a different board is loaded. */
+var mmAttachedId = null;
+
+/* The board drawn on a canvas of its own — no window zoom, no selection
+   outlines, no dotted paper. `mmSaveImage` does the same thing to a file;
+   this hands back the data URL and the aspect ratio instead. */
+function mmRenderToDataUrl(scale) {
+  if (!mmBoard.el.length) return null;
+  var b = mmCombinedBounds(mmBoard.el);
+  var pad = 24;
+  var k = scale || 2;
+  var cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round((b.width + pad * 2) * k));
+  cv.height = Math.max(1, Math.round((b.height + pad * 2) * k));
+  var ctx = cv.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.scale(k, k);
+  ctx.translate(pad - b.left, pad - b.top);
+  var wasZoom = mmBoard.zoom;
+  mmBoard.zoom = 1;   // handles and dashes are sized off it; nothing here uses them
+  try {
+    mmBoard.con.forEach(function (c) {
+      if (mmBoard.el.indexOf(c.from) >= 0 && mmBoard.el.indexOf(c.to) >= 0) mmDrawConnection(ctx, c, false);
+    });
+    mmBoard.el.forEach(function (el) { mmDrawElement(ctx, el); });
+  } finally {
+    mmBoard.zoom = wasZoom;
+  }
+  return { src: cv.toDataURL('image/png'), ratio: (b.width + pad * 2) / Math.max(1, b.height + pad * 2) };
+}
+
+/* The page a card should land on: the one filling most of the screen, which
+   is the one the teacher is looking at. */
+function mmTargetPage() {
+  if (!pages.length) return null;
+  var best = null, bestArea = -1;
+  var vh = window.innerHeight;
+  pages.forEach(function (p) {
+    var r = p.wrap ? p.wrap.getBoundingClientRect() : null;
+    if (!r) return;
+    var vis = Math.max(0, Math.min(vh, r.bottom) - Math.max(0, r.top));
+    if (vis > bestArea) { bestArea = vis; best = p; }
+  });
+  return best || pages[0];
+}
+
+/* 📌 — put the board on the page, or update the card that is already there. */
+function mmAttachToPage() {
+  if (isStudent() || isSharedVisitor()) { toast('Pinning a mindmap to the worksheet is the teacher’s own.'); return; }
+  if (!pdfDoc || !pages.length) { toast('Open a worksheet first, then pin the mindmap onto it.', 4000); return; }
+  if (!mmBoard.el.length) { toast('There is nothing on the board yet.'); return; }
+  mmCommitEdit();
+  var shot = mmRenderToDataUrl(2);
+  if (!shot) { toast('The mindmap picture could not be made.'); return; }
+  var data = mmSerialise();
+
+  var existing = mmAttachedId
+    ? annotations.find(function (x) { return x.id === mmAttachedId && x.type === 'ainote'; })
+    : null;
+  pushUndo();
+  if (existing) {
+    existing.src = shot.src;
+    existing.mm = data;
+    existing.ts = Date.now();
+    renderAllOverlays();
+    setDirty(true);
+    toast('The mindmap on the page has been brought up to date.');
+    return;
+  }
+  var page = mmTargetPage();
+  if (!page) { toast('Open a worksheet first, then pin the mindmap onto it.', 4000); return; }
+  /* Sized to the BOARD's own shape, so nothing is letterboxed the moment it
+     lands; it is a corner-drag away from any other size. */
+  var w = Math.min(340, (page.baseW || 600) * 0.55);
+  var h = Math.max(AI_NOTE_MIN_H, Math.round(w / Math.max(0.2, shot.ratio)) + AI_NOTE_HEAD_H);
+  var a = {
+    id: newAnnId(), page: page.num, type: 'ainote', kind: 'mindmap',
+    x: round2(mmAttachX(page, w)), y: round2(mmAttachY(page, h)),
+    w: round2(w), h: round2(h),
+    color: '#5DADE2', title: 'Mindmap', text: '', src: shot.src, mm: data, ts: Date.now()
+  };
+  annotations.push(a);
+  mmAttachedId = a.id;
+  renderAllOverlays();
+  setDirty(true);
+  toast('Mindmap pinned to page ' + page.num + ' — drag it about, or drag a corner to resize.', 4200);
+}
+
+/* Somewhere on the page it can actually be seen: the middle of whatever part
+   of that page is on screen, never off the edge of the paper. */
+function mmAttachX(page, w) {
+  var pw = page.baseW || 600;
+  return Math.max(8, Math.min(pw - w - 8, (pw - w) / 2));
+}
+function mmAttachY(page, h) {
+  var r = page.wrap ? page.wrap.getBoundingClientRect() : null;
+  var ph = page.baseH || 800;
+  if (!r || !r.height) return Math.max(8, (ph - h) / 2);
+  var midScreen = window.innerHeight / 2;
+  var frac = (midScreen - r.top) / r.height;
+  return Math.max(8, Math.min(ph - h - 8, frac * ph - h / 2));
+}
+
+/* ✎ on a pinned card — open that board back up in the editor. Re-pinning then
+   updates THAT card, because mmAttachedId is set to it. */
+function mmEditAttached(id) {
+  var a = annotations.find(function (x) { return x.id === id && x.type === 'ainote'; });
+  if (!a || a.kind !== 'mindmap') return;
+  if (!mmOpen()) openMm();
+  else raiseFloatWin('mmModal');
+  mmCommitEdit();
+  /* The board on the card wins over whatever was on the table: the teacher
+     asked to edit THIS one. What was on the table is already in localStorage
+     under its own key, so nothing is lost. */
+  mmFlushBoard();
+  mmDeserialise(a.mm || null);
+  mmAttachedId = a.id;
+  mmBoard.history = [];
+  mmBoard.hIndex = -1;
+  mmPush();
+  mmFit();
+  mmRender();
+  mmSyncProps();
+  toast('Editing the mindmap that is on the page — every change is kept on that card; 📌 redraws its picture.', 4600);
+}
+
+/* ================= THE AI BAR =================
+   Type what the mindmap is about and it is drawn: boxes for the ideas, arrows
+   for how they connect. It is the teacher's own AI, grounded in their
+   teaching notes like every other AI call in the app, so the wording that
+   comes back is theirs.
+
+   The model returns DATA, never a drawing: nodes and links. The layout is
+   done here, in code, so the same reply always comes out readable — a model
+   asked for coordinates puts boxes on top of each other. */
+var MM_AI_MAX_NODES = 26;
+var mmAiBusy = false;
+
+function mmAiSys() {
+  return 'You are a Singapore primary-school teacher building a MINDMAP for a class.' +
+    aiGrounding('teach') +
+    '\nReturn ONLY JSON: {"title":"the centre of the map, 1-4 words",' +
+    '"nodes":[{"id":"n1","text":"3-6 words"}],' +
+    '"links":[{"from":"n1","to":"n2","label":""}]}' +
+    '\nRULES:' +
+    '\n- Between 5 and ' + MM_AI_MAX_NODES + ' nodes. Fewer, clearer ideas beat a wall of boxes.' +
+    '\n- "text" is what goes IN the box: a short phrase a child reads at a glance, never a sentence and never a paragraph.' +
+    '\n- The first node is the CENTRE of the map and must be the title.' +
+    '\n- "links" say which idea leads to which. Every node except the centre must be reachable from the centre, so the map reads outwards.' +
+    '\n- Plain text only — no markdown, no numbering, no bullet characters.';
+}
+
+/* The reply laid out: the centre in the middle, its children on a ring around
+   it, and anything hanging off those on a wider ring. Deterministic, so the
+   same map is drawn the same way twice. */
+function mmAiLayout(nodes, links) {
+  var byId = {};
+  nodes.forEach(function (n) { byId[n.id] = n; });
+  var centre = nodes[0];
+  var depth = {}; depth[centre.id] = 0;
+  var kids = {};
+  links.forEach(function (l) {
+    if (!byId[l.from] || !byId[l.to] || l.from === l.to) return;
+    (kids[l.from] = kids[l.from] || []).push(l.to);
+  });
+  /* Breadth-first from the centre, so a node's ring is its real distance from
+     the middle rather than the order the model happened to list it in. */
+  var queue = [centre.id], guard = 0;
+  while (queue.length && guard++ < 500) {
+    var cur = queue.shift();
+    (kids[cur] || []).forEach(function (k) {
+      if (depth[k] === undefined) { depth[k] = depth[cur] + 1; queue.push(k); }
+    });
+  }
+  /* Anything the model left unconnected still has to be somewhere a person
+     can see it — dropping a box because the links were sloppy loses an idea
+     the teacher asked for. */
+  nodes.forEach(function (n) { if (depth[n.id] === undefined) depth[n.id] = 1; });
+
+  var rings = {};
+  nodes.forEach(function (n) { (rings[depth[n.id]] = rings[depth[n.id]] || []).push(n); });
+  var W = 150, H = 66, GAP = 54;
+  var pos = {};
+  Object.keys(rings).forEach(function (dKey) {
+    var d = Number(dKey), list = rings[d];
+    if (!d) { pos[list[0].id] = { x: -W / 2, y: -H / 2 }; return; }
+    /* The ring has to be big enough that the boxes on it do not touch, so it
+       grows with how many there are rather than being a fixed radius. */
+    var need = list.length * (W + GAP) / (2 * Math.PI);
+    var r = Math.max(d * (W + GAP + 40), need);
+    list.forEach(function (n, i) {
+      var ang = (i / list.length) * Math.PI * 2 - Math.PI / 2 + (d % 2 ? 0 : Math.PI / list.length);
+      pos[n.id] = { x: Math.cos(ang) * r - W / 2, y: Math.sin(ang) * r * 0.82 - H / 2 };
+    });
+  });
+  return { pos: pos, W: W, H: H, depth: depth };
+}
+
+async function mmAiBuild(add) {
+  if (isStudent() || isSharedVisitor()) { toast('Building a mindmap with AI is the teacher’s own.'); return; }
+  if (mmAiBusy) return;
+  var input = $('mmAiInput');
+  var topic = String((input && input.value) || '').trim();
+  if (!topic) { toast('Say what the mindmap is about first.'); return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  mmAiBusy = true;
+  mmAiSyncBar();
+  toast('✨ ' + aiEngineName() + ' is drawing the mindmap…', 30000);
+  try {
+    var have = add && mmBoard.el.length
+      ? '\nThe board already has these boxes on it — build AROUND them, do not repeat them: ' +
+        mmBoard.el.map(function (e) { return String(e.text || '').trim(); }).filter(Boolean).slice(0, 30).join('; ')
+      : '';
+    var raw = await window.askGemini('Mindmap topic: ' + topic + have, {
+      system: mmAiSys(), maxOutputTokens: 1400, temperature: 0.5, json: true
+    });
+    var d = _parseAIJson(raw) || {};
+    var nodes = (Array.isArray(d.nodes) ? d.nodes : [])
+      .map(function (n, i) {
+        return { id: String((n && n.id) || ('n' + i)), text: String((n && n.text) || '').trim() };
+      })
+      .filter(function (n) { return n.text; })
+      .slice(0, MM_AI_MAX_NODES);
+    if (!nodes.length) throw new Error('nothing usable came back — try saying it a different way');
+    /* The centre is the title when the model gave one, so the map reads
+       outwards from the thing that was asked for. */
+    var title = String(d.title || '').trim();
+    if (title && !nodes.some(function (n) { return n.text.toLowerCase() === title.toLowerCase(); })) {
+      nodes.unshift({ id: '__centre', text: title });
+    }
+    var ids = {};
+    nodes.forEach(function (n) { ids[n.id] = 1; });
+    var links = (Array.isArray(d.links) ? d.links : [])
+      .filter(function (l) { return l && ids[l.from] && ids[l.to] && l.from !== l.to; });
+    /* A centre we added ourselves has nothing pointing at it, so it is joined
+       to whatever the model made the first ring. */
+    if (nodes[0].id === '__centre') {
+      var pointedAt = {};
+      links.forEach(function (l) { pointedAt[l.to] = 1; });
+      nodes.slice(1).forEach(function (n) {
+        if (!pointedAt[n.id]) links.push({ from: '__centre', to: n.id });
+      });
+    }
+    mmAiPlace(nodes, links, !!add);
+    toast('Mindmap drawn — every box is yours to move, retype or recolour.', 4200);
+    if (input) input.value = '';
+  } catch (err) {
+    console.error('Mindmap AI failed', err);
+    toast(aiEngineName() + ' could not draw that: ' + ((err && err.message) || 'the request failed — please try again.'), 6000);
+  } finally {
+    mmAiBusy = false;
+    mmAiSyncBar();
+  }
+}
+
+/* The nodes and links turned into real board elements. */
+function mmAiPlace(nodes, links, add) {
+  var lay = mmAiLayout(nodes, links);
+  /* Growing an existing board puts the new map clear of everything already
+     on it, rather than through the middle of the teacher's own work. */
+  var offX = 0, offY = 0;
+  if (add && mmBoard.el.length) {
+    var b = mmCombinedBounds(mmBoard.el);
+    /* The new map's own left edge is what has to clear the old board, not its
+       centre: a wide ring reaches far to the left of the middle, so "the old
+       right edge plus a gap" drops half the new map straight through the
+       teacher's own work. */
+    var minX = Infinity;
+    Object.keys(lay.pos).forEach(function (k) { minX = Math.min(minX, lay.pos[k].x); });
+    if (!isFinite(minX)) minX = 0;
+    offX = b.right + 140 - minX;
+    offY = b.centerY;
+  } else if (!add) {
+    mmBoard.el = [];
+    mmBoard.con = [];
+  }
+  var made = {};
+  nodes.forEach(function (n) {
+    var p = lay.pos[n.id] || { x: 0, y: 0 };
+    var centre = lay.depth[n.id] === 0;
+    var el = mmNewShape(centre ? 'circle' : 'rect', offX + p.x, offY + p.y, lay.W, lay.H);
+    el.text = n.text;
+    if (centre) {
+      el.fill = '#FFDFBA';
+      el.stroke = mmDarken('#FFDFBA');
+      el.fontSize = Math.max(mmBoard.fontSize + 3, 17);
+      el.width = lay.W + 30;
+      el.x = el.x - 15;
+    }
+    mmBoard.el.push(el);
+    made[n.id] = el;
+  });
+  links.forEach(function (l) {
+    if (made[l.from] && made[l.to]) mmConnect(made[l.from], made[l.to]);
+  });
+  mmBoard.sel = [];
+  mmBoard.selCon = null;
+  mmPush();
+  mmFit();
+  mmRender();
+  mmSyncProps();
+  mmTouchBoard();
+}
+
+/* The bar is the teacher's, and it says so by not being there for anyone
+   else — a student on a share link has no AI to spend. */
+function mmAiSyncBar() {
+  var bar = $('mmAiBar');
+  if (!bar) return;
+  var allowed = !isStudent() && !isSharedVisitor();
+  bar.classList.toggle('mmAiHidden', !allowed);
+  // Pinning writes on the worksheet, so it is the teacher's too. The handler
+  // refuses as well — hiding a button is never the lock.
+  var pin = $('mmPinBtn');
+  if (pin) pin.style.display = allowed ? '' : 'none';
+  var go = $('mmAiBtn'), addBtn = $('mmAiAddBtn'), inp = $('mmAiInput');
+  if (go) { go.disabled = mmAiBusy; go.textContent = mmAiBusy ? 'Drawing…' : 'Build'; }
+  if (addBtn) addBtn.disabled = mmAiBusy || !mmBoard.el.length;
+  if (inp) inp.disabled = mmAiBusy;
+}
+
 /* ---- Wiring ---- */
 
 (function mmWire() {
@@ -15620,8 +16063,18 @@ function mmClear() {
   $('mmRedoBtn').addEventListener('click', mmRedo);
   $('mmDelBtn').addEventListener('click', mmDeleteSelected);
   $('mmFitBtn').addEventListener('click', mmFit);
+  $('mmPinBtn').addEventListener('click', mmAttachToPage);
   $('mmSaveImgBtn').addEventListener('click', mmSaveImage);
   $('mmClearBtn').addEventListener('click', mmClear);
+  $('mmAiBtn').addEventListener('click', function () { mmAiBuild(false); });
+  $('mmAiAddBtn').addEventListener('click', function () { mmAiBuild(true); });
+  $('mmAiInput').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    // Enter builds a fresh map; Shift+Enter grows the one already there, so
+    // the common case never needs the mouse.
+    mmAiBuild(e.shiftKey);
+  });
   $('mmLinkBtn').addEventListener('click', mmAskLink);
 
   var picker = document.createElement('input');
@@ -17382,6 +17835,10 @@ function applyRoleUI() {
   var codeBtn = $('codeWinBtn');
   if (codeBtn) codeBtn.style.display = student ? 'none' : '';
   if (student) closeCodeWin();
+  // The mindmap board is everyone's — the AI bar inside it is not, because it
+  // spends the teacher's own AI. Re-checked here, so a device handed back to
+  // a student mid-lesson does not keep it.
+  if (typeof mmAiSyncBar === 'function') mmAiSyncBar();
   // Recording is the teacher making the answer — students only ever watch.
   var recBtn = $('recordBtn');
   if (recBtn) recBtn.style.display = student ? 'none' : '';
@@ -21121,7 +21578,7 @@ function annBBox(a) {
 async function embedAiNoteImages(outDoc, anns) {
   var out = {};
   var wanted = (anns || []).filter(function (a) {
-    return a.type === 'ainote' && a.kind === 'image' && /^data:image\//.test(a.src || '');
+    return a.type === 'ainote' && (a.kind === 'image' || a.kind === 'mindmap') && /^data:image\//.test(a.src || '');
   });
   for (var i = 0; i < wanted.length; i++) {
     var a = wanted[i];
@@ -21218,13 +21675,13 @@ function drawAiNoteOnPdf(o) {
   var bodyTop = y + ph - headH - padY, bodyBottom = y + padY;
   var bodyH = Math.max(0, bodyTop - bodyBottom);
 
-  if (a.kind === 'image') {
+  if (a.kind === 'image' || a.kind === 'mindmap') {
     if (o.image) {
       var f = Math.min(bodyW / o.image.width, bodyH / o.image.height);
       var iw = o.image.width * f, ih = o.image.height * f;
       page.drawImage(o.image, { x: bodyX + (bodyW - iw) / 2, y: bodyBottom + (bodyH - ih) / 2, width: iw, height: ih });
     } else {
-      page.drawText('[picture]', { x: bodyX, y: bodyTop - 8, size: 7.5, font: font, color: soft });
+      page.drawText(a.kind === 'mindmap' ? '[mindmap]' : '[picture]', { x: bodyX, y: bodyTop - 8, size: 7.5, font: font, color: soft });
     }
     return;
   }
