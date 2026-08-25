@@ -1739,6 +1739,16 @@
   .tnFacts { margin-top: 12px; }
   .tnFacts summary { font-size: 0.79rem; font-weight: bold; color: var(--ink-faint); cursor: pointer; }
   .tnFacts .tnText { margin-top: 10px; }
+  .tnFitWarn {
+    background: #fdf4e3;
+    border: 1px solid #c08a2e;
+    color: #7a5410;
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    font-size: 0.86rem;
+    line-height: 1.6;
+  }
   .tnEmpty {
     text-align: center;
     color: var(--ink-faint);
@@ -4390,7 +4400,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.72.0';
+var APP_VERSION = 'v1.73.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -10145,17 +10155,32 @@ var aiStyle = null;           // { samples: [], profile: {}, profileSamples, lea
 var notesOwnerUid = '';
 var notesLoaded = false;
 var notesLoading = null;      // in-flight load, so ten callers make one read
+var notesUnsub = null;        // the LIVE listener on the notebook
+var styleUnsub = null;        // …and on the learned style profile
+var notesWatching = '';       // whose notebook those listeners are on
 var notesBusy = false;        // an upload / learning run is going on
 
-/* How much of the notebook reaches a prompt. Every AI call in the app pays
-   for these tokens, so they are deliberately tight — the digest is a
-   reminder of house style, not the notes themselves. */
-var NOTES_KW_MAX = 40;
-var NOTES_STD_CHARS = 900;
-var NOTES_FACT_CHARS = 1400;
+/* How much of the notebook reaches a prompt.
+
+   THESE ARE POTS TO SHARE OUT, NEVER A LENGTH TO CUT TO. They used to be a
+   `.slice()` over the JOINED text of every relevant note, and that is the bug
+   the teacher reported: with two standing instructions of 1,600 characters
+   each, the first lost most of itself and **the second reached no prompt at
+   all** — while sitting in the notes window looking obeyed. `notesFairShare`
+   now gives every note a guaranteed floor, TRIMS a long one rather than
+   letting the next one vanish, and files whatever still would not fit so the
+   card can say so. Restoring the `.slice()` restores the bug. */
+var NOTES_KW_MAX = 120;
+var NOTES_STD_CHARS = 2400;
+var NOTES_FACT_CHARS = 4000;
+var NOTES_COMMENT_CHARS = 600;
 /* Standing instructions are typed by hand and meant to be obeyed, so they get
    their own budget and reach EVERY kind of AI call — marking included. */
-var NOTES_GUIDE_CHARS = 1600;
+var NOTES_GUIDE_CHARS = 3000;
+var NOTES_GUIDE_MIN_EACH = 200;   // every standing rule is worth at least this
+var NOTES_FIELD_MIN_EACH = 120;   // per-note floor for standards / key facts
+var NOTES_HARD_CHARS = 12000;     // the ONLY ceiling a note can be lost to
+var NOTES_TRIM_MARK = '\u2026[trimmed]';
 var STYLE_RULE_CHARS = 800;
 var STYLE_EX_MAX = 6;
 /* The corpus itself. One Firestore document holds the lot, and a document
@@ -10187,19 +10212,58 @@ function notesNoteOwner(data) {
   if (!uid || uid === notesOwnerUid) return;
   notesOwnerUid = uid;
   try { localStorage.setItem(NOTES_OWNER_KEY, uid); } catch (e) {}
-  if (!isAdmin(currentUser)) { notesLoaded = false; loadTeachingNotes(true); }
+  if (!isAdmin(currentUser)) { notesDetach(); notesLoaded = false; loadTeachingNotes(true); }
 }
 
-/* Notes + style profile in one go. A read that fails (a student whose rules
-   do not allow the teacher's notes, an offline device) is not an error worth
-   showing: the AI simply carries on ungrounded, exactly as it did before. */
+/* ---- THE NOTEBOOK IS LIVE ----
+   This collection is written by THREE apps — this one, the Science Learning
+   Portal and the Scan app — so a one-shot `.get()` meant this tab held
+   whatever the notebook said at sign-in and never looked again: a rule typed
+   in the portal mid-lesson reached the app it was typed in and NO other, and
+   the same question was answered against two different notebooks depending on
+   which tab it was answered in. Nothing anywhere said so.
+
+   A read that fails (a student whose rules do not allow the teacher's notes,
+   an offline device) is still not an error worth showing: the AI simply
+   carries on ungrounded, exactly as it did before any of this existed. */
+function notesDetach() {
+  if (notesUnsub) { try { notesUnsub(); } catch (e) {} }
+  if (styleUnsub) { try { styleUnsub(); } catch (e) {} }
+  notesUnsub = styleUnsub = null;
+  notesWatching = '';
+}
+function stopTeachingNotes() {
+  notesDetach();
+  notesLoaded = false;
+  notesLoading = null;
+  teachingNotes = [];
+  aiStyle = null;
+}
+/* A repaint must never cost what the teacher is in the middle of typing:
+   renderNotesBody() rebuilds the whole window, so a snapshot arriving mid
+   sentence would empty the upload comment box. The notes are already live in
+   every prompt whatever the screen happens to show. */
+function notesLiveRepaint() {
+  var m = $('notesModal');
+  if (!m || !m.classList.contains('open')) return;
+  if (document.activeElement && m.contains(document.activeElement)) return;
+  renderNotesBody();
+}
 function loadTeachingNotes(force) {
-  if (notesLoaded && !force) return Promise.resolve(teachingNotes);
-  if (notesLoading) return notesLoading;
   var owner = notesOwner();
   if (!owner) return Promise.resolve(teachingNotes);
-  notesLoading = Promise.all([
-    notesCollRef(owner).get().then(function (snap) {
+  /* Already watching this notebook: it is current by definition, so `force`
+     has nothing left to do but wait for the first snapshot. */
+  if (notesUnsub && notesWatching === owner) {
+    return notesLoading || Promise.resolve(teachingNotes);
+  }
+  notesDetach();
+  notesWatching = owner;
+  var settle = null;
+  notesLoading = new Promise(function (res) { settle = res; });
+  var finish = function () { if (settle) { settle(teachingNotes); settle = null; notesLoaded = true; notesLoading = null; } };
+  try {
+    notesUnsub = notesCollRef(owner).onSnapshot(function (snap) {
       var list = [];
       snap.forEach(function (d) {
         var n = d.data();
@@ -10209,17 +10273,18 @@ function loadTeachingNotes(force) {
         return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
       });
       teachingNotes = list;
-    }).catch(function (e) { console.warn('Teaching notes could not be read', e); }),
-    styleDocRef(owner).get().then(function (snap) {
+      finish();
+      notesLiveRepaint();
+    }, function (e) { console.warn('Teaching notes could not be read', e); finish(); });
+    styleUnsub = styleDocRef(owner).onSnapshot(function (snap) {
       aiStyle = snap.exists ? snap.data() : null;
-    }).catch(function (e) { console.warn('AI style profile could not be read', e); })
-  ]).then(function () {
-    notesLoaded = true;
-    notesLoading = null;
-    if ($('notesModal') && $('notesModal').classList.contains('open')) renderNotesBody();
-    return teachingNotes;
-  });
-  return notesLoading;
+      notesLiveRepaint();
+    }, function (e) { console.warn('AI style profile could not be read', e); });
+  } catch (e) {
+    console.warn('Teaching notes listener could not start', e);
+    finish();
+  }
+  return notesLoading || Promise.resolve(teachingNotes);
 }
 
 /* ---- Which notes apply here ----
@@ -10241,10 +10306,101 @@ function notesRelevant() {
   var rel = teachingNotes.filter(noteAppliesHere);
   return rel.length ? rel : teachingNotes;
 }
-function notesJoinField(rel, field, cap) {
-  var s = rel.map(function (n) { return String(n[field] || '').trim(); })
-             .filter(Boolean).join('\n').trim();
-  return s.length > cap ? s.slice(0, cap) : s;
+/* What the LAST digest could not fit. Rebuilt on every aiGrounding() call and
+   read by the notes window, because a note quietly left out of every prompt
+   is exactly what this section exists to stop happening again. */
+var notesLedger = { trimmed: {}, dropped: {} };
+function notesLedgerReset() { notesLedger = { trimmed: {}, dropped: {} }; }
+function notesLedgerFor(id) {
+  var k = String(id || '');
+  if (notesLedger.dropped[k]) return { dropped: true };
+  return notesLedger.trimmed[k] || null;
+}
+function notesLedgerCounts() {
+  return { trimmed: Object.keys(notesLedger.trimmed).length, dropped: Object.keys(notesLedger.dropped).length };
+}
+
+/* Cut on a word boundary and SAY it was cut — a silent truncation reads to
+   the model as a sentence the teacher wrote that way. */
+function notesTrimTo(text, n) {
+  var s = String(text || '');
+  if (s.length <= n) return s;
+  var room = Math.max(1, n - NOTES_TRIM_MARK.length);
+  var cut = s.slice(0, room);
+  var sp = cut.lastIndexOf(' ');
+  if (sp > room * 0.6) cut = cut.slice(0, sp);
+  return cut.replace(/\s+$/, '') + NOTES_TRIM_MARK;
+}
+
+/* The same rule typed here and in the Science portal is ONE rule. Left in
+   twice it eats the pot twice and reads to the model as emphasis nobody
+   wrote. */
+function notesDedupe(items) {
+  var seen = {}, out = [];
+  items.forEach(function (it) {
+    var key = String(it.text || '').toLowerCase().replace(/\s+/g, ' ').replace(/[.;,]+$/, '').trim();
+    if (!key || seen[key]) return;
+    seen[key] = 1;
+    out.push(it);
+  });
+  return out;
+}
+
+/* ---- Every note gets a GUARANTEED share ----
+   Water-fill: everybody takes their floor first, then the remainder is handed
+   round to whoever still wants more. So a SHORT note is never trimmed at all,
+   and a long one is trimmed rather than the next note disappearing. When
+   there are more notes than the pot can floor, THE POT GROWS — a house rule
+   the teacher typed outranks a token — bounded by NOTES_HARD_CHARS, which is
+   the only path on which a note is lost, and then it is named. */
+function notesFairShare(items, budget, minEach) {
+  var out = { texts: [], parts: [], dropped: [] };
+  var list = notesDedupe((items || []).filter(function (it) { return it && String(it.text || '').trim(); }));
+  if (!list.length) return out;
+  var n = list.length;
+  var cap = Math.max(budget, Math.min(n * minEach, NOTES_HARD_CHARS));
+  var keepN = n, i;
+  if (n * minEach > cap) {
+    keepN = Math.max(1, Math.floor(cap / minEach));
+    for (i = keepN; i < n; i++) out.dropped.push(list[i]);
+  }
+  var use = list.slice(0, keepN);
+  var want = use.map(function (it) { return String(it.text).trim().length; });
+  var share = use.map(function () { return 0; });
+  var left = cap;
+  for (i = 0; i < use.length; i++) { var g0 = Math.min(want[i], minEach); share[i] = g0; left -= g0; }
+  while (left > 0) {
+    var hungry = [];
+    for (i = 0; i < use.length; i++) if (share[i] < want[i]) hungry.push(i);
+    if (!hungry.length) break;
+    var before = left;
+    var each = Math.max(1, Math.floor(left / hungry.length));
+    for (var h = 0; h < hungry.length; h++) {
+      if (left <= 0) break;
+      var j = hungry[h];
+      var g = Math.min(each, want[j] - share[j], left);
+      share[j] += g; left -= g;
+    }
+    if (left === before) break;
+  }
+  use.forEach(function (it, k) {
+    var text = String(it.text).trim();
+    var kept = share[k] >= text.length ? text : notesTrimTo(text, share[k]);
+    out.texts.push(kept);
+    out.parts.push({ id: it.id, kept: kept.length, wanted: text.length });
+  });
+  return out;
+}
+
+/* Fair-share one field across the notes AND file what would not fit. */
+function notesJoinField(rel, field, cap, sep) {
+  var items = rel.map(function (n) { return { id: n.id, text: String(n[field] || '').trim() }; });
+  var res = notesFairShare(items, cap, field === 'guidance' ? NOTES_GUIDE_MIN_EACH : NOTES_FIELD_MIN_EACH);
+  res.parts.forEach(function (p) {
+    if (p.wanted > p.kept) notesLedger.trimmed[String(p.id)] = { kept: p.kept, wanted: p.wanted };
+  });
+  res.dropped.forEach(function (d) { notesLedger.dropped[String(d.id)] = true; });
+  return res.texts.join(sep || '\n').trim();
 }
 function notesKeywordList(rel) {
   var seen = {}, out = [];
@@ -10306,7 +10462,7 @@ function notesBlock(kind) {
   var kw = notesKeywordList(rel);
   var std = notesJoinField(rel, 'markingStandards', NOTES_STD_CHARS);
   var facts = notesJoinField(rel, 'keyFacts', NOTES_FACT_CHARS);
-  var com = notesJoinField(rel, 'comment', 300);
+  var com = notesJoinField(rel, 'comment', NOTES_COMMENT_CHARS);
   var bits = [];
   if (kw.length) {
     bits.push(kind === 'mark'
@@ -10332,14 +10488,22 @@ function notesGuidance() {
 function guidanceBlock() {
   var guide = notesGuidance();
   if (!guide) return '';
+  /* Said only when something really was left out, and said at the END so the
+     rules themselves lead. */
+  var short = Object.keys(notesLedger.dropped).length;
+  var more = short
+    ? '\n(' + short + ' further standing instruction' + (short === 1 ? ' was' : 's were') +
+      ' too long to include — do not treat the list above as complete.)'
+    : '';
   return "\n\nTHE TEACHER'S GENERAL GUIDANCE (standing instructions they typed themselves — house rules for this app, obey them on every question):\n" +
-    guide;
+    guide + more;
 }
 
 /* Everything the AI should know about this teacher, appended to a system
    prompt. One call site per AI feature, so nothing can be grounded on the
    notes in one place and not another. */
 function aiGrounding(kind) {
+  notesLedgerReset();
   var guide = guidanceBlock();
   var notes = notesBlock(kind);
   var style = styleBlock(kind);
@@ -10362,6 +10526,18 @@ function styleEnsure() {
   if (!aiStyle) aiStyle = { samples: [], profile: null, profileSamples: 0, learnedDocs: {} };
   if (!Array.isArray(aiStyle.samples)) aiStyle.samples = [];
   if (!aiStyle.learnedDocs) aiStyle.learnedDocs = {};
+  /* `learned` counts every answer ever learned and NEVER goes down. The
+     refresh trigger used to compare `samples.length` against the count at the
+     last distil — and `samples` is capped at STYLE_SAMPLE_MAX, so once the
+     corpus filled up that difference was permanently 0 and **the style profile
+     froze for good**. Which is exactly "it does not seem to learn my inputs".
+     Seeded from the sample count so an existing corpus is not read as new. */
+  if (typeof aiStyle.learned !== 'number' || aiStyle.learned < aiStyle.samples.length) {
+    aiStyle.learned = aiStyle.samples.length;
+  }
+  if (typeof aiStyle.profileLearned !== 'number') {
+    aiStyle.profileLearned = aiStyle.profileSamples || 0;
+  }
   return aiStyle;
 }
 function styleTrim(s, cap) {
@@ -10387,6 +10563,7 @@ function styleAddSamples(list) {
     if (!s || !s.a || (s.k && have[s.k])) return;
     if (s.k) have[s.k] = 1;
     st.samples.push(s);
+    st.learned = (st.learned || 0) + 1;
     added++;
   });
   if (st.samples.length > STYLE_SAMPLE_MAX) {
@@ -10403,6 +10580,8 @@ function styleSave() {
     profile: st.profile || null,
     profileSamples: st.profileSamples || 0,
     profileAt: st.profileAt || '',
+    learned: st.learned || 0,
+    profileLearned: st.profileLearned || 0,
     learnedDocs: st.learnedDocs || {},
     updatedAt: st.updatedAt
   }).catch(function (e) {
@@ -10442,7 +10621,7 @@ function styleHarvestOnSave() {
   if (!added) return;
   styleSave().then(function () {
     var st = styleEnsure();
-    if (st.samples.length - (st.profileSamples || 0) >= STYLE_DISTIL_EVERY) {
+    if ((st.learned || 0) - (st.profileLearned || 0) >= STYLE_DISTIL_EVERY) {
       styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
     }
   });
@@ -10632,7 +10811,7 @@ async function styleDistil(quiet) {
       system: STYLE_DISTIL_SYS, maxOutputTokens: 2200, temperature: 0.3, json: true
     });
     var p = _parseAIJson(raw) || {};
-    st.profile = {
+    var next = {
       styleRules: styleTrim(p.styleRules, 900),
       phrasing: styleTrim(p.phrasing, 400),
       markingStandards: styleTrim(p.markingStandards, 500),
@@ -10643,7 +10822,15 @@ async function styleDistil(quiet) {
         .map(function (e) { return { q: styleTrim(e.q, STYLE_Q_CHARS), a: styleTrim(e.a, 300) }; })
         .slice(0, STYLE_EX_MAX)
     };
+    /* A reply that came back with nothing usable must NEVER replace a profile
+       the teacher's own answers were distilled into: an empty profile grounds
+       every prompt in the app on nothing, silently, until the next refresh. */
+    if (!next.styleRules && !next.phrasing && !next.markingStandards && !next.keywords.length && !next.exemplars.length) {
+      throw new Error('the model returned no usable style — the profile you had is kept');
+    }
+    st.profile = next;
     st.profileSamples = st.samples.length;
+    st.profileLearned = st.learned || st.samples.length;
     st.profileAt = new Date().toISOString();
     await styleSave();
     if (!quiet) toast('🧠 Your style is up to date — every AI answer follows it from now on.', 5000);
@@ -10979,6 +11166,15 @@ function notesCardHtml(n) {
   if (when) meta.push((guide && !n.fileName ? 'written ' : 'uploaded ') + escHtml(when));
   var src = noteSourceLabel(n);
   if (src) meta.push(src);
+  /* …and a note the BUDGET could not fit says so. A note quietly cut down to
+     a third of itself reads on this card exactly like one being obeyed in
+     full, which is the bug this whole section exists to stop happening
+     again. */
+  var led = notesLedgerFor(n.id);
+  var short = !led ? ''
+    : led.dropped
+      ? '<div class="tnRow"><div class="tnLabel" style="color:#b42318;">Not sent to the AI</div><div class="tnText tnTextSoft">There were too many notes to fit the last prompt and this one did not make it. Shorten your notes, or split this one up.</div></div>'
+      : '<div class="tnRow"><div class="tnLabel" style="color:#b54708;">Trimmed</div><div class="tnText tnTextSoft">' + led.kept + ' of ' + led.wanted + ' characters reached the AI on the last prompt. Shorten it, or split it into two notes.</div></div>';
   return '<div class="tnCard">' +
     '<div class="tnCardHead">' +
       '<div class="tnCardId">' +
@@ -10990,6 +11186,7 @@ function notesCardHtml(n) {
         '<button class="btn" onclick="notesDelete(\'' + n.id + '\')">✕ Delete</button>' +
       '</div>' +
     '</div>' +
+    short +
     '<div class="tnRow"><div class="tnLabel">Used for</div><div class="tnChips">' + tagHtml + '</div></div>' +
     (guide ? '<div class="tnRow"><div class="tnLabel">General guidance</div><div class="tnText">' + escHtml(guide) + '</div></div>' : '') +
     // A rule typed while looking at a question reads very differently once the
@@ -11050,10 +11247,23 @@ function renderNotesBody() {
   var status = ($('notesStatus') && $('notesStatus').textContent) || '';
   var guideNotes = teachingNotes.filter(function (n) { return String(n.guidance || '').trim(); });
   var fileNotes = teachingNotes.filter(function (n) { return !String(n.guidance || '').trim(); });
+  /* Build the FULLEST digest once so the window can say what really happens
+     to each note in a prompt. A warning that only appeared after some other
+     screen had made an AI call is a warning nobody ever sees. */
+  try { aiGrounding('answer'); } catch (e) {}
+  var lc = notesLedgerCounts();
+  var fitWarn = (lc.trimmed || lc.dropped)
+    ? '<div class="tnFitWarn">⚠️ ' +
+      (lc.dropped ? lc.dropped + ' of your notes ' + (lc.dropped === 1 ? 'does' : 'do') + ' not fit an AI prompt' : '') +
+      (lc.dropped && lc.trimmed ? ' and ' : '') +
+      (lc.trimmed ? lc.trimmed + ' ' + (lc.trimmed === 1 ? 'is' : 'are') + ' trimmed to fit' : '') +
+      '. Every note below says which — shorten or split the ones marked, so nothing you wrote goes unread.</div>'
+    : '';
   var cards = fileNotes.length
     ? fileNotes.map(notesCardHtml).join('')
     : '<div class="tnEmpty">No uploaded notes yet — upload your first PDF above. Everything the AI pulls out of it stays editable.</div>';
   body.innerHTML =
+    fitWarn +
     '<div class="tnPanel">' +
       '<h3>📌 General guidance</h3>' +
       '<p class="tnSub">House rules in your own words. They apply to <b>every</b> worksheet and go into the prompt exactly as you typed them — nothing is extracted, nothing is summarised — so the AI follows them whenever it writes an answer, builds an answer key, explains something <b>or marks a student</b>. This is the quickest way in: type it and it is live. Rules you type on an answer card in <b>Scan &amp; Answer</b> land here too, with the question they were written against.</p>' +
@@ -11224,7 +11434,7 @@ function aiImprove(id) {
   if (!a || a.type !== 'text') return;
   var t = (a.text || '').trim();
   if (!t) { toast('The text box is empty — nothing to improve.'); return; }
-  aiRequest(id, AI_IMPROVE_SYS, t, '✒️ ' + aiEngineName() + ' is polishing the wording…');
+  aiRequest(id, AI_IMPROVE_SYS + aiGrounding('answer'), t, '✒️ ' + aiEngineName() + ' is polishing the wording…');
 }
 
 /* ================= AI notes =================
@@ -12115,7 +12325,7 @@ async function aiNoteImage(prompt, instr, q) {
   var svg = await window.askGemini(
     prompt + '\nReturn a single self-contained SVG diagram instead of a photo.',
     {
-      system: AI_NOTE_SYS_BASE +
+      system: AI_NOTE_SYS_BASE + aiGrounding('teach') +
         '\nReturn ONE <svg> element and nothing else — no markdown, no code fence, no ' +
         'commentary. It must have a viewBox, no external references, no scripts, and ' +
         'readable labels at small sizes (font-size 11 or larger). Simple flat shapes ' +
@@ -17416,9 +17626,7 @@ auth.onAuthStateChanged(function (user) {
   // account had is dropped first — the new one keeps only what its own read
   // is allowed to bring back. A student's device learns whose notes to read
   // from the first worksheet it opens.
-  teachingNotes = [];
-  aiStyle = null;
-  notesLoaded = false;
+  stopTeachingNotes();
   if (user) loadTeachingNotes(true);
   if (user && !isAdmin(user) && !user.isAnonymous) {
     // Students: fetch their profile, and ask for it on their very first login.

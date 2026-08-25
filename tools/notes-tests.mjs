@@ -41,7 +41,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples() };')();
+const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples() };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -159,6 +159,129 @@ ok('a correction from the Scan app says so', corr.includes('from Scan &amp; Answ
 ok('the rule is shown as guidance', corr.includes('Always name the process.'));
 ok('and the question it was written against is shown with it', corr.includes('Written against'));
 ok('the corrected answer is kept as a key fact', corr.includes('They grow larger.'));
+
+
+/* ---- NO NOTE IS EVER SILENTLY DROPPED ----
+   The bug the teacher reported. The budgets used to be a `.slice()` over the
+   JOINED text of every relevant note, so with two long standing instructions
+   the first lost most of itself and the SECOND reached no prompt at all —
+   while sitting in this very window looking obeyed. */
+console.log('\nEvery note reaches the prompt, however lots there are');
+const lots = [];
+for (let i = 0; i < 12; i++) lots.push({ id: 'm' + i, subjects: [], levels: [], keywords: [], guidance: 'RULE-SENTINEL-' + i + ' ' + 'w'.repeat(900) });
+mod.setNotes(lots); mod.setStyle(null);
+['answer', 'mark', 'teach'].forEach(kind => {
+  const dig = mod.aiGrounding(kind);
+  const missing = lots.filter(n => !dig.includes('RULE-SENTINEL-' + n.id.slice(1)));
+  ok('every standing instruction reaches a "' + kind + '" prompt', missing.length === 0,
+     missing.length + ' of 12 were dropped entirely');
+});
+
+console.log('\nOver-long is trimmed, not vanished');
+mod.setNotes([{ id: 'big', subjects: [], levels: [], keywords: [], guidance: 'OPENING-SENTINEL ' + 'x'.repeat(9000) }]);
+const bigOut = mod.notesGuidance();
+ok('the opening survives', bigOut.includes('OPENING-SENTINEL'));
+ok('it says it was trimmed', bigOut.includes(mod.NOTES_TRIM_MARK));
+ok('it does not go in whole', bigOut.length < 9000, 'length ' + bigOut.length);
+mod.setNotes([{ id: 's1', subjects: [], levels: [], keywords: [], guidance: 'Units on every numerical answer.' }]);
+ok('a short note goes in word for word', mod.notesGuidance().includes('Units on every numerical answer.'));
+
+console.log('\nThe same rule typed in two apps is ONE rule');
+mod.setNotes([{ id: 'd1', subjects: [], levels: [], keywords: [], guidance: 'Always name the process.' },
+              { id: 'd2', subjects: [], levels: [], keywords: [], guidance: 'Always name the process.  ' }]);
+ok('a duplicated rule is not sent twice', mod.notesGuidance().split('Always name the process.').length - 1 === 1);
+
+console.log('\nThe window says what did not fit');
+mod.setNotes([{ id: 'fits', subjects: [], levels: [], keywords: [], guidance: 'Short rule.' }]);
+mod.aiGrounding('answer');
+ok('a note that fits is not reported', mod.notesLedgerFor('fits') === null);
+ok('nothing is reported when nothing was cut', mod.notesLedgerCounts().trimmed === 0 && mod.notesLedgerCounts().dropped === 0);
+mod.setNotes(lots);
+mod.aiGrounding('answer');
+ok('a trimmed note IS reported', mod.notesLedgerCounts().trimmed > 0);
+const ledger0 = mod.notesLedgerFor('m0');
+ok('the report names the note and its real numbers', !!ledger0 && ledger0.wanted > ledger0.kept, JSON.stringify(ledger0));
+ok('the card says so', mod.notesCardHtml(lots[0]).includes('Trimmed'));
+
+console.log('\nMarking never sees the key facts, however tight the budget');
+const leaky = { id: 'sec', subjects: [], levels: [], keywords: [], markingStandards: 'State the direction.', keyFacts: 'THE-ANSWER-IS-42' };
+mod.setNotes([leaky]);
+ok('an answer digest DOES see them', mod.aiGrounding('answer').includes('THE-ANSWER-IS-42'));
+ok('marking does not', !mod.aiGrounding('mark').includes('THE-ANSWER-IS-42'));
+mod.setNotes(lots.concat([leaky]));
+ok('marking still does not, over budget', !mod.aiGrounding('mark').includes('THE-ANSWER-IS-42'));
+
+console.log('\nThe fair-share rule itself');
+{
+  const share = mod.notesFairShare([{ id: 'a', text: 'short' }, { id: 'b', text: 'y'.repeat(5000) }], 600, 120);
+  ok('the short note survives whole beside a huge one', share.texts[0] === 'short');
+  ok('the huge note is trimmed rather than the short one dropped', share.texts.length === 2);
+  ok('nothing is dropped when the floor fits', share.dropped.length === 0);
+}
+
+/* ---- THE CENSUS ----
+   "Every AI function checks the teaching notes first" cannot be kept by
+   remembering: a call site added next month is grounded or it is not, and
+   nothing on any screen says which — the AI answers fluently in its own voice
+   instead of the teacher's. So the file itself is read. Adding a call that
+   should NOT be grounded means typing a sentence here saying why. */
+console.log('\nEvery AI call site is grounded, or exempt on purpose');
+{
+  const UNGROUNDED_BY_DESIGN = {
+    aiRequest: 'transport — the system prompt arrives already grounded from aiAnswer / aiImprove',
+    askGemini: 'the door every call goes through',
+    askOpenAI: 'the raw OpenAI call',
+    askKimi: 'the raw Moonshot call',
+    kimiActive: 'reads a setting',
+    refreshAiEngineNames: 'paints the engine name on screen',
+    kimiListModels: 'asks the account which models it has',
+    notesHandleFiles: 'this is what READS the notes; grounding it is a feedback loop',
+    styleDistil: 'this is what BUILDS the style profile from the teacher’s own answers',
+    styleLearnOpenWorksheet: 'reads answers off a worksheet to learn from them',
+    styleLearnAllWorksheets: 'the same sweep across every saved worksheet',
+    aiNoteImage: 'asks the IMAGE model for a picture; its SVG fallback is grounded',
+    endDrag: 'a pointer handler — the AI call in view belongs to window.askGemini below it',
+  };
+  const lines = html.split('\n');
+  const fns = [];
+  lines.forEach((l, i) => {
+    // `window.askGemini = async function askGemini(` is how the transport is
+    // declared, so a bare `^function` sweep would miss the three doors every
+    // call in the app goes through — and then their exemptions read as stale.
+    const m = l.match(/^\s{0,2}(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(/)
+           || l.match(/^\s{0,2}window\.[A-Za-z0-9_$]+\s*=\s*(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(/);
+    if (m) fns.push({ name: m[1], line: i });
+  });
+  const bodyOf = {};
+  fns.forEach((f, k) => { const e = k + 1 < fns.length ? fns[k + 1].line : lines.length; bodyOf[f.name] = lines.slice(f.line, e).join('\n'); });
+  const g = n => /aiGrounding\s*\(/.test(bodyOf[n] || '');
+  const grounded = n => g(n) || fns.some(f => f.name !== n && g(f.name) && new RegExp('\\b' + f.name.replace(/\$/g, '\\$') + '\\s*\\(').test(bodyOf[n] || ''));
+  const owner = i => { let b = null; for (const f of fns) { if (f.line <= i) b = f; else break; } return b; };
+  const callRe = /\b(?:window\.)?(?:askGemini|askOpenAI|askKimi)\s*\(/;
+  const seen = new Map();
+  lines.forEach((l, i) => { if (!callRe.test(l)) return; const o = owner(i); if (o && !seen.has(o.name)) seen.set(o.name, i + 1); });
+  ok('the census found the call sites at all', seen.size > 6, seen.size + ' found');
+  const loose = [];
+  for (const [n, ln] of seen) {
+    if (grounded(n) || Object.prototype.hasOwnProperty.call(UNGROUNDED_BY_DESIGN, n)) continue;
+    loose.push(n + ' (index.html:' + ln + ')');
+  }
+  ok('nothing is ungrounded by accident', loose.length === 0, loose.join(', '));
+  const stale = Object.keys(UNGROUNDED_BY_DESIGN).filter(n => !bodyOf[n]);
+  ok('no exemption names a function that no longer exists', stale.length === 0, stale.join(', '));
+
+  /* `aiRequest` is exempt because its SYSTEM PROMPT arrives already grounded
+     from the button that called it — so the census cannot see ✨ Answer or
+     ✒️ Improve at all, and either one could quietly stop grounding without a
+     single check moving. The exemption is only true if every caller really
+     does pass the grounding, so that is checked directly. */
+  const reqCalls = lines
+    .map((l, i) => ({ l, i }))
+    .filter(x => /(?:^|[^A-Za-z0-9_$.])aiRequest\s*\(/.test(x.l) && !/^\s{0,2}function aiRequest/.test(x.l));
+  ok('the ✨ Answer / ✒️ Improve call sites were found', reqCalls.length >= 2, reqCalls.length + ' found');
+  const bare = reqCalls.filter(x => !/aiGrounding\s*\(/.test(x.l)).map(x => 'index.html:' + (x.i + 1));
+  ok('every aiRequest passes a grounded system prompt', bare.length === 0, bare.join(', '));
+}
 
 console.log(fails ? '\n' + fails + ' FAILED\n' : '\nAll good.\n');
 process.exit(fails ? 1 : 0);
