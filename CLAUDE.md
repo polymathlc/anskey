@@ -195,10 +195,88 @@ silent faults, and none of them threw.
   unusable once the board was zoomed out.
 - Everyone gets this one — teacher, student and share-link visitor, like the calculator. It is not
   behind `applyRoleUI()`.
-- After touching it, run `node tools/mindmap-tests.mjs`. It loads the REAL section out of
+- After touching it — **or 📌 attach-to-page or the ✨ AI bar** (`mmAttachToPage`,
+  `mmEditAttached`, `mmFlushBoard`'s `mmAttachedId` branch, `mmLoadBoard`'s
+  clear, `mmAttachX`/`mmAttachY`, `mmAiLayout`, `mmAiPlace`) — run
+  `node tools/mindmap-tests.mjs`. It loads the REAL section out of
   `index.html` (up to `/* ---- Wiring ---- */`) and runs the geometry, snapping, resizing and
   save/reload round trip against stubs. These fail quietly in the app: an arrow dropped on the way
-  through JSON is just an arrow that is not there any more.
+  through JSON is just an arrow that is not there any more. The new half fails
+  quietly too, and worse: an attached board written to the worksheet's own
+  localStorage slot destroys the separate board kept there, `mmLoadBoard`
+  forgetting to clear `mmAttachedId` writes one mindmap over a card holding
+  another, a ring that does not grow piles twenty boxes on one another, and an
+  "Add to it" offset measured from the centre draws half the new map straight
+  through the teacher's own work.
+
+### 📌 The board goes ON the page, and ✨ the AI draws one (v1.74.0)
+
+`MM_NOTE_KIND` / `mmAttachToPage` / `mmEditAttached` / `mmRenderToDataUrl` /
+`mmRefreshAttachedPicture` / `mmAttachedId` (search `THE MINDMAP ON THE PAGE`),
+and `mmAiBuild` / `mmAiSys` / `mmAiLayout` / `mmAiPlace` / `mmAiSyncBar`
+(search `THE AI BAR`), plus `#mmPinBtn` and the `#mmAiBar` row in the window.
+
+A board kept in `localStorage` lived on one device and never reached the
+worksheet — it could be exported as a picture and that was all.
+
+- **📌 puts it on the page as an ANNOTATION**, so from then on it moves,
+  resizes, erases, lassoes, undoes, prints and SAVES like every other
+  annotation, and it travels with the worksheet to whoever opens it.
+- **It is an `ainote` card of kind `'mindmap'`, NOT a new annotation type**,
+  and that is the whole trick. A new type would have to be taught to
+  `annFrame`, the resize handles, the hit test, `enterEditMode`, the eraser,
+  the lasso, the thumbnails and both PDF paths — nine places, each silent when
+  missed. A kind the card renderer already knows needs none of them.
+- **`MM_NOTE_KIND` is deliberately NOT in `AI_NOTE_KINDS`.** A mindmap is drawn
+  and pinned, never asked for in the ✨ Generate chooser, so it must not appear
+  as a fifth tile there — `aiNoteKindInfo` knows it separately.
+- **The BOARD rides along on `a.mm`, not just the picture**, so ✎ (and a
+  double-tap) opens it back up with every box still a box. Both routes go to
+  `mmEditAttached`; the AI-note dialog would offer to regenerate a card that
+  never came from a prompt.
+- **A board opened from a card is written back to THAT CARD, never to the
+  worksheet's localStorage slot** (`mmFlushBoard`'s `mmAttachedId` branch).
+  Writing it to the slot would quietly destroy the separate board the teacher
+  keeps there — the one silent data loss this feature can cause. It also means
+  an edit is impossible to lose: the card is current the moment it is typed,
+  and 📌 only has to redraw the picture (`mmRefreshAttachedPicture`, also run
+  on close). A card DELETED while its board is open releases the board rather
+  than leaving writes with nowhere to go.
+- **`mmLoadBoard` clears `mmAttachedId`.** The worksheet's own board belongs to
+  no card, so without that a later 📌 writes it over a card holding a
+  completely different mindmap.
+- **The card is sized to the BOARD's own shape** on landing, so nothing is
+  letterboxed; `object-fit: contain` means a corner-drag can never distort it.
+- **`'mindmap'` had to be added to BOTH PDF paths** (`embedAiNoteImages` and
+  the card painter) or it prints as an empty box with a heading — a card on
+  screen and a gap in the PDF.
+
+**The ✨ AI bar** builds a map from a sentence: boxes for the ideas, arrows for
+how they connect. It is grounded in the teaching notes like every other AI call
+in the app, so the wording that comes back is the teacher's.
+
+- **The model returns DATA — nodes and links — never a drawing.** The layout is
+  done in code (`mmAiLayout`), because a model asked for coordinates puts boxes
+  on top of each other and a board nobody can read is a board the teacher
+  redraws by hand.
+- **The ring GROWS with how many are on it.** A fixed radius is fine for five
+  branches and a pile-up at twenty, which is exactly the size a real mindmap
+  reaches. Depth is breadth-first from the centre, so a node's ring is its real
+  distance from the middle rather than the order the model listed it in.
+- **A node the model forgot to link is still placed.** Dropping it loses an
+  idea the teacher asked for.
+- **"Add to it" offsets by the new map's OWN LEFT EDGE**, not by its centre: a
+  wide ring reaches far to the left of the middle, so "the old right edge plus
+  a gap" drops half the new map through the teacher's own work. Building fresh
+  REPLACES, or a second Build stacks two maps on one another.
+- Enter builds; **Shift+Enter grows what is there**, so the common case never
+  needs the mouse.
+- The bar and 📌 are the **teacher's own** — hidden for a student or a
+  share-link visitor by `mmAiSyncBar` (re-checked from `applyRoleUI`, so a
+  device handed back mid-lesson does not keep them) **and refused in the
+  handlers**, because hiding a button is never the lock.
+- Run **`node tools/mindmap-tests.mjs`** after touching any of it.
+
 
 ## Versioning convention — applies to EVERY change (do this every time)
 1. **Bump the version.** In `index.html`, update `var APP_VERSION = 'vX.Y.Z'` (search
