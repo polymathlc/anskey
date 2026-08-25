@@ -3,6 +3,29 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Dotted and dashed lines, two-headed arrows, and curly brackets (v1.75.0)
+
+A line was a line and an arrow was an arrow, and neither could be anything
+else. Three things are new and they all live on the same little group of
+buttons in the toolbar, which appears whenever a line, an arrow or a bracket
+is the tool in hand or the thing you have clicked on.
+
+- **Solid, dashed or dotted.** The dashes scale with the pen, so a dotted line
+  at 1px and a dotted line at 12px both read as dotted. It applies to a line,
+  an arrow and a bracket alike.
+- **No head, one head or two.** A line and an arrow are now the same shape
+  with a different setting on it, so a double-headed arrow is one button — and
+  an arrow you have already drawn can have its heads changed rather than being
+  undone and drawn again.
+- **⏞ Curly brackets, for labelling a bar model.** Drag along the part you
+  want to label; drag the other way to flip which side it bulges. Keyboard
+  shortcut **B**.
+
+Everything you set applies to whatever is selected as well as to the next
+thing you draw, it is remembered per tool the way colour and thickness already
+are, and it prints — the screen, the picture the AI is shown, and the PDF all
+draw it from the same shape.
+
 ## Corrections typed on a scanned answer land in your notebook (v1.71.0)
 
 The **Scan & Answer** app now lets the teacher fix an answer it got wrong and,
