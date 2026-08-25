@@ -91,6 +91,63 @@ Guidance for Claude when working in this repo.
   `overflow: hidden`.** These two windows scroll as a whole, so they use `.modalCard.tnWide`, which
   sets the width and nothing else. Reusing `.wide` clips the notes list with no way to scroll it.
 
+## 🧠 No note left unread, and the profile that had stopped learning (v1.73.0)
+
+`notesFairShare` / `notesJoinField` / `notesDedupe` / `notesTrimTo` /
+`notesLedger` / `notesLedgerFor` / `notesLedgerCounts` (search `THESE ARE POTS`),
+plus the ⚠️ fit warning at the top of the notes window and the **Trimmed** /
+**Not sent to the AI** row on a note's card. **`polymathlc/cer` carries the same
+block — ship a change to both together.**
+
+*"Some of them don't seem to permanently learn my info inputs."* Three separate
+silent faults, and none of them threw.
+
+- **The budgets were a `.slice()` over the JOINED notes.** `NOTES_GUIDE_CHARS`
+  was 1,600 characters of every standing instruction run together, so with two
+  hand-typed rules of that length the first lost most of itself and **the second
+  reached no prompt at all** — while sitting in this very window looking obeyed.
+  They are POTS now: `notesFairShare` water-fills, so a SHORT note is never
+  trimmed at all and a long one is TRIMMED rather than the next note vanishing.
+  **The budget yields to the notes**, growing to `n × minEach` when there are
+  more notes than it can floor; `NOTES_HARD_CHARS` is the only ceiling a note
+  can be lost to, and a loss is named rather than silent. Read them as budgets
+  to divide, never as a length to cut to — the `.slice()` IS the bug.
+- **`notesLedger` makes what is left out visible.** Rebuilt on every
+  `aiGrounding` call, and `renderNotesBody` builds the fullest digest once on
+  open so the window says what really happens rather than what happened after
+  some other screen made a call.
+- **THE NOTEBOOK IS LIVE.** It was a one-shot `.get()` at sign-in — and this
+  collection is written by THREE apps, so a rule typed in the Science portal
+  mid-lesson reached the app it was typed in and NO other, and the same question
+  was answered against two different notebooks depending on which tab it was
+  answered in. `loadTeachingNotes` attaches `onSnapshot` on the notes AND on the
+  style profile. Three rules hold it: the listeners come DOWN on every account
+  change (`stopTeachingNotes`, from the auth hook) or one account's notes go on
+  grounding the next person to sign in on the device; the first snapshot
+  RELEASES whoever is waiting on `notesLoading`, or the window says "Loading…"
+  for the rest of the session; and `notesLiveRepaint` yields to whatever is
+  being typed, because `renderNotesBody` rebuilds the window and would empty the
+  upload comment box mid-sentence.
+- **The style profile had FROZEN, permanently.** The refresh trigger compared
+  `samples.length` against the count at the last distil — and `samples` is
+  capped at `STYLE_SAMPLE_MAX` (400), so the moment the corpus filled up that
+  difference was 0 for ever and the profile never rebuilt again. `st.learned` is
+  a **monotonic** counter that only ever increments, checked against
+  `st.profileLearned`; both are seeded from the sample count so an existing
+  corpus is not read as new.
+- **An empty distil can no longer overwrite a good profile.** A reply that came
+  back with nothing usable used to replace the profile the teacher's own answers
+  were distilled into — grounding every prompt in the app on nothing, silently,
+  until the next refresh. It throws instead and the old profile stands.
+- **✒️ Improve and the note-picture SVG fallback are grounded now.** `aiRequest`
+  is transport: its system prompt arrives already grounded from the button that
+  called it, which is why the census cannot see ✨ Answer or ✒️ Improve at all —
+  so the harness checks **every `aiRequest(` call site passes `aiGrounding(`**
+  directly. Without that, either button could stop grounding without a single
+  check moving.
+- Run **`node tools/notes-tests.mjs`** after touching any of it.
+
+
 ## Reward system — ADMIN ONLY (`#rewardBtn` / `#rewardModal`, all `rw*` code)
 - The Reward window hands marks to one class mid-lesson. It writes **only** into the reward
   system's collections in the separate `polymathlc/rewards` repo (`rewards/index.html`, same
@@ -208,6 +265,21 @@ Kimi (Moonshot AI) is a third company on a third account.
   just re-send the request that was refused), and `AI_NOTE_QUALITY`'s four steps have to stay four
   real steps — Quick and Standard both landing on `low` is a picker offering a choice that changes
   nothing. `polymathlc/cer` carries the same pair; keep the two in step.
+- After touching **the note budgets, the live notebook or the style counter**
+  (`notesFairShare`, `notesJoinField`, `notesDedupe`, `notesTrimTo`,
+  `notesLedger*`, `NOTES_GUIDE_CHARS` and the other pots, `loadTeachingNotes`,
+  `notesDetach`, `stopTeachingNotes`, `notesLiveRepaint`, `styleEnsure`'s
+  `learned` / `profileLearned`, `styleDistil`'s empty-profile guard, or
+  `UNGROUNDED_BY_DESIGN` in the harness), run `node tools/notes-tests.mjs`.
+  Every one of these fails silently and the app answers fluently either way.
+  Turn a pot back into a `.slice()` over the joined notes and the teacher's
+  SECOND standing instruction reaches no prompt at all while sitting in the
+  window looking obeyed. Go back to a one-shot read and a rule typed in another
+  app never arrives, on a screen that looks perfectly current. Compare
+  `samples.length` against the last distil again and the style profile freezes
+  for good the day the corpus fills up. And let an empty reply replace the
+  profile and every prompt in the app is grounded on nothing until the next
+  refresh, which may never come.
 - After touching **teaching notes or the style training** (`aiGrounding`, `notesBlock`,
   `styleBlock`, `notesRelevant`, `styleAddSamples`, `styleHarvestTyped`, `notesCardHtml`,
   `noteSourceLabel`), run
