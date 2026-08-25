@@ -278,6 +278,67 @@ in the app, so the wording that comes back is the teacher's.
 - Run **`node tools/mindmap-tests.mjs`** after touching any of it.
 
 
+## ✏️ Line styles, arrowheads and curly brackets (v1.75.0)
+
+`ANN_DASH_STYLES` / `annDashName` / `annDashPattern` / `ANN_HEAD_ORDER` /
+`annHeads` / `annHasHeadAtStart` / `annHasHeadAtEnd` / `arrowHeadPoints` /
+`bracePoints` / `braceDepth` / `dashPolyline` (search `ANN_DASH_STYLES`), plus
+`syncLineStyleCtl` / `setLineDash` / `setLineHeads`, the `#lineStyleCtl` group
+in the toolbar and the `brace` tool.
+
+- **A LINE AND AN ARROW ARE ONE SHAPE NOW.** `a.heads` is
+  `'none' | 'start' | 'end' | 'both'` and a `line` with two heads IS a
+  double-headed arrow, which is why `annNode`, the canvas flatten and the PDF
+  each have ONE branch for the pair rather than two that can drift.
+- **`a.heads` and `a.dash` are ABSENT on everything already saved, and the
+  fallbacks are what keep those worksheets right.** `annHeads` falls back to
+  the TYPE — an `arrow` has always had a head at the end, a `line` has always
+  had none — and `annDashName` falls back to `'solid'`. Break either and every
+  arrow on every saved worksheet quietly loses its point, or every line on
+  every sheet turns dotted. For the same reason `setLineDash` **deletes**
+  `a.dash` when the answer is solid rather than storing the word.
+- **The dash pattern is a MULTIPLE OF THE STROKE WIDTH**, turned into page
+  units by `annDashPattern`. A fixed pattern reads as dashed at 1px and as a
+  solid line at 12px, so a table of absolute lengths is the bug.
+- **The dashes are on the SHAFT and never on the heads.** A dotted arrowhead
+  is two dots where the point should be, and it is the head that says which
+  way the arrow points. All three renderers clear the dash before the barbs.
+- **THE PDF CUTS ITS OWN DASHES** (`dashPolyline`), rather than trusting
+  pdf-lib's `borderDashArray`. `strokePath` already reads a `null` in its
+  point list as a segment break, so the cut costs nothing — and a dotted line
+  that prints solid because a library option was ignored is exactly the
+  failure nobody sees until the sheet is in front of a class. It must never
+  start or end on a `null`, and never emit two in a row: `strokePath` would
+  write `M M` and lose a piece.
+- **THREE RENDERERS, ONE SHAPE.** The brace is sampled into a POLYLINE
+  (`bracePoints`) rather than left as an SVG path, because the canvas flatten
+  and the PDF cannot read one — so the screen, the picture the AI is shown and
+  the printed sheet cannot disagree about a bracket the teacher drew once.
+- **Which side a brace bulges is the PERPENDICULAR OF THE DRAG**, so dragging
+  the other way flips it. That is the whole control: no handle to find, and
+  reversible by redrawing, which is what a teacher does anyway. A sign error
+  there draws a wave rather than a bracket, and the harness pins it.
+- **A brace has no heads, ever** — it labels a span, it does not point. There
+  is no `heads` in its `TOOL_STYLE_DEFAULTS` entry, `setLineHeads` skips it and
+  `syncLineStyleCtl` hides the head buttons for it.
+- **A DASHED LINE IS MOSTLY GAPS**, so the line, arrow and brace branches all
+  append a fat `stroke: 'transparent'` path. Without it a teacher aiming at a
+  dotted line hits the page between the dashes and cannot select or erase it
+  at all — a shape that is on the page and cannot be touched.
+- **`syncLineStyleCtl` is synced from `renderAllOverlays()`** as well as from
+  `syncStyleControls()`, because that is the one function every selection
+  change already goes through; hooking the dozen places that set `selectedId`
+  is how one of them gets missed and the group goes stale on exactly one
+  route. It reflects the SELECTED annotation rather than the pen when there is
+  one, or pressing a button appears to do nothing to the mark on screen. It
+  decides its own visibility (tool AND role), so it is deliberately **not** in
+  `TEACHER_TOOLBAR_IDS` — `applyRoleUI` just re-asks it.
+- Both setters follow `setColor`'s shape exactly: change the pen, sync the
+  controls, restyle what is selected as one undo step, remember it against the
+  tool. A style you can set only before you draw is one you have to undo and
+  redraw to change.
+- Run **`node tools/line-style-tests.mjs`** after touching any of it.
+
 ## Versioning convention — applies to EVERY change (do this every time)
 1. **Bump the version.** In `index.html`, update `var APP_VERSION = 'vX.Y.Z'` (search
    `APP_VERSION`). Patch bump for fixes/small tweaks, minor bump for new features.
@@ -364,6 +425,21 @@ Kimi (Moonshot AI) is a third company on a third account.
   `node tools/notes-tests.mjs`. It loads the REAL section out of `index.html` and runs it against
   stubs. Every failure here is silent — a digest that comes back empty is just an ungrounded
   prompt, and nothing throws.
+- After touching **the line styles, the arrowheads or the brace**
+  (`ANN_DASH_STYLES`, `annDashName`, `annDashPattern`, `annHeads`,
+  `annHasHeadAtStart`/`annHasHeadAtEnd`, `arrowHeadPoints`, `braceDepth`,
+  `bracePoints`, `dashPolyline`, `syncLineStyleCtl`, `setLineDash`,
+  `setLineHeads`, or any of the three renderers' line / brace branches), run
+  `node tools/line-style-tests.mjs`. Every failure here is silent and the
+  sheet still prints: a pattern that comes back null draws a solid line with
+  nothing anywhere saying the teacher asked for dotted; barbs read off the
+  wrong end put the arrow the wrong way round in a diagram that still looks
+  like a diagram; a `heads` fallback that stops reading the TYPE takes the
+  point off every arrow on every worksheet already saved; and a brace whose
+  perpendicular loses its sign draws a wave. The three renderers are checked
+  against the file itself, because the one that gets forgotten is always the
+  PDF — and a dotted line that prints solid is only ever found in front of a
+  class.
 - After editing `index.html`, syntax-check the script block, e.g.
   `python3 -c "import re;open('/tmp/c.js','w').write(re.findall(r'<script>\n(.*?)\n</script>', open('index.html').read(), re.S)[-1])" && node --check /tmp/c.js`
 - Commit messages and pushed artifacts must not contain the model identifier.
