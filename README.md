@@ -3,6 +3,20 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## The assistant is called Chung GPT (v1.76.0)
+
+The app used to call its AI by whichever vendor was answering — *ChatGPT marks
+this answer*, *Gemini reads every page* — so the assistant changed its name
+depending on which key happened to be saved. It has one name now, everywhere a
+student or a teacher reads it: **Chung GPT**.
+
+The AI Engine dialog and the header button still name the real engine, because
+that is where it has to be true: an admin who cannot tell which engine answered
+cannot tell a missing key from a broken one.
+
+And Ask AI no longer says a bare **✨ Thinking…** while it waits. It says
+**✨ Chung GPT is reading the worksheet…**, which is what is actually happening.
+
 ## Dotted and dashed lines, two-headed arrows, and curly brackets (v1.75.0)
 
 A line was a line and an arrow was an arrow, and neither could be anything

@@ -380,10 +380,11 @@ Kimi (Moonshot AI) is a third company on a third account.
   That function used to give up entirely when the record held no `openAiKey`,
   which would have left a Kimi key saved on the iPad and picked up on no other
   device — the very thing the record exists for.
-- **`aiEngineName()` is the ONE place the engine is named**, so the header
-  button, every `.aiName` span and every `{ai}` tooltip say *Kimi* when Kimi is
-  the engine that is on. An app claiming Gemini while ChatGPT answers was the
-  bug that function was written for; a third engine is a third way to make it.
+- **`aiVendorName()` is the ONE place the engine is named**, so the header
+  button says *AI · Kimi* when Kimi is the engine that is on. An app claiming
+  Gemini while ChatGPT answers was the bug that function was written for; a
+  third engine is a third way to make it. It is the ADMIN's answer — everything
+  a student or a teacher reads says **Chung GPT** instead (see below).
 - **THE MODEL IS A FIELD, NOT A CONSTANT.** Moonshot renames its flagship with
   every release (`kimi-k2-…`, `kimi-k3-…`), so an id hard-coded here is a 404
   on every call a few months from now — and a 404 on every call reads as "Kimi
@@ -393,6 +394,46 @@ Kimi (Moonshot AI) is a third company on a third account.
   address, so a key written here would be in the page source of every student's
   browser and in the repository's history for good — the same rule the OpenAI
   key has always had.
+
+## 🤖 The assistant is called Chung GPT (v1.76.0)
+
+`aiEngineName()` / `aiVendorName()` / `refreshAiEngineNames` (search
+`THE ASSISTANT IS CALLED CHUNG GPT`).
+
+The app used to call its AI by whichever vendor was answering — *ChatGPT marks
+this answer*, *Gemini reads every page*, *Kimi is busy* — so the assistant
+changed its name depending on which key happened to be saved. It is the
+centre's assistant, not a vendor's, and which company served a given call is no
+use to a student or to a teacher mid-worksheet.
+
+- **`aiEngineName()` returns `'Chung GPT'`, full stop**, and every user-facing
+  mention still goes through it: the toolbar tooltips, the ✨ Answer / ✒️
+  Improve menu, the marking and Ask AI status lines, the note builder, the
+  mindmap toast. One function, so the name is one line to change.
+- **It returns a LITERAL, never a variable declared above it.** A `var`
+  assignment only runs if everything before it ran, so anything that throws
+  higher up the script — the pdf.js CDN failing to load, say — would leave the
+  app calling its assistant *"undefined"* on every surface at once. A function
+  declaration is hoisted whole and cannot fail that way. This was caught in a
+  browser with the CDN blocked, which is exactly the condition that produces it.
+- **`aiVendorName()` is the vendor, and the admin's surfaces keep using it.**
+  The header button (`AI · ChatGPT`), the AI Engine dialog's radio rows, the
+  answer key's engine label, and every *"ChatGPT could not be reached — Gemini
+  worked those pages out instead"* notice all name the real company, from their
+  own literals. Branding the student's side must not take the truth away from
+  the teacher's: an admin who cannot tell which engine answered cannot tell a
+  missing key from a broken one.
+- **The static markup carries the brand as its default**, so the first paint is
+  not a vendor's name for the half-second before `refreshAiEngineNames()` runs
+  — three `<span class="aiName">` and the AI tool's `title`.
+
+### …and it says what it is DOING
+
+The Ask AI thread's pending bubble said **✨ Thinking…**, which tells a student
+nothing and explains nothing about the wait. It now reads **✨ Chung GPT is
+reading the worksheet…** — the same wording ✨ Answer already used, and the
+thing that is actually happening: it is reading the worksheet the question was
+asked about.
 
 ## House rules
 - **The Gemini model is `AI_MODEL` and its thinking floor is `AI_THINK_MIN`, and the two move
