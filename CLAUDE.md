@@ -484,6 +484,40 @@ level and theme.
   tool shortcuts fire while a term is being typed. Escape closes it.
 - Run **`node tools/syllabus-tests.mjs`** after touching any of it.
 
+### …and it has to SCROLL (v1.78.0)
+
+It shipped unable to: 79 objectives ran off the bottom of a card with no way to
+reach them, and nothing threw. **Four rules make it work and every one of them
+fails silently** — the window still opens, still searches, still looks full.
+
+1. **The card rules are `.modalCard.sylWide` (0,2,0), never a bare `.sylWide`.**
+   The base `.modalCard { max-width: 520px; max-height: 78vh }` is declared
+   LATER in the sheet, so a single-class rule loses wherever they collide — an
+   860px window came out 520px wide.
+2. **The BODY does not scroll; the LIST does.** The body is the flex column
+   that holds the search box and the chips still while the list moves under
+   them. A body that scrolls takes the search box away with it.
+3. **`min-height: 0` on both.** A flex item defaults to `min-height: auto`, so
+   it will not shrink below its content — `overflow: auto` then has nothing to
+   do and the list simply grows past the card. That one line is the whole bug.
+4. **The list is a BLOCK, not a flex column.** This is the one that survived
+   the first fix and looked convincing: a flex column SHRINKS its children, so
+   the 18 topics were squeezed into the visible height and clipped by their own
+   `overflow: hidden`. `scrollHeight` came back **equal to** `clientHeight` —
+   nothing to scroll, on a window that appeared perfectly full. Measured: 567px
+   of "content" for 79 objectives; as a block it is 11,764px. The gap between
+   topics is `.sylList > * + * { margin-top: 16px }` rather than `gap`.
+
+**On a phone the furniture was the window.** At 390×620 the heading, the blurb,
+the search box and two wrapped rows of theme chips took 300 of the card's 546px
+— more than half of it — and the syllabus read through a 245px slot. Under
+560px the blurb is hidden (the placeholder says the same thing) and the chips
+become ONE row you swipe sideways, which gives the list 357px.
+
+`tools/syllabus-tests.mjs` checks all five of those **against `index.html`
+itself**, because none of them can be caught by testing the matcher and the one
+that gets missed is always the CSS.
+
 ## 🖼️ The picture generator, on a button of its own (v1.77.0)
 
 `armPictureGenerator`, and the 🖼️ **Picture** button beside AI Engine.
@@ -505,13 +539,18 @@ draw.
 ## House rules
 - After touching **the syllabus window** (`SYLLABUS_TOPICS`, `sylIndex`,
   `sylWords`, `SYL_STOP`, `sylSearch`, `sylGroup`, `sylMark`,
-  `renderSyllabus`), run `node tools/syllabus-tests.mjs`. It is a reference a
+  `renderSyllabus`, **or any `.syl*` / `.modalCard.sylWide` rule**), run
+  `node tools/syllabus-tests.mjs`. It is a reference a
   teacher looks a term up in mid-lesson, and every way it goes wrong is quiet:
   an OR match returns half the syllabus, which is the same as returning
   nothing; a matcher that stops reading the keywords makes *evaporation* find
   only the sections that spell it out; marks and hits that disagree either
   speckle the page with meaningless highlights or hide why a section came up;
   and marking BEFORE escaping writes the syllabus into the page as markup.
+  The CSS half is quieter still: put `display: flex` back on `.sylList` and the
+  topics shrink to fit instead of overflowing, so the window looks full, every
+  topic is clipped by its own `overflow: hidden`, and there is nothing to
+  scroll to — which is exactly how it shipped.
 - **The Gemini model is `AI_MODEL` and its thinking floor is `AI_THINK_MIN`, and the two move
   TOGETHER** (v1.66.0). Every model has its own thinking scale, and a level it does not know is a
   **400 INVALID_ARGUMENT on every AI feature in the app** — not a worse answer, no answer at all.

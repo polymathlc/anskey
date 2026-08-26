@@ -207,6 +207,48 @@ test('a group carries the level and theme its heading prints', () => {
   S.sylGroup(S.sylSearch('magnet')).forEach(g => ok(g.level && g.theme, g.topic + ' has no heading meta'));
 });
 
+section('\nTHE WINDOW SCROLLS — the CSS, checked against the file itself');
+
+// This one is not about the matcher. The window shipped unable to scroll: 79
+// objectives ran off the bottom of a card with no way to reach them, and
+// nothing threw. Four rules make it work and every one of them fails silently.
+const css = cut('/* 📚 The syllabus window', '.sylTopic {', 'syllabus CSS')
+          + cut('.sylList {', '.sylTopic {', 'syllabus list CSS');
+
+test('the card rules are .modalCard.sylWide, never a bare .sylWide', () => {
+  ok(/\.modalCard\.sylWide\s*\{/.test(css), 'the card rule lost its .modalCard');
+  ok(!/(^|[^.\w])\.sylWide\s*\{/m.test(css),
+     'a single-class .sylWide rule is back — the later .modalCard { max-width: 520px } beats it');
+});
+
+test('the BODY is the frame: it hides its overflow and may shrink', () => {
+  const body = cut('.modalCard.sylWide .modalBody {', '}', 'syllabus body');
+  ok(/overflow:\s*hidden/.test(body), 'the body scrolls instead of the list — the search box scrolls away with it');
+  ok(/min-height:\s*0/.test(body), 'min-height: 0 is gone — a flex item will not shrink below its content and the card overflows');
+});
+
+test('the LIST is the scroller, and it can shrink', () => {
+  const list = cut('.sylList {', '}', 'syllabus list');
+  ok(/overflow-y:\s*auto/.test(list), 'the list stopped being the scroller');
+  ok(/min-height:\s*0/.test(list), 'min-height: 0 is gone — overflow never engages and the list grows past the card');
+  ok(/flex:\s*1 1 auto/.test(list), 'the list no longer takes the space left over');
+});
+
+test('the list is a BLOCK — a flex column squashes its topics instead of overflowing', () => {
+  const list = cut('.sylList {', '}', 'syllabus list');
+  ok(!/display:\s*flex/.test(list),
+     'display:flex is back on .sylList: the topics shrink to fit, scrollHeight equals clientHeight, '
+     + 'and the window looks full while every topic is clipped by its own overflow:hidden');
+  ok(/\.sylList > \* \+ \* \{[^}]*margin-top/.test(css), 'the gap between topics went with the flex layout');
+});
+
+test('a phone gets the room back: no blurb, one swipeable row of chips', () => {
+  const media = cut('@media (max-width: 560px) {', '\n}\n', 'syllabus phone CSS');
+  ok(/\.profileIntro\s*\{\s*display:\s*none/.test(media), 'the blurb is back on a phone — it costs a quarter of the list');
+  ok(/flex-wrap:\s*nowrap/.test(media) && /overflow-x:\s*auto/.test(media),
+     'the theme chips wrap into two rows again instead of scrolling sideways');
+});
+
 for (const run of queue) run();
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
