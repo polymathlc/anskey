@@ -3,6 +3,25 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 📚 The science syllabus, and a button for pictures (v1.77.0)
+
+**📚 Syllabus** in the header opens the Learning Outcomes of the MOE Primary
+Science Syllabus 2023 — 18 topics, 79 objectives — with a search box over them.
+Type a term or a topic and the sections that cover it come up: *states of
+matter* brings back the two sections about matter and about water in its three
+states; *evaporation* finds the sections that never spell the word out in their
+titles, because the search reads each objective's keywords too; *P5 systems*
+narrows to that level and theme. Whatever you searched for is marked in what
+comes back, so it is obvious why a section is there.
+
+It shows the syllabus and nothing else — no questions. Those live in the
+Science portal, which is where the question bank is.
+
+**🖼️ Picture** puts the picture generator on a button. It was already there as
+the *Picture or diagram* kind inside ✨ AI notes, three steps in; the button
+arms the same tool with the kind already chosen, so the next tap on the page
+opens the builder ready to draw.
+
 ## The assistant is called Chung GPT (v1.76.0)
 
 The app used to call its AI by whichever vendor was answering — *ChatGPT marks

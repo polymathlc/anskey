@@ -1514,6 +1514,35 @@
     margin-bottom: 12px;
   }
   .reviseToggleRow input { width: 17px; height: 17px; accent-color: var(--accent-deep); cursor: pointer; }
+  
+/* 📚 The syllabus window — a searchable reference, no questions in it. */
+.sylWide { width: min(860px, 96vw); }
+.sylWide .modalBody { display: flex; flex-direction: column; gap: 14px; max-height: 76vh; }
+.sylSearch { display: flex; gap: 10px; align-items: center; }
+.sylSearch input { flex: 1; font: inherit; padding: 11px 14px; border: 1px solid var(--line, #d6d3cc);
+  border-radius: 10px; background: #fff; }
+.sylCount { font-size: 12px; color: #6b6a66; white-space: nowrap; }
+.sylChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sylChip { font: inherit; font-size: 12px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line, #d6d3cc); background: #fff; color: #3b3a37; }
+.sylChip:hover { background: #f3f1ec; }
+.sylChip.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.sylList { overflow: auto; display: flex; flex-direction: column; gap: 16px; padding-right: 4px; }
+.sylTopic { border: 1px solid var(--line, #d6d3cc); border-radius: 12px; overflow: hidden; }
+.sylTopicHead { padding: 12px 16px; background: #f7f5f0; border-bottom: 1px solid var(--line, #d6d3cc); }
+.sylTopicName { font-weight: 700; font-size: 15px; }
+.sylTopicMeta { font-size: 12px; color: #6b6a66; margin-top: 3px; }
+.sylLo { padding: 14px 16px; border-top: 1px solid #eceae4; }
+.sylLo:first-of-type { border-top: none; }
+.sylLoTitle { font-weight: 650; font-size: 14px; margin-bottom: 5px; }
+.sylLoIntro { font-size: 13.5px; line-height: 1.65; color: #3b3a37; }
+.sylLoObj { font-size: 13px; line-height: 1.6; color: #55534e; margin-top: 7px;
+  padding-left: 11px; border-left: 3px solid #d8d5cd; }
+.sylKw { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.sylKw span { font-size: 11.5px; padding: 3px 9px; border-radius: 999px; background: #f0eee8; color: #55534e; }
+.sylHit { background: #fff3b0; border-radius: 3px; padding: 0 1px; }
+.sylEmpty { padding: 34px 16px; text-align: center; color: #6b6a66; font-size: 14px; line-height: 1.7; }
+
   /* Radio rows in the AI Engine dialog — roomy cards, one per engine.
      Scoped under .fieldRow so they beat the generic .fieldRow label/input
      rules that would otherwise stack the radio above its own text. */
@@ -4054,6 +4083,29 @@
 </div>
 
 <!-- AI ENGINE (admin only) — Gemini by default, ChatGPT with your own key -->
+
+<div class="modalBack" id="syllabusModal">
+  <div class="modalCard sylWide">
+    <div class="modalHead">
+      <h2>📚 Science syllabus</h2>
+      <button class="modalClose" id="syllabusCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro">
+        The Learning Outcomes of the MOE Primary Science Syllabus 2023. Search a term or a topic —
+        <em>states of matter</em>, <em>evaporation</em>, <em>P5 systems</em> — and the sections that
+        cover it come up.
+      </div>
+      <div class="sylSearch">
+        <input id="syllabusSearch" type="search" placeholder="Search a term or a topic…" autocomplete="off">
+        <span class="sylCount" id="syllabusCount"></span>
+      </div>
+      <div class="sylChips" id="syllabusChips"></div>
+      <div class="sylList" id="syllabusList"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modalBack" id="aiEngineModal">
   <div class="modalCard">
     <div class="modalHead">
@@ -4460,7 +4512,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.76.0';
+var APP_VERSION = 'v1.77.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -10367,6 +10419,547 @@ function promptForOpenAiKey() {
   openAiEngineModal();
   toast('ChatGPT ' + getOpenAiModel() + ' is the engine now. Paste your OpenAI key once — ' +
     'every device you sign in on picks it up after that. Until then everything keeps running on Gemini.', 8000);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   📚 THE SCIENCE SYLLABUS — searchable, and nothing else
+
+   The Learning Outcomes of the MOE Primary Science Syllabus 2023, lifted from
+   the Science portal (polymathlc/cer, `SYLLABUS_LO_TOPICS`). Search a term or
+   a topic and the sections that cover it come up: "states of matter" finds the
+   two sections about matter and about water in its three states.
+
+   IT SHOWS THE SYLLABUS AND NOTHING ELSE. The portal attaches questions to
+   each objective and this deliberately does not: there is no question bank in
+   this app, and a reference that half-worked — objectives listed with an empty
+   "questions" section under each — would read as broken rather than as a
+   reference. If questions are ever wanted here, they belong to that app.
+
+   IT IS A COPY, and copies drift. It is a fixed public syllabus rather than
+   anything either app computes, so it drifts only when MOE changes the
+   syllabus — at which point BOTH files want editing. Search `SYLLABUS_TOPICS`
+   in each.
+   ═══════════════════════════════════════════════════════════════════════ */
+var SYLLABUS_TOPICS = [
+  // ---------- DIVERSITY ----------
+  { topic: 'Diversity of Living and Non-Living Things', level: 'P3', theme: 'Diversity', los: [
+    { id: 'div-living', title: 'Characteristics of living things',
+      intro: 'Living things need air, food and water to survive, and they grow, respond to changes around them and reproduce.',
+      obj: 'Describe the characteristics of living things: they need water, food and air to survive, and they grow, respond and reproduce.',
+      kw: ['living thing', 'non-living', 'survive', 'grow', 'respond', 'reproduce', 'characteristic'] },
+    { id: 'div-infer', title: 'Telling living from non-living things',
+      intro: 'By observing carefully we can work out which things around us are alive and which are not.',
+      obj: 'Observe a variety of living and non-living things and infer the differences between them.',
+      kw: ['living', 'non-living', 'infer', 'difference', 'observe', 'alive'] },
+    { id: 'div-groups', title: 'Broad groups of living things',
+      intro: 'The great variety of living things is sorted into broad groups: plants, animals, fungi and bacteria.',
+      obj: 'Recognise broad groups of living things based on similarities and differences: plants (flowering, non-flowering); animals (amphibians, birds, fish, insects, mammals, reptiles); fungi (mould, mushroom, yeast); and bacteria.',
+      kw: ['flowering', 'non-flowering', 'mammal', 'reptile', 'amphibian', 'insect', 'bird', 'fish', 'fungi', 'fungus', 'bacteria', 'mould', 'mushroom', 'yeast'] },
+    { id: 'div-classify', title: 'Classifying living things',
+      intro: 'We put living things into groups by looking for characteristics they share and characteristics that set them apart.',
+      obj: 'Classify living things into broad groups based on similarities and differences in common observable characteristics.',
+      kw: ['classify', 'group', 'observable', 'characteristic', 'similarity', 'difference', 'sort'] },
+  ] },
+  { topic: 'Diversity of Materials', level: 'P3', theme: 'Diversity', los: [
+    { id: 'mat-uses', title: 'Materials and their uses',
+      intro: 'We choose a material for a job because of the properties it has.',
+      obj: 'Relate the use of various types of materials (wood, metal, ceramic, rubber, glass, plastic, fabric) to their physical properties.',
+      kw: ['material', 'wood', 'metal', 'ceramic', 'rubber', 'glass', 'plastic', 'fabric', 'property', 'used to make'] },
+    { id: 'mat-props', title: 'Comparing physical properties',
+      intro: 'Materials can be compared by how strong, flexible, waterproof or transparent they are, and by whether they float.',
+      obj: 'Compare the physical properties of materials: strength, flexibility, ability to float or sink in water, waterproofness and transparency.',
+      kw: ['strength', 'strong', 'flexibility', 'flexible', 'float', 'sink', 'waterproof', 'transparency', 'transparent', 'compare'] },
+  ] },
+  // ---------- CYCLES ----------
+  { topic: 'Cycles in Plants and Animals (Life Cycles)', level: 'P3', theme: 'Cycles', los: [
+    { id: 'lc-different', title: 'Different living things have different life cycles',
+      intro: 'Every living thing goes through a set of stages from young to adult, and those stages are not the same for every living thing.',
+      obj: 'Show an understanding that different living things have different life cycles.',
+      kw: ['life cycle', 'stage', 'adult', 'young', 'differ'] },
+    { id: 'lc-plants', title: 'Life cycles of plants grown from seeds',
+      intro: 'A seed germinates, grows into a seedling and then into an adult plant that makes seeds of its own.',
+      obj: 'Observe and compare the life cycles of plants grown from seeds over a period of time.',
+      kw: ['seed', 'germinate', 'germination', 'seedling', 'life cycle', 'plant', 'shoot'] },
+    { id: 'lc-animals', title: 'Life cycles of animals',
+      intro: 'Some animals change completely as they grow (butterfly, mosquito, frog); others simply get bigger.',
+      obj: 'Observe and compare the life cycles of animals over a period of time (chicken, cockroach, frog, grasshopper, beetle, butterfly, mosquito).',
+      kw: ['chicken', 'cockroach', 'frog', 'grasshopper', 'beetle', 'butterfly', 'mosquito', 'larva', 'pupa', 'nymph', 'tadpole', 'life cycle'] },
+  ] },
+  { topic: 'Cycles in Plants and Animals (Reproduction)', level: 'P5', theme: 'Cycles', los: [
+    { id: 'rep-cell', title: 'The cell — the basic unit of life',
+      intro: 'Every living thing is made of cells. Plant and animal cells share some parts and differ in others.',
+      obj: 'Recognise that a cell is the basic unit of life.',
+      kw: ['cell', 'nucleus', 'cell membrane', 'cytoplasm', 'chloroplast', 'cell wall', 'basic unit'] },
+    { id: 'rep-continuity', title: 'Reproduction and passing on characteristics',
+      intro: 'Living things reproduce so their kind continues, and offspring inherit many characteristics from their parents.',
+      obj: 'Show an understanding that living things reproduce to ensure the continuity of their kind, and that many characteristics of an organism are passed on from parents to offspring.',
+      kw: ['reproduce', 'reproduction', 'continuity', 'inherit', 'characteristic', 'parent', 'offspring', 'trait'] },
+    { id: 'rep-plant', title: 'Sexual reproduction in flowering plants',
+      intro: 'Pollen reaches the stigma, fertilisation happens in the ovary, seeds form, and the seeds are then dispersed.',
+      obj: 'Describe the processes in the sexual reproduction of flowering plants: pollination, fertilisation (seed production) and seed dispersal.',
+      kw: ['pollination', 'pollen', 'stigma', 'anther', 'ovary', 'ovule', 'fertilisation', 'seed dispersal', 'flower'] },
+    { id: 'rep-human', title: 'Fertilisation in humans',
+      intro: 'In humans a sperm nucleus fuses with an egg nucleus, and the fertilised egg develops in the womb.',
+      obj: 'Recognise the process of fertilisation in the sexual reproduction of humans.',
+      kw: ['sperm', 'egg', 'fertilisation', 'womb', 'uterus', 'embryo', 'foetus', 'human reproduction'] },
+    { id: 'rep-similar', title: 'What plant and human reproduction share',
+      intro: 'In both flowering plants and humans, fertilisation is the fusing of a male nucleus with a female nucleus.',
+      obj: 'Recognise the similarity, in terms of fertilisation, between the sexual reproduction of flowering plants and of humans.',
+      kw: ['fertilisation', 'similarity', 'sexual reproduction', 'fuse', 'nucleus', 'male', 'female'] },
+    { id: 'rep-ways', title: 'How plants reproduce',
+      intro: 'Not every plant makes seeds — some, such as ferns and moulds, reproduce by spores.',
+      obj: 'Investigate the ways in which plants reproduce — by spores and by seeds.',
+      kw: ['spore', 'seed', 'fern', 'mould', 'reproduce', 'plant'] },
+  ] },
+  { topic: 'Cycles in Matter and Water (Matter)', level: 'P4', theme: 'Cycles', los: [
+    { id: 'matt-def', title: 'What matter is',
+      intro: 'Everything around us that has mass and takes up space is matter — including air, which we cannot see.',
+      obj: 'State that matter is anything that has mass and occupies space.',
+      kw: ['matter', 'mass', 'occupies space', 'volume', 'takes up space'] },
+    { id: 'matt-states', title: 'The three states of matter',
+      intro: 'Solids keep their shape and volume, liquids keep volume but not shape, and gases keep neither.',
+      obj: 'Differentiate among the three states of matter (solid, liquid and gas) in terms of shape and volume.',
+      kw: ['solid', 'liquid', 'gas', 'state of matter', 'shape', 'volume', 'definite'] },
+    { id: 'matt-measure', title: 'Measuring mass and volume',
+      intro: 'Mass is measured with a balance and the volume of a liquid with a measuring cylinder.',
+      obj: 'Measure mass and volume using appropriate apparatus.',
+      kw: ['mass', 'volume', 'measuring cylinder', 'beaker', 'balance', 'measure', 'apparatus'] },
+  ] },
+  { topic: 'Cycles in Matter and Water (Water)', level: 'P5', theme: 'Cycles', los: [
+    { id: 'wat-three', title: 'Water in its three states',
+      intro: 'Water can be ice, liquid water or water vapour, and it can change back and forth between them.',
+      obj: 'Recognise that water can exist in three interchangeable states of matter.',
+      kw: ['water', 'ice', 'steam', 'water vapour', 'state', 'interchangeable'] },
+    { id: 'wat-change', title: 'How water changes state',
+      intro: 'Melting, freezing, boiling, evaporation and condensation are the changes water goes through as it gains or loses heat.',
+      obj: 'Show an understanding of how water changes from one state to another: melting, freezing, boiling, evaporation and condensation.',
+      kw: ['melting', 'freezing', 'boiling', 'evaporation', 'condensation', 'change of state'] },
+    { id: 'wat-points', title: 'Melting point and boiling point',
+      intro: 'Ice melts at 0°C and water boils at 100°C — the temperatures stay fixed while the change of state happens.',
+      obj: 'Show an understanding of the terms melting point of ice (or freezing point of water) and boiling point of water.',
+      kw: ['melting point', 'freezing point', 'boiling point', 'thermometer', 'remains constant'] },
+    { id: 'wat-heat', title: 'Heat gain and loss changing water',
+      intro: 'Adding heat melts ice and boils water; removing heat condenses vapour and freezes water.',
+      obj: 'Investigate the effect of heat gain or loss on the temperature and state of water.',
+      kw: ['heat gain', 'heat loss', 'temperature', 'ice', 'melt', 'boil', 'state', 'graph'] },
+    { id: 'wat-evap', title: 'What affects the rate of evaporation',
+      intro: 'Water evaporates faster when it is warmer, windier, or spread over a larger exposed surface.',
+      obj: 'Investigate the factors which affect the rate of evaporation: wind, temperature and exposed surface area.',
+      kw: ['evaporation', 'rate of evaporation', 'wind', 'temperature', 'exposed surface area', 'dry faster'] },
+    { id: 'wat-cycle', title: 'Evaporation and condensation in the water cycle',
+      intro: 'Water evaporates from the sea, condenses into clouds and falls again as rain.',
+      obj: 'Show an understanding of the roles of evaporation and condensation in the water cycle.',
+      kw: ['water cycle', 'evaporation', 'condensation', 'cloud', 'rain', 'precipitation'] },
+    { id: 'wat-import', title: 'Why the water cycle matters',
+      intro: 'The water cycle is what keeps returning fresh water to the land.',
+      obj: 'Recognise the importance of the water cycle.',
+      kw: ['water cycle', 'importance', 'fresh water', 'supply', 'rain'] },
+    { id: 'wat-life', title: 'Water and life processes',
+      intro: 'Living things need water for digestion, for transporting substances and for many other life processes.',
+      obj: 'Recognise the importance of water to life processes.',
+      kw: ['water', 'life process', 'digestion', 'transport', 'survive', 'importance'] },
+    { id: 'wat-poll', title: 'Water pollution',
+      intro: 'Polluting our water sources reduces the clean water available to living things.',
+      obj: "Describe the impact of water pollution on Earth's water resources.",
+      kw: ['water pollution', 'pollutant', 'contaminate', 'water resource', 'clean water'] },
+  ] },
+  // ---------- SYSTEMS ----------
+  { topic: 'Human System (Digestive System)', level: 'P4', theme: 'Systems', los: [
+    { id: 'hum-systems', title: 'The systems of the human body',
+      intro: 'The body is made of systems — digestive, respiratory, circulatory, skeletal and muscular — each with its own job.',
+      obj: 'Identify the human systems in the body and state their functions (digestive, respiratory, circulatory, skeletal and muscular).',
+      kw: ['digestive', 'respiratory', 'circulatory', 'skeletal', 'muscular', 'system', 'function'] },
+    { id: 'hum-digest', title: 'The digestive system',
+      intro: 'Food travels from the mouth through the gullet, stomach and intestines, being broken down and absorbed along the way.',
+      obj: 'Identify the parts in the human digestive system (mouth, gullet, stomach, small intestine and large intestine) and describe their functions.',
+      kw: ['mouth', 'gullet', 'oesophagus', 'stomach', 'small intestine', 'large intestine', 'digestion', 'digestive juice', 'absorb'] },
+  ] },
+  { topic: 'Human System (Respiratory and Circulatory Systems)', level: 'P5', theme: 'Systems', los: [
+    { id: 'air-gases', title: 'The gases in air',
+      intro: 'Air is a mixture — mostly nitrogen, with oxygen, carbon dioxide and water vapour.',
+      obj: 'Recognise that air is made up of gases such as nitrogen, carbon dioxide, oxygen and water vapour.',
+      kw: ['air', 'nitrogen', 'oxygen', 'carbon dioxide', 'water vapour', 'gas'] },
+    { id: 'resp-parts', title: 'The respiratory and circulatory systems',
+      intro: 'Air travels through the nose and windpipe to the lungs, and the heart pumps blood through blood vessels to the whole body.',
+      obj: 'Identify the parts of the human respiratory system (nose, windpipe, lungs) and circulatory system (heart, blood, blood vessels) and describe their functions.',
+      kw: ['nose', 'windpipe', 'lungs', 'heart', 'blood', 'blood vessel', 'respiratory', 'circulatory', 'breathe'] },
+    { id: 'sys-integrate', title: 'Systems working together',
+      intro: 'The digestive, respiratory and circulatory systems work as one to get oxygen and digested food to every cell.',
+      obj: 'Recognise the integration of the different systems (digestive, respiratory and circulatory) in carrying out life processes.',
+      kw: ['integration', 'work together', 'digestive', 'respiratory', 'circulatory', 'life process', 'oxygen', 'digested food'] },
+    { id: 'gas-exchange', title: 'How plants, fish and humans exchange gases',
+      intro: 'Humans use lungs, fish use gills and plants use tiny openings in their leaves — but all take in oxygen and give out carbon dioxide.',
+      obj: 'Compare how plants, fish and humans take in oxygen and give out carbon dioxide.',
+      kw: ['oxygen', 'carbon dioxide', 'gills', 'stomata', 'tiny openings', 'lungs', 'gaseous exchange', 'fish'] },
+  ] },
+  { topic: 'Transport in Humans and Plants', level: 'P5', theme: 'Systems', los: [
+    { id: 'trans-plant-parts', title: 'The plant transport system',
+      intro: 'Plants have two sets of tubes: one carries water and mineral salts up, the other carries food made in the leaves.',
+      obj: 'Identify the parts of the plant transport system and describe their functions.',
+      kw: ['water-carrying tube', 'food-carrying tube', 'tube', 'stem', 'root', 'transport', 'mineral salts'] },
+    { id: 'trans-plant-inv', title: 'How food and water move through a plant',
+      intro: 'Putting a stem in coloured water shows the path the water takes up the plant.',
+      obj: 'Investigate how food and water are transported in the plant.',
+      kw: ['transport', 'water', 'food', 'dye', 'coloured water', 'stem', 'tube', 'stained'] },
+    { id: 'trans-compare', title: 'Transport in plants compared with humans',
+      intro: 'Both plants and humans move substances around inside tubes — blood vessels in us, transport tubes in plants.',
+      obj: 'Compare the ways in which substances are transported within plants and within humans.',
+      kw: ['transport', 'blood vessel', 'tube', 'substance', 'compare', 'plant', 'human'] },
+  ] },
+  { topic: 'Plant System (Plant Parts and Functions)', level: 'P4', theme: 'Systems', los: [
+    { id: 'plant-parts', title: 'Parts of a plant and their functions',
+      intro: 'Roots anchor the plant and take in water, the stem holds it up and carries substances, and the leaf makes food.',
+      obj: 'Identify the different parts of plants and state their functions: leaf, stem and root.',
+      kw: ['leaf', 'stem', 'root', 'function', 'plant part', 'anchor', 'support', 'absorb'] },
+  ] },
+  { topic: 'Electrical System', level: 'P5', theme: 'Systems', los: [
+    { id: 'elec-circuit', title: 'What makes an electric circuit',
+      intro: 'A circuit needs an energy source and components — battery, wires, bulb and switch — joined into a system.',
+      obj: 'Recognise that an electric circuit, consisting of an energy source (battery) and other circuit components (wire, bulb, switch), forms an electrical system.',
+      kw: ['circuit', 'battery', 'wire', 'bulb', 'switch', 'electrical system', 'component'] },
+    { id: 'elec-closed', title: 'Closed circuits and current flow',
+      intro: 'Current only flows when the circuit is complete — one gap anywhere and everything stops.',
+      obj: 'Show an understanding that a closed circuit allows current to flow.',
+      kw: ['closed circuit', 'open circuit', 'current', 'flow', 'light up', 'complete', 'gap'] },
+    { id: 'elec-cond', title: 'Electrical conductors and insulators',
+      intro: 'Conductors let current through, insulators do not — which is why wires are metal inside and plastic outside.',
+      obj: 'Identify electrical conductors and insulators.',
+      kw: ['conductor', 'insulator', 'electricity', 'metal', 'plastic', 'rubber', 'conduct'] },
+    { id: 'elec-diagram', title: 'Circuit diagrams',
+      intro: 'A circuit diagram uses agreed symbols so any circuit can be drawn and read quickly.',
+      obj: 'Construct circuit diagrams.',
+      kw: ['circuit diagram', 'symbol', 'draw', 'construct', 'redraw'] },
+    { id: 'elec-arrange', title: 'How batteries and bulbs affect the current',
+      intro: 'More batteries make a bigger current; bulbs in series and in parallel behave differently.',
+      obj: 'Investigate how the number and arrangement of batteries and bulbs (in series and in parallel) affect the current in a circuit.',
+      kw: ['series', 'parallel', 'number of batteries', 'number of bulbs', 'brighter', 'dimmer', 'current', 'arrangement'] },
+  ] },
+  // ---------- INTERACTIONS ----------
+  { topic: 'Interaction of Forces (Magnets)', level: 'P3', theme: 'Interactions', los: [
+    { id: 'mag-push', title: 'A magnet can push or pull',
+      intro: 'A magnet exerts a force without touching — it can attract or repel.',
+      obj: 'Recognise that a magnet can exert a push or a pull.',
+      kw: ['magnet', 'push', 'pull', 'attract', 'repel', 'force'] },
+    { id: 'mag-char', title: 'Characteristics of magnets',
+      intro: 'Magnets have two poles, point north–south when freely suspended, and like poles repel while unlike poles attract.',
+      obj: 'Identify the characteristics of magnets: they can be made of iron or steel; they have two poles; a freely suspended magnet points in the north–south direction; and like poles repel while unlike poles attract.',
+      kw: ['pole', 'north', 'south', 'attract', 'repel', 'iron', 'steel', 'freely suspended', 'like poles'] },
+    { id: 'mag-uses', title: 'Uses of magnets',
+      intro: 'Magnets are used in everyday objects from fridge doors to compasses.',
+      obj: 'Recognise uses of magnets in everyday objects.',
+      kw: ['magnet', 'use', 'everyday', 'fridge', 'compass', 'door catch'] },
+    { id: 'mag-materials', title: 'Magnetic and non-magnetic materials',
+      intro: 'Only some materials are attracted to magnets — a magnetic material is not the same thing as a magnet.',
+      obj: 'Compare magnets, magnetic materials and non-magnetic materials.',
+      kw: ['magnetic material', 'non-magnetic', 'iron', 'steel', 'nickel', 'cobalt', 'attracted'] },
+    { id: 'mag-make', title: 'Making a magnet',
+      intro: 'A magnet can be made by stroking a magnetic material with a magnet, or by using electricity.',
+      obj: 'Make a magnet by the stroke method and by the electrical method.',
+      kw: ['stroke method', 'electrical method', 'make a magnet', 'magnetise', 'electromagnet', 'coil'] },
+  ] },
+  { topic: 'Interaction of Forces (Frictional, Gravitational and Elastic Spring Force)', level: 'P6', theme: 'Interactions', los: [
+    { id: 'force-what', title: 'A force is a push or a pull',
+      intro: 'Every force is either a push or a pull acting on an object.',
+      obj: 'Identify a force as a push or a pull.',
+      kw: ['force', 'push', 'pull'] },
+    { id: 'force-effects', title: 'What a force can do',
+      intro: 'A force can start motion, speed it up, slow it down, change its direction, stop it, or change an object’s shape.',
+      obj: 'Show an understanding of the effects of a force: it can move a stationary object, speed up, slow down or change the direction of a moving object, stop a moving object, and change the shape of an object.',
+      kw: ['stationary', 'speed up', 'slow down', 'change direction', 'stop', 'change shape', 'effect of a force'] },
+    { id: 'force-types', title: 'Types of forces',
+      intro: 'The forces in the syllabus are magnetic, gravitational, elastic spring and frictional force.',
+      obj: 'Recognise and give examples of the different types of forces: magnetic force, gravitational force, elastic spring force and frictional force.',
+      kw: ['magnetic force', 'gravitational force', 'elastic spring force', 'frictional force', 'type of force'] },
+    { id: 'force-weight', title: 'Weight and gravitational force',
+      intro: 'Weight is the pull of gravity on an object, which is why it is measured in newtons and not in grams.',
+      obj: 'Recognise that objects have weight because of the gravitational force acting on the object.',
+      kw: ['weight', 'gravity', 'gravitational force', 'newton', 'mass', 'pull of the earth'] },
+    { id: 'force-friction', title: 'Frictional force and motion',
+      intro: 'Friction acts against motion — rougher surfaces produce more of it, so objects travel less far.',
+      obj: 'Investigate the effect of frictional force on the motion of objects.',
+      kw: ['friction', 'frictional force', 'rough', 'smooth', 'surface', 'slow down', 'distance moved'] },
+    { id: 'force-spring', title: 'Elastic spring force',
+      intro: 'A stretched or compressed spring pulls or pushes back, and stretches further as the load increases.',
+      obj: 'Investigate the effects of elastic spring force.',
+      kw: ['elastic spring force', 'spring', 'stretch', 'compress', 'rubber band', 'extension', 'load', 'elastic'] },
+  ] },
+  { topic: 'Interactions within the Environment', level: 'P6', theme: 'Interactions', los: [
+    { id: 'env-survival', title: 'Factors affecting survival',
+      intro: 'Whether an organism survives depends on its surroundings and on the other living things around it.',
+      obj: 'Identify the factors that affect the survival of an organism: the physical characteristics of the environment (temperature, light, water) and its interactions with other living things (competition, predation, symbiosis).',
+      kw: ['survival', 'temperature', 'light', 'water', 'competition', 'predator', 'prey', 'symbiosis', 'factor'] },
+    { id: 'env-unfavourable', title: 'When the environment turns unfavourable',
+      intro: 'When conditions get worse, organisms either adapt, move away, or die.',
+      obj: 'Show an understanding of the effect on organisms when the environment becomes unfavourable — organisms adapt and survive, move to other places, or die.',
+      kw: ['unfavourable', 'adapt', 'move away', 'die', 'environment', 'change', 'survive'] },
+    { id: 'env-food', title: 'Food chains and food webs',
+      intro: 'Energy passes from the Sun to producers and then along the chain to consumers.',
+      obj: 'Show an understanding of the energy pathway from the Sun through living things, and identify the roles of organisms as producers, consumers, predators and prey in food chains and food webs.',
+      kw: ['food chain', 'food web', 'producer', 'consumer', 'predator', 'prey', 'energy', 'sun', 'arrow'] },
+    { id: 'env-levels', title: 'Organism, population and community',
+      intro: 'One living thing is an organism; a group of the same kind is a population; all the populations together are a community.',
+      obj: 'Differentiate among organism, population and community.',
+      kw: ['organism', 'population', 'community', 'habitat', 'same kind', 'group'] },
+    { id: 'env-habitat', title: 'Different habitats, different communities',
+      intro: 'A pond, a mangrove swamp and a seashore each support a different set of living things.',
+      obj: 'Show an understanding that different habitats support different communities (garden, field, pond, seashore, tree, mangrove swamp).',
+      kw: ['habitat', 'community', 'pond', 'seashore', 'mangrove', 'field', 'garden', 'tree'] },
+    { id: 'env-adapt', title: 'Adaptations for survival',
+      intro: 'Adaptations can be structural (a body part) or behavioural (something the animal does).',
+      obj: 'Show an understanding that adaptations serve to enhance survival and can be structural or behavioural.',
+      kw: ['adaptation', 'structural', 'behavioural', 'camouflage', 'beak', 'adapted', 'survive'] },
+    { id: 'env-man', title: "Man's impact on the environment",
+      intro: 'Human activity can damage the environment, and can also help to protect it.',
+      obj: "Give examples of man's impact, both positive and negative, on the environment.",
+      kw: ['deforestation', 'pollution', 'conservation', 'recycle', 'impact', 'human activity', 'global warming'] },
+  ] },
+  // ---------- ENERGY ----------
+  { topic: 'Energy Forms and Uses (Light)', level: 'P4', theme: 'Energy', los: [
+    { id: 'light-see', title: 'How we see objects',
+      intro: 'We see an object either because it gives out light or because it reflects light into our eyes.',
+      obj: 'Recognise that an object can be seen when it reflects light or when it is a source of light.',
+      kw: ['light', 'reflect', 'source of light', 'see', 'eye', 'shine'] },
+    { id: 'light-straight', title: 'Light travels in straight lines, and shadows',
+      intro: 'Because light travels in straight lines, an object that blocks it casts a shadow.',
+      obj: 'Recognise that light travels in straight lines and that a shadow is formed when light is completely or partially blocked by an object.',
+      kw: ['straight line', 'shadow', 'block', 'blocked', 'light', 'opaque'] },
+    { id: 'light-shadow-vars', title: 'What changes a shadow',
+      intro: 'A shadow changes with the shape, size and position of the object and with the distances between light, object and screen.',
+      obj: 'Investigate the variables that affect the shadows formed: the shape, size and position of the object, and the distance between the light source and object, and between the object and screen.',
+      kw: ['shadow', 'size', 'shape', 'position', 'distance', 'screen', 'light source', 'bigger', 'smaller'] },
+  ] },
+  { topic: 'Energy Forms and Uses (Heat)', level: 'P4', theme: 'Energy', los: [
+    { id: 'heat-sources', title: 'Sources of heat',
+      intro: 'The Sun, fire, a stove, a heater and even friction and electricity all give out heat.',
+      obj: 'Identify some common sources of heat.',
+      kw: ['source of heat', 'sun', 'fire', 'stove', 'heater', 'friction', 'electricity'] },
+    { id: 'heat-temp', title: 'Temperature measures how hot something is',
+      intro: 'Temperature tells us the degree of hotness of an object, and is measured with a thermometer.',
+      obj: 'State that the temperature of an object is a measurement of its degree of hotness.',
+      kw: ['temperature', 'degree of hotness', 'thermometer', 'hot', 'cold', 'measure'] },
+    { id: 'heat-energy', title: 'Heat is a form of energy',
+      intro: 'Heat is one of the forms energy takes, and it can move from one object to another.',
+      obj: 'State that heat is a form of energy.',
+      kw: ['heat', 'form of energy', 'energy'] },
+    { id: 'heat-vs-temp', title: 'Telling heat and temperature apart',
+      intro: 'Heat is the energy that flows; temperature is the measure of how hot something is. They are not the same thing.',
+      obj: 'Differentiate between heat and temperature.',
+      kw: ['heat', 'temperature', 'differentiate', 'difference', 'amount of heat'] },
+    { id: 'heat-flow', title: 'Heat flows from hotter to colder',
+      intro: 'Heat always moves from the hotter object to the colder one, until both reach the same temperature.',
+      obj: 'Show an understanding that heat flows from a hotter to a colder object, region or place until both reach the same temperature.',
+      kw: ['heat flow', 'hotter', 'colder', 'same temperature', 'gain heat', 'lose heat', 'until both'] },
+    { id: 'heat-change', title: 'Temperature change from heat gain or loss',
+      intro: 'An object warms up when it gains heat and cools down when it loses heat.',
+      obj: 'Relate the change in temperature of an object to the gain or loss of heat by the object.',
+      kw: ['temperature change', 'gain heat', 'lose heat', 'rise', 'fall', 'warmer', 'cooler'] },
+    { id: 'heat-effects', title: 'Effects of heat gain and loss',
+      intro: 'Gaining or losing heat makes things expand or contract, and can change their state.',
+      obj: 'List some effects of heat gain or loss in everyday life: the expansion and contraction of solids, liquids and gases, and the change in state of matter.',
+      kw: ['expand', 'expansion', 'contract', 'contraction', 'change of state', 'melt', 'boil', 'gap', 'crack'] },
+    { id: 'heat-cond', title: 'Good and poor conductors of heat',
+      intro: 'Metals conduct heat well; wood, plastic, air and rubber do not, which is why they are used as handles.',
+      obj: 'Identify good and poor conductors of heat — good conductors such as metals, and poor conductors such as wood, plastic, air and rubber.',
+      kw: ['conductor', 'insulator', 'metal', 'wood', 'plastic', 'air', 'rubber', 'conduct heat', 'handle'] },
+    { id: 'heat-measure', title: 'Measuring temperature',
+      intro: 'A thermometer or a datalogger with a temperature sensor gives a reading of how hot something is.',
+      obj: 'Measure temperature using a thermometer and a datalogger with temperature or heat sensors.',
+      kw: ['thermometer', 'datalogger', 'sensor', 'measure', 'temperature', 'reading', 'scale'] },
+  ] },
+  { topic: 'Energy Forms and Uses (Photosynthesis)', level: 'P6', theme: 'Energy', los: [
+    { id: 'photo-resp', title: 'Living things need energy from respiration',
+      intro: 'Respiration releases the energy stored in food so that life processes can happen.',
+      obj: 'Recognise that living things need energy from respiration to carry out life processes.',
+      kw: ['respiration', 'energy', 'life process', 'release energy', 'oxygen', 'food'] },
+    { id: 'photo-sun', title: 'The Sun as our primary source of energy',
+      intro: 'Almost all the energy we use can be traced back to the Sun.',
+      obj: 'Recognise that the Sun is our primary source of energy, providing light and heat.',
+      kw: ['sun', 'primary source', 'energy', 'light', 'heat'] },
+    { id: 'photo-obtain', title: 'How plants and animals obtain energy',
+      intro: 'Plants make their own food; animals must eat other living things to get theirs.',
+      obj: 'Differentiate between the ways in which plants and animals obtain energy.',
+      kw: ['plant', 'animal', 'obtain energy', 'make food', 'photosynthesis', 'eat', 'producer'] },
+    { id: 'photo-req', title: 'The requirements for photosynthesis',
+      intro: 'A plant needs water, light energy and carbon dioxide to make sugar and oxygen in its leaves.',
+      obj: 'Investigate the requirements — water, light energy and carbon dioxide — for photosynthesis, which produces sugar and oxygen.',
+      kw: ['photosynthesis', 'water', 'light', 'carbon dioxide', 'sugar', 'oxygen', 'chlorophyll', 'leaf'] },
+  ] },
+  { topic: 'Energy Conversion', level: 'P6', theme: 'Energy', los: [
+    { id: 'econv-sun', title: 'Energy resources come from the Sun',
+      intro: 'Trace almost any energy resource back far enough and you arrive at the Sun.',
+      obj: 'Recognise that the energy from most of our energy resources is derived in some way from the Sun.',
+      kw: ['energy resource', 'sun', 'derived', 'fossil fuel', 'solar'] },
+    { id: 'econv-forms', title: 'Forms of energy',
+      intro: 'Energy comes in several forms: kinetic, potential, light, electrical, sound and heat.',
+      obj: 'Recognise and give examples of the various forms of energy: kinetic energy, potential energy, light energy, electrical energy, sound energy and heat energy.',
+      kw: ['kinetic energy', 'potential energy', 'light energy', 'electrical energy', 'sound energy', 'heat energy', 'form of energy'] },
+    { id: 'econv-conversion', title: 'Converting energy from one form to another',
+      intro: 'A stretched rubber band or a wound spring turns stored energy into movement, sound and heat.',
+      obj: 'Investigate energy conversion from one form to another.',
+      kw: ['energy conversion', 'converted', 'convert', 'into kinetic', 'into sound', 'into heat', 'rubber band', 'spring'] },
+  ] },
+];
+
+/* Everything a search compares against, joined once per objective. Built lazily
+   and kept, because it is the same 79 objectives every time and rebuilding it
+   on every keystroke is the one thing that would make the box feel slow. */
+var _sylIndex = null;
+function sylIndex() {
+  if (_sylIndex) return _sylIndex;
+  _sylIndex = [];
+  SYLLABUS_TOPICS.forEach(function (t) {
+    (t.los || []).forEach(function (lo) {
+      _sylIndex.push({
+        topic: t.topic, level: t.level, theme: t.theme, lo: lo,
+        hay: [t.topic, t.level, t.theme, lo.title, lo.intro, lo.obj]
+          .concat(lo.kw || []).join(' \n ').toLowerCase()
+      });
+    });
+  });
+  return _sylIndex;
+}
+
+/* The words that carry no meaning in a search. "states of matter" must not be
+   held to the word "of": it narrows nothing, and marked up in the results it
+   speckles every line with a highlight that means nothing. They are dropped
+   from the matching AND from the marking, so the two can never disagree about
+   what the search was for — unless the whole search is stop-words, in which
+   case they are all it has to go on. */
+var SYL_STOP = ['a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'how',
+                'in', 'is', 'it', 'its', 'of', 'on', 'or', 'the', 'their', 'to', 'with'];
+function sylWords(q) {
+  var all = String(q || '').toLowerCase().split(/[\s,;]+/).filter(Boolean);
+  var kept = all.filter(function (w) { return SYL_STOP.indexOf(w) < 0; });
+  return kept.length ? kept : all;
+}
+
+/* THE ONE MATCHER. Every word typed has to appear somewhere in the objective —
+   an OR would put half the syllabus under "states of matter", which is the
+   same as showing nothing. A term is matched on the keywords as well as the
+   wording, which is what makes "evaporation" find the section that never
+   spells the word out in its title. */
+function sylSearch(q) {
+  var words = sylWords(q);
+  var rows = sylIndex();
+  if (!words.length) return rows.slice();
+  return rows.filter(function (r) {
+    for (var i = 0; i < words.length; i++) if (r.hay.indexOf(words[i]) < 0) return false;
+    return true;
+  });
+}
+
+/* Matches are grouped back under their topic, in syllabus order, so what comes
+   up reads as a SECTION of the syllabus rather than as a list of fragments. */
+function sylGroup(rows) {
+  var out = [], byTopic = {};
+  rows.forEach(function (r) {
+    var g = byTopic[r.topic];
+    if (!g) { g = byTopic[r.topic] = { topic: r.topic, level: r.level, theme: r.theme, los: [] }; out.push(g); }
+    g.los.push(r.lo);
+  });
+  return out;
+}
+
+/* The words typed are marked in what comes back, so it is obvious WHY a
+   section matched. The text is escaped first and the mark goes in after, so a
+   syllabus that ever contained a < is still text and never markup. */
+function sylMark(text, words) {
+  var out = escHtml(String(text == null ? '' : text));
+  if (!words.length) return out;
+  var esc = words.map(function (w) { return escHtml(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); })
+    .filter(Boolean).sort(function (a, b) { return b.length - a.length; });
+  if (!esc.length) return out;
+  return out.replace(new RegExp('(' + esc.join('|') + ')', 'gi'), '<span class="sylHit">$1</span>');
+}
+
+var _sylTheme = '';
+
+function openSyllabusModal() {
+  $('syllabusModal').classList.add('open');
+  renderSyllabusChips();
+  renderSyllabus();
+  setTimeout(function () { $('syllabusSearch').focus(); }, 0);
+}
+function closeSyllabusModal() { $('syllabusModal').classList.remove('open'); }
+
+function renderSyllabusChips() {
+  var themes = [];
+  SYLLABUS_TOPICS.forEach(function (t) { if (themes.indexOf(t.theme) < 0) themes.push(t.theme); });
+  var box = $('syllabusChips');
+  box.innerHTML = '';
+  [''].concat(themes).forEach(function (th) {
+    var b = document.createElement('button');
+    b.className = 'sylChip' + (_sylTheme === th ? ' on' : '');
+    b.type = 'button';
+    b.textContent = th || 'All themes';
+    b.addEventListener('click', function () { _sylTheme = th; renderSyllabusChips(); renderSyllabus(); });
+    box.appendChild(b);
+  });
+}
+
+function renderSyllabus() {
+  var q = $('syllabusSearch').value.trim();
+  var words = sylWords(q);   // the same words the matcher used, so the marks agree with the hits
+  var rows = sylSearch(q).filter(function (r) { return !_sylTheme || r.theme === _sylTheme; });
+  var groups = sylGroup(rows);
+  $('syllabusCount').textContent = rows.length
+    ? rows.length + (rows.length === 1 ? ' section' : ' sections')
+    : '';
+  var list = $('syllabusList');
+  if (!rows.length) {
+    list.innerHTML = '<div class="sylEmpty">Nothing in the syllabus matches <b>' + escHtml(q) +
+      '</b>.<br>Try a single word — <em>evaporation</em>, <em>magnet</em>, <em>digestive</em>.</div>';
+    return;
+  }
+  var html = '';
+  groups.forEach(function (g) {
+    html += '<div class="sylTopic"><div class="sylTopicHead">' +
+      '<div class="sylTopicName">' + sylMark(g.topic, words) + '</div>' +
+      '<div class="sylTopicMeta">' + escHtml(g.level) + ' · ' + sylMark(g.theme, words) + '</div></div>';
+    g.los.forEach(function (lo) {
+      html += '<div class="sylLo">' +
+        '<div class="sylLoTitle">' + sylMark(lo.title, words) + '</div>' +
+        '<div class="sylLoIntro">' + sylMark(lo.intro, words) + '</div>' +
+        '<div class="sylLoObj">' + sylMark(lo.obj, words) + '</div>';
+      if (lo.kw && lo.kw.length) {
+        html += '<div class="sylKw">' + lo.kw.map(function (k) {
+          return '<span>' + sylMark(k, words) + '</span>';
+        }).join('') + '</div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  list.innerHTML = html;
+  list.scrollTop = 0;
+}
+
+$('syllabusCloseBtn').addEventListener('click', closeSyllabusModal);
+$('syllabusModal').addEventListener('click', function (e) {
+  if (e.target === $('syllabusModal')) closeSyllabusModal();
+});
+$('syllabusSearch').addEventListener('input', renderSyllabus);
+/* The window is its own thing, so Escape closes it and nothing else — and a
+   keystroke inside it must never reach the page's one-letter tool shortcuts. */
+$('syllabusModal').addEventListener('keydown', function (e) {
+  e.stopPropagation();
+  if (e.key === 'Escape') closeSyllabusModal();
+});
+
+/* 🖼️ THE PICTURE GENERATOR, on a button of its own.
+
+   The generator itself is not new — it is the "Picture or diagram" kind inside
+   the ✨ AI notes builder — but it was three steps in: pick the AI notes tool,
+   tap the page, then find the kind in the list. This arms the SAME tool with
+   the kind already chosen, so the next tap on the page opens the builder ready
+   to draw. One pipeline, not two: a second image path would be a second one to
+   keep in step with the first. */
+function armPictureGenerator() {
+  if (isStudent() || isSharedVisitor()) return;
+  aiNoteKind = 'image';
+  setTool('ainote');
+  toast('🖼️ Tap the page where the picture should go, then say what to draw.', 4500);
 }
 
 /* ---------- AI Engine dialog (admin only) ---------- */
@@ -18382,6 +18975,13 @@ function renderAuthArea() {
     stuBtn.title = 'Manage student levels and subjects';
     stuBtn.addEventListener('click', openStudentsModal);
     area.appendChild(stuBtn);
+    var picBtn = document.createElement('button');
+    picBtn.className = 'btn';
+    picBtn.textContent = '🖼️ Picture';
+    picBtn.setAttribute('data-ai-title', 'Generate a picture or a labelled diagram with {ai} and drop it on the page');
+    picBtn.title = 'Generate a picture or a labelled diagram with Chung GPT and drop it on the page';
+    picBtn.addEventListener('click', armPictureGenerator);
+    area.appendChild(picBtn);
     var engBtn = document.createElement('button');
     engBtn.className = 'btn';
     // The label doubles as the status: it names ChatGPT while that engine is on.
@@ -18390,6 +18990,14 @@ function renderAuthArea() {
     engBtn.addEventListener('click', openAiEngineModal);
     area.appendChild(engBtn);
   }
+  // The syllabus is a public reference, so everyone signed in gets it — a
+  // student looking a term up is doing exactly what it is for.
+  var sylBtn = document.createElement('button');
+  sylBtn.className = 'btn';
+  sylBtn.textContent = '📚 Syllabus';
+  sylBtn.title = 'Search the MOE Primary Science syllabus by term or topic';
+  sylBtn.addEventListener('click', openSyllabusModal);
+  area.appendChild(sylBtn);
   var out = document.createElement('button');
   out.className = 'btn';
   out.textContent = 'Sign out';
