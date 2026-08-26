@@ -3,6 +3,19 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 📚 The syllabus window scrolls (v1.78.0)
+
+It did not. All 79 objectives were rendered and the card cut them off at
+whatever fitted, with no way to reach the rest — and on a phone the heading,
+the blurb, the search box and two wrapped rows of theme chips were taking more
+than half the window, leaving the syllabus itself a 245px slot.
+
+Now the search box and the theme chips stay put at the top and the list moves
+under them, on a laptop and on a phone alike. On a narrow screen the blurb goes
+(the search box's own placeholder says the same thing) and the chips become one
+row you swipe sideways, which hands the list back about half as much room
+again. Nothing about the search, the matching or the wording changed.
+
 ## 📚 The science syllabus, and a button for pictures (v1.77.0)
 
 **📚 Syllabus** in the header opens the Learning Outcomes of the MOE Primary
