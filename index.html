@@ -3272,7 +3272,7 @@
     <button class="toolBtn" data-tool="text" data-key="T" title="Text box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
     </button>
-    <button class="toolBtn" data-tool="ai" data-key="G" data-ai-title="AI answer box — draw a box, type your question, and {ai} writes the answer" title="AI answer box — draw a box, type your question, and Gemini writes the answer">
+    <button class="toolBtn" data-tool="ai" data-key="G" data-ai-title="AI answer box — draw a box, type your question, and {ai} writes the answer" title="AI answer box — draw a box, type your question, and Chung GPT writes the answer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15.5l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/></svg>
     </button>
     <button class="toolBtn" data-tool="ainote" data-key="I" title="AI notes — click a spot, choose notes, a table, a picture or an interactive widget, and say what you want">
@@ -3564,7 +3564,7 @@
   </div>
   <div class="sideCard" id="answerKeyCard" style="display:none">
     <h4>Answer key</h4>
-    <div class="sideHint"><span class="aiName">Gemini</span> reads every page of this worksheet — the printed questions and any answers written on it — and writes one condensed answer per question with a short explanation.</div>
+    <div class="sideHint"><span class="aiName">Chung GPT</span> reads every page of this worksheet — the printed questions and any answers written on it — and writes one condensed answer per question with a short explanation.</div>
     <button class="btn btnPrimary practiceWide" id="genKeyBtn">✨ Generate answer key</button>
     <button class="btn practiceWide" id="viewKeyBtn" style="display:none">📄 View the answer key</button>
     <button class="btn practiceWide" id="printKeyBtn" style="display:none">🖨 Print / save as PDF</button>
@@ -3813,7 +3813,7 @@
     </div>
     <div class="modalBody">
       <div class="fieldRow">
-        <label>What should <span class="aiName">Gemini</span> make?</label>
+        <label>What should <span class="aiName">Chung GPT</span> make?</label>
         <div class="aiKindGrid" id="aiNoteKinds"></div>
       </div>
       <div class="fieldRow">
@@ -3828,7 +3828,7 @@
       </div>
       <label class="reviseToggleRow" for="aiNoteContext">
         <input type="checkbox" id="aiNoteContext" checked>
-        <span>Let <span class="aiName">Gemini</span> see this page of the worksheet first</span>
+        <span>Let <span class="aiName">Chung GPT</span> see this page of the worksheet first</span>
       </label>
       <div class="modalActions">
         <span class="aiNoteBusy" id="aiNoteBusy"></span>
@@ -4460,7 +4460,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.75.0';
+var APP_VERSION = 'v1.76.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -10065,13 +10065,37 @@ async function kimiListModels(key) {
   return ids;
 }
 
-/* Every user-facing mention of the engine goes through here, so nothing in
-   the app claims Gemini is working while ChatGPT is the engine that is on.
-   Static markup carries the default wording: a <span class="aiName"> holds
-   the name inside a sentence, and data-ai-title holds a tooltip with {ai}
-   where the name goes. Both are rewritten whenever the engine changes. */
-function aiEngineName() { return openAiActive() ? 'ChatGPT' : kimiActive() ? 'Kimi' : 'Gemini'; }
+/* THE ASSISTANT IS CALLED CHUNG GPT. It is the centre's own assistant, not a
+   vendor's, and which company answered a given call is no use to a student or
+   to a teacher mid-worksheet — they want to know that the thing that reads
+   their worksheet has a name and is the same one every time. Whichever engine
+   is actually on, the app says Chung GPT.
+
+   Every user-facing mention still goes through this ONE function, so the name
+   can be changed in one line. Static markup carries the default wording: a
+   <span class="aiName"> holds the name inside a sentence, and data-ai-title
+   holds a tooltip with {ai} where the name goes. Both are rewritten on load
+   and whenever the engine changes.
+
+   WHERE THE VENDOR STILL HAS TO BE TRUE, it is named from its own literals and
+   never from here: the header button ("AI · ChatGPT"), the AI Engine dialog,
+   the answer key's engine label, and every "ChatGPT could not be reached —
+   Gemini did those pages instead" notice. Those are the admin's, and an app
+   claiming one vendor while another answers is the bug this function was
+   written for in the first place. Branding the student's side must not take
+   that away from the teacher's. */
+/* The name is returned as a LITERAL, not read out of a variable declared
+   above it. A `var` assignment only runs if everything before it ran, so
+   anything that throws higher up the script — a CDN that did not load, say —
+   would leave the app calling its assistant "undefined" on every surface at
+   once. A function declaration is hoisted whole and cannot fail that way. */
+function aiEngineName() { return 'Chung GPT'; }
 window.aiEngineName = aiEngineName;
+
+/* The engine that is really on, for the handful of admin surfaces that have to
+   say so. Kept beside the brand so the two can never drift apart. */
+function aiVendorName() { return openAiActive() ? 'ChatGPT' : kimiActive() ? 'Kimi' : 'Gemini'; }
+window.aiVendorName = aiVendorName;
 
 function refreshAiEngineNames() {
   var name = aiEngineName();
@@ -16733,7 +16757,10 @@ function sendAskAi() {
   $('askAiInput').value = '';
   var thinking = document.createElement('div');
   thinking.className = 'askAiA';
-  thinking.textContent = '✨ Thinking…';
+  // "Thinking…" says nothing about what is happening. It is reading the
+  // worksheet the question was asked about — which is the thing worth waiting
+  // for, and the thing that explains the wait.
+  thinking.textContent = '✨ ' + aiEngineName() + ' is reading the worksheet…';
   $('askAiThread').appendChild(thinking);
   $('askAiThread').scrollTop = $('askAiThread').scrollHeight;
   aiBusy = true;
