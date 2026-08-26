@@ -435,7 +435,83 @@ reading the worksheet…** — the same wording ✨ Answer already used, and the
 thing that is actually happening: it is reading the worksheet the question was
 asked about.
 
+## 📚 The science syllabus, searchable (v1.77.0)
+
+`SYLLABUS_TOPICS` / `sylIndex` / `sylWords` / `sylSearch` / `sylGroup` /
+`sylMark` / `renderSyllabus` (search `THE SCIENCE SYLLABUS`), plus
+`#syllabusModal` and the `.syl*` CSS, opened from the 📚 **Syllabus** button in
+the header.
+
+The Learning Outcomes of the MOE Primary Science Syllabus 2023 — 18 topics, 79
+objectives — with a search box over them. Type a term or a topic and the
+sections that cover it come up: *states of matter* brings back the two sections
+about matter and about water in its three states, *P5 systems* narrows to that
+level and theme.
+
+- **IT SHOWS THE SYLLABUS AND NOTHING ELSE.** The Science portal attaches
+  questions to each objective; this deliberately does not. There is no question
+  bank in this app, so a reference that half-worked — every objective listed
+  with an empty "questions" section under it — would read as broken rather than
+  as a reference. The harness pins that no objective carries a `questions`
+  field at all.
+- **IT IS A COPY of `SYLLABUS_LO_TOPICS` in `polymathlc/cer`**, and copies
+  drift. This one drifts only when MOE changes the syllabus, at which point
+  BOTH files want editing — search `SYLLABUS_TOPICS` in this file and
+  `SYLLABUS_LO_TOPICS` in that one. It is a fixed public list, not anything
+  either app computes, which is what makes a copy the right call here and the
+  wrong one for a topic-level map.
+- **EVERY WORD TYPED MUST MATCH.** An OR would put half the syllabus under
+  "states of matter", which is the same as showing nothing.
+- **A term is matched on the KEYWORDS as well as the wording**, which is what
+  makes *evaporation* find the sections that never spell it out in their own
+  titles. `sylIndex` joins the topic, level, theme, title, intro, objective and
+  keywords once per objective and keeps it — the same 79 rows every time, and
+  rebuilding it on every keystroke is the one thing that would make the box
+  feel slow.
+- **`sylWords` is the ONE place a search becomes words**, and both the matcher
+  and the marking read it. Stop-words are dropped from both: "states of matter"
+  must not be held to *of*, and marked up it would speckle every line with a
+  highlight that means nothing. A search made ENTIRELY of stop-words falls back
+  to using them, or it would return the whole syllabus.
+- **`sylMark` escapes and THEN marks.** It builds markup by hand, so the escape
+  has to come first or the syllabus is being written into the page as HTML —
+  and the terms are sorted longest-first, or marking "state" inside "states"
+  splits the word across two spans.
+- It is open to **everyone signed in**: a student looking a term up is doing
+  exactly what it is for. A share-link visitor does not get it — that path
+  returns before the button is built.
+- Every keystroke inside the window is stopped there, or the page's one-letter
+  tool shortcuts fire while a term is being typed. Escape closes it.
+- Run **`node tools/syllabus-tests.mjs`** after touching any of it.
+
+## 🖼️ The picture generator, on a button of its own (v1.77.0)
+
+`armPictureGenerator`, and the 🖼️ **Picture** button beside AI Engine.
+
+The generator is not new — it is the *Picture or diagram* kind inside the ✨ AI
+notes builder — but it was three steps in: pick the AI notes tool, tap the
+page, then find the kind in the list. The button arms the SAME tool with the
+kind already chosen, so the next tap on the page opens the builder ready to
+draw.
+
+- **One pipeline, not two.** A second image path would be a second one to keep
+  in step with the first, and the first is the one that knows how to place the
+  card, redo it, print it and put it in the PDF.
+- It still needs a SPOT on the page, which is why the button arms a tool rather
+  than opening the window: an AI note is placed where it was started from.
+- Teacher-only, like every other generating path — the handler checks the role
+  itself rather than trusting that the button was never built.
+
 ## House rules
+- After touching **the syllabus window** (`SYLLABUS_TOPICS`, `sylIndex`,
+  `sylWords`, `SYL_STOP`, `sylSearch`, `sylGroup`, `sylMark`,
+  `renderSyllabus`), run `node tools/syllabus-tests.mjs`. It is a reference a
+  teacher looks a term up in mid-lesson, and every way it goes wrong is quiet:
+  an OR match returns half the syllabus, which is the same as returning
+  nothing; a matcher that stops reading the keywords makes *evaporation* find
+  only the sections that spell it out; marks and hits that disagree either
+  speckle the page with meaningless highlights or hide why a section came up;
+  and marking BEFORE escaping writes the syllabus into the page as markup.
 - **The Gemini model is `AI_MODEL` and its thinking floor is `AI_THINK_MIN`, and the two move
   TOGETHER** (v1.66.0). Every model has its own thinking scale, and a level it does not know is a
   **400 INVALID_ARGUMENT on every AI feature in the app** — not a worse answer, no answer at all.
