@@ -4580,7 +4580,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.79.0';
+var APP_VERSION = 'v1.79.1';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -12142,6 +12142,7 @@ function noteSourceLabel(n) {
   var src = String((n && n.source) || '').toLowerCase();
   if (src === 'anskey') return '';
   if (src === 'scan') return 'from Scan & Answer';
+  if (src === 'tutor') return 'from Study Buddy';
   return 'from the Learning Portal';
 }
 
