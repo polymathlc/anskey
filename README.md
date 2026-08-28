@@ -3,6 +3,22 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 🫥 An AI note card no longer hides the question (v1.79.0)
+
+A card is usually parked over the very question it is teaching, and it was a
+solid white box — so the printed words behind it were gone, and folding the
+card down to its little tab was the only way to read them back.
+
+The card is **85% transparent** now: its body, its heading, its border and its
+coloured spine are all painted at 15%, so the worksheet reads straight through
+it. What the card *says* is not faded at all — it is the box that is
+see-through, not the note written in it. The heading's buttons stay solid too,
+so the card can still be found, dragged, minimised and regenerated.
+
+It prints the same way. The PDF used to lay a white block over the question
+whatever the screen showed; the download and the printout now carry the same
+see-through card.
+
 ## 📚 The syllabus window scrolls (v1.78.0)
 
 It did not. All 79 objectives were rendered and the card cut them off at

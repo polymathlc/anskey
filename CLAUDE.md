@@ -537,6 +537,14 @@ draw.
   itself rather than trusting that the button was never built.
 
 ## House rules
+- **An AI note card is 85% TRANSPARENT, on screen and on paper** (v1.79.0,
+  `AI_NOTE_ALPHA`). A card is parked over the question it is teaching, so its
+  body, heading, border and spine are painted at 15% and the printed words read
+  through it — only the card's own text and its heading buttons stay solid. The
+  alphas live in TWO places, the `.aiNoteCard` / `.aiNoteHead` rules and
+  `drawAiNoteOnPdf`'s three `drawRectangle` calls, and nothing checks that they
+  agree: change one alone and the card is see-through on screen and prints as a
+  white block over the question, which is only ever found in front of a class.
 - After touching **the syllabus window** (`SYLLABUS_TOPICS`, `sylIndex`,
   `sylWords`, `SYL_STOP`, `sylSearch`, `sylGroup`, `sylMark`,
   `renderSyllabus`, **or any `.syl*` / `.modalCard.sylWide` rule**), run
