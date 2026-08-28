@@ -46,12 +46,13 @@ Guidance for Claude when working in this repo.
   written straight to Firestore. `guidance` is this app's own field — the `cer` app shares the
   collection and ignores it, which is why the shared fields are still written, empty.
 - **The notes live at `users/{adminUid}/teachingNotes/{id}`, which is the SAME collection the
-  Science Learning Portal (`polymathlc/cer`, `app.js`) and the **Scan app** (`polymathlc/scan`,
-  `index.html`) write** — one notebook grounding three apps.
+  Science Learning Portal (`polymathlc/cer`, `app.js`), the **Scan app** (`polymathlc/scan`,
+  `index.html`) and the **Study Buddy** (`polymathlc/tutor`, `index.html`) write** — one notebook
+  grounding FOUR apps.
   Keep the fields compatible: `topics` is reserved for that app's syllabus list and this app writes
   it **empty**, so a note uploaded here reads as a general note there instead of one tagged with
   topics it has never heard of. This app's own wording goes in `noteTopics` / `subjects` / `levels`.
-  **`guidance` is read by all three** since cer v1.309.0 and scan v1.0.0; it was this app's own
+  **`guidance` is read by all four** since cer v1.309.0, scan v1.0.0 and tutor v1.0.0; it was this app's own
   field, and for a while the Portal simply ignored it — a house rule typed here that was obeyed on
   one screen and not the next. The Scan app is a straight port of this whole section
   (`aiGrounding`, the digests, the quick note): a fix to either belongs in both.
@@ -68,11 +69,14 @@ Guidance for Claude when working in this repo.
   putting the whole question into `guidance` would drown the rule in a paragraph repeated on every
   question. `noteSourceLabel` is why the card names the right app: it used to file everything that
   was not this app's under the Learning Portal, so every rule typed on a phone over a worksheet was
-  attributed to the wrong app.
-- **The Scan app READS the style profile and never writes to it.** Nothing photographed there is
-  an answer the teacher wrote, so there is nothing honest for it to learn from — the corpus is
-  grown HERE, and every answer that app writes sharpens with it. Do not add a harvest path there
-  without deciding first whose answers those are.
+  attributed to the wrong app. **It falls through to the Portal for a `source` it does not know, so
+  a fifth app writing notes means a line HERE too** — `tutor` was added in v1.79.1 for exactly that
+  reason. All four repos carry the matching function; ship a change to the word in all of them.
+- **The Scan app and the Study Buddy READ the style profile and never write to it.** Nothing
+  photographed in one and nothing a child writes in the other is an answer the teacher wrote, so
+  there is nothing honest for either to learn from — the corpus is grown HERE, and every answer and
+  every hint those apps write sharpens with it. Do not add a harvest path there without deciding
+  first whose answers those are.
 - **The style corpus is `users/{adminUid}/aiTraining/answerStyle`** — the answers the teacher has
   already written on their own worksheets, and the profile distilled from them. Three ways in:
   `styleHarvestOnSave()` takes the typed answers on every save for free, `styleLearnOpenWorksheet()`

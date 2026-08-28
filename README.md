@@ -3,6 +3,20 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 📘 A note typed in the Study Buddy says so (v1.79.1)
+
+There is a fourth app on the shared notebook now: **Study Buddy**
+(`polymathlc/tutor`), where a student uploads their own worksheet and is hinted
+towards the answer rather than handed it. Like the other three it reads
+`users/{adminUid}/teachingNotes`, and like Scan & Answer it can write a house
+rule straight into it.
+
+A note's card here names the app it was typed in, and that function fell
+through to *"from the Learning Portal"* for any `source` it did not recognise —
+so every rule typed on the Study Buddy would have been attributed to an app it
+never went near. One line, and the same one-line bug the Scan app's notes had
+before v1.71.0.
+
 ## 🫥 An AI note card no longer hides the question (v1.79.0)
 
 A card is usually parked over the very question it is teaching, and it was a
