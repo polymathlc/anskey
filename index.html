@@ -4575,7 +4575,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.80.0';
+var APP_VERSION = 'v1.81.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -19136,8 +19136,8 @@ auth.onAuthStateChanged(function (user) {
 
    THE LEVELS AND WHAT EACH ONE MAY TAKE
    -------------------------------------
-   The centre teaches P3 to P5, and **P3 is SCIENCE ONLY** — there is no P3
-   maths class here. A P3 pupil tagged "Mathematics" is a pupil whose
+   The centre teaches P3 to P6, and **P3 is SCIENCE ONLY** — there is no P3
+   maths class here. Every other level takes Maths, Science or both. A P3 pupil tagged "Mathematics" is a pupil whose
    worksheet list is empty for ever, with nothing on any screen saying why:
    canSeeDoc simply never matches, and an empty list looks exactly like a
    teacher who has not uploaded anything yet.
@@ -19147,15 +19147,16 @@ auth.onAuthStateChanged(function (user) {
    their save, the admin's "add a student without Google" form, the admin's
    per-student row, and `canSeeDoc` on the read side. A rule enforced in four
    of them is not a rule. */
-var STUDENT_LEVELS = ['P3', 'P4', 'P5'];
+var STUDENT_LEVELS = ['P3', 'P4', 'P5', 'P6'];
 var STUDENT_SUBJECTS = [
   { value: 'science', label: 'Science' },
   { value: 'math',    label: 'Mathematics' },
   { value: 'both',    label: 'Both' }
 ];
-/* A level this build has never heard of — a P6 or Sec 1 profile from before
-   the range narrowed — keeps every subject rather than being silently
-   re-tagged. Narrowing a student nobody asked us to narrow is its own bug. */
+/* Only P3 is special. Every other level — including one this build has never
+   heard of, such as a Sec 1 profile from before the range was set — keeps
+   every subject rather than being silently re-tagged. Narrowing a student
+   nobody asked us to narrow is its own bug. */
 function levelSubjects(level) {
   return level === 'P3' ? ['science'] : STUDENT_SUBJECTS.map(function (s) { return s.value; });
 }
@@ -19431,8 +19432,8 @@ function managedStudentForm() {
   nameIn.type = 'text';
   nameIn.placeholder = 'Student’s name';
   nameIn.autocomplete = 'off';
-  // STUDENT_LEVELS, not LEVELS: a worksheet can still be tagged P6, but a
-  // student the centre takes on is P3 to P5.
+  // STUDENT_LEVELS, not LEVELS: a worksheet can still be tagged Sec 1, but a
+  // student the centre takes on is P3 to P6.
   var lvlSel = document.createElement('select');
   STUDENT_LEVELS.forEach(function (l) {
     var o = document.createElement('option'); o.value = l; o.textContent = levelLabel(l); lvlSel.appendChild(o);

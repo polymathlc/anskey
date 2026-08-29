@@ -152,15 +152,17 @@ silent faults, and none of them threw.
 - Run **`node tools/notes-tests.mjs`** after touching any of it.
 
 
-## 👤 Every student has a level, and P3 is Science only (v1.80.0)
+## 👤 Every student has a level, and P3 is Science only (v1.80.0, P6 added v1.81.0)
 
 `STUDENT_LEVELS` / `STUDENT_SUBJECTS` / `levelSubjects` / `subjectOkForLevel` /
 `profileSubject` / `profileComplete` / `fillStudentSubjects` /
 `renderProfileLevelChips` / `renderProfileSubjectChips` (search `THE LEVELS AND
 WHAT EACH ONE MAY TAKE`), and `canSeeDoc` on the read side.
 
-The centre takes **P3 to P5**, and **P3 is SCIENCE ONLY** — there is no P3
-maths class here.
+The centre takes **P3 to P6**, and **P3 is SCIENCE ONLY** — there is no P3
+maths class here. Every other level takes Maths, Science or both, so **P3 is
+the only special case in `levelSubjects`** — adding P6 in v1.81.0 was one entry
+in `STUDENT_LEVELS` and nothing else, which is what that one door is for.
 
 - **A P3 pupil tagged "Mathematics" is a pupil whose worksheet list is empty
   for ever, with nothing on any screen saying why.** `canSeeDoc` simply never
@@ -188,12 +190,12 @@ maths class here.
   `both` MEANS Science; reading it raw is what hands a P3 pupil the maths
   worksheets the centre does not teach them. It can only ever NARROW what a
   student sees, which is the safe direction for a rule about who sees what.
-- **A level outside the range keeps every subject and stays visible.** A P6 or
-  Sec 1 profile from before the range narrowed still shows its own level on the
-  chips and in the admin row rather than reading as wiped — and being SAVED as
-  P3 the next time the teacher touches anything on that row. `STUDENT_LEVELS`
-  is the roster's range; `LEVELS` is still every level a WORKSHEET may be
-  tagged with, and the two are deliberately different.
+- **A level outside the range keeps every subject and stays visible.** A Sec 1
+  profile from before the range was set still shows its own level on the chips
+  and in the admin row rather than reading as wiped — and being SAVED as P3 the
+  next time the teacher touches anything on that row. `STUDENT_LEVELS` is the
+  roster's range; `LEVELS` is still every level a WORKSHEET may be tagged with,
+  and the two are deliberately different.
 - **Every gate asks `profileComplete`, never "is there a row".** A profile
   saved without a level matches nothing, so the student is asked again rather
   than left looking at an empty app.

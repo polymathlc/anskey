@@ -64,24 +64,29 @@ const S = sandbox;
    The levels, and what each one may take
    ===================================================================== */
 section('The levels a student can be');
-eq('the centre takes P3 to P5', S.STUDENT_LEVELS, ['P3', 'P4', 'P5']);
-ok('and no further', S.STUDENT_LEVELS.indexOf('P6') === -1 && S.STUDENT_LEVELS.indexOf('S1') === -1);
+eq('the centre takes P3 to P6', S.STUDENT_LEVELS, ['P3', 'P4', 'P5', 'P6']);
+ok('and no further', S.STUDENT_LEVELS.indexOf('S1') === -1);
 eq('three subjects are offered', S.STUDENT_SUBJECTS.map(s => s.value), ['science', 'math', 'both']);
 
 section('P3 is Science only');
 eq('P3 offers Science and nothing else', S.levelSubjects('P3'), ['science']);
 eq('P4 offers all three', S.levelSubjects('P4'), ['science', 'math', 'both']);
 eq('P5 offers all three', S.levelSubjects('P5'), ['science', 'math', 'both']);
+eq('P6 offers all three', S.levelSubjects('P6'), ['science', 'math', 'both']);
 ok('P3 + Mathematics is refused', !S.subjectOkForLevel('P3', 'math'));
 ok('P3 + Both is refused', !S.subjectOkForLevel('P3', 'both'));
 ok('P3 + Science is allowed', S.subjectOkForLevel('P3', 'science'));
 ok('P5 + Mathematics is allowed', S.subjectOkForLevel('P5', 'math'));
+ok('P6 + Mathematics is allowed', S.subjectOkForLevel('P6', 'math'));
+ok('P6 + Both is allowed', S.subjectOkForLevel('P6', 'both'));
 
-/* A level from before the range narrowed keeps every subject rather than
-   being silently re-tagged — narrowing a student nobody asked us to narrow
-   is its own bug. */
-eq('a P6 profile from before the range narrowed keeps all three',
-   S.levelSubjects('P6'), ['science', 'math', 'both']);
+/* ONLY P3 is special. A level outside the range — a Sec 1 profile from
+   before the range was set — keeps every subject rather than being silently
+   re-tagged: narrowing a student nobody asked us to narrow is its own bug. */
+eq('a level from outside the range keeps all three',
+   S.levelSubjects('S1'), ['science', 'math', 'both']);
+eq('a P6 profile saved as "both" is left alone',
+   S.profileSubject({ level: 'P6', subject: 'both' }), 'both');
 
 /* =====================================================================
    Reading a profile — the direction that is safe to be wrong in
@@ -117,7 +122,7 @@ ok('the level chips are built from STUDENT_LEVELS',
 ok('the subject chips are built from levelSubjects()',
    /function renderProfileSubjectChips\(\)[\s\S]{0,900}levelSubjects\(profilePick\.level\)/.test(html));
 ok('neither row is hand-written in the markup',
-   !/<button[^>]*data-level="P6"/.test(html) && !/<button[^>]*data-subject="math"/.test(html),
+   !/<button[^>]*data-level="P[3-6]"/.test(html) && !/<button[^>]*data-subject="math"/.test(html),
    'a chip typed into the markup is a copy of the rule that cannot be kept in step');
 
 /* Switching from P5 Mathematics to P3 must not leave "Mathematics" picked

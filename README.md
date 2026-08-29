@@ -3,6 +3,15 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 👤 P6 is a level too (v1.81.0)
+
+Students can be **P6** now, taking Mathematics, Science or both — the same as P4 and P5.
+
+It was one entry in the list of levels and nothing else, which is the point of having put the rule
+in one place: **P3 is the only level with a special case**, so every level added after it gets all
+three subjects without a second edit. The chips, both of the teacher's dropdowns and the worksheet
+filter picked it up on their own.
+
 ## 👤 P3 to P5, and P3 is Science only (v1.80.0)
 
 Students pick their level and subject the first time they sign in, and that
