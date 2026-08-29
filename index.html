@@ -4288,21 +4288,16 @@
       </div>
       <div class="fieldRow">
         <label>Your level</label>
-        <div class="chipRow" id="profileLevelRow">
-          <button type="button" class="pickChip" data-level="P3">P3</button>
-          <button type="button" class="pickChip" data-level="P4">P4</button>
-          <button type="button" class="pickChip" data-level="P5">P5</button>
-          <button type="button" class="pickChip" data-level="P6">P6</button>
-          <button type="button" class="pickChip" data-level="S1">Sec 1</button>
-        </div>
+        <!-- Both rows are BUILT from STUDENT_LEVELS / levelSubjects(), never
+             hand-written: P3 takes Science and nothing else, and a chip row
+             typed out here is a fourth place that rule would have to be
+             remembered in. -->
+        <div class="chipRow" id="profileLevelRow"></div>
       </div>
       <div class="fieldRow">
         <label>Your subject</label>
-        <div class="chipRow" id="profileSubjectRow">
-          <button type="button" class="pickChip" data-subject="math">Mathematics</button>
-          <button type="button" class="pickChip" data-subject="science">Science</button>
-          <button type="button" class="pickChip" data-subject="both">Both</button>
-        </div>
+        <div class="chipRow" id="profileSubjectRow"></div>
+        <div class="fieldHint" id="profileSubjectHint" style="display:none"></div>
         <div class="fieldHint" id="profileLockHint" style="display:none"></div>
       </div>
       <div class="fieldRow">
@@ -4580,7 +4575,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.79.1';
+var APP_VERSION = 'v1.80.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -19109,7 +19104,11 @@ auth.onAuthStateChanged(function (user) {
     loadStudentProfile(user).then(function () {
       renderAuthArea();
       // Visitors on a share link never get nagged about a student profile.
-      if (!studentProfile && !sharedLink && !shareOpenInProgress && !SHARE_OPEN_ID) openProfileModal(true);
+      // profileComplete, not just "is there a row": a profile saved without
+      // a level — or with a pair its level does not offer — matches no
+      // worksheet at all, so the student is asked again rather than left
+      // looking at an empty app they have no way to explain.
+      if (!profileComplete(studentProfile) && !sharedLink && !shareOpenInProgress && !SHARE_OPEN_ID) openProfileModal(true);
       if ($('qDrawer').classList.contains('open')) loadQuestionsList();
       applyDefaultPanels();   // open for a student, shut for the teacher
     });
@@ -19127,9 +19126,56 @@ auth.onAuthStateChanged(function (user) {
 });
 
 /* ================= Student profile (first Google login) =================
-   Students are asked for their name, level (P3–P6 / Sec 1), subject and class day(s)
-   the first time they sign in. The profile lives in Firestore keyed by their
-   Google account uid, and drives which worksheets/videos they see. */
+   Students are asked for their name, level, subject and class day(s) the
+   first time they sign in, and they cannot get past it: the profile is what
+   decides which worksheets they see, so a student without one has an empty
+   app and no way of knowing why. It lives in Firestore keyed by their Google
+   account uid, in `studentProfiles` — the roster the Study Buddy
+   (`polymathlc/tutor`) and the Scan app share, so one student is one row
+   everywhere.
+
+   THE LEVELS AND WHAT EACH ONE MAY TAKE
+   -------------------------------------
+   The centre teaches P3 to P5, and **P3 is SCIENCE ONLY** — there is no P3
+   maths class here. A P3 pupil tagged "Mathematics" is a pupil whose
+   worksheet list is empty for ever, with nothing on any screen saying why:
+   canSeeDoc simply never matches, and an empty list looks exactly like a
+   teacher who has not uploaded anything yet.
+
+   So `levelSubjects` is the ONE place that rule lives, because a
+   level/subject pair is chosen in FIVE places — the student's own chips,
+   their save, the admin's "add a student without Google" form, the admin's
+   per-student row, and `canSeeDoc` on the read side. A rule enforced in four
+   of them is not a rule. */
+var STUDENT_LEVELS = ['P3', 'P4', 'P5'];
+var STUDENT_SUBJECTS = [
+  { value: 'science', label: 'Science' },
+  { value: 'math',    label: 'Mathematics' },
+  { value: 'both',    label: 'Both' }
+];
+/* A level this build has never heard of — a P6 or Sec 1 profile from before
+   the range narrowed — keeps every subject rather than being silently
+   re-tagged. Narrowing a student nobody asked us to narrow is its own bug. */
+function levelSubjects(level) {
+  return level === 'P3' ? ['science'] : STUDENT_SUBJECTS.map(function (s) { return s.value; });
+}
+function subjectOkForLevel(level, subject) {
+  return levelSubjects(level).indexOf(subject) !== -1;
+}
+/* What a profile really MEANS, whatever is stored on it. A P3 profile saved
+   before this rule existed — or by another app on the shared roster — may
+   say "both", and it means Science. Reading it this way can only ever NARROW
+   what a student sees, which is the safe direction for a rule about who sees
+   whose worksheets. */
+function profileSubject(p) {
+  if (!p || !p.subject) return '';
+  return subjectOkForLevel(p.level, p.subject) ? p.subject : levelSubjects(p.level)[0];
+}
+/* Every student must have a level AND a subject that level really offers.
+   One without is one whose list can never match anything. */
+function profileComplete(p) {
+  return !!(p && p.level && profileSubject(p));
+}
 async function loadStudentProfile(user) {
   try {
     var snap = await db.collection(PROFILES_COLLECTION).doc(user.uid).get();
@@ -19143,7 +19189,66 @@ async function loadStudentProfile(user) {
 var profilePick = { level: '', subject: '', days: [], slot: '' };
 var profileLocked = false;  // student already used their one level/subject change
 
+/* The level chips. Built from STUDENT_LEVELS, PLUS the student's own stored
+   level when it is no longer offered: a P6 pupil from before the range
+   narrowed must still see which level they are, or their profile reads as
+   though it has been wiped. */
+function renderProfileLevelChips() {
+  var row = $('profileLevelRow');
+  if (!row) return;
+  var levels = STUDENT_LEVELS.slice();
+  var mine = (studentProfile && studentProfile.level) || profilePick.level;
+  if (mine && levels.indexOf(mine) === -1) levels.push(mine);
+  row.innerHTML = '';
+  levels.forEach(function (l) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pickChip';
+    b.setAttribute('data-level', l);
+    b.textContent = levelLabel(l);
+    row.appendChild(b);
+  });
+}
+
+/* The subject chips, for the level that is picked. This is where "P3 is
+   Science only" is SEEN: at P3 the row has one chip in it, so there is
+   nothing to choose wrongly. Nothing is picked yet means nothing is offered
+   yet — choosing a subject before a level would be choosing in the dark. */
+function renderProfileSubjectChips() {
+  var row = $('profileSubjectRow');
+  if (!row) return;
+  var hint = $('profileSubjectHint');
+  row.innerHTML = '';
+  if (!profilePick.level) {
+    if (hint) { hint.style.display = 'block'; hint.textContent = 'Pick your level first.'; }
+    return;
+  }
+  var allowed = levelSubjects(profilePick.level);
+  STUDENT_SUBJECTS.forEach(function (sub) {
+    if (allowed.indexOf(sub.value) === -1) return;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pickChip';
+    b.setAttribute('data-subject', sub.value);
+    b.textContent = sub.label;
+    row.appendChild(b);
+  });
+  if (hint) {
+    var only = allowed.length === 1;
+    hint.style.display = only ? 'block' : 'none';
+    if (only) hint.textContent = levelLabel(profilePick.level) + ' is ' +
+      subjectLabel(allowed[0]) + ' only at the centre.';
+  }
+  // A subject the new level does not offer cannot stay picked — switching
+  // from P5 Mathematics to P3 must not leave "Mathematics" selected on a row
+  // that no longer contains it, saved on the next tap of Let's go.
+  if (allowed.length === 1) profilePick.subject = allowed[0];
+  else if (profilePick.subject && allowed.indexOf(profilePick.subject) === -1) profilePick.subject = '';
+}
+
 function refreshProfileChips() {
+  renderProfileLevelChips();
+  renderProfileSubjectChips();
   document.querySelectorAll('#profileLevelRow .pickChip').forEach(function (b) {
     b.classList.toggle('active', b.getAttribute('data-level') === profilePick.level);
   });
@@ -19201,8 +19306,19 @@ async function saveStudentProfile() {
   if (!currentUser) return;
   var name = $('profileNameInput').value.trim();
   if (!name) { toast('Please type your name.'); $('profileNameInput').focus(); return; }
-  if (!profilePick.level) { toast('Please choose your level (P3–P6 or Sec 1).'); return; }
+  if (!profilePick.level) { toast('Please choose your level.'); return; }
   if (!profilePick.subject) { toast('Please choose your subject.'); return; }
+  // The last gate. The chips cannot offer an impossible pair, but the pick
+  // survives a level change and a hand-edited profile does not go through
+  // the chips at all — and this pair is what every worksheet list is matched
+  // against for the rest of that student's time here.
+  if (!subjectOkForLevel(profilePick.level, profilePick.subject)) {
+    toast(levelLabel(profilePick.level) + ' is ' + subjectLabel(levelSubjects(profilePick.level)[0]) +
+          ' only — please choose again.', 4500);
+    profilePick.subject = '';
+    refreshProfileChips();
+    return;
+  }
   // One level/subject change per student after the first setup.
   var changedLS = !!studentProfile &&
     (studentProfile.level !== profilePick.level || studentProfile.subject !== profilePick.subject);
@@ -19277,6 +19393,27 @@ async function openStudentsModal() {
   }
 }
 
+/* Fill a subject <select> with the subjects the given level really offers,
+   keeping the current value where it survives. Both admin surfaces go
+   through this, so "P3 is Science only" cannot hold on the student's chips
+   and quietly not hold on the teacher's dropdown — which is the copy of the
+   rule that would actually get used, because the teacher is the one who
+   fixes a profile that went in wrong. */
+function fillStudentSubjects(sel, level, want) {
+  var allowed = levelSubjects(level);
+  var keep = allowed.indexOf(want) !== -1 ? want : allowed[0];
+  sel.innerHTML = '';
+  STUDENT_SUBJECTS.forEach(function (sub) {
+    if (allowed.indexOf(sub.value) === -1) return;
+    var o = document.createElement('option');
+    o.value = sub.value;
+    o.textContent = sub.label;
+    sel.appendChild(o);
+  });
+  sel.value = keep;
+  return keep;
+}
+
 /* Create a student account with no Google login — they practise on the
    teacher's device, from the teacher's account. */
 function managedStudentForm() {
@@ -19294,13 +19431,16 @@ function managedStudentForm() {
   nameIn.type = 'text';
   nameIn.placeholder = 'Student’s name';
   nameIn.autocomplete = 'off';
+  // STUDENT_LEVELS, not LEVELS: a worksheet can still be tagged P6, but a
+  // student the centre takes on is P3 to P5.
   var lvlSel = document.createElement('select');
-  LEVELS.forEach(function (l) {
+  STUDENT_LEVELS.forEach(function (l) {
     var o = document.createElement('option'); o.value = l; o.textContent = levelLabel(l); lvlSel.appendChild(o);
   });
   var subSel = document.createElement('select');
-  [['math', 'Mathematics'], ['science', 'Science'], ['both', 'Both']].forEach(function (s) {
-    var o = document.createElement('option'); o.value = s[0]; o.textContent = s[1]; subSel.appendChild(o);
+  fillStudentSubjects(subSel, lvlSel.value, 'science');
+  lvlSel.addEventListener('change', function () {
+    fillStudentSubjects(subSel, lvlSel.value, subSel.value);
   });
   var addBtn = document.createElement('button');
   addBtn.className = 'btn btnPrimary';
@@ -19396,15 +19536,16 @@ function studentAdminRow(uid, p) {
   var selWrap = document.createElement('div');
   selWrap.className = 'stuRowSelects';
   var lvlSel = document.createElement('select');
-  LEVELS.forEach(function (l) {
+  STUDENT_LEVELS.forEach(function (l) {
     var o = document.createElement('option'); o.value = l; o.textContent = levelLabel(l); lvlSel.appendChild(o);
   });
+  // setSelectValue keeps a level that is no longer offered as an extra
+  // option, so a P6 student from before the range narrowed still reads as P6
+  // rather than silently showing as P3 — and being SAVED as P3 the next time
+  // the teacher touches anything on the row.
   setSelectValue(lvlSel, p.level || 'P3');
   var subSel = document.createElement('select');
-  [['math', 'Mathematics'], ['science', 'Science'], ['both', 'Both']].forEach(function (s) {
-    var o = document.createElement('option'); o.value = s[0]; o.textContent = s[1]; subSel.appendChild(o);
-  });
-  setSelectValue(subSel, p.subject || 'both');
+  fillStudentSubjects(subSel, lvlSel.value, p.subject || 'science');
   function adminSave(data, msg) {
     db.collection(PROFILES_COLLECTION).doc(uid).set(Object.assign({}, data, {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -19416,7 +19557,17 @@ function studentAdminRow(uid, p) {
     }).catch(function (e) { toast('Could not update: ' + (e.message || e)); });
   }
   lvlSel.addEventListener('change', function () {
-    adminSave({ level: lvlSel.value }, (p.name || 'Student') + ' moved to ' + lvlSel.value + '.');
+    // Moving a student to P3 takes their subject with it. Saving the level
+    // alone would leave a P3 pupil tagged Mathematics — the exact pair that
+    // matches no worksheet ever again.
+    var sub = fillStudentSubjects(subSel, lvlSel.value, subSel.value);
+    var moved = (p.name || 'Student') + ' moved to ' + levelLabel(lvlSel.value);
+    if (sub !== p.subject) {
+      adminSave({ level: lvlSel.value, subject: sub },
+                moved + ' — ' + subjectLabel(sub) + ', which is all ' + levelLabel(lvlSel.value) + ' takes here.');
+    } else {
+      adminSave({ level: lvlSel.value }, moved + '.');
+    }
   });
   subSel.addEventListener('change', function () {
     adminSave({ subject: subSel.value }, (p.name || 'Student') + ' set to ' + subjectLabel(subSel.value) + '.');
@@ -19455,15 +19606,18 @@ function canSeeDoc(d) {
   // the right level and subject let it through. A share link the teacher sent
   // still opens it: sending that link is a deliberate act of its own.
   if (d.hidden) return false;
-  if (!studentProfile) return false; // profile not set up yet
+  if (!profileComplete(studentProfile)) return false; // no usable profile yet
   // Students only see worksheets explicitly assigned to their level AND
   // subject. A worksheet with no level/subject set (saved before tagging
   // existed) used to be shown to every student — now it stays teacher-only
   // until it is assigned via Edit in My PDFs.
   if (!d.level || d.level !== studentProfile.level) return false;
   if (!d.subject) return false;
-  if (d.subject !== 'both' && studentProfile.subject !== 'both' &&
-      d.subject !== studentProfile.subject) return false;
+  // profileSubject, not studentProfile.subject: a P3 profile that says
+  // "both" means Science, and reading it any other way would hand a P3 pupil
+  // the maths worksheets the centre does not teach them.
+  var mySub = profileSubject(studentProfile);
+  if (d.subject !== 'both' && mySub !== 'both' && d.subject !== mySub) return false;
   return true;
 }
 
@@ -20747,10 +20901,10 @@ async function openDocsModal() {
     await signIn();
     if (!currentUser) return;
   }
-  if (!isAdmin(currentUser) && !studentProfile) {
+  if (!isAdmin(currentUser) && !profileComplete(studentProfile)) {
     await loadStudentProfile(currentUser); // may still be in flight right after sign-in
     renderAuthArea();
-    if (!studentProfile) { openProfileModal(true); return; }
+    if (!profileComplete(studentProfile)) { openProfileModal(true); return; }
   }
   $('docsModal').classList.add('open');
   var list = $('docsList');
@@ -21175,10 +21329,10 @@ async function loadQuestionsList() {
     await signIn();
     if (!currentUser) return;
   }
-  if (!isAdmin(currentUser) && !studentProfile) {
+  if (!isAdmin(currentUser) && !profileComplete(studentProfile)) {
     await loadStudentProfile(currentUser); // may still be in flight right after sign-in
     renderAuthArea();
-    if (!studentProfile) {
+    if (!profileComplete(studentProfile)) {
       list.innerHTML = '<div class="qEmpty">Finish setting up your profile to see your questions.</div>';
       openProfileModal(true);
       return;
@@ -23353,19 +23507,22 @@ $('kwInput').addEventListener('keydown', function (e) {
 });
 
 /* Student profile modal */
-document.querySelectorAll('#profileLevelRow .pickChip').forEach(function (b) {
-  b.addEventListener('click', function () {
-    if (profileLocked) { toast('Your level is locked — ask Mr Chung to change it.'); return; }
-    profilePick.level = b.getAttribute('data-level');
-    refreshProfileChips();
-  });
+/* Delegated, because both chip rows are REBUILT whenever the level changes —
+   a listener bound to a chip that has since been replaced is a chip that
+   does nothing when tapped. */
+$('profileLevelRow').addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('.pickChip') : null;
+  if (!b) return;
+  if (profileLocked) { toast('Your level is locked — ask Mr Chung to change it.'); return; }
+  profilePick.level = b.getAttribute('data-level');
+  refreshProfileChips();
 });
-document.querySelectorAll('#profileSubjectRow .pickChip').forEach(function (b) {
-  b.addEventListener('click', function () {
-    if (profileLocked) { toast('Your subject is locked — ask Mr Chung to change it.'); return; }
-    profilePick.subject = b.getAttribute('data-subject');
-    refreshProfileChips();
-  });
+$('profileSubjectRow').addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('.pickChip') : null;
+  if (!b) return;
+  if (profileLocked) { toast('Your subject is locked — ask Mr Chung to change it.'); return; }
+  profilePick.subject = b.getAttribute('data-subject');
+  refreshProfileChips();
 });
 document.querySelectorAll('#profileDayRow .pickChip').forEach(function (b) {
   b.addEventListener('click', function () {

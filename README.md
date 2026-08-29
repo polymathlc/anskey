@@ -3,6 +3,34 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 👤 P3 to P5, and P3 is Science only (v1.80.0)
+
+Students pick their level and subject the first time they sign in, and that
+pair decides which worksheets they ever see. Two things about it are new.
+
+**The levels a student can be are P3, P4 and P5.** Worksheets can still be
+tagged at any level — a P6 paper stays a P6 paper — but a student the centre
+takes on is one of those three. A student already set up as P6 or Sec 1 keeps
+their level and still sees it on their own profile; nothing is re-tagged behind
+anyone's back.
+
+**P3 is Science only.** There is no P3 maths class here, and a P3 pupil tagged
+Mathematics is a pupil whose worksheet list is empty for the rest of their time
+at the centre — the filter never matches, and an empty list looks exactly like
+a teacher who has not uploaded anything yet. So at P3 the subject row now holds
+a single chip and says why, and moving a student to P3 on the Students window
+takes their subject with it rather than leaving the pair that matches nothing.
+
+The rule lives in one place, because a level/subject pair is chosen in five:
+the student's chips, their save, the *add a student without Google* form, the
+per-student row, and the worksheet filter itself. A P3 profile that was already
+saved as *Both* now reads as Science wherever it is used, which can only ever
+narrow what a student sees.
+
+The roster is shared with the **Study Buddy** (`polymathlc/tutor`), which
+carries the same rule and writes with a merge, so the class days and lesson slot
+kept on that row survive. `node tools/profile-tests.mjs` pins all of it.
+
 ## 📘 A note typed in the Study Buddy says so (v1.79.1)
 
 There is a fourth app on the shared notebook now: **Study Buddy**
