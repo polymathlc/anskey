@@ -152,6 +152,57 @@ silent faults, and none of them threw.
 - Run **`node tools/notes-tests.mjs`** after touching any of it.
 
 
+## 👤 Every student has a level, and P3 is Science only (v1.80.0)
+
+`STUDENT_LEVELS` / `STUDENT_SUBJECTS` / `levelSubjects` / `subjectOkForLevel` /
+`profileSubject` / `profileComplete` / `fillStudentSubjects` /
+`renderProfileLevelChips` / `renderProfileSubjectChips` (search `THE LEVELS AND
+WHAT EACH ONE MAY TAKE`), and `canSeeDoc` on the read side.
+
+The centre takes **P3 to P5**, and **P3 is SCIENCE ONLY** — there is no P3
+maths class here.
+
+- **A P3 pupil tagged "Mathematics" is a pupil whose worksheet list is empty
+  for ever, with nothing on any screen saying why.** `canSeeDoc` simply never
+  matches, and an empty list looks exactly like a teacher who has not uploaded
+  anything yet. That is the whole reason this rule is worth a section.
+- **`levelSubjects` is the ONE place it lives, because a level/subject pair is
+  chosen in FIVE places**: the student's own chips, their save, the admin's
+  "add a student without Google" form, the admin's per-student row, and
+  `canSeeDoc`. A rule enforced in four of them is not a rule — and the one that
+  gets missed is always the teacher's dropdown, because that is the one used to
+  FIX a profile that went in wrong.
+- **Both chip rows are BUILT, never hand-written.** At P3 the subject row holds
+  one chip, so there is nothing to choose wrongly. A row typed into the markup
+  is a copy of the rule that cannot be kept in step.
+- **A subject the new level does not offer is DROPPED from the pick**, and the
+  save re-checks the pair anyway: the pick survives a level change, so
+  switching from P5 Mathematics to P3 would otherwise save Mathematics on the
+  next tap.
+- **The chips are wired by DELEGATION.** Both rows are rebuilt whenever the
+  level changes, so a listener bound to a chip is a chip that does nothing once
+  it has been replaced.
+- **Moving a student to P3 on the admin row saves their SUBJECT too.** Saving
+  the level alone leaves the exact pair that matches nothing ever again.
+- **`profileSubject` is how a stored profile is READ.** A P3 profile saved as
+  `both` MEANS Science; reading it raw is what hands a P3 pupil the maths
+  worksheets the centre does not teach them. It can only ever NARROW what a
+  student sees, which is the safe direction for a rule about who sees what.
+- **A level outside the range keeps every subject and stays visible.** A P6 or
+  Sec 1 profile from before the range narrowed still shows its own level on the
+  chips and in the admin row rather than reading as wiped — and being SAVED as
+  P3 the next time the teacher touches anything on that row. `STUDENT_LEVELS`
+  is the roster's range; `LEVELS` is still every level a WORKSHEET may be
+  tagged with, and the two are deliberately different.
+- **Every gate asks `profileComplete`, never "is there a row".** A profile
+  saved without a level matches nothing, so the student is asked again rather
+  than left looking at an empty app.
+- **`studentProfiles` is shared with the Study Buddy** (`polymathlc/tutor`),
+  which carries the identical rule over the identical collection and writes
+  with `{ merge: true }` so the class days and slot kept here survive. **Ship a
+  change to the rule in both.**
+- Run **`node tools/profile-tests.mjs`** after touching any of it.
+
 ## Reward system — ADMIN ONLY (`#rewardBtn` / `#rewardModal`, all `rw*` code)
 - The Reward window hands marks to one class mid-lesson. It writes **only** into the reward
   system's collections in the separate `polymathlc/rewards` repo (`rewards/index.html`, same
@@ -608,6 +659,16 @@ draw.
   against the file itself, because the one that gets forgotten is always the
   PDF — and a dotted line that prints solid is only ever found in front of a
   class.
+- After touching **the student roster** (`STUDENT_LEVELS`, `STUDENT_SUBJECTS`,
+  `levelSubjects`, `subjectOkForLevel`, `profileSubject`, `profileComplete`,
+  `fillStudentSubjects`, `renderProfileLevelChips`, `renderProfileSubjectChips`,
+  `saveStudentProfile`, `studentAdminRow`, `managedStudentForm`, or
+  `canSeeDoc`), run `node tools/profile-tests.mjs` — and ship the same change
+  to `polymathlc/tutor`, which shares the collection. Every failure is silent
+  and looks like a teacher who has not uploaded anything: a P3 pupil tagged
+  Mathematics matches no worksheet ever again, a stored subject read raw hands
+  them the maths worksheets the centre does not teach them, and a level moved
+  on the admin row without its subject leaves exactly that pair behind.
 - After editing `index.html`, syntax-check the script block, e.g.
   `python3 -c "import re;open('/tmp/c.js','w').write(re.findall(r'<script>\n(.*?)\n</script>', open('index.html').read(), re.S)[-1])" && node --check /tmp/c.js`
 - Commit messages and pushed artifacts must not contain the model identifier.
