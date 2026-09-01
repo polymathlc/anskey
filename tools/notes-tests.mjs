@@ -17,6 +17,10 @@ var actingStudent = null;
 var currentDocId = 'doc1';
 var docName = 'Heat worksheet';
 var pdfDoc = null, pages = [], aiBusy = false;
+var practiceMode = false, wsEpoch = 1, sharedLink = null;
+function currentPageNum() { return 0; }
+function notesLiveRepaint() {}
+function renderNotesBody() {}
 var LEVELS = ['P3','P4','P5','P6','S1'];
 var COLLECTION = 'pdfAnnotator';
 var KEY_PAGE_PX = 2200;
@@ -41,7 +45,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples() };')();
+const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples() };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -239,6 +243,7 @@ console.log('\nEvery AI call site is grounded, or exempt on purpose');
     styleDistil: 'this is what BUILDS the style profile from the teacher’s own answers',
     styleLearnOpenWorksheet: 'reads answers off a worksheet to learn from them',
     styleLearnAllWorksheets: 'the same sweep across every saved worksheet',
+    autoLearnRunJob: 'reads a page to WRITE the notes; grounding it would feed the notebook its own echo',
     aiNoteImage: 'asks the IMAGE model for a picture; its SVG fallback is grounded',
     endDrag: 'a pointer handler — the AI call in view belongs to window.askGemini below it',
   };
@@ -282,6 +287,85 @@ console.log('\nEvery AI call site is grounded, or exempt on purpose');
   const bare = reqCalls.filter(x => !/aiGrounding\s*\(/.test(x.l)).map(x => 'index.html:' + (x.i + 1));
   ok('every aiRequest passes a grounded system prompt', bare.length === 0, bare.join(', '));
 }
+
+
+console.log('\n📚 Learning as you go — what counts as a page worth reading');
+ok('a text box with real words does', mod.autoLearnWorthReading([{ type: 'text', text: 'Heat flows from hot to cold.' }]));
+ok('a page number does not', !mod.autoLearnWorthReading([{ type: 'text', text: 'Page 3' }]));
+ok('a single tick does not buy an AI call', !mod.autoLearnWorthReading([{ type: 'pen' }, { type: 'pen' }]));
+ok('a handwritten answer does', mod.autoLearnWorthReading([{ type: 'pen' }, { type: 'pen' }, { type: 'pen' }, { type: 'pen' }]));
+ok('an empty page does not', !mod.autoLearnWorthReading([]));
+
+console.log('\n…and whether it may be read at all');
+mod.setUser({ uid: 'admin1', email: 'chungzhikai@gmail.com' });
+mod.setPractice(false); mod.setActing(null); mod.autoLearnSetOn(true);
+ok('the teacher on their own worksheet: yes', mod.autoLearnAllowed());
+mod.setPractice(true);
+ok("a child's attempt is never learned as the teacher's", !mod.autoLearnAllowed());
+mod.setPractice(false); mod.setActing({ name: 'Ann' });
+ok('nor is the iPad handed to a student', !mod.autoLearnAllowed());
+mod.setActing(null); mod.setUser({ uid: 's1', email: 'student@x.com' });
+ok('nor anybody who is not the teacher', !mod.autoLearnAllowed());
+mod.setUser({ uid: 'admin1', email: 'chungzhikai@gmail.com' });
+mod.autoLearnSetOn(false);
+ok('nor when it is switched off', !mod.autoLearnAllowed());
+mod.autoLearnSetOn(true);
+
+console.log('\nThe signature: read once, and again only when the page changes');
+const a1 = [{ type: 'text', id: 't1', text: 'gains heat' }];
+ok('the same page hashes the same', mod.autoLearnSig(a1) === mod.autoLearnSig([{ type: 'text', id: 't1', text: 'gains heat' }]));
+ok('a correction of the SAME LENGTH is still a change',
+   mod.autoLearnSig(a1) !== mod.autoLearnSig([{ type: 'text', id: 't1', text: 'loses heat' }]));
+ok('another answer added is a change',
+   mod.autoLearnSig(a1) !== mod.autoLearnSig(a1.concat([{ type: 'pen', id: 'p1' }])));
+
+console.log('\nMerging a page in');
+const meta = { level: 'P5', subject: 'science', name: 'Heat Paper 2' };
+let r = mod.autoLearnMergeInto(null, 3, 'sig3',
+  { keywords: ['gains heat', 'expands'], keyFacts: 'Matter expands when heated.' }, meta);
+ok('a note is made for the worksheet', !!r.note);
+ok('it is marked as the app’s own', r.note.noteKind === 'auto');
+ok('it is titled after the worksheet', /Heat Paper 2/.test(r.note.title));
+ok('it is scoped to the level and subject', r.note.levels[0] === 'P5' && r.note.subjects[0] === 'science');
+ok('the keywords are in it', r.note.keywords.join('|') === 'gains heat|expands');
+ok('the key facts are in it', /Matter expands/.test(r.note.keyFacts));
+ok('the page is recorded as read', mod.autoLearnPageSig(r.note, 3) === 'sig3');
+ok('IT NEVER WRITES A MARKING STANDARD', !r.note.markingStandards);
+ok('IT NEVER WRITES GENERAL GUIDANCE', !r.note.guidance);
+ok('topics stay empty for the Learning Portal', r.note.topics.length === 0);
+
+console.log('\n…and a second page MERGES rather than repeating');
+let r2 = mod.autoLearnMergeInto(r.note, 4, 'sig4',
+  { keywords: ['expands', 'EXPANDS ', 'contracts'], keyFacts: 'Matter expands when heated.\nMatter contracts when cooled.' }, meta);
+ok('a keyword already there is not added twice', r2.note.keywords.filter(w => /^expands$/i.test(w)).length === 1);
+ok('the new keyword is added', r2.note.keywords.indexOf('contracts') !== -1);
+ok('a fact already there is not repeated', (r2.note.keyFacts.match(/Matter expands/g) || []).length === 1);
+ok('the new fact is added', /Matter contracts/.test(r2.note.keyFacts));
+ok('both pages are recorded', mod.autoLearnPageSig(r2.note, 3) === 'sig3' && mod.autoLearnPageSig(r2.note, 4) === 'sig4');
+ok('the pages read are counted once each', r2.note.pagesRead === 2);
+ok('the level is not repeated either', r2.note.levels.length === 1);
+
+console.log('\nA page that taught nothing is still never read twice');
+let r3 = mod.autoLearnMergeInto(r2.note, 5, 'sig5', { teaches: false, keywords: [], keyFacts: '' }, meta);
+ok('the signature is recorded anyway', mod.autoLearnPageSig(r3.note, 5) === 'sig5');
+ok('nothing was added', r3.added === 0);
+
+console.log('\nA note that is full SAYS so rather than dropping the rest silently');
+const long = Array.from({ length: 60 }, (_, i) => 'Fact number ' + i + ' about heat and how it moves around a room.').join('\n');
+let rf = mod.autoLearnMergeInto(null, 1, 's1', { keywords: [], keyFacts: long }, meta);
+ok('the key facts are capped', rf.note.keyFacts.length <= mod.AUTO_FACT_CHARS);
+ok('and the note is flagged full', rf.note.full === true);
+ok('whole lines are kept, never half a fact', rf.note.keyFacts.split('\n').every(l => /room\.$/.test(l)));
+const manyKw = Array.from({ length: 90 }, (_, i) => 'term' + i);
+let rk = mod.autoLearnMergeInto(null, 1, 's1', { keywords: manyKw, keyFacts: '' }, meta);
+ok('the keywords are capped', rk.note.keywords.length === mod.AUTO_KW_MAX);
+ok('and that is flagged too', rk.note.full === true);
+
+console.log('\nThe reading prompt');
+ok('it refuses to write marking rules', /NEVER write marking rules/.test(mod.AUTO_READ_SYS));
+ok('it transcribes an answer rather than improving it', /never\s+correct it, complete it or improve it/.test(mod.AUTO_READ_SYS));
+ok('it never invents a keyword', /Never invent a term the page does not show/.test(mod.AUTO_READ_SYS));
+ok('the note id is per worksheet', mod.autoLearnNoteId('doc9') === 'auto_doc9');
 
 console.log(fails ? '\n' + fails + ' FAILED\n' : '\nAll good.\n');
 process.exit(fails ? 1 : 0);
