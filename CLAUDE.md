@@ -152,6 +152,64 @@ silent faults, and none of them threw.
 - Run **`node tools/notes-tests.mjs`** after touching any of it.
 
 
+## 📚 Learning as you go — the notebook writes itself (v1.82.0)
+
+`AUTO_*` / `autoLearn*` (search `LEARNING AS YOU GO`), the `autoLearnWatch()` call inside the
+viewer's scroll rAF, `autoLearnFlushCurrent()` / `autoLearnReset(false)` at the top of `loadPdf`,
+`autoLearnReset(true)` in `stopTeachingNotes`, and the 📚 panel in `renderNotesBody`.
+
+Write on a page, move on from it, and that page is photographed as it stands, read by the model,
+and folded into the notebook — so the notes grow out of the work the teacher is doing anyway
+instead of waiting for somebody to remember to upload something. The same picture also feeds the
+style corpus, in the same call, because it is the same picture.
+
+- **IT WRITES WHAT THE PAGE TEACHES AND NEVER HOW TO MARK.** An auto note carries `keywords` and
+  `keyFacts` and nothing else — **never `guidance`**, which is the teacher's own house rules and
+  reaches every prompt in the app *including marking*, and **never `markingStandards`**, which is
+  the one extracted field that reaches a MARK. A standard nobody typed, written by a machine off a
+  page nobody checked, deciding how thirty children are marked, is exactly the silent authority
+  this app refuses everywhere else. `AUTO_READ_SYS` forbids it to the model as well, so it cannot
+  arrive dressed as a "key fact"; the teacher can still put one there by hand with ✎ Edit, and
+  then it is theirs.
+- **ONE NOTE PER WORKSHEET, MERGED — never one per page.** `notesFairShare` gives every note a
+  guaranteed floor out of a bounded pot, so a note per page would be forty notes crowding the
+  teacher's own standing instructions out of every prompt in the app. And the merge must DEDUPE:
+  ten pages of one paper repeat the same fact, and ten copies of it read to the model as emphasis
+  nobody wrote.
+- **A PAGE IS READ ONCE, and the signature lives ON THE NOTE.** Kept in memory it would spend a
+  whole worksheet of AI calls every time the worksheet was opened. `autoLearnSig` hashes the text
+  **in full, not by its length**: a teacher correcting "gains heat" to "loses heat" changes nothing
+  a length check can see, and that page would never be read again. **A page that taught nothing is
+  still recorded as read**, or a cover sheet is paid for on every visit.
+- **IT IS THE TEACHER'S OWN WORK OR IT IS NOTHING.** `autoLearnAllowed()` is the ONE gate — admin,
+  not `actingStudent`, not a shared visitor, not `practiceMode`. In practice mode `annotations`
+  holds a CHILD'S attempt and the teacher's answers are parked in `teacherAnswers`; learning a
+  child's wrong answer as the teacher's own is the worst thing this loop could do, and nothing on
+  any screen would say it had happened.
+- **`autoLearnReset(dropQueue)` wants OPPOSITE things of the queue on its two callers, and that
+  argument is the whole reason it exists.** A job is self-contained (its own page object, ink,
+  worksheet and meta), so the page flushed as a worksheet is CLOSED has to survive the worksheet
+  changing — reset it there and the flush is a no-op and the last page anybody worked on is never
+  learned. An ACCOUNT change is the other way round and must drop it: a job captured under one
+  account would file that page in whoever signs in next on the device.
+- **It yields to the teacher and never blocks them.** It waits for `aiBusy` / `notesBusy` and
+  deliberately does not set them, so a background read never answers ✨ Answer with "the AI is
+  busy". **ONE retry timer** (`autoWaitTimer`): every queued page kicks the pump, so a timer each
+  compounds into a dozen re-arming each other.
+- **A costly automatic thing must never be invisible.** It is toasted once per worksheet and never
+  again, the 📚 panel counts what it has done, `AUTO_SESSION_MAX` caps one sitting and says so, and
+  a note that has filled up says **"This note is full"** on its own card rather than quietly
+  dropping every page after it. The switch is per device (`localStorage`), default ON.
+- **An unsaved worksheet has no document to file a note against.** The job WAITS (auto-save is
+  almost certainly about to give it one) rather than being dropped, and is discarded only once its
+  epoch says that worksheet has gone.
+- `autoLearnRunJob` is **ungrounded by design** and named in the census's `UNGROUNDED_BY_DESIGN`
+  for `notesHandleFiles`'s reason: this is what WRITES the notes, and telling it what the teacher
+  already teaches is how it comes back agreeing with itself and the notebook fills with its own
+  echo.
+- Run **`node tools/notes-tests.mjs`** after touching any of it.
+
+
 ## 👤 Every student has a level, and P3 is Science only (v1.80.0, P6 added v1.81.0)
 
 `STUDENT_LEVELS` / `STUDENT_SUBJECTS` / `levelSubjects` / `subjectOkForLevel` /
@@ -661,6 +719,21 @@ draw.
   against the file itself, because the one that gets forgotten is always the
   PDF — and a dotted line that prints solid is only ever found in front of a
   class.
+- After touching **📚 learning as you go** (`autoLearnAllowed`, `autoLearnWorthReading`,
+  `autoLearnSig`, `autoLearnMergeInto`, `autoLearnMergeLines`, `autoLearnMergeWords`,
+  `autoLearnQueuePage`, `autoLearnWatch`, `autoLearnPump`, `autoLearnRunJob`, `autoLearnReset`,
+  `autoLearnFlushCurrent`, `AUTO_READ_SYS`, or the hooks in the scroll rAF / `loadPdf` /
+  `stopTeachingNotes`), run `node tools/notes-tests.mjs`. Every failure here is silent and the
+  notebook goes on filling: let the gate slip and a CHILD'S practice attempt is learned as the
+  teacher's own, which is the one thing in this app that cannot be told apart afterwards. Let it
+  write a `markingStandards` or a `guidance` and a rule nobody typed starts deciding how a class is
+  marked. Stop deduping and one worksheet writes the same fact ten times, which reads to the model
+  as emphasis and eats the pot every other note shares. Hash the text by its LENGTH and a
+  correction of the same length is never re-read. Skip the signature on a page that taught nothing
+  and every cover sheet is paid for again on every visit. Reset the queue on a worksheet change and
+  the flush is a no-op, so the last page anybody worked on is never learned; fail to reset it on an
+  account change and one teacher's page lands in the next person's notebook. And drop the single
+  retry timer and every queued page arms its own, all of them re-arming each other.
 - After touching **the student roster** (`STUDENT_LEVELS`, `STUDENT_SUBJECTS`,
   `levelSubjects`, `subjectOkForLevel`, `profileSubject`, `profileComplete`,
   `fillStudentSubjects`, `renderProfileLevelChips`, `renderProfileSubjectChips`,

@@ -4575,7 +4575,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.81.0';
+var APP_VERSION = 'v1.82.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -5155,8 +5155,12 @@ async function loadPdfFromFile(file) {
 }
 
 async function loadPdf(bytes, name) {
+  /* Closing a worksheet is moving on from its last page too, and the capture
+     has to happen while that page and its annotations are still here. */
+  try { autoLearnFlushCurrent(); } catch (e) {}
   stopLivePresence(true); // the worksheet being left is no longer live
   unsubscribeOpenDoc();
+  autoLearnReset(false);   // …but the page just flushed still has to be read
   wsEpoch++;              // cards still being made belong to the old worksheet
   pdfBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   docName = name || 'Untitled';
@@ -5227,6 +5231,10 @@ async function loadPdf(bytes, name) {
   // Fresh worksheet starts on the pen, with the pen's remembered style.
   if (!isStudent()) setTool('pen');
   renderSidebar();
+  /* Where we are STARTING, said out loud. Left at 0 the watcher spends its
+     first scroll event working that out, and a quick flick off page 1 is a
+     page written on and then never learned. */
+  autoSeenPage = 1;
   toast('Loaded “' + docName + '” — ' + pdfDoc.numPages + ' page' + (pdfDoc.numPages > 1 ? 's' : ''));
 }
 
@@ -11231,6 +11239,9 @@ function notesDetach() {
 }
 function stopTeachingNotes() {
   notesDetach();
+  /* A job captured under one account would file that page in whoever signs in
+     next on this device. */
+  autoLearnReset(true);
   notesLoaded = false;
   notesLoading = null;
   teachingNotes = [];
@@ -12164,10 +12175,27 @@ function notesCardHtml(n) {
   if (when) meta.push((guide && !n.fileName ? 'written ' : 'uploaded ') + escHtml(when));
   var src = noteSourceLabel(n);
   if (src) meta.push(src);
+  var auto = n.noteKind === 'auto';
+  if (auto) {
+    meta = [];
+    if (n.autoWorksheet) meta.push(escHtml(n.autoWorksheet));
+    if (n.pagesRead) meta.push(n.pagesRead + ' page' + (n.pagesRead === 1 ? '' : 's') + ' read');
+    if (when) meta.push('learned ' + escHtml(when));
+  }
   /* …and a note the BUDGET could not fit says so. A note quietly cut down to
      a third of itself reads on this card exactly like one being obeyed in
      full, which is the bug this whole section exists to stop happening
      again. */
+  /* Written by the app rather than by a person, so it says so: a note nobody
+     typed reading exactly like one they did is how a wrong keyword ends up
+     trusted. What it can never contain is a marking standard or a standing
+     instruction — both are the teacher's to type, and ✎ Edit is where. */
+  var autoRow = auto
+    ? '<div class="tnRow"><div class="tnLabel">Where it came from</div><div class="tnText tnTextSoft">' +
+      'Written by the app as you worked, off the pages of this worksheet. It only ever adds keywords and key facts — never a marking standard and never general guidance. Edit or delete it like any other note.' +
+      (n.full ? ' <b>This note is full</b>, so later pages added nothing to it.' : '') +
+      '</div></div>'
+    : '';
   var led = notesLedgerFor(n.id);
   var short = !led ? ''
     : led.dropped
@@ -12185,6 +12213,7 @@ function notesCardHtml(n) {
       '</div>' +
     '</div>' +
     short +
+    autoRow +
     '<div class="tnRow"><div class="tnLabel">Used for</div><div class="tnChips">' + tagHtml + '</div></div>' +
     (guide ? '<div class="tnRow"><div class="tnLabel">General guidance</div><div class="tnText">' + escHtml(guide) + '</div></div>' : '') +
     // A rule typed while looking at a question reads very differently once the
@@ -12244,7 +12273,8 @@ function renderNotesBody() {
   }
   var status = ($('notesStatus') && $('notesStatus').textContent) || '';
   var guideNotes = teachingNotes.filter(function (n) { return String(n.guidance || '').trim(); });
-  var fileNotes = teachingNotes.filter(function (n) { return !String(n.guidance || '').trim(); });
+  var autoNotes = teachingNotes.filter(function (n) { return n.noteKind === 'auto' && !String(n.guidance || '').trim(); });
+  var fileNotes = teachingNotes.filter(function (n) { return n.noteKind !== 'auto' && !String(n.guidance || '').trim(); });
   /* Build the FULLEST digest once so the window can say what really happens
      to each note in a prompt. A warning that only appeared after some other
      screen had made an AI call is a warning nobody ever sees. */
@@ -12287,8 +12317,444 @@ function renderNotesBody() {
       '<div id="notesStatus" class="tnStatus"' + (status ? '' : ' style="display:none"') + '>' + escHtml(status) + '</div>' +
     '</div>' +
     notesTrainingHtml() +
+    autoLearnPanelHtml() +
+    (autoNotes.length
+      ? '<div class="tnListHead"><h3>Learned from your worksheets (' + autoNotes.length + ')</h3></div>' +
+        autoNotes.map(notesCardHtml).join('')
+      : '') +
     '<div class="tnListHead"><h3>Uploaded notes (' + fileNotes.length + ')</h3></div>' +
     cards;
+}
+
+/* ================= 📚 LEARNING AS YOU GO =================
+   Write on a page, move on from it, and that page teaches the app: it is
+   photographed exactly as it stands, read by the model, and folded into the
+   notebook — so the notes grow by themselves out of the work the teacher is
+   doing anyway, instead of waiting for somebody to remember to upload
+   something.
+
+   FOUR RULES HOLD IT TOGETHER, and every one of them is a way this could go
+   quietly wrong.
+
+   1. IT WRITES WHAT THE PAGE TEACHES, AND NEVER HOW TO MARK. An auto note
+      carries `keywords` and `keyFacts` and NOTHING else — never `guidance`,
+      which is the teacher's own house rules and reaches every prompt in the
+      app including marking, and never `markingStandards`, which is the one
+      extracted field that reaches a MARK. A standard nobody typed, written by
+      a machine off a page nobody checked, deciding how thirty children are
+      marked, is exactly the silent authority this app refuses everywhere
+      else. The teacher can still put one there by hand with ✎ Edit — and
+      then it is theirs. `AUTO_READ_SYS` says so to the model as well, so it
+      cannot arrive by the back door in a "key fact".
+
+   2. ONE NOTE PER WORKSHEET, MERGED — never one per page. `notesFairShare`
+      gives every note a guaranteed floor out of a bounded pot, so a note per
+      page would be forty notes crowding the teacher's own standing
+      instructions out of every prompt in the app. Merging also has to
+      DEDUPE: ten pages of one paper repeat the same fact, and ten copies of
+      it read to the model as emphasis nobody wrote.
+
+   3. A PAGE IS READ ONCE. Its signature is stored on the note itself, so a
+      page is not read again when the worksheet is reopened tomorrow — and
+      IS read again once the teacher writes something new on it. Kept only in
+      memory this would spend a whole worksheet of AI calls every time the
+      worksheet was opened.
+
+   4. IT IS THE TEACHER'S OWN WORK OR IT IS NOTHING. Never a student's device,
+      never a shared link, never the teacher's iPad handed over, and never
+      practice mode — where `annotations` holds a child's attempt and the
+      teacher's answers are parked in `teacherAnswers`. Learning a child's
+      wrong answer as the teacher's own is the worst thing this loop could
+      do, and nothing on any screen would say it had happened.
+
+   It yields to the teacher and never blocks them: it waits for `aiBusy` and
+   `notesBusy` to be clear and deliberately does not set them, so pressing
+   ✨ Answer is never met with "the AI is busy" because of a background read. */
+
+var AUTO_LEARN_KEY = 'anskeyAutoLearn';  // the per-device switch
+/* Big enough to read a worksheet's small print, smaller than the answer key's
+   2200 — this runs on its own several times a lesson. */
+var AUTO_PAGE_PX = 1800;
+var AUTO_INK_MIN = 4;         // strokes before handwriting counts as an answer
+var AUTO_SESSION_MAX = 40;    // pages one sitting may read, whatever happens
+var AUTO_QUEUE_MAX = 12;
+var AUTO_KW_MAX = 60;         // the same cap an uploaded note's keywords get
+var AUTO_FACT_CHARS = 2000;   // …and the same cap its key facts get
+
+var autoQueue = [];           // pages left behind, newest state per page
+var autoRunning = false;      // one read at a time
+var autoSeenPage = 0;         // the page we are ON; changing it is the trigger
+var autoPagesRead = 0;        // this sitting, for the notes window
+var autoSessionReads = 0;
+var autoToldWorksheet = '';   // said once per worksheet, then quiet
+var autoWaitTimer = null;     // ONE retry while the teacher's own call runs
+var autoSaidFull = false;
+
+function autoLearnStoredOn() {
+  try {
+    var v = localStorage.getItem(AUTO_LEARN_KEY);
+    return v === null ? true : v === '1';
+  } catch (e) { return true; }
+}
+var autoLearnOn = autoLearnStoredOn();
+
+function autoLearnSetOn(v) {
+  autoLearnOn = !!v;
+  try { localStorage.setItem(AUTO_LEARN_KEY, autoLearnOn ? '1' : '0'); } catch (e) {}
+  if (!autoLearnOn) autoQueue = [];
+  renderNotesBody();
+  toast(autoLearnOn
+    ? '📚 Learning as you go is on — every page you write on and leave is added to your notes.'
+    : 'Learning as you go is off. Your notes stay exactly as they are.', 4500);
+}
+function autoLearnToggle() { autoLearnSetOn(!autoLearnOn); }
+
+/* THE ONE GATE. Everything that queues, runs or merges asks it, so a path
+   added later cannot be the one that learns from a child's attempt. */
+function autoLearnAllowed() {
+  if (!autoLearnOn) return false;
+  if (!isAdmin(currentUser) || actingStudent || isSharedVisitor()) return false;
+  if (practiceMode) return false;   // that is a student's answer, not the teacher's
+  return true;
+}
+
+/* "Populated with text" — a page worth spending a call on. A text box with
+   real words is the case the teacher asked for; a run of ink is the same
+   thing written by hand on an iPad, and AUTO_INK_MIN is what keeps a single
+   tick or a circled number from buying an AI call. */
+function autoLearnWorthReading(anns) {
+  var ink = 0, words = false;
+  (anns || []).forEach(function (a) {
+    if (!a) return;
+    if (a.type === 'text') { if (styleWorthLearning(a.text)) words = true; return; }
+    if (a.type === 'pen' || a.type === 'highlight') ink++;
+  });
+  return words || ink >= AUTO_INK_MIN;
+}
+
+/* What is written on the page, as a short string. Text is hashed IN FULL, not
+   by length: a teacher correcting "gains heat" to "loses heat" changes
+   nothing a length check can see, and the page would never be read again. */
+function autoLearnSig(anns) {
+  var s = (anns || []).map(function (a) {
+    return a.type + ':' + (a.id || '') + ':' + String(a.text || '');
+  }).join('|');
+  var h = 5381;
+  for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return (anns || []).length + '.' + h.toString(36);
+}
+
+function autoLearnNoteId(docId) { return 'auto_' + String(docId || ''); }
+function autoLearnNoteFor(docId) {
+  if (!docId) return null;
+  var id = autoLearnNoteId(docId);
+  return teachingNotes.filter(function (n) { return n.id === id; })[0] || null;
+}
+function autoLearnPageSig(note, num) {
+  return (note && note.pageSigs && note.pageSigs[String(num)]) || '';
+}
+
+/* ---- Merging ----
+   Adds only what is not already there, keeps whole lines, and SAYS when the
+   note is full rather than quietly dropping what comes after. Pure, so the
+   harness can hold it to all three. */
+function autoLearnMergeLines(existing, add, cap) {
+  var lines = String(existing || '').split('\n')
+    .map(function (s) { return s.trim(); }).filter(Boolean);
+  var seen = {};
+  var key = function (l) { return l.toLowerCase().replace(/\s+/g, ' ').replace(/[.;,]+$/, ''); };
+  lines.forEach(function (l) { seen[key(l)] = 1; });
+  var added = 0, full = false;
+  var used = lines.join('\n').length;
+  String(add || '').split('\n').forEach(function (raw) {
+    var l = raw.trim();
+    if (!l || seen[key(l)]) return;
+    if (used + l.length + 1 > cap) { full = true; return; }
+    seen[key(l)] = 1;
+    lines.push(l);
+    used += l.length + 1;
+    added++;
+  });
+  return { text: lines.join('\n'), added: added, full: full };
+}
+
+function autoLearnMergeWords(existing, add, cap) {
+  var out = (existing || []).slice();
+  var seen = {};
+  out.forEach(function (w) { seen[String(w).toLowerCase().trim()] = 1; });
+  var added = 0, full = false;
+  (add || []).forEach(function (raw) {
+    var w = styleTrim(raw, 60);
+    if (!w) return;
+    var k = w.toLowerCase();
+    if (seen[k]) return;
+    if (out.length >= cap) { full = true; return; }
+    seen[k] = 1;
+    out.push(w);
+    added++;
+  });
+  return { list: out, added: added, full: full };
+}
+
+/* The whole merge, as one pure step: the note as it stands plus what one page
+   gave, out comes the note as it should be filed. The signature is recorded
+   whatever the page gave — a page that taught nothing must still never be
+   read a second time. */
+function autoLearnMergeInto(note, num, sig, got, meta) {
+  var m = meta || {};
+  var out = {};
+  if (note) { for (var k in note) if (k !== 'id') out[k] = note[k]; }
+  else {
+    out = {
+      title: '', fileName: '', comment: '',
+      // `topics` belongs to the Science Learning Portal's syllabus list —
+      // left empty here exactly as an uploaded note leaves it.
+      topics: [], noteTopics: [], subjects: [], levels: [],
+      keywords: [], markingStandards: '', keyFacts: '',
+      noteKind: 'auto', pageSigs: {}, pagesRead: 0,
+      source: 'anskey', createdAt: new Date().toISOString()
+    };
+  }
+  out.noteKind = 'auto';
+  out.pageSigs = out.pageSigs || {};
+  out.title = out.title || ('Learned from: ' + (styleTrim(m.name, 90) || 'a worksheet'));
+  out.autoWorksheet = styleTrim(m.name, 120) || out.autoWorksheet || '';
+  /* Scoped to the worksheet it came from, so it grounds the papers it belongs
+     to and stays out of the way of the rest. */
+  if (m.subject && (out.subjects || []).indexOf(m.subject) === -1) {
+    out.subjects = (out.subjects || []).concat([m.subject]);
+  }
+  if (m.level && (out.levels || []).indexOf(m.level) === -1) {
+    out.levels = (out.levels || []).concat([m.level]);
+  }
+  var kw = autoLearnMergeWords(out.keywords, Array.isArray(got && got.keywords) ? got.keywords : [], AUTO_KW_MAX);
+  var facts = autoLearnMergeLines(out.keyFacts, (got && got.keyFacts) || '', AUTO_FACT_CHARS);
+  out.keywords = kw.list;
+  out.keyFacts = facts.text;
+  // NEVER markingStandards and NEVER guidance — see rule 1 at the top.
+  if (!out.pageSigs[String(num)]) out.pagesRead = (out.pagesRead || 0) + 1;
+  out.pageSigs[String(num)] = sig;
+  out.full = !!(kw.full || facts.full) || !!out.full;
+  out.updatedAt = new Date().toISOString();
+  return { note: out, added: kw.added + facts.added, full: kw.full || facts.full };
+}
+
+async function autoLearnSaveNote(docId, note) {
+  var id = autoLearnNoteId(docId);
+  var data = {};
+  for (var k in note) if (k !== 'id') data[k] = note[k];
+  await notesCollRef(currentUser.uid).doc(id).set(data);
+  note.id = id;
+  var i = -1;
+  teachingNotes.forEach(function (n, j) { if (n.id === id) i = j; });
+  if (i >= 0) teachingNotes[i] = note; else teachingNotes.unshift(note);
+}
+
+/* ---- Reading one page ----
+   Deliberately NOT grounded in the notebook, for `notesHandleFiles`'s reason:
+   this is what WRITES the notes, and telling it what the teacher already
+   teaches is how it comes back agreeing with itself and the notebook fills
+   with its own echo. */
+var AUTO_READ_SYS =
+  'You are reading ONE page of a worksheet a tuition teacher has been working ' +
+  'on, so that a Singapore P3-to-Secondary-1 worksheet app can learn what ' +
+  'THIS teacher teaches and how they answer. Reply with STRICT JSON only, ' +
+  'exactly this shape: {"teaches":true,"keywords":[],"keyFacts":"","pairs":' +
+  '[{"q":"","a":""}]}. Rules:\n' +
+  '- "keywords": 0 to 12 exact terms a student is expected to use in an ' +
+  'answer to this page, 1 to 4 words each, copied from what is printed or ' +
+  'from the teacher\'s own answer. Never invent a term the page does not show.\n' +
+  '- "keyFacts": the facts, rules, formulas and methods this page actually ' +
+  'teaches, one short line each separated by \\n, at most 600 characters. ' +
+  'Only what the page shows.\n' +
+  '- NEVER write marking rules, mark schemes or instructions about how to ' +
+  'mark. You are recording what the page teaches, not how to judge an answer.\n' +
+  '- "pairs": one entry per question the teacher has ANSWERED on this page, ' +
+  'typed or handwritten. Transcribe the answer EXACTLY as written: never ' +
+  'correct it, complete it or improve it. Skip any question with no answer ' +
+  'written on it.\n' +
+  '- "teaches" is false when the page teaches nothing worth keeping — a ' +
+  'cover, a name-and-date line, a blank page — and then "keywords" and ' +
+  '"keyFacts" are empty.\n' +
+  '- Plain text in every field: no markdown, no bullets.';
+
+async function autoLearnRunJob(job) {
+  var note = autoLearnNoteFor(job.docId);
+  if (autoLearnPageSig(note, job.num) === job.sig) return;   // read exactly this already
+  if (autoSessionReads >= AUTO_SESSION_MAX) {
+    if (!autoSaidFull) {
+      autoSaidFull = true;
+      toast('📚 That is ' + AUTO_SESSION_MAX + ' pages learned this sitting — reload the page to carry on, or press “Learn from this worksheet”.', 6000);
+    }
+    autoQueue = [];
+    return;
+  }
+  var img = await keyPageJpeg(job.page, job.anns, AUTO_PAGE_PX);
+  if (!img) return;
+  autoSessionReads++;
+  var lines = [];
+  var subj = job.meta.subject ? subjectLabel(job.meta.subject) : '';
+  var lvl = job.meta.level ? levelLabel(job.meta.level) : '';
+  if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
+  lines.push('Attached: page ' + job.num + ' of the worksheet, with the teacher\'s own work on it.');
+  lines.push('Return what this page teaches, and the answers the teacher wrote.');
+  var raw = await window.askGemini(lines.join('\n'), {
+    system: AUTO_READ_SYS, maxOutputTokens: 1600, temperature: 0.1, json: true,
+    images: [{ mimeType: 'image/jpeg', data: img }]
+  });
+  var got = _parseAIJson(raw) || {};
+
+  /* The same picture is worth two things, so it is asked for both in one
+     call: what the page teaches (the notebook) and how the teacher answers
+     (the style corpus). The keys are the shape `styleLearnOpenWorksheet`
+     writes, so a page learned both ways is never learned twice. */
+  var batch = [];
+  (Array.isArray(got.pairs) ? got.pairs : []).forEach(function (pair, n) {
+    if (!pair || !styleWorthLearning(pair.a)) return;
+    batch.push({
+      k: job.docId + ':p' + job.num + ':' + n + ':' + styleTrim(pair.a, 24).toLowerCase(),
+      q: styleTrim(pair.q, STYLE_Q_CHARS),
+      a: styleTrim(pair.a, STYLE_SAMPLE_CHARS),
+      lvl: job.meta.level || '', sub: job.meta.subject || '',
+      ws: styleTrim(job.meta.name || '', 80),
+      at: new Date().toISOString()
+    });
+  });
+  var addedStyle = styleAddSamples(batch);
+  if (addedStyle) {
+    await styleSave();
+    var st = styleEnsure();
+    if ((st.learned || 0) - (st.profileLearned || 0) >= STYLE_DISTIL_EVERY) {
+      styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
+    }
+  }
+
+  var res = autoLearnMergeInto(note, job.num, job.sig, got, job.meta);
+  await autoLearnSaveNote(job.docId, res.note);
+  autoPagesRead++;
+  /* Said ONCE per worksheet. A costly thing happening by itself must never be
+     invisible; said on every page turn it is noise, and noise is what makes a
+     teacher switch it off. */
+  if (autoToldWorksheet !== job.docId) {
+    autoToldWorksheet = job.docId;
+    toast('📚 Page ' + job.num + ' added to your teaching notes — this worksheet is teaching the AI as you work.', 5000);
+  }
+  notesLiveRepaint();
+}
+
+function autoLearnPump() {
+  if (autoRunning || !autoQueue.length) return;
+  if (!autoLearnAllowed()) { autoQueue = []; return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) return;
+  /* The teacher's own call always wins: wait for it rather than blocking it.
+     ONE timer, because every queued page kicks the pump — a timer each would
+     compound into a dozen of them all re-arming each other. */
+  if (aiBusy || notesBusy) {
+    if (!autoWaitTimer) {
+      autoWaitTimer = setTimeout(function () { autoWaitTimer = null; autoLearnPump(); }, 1500);
+    }
+    return;
+  }
+  var job = autoQueue[0];
+  /* An unsaved worksheet has no document to file a note against. It is not
+     dropped — auto-save is almost certainly about to give it one — so the job
+     waits and the next page change kicks the pump again. */
+  if (!job.docId) {
+    if (job.epoch !== wsEpoch) { autoQueue.shift(); return autoLearnPump(); }
+    if (!currentDocId) return;
+    job.docId = currentDocId;
+  }
+  autoQueue.shift();
+  autoRunning = true;
+  Promise.resolve()
+    .then(function () { return autoLearnRunJob(job); })
+    .catch(function (e) { console.warn('Auto-learn could not read page ' + job.num, e); })
+    .then(function () {
+      autoRunning = false;
+      if (autoQueue.length) setTimeout(autoLearnPump, 400);
+    });
+}
+
+function autoLearnQueuePage(num) {
+  if (!autoLearnAllowed() || !num) return;
+  var p = pages.filter(function (x) { return x.num === num; })[0];
+  if (!p) return;
+  var anns = annotations.filter(function (a) { return a.page === num; });
+  if (!autoLearnWorthReading(anns)) return;
+  var sig = autoLearnSig(anns);
+  if (autoLearnPageSig(autoLearnNoteFor(currentDocId), num) === sig) return;
+  // Only the latest state of a page matters: replace any job still waiting.
+  autoQueue = autoQueue.filter(function (j) { return !(j.num === num && j.epoch === wsEpoch); });
+  autoQueue.push({
+    num: num, page: p, anns: anns.slice(), sig: sig,
+    docId: currentDocId || '', epoch: wsEpoch,
+    meta: { level: wsMeta.level, subject: wsMeta.subject, name: docName }
+  });
+  while (autoQueue.length > AUTO_QUEUE_MAX) autoQueue.shift();
+  autoLearnPump();
+}
+
+/* The trigger: the page under the middle of the viewer changed, so the one
+   we were on has been left. The first page seen when a worksheet opens is
+   only noted — arriving somewhere is not leaving it. */
+function autoLearnWatch() {
+  if (!pages.length) { autoSeenPage = 0; return; }
+  var now = currentPageNum();
+  if (!now || now === autoSeenPage) return;
+  var left = autoSeenPage;
+  autoSeenPage = now;
+  if (left) autoLearnQueuePage(left);
+}
+
+/* Closing a worksheet is moving on from its last page too, and that page is
+   usually the one just worked on. Called BEFORE the teardown, so the job
+   carries the page object, the annotations and the worksheet it belongs to;
+   pdf.js documents are never destroyed here, so the render still works after
+   the next worksheet has loaded. A render that does fail is caught and the
+   page is simply not marked read — it is learned the next time the worksheet
+   is opened and left. */
+function autoLearnFlushCurrent() {
+  if (!autoLearnAllowed() || !pages.length) return;
+  autoLearnQueuePage(autoSeenPage || currentPageNum());
+}
+
+/* A new worksheet, or a different account — and the two want OPPOSITE things
+   of the queue. A job is self-contained (it carries its own page, ink,
+   worksheet and meta), so the page flushed as a worksheet is closed has to
+   SURVIVE the worksheet changing or the flush is a no-op and the last page
+   anybody worked on is never learned. An ACCOUNT change is the other way
+   round: a job captured under one account would file that page in whoever
+   signs in next on the device. */
+function autoLearnReset(dropQueue) {
+  if (dropQueue) autoQueue = [];
+  if (autoWaitTimer) { clearTimeout(autoWaitTimer); autoWaitTimer = null; }
+  autoSeenPage = 0;
+  autoToldWorksheet = '';
+}
+
+function autoLearnPanelHtml() {
+  var notes = teachingNotes.filter(function (n) { return n.noteKind === 'auto'; });
+  var pagesFiled = notes.reduce(function (s, n) { return s + (n.pagesRead || 0); }, 0);
+  var full = notes.filter(function (n) { return n.full; }).length;
+  return '<div class="tnPanel">' +
+    '<h3>📚 Learning as you go ' + (autoLearnOn ? '· on' : '· off') + '</h3>' +
+    '<p class="tnSub">Write on a page, move on from it, and that page is read and folded into your notes by itself — the keywords your students must use and the facts the page teaches, one merged note per worksheet. Your own answers on it go into your style at the same time. It never writes a <b>marking standard</b> and never writes <b>general guidance</b>: those decide how a child is marked, so they stay yours to type. Nothing is read twice, and a page is read again only when you change what is on it.</p>' +
+    '<div class="tnStats">' +
+      '<div class="tnStat"><b>' + autoPagesRead + '</b><span>pages read this sitting</span></div>' +
+      '<div class="tnStat"><b>' + pagesFiled + '</b><span>pages in your notes</span></div>' +
+      '<div class="tnStat"><b>' + notes.length + '</b><span>worksheets learned</span></div>' +
+    '</div>' +
+    '<div class="tnBtnRow">' +
+      '<button class="btn' + (autoLearnOn ? '' : ' btnPrimary') + '" onclick="autoLearnToggle()">' +
+        (autoLearnOn ? 'Turn it off' : 'Turn it on') + '</button>' +
+      '<span class="tnHint">' + (autoLearnOn
+        ? 'One AI call per page you write on and leave. This device only.'
+        : 'Your notes stay exactly as they are.') + '</span>' +
+    '</div>' +
+    (full ? '<div class="tnFitWarn">⚠️ ' + full + ' of these notes ' + (full === 1 ? 'is' : 'are') +
+      ' full, so later pages added nothing to ' + (full === 1 ? 'it' : 'them') +
+      '. Edit ' + (full === 1 ? 'it' : 'them') + ' down to what is worth keeping.</div>' : '') +
+  '</div>';
 }
 
 /* ================= Gemini AI helpers =================
@@ -23721,6 +24187,8 @@ viewerArea.addEventListener('scroll', function () {
   requestAnimationFrame(function () {
     thumbScrollPending = false;
     markCurrentThumb();
+    // Moving on from a page is what teaches the app — see LEARNING AS YOU GO.
+    autoLearnWatch();
   });
   // Pages are only rasterised near the viewport, so scrolling has to bring
   // the newly-approaching ones up to resolution.

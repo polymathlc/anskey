@@ -3,6 +3,36 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 📚 Learning as you go — the notebook writes itself (v1.82.0)
+
+Write on a page, move on from it, and **that page teaches the app**: it is photographed exactly as
+it stands, read by the AI, and folded into your teaching notes by itself. No upload, no button, no
+remembering. Your own answers on it go into your style at the same time, off the same picture, in
+the same call — so the app gets better at sounding like you simply because you did an afternoon's
+marking.
+
+It is **one merged note per worksheet**, not one per page. Ten pages of a paper repeat the same
+fact and the same keyword, so the merge dedupes: a keyword already there is not added twice, a fact
+already recorded is not repeated, and a page already read is not read again — unless you change
+what is on it, in which case it is. The signature that decides that is stored on the note itself,
+so reopening a worksheet tomorrow costs nothing.
+
+**It writes what a page teaches, and never how to mark.** An auto note only ever carries keywords
+and key facts. It never writes a **marking standard** and never writes **general guidance** —
+those two are the ones that decide how a child is marked, and a rule nobody typed, written by a
+machine off a page nobody checked, is not something that should be able to reach a student's mark.
+If you want a standard in there, put it there yourself with ✎ Edit; then it is yours. The prompt
+tells the model the same thing in as many words, so it cannot arrive dressed as a "key fact".
+
+It is the teacher's own work or it is nothing: never a student's device, never a shared link, never
+your iPad handed over, and **never practice mode**, where the writing on the page is a child's
+attempt and your answers are parked out of sight.
+
+It waits for you rather than blocking you — a background read never makes ✨ Answer say the AI is
+busy — and it is one AI call per page you write on and leave. The 📚 Teaching notes window has the
+switch, the count of what has been learned, and every auto note as an ordinary card you can edit or
+delete.
+
 ## 👤 P6 is a level too (v1.81.0)
 
 Students can be **P6** now, taking Mathematics, Science or both — the same as P4 and P5.
