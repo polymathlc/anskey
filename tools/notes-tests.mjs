@@ -18,6 +18,8 @@ var currentDocId = 'doc1';
 var docName = 'Heat worksheet';
 var pdfDoc = null, pages = [], aiBusy = false;
 var practiceMode = false, wsEpoch = 1, sharedLink = null;
+var dirty = false;
+var sharedVisitor = false;
 function currentPageNum() { return 0; }
 function notesLiveRepaint() {}
 function renderNotesBody() {}
@@ -25,19 +27,31 @@ var LEVELS = ['P3','P4','P5','P6','S1'];
 var COLLECTION = 'pdfAnnotator';
 var KEY_PAGE_PX = 2200;
 function isAdmin(u) { return !!u && u.email === 'chungzhikai@gmail.com'; }
-function isSharedVisitor() { return false; }
+function isSharedVisitor() { return sharedVisitor; }
 function subjectLabel(s) { return s === 'math' ? 'Mathematics' : s === 'science' ? 'Science' : ''; }
 function levelLabel(l) { return l === 'S1' ? 'Sec 1' : (l || ''); }
 function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function $(id) { return null; }
+var fakeBtn = null;
+function $(id) { return (id === 'saveBtn' && fakeBtn) ? fakeBtn : null; }
+function makeSaveBtn(saved) {
+  var cls = saved ? ['btnSaved'] : [];
+  fakeBtn = {
+    title: 'Save PDF + annotations to the cloud',
+    classList: { contains: function (c) { return cls.indexOf(c) !== -1; } },
+    _label: { textContent: saved ? '\u2713 Saved' : 'Save' },
+    querySelector: function () { return this._label; }
+  };
+  return fakeBtn;
+}
 function toast() {}
 function aiEngineName() { return 'Gemini'; }
 function keyPageJpeg() { return Promise.resolve(null); }
 function readAnnotationJson() { return Promise.resolve('[]'); }
 function _parseAIJson(s) { return JSON.parse(s); }
 var savedDoc = null;
+var failNextSave = false;
 var db = { collection: () => ({ doc: () => ({ collection: () => ({ doc: () => ({
-  set: d => { savedDoc = d; return Promise.resolve(); },
+  set: d => { if (failNextSave) { failNextSave = false; return Promise.reject(new Error('permission-denied')); } savedDoc = d; return Promise.resolve(); },
   get: () => Promise.resolve({ exists: false })
 }) }), get: () => Promise.resolve({ forEach: () => {} }) }) }) };
 var localStorage = { getItem: () => null, setItem: () => {} };
@@ -45,7 +59,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX };')();
+const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -687,6 +701,163 @@ console.log('\nEvery path that files a sample uses the one key rule');
     return !/styleWorthLearning\s*\(/.test(b);
   });
   ok('and every one of them asks whether it is an answer at all', unchecked.length === 0, unchecked.join(', '));
+}
+
+/* ================= THE HARVEST RUNS ON THE AUTO-SAVE =====================
+   It hung off `performSave` alone — the manual Save DIALOG, pressed once per
+   worksheet — while `autoSave` did every save after that. So almost nothing
+   was ever learned, and nothing on any screen said so. */
+console.log('\nWHOSE answers are these?');
+mod.setUser({ uid: 'admin1', email: 'chungzhikai@gmail.com' });
+mod.setActing(null); mod.setPracticeMode(false); mod.setVisitor(false);
+ok('the teacher, on their own worksheet', mod.styleHarvestAllowed() === true);
+mod.setPracticeMode(true);
+ok('NEVER IN PRACTICE MODE — that is a child’s attempt, not the teacher’s', mod.styleHarvestAllowed() === false);
+mod.setPracticeMode(false); mod.setVisitor(true);
+ok('never a share-link visitor', mod.styleHarvestAllowed() === false);
+mod.setVisitor(false); mod.setActing({ name: 'Amy' });
+ok('never while the device is handed to a student', mod.styleHarvestAllowed() === false);
+mod.setActing(null); mod.setUser({ uid: 'u2', email: 'someone@else.com' });
+ok('never anybody else', mod.styleHarvestAllowed() === false);
+mod.setUser({ uid: 'admin1', email: 'chungzhikai@gmail.com' });
+
+console.log('\nA SHORT ANSWER IS STILL AN ANSWER when the app knows the question');
+ok('a bare number in a bare box is not learned from', !mod.styleWorthLearning('24 g', false));
+ok('…but IS when it answers a known question', mod.styleWorthLearning('24 g', true));
+ok('a one-word answer to a known question counts', mod.styleWorthLearning('Evaporation', true));
+ok('"answering with the bare number" is real style information',
+   mod.styleWorthLearning('$140.20', true));
+ok('furniture is refused even with a question', !mod.styleWorthLearning('Diagram 2', true));
+ok('and so is a page number', !mod.styleWorthLearning('Page 4', true));
+ok('nothing at all is still nothing', !mod.styleWorthLearning('', true));
+ok('a sentence in a bare box is unchanged', mod.styleWorthLearning('It gains heat from the surroundings.', false));
+{
+  const withQ = mod.styleHarvestTyped(
+    [{ id: 'a1', type: 'text', text: '24 g', aiQ: 'What is the mass of the ice?' }],
+    'doc9', { level: 'P5', subject: 'science' });
+  ok('the harvest passes the question through', withQ.length === 1);
+  ok('and keeps it on the sample', /mass of the ice/.test(withQ[0].q));
+  const noQ = mod.styleHarvestTyped([{ id: 'a2', type: 'text', text: '24 g' }], 'doc9', {});
+  ok('a bare box of the same text is left alone', noQ.length === 0);
+}
+
+console.log('\nThe harvest reports what it learned, so the button can say so');
+mod.setStyle({ samples: [], edits: [], scores: [], profiles: {}, learnedDocs: {}, keyed: 1 });
+mod.clearGen();
+mod.setMeta({ level: 'P5', subject: 'science', name: 'Heat' });
+mod.setDoc('doc9');
+{
+  const anns = [{ id: 'a1', type: 'text', text: 'It gains heat from the surroundings and melts.' }];
+  mod.setAnns(anns);
+  const sum = mod.styleHarvestOnSave();
+  ok('it reports the answer it learned', sum && sum.samples === 1);
+  ok('and hands back a promise for when it really landed', !!(sum && sum.done && sum.done.then));
+  ok('NOTHING NEW REPORTS NOTHING — the button must not claim an upload that did not happen',
+     mod.styleHarvestOnSave() === null);
+  mod.setPracticeMode(true);
+  ok('and a practice attempt reports nothing at all', mod.styleHarvestOnSave() === null);
+  mod.setPracticeMode(false);
+}
+
+console.log('\nWhat the button says');
+ok('one answer is singular', mod.styleSavedLabel({ samples: 1 }) === '🧠 1 answer learned');
+ok('two are plural', mod.styleSavedLabel({ samples: 2 }) === '🧠 2 answers learned');
+ok('a correction is named as one', /1 correction learned/.test(mod.styleSavedLabel({ edits: 1 })));
+ok('both are named together', /2 answers \+ 1 correction/.test(mod.styleSavedLabel({ samples: 2, edits: 1 })));
+ok('an answer merely CHECKED still says something', /checked/.test(mod.styleSavedLabel({ scored: 3 })));
+ok('a tidy-up says what it was', /tidied/.test(mod.styleSavedLabel({ pruned: 2 })));
+ok('nothing learned says nothing at all', mod.styleSavedLabel({}) === '');
+ok('and no summary says nothing', mod.styleSavedLabel(null) === '');
+ok('the tooltip names the answer-key notes', /answer-key notes/.test(mod.styleSavedTitle({ samples: 1 })));
+ok('the tooltip spells the corrections out', /correction/.test(mod.styleSavedTitle({ edits: 1 })));
+ok('an empty summary has no tooltip', mod.styleSavedTitle({}) === '');
+
+console.log('\nA refused write says it was refused');
+{
+  mod.setStyle({ samples: [], edits: [], scores: [], profiles: {}, learnedDocs: {}, keyed: 1 });
+  ok('an ordinary write resolves true', (await mod.styleSave()) === true);
+  mod.failSave();
+  ok('A WRITE FIRESTORE REFUSED RESOLVES FALSE — never true, or the button announces an upload that never happened',
+     (await mod.styleSave()) === false);
+  mod.failSave();
+  mod.setAnns([{ id: 'zz1', type: 'text', text: 'It gains heat from the surroundings and melts.' }]);
+  mod.setDoc('docFail');
+  const sum = mod.styleHarvestOnSave();
+  ok('and the harvest hands that refusal on', sum && (await sum.done) === false);
+}
+
+console.log('\nThe announcement only ever tells the truth');
+{
+  const settle = () => new Promise(r => setTimeout(r, 0));
+  mod.setDirty2(false);
+  let btn = mod.makeSaveBtn(true);
+  mod.styleAnnounceSaved({ samples: 1, done: Promise.resolve(true) });
+  await settle();
+  ok('a write that landed IS announced on the button', /1 answer learned/.test(btn._label.textContent));
+  ok('and the tooltip says what went up', /answer-key notes/.test(btn.title));
+
+  btn = mod.makeSaveBtn(true);
+  mod.styleAnnounceSaved({ samples: 1, done: Promise.resolve(false) });
+  await settle();
+  ok('A WRITE THAT FAILED IS NEVER ANNOUNCED', btn._label.textContent === '\u2713 Saved');
+  ok('and leaves the tooltip alone', !/answer-key notes/.test(btn.title));
+
+  mod.setDirty2(true);
+  btn = mod.makeSaveBtn(true);
+  mod.styleAnnounceSaved({ samples: 1, done: Promise.resolve(true) });
+  await settle();
+  ok('nor is it announced over a worksheet with unsaved changes since',
+     btn._label.textContent === '\u2713 Saved');
+  mod.setDirty2(false);
+
+  btn = mod.makeSaveBtn(false);
+  mod.styleAnnounceSaved({ samples: 1, done: Promise.resolve(true) });
+  await settle();
+  ok('nor onto a button that is no longer showing Saved', btn._label.textContent === 'Save');
+
+  btn = mod.makeSaveBtn(true);
+  mod.styleAnnounceSaved({ scored: 0, samples: 0, edits: 0, pruned: 0, done: Promise.resolve(true) });
+  await settle();
+  ok('nothing learned is not announced as something', btn._label.textContent === '\u2713 Saved');
+  ok('and a summary with no promise is harmless',
+     (mod.styleAnnounceSaved({ samples: 1 }), mod.styleAnnounceSaved(null), true));
+  fakeBtnReset();
+}
+function fakeBtnReset() { mod.makeSaveBtn(false); }
+
+/* ---- THE HOOK ITSELF ----
+   This is the census that would have caught the reported fault. Both save
+   paths must run the harvest; hanging it off one of them is invisible from
+   every screen in the app and means the learning silently stops. */
+console.log('\nBOTH save paths harvest, and both announce');
+{
+  const lines = html.split('\n');
+  const fns = [];
+  lines.forEach((l, i) => {
+    const m = l.match(/^\s{0,2}(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(/);
+    if (m) fns.push({ name: m[1], line: i });
+  });
+  const bodyOf = {};
+  fns.forEach((f, k) => { const e = k + 1 < fns.length ? fns[k + 1].line : lines.length; bodyOf[f.name] = lines.slice(f.line, e).join('\n'); });
+  ok('autoSave exists to be checked', !!bodyOf.autoSave);
+  ok('performSave exists to be checked', !!bodyOf.performSave);
+  ok('THE AUTO-SAVE HARVESTS', /styleHarvestOnSave\s*\(/.test(bodyOf.autoSave || ''));
+  ok('the manual save harvests too', /styleHarvestOnSave\s*\(/.test(bodyOf.performSave || ''));
+  ok('the auto-save announces what went up', /styleAnnounceSaved\s*\(/.test(bodyOf.autoSave || ''));
+  ok('and so does the manual save', /styleAnnounceSaved\s*\(/.test(bodyOf.performSave || ''));
+  /* The annotations have to be safely written before anything is learned from
+     them, or the app learns from a save that failed. */
+  const aBody = bodyOf.autoSave || '';
+  ok('the auto-save harvests AFTER the annotations are written',
+     aBody.indexOf('writeAnnotations') < aBody.indexOf('styleHarvestOnSave'));
+  const pBody = bodyOf.performSave || '';
+  ok('and so does the manual save',
+     pBody.indexOf('writeAnnotations') < pBody.indexOf('styleHarvestOnSave'));
+  /* Every filer already asks styleWorthLearning; it must be asked with the
+     question, or a maths answer is thrown away for being short. */
+  const filers = ['styleHarvestTyped', 'styleLearnOpenWorksheet', 'autoLearnRunJob'];
+  const blind = filers.filter(n => /styleWorthLearning\s*\(\s*[^,)]+\)/.test(bodyOf[n] || ''));
+  ok('nobody asks whether it is an answer without saying what it answers', blind.length === 0, blind.join(', '));
 }
 
 console.log(fails ? '\n' + fails + ' FAILED\n' : '\nAll good.\n');

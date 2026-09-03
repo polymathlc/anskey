@@ -234,6 +234,57 @@ corpus of finished answers alone can never say.
   distil turns them into `profile.fixes` and `styleEditRules` serves those.
   **Marking never sees them: they are answers.**
 
+### 💾 THE HARVEST RUNS ON THE AUTO-SAVE (v1.84.0)
+
+`styleHarvestAllowed` / `styleHarvestOnSave`'s return value / `styleSavedLabel`
+/ `styleSavedTitle` / `styleAnnounceSaved`, the call in **`autoSave`**, and the
+`hasQuestion` argument to `styleWorthLearning`.
+
+*"I don't see them saving any more."* The harvest hung off **`performSave`
+alone** — the manual Save button, which opens a dialog asking for the level,
+the subject and the name. That is pressed ONCE when a worksheet is created;
+`autoSave` does every save after it, every four seconds. So every answer typed
+after the first save, and every correction made to an answer this app wrote,
+was **never learned at all** — and nothing on any screen said so.
+
+- **BOTH SAVE PATHS HARVEST, AND BOTH ANNOUNCE.** `tools/notes-tests.mjs` reads
+  `index.html` and fails if either stops — that census is the whole guard
+  against this happening again, because it is invisible from every screen.
+- **THE HARVEST RUNS AFTER `writeAnnotations` RESOLVES**, never before: what is
+  learned has to be what really got saved. The census pins the order too.
+- **`styleHarvestAllowed` IS THE ONE GATE**, and it says what `autoLearnAllowed`
+  says: in PRACTICE MODE `annotations` holds a CHILD'S attempt, and learning a
+  student's answer as the teacher's own is the worst thing this loop could do.
+  `canAutoSave` already refuses practice mode; the manual Save button does not,
+  so the gate belongs on the harvest rather than at the call sites.
+- **A COMPARISON ALREADY MADE COSTS NOTHING TO MAKE AGAIN** (`gen.seen`).
+  Auto-save fires every four seconds, the distance is a word-level Levenshtein
+  and a session can hold twenty generations — without the short-circuit the app
+  grinds through all of them on every tick, on a school iPad, for answers
+  nobody has touched.
+- **THE BUTTON SAYS WHAT WENT UP WITH THE WORKSHEET.** A costly, invisible
+  thing happening by itself is a thing nobody trusts — and the teacher had no
+  way to tell learning from silence short of opening the 🧠 panel and comparing
+  counters. `✓ Saved · 🧠 2 answers + 1 correction learned`, with the detail in
+  the tooltip.
+- **IT IS ANNOUNCED ONLY WHEN FIRESTORE REALLY TOOK IT.** `styleSave` resolves
+  **false** rather than throwing on a refused write — nothing in the app should
+  stop because the corpus could not be written, and the button must not claim
+  an upload that never happened. It is also not announced while `dirty`, or
+  onto a button no longer showing Saved: the teacher may have typed again while
+  the write was in flight, and "notes uploaded" over a worksheet with unsaved
+  changes is the button telling two stories at once. `setDirty` puts the
+  tooltip back with the label.
+- **A SHORT ANSWER IS STILL AN ANSWER when the app knows the question.**
+  `STYLE_MIN_WORDS` is a guess about a BARE text box and nothing more, and on a
+  maths worksheet it is the wrong guess: "24 g" and "$140.20" are the answer,
+  and *"this teacher answers with the bare number and no sentence"* is real
+  style information the floor was throwing away. When the box carries `aiQ`, or
+  the model read the pair off the page, there is nothing left to guess about —
+  so `styleWorthLearning(text, hasQuestion)` takes the second argument and all
+  three filers pass it. The census fails on a filer that asks without it.
+
+
 ### ONE PROFILE PER CONTEXT
 
 P3 Maths and Sec 1 Science were averaged into one paragraph, which by
@@ -828,8 +879,17 @@ draw.
   `styleEditsFor`, `styleBucketKey`, `styleProfilePick`, `styleExemplarsFor`,
   `_styleProfileBits`, `styleProposeProfile`, `styleGenUnder`,
   `styleRefineProfile`, `styleCleanProfile`, `styleGapOf`, `styleDistil`,
-  `styleDistilAll`, `styleDistilDue`, or `aiGrounding`'s `opts.q`), run
-  `node tools/notes-tests.mjs`. Every failure here is silent and the app goes on
+  `styleDistilAll`, `styleDistilDue`, `styleHarvestAllowed`, `styleSavedLabel`,
+  `styleAnnounceSaved`, the harvest call in **`autoSave`** or **`performSave`**,
+  or `aiGrounding`'s `opts.q`), run `node tools/notes-tests.mjs`.
+  **Take the harvest off the auto-save and the learning silently stops** —
+  the manual Save dialog is pressed once per worksheet and nothing on any
+  screen reports the difference, which is exactly how it shipped broken; run it
+  before `writeAnnotations` resolves and the app learns from saves that failed;
+  drop the practice gate and a CHILD'S answers are learned as the teacher's own;
+  announce a write Firestore refused and the button claims an upload that never
+  happened; and put the word floor back in front of a known question and every
+  maths answer is thrown away for being short. Every failure here is silent and the app goes on
   answering fluently. Key a sample on identity alone again — anywhere, including
   a path added next month — and the corpus keeps first drafts for ever and
   throws away every correction, which is the bug this release exists for, and it
