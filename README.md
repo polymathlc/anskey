@@ -3,6 +3,21 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## The AI now runs on Gemini 3.8 Flash (v1.86.0)
+
+Every Gemini call in the app — **Answer** and **Improve**, AI note cards, the
+answer key, marking, keyword extraction, auto-learning and Ask AI — now goes to
+**gemini-3.8-flash**, Google's best Flash-tier reasoning model, released on
+2 September 2026 at the same speed and price band as 3.7 Flash. The AI Engine
+window and the line the answer key prints (*"by Gemini …"*) name the new model,
+so what the app says it is using is what it is using.
+
+Nothing else moved. 3.8 Flash keeps 3.7's thinking scale — `low` / `medium` /
+`high`, with `"minimal"` still rejected — so the floor every ordinary call asks
+for stays `low` and **Build quality** keeps its four real steps. The ChatGPT and
+Kimi engines are untouched: still your own key, still tried first when you have
+switched to one, still falling back to Gemini if they fail.
+
 ## ⚡ Corrections take effect on the very next answer (v1.85.0)
 
 Your corrections were being **stored** immediately and **used** only after the app next rebuilt

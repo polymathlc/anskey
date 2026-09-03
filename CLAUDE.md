@@ -909,7 +909,8 @@ draw.
 - **The Gemini model is `AI_MODEL` and its thinking floor is `AI_THINK_MIN`, and the two move
   TOGETHER** (v1.66.0). Every model has its own thinking scale, and a level it does not know is a
   **400 INVALID_ARGUMENT on every AI feature in the app** — not a worse answer, no answer at all.
-  `gemini-3.7-flash` takes `low` / `medium` / `high` and **dropped the `"minimal"` 3.6 accepted**,
+  `gemini-3.8-flash` takes `low` / `medium` / `high` and, like 3.7 before it, **rejects the
+  `"minimal"` 3.6 accepted**,
   exactly as 3.x had already dropped 2.x's numeric `thinkingBudget`. So the floor is a named
   constant, `askGeminiDirect`'s retry steps down to it (retrying the floor *at* the floor would
   just re-send the request that was refused), and `AI_NOTE_QUALITY`'s four steps have to stay four
