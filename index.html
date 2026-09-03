@@ -1866,6 +1866,26 @@
   .tnFitSay { flex: 1 1 240px; font-size: 0.83rem; line-height: 1.6; color: var(--ink-soft); }
   .tnFitUp { color: #2f7d3f; font-weight: bold; }
   .tnFitDown { color: #a4442c; font-weight: bold; }
+  .tnLearn {
+    background: #FAFAF8;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    margin: 18px 0 4px;
+  }
+  .tnLearnHead { font-weight: bold; font-size: 0.95rem; margin-bottom: 4px; }
+  .tnLearnSay { font-size: 0.8rem; color: var(--ink-soft); line-height: 1.6; margin-bottom: 14px; }
+  .tnLearnRow {
+    position: relative; background: #fff; border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px 42px 14px 16px; margin-bottom: 10px;
+  }
+  .tnLearnNote { font-size: 0.85rem; line-height: 1.6; margin-bottom: 8px; }
+  .tnLearnPair { font-size: 0.76rem; color: var(--ink-faint); line-height: 1.65; }
+  .tnLearnX {
+    position: absolute; top: 10px; right: 10px; border: none; background: none;
+    cursor: pointer; color: var(--ink-faint); font-size: 0.9rem; line-height: 1; padding: 4px;
+  }
+  .tnLearnX:hover { color: #a4442c; }
   .tnBuckets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
   .tnBucket {
     font-size: 0.75rem; padding: 6px 13px; border-radius: 999px;
@@ -4601,7 +4621,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.86.0';
+var APP_VERSION = 'v1.87.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -11271,6 +11291,14 @@ var STYLE_FIT_WINDOW = 20;        // …read as this window against the one befo
    these are the raw before/after pairs, retrieved for the question in hand and
    carried straight into the prompt. */
 var STYLE_PAIRS_MAX = 3;
+/* ---- THE LESSON IN THE CORRECTION ----
+   `fixes` are distilled, and a distil waits for a rebuild. The raw pairs take
+   effect at once but say only WHAT changed, leaving the model to work out why
+   on every call. A lesson is the middle of the two: written once, the moment
+   the correction is made, and it says the thing to do differently. */
+var STYLE_NOTE_CHARS = 200;       // one lesson, one sentence
+var STYLE_LESSONS_MAX = 8;        // …served in a prompt
+var STYLE_NOTE_PAR = 3;           // …written at once, in the background
 /* A correction is the teacher saying the app got something wrong, so it is
    worth far more than an ordinary answer and earns a rebuild much sooner. */
 var STYLE_DISTIL_EDITS = 3;
@@ -11600,7 +11628,8 @@ function styleBlock(kind, q) {
      the raw corrections from the corpus; marking sees none of them (those are
      answers). */
   var bits = _styleProfileBits(pick.profile, kind, styleExemplarsFor(q, lvl, sub),
-                               styleEditRules(lvl, sub), styleRecentEdits(q, lvl, sub));
+                               styleEditRules(lvl, sub), styleRecentEdits(q, lvl, sub),
+                               styleLessons(lvl, sub));
   if (!bits.length) return '';
   var from = pick.bucket === '_global'
     ? ((aiStyle && aiStyle.profileSamples) || styleSamples().length) + ' answers they have written on their own worksheets'
@@ -12063,6 +12092,90 @@ function styleFitReport() {
 /* The corrections as short RULES: general, and distilled into the profile,
    because a hundred before/after pairs would not fit and a rule is what a
    later answer on a different question can obey. */
+/* The lessons the AI has drawn from this teacher's own corrections, this
+   bucket's first. Written per correction the moment it is made, so unlike
+   `fixes` they need no rebuild to take effect — and unlike the raw pairs they
+   say what to DO rather than leaving the model to infer it every time. */
+function styleLessons(lvl, sub) {
+  var all = styleEdits().filter(function (e) { return e && String(e.note || '').trim(); });
+  if (!all.length) return [];
+  var bucket = styleBucketKey(lvl, sub);
+  var mine = all.filter(function (e) { return styleBucketKey(e.lvl, e.sub) === bucket; });
+  var rest = all.filter(function (e) { return mine.indexOf(e) < 0; });
+  /* Bucket first, and NEWEST first inside each — reversing the concatenation
+     instead reverses the two groups as well, which quietly serves another
+     level's lessons ahead of this one's. */
+  var out = [], seen = {};
+  mine.slice().reverse().concat(rest.slice().reverse()).forEach(function (e) {
+    var t = styleTrim(e.note, STYLE_NOTE_CHARS);
+    var k = t.toLowerCase();
+    if (!t || seen[k]) return;
+    seen[k] = 1;
+    out.push(t);
+  });
+  return out.slice(0, STYLE_LESSONS_MAX);
+}
+
+/* ---- ASKING WHAT THE CORRECTION MEANT ----
+   The app knows the question, what it wrote and what the teacher left in the
+   box. What it did not know was WHY — so every call had to re-derive the
+   lesson from the pair, and the lesson never outlived the three most recent
+   corrections the prompt has room for.
+
+   ONE CALL PER CORRECTION, never a batch. A batch is cheaper and brings the
+   one failure this can produce silently: a lesson attributed to the wrong
+   correction reads perfectly and teaches the app something the teacher never
+   said. Corrections are rare — a handful in a sitting — so one call each
+   costs little and the attribution is free.
+
+   It runs in the BACKGROUND after the save and is never awaited: a lesson is
+   worth having and worth nothing beside the worksheet itself. It also yields
+   to the teacher (`aiBusy`), so a background call can never answer ✨ Answer
+   with "the AI is busy". */
+var STYLE_NOTE_SYS =
+  'A teacher has corrected an answer that an AI wrote for them. Write the ONE lesson that would have made the AI write the teacher\'s version first time.\n' +
+  'Rules:\n' +
+  '\u2022 ONE sentence, at most 25 words, written as an instruction to whoever writes the next answer \u2014 "State the direction of heat flow", never "the teacher added the direction".\n' +
+  '\u2022 About HOW to answer: the science that must be named, the wording expected, the length, what has to be stated. Never about this one question\'s facts.\n' +
+  '\u2022 If the change is only cosmetic \u2014 punctuation, a synonym, tidier grammar, a shorter sentence saying the same thing \u2014 there is NO lesson. Return an empty string.\n' +
+  'Return ONLY JSON: {"lesson":"..."}';
+var styleNoting = false;
+function styleWriteNotes() {
+  if (styleNoting || !styleHarvestAllowed() || !window.askGemini) return;
+  var st = styleEnsure();
+  var todo = st.edits.filter(function (e) { return e && !String(e.note || '').trim() && !e.noteTried; });
+  if (!todo.length) return;
+  if (aiBusy) { setTimeout(styleWriteNotes, 4000); return; }
+  styleNoting = true;
+  var batch = todo.slice(0, STYLE_NOTE_PAR);
+  Promise.all(batch.map(function (e) {
+    /* Marked BEFORE the call, so a correction the model has nothing to say
+       about is not re-asked on every save for the rest of the account's life. */
+    e.noteTried = true;
+    var body = (e.q ? 'The question: ' + e.q + '\n\n' : '') +
+      'What the AI wrote:\n' + e.wrote + '\n\nWhat the teacher changed it to:\n' + e.a;
+    return window.askGemini(body, { system: STYLE_NOTE_SYS, maxOutputTokens: 220, temperature: 0.2, json: true })
+      .then(function (raw) {
+        var pj = _parseAIJson(raw);
+        if (Array.isArray(pj)) pj = pj[0];
+        e.note = styleTrim((pj && pj.lesson) || '', STYLE_NOTE_CHARS);
+      })
+      .catch(function (err) { console.warn('style: lesson not written', err); });
+  })).then(function () {
+    return styleSave();
+  }).then(function () {
+    if (typeof renderNotesBody === 'function') { try { renderNotesBody(); } catch (err) {} }
+    styleNoting = false;
+    /* More waiting: keep going a batch at a time rather than in one burst. */
+    if (styleEnsure().edits.some(function (e) { return e && !String(e.note || '').trim() && !e.noteTried; })) {
+      setTimeout(styleWriteNotes, 1500);
+    }
+  }).catch(function (err) {
+    styleNoting = false;
+    console.warn('style: lessons', err);
+  });
+}
+
 function styleEditRules(lvl, sub) {
   var p = styleProfileFor(lvl, sub);
   var f = (p && Array.isArray(p.fixes)) ? p.fixes : [];
@@ -12128,6 +12241,10 @@ function styleHarvestOnSave() {
     scored: got.scored,
     pruned: gone,
     done: styleSave().then(function (ok) {
+      /* The lesson in each new correction, written in the background. It is
+         what makes a correction say something on the very next answer rather
+         than only once a rebuild has folded it into `fixes`. */
+      if (ok) styleWriteNotes();
       if (ok && styleDistilDue(styleEnsure())) {
         styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
       }
@@ -12362,7 +12479,7 @@ async function styleLearnAllWorksheets() {
 /* Renders a profile OBJECT into prompt text. Shared by the grounding block and
    by the verification generator, so the description being tested is the same
    text the app will really ship. */
-function _styleProfileBits(p, kind, exemplars, fixes, pairs) {
+function _styleProfileBits(p, kind, exemplars, fixes, pairs, lessons) {
   var bits = [];
   /* A NULL PROFILE IS NOT NOTHING TO SAY. The exemplars and the corrections
      come out of the CORPUS, not the profile, so they are there from the first
@@ -12396,6 +12513,14 @@ function _styleProfileBits(p, kind, exemplars, fixes, pairs) {
   if (fx.length) {
     bits.push('Corrections this teacher has made to answers this app wrote — do not make these mistakes again:\n' +
       fx.map(function (f) { return '• ' + f; }).join('\n'));
+  }
+  /* What the AI worked out each correction MEANT — written the moment the
+     teacher made it, so like the pairs below it needs no rebuild, and unlike
+     them it says what to do rather than leaving it to be inferred. */
+  var ls = (lessons || []).map(function (x) { return styleTrim(x, STYLE_NOTE_CHARS); }).filter(Boolean).slice(0, STYLE_LESSONS_MAX);
+  if (ls.length) {
+    bits.push('What this teacher\'s corrections have taught \u2014 follow these:\n' +
+      ls.map(function (l) { return '\u2022 ' + l; }).join('\n'));
   }
   /* The rawest and most current thing we know, and the one that needs no
      rebuild to take effect. It goes LAST so it is the nearest instruction to
@@ -12515,7 +12640,8 @@ async function styleGenUnder(profile, held) {
      compared on identical footing. */
   var sys = STYLE_GEN_SYS + '\n\nTHE TEACHER\'S STYLE:\n' +
             _styleProfileBits(profile, 'answer', profile.exemplars, profile.fixes,
-                              styleRecentEdits('', held[0] && held[0].lvl, held[0] && held[0].sub)).join('\n');
+                              styleRecentEdits('', held[0] && held[0].lvl, held[0] && held[0].sub),
+                              styleLessons(held[0] && held[0].lvl, held[0] && held[0].sub)).join('\n');
   var lines = held.map(function (h, i) { return (i + 1) + '. ' + h.q; });
   var raw = await window.askGemini(lines.join('\n'), {
     system: sys, maxOutputTokens: 1800, temperature: 0.3, json: true
@@ -13153,6 +13279,38 @@ function notesBucketsHtml() {
    out of them take a rebuild. A teacher who cannot tell those two apart reads
    "3 corrections learned" and then watches the app repeat a mistake, which is
    how a feature that IS working gets reported as broken. */
+/* What the corrections have TAUGHT, in the teacher's own panel. A costly,
+   invisible thing happening by itself is a thing nobody trusts: every lesson
+   is shown beside the edit it was drawn from, and one that is wrong can be
+   dropped — dropping it takes the correction with it, because the pair is
+   what would otherwise teach the same thing again on the very next answer. */
+function notesLessonsHtml() {
+  var edits = styleEdits().slice().reverse();
+  if (!edits.length) return '';
+  var withNote = edits.filter(function (e) { return String(e.note || '').trim(); }).length;
+  var rows = edits.slice(0, 30).map(function (e) {
+    var note = styleTrim(e.note || '', STYLE_NOTE_CHARS);
+    return '<div class="tnLearnRow">' +
+      '<div class="tnLearnNote">' + (note ? '\ud83d\udca1 ' + escHtml(note)
+        : '<span class="tnNone">No lesson drawn from this one \u2014 the change was too small to teach anything</span>') + '</div>' +
+      '<div class="tnLearnPair"><div><b>This app wrote:</b> ' + escHtml(styleTrim(e.wrote, 200)) + '</div>' +
+      '<div><b>You changed it to:</b> ' + escHtml(styleTrim(e.a, 200)) + '</div></div>' +
+      '<button class="tnLearnX" type="button" onclick="styleForgetEdit(\'' + escHtml(e.k) + '\')" title="Forget this correction">\u2715</button>' +
+      '</div>';
+  }).join('');
+  return '<div class="tnLearn"><div class="tnLearnHead">\ud83e\udde0 What your edits have taught this app</div>' +
+    '<div class="tnLearnSay">' + edits.length + ' correction' + (edits.length === 1 ? '' : 's') +
+    ' kept \u00b7 ' + withNote + ' turned into a lesson the next answer follows.</div>' + rows + '</div>';
+}
+function styleForgetEdit(k) {
+  var st = styleEnsure();
+  var at = st.edits.findIndex(function (e) { return e && e.k === k; });
+  if (at < 0) return;
+  st.edits.splice(at, 1);
+  styleSave();
+  if (typeof renderNotesBody === 'function') { try { renderNotesBody(); } catch (e) {} }
+}
+
 function notesLiveNowHtml() {
   var st = styleEnsure();
   var live = styleRecentEdits('', wsMeta && wsMeta.level, wsMeta && wsMeta.subject).length;
@@ -13223,6 +13381,7 @@ function notesTrainingHtml() {
     '</div>' +
     notesFitHtml() +
     notesLiveNowHtml() +
+    notesLessonsHtml() +
     notesBucketsHtml() +
     '<div class="tnBtnRow">' +
       '<button class="btn" onclick="styleLearnOpenWorksheet()"' + (notesBusy ? ' disabled' : '') + '>📖 Learn from this worksheet</button>' +

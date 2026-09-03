@@ -3,6 +3,31 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 💡 Your corrections now say what they MEANT (v1.87.0)
+
+When you rewrite an answer this app wrote, it already kept the before and the
+after and followed them on your very next answer. What it did not know was
+**why** you changed it — so it had to work that out again from the pair on
+every single call, and the correction stopped counting once three newer ones
+had come along.
+
+Now, the moment you save, the AI is shown that one correction and asked for the
+**one lesson** it should have known: *"Name the process — say 'evaporated',
+never 'went away'."* That lesson goes into every answer it writes for you from
+then on, and it does not expire the way the raw pair does.
+
+- **One question at a time.** Each correction is asked about on its own, so a
+  lesson can never end up attached to the wrong edit.
+- **Tidying is not teaching.** Fix the punctuation or swap a word and the AI is
+  told to return nothing — and it is not asked about that edit again.
+- **It waits for you.** The lessons are written in the background and never
+  while you are waiting on ✨ Answer.
+- **You can read every one of them.** The 🧠 panel in Teaching Notes shows each
+  lesson beside the edit it came from; ✕ forgets both.
+
+Marking is untouched, as always — these are answers, and a marker must never be
+handed one.
+
 ## The AI now runs on Gemini 3.8 Flash (v1.86.0)
 
 Every Gemini call in the app — **Answer** and **Improve**, AI note cards, the

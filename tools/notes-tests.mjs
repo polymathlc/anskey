@@ -59,7 +59,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleRecentEdits, STYLE_PAIRS_MAX, STYLE_DISTIL_EDITS, STYLE_DISTIL_MIN, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, notesLiveNowHtml, STYLE_DISTIL_EVERY, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX };')();
+const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleRecentEdits, STYLE_PAIRS_MAX, STYLE_DISTIL_EDITS, STYLE_DISTIL_MIN, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, notesLiveNowHtml, STYLE_DISTIL_EVERY, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX, styleLessons, styleWriteNotes, notesLessonsHtml, styleForgetEdit, STYLE_NOTE_SYS, STYLE_LESSONS_MAX, STYLE_NOTE_CHARS, setAsk: fn => { window.askGemini = fn; }, setBusy: v => { aiBusy = v; } };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -1003,6 +1003,110 @@ mod.setStyle({
 ok('with a profile it says how far off the refresh is', /refreshes after/.test(mod.notesLiveNowHtml()));
 ok('and names both ways to trigger it', /more correction/.test(mod.notesLiveNowHtml()));
 ok('and the manual button', /Rebuild my style now/.test(mod.notesLiveNowHtml()));
+
+// ── 💡 THE LESSON IN EACH CORRECTION ────────────────────────────────────────
+// The pairs take effect at once but say only WHAT changed; `fixes` say what to
+// DO and wait for a rebuild. A lesson is written the moment the correction is
+// made, so it does both — and every way it can go wrong is silent.
+{
+  const EDIT = { k: 'e1', q: 'Why did the water level drop?', wrote: 'The water went away.',
+                 a: 'The water evaporated \u2014 it gained heat and became water vapour.',
+                 lvl: 'P5', sub: 'science', at: '2026-09-01T00:00:00.000Z' };
+  mod.setUser({ email: 'chungzhikai@gmail.com' });
+  mod.setActing(false); mod.setPractice(false); mod.setVisitor(false);
+  mod.setMeta({ level: 'P5', subject: 'science' });
+
+  mod.setStyle({ samples: [], edits: [Object.assign({}, EDIT, { note: 'Name the process \u2014 say "evaporated", never "went away".' })], scores: [] });
+  ok('a lesson is served to an ANSWER prompt',
+     mod.styleBlock('answer', 'water level').includes('Name the process'));
+  ok('\u2026and never to MARKING',
+     !mod.styleBlock('mark', 'water level').includes('Name the process'));
+  ok('the lesson comes BEFORE the raw pair it was drawn from', (() => {
+    const b = mod.styleBlock('answer', 'water level');
+    return b.indexOf('Name the process') < b.indexOf('this app wrote:');
+  })());
+  ok('a correction with no lesson yet still serves its pair',
+     (mod.setStyle({ samples: [], edits: [Object.assign({}, EDIT, { note: '' })], scores: [] }),
+      mod.styleBlock('answer', 'water level').includes('went away')));
+
+  // Bucket first, newest first, deduped.
+  mod.setStyle({ samples: [], edits: [
+    Object.assign({}, EDIT, { k: 'a', note: 'MATHS LESSON', lvl: 'P3', sub: 'math' }),
+    Object.assign({}, EDIT, { k: 'b', note: 'SCIENCE LESSON' }),
+    Object.assign({}, EDIT, { k: 'c', note: 'SCIENCE LESSON' })
+  ], scores: [] });
+  const L = mod.styleLessons('P5', 'science');
+  ok('this bucket\u2019s lesson leads', L[0] === 'SCIENCE LESSON');
+  ok('the same lesson twice is one lesson', L.filter(x => x === 'SCIENCE LESSON').length === 1,
+     'a duplicate eats the prompt twice and reads to the model as emphasis nobody wrote');
+  ok('another bucket\u2019s lesson is still there behind it', L.includes('MATHS LESSON'));
+  ok('never more than the cap', mod.styleLessons('P5', 'science').length <= mod.STYLE_LESSONS_MAX);
+
+  // The writer. ONE call per correction — a lesson on the wrong correction
+  // reads perfectly and teaches something the teacher never said.
+  const asked = [];
+  mod.setBusy(false);
+  mod.setAsk((body, opts) => { asked.push({ body, opts }); return Promise.resolve(JSON.stringify({ lesson: 'LESSON ' + asked.length })); });
+  mod.setStyle({ samples: [], edits: [
+    Object.assign({}, EDIT, { k: 'x1', note: '' }),
+    Object.assign({}, EDIT, { k: 'x2', note: '', wrote: 'It got hot.', a: 'It gained heat from the surroundings.' })
+  ], scores: [] });
+  mod.styleWriteNotes();
+  await new Promise(r => setTimeout(r, 40));
+  ok('one call per correction, never a batch', asked.length === 2,
+     'a lesson attributed to the wrong correction reads perfectly and is wrong');
+  ok('each call is shown BOTH halves of its own difference',
+     asked.every(x => /What the AI wrote:/.test(x.body) && /What the teacher changed it to:/.test(x.body)));
+  ok('\u2026and the correcting prompt is the one that asks for a lesson',
+     asked.every(x => /ONE lesson/.test(x.opts.system)));
+  ok('the lessons land on their own corrections',
+     mod.getEdits()[0].note === 'LESSON 1' && mod.getEdits()[1].note === 'LESSON 2');
+
+  // A cosmetic change has no lesson, and is never asked about twice.
+  const again = [];
+  mod.setAsk((body) => { again.push(body); return Promise.resolve(JSON.stringify({ lesson: '' })); });
+  mod.setStyle({ samples: [], edits: [Object.assign({}, EDIT, { k: 'y1', note: '' })], scores: [] });
+  mod.styleWriteNotes();
+  await new Promise(r => setTimeout(r, 40));
+  const n1 = again.length;
+  mod.styleWriteNotes();
+  await new Promise(r => setTimeout(r, 40));
+  ok('a correction with no lesson in it is not asked about again', again.length === n1,
+     'otherwise every save pays for the same empty answer for the rest of the account\u2019s life');
+
+  // It yields to the teacher.
+  const held = [];
+  mod.setBusy(true);
+  mod.setAsk(b => { held.push(b); return Promise.resolve('{"lesson":"x"}'); });
+  mod.setStyle({ samples: [], edits: [Object.assign({}, EDIT, { k: 'z1', note: '' })], scores: [] });
+  mod.styleWriteNotes();
+  await new Promise(r => setTimeout(r, 20));
+  ok('it waits while the teacher\u2019s own AI call is running', held.length === 0,
+     'a background call must never answer \u2728 Answer with "the AI is busy"');
+  mod.setBusy(false);
+
+  // …and a student never teaches the app.
+  const nope = [];
+  mod.setAsk(b => { nope.push(b); return Promise.resolve('{"lesson":"x"}'); });
+  mod.setPractice(true);
+  mod.setStyle({ samples: [], edits: [Object.assign({}, EDIT, { k: 'p1', note: '' })], scores: [] });
+  mod.styleWriteNotes();
+  await new Promise(r => setTimeout(r, 20));
+  ok('in practice mode nothing is learned and nothing is asked', nope.length === 0,
+     'annotations there hold a CHILD\u2019s attempt');
+  mod.setPractice(false);
+
+  // The panel says what was learned, and can drop one.
+  mod.setStyle({ samples: [], edits: [Object.assign({}, EDIT, { k: 'q1', note: 'SHOWN LESSON' })], scores: [] });
+  const html = mod.notesLessonsHtml();
+  ok('the panel shows the lesson', html.includes('SHOWN LESSON'));
+  ok('\u2026beside the edit it came from', html.includes('went away') && html.includes('evaporated'));
+  ok('\u2026and offers to forget it', /styleForgetEdit\('q1'\)/.test(html));
+  mod.styleForgetEdit('q1');
+  ok('forgetting it takes the CORRECTION with it', mod.getEdits().length === 0,
+     'the pair alone would teach the same thing again on the very next answer');
+  ok('an empty corpus renders no panel at all', mod.notesLessonsHtml() === '');
+}
 
 console.log(fails ? '\n' + fails + ' FAILED\n' : '\nAll good.\n');
 process.exit(fails ? 1 : 0);
