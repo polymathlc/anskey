@@ -4601,7 +4601,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.84.0';
+var APP_VERSION = 'v1.85.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -11266,6 +11266,14 @@ var STYLE_FIT_WINDOW = 20;        // …read as this window against the one befo
    distil never saw, and rewriting the description to close the gap is what
    makes it specific — and the verify step is what stops a rebuild ever making
    the profile worse. */
+/* A CORRECTION IS OBEYED ON THE VERY NEXT ANSWER, with no rebuild in between.
+   `fixes` are distilled, so they are only ever as current as the last rebuild;
+   these are the raw before/after pairs, retrieved for the question in hand and
+   carried straight into the prompt. */
+var STYLE_PAIRS_MAX = 3;
+/* A correction is the teacher saying the app got something wrong, so it is
+   worth far more than an ordinary answer and earns a rebuild much sooner. */
+var STYLE_DISTIL_EDITS = 3;
 var STYLE_HOLDOUT = 8;            // samples kept back from every rebuild
 var STYLE_REFINE_ROUNDS = 2;
 var STYLE_GOOD_ENOUGH = 0.22;     // mean gap at which refining stops early
@@ -11581,14 +11589,18 @@ function styleExemplars() {
 function styleBlock(kind, q) {
   var lvl = wsMeta && wsMeta.level, sub = wsMeta && wsMeta.subject;
   var pick = styleProfilePick(lvl, sub);
-  var p = pick.profile;
-  if (!p) return '';
+  /* NO EARLY RETURN ON A MISSING PROFILE. The exemplars and the corrections
+     are read from the corpus and are current the moment the teacher saves;
+     only the distilled description waits for a rebuild. Bailing out here is
+     what made a brand-new teacher's very first correction reach nothing. */
   /* ONE renderer, shared with the verification pass below — the description
      being tested when a rebuild is checked has to be the same text the app
      really ships, or the check is of something else. The exemplars are
-     RETRIEVED for this question and the corrections come from the profile in
-     force; marking sees neither (those are answers). */
-  var bits = _styleProfileBits(p, kind, styleExemplarsFor(q, lvl, sub), styleEditRules(lvl, sub));
+     RETRIEVED for this question, the rules come from the profile in force and
+     the raw corrections from the corpus; marking sees none of them (those are
+     answers). */
+  var bits = _styleProfileBits(pick.profile, kind, styleExemplarsFor(q, lvl, sub),
+                               styleEditRules(lvl, sub), styleRecentEdits(q, lvl, sub));
   if (!bits.length) return '';
   var from = pick.bucket === '_global'
     ? ((aiStyle && aiStyle.profileSamples) || styleSamples().length) + ' answers they have written on their own worksheets'
@@ -11700,6 +11712,17 @@ function styleEnsure() {
   }
   if (typeof aiStyle.profileLearned !== 'number') {
     aiStyle.profileLearned = aiStyle.profileSamples || 0;
+  }
+  /* Monotonic, exactly like `learned`, and for the same reason: `edits` is
+     capped and supersedes in place, so its LENGTH can go down and would read
+     as nothing new. Seeded from the corpus so the corrections already
+     distilled into the profile are not counted as fresh on upgrade. */
+  if (typeof aiStyle.editsLearned !== 'number' || aiStyle.editsLearned < aiStyle.edits.length) {
+    aiStyle.editsLearned = aiStyle.edits.length;
+  }
+  if (typeof aiStyle.profileEdits !== 'number') {
+    aiStyle.profileEdits = (aiStyle.profiles && aiStyle.profiles._global) || aiStyle.profile
+      ? aiStyle.editsLearned : 0;
   }
   /* Everything learned before v1.83.0 was keyed by the annotation's identity
      ALONE (`docId:annId`) — which is the bug itself: a revision produced the
@@ -11860,6 +11883,8 @@ function styleSave() {
     profileNote: st.profileNote || '',
     learned: st.learned || 0,
     profileLearned: st.profileLearned || 0,
+    editsLearned: st.editsLearned || 0,
+    profileEdits: st.profileEdits || 0,
     learnedDocs: st.learnedDocs || {},
     keyed: st.keyed || 0,
     updatedAt: st.updatedAt
@@ -12005,7 +12030,7 @@ function styleCollectEdits(anns, docId, meta) {
       lvl: (meta && meta.level) || '',
       sub: (meta && meta.subject) || '',
       at: new Date().toISOString()
-    }, STYLE_EDITS_MAX)) edits++;
+    }, STYLE_EDITS_MAX)) { edits++; st.editsLearned = (st.editsLearned || 0) + 1; }
   });
   return { edits: edits, scored: scored };
 }
@@ -12035,13 +12060,46 @@ function styleFitReport() {
   };
 }
 
-/* The corrections, as short rules, for the prompt. They are distilled into the
-   profile rather than sent raw — a hundred before/after pairs would not fit,
-   and a rule is what the next answer can actually obey. */
+/* The corrections as short RULES: general, and distilled into the profile,
+   because a hundred before/after pairs would not fit and a rule is what a
+   later answer on a different question can obey. */
 function styleEditRules(lvl, sub) {
   var p = styleProfileFor(lvl, sub);
   var f = (p && Array.isArray(p.fixes)) ? p.fixes : [];
   return f.map(function (x) { return styleTrim(x, 180); }).filter(Boolean).slice(0, 6);
+}
+
+/* ---- AND THE CORRECTIONS THEMSELVES, IMMEDIATELY ----
+   `fixes` only exist after a rebuild, and a rebuild waits for new answers to
+   pile up. So a teacher who corrected an answer watched the app make the same
+   mistake on the very next one — which is "it still did not immediately
+   learn", and they were right: nothing they had just taught it was in the
+   prompt yet.
+
+   The raw pairs go in as they are, retrieved for the question in hand. That is
+   what learning from user edits actually does at generation time; the
+   distilled rules are the long-term memory on top of it, not a substitute for
+   it. They are capped hard — three pairs is enough to change the next answer
+   and small enough to carry on every call. */
+function styleRecentEdits(q, lvl, sub, cap) {
+  var all = styleEdits().filter(function (e) { return e && e.wrote && e.a; });
+  if (!all.length) return [];
+  var bucket = styleBucketKey(lvl, sub);
+  var mine = all.filter(function (e) { return styleBucketKey(e.lvl, e.sub) === bucket; });
+  var pool = mine.length ? mine : all;
+  var n = cap || STYLE_PAIRS_MAX;
+  if (q) {
+    var scored = pool.map(function (e, i) { return { e: e, v: _styleOverlap(q, e.q || e.a), i: i }; })
+      .filter(function (x) { return x.v > 0; })
+      .sort(function (a, b) { return (b.v - a.v) || (b.i - a.i); })
+      .slice(0, n)
+      .map(function (x) { return x.e; });
+    if (scored.length) return scored;
+  }
+  /* Nothing resembles this question — the NEWEST corrections still stand, and
+     a correction the teacher made a minute ago is the one they are watching
+     for. */
+  return pool.slice(-n).reverse();
 }
 
 /* ================= THE HARVEST RUNS ON EVERY SAVE, INCLUDING THE AUTO ONE ==
@@ -12123,14 +12181,32 @@ function styleAnnounceSaved(sum) {
     btn.title = styleSavedTitle(sum);
   }).catch(function () {});
 }
-/* New answers since the last rebuild, OR a fortnight since it — a teacher who
-   works in bursts should not have a profile that never refreshes between them,
-   and one who never stops should not pay for a rebuild every afternoon. */
+/* WHEN THE PROFILE REBUILDS.
+
+   It used to be one rule — 25 new answers — and that is what "it still did not
+   immediately learn" was. Two cases it got wrong:
+
+   A teacher with NO PROFILE YET (a new account, or one who has just pressed
+   Forget) waited 25 answers before the app knew anything about them at all,
+   answering in nobody's voice the whole time and looking broken.
+
+   And a CORRECTION counted for exactly as much as an ordinary answer, so a
+   teacher could rewrite three answers in a row, watch the app go on making
+   the same mistake, and be told the learning works. A correction is the
+   teacher saying it got something wrong; it earns a rebuild far sooner.
+   (The corrections themselves reach the very next answer with no rebuild at
+   all — see styleRecentEdits. This is about the general RULES catching up.) */
 function styleDistilDue(st) {
-  if ((st.learned || 0) - (st.profileLearned || 0) >= STYLE_DISTIL_EVERY) return true;
-  if (!st.profileAt || !st.samples.length) return false;
+  var fresh = (st.learned || 0) - (st.profileLearned || 0);
+  var freshEdits = (st.editsLearned || 0) - (st.profileEdits || 0);
+  if (fresh <= 0 && freshEdits <= 0) return false;
+  var have = !!((st.profiles && st.profiles._global) || st.profile);
+  if (!have) return (st.samples || []).length >= STYLE_DISTIL_MIN;
+  if (fresh >= STYLE_DISTIL_EVERY) return true;
+  if (freshEdits >= STYLE_DISTIL_EDITS) return true;
+  if (!st.profileAt) return false;
   var age = Date.now() - Date.parse(st.profileAt);
-  return age === age && age > 14 * 864e5 && (st.learned || 0) > (st.profileLearned || 0);
+  return age === age && age > 14 * 864e5;
 }
 
 /* The thorough harvest: the model reads each annotated page of the worksheet
@@ -12286,20 +12362,27 @@ async function styleLearnAllWorksheets() {
 /* Renders a profile OBJECT into prompt text. Shared by the grounding block and
    by the verification generator, so the description being tested is the same
    text the app will really ship. */
-function _styleProfileBits(p, kind, exemplars, fixes) {
+function _styleProfileBits(p, kind, exemplars, fixes, pairs) {
   var bits = [];
-  if (!p) return bits;
-  var rules = String(p.styleRules || '').trim().slice(0, STYLE_RULE_CHARS);
-  var phrasing = String(p.phrasing || '').trim().slice(0, 400);
-  var marking = String(p.markingStandards || '').trim().slice(0, 500);
-  if (rules) bits.push('How this teacher writes answers: ' + rules);
-  if (phrasing) bits.push('Phrasing: ' + phrasing);
-  if (kind === 'mark' && marking) bits.push('How this teacher marks: ' + marking);
-  var kw = (Array.isArray(p.keywords) ? p.keywords : []).slice(0, 24)
-             .map(function (s) { return String(s).trim(); }).filter(Boolean);
-  if (kw.length) bits.push('Words the teacher uses again and again: ' + kw.join(', ') + '.');
+  /* A NULL PROFILE IS NOT NOTHING TO SAY. The exemplars and the corrections
+     come out of the CORPUS, not the profile, so they are there from the first
+     answer the teacher writes — and a teacher who has just started, or just
+     pressed Forget, is exactly the one who would otherwise correct an answer
+     and watch the app ignore it until a rebuild it has to earn 6 answers
+     first. Only the description itself waits. */
+  if (p) {
+    var rules = String(p.styleRules || '').trim().slice(0, STYLE_RULE_CHARS);
+    var phrasing = String(p.phrasing || '').trim().slice(0, 400);
+    var marking = String(p.markingStandards || '').trim().slice(0, 500);
+    if (rules) bits.push('How this teacher writes answers: ' + rules);
+    if (phrasing) bits.push('Phrasing: ' + phrasing);
+    if (kind === 'mark' && marking) bits.push('How this teacher marks: ' + marking);
+    var kw = (Array.isArray(p.keywords) ? p.keywords : []).slice(0, 24)
+               .map(function (s) { return String(s).trim(); }).filter(Boolean);
+    if (kw.length) bits.push('Words the teacher uses again and again: ' + kw.join(', ') + '.');
+  }
   if (kind === 'mark') return bits;
-  var ex = exemplars || (Array.isArray(p.exemplars) ? p.exemplars : []);
+  var ex = exemplars || (p && Array.isArray(p.exemplars) ? p.exemplars : []);
   ex = ex.filter(function (e) { return e && e.a; }).slice(0, STYLE_EX_MAX);
   if (ex.length) {
     bits.push('Real answers this teacher has written on past worksheets — match their length, tone and level of detail:\n' +
@@ -12308,11 +12391,23 @@ function _styleProfileBits(p, kind, exemplars, fixes) {
         return '• ' + (eq ? eq + ' → ' : '') + String(e.a).trim().slice(0, 260);
       }).join('\n'));
   }
-  var fx = fixes || (Array.isArray(p.fixes) ? p.fixes : []);
+  var fx = fixes || (p && Array.isArray(p.fixes) ? p.fixes : []);
   fx = fx.map(function (x) { return styleTrim(x, 180); }).filter(Boolean).slice(0, 6);
   if (fx.length) {
     bits.push('Corrections this teacher has made to answers this app wrote — do not make these mistakes again:\n' +
       fx.map(function (f) { return '• ' + f; }).join('\n'));
+  }
+  /* The rawest and most current thing we know, and the one that needs no
+     rebuild to take effect. It goes LAST so it is the nearest instruction to
+     the question. */
+  var pr = (pairs || []).slice(0, STYLE_PAIRS_MAX);
+  if (pr.length) {
+    bits.push('WHAT THIS TEACHER CHANGED, the last time this app answered for them — answer their way from the start:\n' +
+      pr.map(function (e) {
+        return (e.q ? '• Question: ' + String(e.q).slice(0, STYLE_Q_CHARS) + '\n  ' : '• ') +
+          'this app wrote: ' + String(e.wrote).slice(0, STYLE_EDIT_CHARS) +
+          '\n  the teacher rewrote it as: ' + String(e.a).slice(0, STYLE_EDIT_CHARS);
+      }).join('\n'));
   }
   return bits;
 }
@@ -12414,8 +12509,13 @@ async function styleProposeProfile(train, edits, current) {
 
 async function styleGenUnder(profile, held) {
   if (!profile || !held.length) return [];
+  /* The same corrections the live prompt carries, so the description being
+     checked is tested under the conditions it will really run in. They come
+     from the corpus rather than the profile, so the old and the new draft are
+     compared on identical footing. */
   var sys = STYLE_GEN_SYS + '\n\nTHE TEACHER\'S STYLE:\n' +
-            _styleProfileBits(profile, 'answer', profile.exemplars, profile.fixes).join('\n');
+            _styleProfileBits(profile, 'answer', profile.exemplars, profile.fixes,
+                              styleRecentEdits('', held[0] && held[0].lvl, held[0] && held[0].sub)).join('\n');
   var lines = held.map(function (h, i) { return (i + 1) + '. ' + h.q; });
   var raw = await window.askGemini(lines.join('\n'), {
     system: sys, maxOutputTokens: 1800, temperature: 0.3, json: true
@@ -12542,6 +12642,7 @@ async function styleDistil(quiet, bucket) {
       var oldGap = styleGapOf(held.map(function (h, i) { return { q: h.q, theirs: h.a, ours: oldOut[i] }; }));
       if (gap > oldGap) {
         st.profileLearned = st.learned || st.samples.length;   // do not re-try on every save
+        st.profileEdits = st.editsLearned || 0;
         st.profileNote = 'The last rebuild of your ' + label + ' style was no closer to your real answers than the one you had, so the old one was kept.';
         await styleSave();
         if (!quiet) toast('🧠 Kept the style you had — the new reading of it was no closer to your real answers.', 6000);
@@ -12561,6 +12662,7 @@ async function styleDistil(quiet, bucket) {
     st.profiles[bucket].gap = gap;
     st.profileSamples = st.samples.length;
     st.profileLearned = st.learned || st.samples.length;
+    st.profileEdits = st.editsLearned || 0;
     st.profileAt = new Date().toISOString();
     st.profileNote = note;
     await styleSave();
@@ -12606,7 +12708,7 @@ async function styleForget() {
   aiStyle = {
     samples: [], edits: [], scores: [], profiles: {}, profile: null,
     profileSamples: 0, profileLearned: 0, learned: 0, profileNote: '',
-    learnedDocs: {}, keyed: 1
+    editsLearned: 0, profileEdits: 0, learnedDocs: {}, keyed: 1
   };
   styleGen = {};
   await styleSave();
@@ -13046,6 +13148,44 @@ function notesBucketsHtml() {
   return '<div class="tnBuckets">' + chips + '</div>' + note;
 }
 
+/* WHAT IS ALREADY IN FORCE, as opposed to what is waiting for a rebuild.
+   Corrections are obeyed on the very next answer; the general rules distilled
+   out of them take a rebuild. A teacher who cannot tell those two apart reads
+   "3 corrections learned" and then watches the app repeat a mistake, which is
+   how a feature that IS working gets reported as broken. */
+function notesLiveNowHtml() {
+  var st = styleEnsure();
+  var live = styleRecentEdits('', wsMeta && wsMeta.level, wsMeta && wsMeta.subject).length;
+  var samples = st.samples.length;
+  if (!live && !samples) return '';
+  var bits = [];
+  if (live) {
+    bits.push('<b>' + live + ' correction' + (live === 1 ? '' : 's') + '</b> ' +
+      (live === 1 ? 'is' : 'are') + ' being followed on the very next answer — no waiting.');
+  }
+  if (samples) {
+    bits.push('Your own answers are used as examples straight away too.');
+  }
+  var have = !!((st.profiles && st.profiles._global) || st.profile);
+  var fresh = (st.learned || 0) - (st.profileLearned || 0);
+  var freshEdits = (st.editsLearned || 0) - (st.profileEdits || 0);
+  if (!have) {
+    var need = Math.max(0, STYLE_DISTIL_MIN - samples);
+    bits.push(need
+      ? 'The written description of your style is worked out after ' + need + ' more answer' + (need === 1 ? '' : 's') + '.'
+      : 'The written description of your style is being worked out now.');
+  } else if (fresh >= STYLE_DISTIL_EVERY || freshEdits >= STYLE_DISTIL_EDITS) {
+    bits.push('The written description of your style is being brought up to date now.');
+  } else {
+    var byAnswers = STYLE_DISTIL_EVERY - fresh;
+    var byEdits = STYLE_DISTIL_EDITS - freshEdits;
+    bits.push('The written description of your style refreshes after ' + byAnswers +
+      ' more answer' + (byAnswers === 1 ? '' : 's') + ' or ' + byEdits +
+      ' more correction' + (byEdits === 1 ? '' : 's') + ' — or press 🧠 Rebuild my style now.');
+  }
+  return '<div class="tnFit"><div class="tnFitSay">' + bits.join(' ') + '</div></div>';
+}
+
 function notesTrainingHtml() {
   var st = styleEnsure();
   var n = st.samples.length;
@@ -13060,7 +13200,7 @@ function notesTrainingHtml() {
         (p.styleRules ? '<div class="tnRow"><div class="tnLabel">How you write</div><div class="tnText">' + escHtml(p.styleRules) + '</div></div>' : '') +
         (p.phrasing ? '<div class="tnRow"><div class="tnLabel">Your phrasing</div><div class="tnText">' + escHtml(p.phrasing) + '</div></div>' : '') +
         (p.markingStandards ? '<div class="tnRow"><div class="tnLabel">Your standard</div><div class="tnText">' + escHtml(p.markingStandards) + '</div></div>' : '') +
-        (fixes.length ? '<div class="tnRow"><div class="tnLabel">From your edits</div><div class="tnText">' +
+        (fixes.length ? '<div class="tnRow"><div class="tnLabel">Rules from your edits</div><div class="tnText">' +
           fixes.map(function (f) { return '• ' + escHtml(f); }).join('\n') + '</div></div>' : '') +
         ((p.keywords || []).length ? '<div class="tnRow"><div class="tnLabel">Your words</div><div class="tnChips">' +
           p.keywords.map(function (k) { return '<span class="tnChip tnChipKw">' + escHtml(k) + '</span>'; }).join('') + '</div></div>' : '') +
@@ -13082,6 +13222,7 @@ function notesTrainingHtml() {
       '<div class="tnStat"><b>' + teachingNotes.length + '</b><span>sets of notes</span></div>' +
     '</div>' +
     notesFitHtml() +
+    notesLiveNowHtml() +
     notesBucketsHtml() +
     '<div class="tnBtnRow">' +
       '<button class="btn" onclick="styleLearnOpenWorksheet()"' + (notesBusy ? ' disabled' : '') + '>📖 Learn from this worksheet</button>' +
