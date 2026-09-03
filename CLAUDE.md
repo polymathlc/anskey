@@ -328,6 +328,51 @@ immediately and **used** only after a rebuild.
   force now and what the rest is waiting for.
 
 
+### 💡 THE LESSON IN EACH CORRECTION (v1.87.0)
+
+`STYLE_NOTE_SYS` / `STYLE_NOTE_CHARS` / `STYLE_LESSONS_MAX` / `STYLE_NOTE_PAR` /
+`styleLessons` / **`styleWriteNotes`** / `notesLessonsHtml` / `styleForgetEdit`,
+the `lessons` argument to `_styleProfileBits`, and the `styleWriteNotes()` call
+in `styleHarvestOnSave`'s `done` chain.
+
+The corpus already held the before and the after. What it never held was WHY —
+so every prompt had to re-derive the lesson from the pair, and the lesson never
+outlived the three most recent corrections a prompt has room for. `fixes` say
+what to DO and wait for a rebuild; the raw pairs take effect at once and say
+only WHAT changed. The lesson is both: written once, the moment the correction
+is made.
+
+- **ONE CALL PER CORRECTION, never a batch.** A batch is cheaper and brings the
+  one failure this can produce silently: a lesson attributed to the wrong
+  correction reads perfectly and teaches the app something the teacher never
+  said. Corrections are rare, so the attribution is free.
+- **A COSMETIC CHANGE HAS NO LESSON, and is asked about ONCE.** The prompt says
+  in as many words to return an empty string for punctuation, a synonym or
+  tidier grammar; `noteTried` is set BEFORE the call, so a correction the model
+  had nothing to say about is not re-asked on every save for the rest of the
+  account's life.
+- **IT YIELDS TO THE TEACHER AND NEVER BLOCKS THEM.** It waits on `aiBusy` and
+  deliberately does not set it, so a background call can never answer
+  ✨ Answer with "the AI is busy" — the rule 📚 auto-learn already follows.
+  `styleHarvestAllowed` is the same ONE gate: in PRACTICE MODE the annotations
+  hold a CHILD'S attempt.
+- **BUCKET FIRST, AND NEWEST FIRST INSIDE EACH.** `mine.concat(rest).reverse()`
+  reverses the two GROUPS as well, which quietly serves another level's lessons
+  ahead of this one's — each list is reversed on its own. The same lesson twice
+  is one lesson: a duplicate eats the pot twice and reads to the model as
+  emphasis nobody wrote.
+- **The lesson goes BEFORE the raw pairs and after `fixes`**, so the prompt
+  reads distilled → learned → rawest, with the corrections themselves nearest
+  the question. Marking sees none of it: they are answers.
+- **`styleGenUnder` is passed the lessons too.** The description being TESTED
+  when a rebuild is verified has to be the text the app really ships, or the
+  check is of something else.
+- **The panel shows every lesson beside the edit it came from**, and ✕ drops
+  BOTH — the pair alone would teach the same thing again on the very next
+  answer.
+- `polymathlc/cer` carries the same loop over its own question blocks; ship a
+  change to both.
+
 ### ONE PROFILE PER CONTEXT
 
 P3 Maths and Sec 1 Science were averaged into one paragraph, which by
