@@ -285,6 +285,49 @@ was **never learned at all** — and nothing on any screen said so.
   three filers pass it. The census fails on a filer that asks without it.
 
 
+### ⚡ A CORRECTION IS OBEYED ON THE VERY NEXT ANSWER (v1.85.0)
+
+`STYLE_PAIRS_MAX` / `STYLE_DISTIL_EDITS` / **`styleRecentEdits`** /
+`_styleProfileBits`'s `pairs` argument / `styleDistilDue` / `st.editsLearned`
+/ `st.profileEdits` / `notesLiveNowHtml`.
+
+*"It still did not immediately learn."* Correct, and the reason is the one
+thing v1.83.0 got wrong about its own design: the corrections were **stored**
+immediately and **used** only after a rebuild.
+
+- **`styleEditRules` reads `profile.fixes` — distilled.** So a correction only
+  reached a prompt once `styleDistil` had run, and `styleDistil` waited for
+  **25 new answers**. The teacher rewrote an answer, pressed ✨ Answer again,
+  and watched the app make the identical mistake — while the panel reported the
+  correction as learned. It *was* learned. It was not being USED.
+- **`styleRecentEdits` puts the raw before/after pairs straight into the
+  prompt**, retrieved for the question in hand, capped at `STYLE_PAIRS_MAX`.
+  That is what learning from user edits does at GENERATION time; the distilled
+  rules are the long-term memory on top of it, never a substitute for it. Both
+  are served, and the raw pairs go LAST so they sit nearest the question.
+- **`styleBlock` MUST NOT BAIL OUT ON A MISSING PROFILE.** The exemplars and
+  the corrections come out of the CORPUS and are current the moment the teacher
+  saves; only the description waits. `if (!p) return ''` meant a teacher who
+  had just started — or just pressed Forget — had their first correction reach
+  nothing at all. `_styleProfileBits` now skips only the profile-derived bits
+  when `p` is null.
+- **MARKING STILL SEES NONE OF IT.** A correction is an answer.
+- **A first profile no longer waits for 25.** With nothing built yet
+  `styleDistilDue` fires at `STYLE_DISTIL_MIN`, or the app answers in nobody's
+  voice for a fortnight of marking and looks broken.
+- **A correction earns a rebuild far sooner than an ordinary answer**
+  (`STYLE_DISTIL_EDITS`, 3). It is the teacher saying the app got something
+  wrong.
+- **`editsLearned` is MONOTONIC**, exactly like `learned` and for the same
+  reason: `edits` is capped and supersedes in place, so its LENGTH goes down
+  and would read as nothing new. `profileEdits` is seeded from it on upgrade so
+  corrections already distilled are not counted as fresh.
+- **The panel tells LIVE apart from WAITING** (`notesLiveNowHtml`). "3
+  corrections learned" followed by the app repeating a mistake is how a feature
+  that IS working gets reported as broken; the panel now says which part is in
+  force now and what the rest is waiting for.
+
+
 ### ONE PROFILE PER CONTEXT
 
 P3 Maths and Sec 1 Science were averaged into one paragraph, which by
@@ -880,8 +923,16 @@ draw.
   `_styleProfileBits`, `styleProposeProfile`, `styleGenUnder`,
   `styleRefineProfile`, `styleCleanProfile`, `styleGapOf`, `styleDistil`,
   `styleDistilAll`, `styleDistilDue`, `styleHarvestAllowed`, `styleSavedLabel`,
-  `styleAnnounceSaved`, the harvest call in **`autoSave`** or **`performSave`**,
+  `styleAnnounceSaved`, `styleRecentEdits`, `styleDistilDue`, `editsLearned`,
+  the harvest call in **`autoSave`** or **`performSave`**,
   or `aiGrounding`'s `opts.q`), run `node tools/notes-tests.mjs`.
+  **Stop serving the raw corrections and a correction stops taking effect
+  until 25 more answers have gone by** — stored, reported as learned, and
+  ignored, which is exactly how this was reported twice; put the
+  `if (!p) return ''` back in `styleBlock` and a teacher's very first
+  correction reaches nothing at all; let either leak into MARKING and the
+  marker has been handed the answer; and read `edits.length` instead of the
+  monotonic counter and the rebuild stops firing once the corpus is capped.
   **Take the harvest off the auto-save and the learning silently stops** —
   the manual Save dialog is pressed once per worksheet and nothing on any
   screen reports the difference, which is exactly how it shipped broken; run it

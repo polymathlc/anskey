@@ -3,6 +3,28 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## ⚡ Corrections take effect on the very next answer (v1.85.0)
+
+Your corrections were being **stored** immediately and **used** only after the app next rebuilt
+its written description of your style — which waited for 25 new answers. So you could rewrite an
+answer, press ✨ Answer again, and watch it make the same mistake, with the panel telling you the
+correction had been learned. It had been. It just was not being used yet.
+
+Now the correction itself goes into the very next prompt — *"this app wrote X, the teacher rewrote
+it as Y"* — picked for the question in front of you. No waiting, no rebuild.
+
+Three more things that were making it feel slow:
+
+- **A brand-new style now builds after 6 answers, not 25.** If you had just started, or just
+  pressed Forget what was learned, the app knew nothing about you for a fortnight of marking.
+- **Corrections count for far more than ordinary answers.** Three of them bring the written
+  description up to date on their own.
+- **If you have no description yet, your answers and corrections are used anyway.** They come
+  from your own work, not from the description, so they never needed to wait for it.
+
+And the 🧠 panel now says which part is working *now* and which part is still catching up, so
+"learned" and "in use" are no longer the same word.
+
 ## 💾 It saves what it learns as you go — and says so (v1.84.0)
 
 **The learning was hardly ever running.** It hung off the manual **Save** button — the one that

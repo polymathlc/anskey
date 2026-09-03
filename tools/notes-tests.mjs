@@ -59,7 +59,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX };')();
+const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleRecentEdits, STYLE_PAIRS_MAX, STYLE_DISTIL_EDITS, STYLE_DISTIL_MIN, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, notesLiveNowHtml, STYLE_DISTIL_EVERY, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -604,18 +604,59 @@ ok('a perfect match is no gap', mod.styleGapOf([{ theirs: 'a b c', ours: 'a b c'
 ok('a total miss is a whole gap', mod.styleGapOf([{ theirs: 'a b c', ours: 'x y z' }]) === 1);
 ok('nothing to compare is the worst case, never the best', mod.styleGapOf([]) === 1);
 
-console.log('\nThe rebuild fires on new answers, and on a fortnight of silence');
+console.log('\nWHEN THE PROFILE REBUILDS — the other half of "it did not learn"');
 const day = 864e5;
+const P = { profiles: { _global: { styleRules: 'R' } } };
+const withP = o => Object.assign({}, P, o);
 ok('a fresh profile with nothing new does not fire',
-   !mod.styleDistilDue({ learned: 10, profileLearned: 10, samples: [1], profileAt: new Date().toISOString() }));
+   !mod.styleDistilDue(withP({ learned: 10, profileLearned: 10, samples: [1], profileAt: new Date().toISOString() })));
 ok('25 new answers fire it',
-   mod.styleDistilDue({ learned: 40, profileLearned: 10, samples: [1], profileAt: new Date().toISOString() }));
+   mod.styleDistilDue(withP({ learned: 40, profileLearned: 10, samples: [1], profileAt: new Date().toISOString() })));
 ok('a fortnight and something new fires it',
-   mod.styleDistilDue({ learned: 12, profileLearned: 10, samples: [1], profileAt: new Date(Date.now() - 20 * day).toISOString() }));
+   mod.styleDistilDue(withP({ learned: 12, profileLearned: 10, samples: [1], profileAt: new Date(Date.now() - 20 * day).toISOString() })));
 ok('a fortnight with NOTHING new does not',
-   !mod.styleDistilDue({ learned: 10, profileLearned: 10, samples: [1], profileAt: new Date(Date.now() - 20 * day).toISOString() }));
-ok('a profile that has never been built does not fire on age',
-   !mod.styleDistilDue({ learned: 10, profileLearned: 0, samples: [1], profileAt: '' }));
+   !mod.styleDistilDue(withP({ learned: 10, profileLearned: 10, samples: [1], profileAt: new Date(Date.now() - 20 * day).toISOString() })));
+
+/* A teacher with no profile waited 25 answers before the app knew anything
+   about them at all — answering in nobody's voice the whole time. */
+const six = Array.from({ length: 6 }, (_, i) => ({ k: 's' + i, a: 'x' }));
+ok('NOTHING BUILT YET builds as soon as there is anything to build from',
+   mod.styleDistilDue({ learned: 6, profileLearned: 0, samples: six, profiles: {} }));
+ok('…and not before there is', !mod.styleDistilDue({ learned: 2, profileLearned: 0, samples: [1, 2], profiles: {} }));
+ok('it does not wait for 25', six.length < 25);
+ok('a legacy single profile counts as having one',
+   !mod.styleDistilDue({ learned: 6, profileLearned: 6, samples: six, profile: { styleRules: 'R' } }));
+
+/* A correction is the teacher saying it got something wrong. */
+ok('THREE CORRECTIONS FIRE A REBUILD, without waiting for 25 answers',
+   mod.styleDistilDue(withP({ learned: 10, profileLearned: 10, editsLearned: 3, profileEdits: 0, samples: [1], profileAt: new Date().toISOString() })));
+ok('one correction does not, on its own',
+   !mod.styleDistilDue(withP({ learned: 10, profileLearned: 10, editsLearned: 1, profileEdits: 0, samples: [1], profileAt: new Date().toISOString() })));
+ok('corrections already in the profile are not counted again',
+   !mod.styleDistilDue(withP({ learned: 10, profileLearned: 10, editsLearned: 9, profileEdits: 9, samples: [1], profileAt: new Date().toISOString() })));
+ok('a rebuild that kept the old profile does not re-fire on every save',
+   !mod.styleDistilDue(withP({ learned: 40, profileLearned: 40, editsLearned: 5, profileEdits: 5, samples: [1], profileAt: new Date().toISOString() })));
+
+console.log('\nThe correction counter is MONOTONIC, like the answer counter');
+{
+  mod.setStyle({ samples: [], edits: [], scores: [], profiles: {}, learnedDocs: {}, keyed: 1 });
+  mod.clearGen();
+  mod.setDoc('docE');
+  const box = [{ id: 'e1', type: 'text', text: '' }];
+  mod.setAnns(box);
+  mod.styleNoteGenerated('e1', 'why', 'It absorbs thermal energy and changes state.');
+  box[0].text = 'It gains heat and melts.';
+  mod.styleCollectEdits(box, 'docE', {});
+  const st1 = mod.styleEnsure2();
+  ok('a correction counts', st1.editsLearned === 1);
+  box[0].text = 'It gains heat from the surroundings and melts.';
+  mod.styleCollectEdits(box, 'docE', {});
+  const st2 = mod.styleEnsure2();
+  ok('editing further counts again', st2.editsLearned === 2);
+  ok('though only one correction is kept', mod.getEdits().length === 1);
+  ok('THE COUNTER NEVER GOES DOWN — `edits` is capped and supersedes, so its length would',
+     st2.editsLearned >= mod.getEdits().length);
+}
 
 console.log('\nThe corrections reach the rebuild, and the prompt asks for a RULE');
 mod.setStyle({
@@ -859,6 +900,109 @@ console.log('\nBOTH save paths harvest, and both announce');
   const blind = filers.filter(n => /styleWorthLearning\s*\(\s*[^,)]+\)/.test(bodyOf[n] || ''));
   ok('nobody asks whether it is an answer without saying what it answers', blind.length === 0, blind.join(', '));
 }
+
+/* ================= A CORRECTION IS OBEYED ON THE VERY NEXT ANSWER ========
+   The reported fault, twice over: the corrections only reached a prompt as
+   distilled `fixes`, and a distil only fired after 25 new answers. So the
+   teacher rewrote an answer, pressed ✨ Answer again, and watched the app
+   make the identical mistake — with the panel cheerfully reporting the
+   correction as learned. It was learned. It was just not being USED. */
+console.log('\nA correction reaches the NEXT answer, with no rebuild in between');
+mod.setMeta({ level: 'P5', subject: 'science' });
+mod.setStyle({
+  samples: [], scores: [], learnedDocs: {}, keyed: 1,
+  profiles: {},                                   // NOTHING distilled yet
+  edits: [{ k: 'e1', q: 'Why does the ice melt?', wrote: 'It absorbs thermal energy.',
+            a: 'It gains heat from the surroundings and melts.', dist: 0.8, lvl: 'P5', sub: 'science' }]
+});
+{
+  const blk = mod.styleBlock('answer', 'Why does the ice melt in the sun?');
+  ok('WITH NO PROFILE AT ALL, the correction is still in the prompt', /gains heat from the surroundings/.test(blk));
+  ok('and so is what the app got wrong', /absorbs thermal energy/.test(blk));
+  ok('it is framed as what the teacher changed', /rewrote it as/.test(blk));
+  ok('it reaches aiGrounding, which is what the AI really sees',
+     /gains heat from the surroundings/.test(mod.aiGrounding('answer', { q: 'Why does the ice melt in the sun?' })));
+  ok('MARKING NEVER SEES IT — a correction is an answer', !/gains heat from the surroundings/.test(mod.styleBlock('mark')));
+}
+
+console.log('\nThe corrections served are the ones that fit the question');
+mod.setStyle({
+  samples: [], scores: [], learnedDocs: {}, keyed: 1, profiles: {},
+  edits: [
+    { k: 'e1', q: 'How do you find the perimeter?', wrote: 'aa', a: 'ADD THE SIDES', dist: 0.9, lvl: 'P5', sub: 'science' },
+    { k: 'e2', q: 'Why does the ice melt?', wrote: 'bb', a: 'IT GAINS HEAT', dist: 0.9, lvl: 'P5', sub: 'science' },
+    { k: 'e3', q: 'Why does condensation form?', wrote: 'cc', a: 'VAPOUR COOLS', dist: 0.9, lvl: 'P5', sub: 'science' }
+  ]
+});
+{
+  const near = mod.styleRecentEdits('Why does the ice melt in the sun?', 'P5', 'science');
+  ok('the closest correction leads', near[0].a === 'IT GAINS HEAT');
+  ok('an unrelated one does not', near[0].a !== 'ADD THE SIDES');
+  const none = mod.styleRecentEdits('zzzz qqqq wwww', 'P5', 'science');
+  ok('a question that matches nothing still gets the NEWEST corrections', none.length > 0);
+  ok('newest first — the one they just made is the one they are watching for', none[0].a === 'VAPOUR COOLS');
+  ok('never more than the cap', mod.styleRecentEdits('', 'P5', 'science').length <= mod.STYLE_PAIRS_MAX);
+  ok('no corrections at all is no corrections',
+     (mod.setStyle({ samples: [], edits: [], scores: [], profiles: {}, learnedDocs: {}, keyed: 1 }),
+      mod.styleRecentEdits('anything', 'P5', 'science').length === 0));
+}
+
+console.log("\nA correction from another subject is not served over this one's");
+mod.setStyle({
+  samples: [], scores: [], learnedDocs: {}, keyed: 1, profiles: {},
+  edits: [
+    { k: 'm1', q: 'perimeter', wrote: 'aa', a: 'MATHS CORRECTION', dist: 0.9, lvl: 'P3', sub: 'math' },
+    { k: 's1', q: 'heat', wrote: 'bb', a: 'SCIENCE CORRECTION', dist: 0.9, lvl: 'P5', sub: 'science' }
+  ]
+});
+ok('this bucket wins', mod.styleRecentEdits('', 'P5', 'science')[0].a === 'SCIENCE CORRECTION');
+ok('and the other bucket gets its own', mod.styleRecentEdits('', 'P3', 'math')[0].a === 'MATHS CORRECTION');
+ok('a bucket with none of its own falls back rather than serving nothing',
+   mod.styleRecentEdits('', 'P6', 'science').length > 0);
+
+console.log('\nThe raw corrections and the distilled rules are BOTH served');
+mod.setStyle({
+  samples: [], scores: [], learnedDocs: {}, keyed: 1,
+  profiles: { _global: { styleRules: 'R', keywords: [], exemplars: [], fixes: ['A DISTILLED RULE'] } },
+  edits: [{ k: 'e1', q: 'q', wrote: 'aa', a: 'A RAW CORRECTION', dist: 0.9, lvl: 'P5', sub: 'science' }]
+});
+mod.setMeta({ level: 'P5', subject: 'science' });
+{
+  const blk = mod.styleBlock('answer', 'q');
+  ok('the long-term rule is there', /A DISTILLED RULE/.test(blk));
+  ok('and so is the correction made a moment ago', /A RAW CORRECTION/.test(blk));
+  ok('the raw one comes LAST, nearest the question',
+     blk.indexOf('A RAW CORRECTION') > blk.indexOf('A DISTILLED RULE'));
+}
+
+console.log('\nAnd a profile with nothing in it still renders nothing');
+ok('no profile, no exemplars, no corrections is silence', mod._styleProfileBits(null, 'answer').length === 0);
+ok('…but a null profile WITH corrections is not',
+   mod._styleProfileBits(null, 'answer', [], [], [{ q: 'q', wrote: 'a', a: 'b' }]).length === 1);
+
+console.log('\nThe panel tells LIVE apart from WAITING');
+mod.setStyle({
+  samples: [{ k: 's1', a: 'An answer here.', lvl: 'P5', sub: 'science' }],
+  edits: [{ k: 'e1', q: 'q', wrote: 'a', a: 'b', dist: 0.9, lvl: 'P5', sub: 'science' }],
+  scores: [], learnedDocs: {}, keyed: 1, profiles: {}, learned: 1, profileLearned: 0
+});
+mod.setMeta({ level: 'P5', subject: 'science' });
+{
+  const live = mod.notesLiveNowHtml();
+  ok('it says the correction is already being followed', /being followed on the very next answer/.test(live));
+  ok('and that the description is still to come', /worked out after/.test(live));
+  ok('nothing learned at all says nothing',
+     (mod.setStyle({ samples: [], edits: [], scores: [], profiles: {}, learnedDocs: {}, keyed: 1 }),
+      mod.notesLiveNowHtml() === ''));
+}
+mod.setStyle({
+  samples: [{ k: 's1', a: 'x', lvl: 'P5', sub: 'science' }], edits: [], scores: [],
+  learnedDocs: {}, keyed: 1, learned: 10, profileLearned: 10, editsLearned: 0, profileEdits: 0,
+  profiles: { _global: { styleRules: 'R', keywords: [], exemplars: [], fixes: [] } }
+});
+ok('with a profile it says how far off the refresh is', /refreshes after/.test(mod.notesLiveNowHtml()));
+ok('and names both ways to trigger it', /more correction/.test(mod.notesLiveNowHtml()));
+ok('and the manual button', /Rebuild my style now/.test(mod.notesLiveNowHtml()));
 
 console.log(fails ? '\n' + fails + ' FAILED\n' : '\nAll good.\n');
 process.exit(fails ? 1 : 0);
