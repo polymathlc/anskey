@@ -4234,7 +4234,7 @@
         <label class="engineOpt">
           <input type="radio" name="aiEngineChoice" value="gemini">
           <span>
-            <strong>Gemini 3.7 Flash</strong>
+            <strong>Gemini 3.8 Flash</strong>
             <span class="engineOptNote">Firebase AI Logic · no key needed · the fallback</span>
           </span>
         </label>
@@ -4601,7 +4601,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.85.0';
+var APP_VERSION = 'v1.86.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -13994,7 +13994,7 @@ var AI_NOTE_QUALITY = [
   {
     key: 'standard', name: 'Standard', what: 'Balanced — good for most cards.',
     // 'medium' is Gemini's own default, and it is what keeps this a real step
-    // above Quick: 3.7 Flash dropped "minimal", so both tiers would otherwise
+    // above Quick: 3.8 Flash dropped "minimal", so both tiers would otherwise
     // sit on 'low' and the picker would offer a choice that changed nothing.
     effort: 'medium', think: 'medium', imageQuality: 'medium',
     tokens: { widget: 12000, text: 1600, svg: 4000 },
@@ -25942,10 +25942,11 @@ const firebaseConfig = {
 const RECAPTCHA_SITE_KEY = "6Le98gwtAAAAAAzkjJTZXFM5D8tpjx_P4rtRuhuH";
 
 // Model used app-wide
-const AI_MODEL = "gemini-3.7-flash";
+const AI_MODEL = "gemini-3.8-flash";
 // The FLOOR of the thinking scale, and the level every ordinary call asks for.
-// Gemini 3.7 Flash dropped the "minimal" level 3.6 accepted — sending it now
-// comes back 400 INVALID_ARGUMENT, so every AI feature in the app would fail.
+// Gemini 3.8 Flash keeps 3.7's scale: it still rejects the "minimal" level 3.6
+// accepted — sending it comes back 400 INVALID_ARGUMENT, so every AI feature
+// in the app would fail.
 // The scale is low / medium / high (medium is the model's own default); "low"
 // is the nearest thing to the old "minimal". Change the model, change this.
 const AI_THINK_MIN = "low";
