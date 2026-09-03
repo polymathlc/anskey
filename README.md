@@ -3,6 +3,36 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 🧠 It learns how *you* answer — and now from what you CHANGE (v1.83.0)
+
+The AI has always learned from the answers on your worksheets. It was not learning them very
+well, and this fixes it in four ways.
+
+**It now learns from your corrections.** Press ✨ Answer, rewrite what comes back, and the app
+notices exactly what you changed — the sharpest thing it can possibly know about how you write.
+Those corrections become rules it follows on every answer afterwards, and you can read them in
+the 🧠 panel under **From your edits**.
+
+**Your revisions are no longer thrown away.** A real bug: an answer was learned the first time
+you saved it, and every time you went back and improved the wording, that improvement was
+silently discarded. The app kept your first draft for ever. It now keeps the version you settled
+on, and a text box you delete stops being learned from.
+
+**One style per level and subject.** Your P3 Maths and your Sec 1 Science were being averaged
+into a single description, which sounds like neither. Each now has its own, and the panel shows
+which one the worksheet on screen is being answered with — and says so plainly when a subject
+does not have enough answers yet to have one of its own.
+
+**A rebuild can only make it better.** When the app works out your style afresh it now checks the
+new reading against answers it was never shown, and against the description it already had. If
+the new one is not closer to how you really answer, it is thrown away and the old one stands.
+
+**And it tells you whether any of it is working.** The panel shows how much of what the AI writes
+you keep as written, and whether that is going up. That is the honest answer to "is it learning
+me or not", and there was no way to ask it before.
+
+Nothing to switch on. Your existing learned answers are carried over.
+
 ## 📚 Learning as you go — the notebook writes itself (v1.82.0)
 
 Write on a page, move on from it, and **that page teaches the app**: it is photographed exactly as
