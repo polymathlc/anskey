@@ -3,6 +3,28 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 💾 It saves what it learns as you go — and says so (v1.84.0)
+
+**The learning was hardly ever running.** It hung off the manual **Save** button — the one that
+opens the dialog asking for the level and the subject — which you press once when you create a
+worksheet and never again. Auto-save does everything after that, and auto-save was not learning
+anything. So every answer you typed after the first save, and every correction you made to an
+answer the app wrote, was quietly dropped. That is fixed: **auto-save now learns exactly what the
+Save button learns**, every four seconds, as you work.
+
+**And the button tells you.** It used to say `✓ Saved` and nothing else, so there was no way to
+tell learning from silence. It now reads **`✓ Saved · 🧠 2 answers + 1 correction learned`**, with
+the detail on hover — and it only says so once the notes have really reached the cloud. A write
+that failed is never announced.
+
+**Short answers count again.** "24 g" and "$140.20" were being thrown away for being too short to
+carry a style. That was the wrong call on a maths worksheet: when the app knows what question the
+box answers, the answer is an answer whatever its length — and *"this teacher answers with the
+bare number, no sentence"* is exactly the kind of thing it should be learning.
+
+**Nothing is learned from a child's work.** In practice mode the page holds a student's attempt,
+and the harvest now refuses it outright — on the manual Save button as well as the automatic one.
+
 ## 🧠 It learns how *you* answer — and now from what you CHANGE (v1.83.0)
 
 The AI has always learned from the answers on your worksheets. It was not learning them very

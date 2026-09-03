@@ -4601,7 +4601,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.83.0';
+var APP_VERSION = 'v1.84.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -5130,6 +5130,9 @@ function setDirty(v) {
   b.classList.remove('btnSaved');
   var label = b.querySelector('.btnLabel');
   if (label) label.textContent = 'Save';
+  /* The label carries what was learned last time; the tooltip carries the
+     detail. Both belong to a save that is no longer current. */
+  b.title = 'Save PDF + annotations to the cloud';
   if (typeof updateKwPanel === 'function') updateKwPanel();
   if (v && typeof scheduleAutoSave === 'function') scheduleAutoSave();
   // Mirror every change into the local draft failsafe as well.
@@ -11728,22 +11731,42 @@ function styleBucketLabel(bucket) {
   return [l, b].filter(Boolean).join(' ') || bucket;
 }
 
+/* ---- WHOSE ANSWERS ARE THESE? ----
+   The ONE gate on everything that writes to the corpus, and it says the same
+   thing `autoLearnAllowed` says: in PRACTICE MODE `annotations` holds a
+   CHILD'S attempt, and learning a student's answer as the teacher's own is the
+   worst thing this loop could do — nothing on any screen would say it had
+   happened. `canAutoSave` already refuses practice mode, but the manual Save
+   button does not, so the gate belongs here rather than at the call sites. */
+function styleHarvestAllowed() {
+  if (!isAdmin(currentUser) || actingStudent) return false;
+  if (typeof isSharedVisitor === 'function' && isSharedVisitor()) return false;
+  if (typeof practiceMode !== 'undefined' && practiceMode) return false;
+  return true;
+}
+
 /* ---- WHAT COUNTS AS AN ANSWER ----
    Every text box on the page used to be filed as "an answer this teacher
    wrote": headings, a label on a diagram, "see over", a mark, a note to a
    student. The corpus is what the whole style is derived from, so anything
-   that is not an answer is noise the model then describes as a habit. */
-function styleWorthLearning(text) {
+   that is not an answer is noise the model then describes as a habit.
+
+   BUT A BOX WITH A QUESTION ATTACHED IS AN ANSWER, WHATEVER ITS LENGTH. The
+   word floor is a guess about a bare text box and nothing more, and on a maths
+   worksheet it is the wrong guess: "24 g" and "$140.20" are the answer, and
+   "this teacher answers with the bare number and no sentence" is real style
+   information the floor was throwing away. When the app knows what question
+   the box answers — because ✨ Answer wrote it, or because the model read the
+   pair off the page — there is nothing left to guess about. */
+function styleWorthLearning(text, hasQuestion) {
   var t = String(text || '').trim();
-  if (t.length < 4) return false;
-  if (!/[a-z]/i.test(t)) return false;          // "12", "✓" — no wording to learn
+  if (t.length < 2) return false;
   if (/^(q\s*\d+|page\s*\d+|name|date|class)\b/i.test(t)) return false;
   if (STYLE_LABEL_RE.test(t)) return false;     // furniture, not an answer
-  /* Length, phrasing and structure are what a style is made of, and one word
-     carries none of them — so a one-word answer is excluded from the STYLE
-     corpus without any suggestion that it is a poor answer. */
-  if (t.split(/\s+/).filter(Boolean).length < STYLE_MIN_WORDS) return false;
-  return true;
+  if (hasQuestion) return true;                 // it answers something; that settles it
+  if (!/[a-z]/i.test(t)) return false;          // "12", "✓" — a bare box with no wording
+  if (t.length < 4) return false;
+  return t.split(/\s+/).filter(Boolean).length >= STYLE_MIN_WORDS;
 }
 
 /* ---- A SAMPLE'S KEY IS IDENTITY ⊕ CONTENT ----
@@ -11840,8 +11863,12 @@ function styleSave() {
     learnedDocs: st.learnedDocs || {},
     keyed: st.keyed || 0,
     updatedAt: st.updatedAt
-  }).catch(function (e) {
+  }).then(function () { return true; }).catch(function (e) {
+    /* Resolves FALSE rather than throwing: nothing in the app should stop
+       because the style corpus could not be written — but the Save button
+       must not announce that the notes went up when they did not. */
     console.warn('Could not save what was learned', e);
+    return false;
   });
 }
 
@@ -11854,7 +11881,7 @@ function styleSave() {
 function styleHarvestTyped(anns, docId, meta) {
   var out = [];
   (anns || []).forEach(function (a) {
-    if (!a || a.type !== 'text' || !styleWorthLearning(a.text)) return;
+    if (!a || a.type !== 'text' || !styleWorthLearning(a.text, !!a.aiQ)) return;
     out.push({
       k: styleSampleKey(docId, a.id, a.text),
       src: 'typed',
@@ -11941,6 +11968,13 @@ function styleCollectEdits(anns, docId, meta) {
     if (!gen || !gen.wrote) return;
     var kept = styleTrim(a.text || '', STYLE_EDIT_CHARS);
     if (!kept) return;
+    /* AUTO-SAVE FIRES EVERY FOUR SECONDS, so a comparison that has already
+       been made must cost nothing to make again. The distance is a word-level
+       Levenshtein and a session can hold twenty generations; without this the
+       app would grind through all of them on every tick, on a school iPad,
+       for an answer nobody has touched since. */
+    if (gen.seen === kept) return;
+    gen.seen = kept;
     var dist = _styleEditRatio(gen.wrote, kept);
     /* THE SLOT IS THE GENERATION; THE KEY IS THE GENERATION ⊕ WHAT WAS KEPT.
        Keying on the generation alone is the very fault this release fixes in
@@ -12010,23 +12044,84 @@ function styleEditRules(lvl, sub) {
   return f.map(function (x) { return styleTrim(x, 180); }).filter(Boolean).slice(0, 6);
 }
 
-/* Called after every save. Silent: the teacher asked to save a worksheet,
-   not to be told the AI read it. When enough new answers have piled up the
-   style profile quietly rebuilds itself, which is the "gets better over
-   time" part. */
+/* ================= THE HARVEST RUNS ON EVERY SAVE, INCLUDING THE AUTO ONE ==
+   It used to hang off `performSave` alone — the manual Save button, which
+   opens a dialog asking for the level, the subject and the name. In practice
+   that is pressed ONCE when a worksheet is created and never again: auto-save
+   handles the rest, every four seconds. So every answer typed after the first
+   save, and every correction made to an answer this app wrote, was never
+   learned at all — and nothing on any screen said so, which is exactly "I
+   don't see them saving any more". `autoSave` calls this too now.
+
+   Returns a summary, or null when nothing was learned, so the Save button can
+   say the notes really went up — and `done` resolves only once Firestore has
+   taken them, because announcing an upload that failed is worse than saying
+   nothing. */
 function styleHarvestOnSave() {
-  if (!isAdmin(currentUser) || actingStudent) return;
+  if (!styleHarvestAllowed()) return null;
   var meta = { level: wsMeta.level, subject: wsMeta.subject, name: docName };
   var got = styleCollectEdits(annotations, currentDocId, meta);
   var gone = stylePruneDoc(currentDocId, annotations);
   var added = styleAddSamples(styleHarvestTyped(annotations, currentDocId, meta));
-  if (!added && !gone && !got.edits && !got.scored) return;
-  styleSave().then(function () {
-    var st = styleEnsure();
-    if (styleDistilDue(st)) {
-      styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
-    }
-  });
+  if (!added && !gone && !got.edits && !got.scored) return null;
+  return {
+    samples: added,
+    edits: got.edits,
+    scored: got.scored,
+    pruned: gone,
+    done: styleSave().then(function (ok) {
+      if (ok && styleDistilDue(styleEnsure())) {
+        styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
+      }
+      if (ok && typeof renderNotesBody === 'function') renderNotesBody();
+      return ok;
+    })
+  };
+}
+
+/* ---- SAYING SO ON THE SAVE BUTTON ----
+   A costly, invisible thing happening by itself is a thing nobody trusts. The
+   button already says "✓ Saved" for the worksheet; it says what went into the
+   notebook with it, so the teacher can see the learning is real rather than
+   having to open the 🧠 panel and compare counters.
+
+   ONE announcer for both save paths — the manual button and the auto-save had
+   already drifted once over whether the harvest ran at all. */
+function styleSavedLabel(sum) {
+  if (!sum) return '';
+  var bits = [];
+  if (sum.samples) bits.push(sum.samples + ' answer' + (sum.samples === 1 ? '' : 's'));
+  if (sum.edits) bits.push(sum.edits + ' correction' + (sum.edits === 1 ? '' : 's'));
+  if (!bits.length && sum.scored) bits.push(sum.scored + ' checked');
+  if (!bits.length && sum.pruned) return '🧠 notes tidied';
+  if (!bits.length) return '';
+  return '🧠 ' + bits.join(' + ') + ' learned';
+}
+function styleSavedTitle(sum) {
+  if (!sum) return '';
+  var bits = [];
+  if (sum.samples) bits.push(sum.samples + ' of your own answer' + (sum.samples === 1 ? '' : 's') + ' added to your answer-key notes');
+  if (sum.edits) bits.push(sum.edits + ' correction' + (sum.edits === 1 ? '' : 's') + ' you made to what the AI wrote');
+  if (sum.scored) bits.push(sum.scored + ' AI answer' + (sum.scored === 1 ? '' : 's') + ' checked against what you kept');
+  if (sum.pruned) bits.push(sum.pruned + ' deleted box' + (sum.pruned === 1 ? '' : 'es') + ' dropped');
+  return bits.length ? 'Uploaded to your answer-key notes: ' + bits.join('; ') + '.' : '';
+}
+/* Announced only once Firestore has really taken it, and only while the
+   button still says Saved — the teacher may have typed again while the write
+   was in flight, and "notes uploaded" over a worksheet with unsaved changes
+   is the button telling two different stories at once. */
+function styleAnnounceSaved(sum) {
+  if (!sum || !sum.done) return;
+  sum.done.then(function (ok) {
+    if (!ok) return;
+    var text = styleSavedLabel(sum);
+    if (!text) return;
+    var btn = typeof $ === 'function' && $('saveBtn');
+    if (!btn || dirty || !btn.classList.contains('btnSaved')) return;
+    var label = btn.querySelector('.btnLabel');
+    if (label) label.textContent = '✓ Saved · ' + text;
+    btn.title = styleSavedTitle(sum);
+  }).catch(function () {});
 }
 /* New answers since the last rebuild, OR a fortnight since it — a teacher who
    works in bursts should not have a profile that never refreshes between them,
@@ -12103,7 +12198,7 @@ async function styleLearnOpenWorksheet() {
         var pairs = (res && Array.isArray(res.pairs)) ? res.pairs : [];
         var batch = [];
         pairs.forEach(function (pair, n) {
-          if (!pair || !styleWorthLearning(pair.a)) return;
+          if (!pair || !styleWorthLearning(pair.a, !!(pair && pair.q))) return;
           batch.push({
             k: (currentDocId || 'local') + ':p' + p.num + ':' + n + ':' + _styleHash32(styleTrim(pair.a, 240).toLowerCase()),
             src: 'read',
@@ -13344,7 +13439,7 @@ async function autoLearnRunJob(job) {
      writes, so a page learned both ways is never learned twice. */
   var batch = [];
   (Array.isArray(got.pairs) ? got.pairs : []).forEach(function (pair, n) {
-    if (!pair || !styleWorthLearning(pair.a)) return;
+    if (!pair || !styleWorthLearning(pair.a, !!(pair && pair.q))) return;
     /* The SAME key rule and the SAME refresh trigger the harvests use. This
        path built its own by hand, which is how one route goes on filing first
        drafts after the other has been fixed — the fault is invisible from
@@ -21903,12 +21998,15 @@ async function performSave() {
     // The annotations go wherever they fit — see writeAnnotations.
     await writeAnnotations(currentDocId, JSON.stringify(annotations), payload);
     rememberStarPages(currentDocId, starredPages());
-    styleHarvestOnSave();   // every answer typed onto this worksheet teaches the AI your style
+    // Every answer typed onto this worksheet teaches the AI your style — and
+    // the button says what went up with it. Auto-save runs the identical pair.
+    var styleSum = styleHarvestOnSave();
     startLivePresence(); // now it exists, it can advertise that it is live
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
     btn.classList.add('btnSaved');
     if (label) label.textContent = '✓ Saved';
+    styleAnnounceSaved(styleSum);
     toast((isNew
       ? 'Saved “' + docName + '” — auto-save is now on for this worksheet.'
       : 'Saved “' + docName + '” to the cloud.') +
@@ -21967,6 +22065,12 @@ async function autoSave() {
     btn.classList.add('btnSaved');
     var label = btn.querySelector('.btnLabel');
     if (label) label.textContent = '✓ Saved';
+    /* AFTER the annotations are safely written, never before: what is learned
+       is what really got saved. This is the hook that was missing — the manual
+       Save dialog is pressed once per worksheet and auto-save does everything
+       after it, so hanging the harvest off the dialog alone meant almost
+       nothing was ever learned. */
+    styleAnnounceSaved(styleHarvestOnSave());
   } catch (e) {
     console.error('Auto-save failed', e);
     if (isSharedVisitor() && e && e.code === 'permission-denied') {
