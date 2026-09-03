@@ -152,6 +152,144 @@ silent faults, and none of them threw.
 - Run **`node tools/notes-tests.mjs`** after touching any of it.
 
 
+## 🧠 The style profile — learning from the EDITS, and per context (v1.83.0)
+
+`styleSampleKey` / `styleSlotOf` / `styleUpsert` / `styleDropSlot` /
+`stylePruneDoc` / `styleWorthLearning` / `styleNoteGenerated` / `styleGen` /
+`styleCollectEdits` / `_styleEditRatio` / `_styleWords` / `styleFitReport` /
+`styleEditRules` / `styleEditsFor` / `styleBucketKey` / `styleProfilePick` /
+`styleExemplarsFor` / `_styleProfileBits` / `styleProposeProfile` /
+`styleGenUnder` / `styleRefineProfile` / `styleCleanProfile` / `styleGapOf` /
+`styleDistil` / `styleDistilAll` / `styleDistilDue` / `notesFitHtml` /
+`notesBucketsHtml` (search `THE STYLE CORPUS` and `LEARNING FROM THE
+TEACHER'S OWN EDITS`).
+
+*"The auto-learning is not learning my answering style."* It was not, and there
+were two outright bugs and four design faults behind it. Every one of them is
+silent: the app saves, the profile rebuilds, the panel fills in, and the answers
+quietly go on sounding like nobody.
+
+### 🐛 A REVISED ANSWER WAS NEVER LEARNED — the bug
+
+A sample's key was `docId:annId`, and `styleAddSamples` **skipped a key it
+already had**. So the first version of an answer was learned and every revision
+after it was thrown away for ever. A teacher's revisions are exactly where their
+style is asserted, so the corpus was keeping the weakest version of every answer
+they had ever written.
+
+- **A KEY IS NOW IDENTITY ⊕ CONTENT, and `styleUpsert` SUPERSEDES rather than
+  skipping.** The identity half is the SLOT: a new wording of the same box is a
+  new key in the same slot, which replaces the old one instead of being dropped
+  or sitting beside it. Byte-for-byte the same still costs nothing.
+- **THE SAME FAULT WAS IN THE EDIT CORPUS, by the other door.** An edit was
+  keyed on what the MODEL wrote, so a teacher who edited, saved, and edited
+  again had the halfway version kept for ever. The slot is the generation; the
+  key is the generation ⊕ what was kept.
+- **A LEGACY CORPUS IS RE-KEYED ONCE** (`styleEnsure`'s `keyed` flag), from the
+  text it already holds — or every old sample would get a second copy filed
+  beside it on the next save.
+- **A deleted text box is swept** (`stylePruneDoc`). It stayed in the corpus for
+  ever. Only `src: 'typed'` samples are swept: a sample read off the page is
+  keyed by page and position, not by an annotation, and would be pruned every
+  single time.
+
+### 🐛 EVERY TEXT BOX WAS AN "ANSWER"
+
+`styleWorthLearning` rejected almost nothing, so headings, labels, "see over", a
+mark and a note to a student were all filed as *how this teacher answers* — and
+the model then described them as habits. It now needs `STYLE_MIN_WORDS` and
+refuses `STYLE_LABEL_RE`. **A one-word answer is excluded and that is not a
+judgement on it**: length, phrasing and structure are what a style is made of,
+and one word carries none of them.
+
+### THE EDITS ARE THE SHARPEST SIGNAL, AND WERE THROWN AWAY
+
+When ✨ Answer writes into a box the app knows the question AND exactly what the
+model produced. What the teacher leaves in that box at save time is what they
+actually accept, and the difference is a direct statement of what the AI gets
+wrong about them. This is what the research on learning from user edits
+(PRELUDE/CIPHER, NeurIPS 2024) turns into a preference description, and what a
+corpus of finished answers alone can never say.
+
+- **The pending generation lives in `styleGen`, a plain map keyed by annotation
+  id — NEVER on the annotation.** `annotations` is saved into a collection the
+  `cer` app shares, and an unsaved page reloaded is an edit nobody could
+  attribute anyway.
+- **`styleHarvestOnSave` is the ONE hook.** Every editing path funnels through
+  the save, so hooking the save covers a path added later; hooking
+  `commitActiveTextEdit` would not.
+- **AN ANSWER ACCEPTED UNCHANGED IS A SIGNAL TOO.** Every generation is SCORED,
+  edited or not — that is what makes the fit metric honest. Only a real rewrite
+  becomes an edit the distil reads.
+- **`_styleEditRatio` is word-level, and punctuation at a word's edge is not a
+  rewrite.** Dropping the full stop off a seven-word answer is one word in seven
+  — 14%, well over `STYLE_EDIT_TRIVIAL` — so without `_styleWords` a teacher
+  tidying punctuation is recorded as having rewritten the answer, and the distil
+  is handed a "correction" with no lesson in it.
+- **AN EDIT UNDONE IS WITHDRAWN** (`styleDropSlot`). Edited back to what the app
+  wrote, the correction recorded a moment ago is no longer one, and leaving it
+  would teach a lesson the teacher has just taken back.
+- **The edits reach the prompt as RULES, never raw.** A hundred before/after
+  pairs would not fit, and a rule is what the next answer can obey — so the
+  distil turns them into `profile.fixes` and `styleEditRules` serves those.
+  **Marking never sees them: they are answers.**
+
+### ONE PROFILE PER CONTEXT
+
+P3 Maths and Sec 1 Science were averaged into one paragraph, which by
+construction sounds like nobody — and `styleBlock` never looked at what
+worksheet was open. Each `(level × subject)` bucket now has its own profile.
+
+- **`styleProfilePick` is the ONE place the choice is made**, so the prompt, the
+  panel and the rebuild can never disagree about which profile is in force.
+- **A bucket under `STYLE_BUCKET_MIN` falls back to `_global` and SAYS SO.** A
+  thin bucket teaches the model noise, and a teacher who cannot see that their
+  Sec 1 Science has four answers in it just hears "it sounds generic".
+- **`profile` is still written as a mirror of `_global`**, so a build rolled back
+  to before the buckets existed finds a profile where it expects one.
+
+### THE EXEMPLARS ARE RETRIEVED FOR THE QUESTION
+
+Six frozen exemplars went to every call. `styleExemplarsFor` picks the closest by
+token overlap, within the bucket first. `aiGrounding(kind, opts)` takes
+`opts.q` — **omitting it is the old behaviour byte for byte**, so every existing
+call site is unaffected. `STYLE_EX_MAX` stays 6 because style imitation plateaus
+at four or five demonstrations; past that they cost tokens and teach nothing.
+
+### PROPOSE → REFINE → VERIFY
+
+A single "describe how this teacher writes" call produces a generic description
+— which is the failure this was all reported for, and precisely what PROSE
+(ICML 2025) exists to fix. The draft is now generated under, measured against
+answers the distil never saw, and rewritten to close the gap.
+
+- **A REBUILD CAN ONLY EVER IMPROVE THE PROFILE.** The new draft is scored
+  against the one already in force on the held-out answers, and when it is not
+  closer the old one STANDS and the panel says so. The old code replaced the
+  profile with whatever came back.
+- **The held-out samples must carry a QUESTION** — an answer with no question
+  cannot be regenerated, so it cannot be used to check a description. With too
+  few it degrades to the plain proposal rather than refusing, which is the
+  ordinary case on a corpus of typed answers.
+- **`_styleProfileBits` is the ONE renderer**, shared by the grounding block and
+  the verification generator: the description being TESTED has to be the text
+  the app really ships, or the check is of something else.
+- **`styleCleanProfile` is the ONE door into the store**, so a reply of the
+  wrong shape can never be written, and an empty one never replaces a real
+  profile.
+- Cost is ~6 model calls per rebuild, and `styleDistilDue` fires on 25 new
+  answers **or** a fortnight of silence with something new — a teacher who works
+  in bursts should not have a profile that never refreshes between them.
+
+### AND THE PANEL SAYS WHETHER IT IS WORKING
+
+`styleFitReport` / `notesFitHtml`: the mean edit distance over the last
+`STYLE_FIT_WINDOW` generations, against the window before it. The panel could
+say what the profile SAID and nothing about whether it DID anything, so
+"it isn't learning my style" was unfalsifiable from inside the app.
+
+- Run **`node tools/notes-tests.mjs`** after touching any of it.
+
 ## 📚 Learning as you go — the notebook writes itself (v1.82.0)
 
 `AUTO_*` / `autoLearn*` (search `LEARNING AS YOU GO`), the `autoLearnWatch()` call inside the
@@ -683,6 +821,32 @@ draw.
   just re-send the request that was refused), and `AI_NOTE_QUALITY`'s four steps have to stay four
   real steps — Quick and Standard both landing on `low` is a picker offering a choice that changes
   nothing. `polymathlc/cer` carries the same pair; keep the two in step.
+- After touching **the style corpus, the edits or the rebuild** (`styleSampleKey`,
+  `styleSlotOf`, `styleUpsert`, `styleDropSlot`, `stylePruneDoc`,
+  `styleWorthLearning`, `styleNoteGenerated`, `styleCollectEdits`,
+  `_styleEditRatio`, `_styleWords`, `styleFitReport`, `styleEditRules`,
+  `styleEditsFor`, `styleBucketKey`, `styleProfilePick`, `styleExemplarsFor`,
+  `_styleProfileBits`, `styleProposeProfile`, `styleGenUnder`,
+  `styleRefineProfile`, `styleCleanProfile`, `styleGapOf`, `styleDistil`,
+  `styleDistilAll`, `styleDistilDue`, or `aiGrounding`'s `opts.q`), run
+  `node tools/notes-tests.mjs`. Every failure here is silent and the app goes on
+  answering fluently. Key a sample on identity alone again — anywhere, including
+  a path added next month — and the corpus keeps first drafts for ever and
+  throws away every correction, which is the bug this release exists for, and it
+  looks from the inside exactly like a feature that works. Skip the supersede
+  and a revision is filed BESIDE the draft, so the model learns the teacher
+  writes both ways. Forget the legacy re-key and every old sample gets a second
+  copy. Let a heading, a label or a one-word answer back into the corpus and the
+  model describes furniture as a habit. Let a full stop count as a rewrite and
+  every tidy-up is filed as a correction with no lesson in it; let an edit the
+  teacher undid stand and it teaches a lesson they took back. Hand the
+  exemplars, the retrieved answers or the corrections to MARKING and the marker
+  has been given the answer. Serve one profile for every level and subject and
+  it is the average of everything, which sounds like nobody — and let a
+  four-answer bucket serve its own profile and it is noise. Drop the verify step
+  and a rebuild can quietly make the profile worse, which nothing on any screen
+  would show; render the profile a second way in the verifier and the thing
+  being checked is not the thing being shipped.
 - After touching **the note budgets, the live notebook or the style counter**
   (`notesFairShare`, `notesJoinField`, `notesDedupe`, `notesTrimTo`,
   `notesLedger*`, `NOTES_GUIDE_CHARS` and the other pots, `loadTeachingNotes`,

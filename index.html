@@ -1847,6 +1847,32 @@
     font-size: 0.86rem;
     line-height: 1.6;
   }
+  /* ---- Is it working? ----
+     The panel could say what the profile SAYS and never whether it DOES
+     anything. This band is the mean edit distance between what the AI wrote
+     and what the teacher kept, over the last generations — the one honest
+     answer to "it isn't learning my style". */
+  .tnFit {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
+    background: #FAFAF8;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    margin: 18px 0 4px;
+  }
+  .tnFitNum { flex: none; text-align: center; min-width: 92px; }
+  .tnFitNum b { display: block; font-size: 1.6rem; line-height: 1.15; }
+  .tnFitNum span { font-size: 0.72rem; color: var(--ink-faint); }
+  .tnFitSay { flex: 1 1 240px; font-size: 0.83rem; line-height: 1.6; color: var(--ink-soft); }
+  .tnFitUp { color: #2f7d3f; font-weight: bold; }
+  .tnFitDown { color: #a4442c; font-weight: bold; }
+  .tnBuckets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .tnBucket {
+    font-size: 0.75rem; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--line); background: #FAFAF8; color: var(--ink-soft);
+  }
+  .tnBucketOn { background: var(--accent); border-color: var(--accent-strong); color: var(--ink); font-weight: bold; }
+  .tnBucketThin { opacity: 0.65; }
   .tnEmpty {
     text-align: center;
     color: var(--ink-faint);
@@ -4575,7 +4601,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.82.0';
+var APP_VERSION = 'v1.83.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -11187,6 +11213,9 @@ var NOTES_FIELD_MIN_EACH = 120;   // per-note floor for standards / key facts
 var NOTES_HARD_CHARS = 12000;     // the ONLY ceiling a note can be lost to
 var NOTES_TRIM_MARK = '\u2026[trimmed]';
 var STYLE_RULE_CHARS = 800;
+/* Four to five demonstrations is where style imitation plateaus — past that
+   the exemplars cost tokens and teach nothing more. Six leaves a little room
+   for a weak match. */
 var STYLE_EX_MAX = 6;
 /* The corpus itself. One Firestore document holds the lot, and a document
    dies at ~1 MB — so a sample is trimmed and the oldest fall off the end. */
@@ -11195,8 +11224,48 @@ var STYLE_SAMPLE_CHARS = 420;
 var STYLE_Q_CHARS = 220;
 var STYLE_DISTIL_SAMPLES = 140;   // sent to the model when the profile is rebuilt
 var STYLE_DISTIL_MIN = 6;         // fewer than this teaches nothing
-var STYLE_DISTIL_EVERY = 25;      // new samples before the profile refreshes itself
+var STYLE_DISTIL_EVERY = 25;      // new answers before the profile refreshes itself
 var STYLE_LEARN_PAGES_MAX = 24;   // vision pages read in one "learn from this worksheet"
+
+/* ---- WHAT COUNTS AS AN ANSWER ----
+   A text box is not automatically an answer. Headings, labels on a diagram,
+   "see over", a mark, a note to a student and half a working line are all
+   text boxes, and hoovering them up is what filled the corpus with things
+   that teach nothing about how this teacher ANSWERS. A one-word answer is
+   excluded for the same reason and not because it is wrong: length, phrasing
+   and structure are what a style is made of, and a single word carries none
+   of them. */
+var STYLE_MIN_WORDS = 3;
+var STYLE_LABEL_RE = /^(?:ans(?:wer)?\s*[:.]?\s*$|see\s+(?:over|below|above|diagram|fig)|diagram\s*\d|fig(?:ure)?\s*\d|part\s*\(?[a-h]\)?$|working?s?\s*[:.]?$|\d+\s*(?:m(?:arks?)?|\/\s*\d+)\s*$|total\s*[:.]|marks?\s*[:.]?\s*\d)/i;
+
+/* ---- ONE PROFILE PER CONTEXT ----
+   P3 Maths and Sec 1 Science are not one voice, and averaging them produces a
+   description that fits nobody — which is what "it sounds generic" is. Each
+   (level × subject) bucket gets its own profile, and a bucket thinner than
+   this falls back to the global one rather than teaching the model noise. */
+var STYLE_BUCKET_MIN = 30;
+var STYLE_BUCKETS_MAX = 4;        // rebuilt in one press of 🧠 Rebuild my style
+
+/* ---- LEARNING FROM THE EDITS ----
+   The gap between what the AI wrote and what the teacher kept is a direct
+   statement of what the AI gets wrong about them, and it was being thrown
+   away. Below TRIVIAL an "edit" is a typo or a stray space, not a preference. */
+var STYLE_EDITS_MAX = 120;
+var STYLE_EDIT_CHARS = 420;
+var STYLE_EDIT_TRIVIAL = 0.04;
+var STYLE_EDIT_WORDS_MAX = 200;   // the distance is word-level; cap the work
+var STYLE_SCORES_MAX = 60;        // the last N generations, scored — the metric
+var STYLE_FIT_WINDOW = 20;        // …read as this window against the one before
+
+/* ---- REFINE, THEN VERIFY ----
+   A single pass at "describe how this teacher writes" produces a generic
+   description. Generating under the draft, measuring it against answers the
+   distil never saw, and rewriting the description to close the gap is what
+   makes it specific — and the verify step is what stops a rebuild ever making
+   the profile worse. */
+var STYLE_HOLDOUT = 8;            // samples kept back from every rebuild
+var STYLE_REFINE_ROUNDS = 2;
+var STYLE_GOOD_ENOUGH = 0.22;     // mean gap at which refining stops early
 
 function notesOwner() {
   if (isAdmin(currentUser)) return currentUser.uid;
@@ -11422,42 +11491,106 @@ function notesKeywordList(rel) {
   return out;
 }
 
-/* ---- The style profile, in prompt form ---- */
-function styleProfile() {
-  return (aiStyle && aiStyle.profile) || null;
+/* ---- The style profile, in prompt form ----
+
+   THE PROFILE SERVED IS THE ONE FOR THE WORKSHEET IN FRONT OF US. A single
+   global description averages P3 Maths with Sec 1 Science and comes out
+   sounding like neither, which is the commonest way this feature "stops
+   working" while every screen still looks right. `styleProfileFor` is the ONE
+   place the choice is made, so the prompt, the panel and the rebuild can
+   never disagree about which profile is in force. */
+function styleBucketKey(lvl, sub) {
+  var l = String(lvl || '').toLowerCase().trim();
+  var b = String(sub || '').toLowerCase().trim();
+  if (!l && !b) return '_global';
+  return (l || 'any') + ':' + (b || 'any');
 }
-function styleExemplars() {
-  var p = styleProfile();
+function styleBucketOfSample(s) {
+  return styleBucketKey(s && s.lvl, s && s.sub);
+}
+function styleSamplesIn(bucket) {
+  var all = styleSamples();
+  if (!bucket || bucket === '_global') return all;
+  return all.filter(function (s) { return styleBucketOfSample(s) === bucket; });
+}
+/* Which profile a worksheet gets, and WHY — the panel prints the reason, so a
+   teacher can see that their Sec 1 Science is running on the global fallback
+   rather than wondering why it sounds like their P3 Maths. */
+function styleProfilePick(lvl, sub) {
+  var st = aiStyle;
+  if (!st) return { profile: null, bucket: '_global', fell: false, n: 0 };
+  var ps = st.profiles || {};
+  var key = styleBucketKey(lvl, sub);
+  var n = key === '_global' ? styleSamples().length : styleSamplesIn(key).length;
+  if (key !== '_global' && ps[key] && n >= STYLE_BUCKET_MIN) {
+    return { profile: ps[key], bucket: key, fell: false, n: n };
+  }
+  var g = ps._global || st.profile || null;
+  return { profile: g, bucket: '_global', fell: key !== '_global', n: n };
+}
+function styleProfileFor(lvl, sub) {
+  return styleProfilePick(lvl, sub).profile;
+}
+/* Kept as the GLOBAL profile so a build rolled back to before the buckets
+   existed finds a profile where it expects one. */
+function styleProfile() {
+  var st = aiStyle;
+  if (!st) return null;
+  return (st.profiles && st.profiles._global) || st.profile || null;
+}
+/* The exemplars are RETRIEVED for the question being answered when there is
+   one, and fall back to the profile's own when there is not. A handful of real
+   answers to questions LIKE this one teaches more than the same six frozen
+   ones on every call — and matching on the bucket first keeps a Maths answer
+   out of a Science prompt. */
+function _styleTokens(s) {
+  var out = {};
+  String(s || '').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, ' ')
+    .split(' ').forEach(function (w) { if (w.length > 2) out[w] = 1; });
+  return out;
+}
+function _styleOverlap(a, b) {
+  var A = _styleTokens(a), B = _styleTokens(b), hit = 0, all = 0, k;
+  for (k in A) { all++; if (B[k]) hit++; }
+  for (k in B) if (!A[k]) all++;
+  return all ? hit / all : 0;
+}
+function styleExemplarsFor(q, lvl, sub) {
+  var bucket = styleBucketKey(lvl, sub);
+  var pool = styleSamples().filter(function (s) { return s && s.a && s.q; });
+  if (q) {
+    var inB = pool.filter(function (s) { return styleBucketOfSample(s) === bucket; });
+    var use = inB.length >= STYLE_EX_MAX ? inB : pool;
+    var scored = use.map(function (s) { return { s: s, v: _styleOverlap(q, s.q) }; })
+                    .filter(function (x) { return x.v > 0; })
+                    .sort(function (a, b) { return b.v - a.v; })
+                    .slice(0, STYLE_EX_MAX)
+                    .map(function (x) { return x.s; });
+    if (scored.length) return scored;
+  }
+  var p = styleProfileFor(lvl, sub);
   var ex = (p && Array.isArray(p.exemplars)) ? p.exemplars : [];
   return ex.filter(function (e) { return e && e.a; }).slice(0, STYLE_EX_MAX);
 }
-function styleBlock(kind) {
-  var p = styleProfile();
+function styleExemplars() {
+  return styleExemplarsFor('', wsMeta && wsMeta.level, wsMeta && wsMeta.subject);
+}
+function styleBlock(kind, q) {
+  var lvl = wsMeta && wsMeta.level, sub = wsMeta && wsMeta.subject;
+  var pick = styleProfilePick(lvl, sub);
+  var p = pick.profile;
   if (!p) return '';
-  var bits = [];
-  var rules = String(p.styleRules || '').trim().slice(0, STYLE_RULE_CHARS);
-  var phrasing = String(p.phrasing || '').trim().slice(0, 400);
-  var marking = String(p.markingStandards || '').trim().slice(0, 500);
-  if (rules) bits.push('How this teacher writes answers: ' + rules);
-  if (phrasing) bits.push('Phrasing: ' + phrasing);
-  if (kind === 'mark' && marking) bits.push('How this teacher marks: ' + marking);
-  var kw = (Array.isArray(p.keywords) ? p.keywords : []).slice(0, 24)
-             .map(function (s) { return String(s).trim(); }).filter(Boolean);
-  if (kw.length) bits.push('Words the teacher uses again and again: ' + kw.join(', ') + '.');
-  if (kind !== 'mark') {
-    var ex = styleExemplars();
-    if (ex.length) {
-      bits.push('Real answers this teacher has written on past worksheets — match their length, tone and level of detail:\n' +
-        ex.map(function (e) {
-          var q = String(e.q || '').trim().slice(0, STYLE_Q_CHARS);
-          return '• ' + (q ? q + ' → ' : '') + String(e.a).trim().slice(0, 260);
-        }).join('\n'));
-    }
-  }
+  /* ONE renderer, shared with the verification pass below — the description
+     being tested when a rebuild is checked has to be the same text the app
+     really ships, or the check is of something else. The exemplars are
+     RETRIEVED for this question and the corrections come from the profile in
+     force; marking sees neither (those are answers). */
+  var bits = _styleProfileBits(p, kind, styleExemplarsFor(q, lvl, sub), styleEditRules(lvl, sub));
   if (!bits.length) return '';
-  return "\n\nTHE TEACHER'S OWN STYLE (learned from " +
-    ((aiStyle && aiStyle.profileSamples) || styleSamples().length) +
-    ' answers they have written on their own worksheets):\n' + bits.join('\n');
+  var from = pick.bucket === '_global'
+    ? ((aiStyle && aiStyle.profileSamples) || styleSamples().length) + ' answers they have written on their own worksheets'
+    : pick.n + ' of their own ' + styleBucketLabel(pick.bucket) + ' answers';
+  return "\n\nTHE TEACHER'S OWN STYLE (learned from " + from + '):\n' + bits.join('\n');
 }
 
 /* ---- The notebook, in prompt form ----
@@ -11509,12 +11642,17 @@ function guidanceBlock() {
 
 /* Everything the AI should know about this teacher, appended to a system
    prompt. One call site per AI feature, so nothing can be grounded on the
-   notes in one place and not another. */
-function aiGrounding(kind) {
+   notes in one place and not another.
+
+   `opts.q` is the question being answered, when the caller has one. It is
+   used to RETRIEVE the exemplars rather than serving the same six every time;
+   omitting it is the old behaviour byte for byte, so every existing call site
+   is unaffected. */
+function aiGrounding(kind, opts) {
   notesLedgerReset();
   var guide = guidanceBlock();
   var notes = notesBlock(kind);
-  var style = styleBlock(kind);
+  var style = styleBlock(kind, opts && opts.q);
   if (!guide && !notes && !style) return '';
   var authority = kind === 'mark'
     ? "\n\nAUTHORITY ORDER: the teacher's model answer on the worksheet (when one is attached) always wins — never mark against it. Then the general guidance above. Use the notes and the style for the keywords, the phrasing and the standard expected; fall back to ordinary syllabus knowledge only where they say nothing."
@@ -11530,10 +11668,24 @@ function aiGrounding(kind) {
 function styleSamples() {
   return (aiStyle && Array.isArray(aiStyle.samples)) ? aiStyle.samples : [];
 }
+function styleEdits() {
+  return (aiStyle && Array.isArray(aiStyle.edits)) ? aiStyle.edits : [];
+}
+function styleScores() {
+  return (aiStyle && Array.isArray(aiStyle.scores)) ? aiStyle.scores : [];
+}
 function styleEnsure() {
   if (!aiStyle) aiStyle = { samples: [], profile: null, profileSamples: 0, learnedDocs: {} };
   if (!Array.isArray(aiStyle.samples)) aiStyle.samples = [];
+  if (!Array.isArray(aiStyle.edits)) aiStyle.edits = [];
+  if (!Array.isArray(aiStyle.scores)) aiStyle.scores = [];
   if (!aiStyle.learnedDocs) aiStyle.learnedDocs = {};
+  /* One profile per (level × subject) bucket, plus `_global`. Seeded from the
+     single profile a build before this wrote, so nothing is lost on upgrade —
+     and `profile` goes on being written as a mirror of `_global`, so a build
+     rolled BACK finds a profile where it expects one. */
+  if (!aiStyle.profiles || typeof aiStyle.profiles !== 'object') aiStyle.profiles = {};
+  if (!aiStyle.profiles._global && aiStyle.profile) aiStyle.profiles._global = aiStyle.profile;
   /* `learned` counts every answer ever learned and NEVER goes down. The
      refresh trigger used to compare `samples.length` against the count at the
      last distil — and `samples` is capped at STYLE_SAMPLE_MAX, so once the
@@ -11546,38 +11698,126 @@ function styleEnsure() {
   if (typeof aiStyle.profileLearned !== 'number') {
     aiStyle.profileLearned = aiStyle.profileSamples || 0;
   }
+  /* Everything learned before v1.83.0 was keyed by the annotation's identity
+     ALONE (`docId:annId`) — which is the bug itself: a revision produced the
+     same key and was skipped, so the corpus kept first drafts for ever. They
+     are re-keyed ONCE to identity ⊕ content, from the text they already hold,
+     so the very next save supersedes them instead of filing a second copy
+     beside them. A key that already has a content hash is unchanged, so this
+     costs nothing after the first load. */
+  if (!aiStyle.keyed) {
+    aiStyle.samples.forEach(function (s) {
+      if (!s || s.src) return;
+      var parts = String(s.k || '').split(':');
+      if (parts.length === 2) { s.src = 'typed'; s.k = styleSampleKey(parts[0], parts[1], s.a); }
+      else s.src = 'read';
+    });
+    aiStyle.keyed = 1;
+  }
   return aiStyle;
 }
 function styleTrim(s, cap) {
   s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
   return s.length > cap ? s.slice(0, cap) : s;
 }
-/* An answer worth learning from is a sentence, not a tick or a page number. */
+function styleBucketLabel(bucket) {
+  if (!bucket || bucket === '_global') return 'all';
+  var bits = String(bucket).split(':');
+  var l = bits[0] === 'any' ? '' : levelLabel(bits[0].toUpperCase());
+  var b = bits[1] === 'any' ? '' : subjectLabel(bits[1]);
+  return [l, b].filter(Boolean).join(' ') || bucket;
+}
+
+/* ---- WHAT COUNTS AS AN ANSWER ----
+   Every text box on the page used to be filed as "an answer this teacher
+   wrote": headings, a label on a diagram, "see over", a mark, a note to a
+   student. The corpus is what the whole style is derived from, so anything
+   that is not an answer is noise the model then describes as a habit. */
 function styleWorthLearning(text) {
   var t = String(text || '').trim();
   if (t.length < 4) return false;
   if (!/[a-z]/i.test(t)) return false;          // "12", "✓" — no wording to learn
   if (/^(q\s*\d+|page\s*\d+|name|date|class)\b/i.test(t)) return false;
+  if (STYLE_LABEL_RE.test(t)) return false;     // furniture, not an answer
+  /* Length, phrasing and structure are what a style is made of, and one word
+     carries none of them — so a one-word answer is excluded from the STYLE
+     corpus without any suggestion that it is a poor answer. */
+  if (t.split(/\s+/).filter(Boolean).length < STYLE_MIN_WORDS) return false;
   return true;
 }
-/* Merge new samples in, newest last, dropping anything already learned and
-   letting the oldest fall off the end when the corpus is full. */
+
+/* ---- A SAMPLE'S KEY IS IDENTITY ⊕ CONTENT ----
+   It used to be the annotation's id alone, and `styleAddSamples` skipped a key
+   it already had — so the FIRST version of an answer was learned and every
+   revision after it was thrown away. A teacher's revisions are exactly where
+   their style is asserted, so the corpus was keeping the weakest version of
+   every answer they had ever written and discarding the strongest signal in
+   the app. The content hash makes a revision a NEW key, and `styleUpsert`
+   makes it SUPERSEDE the old wording of the same box rather than sit beside
+   it. Re-saving an unchanged box still produces the same key and still costs
+   nothing. */
+function _styleHash32(str) {
+  var h = 5381, i = 0;
+  str = String(str || '');
+  for (; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+function styleSlotOf(k) {
+  var i = String(k || '').lastIndexOf(':');
+  return i < 0 ? String(k || '') : String(k).slice(0, i);
+}
+function styleSampleKey(docId, annId, text) {
+  return (docId || 'local') + ':' + annId + ':' + _styleHash32(styleTrim(text, 240).toLowerCase());
+}
+/* Returns 1 when something really was learned — a brand-new slot, or a new
+   wording of one already in the corpus. Byte-for-byte the same is 0. */
+function styleUpsert(list, item, cap) {
+  if (!item || !item.k) return 0;
+  var i;
+  for (i = 0; i < list.length; i++) if (list[i] && list[i].k === item.k) return 0;
+  var slot = styleSlotOf(item.k);
+  for (i = list.length - 1; i >= 0; i--) {
+    if (list[i] && styleSlotOf(list[i].k) === slot) list.splice(i, 1);
+  }
+  list.push(item);
+  if (cap && list.length > cap) list.splice(0, list.length - cap);
+  return 1;
+}
+function styleDropSlot(list, slot) {
+  var n = 0;
+  for (var i = list.length - 1; i >= 0; i--) {
+    if (list[i] && styleSlotOf(list[i].k) === slot) { list.splice(i, 1); n++; }
+  }
+  return n;
+}
 function styleAddSamples(list) {
   var st = styleEnsure();
-  var have = {};
-  st.samples.forEach(function (s) { if (s && s.k) have[s.k] = 1; });
   var added = 0;
-  list.forEach(function (s) {
-    if (!s || !s.a || (s.k && have[s.k])) return;
-    if (s.k) have[s.k] = 1;
-    st.samples.push(s);
-    st.learned = (st.learned || 0) + 1;
-    added++;
+  (list || []).forEach(function (s) {
+    if (!s || !s.a) return;
+    var n = styleUpsert(st.samples, s, STYLE_SAMPLE_MAX);
+    if (n) { st.learned = (st.learned || 0) + 1; added += n; }
   });
-  if (st.samples.length > STYLE_SAMPLE_MAX) {
-    st.samples = st.samples.slice(st.samples.length - STYLE_SAMPLE_MAX);
-  }
   return added;
+}
+/* A text box the teacher DELETED stayed in the corpus for ever. At save time
+   the full annotation set of this worksheet is in hand, so the samples typed
+   onto it that no longer exist can go. Only `typed` samples are swept: a
+   sample read off the page by the model is keyed by page and position, not by
+   an annotation id, and would be pruned every single time. */
+function stylePruneDoc(docId, anns) {
+  if (!docId) return 0;
+  var st = styleEnsure();
+  var live = {};
+  (anns || []).forEach(function (a) { if (a && a.id) live[docId + ':' + a.id] = 1; });
+  var before = st.samples.length;
+  st.samples = st.samples.filter(function (s) {
+    if (!s || s.src !== 'typed') return true;
+    var slot = styleSlotOf(s.k);
+    if (slot.indexOf(docId + ':') !== 0) return true;
+    return !!live[slot];
+  });
+  return before - st.samples.length;
 }
 function styleSave() {
   if (!isAdmin(currentUser)) return Promise.resolve();
@@ -11585,28 +11825,40 @@ function styleSave() {
   st.updatedAt = new Date().toISOString();
   return styleDocRef(currentUser.uid).set({
     samples: st.samples,
-    profile: st.profile || null,
+    edits: st.edits || [],
+    scores: st.scores || [],
+    profiles: st.profiles || {},
+    /* Written as a MIRROR of the global profile so a build from before the
+       buckets existed still finds one. It is never read while `profiles` has
+       a `_global`. */
+    profile: (st.profiles && st.profiles._global) || st.profile || null,
     profileSamples: st.profileSamples || 0,
     profileAt: st.profileAt || '',
+    profileNote: st.profileNote || '',
     learned: st.learned || 0,
     profileLearned: st.profileLearned || 0,
     learnedDocs: st.learnedDocs || {},
+    keyed: st.keyed || 0,
     updatedAt: st.updatedAt
   }).catch(function (e) {
     console.warn('Could not save what was learned', e);
   });
 }
 
-/* The free harvest: every text box the teacher typed onto this worksheet.
-   Answers written by hand are not here — those are what the vision pass
-   below is for. */
+/* The free harvest: every text box the teacher typed onto this worksheet that
+   reads as an answer. Answers written by hand are not here — those are what
+   the vision pass below is for. A box this app's own ✨ Answer filled in
+   carries the question it was asked (`aiQ`), so those samples reach the distil
+   with their question attached; a box typed from scratch has none, and an
+   exemplar with no question can still teach length and phrasing. */
 function styleHarvestTyped(anns, docId, meta) {
   var out = [];
   (anns || []).forEach(function (a) {
     if (!a || a.type !== 'text' || !styleWorthLearning(a.text)) return;
     out.push({
-      k: (docId || 'local') + ':' + a.id,
-      q: '',
+      k: styleSampleKey(docId, a.id, a.text),
+      src: 'typed',
+      q: styleTrim(a.aiQ || '', STYLE_Q_CHARS),
       a: styleTrim(a.text, STYLE_SAMPLE_CHARS),
       lvl: (meta && meta.level) || '',
       sub: (meta && meta.subject) || '',
@@ -11617,22 +11869,173 @@ function styleHarvestTyped(anns, docId, meta) {
   return out;
 }
 
+/* ================= LEARNING FROM THE TEACHER'S OWN EDITS =================
+   The strongest signal this app has, and it was being discarded. When ✨
+   Answer writes into a box we know the question AND exactly what the model
+   produced; what the teacher leaves in that box at save time is what they
+   actually accept. The difference is a direct statement of what the AI gets
+   wrong about them — which is what the research on learning from user edits
+   turns into a preference description, and what a corpus of finished answers
+   alone can never say.
+
+   The pending generation is held in a plain map keyed by annotation id, NOT
+   on the annotation: it must never be written into `annotations`, which is
+   saved to a collection the `cer` app shares, and an unsaved page reloaded is
+   an edit nobody could attribute anyway. */
+var styleGen = {};
+
+function styleNoteGenerated(id, q, text) {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  if (!id || !text) return;
+  styleGen[id] = {
+    q: styleTrim(q || '', STYLE_Q_CHARS),
+    wrote: styleTrim(text, STYLE_EDIT_CHARS),
+    at: Date.now()
+  };
+  var a = (annotations || []).find(function (x) { return x.id === id; });
+  /* Persisted, so a LATER harvest of this box still knows what was asked. */
+  if (a && q) a.aiQ = styleTrim(q, STYLE_Q_CHARS);
+}
+
+/* Word-level Levenshtein, normalised. Words rather than characters because a
+   reworded sentence and a respelled one are different things to a style, and
+   because it keeps the work small enough to run on every save.
+
+   PUNCTUATION AT A WORD'S EDGE IS NOT A REWRITE. Dropping the full stop off a
+   seven-word answer is one word in seven — 14%, well over the line below which
+   an edit is ignored — so without this a teacher who tidies the punctuation is
+   recorded as having rewritten the answer, and the distil is handed a
+   "correction" with no lesson in it. */
+function _styleWords(s) {
+  return String(s || '').toLowerCase().split(/\s+/)
+    .map(function (w) { return w.replace(/^[^\w\u4e00-\u9fff]+|[^\w\u4e00-\u9fff]+$/g, ''); })
+    .filter(Boolean);
+}
+function _styleEditRatio(x, y) {
+  var A = _styleWords(x).slice(0, STYLE_EDIT_WORDS_MAX);
+  var B = _styleWords(y).slice(0, STYLE_EDIT_WORDS_MAX);
+  if (!A.length && !B.length) return 0;
+  if (!A.length || !B.length) return 1;
+  var prev = [], cur = [], i, j;
+  for (j = 0; j <= B.length; j++) prev[j] = j;
+  for (i = 1; i <= A.length; i++) {
+    cur[0] = i;
+    for (j = 1; j <= B.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (A[i - 1] === B[j - 1] ? 0 : 1));
+    }
+    for (j = 0; j <= B.length; j++) prev[j] = cur[j];
+  }
+  return Math.min(1, prev[B.length] / Math.max(A.length, B.length));
+}
+
+/* Called from the save. Every generation still on the page is scored, whether
+   it was edited or not — an answer ACCEPTED unchanged is a signal just as
+   strong as one rewritten, and it is what makes the fit metric honest. Only a
+   real rewrite becomes an edit the distil reads. */
+function styleCollectEdits(anns, docId, meta) {
+  var st = styleEnsure();
+  var edits = 0, scored = 0;
+  (anns || []).forEach(function (a) {
+    if (!a || a.type !== 'text') return;
+    var gen = styleGen[a.id];
+    if (!gen || !gen.wrote) return;
+    var kept = styleTrim(a.text || '', STYLE_EDIT_CHARS);
+    if (!kept) return;
+    var dist = _styleEditRatio(gen.wrote, kept);
+    /* THE SLOT IS THE GENERATION; THE KEY IS THE GENERATION ⊕ WHAT WAS KEPT.
+       Keying on the generation alone is the very fault this release fixes in
+       the sample corpus, arriving here by the other door: the teacher edits,
+       saves, edits again — and the second edit produces the same key, is
+       skipped as a duplicate, and the corpus keeps the halfway version for
+       ever. The last thing they left in the box is the one that counts. */
+    var slot = (docId || 'local') + ':' + a.id + ':' + _styleHash32(gen.wrote.toLowerCase());
+    var keptHash = _styleHash32(kept.toLowerCase());
+    if (styleUpsert(st.scores, {
+      k: slot + ':s:' + keptHash, dist: dist,
+      lvl: (meta && meta.level) || '', sub: (meta && meta.subject) || '',
+      at: new Date().toISOString()
+    }, STYLE_SCORES_MAX)) scored++;
+    if (dist <= STYLE_EDIT_TRIVIAL) {
+      /* Edited back to what the app wrote after all. The correction recorded a
+         moment ago is no longer one, and leaving it in would teach a lesson
+         the teacher has just withdrawn. */
+      styleDropSlot(st.edits, slot);
+      return;
+    }
+    if (styleUpsert(st.edits, {
+      k: slot + ':' + keptHash,
+      q: gen.q,
+      wrote: gen.wrote,
+      a: kept,
+      dist: dist,
+      lvl: (meta && meta.level) || '',
+      sub: (meta && meta.subject) || '',
+      at: new Date().toISOString()
+    }, STYLE_EDITS_MAX)) edits++;
+  });
+  return { edits: edits, scored: scored };
+}
+
+/* Is it working? The one question the panel could never answer. Mean edit
+   distance over the last N generations, against the N before them — if the
+   profile is doing anything that number falls. */
+function styleFitReport() {
+  var sc = styleScores();
+  if (!sc.length) return null;
+  var w = STYLE_FIT_WINDOW;
+  var recent = sc.slice(-w);
+  var older = sc.slice(-w * 2, -w);
+  var mean = function (list) {
+    if (!list.length) return null;
+    var t = 0;
+    list.forEach(function (x) { t += (x && x.dist) || 0; });
+    return t / list.length;
+  };
+  var kept = recent.filter(function (x) { return ((x && x.dist) || 0) <= STYLE_EDIT_TRIVIAL; }).length;
+  return {
+    n: sc.length,
+    now: mean(recent),
+    before: mean(older),
+    accepted: kept,
+    of: recent.length
+  };
+}
+
+/* The corrections, as short rules, for the prompt. They are distilled into the
+   profile rather than sent raw — a hundred before/after pairs would not fit,
+   and a rule is what the next answer can actually obey. */
+function styleEditRules(lvl, sub) {
+  var p = styleProfileFor(lvl, sub);
+  var f = (p && Array.isArray(p.fixes)) ? p.fixes : [];
+  return f.map(function (x) { return styleTrim(x, 180); }).filter(Boolean).slice(0, 6);
+}
+
 /* Called after every save. Silent: the teacher asked to save a worksheet,
    not to be told the AI read it. When enough new answers have piled up the
    style profile quietly rebuilds itself, which is the "gets better over
    time" part. */
 function styleHarvestOnSave() {
   if (!isAdmin(currentUser) || actingStudent) return;
-  var added = styleAddSamples(styleHarvestTyped(annotations, currentDocId, {
-    level: wsMeta.level, subject: wsMeta.subject, name: docName
-  }));
-  if (!added) return;
+  var meta = { level: wsMeta.level, subject: wsMeta.subject, name: docName };
+  var got = styleCollectEdits(annotations, currentDocId, meta);
+  var gone = stylePruneDoc(currentDocId, annotations);
+  var added = styleAddSamples(styleHarvestTyped(annotations, currentDocId, meta));
+  if (!added && !gone && !got.edits && !got.scored) return;
   styleSave().then(function () {
     var st = styleEnsure();
-    if ((st.learned || 0) - (st.profileLearned || 0) >= STYLE_DISTIL_EVERY) {
+    if (styleDistilDue(st)) {
       styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
     }
   });
+}
+/* New answers since the last rebuild, OR a fortnight since it — a teacher who
+   works in bursts should not have a profile that never refreshes between them,
+   and one who never stops should not pay for a rebuild every afternoon. */
+function styleDistilDue(st) {
+  if ((st.learned || 0) - (st.profileLearned || 0) >= STYLE_DISTIL_EVERY) return true;
+  if (!st.profileAt || !st.samples.length) return false;
+  var age = Date.now() - Date.parse(st.profileAt);
+  return age === age && age > 14 * 864e5 && (st.learned || 0) > (st.profileLearned || 0);
 }
 
 /* The thorough harvest: the model reads each annotated page of the worksheet
@@ -11702,7 +12105,8 @@ async function styleLearnOpenWorksheet() {
         pairs.forEach(function (pair, n) {
           if (!pair || !styleWorthLearning(pair.a)) return;
           batch.push({
-            k: (currentDocId || 'local') + ':p' + p.num + ':' + n + ':' + styleTrim(pair.a, 24).toLowerCase(),
+            k: (currentDocId || 'local') + ':p' + p.num + ':' + n + ':' + _styleHash32(styleTrim(pair.a, 240).toLowerCase()),
+            src: 'read',
             q: styleTrim(pair.q, STYLE_Q_CHARS),
             a: styleTrim(pair.a, STYLE_SAMPLE_CHARS),
             lvl: wsMeta.level || '', sub: wsMeta.subject || '',
@@ -11772,76 +12176,300 @@ async function styleLearnAllWorksheets() {
   toast('📚 Read ' + docsRead + ' worksheet(s) — ' + added + ' new answers learned' +
         (failed ? ' (' + failed + ' could not be opened)' : '') + '.', 5000);
   renderNotesBody();
-  if (added) await styleDistil(false);
+  if (added) await styleDistilAll(false);
 }
 
-/* Turn the corpus into the short profile the prompts actually carry. The
-   samples themselves never reach a prompt — only what they add up to, plus
-   a handful of real answers as exemplars. */
+/* ================= BUILDING THE PROFILE: PROPOSE → REFINE → VERIFY =======
+   A single "describe how this teacher writes" call produces a generic
+   description — the failure this whole feature was reported for. So the draft
+   is REFINED against answers the distil never saw (generate under the draft,
+   measure the gap, rewrite the description to close it) and then VERIFIED
+   against the profile already in force. A rebuild can only ever replace the
+   profile with one that is measurably closer to the teacher's real answers;
+   when it is not, the old profile stands and the panel says so. */
+
+/* Renders a profile OBJECT into prompt text. Shared by the grounding block and
+   by the verification generator, so the description being tested is the same
+   text the app will really ship. */
+function _styleProfileBits(p, kind, exemplars, fixes) {
+  var bits = [];
+  if (!p) return bits;
+  var rules = String(p.styleRules || '').trim().slice(0, STYLE_RULE_CHARS);
+  var phrasing = String(p.phrasing || '').trim().slice(0, 400);
+  var marking = String(p.markingStandards || '').trim().slice(0, 500);
+  if (rules) bits.push('How this teacher writes answers: ' + rules);
+  if (phrasing) bits.push('Phrasing: ' + phrasing);
+  if (kind === 'mark' && marking) bits.push('How this teacher marks: ' + marking);
+  var kw = (Array.isArray(p.keywords) ? p.keywords : []).slice(0, 24)
+             .map(function (s) { return String(s).trim(); }).filter(Boolean);
+  if (kw.length) bits.push('Words the teacher uses again and again: ' + kw.join(', ') + '.');
+  if (kind === 'mark') return bits;
+  var ex = exemplars || (Array.isArray(p.exemplars) ? p.exemplars : []);
+  ex = ex.filter(function (e) { return e && e.a; }).slice(0, STYLE_EX_MAX);
+  if (ex.length) {
+    bits.push('Real answers this teacher has written on past worksheets — match their length, tone and level of detail:\n' +
+      ex.map(function (e) {
+        var eq = String(e.q || '').trim().slice(0, STYLE_Q_CHARS);
+        return '• ' + (eq ? eq + ' → ' : '') + String(e.a).trim().slice(0, 260);
+      }).join('\n'));
+  }
+  var fx = fixes || (Array.isArray(p.fixes) ? p.fixes : []);
+  fx = fx.map(function (x) { return styleTrim(x, 180); }).filter(Boolean).slice(0, 6);
+  if (fx.length) {
+    bits.push('Corrections this teacher has made to answers this app wrote — do not make these mistakes again:\n' +
+      fx.map(function (f) { return '• ' + f; }).join('\n'));
+  }
+  return bits;
+}
+
 var STYLE_DISTIL_SYS =
   'You are studying a tuition teacher\'s own answers, taken off the worksheets ' +
   'they have marked for their P3-to-Secondary-1 students in Singapore, so that ' +
   'an AI can write answers that sound like theirs. Reply with STRICT JSON ' +
   'only, exactly this shape: {"styleRules":"","phrasing":"","markingStandards":"",' +
-  '"keywords":[],"exemplars":[{"q":"","a":""}]}. "styleRules" (at most 700 ' +
-  'characters) is how this teacher answers: typical length, whether they show ' +
-  'working, whether they answer in full sentences or fragments, how they open ' +
-  'an explanation, what they always include and what they leave out. ' +
+  '"keywords":[],"fixes":[],"exemplars":[{"q":"","a":""}]}. "styleRules" (at ' +
+  'most 700 characters) is how this teacher answers: typical length, whether ' +
+  'they show working, whether they answer in full sentences or fragments, how ' +
+  'they open an explanation, what they always include and what they leave out. ' +
   '"phrasing" (at most 300 characters) is their habitual wording and sentence ' +
   'patterns, quoted where you can. "markingStandards" (at most 400 characters) ' +
   'is what their answers show is expected for full marks. "keywords" is 10 to ' +
-  '25 terms they use over and over, exactly as they write them. "exemplars" is ' +
-  'up to 6 of the given answers, copied VERBATIM, chosen because they are the ' +
-  'most typical of the teacher. Describe what is actually there — never invent ' +
-  'a habit the answers do not show. Plain text in every field, no markdown.';
+  '25 terms they use over and over, exactly as they write them. "fixes" is up ' +
+  'to 6 short imperative rules drawn ONLY from the CORRECTIONS section, if one ' +
+  'is given — each one naming the thing the AI did and what this teacher ' +
+  'changed it to, e.g. "Do not restate the question before answering — she ' +
+  'starts with the process." Return an empty array when no corrections are ' +
+  'given. "exemplars" is up to 6 of the given answers, copied VERBATIM, chosen ' +
+  'because they are the most typical of the teacher. Describe what is actually ' +
+  'there — never invent a habit the answers do not show. Be SPECIFIC: a ' +
+  'description that would fit any competent teacher is a failed answer. Plain ' +
+  'text in every field, no markdown.';
 
-async function styleDistil(quiet) {
+var STYLE_REFINE_SYS =
+  'You are sharpening a description of how one tuition teacher writes answers. ' +
+  'You are given the description, and a set of cases: a question, the answer ' +
+  'the teacher REALLY wrote, and the answer an AI wrote when it was told to ' +
+  'follow the description. Where the two differ, the description is at fault — ' +
+  'it is missing something, or it says something that is not true of this ' +
+  'teacher. Rewrite it so that an AI following it would have produced the ' +
+  "teacher's answer. Reply with STRICT JSON only, the same shape you were " +
+  'given: {"styleRules":"","phrasing":"","markingStandards":"","keywords":[],' +
+  '"fixes":[],"exemplars":[{"q":"","a":""}]}. Keep everything that was already ' +
+  'right; change only what the cases show to be wrong or missing. Never invent ' +
+  'a habit the cases do not show, and never copy a case into "exemplars" ' +
+  'unless it is the teacher\'s own answer, verbatim. Plain text, no markdown.';
+
+var STYLE_GEN_SYS =
+  'Write the answer this teacher would write, following the description of ' +
+  'their style below EXACTLY — its length, its wording, its level of detail. ' +
+  'Reply with STRICT JSON only: {"answers":["",""]} — one string per question, ' +
+  'in the order given, and nothing else. Plain text, no markdown.';
+
+function _styleCorpusLines(list) {
+  var lines = [];
+  list.forEach(function (s, i) {
+    var tag = [levelLabel(s.lvl), subjectLabel(s.sub)].filter(Boolean).join(' ');
+    lines.push((i + 1) + '.' + (tag ? ' [' + tag + ']' : '') + (s.q ? ' Q: ' + s.q : '') + ' A: ' + s.a);
+  });
+  return lines;
+}
+function _styleEditLines(list) {
+  var lines = [];
+  list.forEach(function (e, i) {
+    lines.push((i + 1) + '.' + (e.q ? ' Q: ' + e.q : '') +
+      '\n   THE AI WROTE: ' + e.wrote +
+      '\n   THE TEACHER CHANGED IT TO: ' + e.a);
+  });
+  return lines;
+}
+/* The edits that belong to this bucket, newest first, biggest change first —
+   a rewrite says more than a tweak. */
+function styleEditsFor(bucket, cap) {
+  var all = styleEdits().filter(function (e) { return e && e.wrote && e.a; });
+  var mine = bucket && bucket !== '_global'
+    ? all.filter(function (e) { return styleBucketKey(e.lvl, e.sub) === bucket; })
+    : all;
+  if (mine.length < 3) mine = all;
+  return mine.slice(-40).sort(function (a, b) { return (b.dist || 0) - (a.dist || 0); }).slice(0, cap || 12);
+}
+
+async function styleProposeProfile(train, edits, current) {
+  var lines = ['These are ' + train.length + " answers the teacher wrote on their own worksheets."];
+  lines = lines.concat(_styleCorpusLines(train));
+  if (edits && edits.length) {
+    lines.push('');
+    lines.push('CORRECTIONS — ' + edits.length + ' times this teacher took an answer this app wrote and changed it. This is the sharpest evidence you have of what they want and the AI keeps getting wrong:');
+    lines = lines.concat(_styleEditLines(edits));
+  }
+  if (current && current.styleRules) {
+    lines.push('');
+    lines.push('The description in force today, to improve on rather than to start again from:');
+    lines.push(JSON.stringify({
+      styleRules: current.styleRules, phrasing: current.phrasing,
+      markingStandards: current.markingStandards, keywords: current.keywords, fixes: current.fixes
+    }));
+  }
+  lines.push('');
+  lines.push('Describe how this teacher writes, and pick the exemplars.');
+  var raw = await window.askGemini(lines.join('\n'), {
+    system: STYLE_DISTIL_SYS, maxOutputTokens: 2200, temperature: 0.3, json: true
+  });
+  return styleCleanProfile(_parseAIJson(raw) || {});
+}
+
+async function styleGenUnder(profile, held) {
+  if (!profile || !held.length) return [];
+  var sys = STYLE_GEN_SYS + '\n\nTHE TEACHER\'S STYLE:\n' +
+            _styleProfileBits(profile, 'answer', profile.exemplars, profile.fixes).join('\n');
+  var lines = held.map(function (h, i) { return (i + 1) + '. ' + h.q; });
+  var raw = await window.askGemini(lines.join('\n'), {
+    system: sys, maxOutputTokens: 1800, temperature: 0.3, json: true
+  });
+  var out = _parseAIJson(raw);
+  var arr = (out && Array.isArray(out.answers)) ? out.answers : [];
+  return held.map(function (h, i) { return String(arr[i] == null ? '' : arr[i]); });
+}
+
+async function styleRefineProfile(profile, cases) {
+  var lines = ['The description as it stands:'];
+  lines.push(JSON.stringify({
+    styleRules: profile.styleRules, phrasing: profile.phrasing,
+    markingStandards: profile.markingStandards, keywords: profile.keywords,
+    fixes: profile.fixes, exemplars: profile.exemplars
+  }));
+  lines.push('');
+  lines.push('The cases:');
+  cases.forEach(function (c, i) {
+    lines.push((i + 1) + '. Q: ' + c.q +
+      '\n   THE TEACHER REALLY WROTE: ' + c.theirs +
+      '\n   AN AI FOLLOWING THE DESCRIPTION WROTE: ' + (c.ours || '(nothing)'));
+  });
+  lines.push('');
+  lines.push('Rewrite the description so the second would have been the first.');
+  var raw = await window.askGemini(lines.join('\n'), {
+    system: STYLE_REFINE_SYS, maxOutputTokens: 2200, temperature: 0.3, json: true
+  });
+  return styleCleanProfile(_parseAIJson(raw) || {});
+}
+
+/* Every profile that reaches the store goes through here, so a reply that is
+   the wrong shape can never be written. */
+function styleCleanProfile(p) {
+  return {
+    styleRules: styleTrim(p && p.styleRules, 900),
+    phrasing: styleTrim(p && p.phrasing, 400),
+    markingStandards: styleTrim(p && p.markingStandards, 500),
+    keywords: (p && Array.isArray(p.keywords) ? p.keywords : [])
+      .map(function (s) { return styleTrim(s, 40); }).filter(Boolean).slice(0, 25),
+    fixes: (p && Array.isArray(p.fixes) ? p.fixes : [])
+      .map(function (s) { return styleTrim(s, 180); }).filter(Boolean).slice(0, 6),
+    exemplars: (p && Array.isArray(p.exemplars) ? p.exemplars : [])
+      .filter(function (e) { return e && e.a; })
+      .map(function (e) { return { q: styleTrim(e.q, STYLE_Q_CHARS), a: styleTrim(e.a, 300) }; })
+      .slice(0, STYLE_EX_MAX)
+  };
+}
+function styleProfileEmpty(p) {
+  return !p || (!p.styleRules && !p.phrasing && !p.markingStandards &&
+                !(p.keywords || []).length && !(p.fixes || []).length && !(p.exemplars || []).length);
+}
+/* The gap between what a profile makes the model write and what the teacher
+   really wrote. Lower is better; this is the number the verify step compares. */
+function styleGapOf(cases) {
+  if (!cases.length) return 1;
+  var t = 0;
+  cases.forEach(function (c) { t += _styleEditRatio(c.ours, c.theirs); });
+  return t / cases.length;
+}
+
+/* Rebuild ONE bucket. `bucket` omitted means whichever the open worksheet
+   belongs to, falling back to the global profile when that bucket is thin. */
+async function styleDistil(quiet, bucket) {
   if (!isAdmin(currentUser)) return;
   var st = styleEnsure();
-  if (st.samples.length < STYLE_DISTIL_MIN) {
-    if (!quiet) toast('Only ' + st.samples.length + ' answers learned so far — learn from a worksheet or two first.', 5000);
+  if (!bucket) {
+    var b = styleBucketKey(wsMeta && wsMeta.level, wsMeta && wsMeta.subject);
+    bucket = (b !== '_global' && styleSamplesIn(b).length >= STYLE_BUCKET_MIN) ? b : '_global';
+  }
+  var corpus = styleSamplesIn(bucket);
+  if (corpus.length < STYLE_DISTIL_MIN) {
+    if (!quiet) toast('Only ' + corpus.length + ' answers learned so far — learn from a worksheet or two first.', 5000);
     return;
   }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
     if (!quiet) toast('AI is not available — check your connection and reload the page.', 5000);
     return;
   }
+  var label = styleBucketLabel(bucket);
   if (!quiet) { notesBusy = true; notesSetStatus('🧠 Working out how you write…'); renderNotesBody(); }
   try {
-    var recent = st.samples.slice(-STYLE_DISTIL_SAMPLES);
-    var lines = ['These are ' + recent.length + " answers the teacher wrote on their own worksheets."];
-    recent.forEach(function (s, i) {
-      var tag = [levelLabel(s.lvl), subjectLabel(s.sub)].filter(Boolean).join(' ');
-      lines.push((i + 1) + '.' + (tag ? ' [' + tag + ']' : '') + (s.q ? ' Q: ' + s.q : '') + ' A: ' + s.a);
-    });
-    lines.push('Describe how this teacher writes, and pick the exemplars.');
-    var raw = await window.askGemini(lines.join('\n'), {
-      system: STYLE_DISTIL_SYS, maxOutputTokens: 2200, temperature: 0.3, json: true
-    });
-    var p = _parseAIJson(raw) || {};
-    var next = {
-      styleRules: styleTrim(p.styleRules, 900),
-      phrasing: styleTrim(p.phrasing, 400),
-      markingStandards: styleTrim(p.markingStandards, 500),
-      keywords: (Array.isArray(p.keywords) ? p.keywords : [])
-        .map(function (s) { return styleTrim(s, 40); }).filter(Boolean).slice(0, 25),
-      exemplars: (Array.isArray(p.exemplars) ? p.exemplars : [])
-        .filter(function (e) { return e && e.a; })
-        .map(function (e) { return { q: styleTrim(e.q, STYLE_Q_CHARS), a: styleTrim(e.a, 300) }; })
-        .slice(0, STYLE_EX_MAX)
-    };
-    /* A reply that came back with nothing usable must NEVER replace a profile
-       the teacher's own answers were distilled into: an empty profile grounds
-       every prompt in the app on nothing, silently, until the next refresh. */
-    if (!next.styleRules && !next.phrasing && !next.markingStandards && !next.keywords.length && !next.exemplars.length) {
+    /* Held out BEFORE anything is proposed, and only samples that carry a
+       question — an answer with no question cannot be regenerated, so it
+       cannot be used to check the description against. */
+    var withQ = corpus.filter(function (s) { return s.q && s.a; });
+    var held = withQ.slice(-STYLE_HOLDOUT);
+    var heldKeys = {};
+    held.forEach(function (h) { heldKeys[h.k] = 1; });
+    var train = corpus.filter(function (s) { return !heldKeys[s.k]; }).slice(-STYLE_DISTIL_SAMPLES);
+    if (train.length < STYLE_DISTIL_MIN) { train = corpus.slice(-STYLE_DISTIL_SAMPLES); held = []; }
+
+    var old = (st.profiles && st.profiles[bucket]) || null;
+    var edits = styleEditsFor(bucket, 12);
+    var draft = await styleProposeProfile(train, edits, old);
+    if (styleProfileEmpty(draft)) {
       throw new Error('the model returned no usable style — the profile you had is kept');
     }
-    st.profile = next;
+
+    /* REFINE. Nothing to refine against without held-out questions, and that
+       is the ordinary case on a corpus of typed answers — so it degrades to
+       the plain proposal rather than refusing. */
+    var gap = null, cases = [];
+    if (held.length >= 3) {
+      for (var r = 0; r < STYLE_REFINE_ROUNDS; r++) {
+        if (!quiet) notesSetStatus('🧠 Checking it against your own answers (' + (r + 1) + '/' + STYLE_REFINE_ROUNDS + ')…');
+        var mine = await styleGenUnder(draft, held);
+        cases = held.map(function (h, i) { return { q: h.q, theirs: h.a, ours: mine[i] }; });
+        gap = styleGapOf(cases);
+        if (gap <= STYLE_GOOD_ENOUGH) break;
+        if (r === STYLE_REFINE_ROUNDS - 1) break;   // no point refining what is not re-tested
+        var next = await styleRefineProfile(draft, cases);
+        if (!styleProfileEmpty(next)) draft = next;
+      }
+    }
+
+    /* VERIFY. A rebuild that is not closer to the teacher's real answers than
+       the profile already in force is thrown away — the whole point of a
+       refresh is that it cannot make things worse. */
+    var note = '';
+    if (held.length >= 3 && old && !styleProfileEmpty(old) && gap != null) {
+      if (!quiet) notesSetStatus('🧠 Checking the new reading against the old one…');
+      var oldOut = await styleGenUnder(old, held);
+      var oldGap = styleGapOf(held.map(function (h, i) { return { q: h.q, theirs: h.a, ours: oldOut[i] }; }));
+      if (gap > oldGap) {
+        st.profileLearned = st.learned || st.samples.length;   // do not re-try on every save
+        st.profileNote = 'The last rebuild of your ' + label + ' style was no closer to your real answers than the one you had, so the old one was kept.';
+        await styleSave();
+        if (!quiet) toast('🧠 Kept the style you had — the new reading of it was no closer to your real answers.', 6000);
+        return;
+      }
+      note = 'checked against ' + held.length + ' of your own answers it had not seen — ' +
+             Math.round((1 - gap) * 100) + '% match, up from ' + Math.round((1 - oldGap) * 100) + '%';
+    } else if (gap != null) {
+      note = 'checked against ' + held.length + ' of your own answers it had not seen — ' +
+             Math.round((1 - gap) * 100) + '% match';
+    }
+
+    st.profiles[bucket] = draft;
+    if (bucket === '_global') st.profile = draft;   // the mirror, for a rolled-back build
+    st.profiles[bucket].n = corpus.length;
+    st.profiles[bucket].at = new Date().toISOString();
+    st.profiles[bucket].gap = gap;
     st.profileSamples = st.samples.length;
     st.profileLearned = st.learned || st.samples.length;
     st.profileAt = new Date().toISOString();
+    st.profileNote = note;
     await styleSave();
-    if (!quiet) toast('🧠 Your style is up to date — every AI answer follows it from now on.', 5000);
+    if (!quiet) toast('🧠 Your ' + label + ' style is up to date' + (note ? ' — ' + note : '') + '.', 6000);
   } catch (e) {
     console.error('Style profile failed', e);
     if (!quiet) toast('Could not work out your style: ' + ((e && e.message) || e), 6000);
@@ -11851,10 +12479,41 @@ async function styleDistil(quiet) {
   }
 }
 
+/* The 🧠 button: the global profile, then the buckets big enough to have one
+   of their own — capped, because each is a handful of AI calls. */
+async function styleDistilAll(quiet) {
+  if (!isAdmin(currentUser)) return;
+  var st = styleEnsure();
+  var counts = {};
+  styleSamples().forEach(function (s) {
+    var k = styleBucketOfSample(s);
+    if (k === '_global') return;
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  var buckets = Object.keys(counts)
+    .filter(function (k) { return counts[k] >= STYLE_BUCKET_MIN; })
+    .sort(function (a, b) { return counts[b] - counts[a]; })
+    .slice(0, STYLE_BUCKETS_MAX);
+  await styleDistil(quiet, '_global');
+  for (var i = 0; i < buckets.length; i++) {
+    if (!quiet) notesSetStatus('🧠 Working out how you write ' + styleBucketLabel(buckets[i]) + '…');
+    await styleDistil(true, buckets[i]);
+  }
+  renderNotesBody();
+  if (!quiet && buckets.length) {
+    toast('🧠 Rebuilt your style for ' + (buckets.length + 1) + ' contexts.', 5000);
+  }
+}
+
 async function styleForget() {
   if (!isAdmin(currentUser)) return;
-  if (!confirm('Forget everything the AI has learned from your worksheets?\n\nYour uploaded teaching notes are kept — only the learned answers and the style profile are cleared.')) return;
-  aiStyle = { samples: [], profile: null, profileSamples: 0, learnedDocs: {} };
+  if (!confirm('Forget everything the AI has learned from your worksheets?\n\nYour uploaded teaching notes are kept — only the learned answers, the corrections and the style profile are cleared.')) return;
+  aiStyle = {
+    samples: [], edits: [], scores: [], profiles: {}, profile: null,
+    profileSamples: 0, profileLearned: 0, learned: 0, profileNote: '',
+    learnedDocs: {}, keyed: 1
+  };
+  styleGen = {};
   await styleSave();
   renderNotesBody();
   toast('Learned answers cleared.');
@@ -12228,36 +12887,111 @@ function notesCardHtml(n) {
   '</div>';
 }
 
+/* ---- Is it working? ----
+   The panel used to show what the profile SAYS and nothing about whether it
+   DOES anything, so "it isn't learning my style" was unanswerable from inside
+   the app. Every ✨ Answer is scored at the next save on how much of it the
+   teacher kept; this is that number, and its trend. */
+function notesFitHtml() {
+  var fit = styleFitReport();
+  if (!fit || !fit.of) {
+    return '<div class="tnFit"><div class="tnFitSay">Nothing measured yet. Every time you press ✨ Answer and then save, this app checks how much of what it wrote you kept — and says here whether following your style is making that better.</div></div>';
+  }
+  var pct = Math.round((1 - fit.now) * 100);
+  var trend = '';
+  if (fit.before != null) {
+    var was = Math.round((1 - fit.before) * 100);
+    var d = pct - was;
+    trend = Math.abs(d) < 2
+      ? ' Steady on the ' + fit.of + ' before that.'
+      : (d > 0
+          ? ' <span class="tnFitUp">Up ' + d + ' points</span> on the ' + fit.of + ' before that — it is learning you.'
+          : ' <span class="tnFitDown">Down ' + Math.abs(d) + ' points</span> on the ' + fit.of + ' before that.');
+  }
+  return '<div class="tnFit">' +
+      '<div class="tnFitNum"><b>' + pct + '%</b><span>kept as written</span></div>' +
+      '<div class="tnFitNum"><b>' + fit.accepted + '/' + fit.of + '</b><span>taken untouched</span></div>' +
+      '<div class="tnFitSay">Over the last ' + fit.of + ' answers this app wrote for you, you kept ' + pct +
+        '% of the wording.' + trend +
+        ' Every answer you rewrite teaches it what to do differently next time.</div>' +
+    '</div>';
+}
+
+/* Which profile the worksheet on screen is actually being answered with. A
+   bucket under the floor falls back to the global one, and saying so is the
+   difference between "the AI sounds generic" and "my Sec 1 Science has 4
+   answers in it". */
+function notesBucketsHtml() {
+  var counts = {};
+  styleSamples().forEach(function (s) {
+    var k = styleBucketOfSample(s);
+    if (k === '_global') return;
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  var keys = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+  if (!keys.length) return '';
+  var live = styleProfilePick(wsMeta && wsMeta.level, wsMeta && wsMeta.subject);
+  var open = styleBucketKey(wsMeta && wsMeta.level, wsMeta && wsMeta.subject);
+  var chips = keys.map(function (k) {
+    var thin = counts[k] < STYLE_BUCKET_MIN;
+    var on = (k === open && !live.fell);
+    return '<span class="tnBucket' + (on ? ' tnBucketOn' : '') + (thin ? ' tnBucketThin' : '') + '">' +
+      escHtml(styleBucketLabel(k)) + ' · ' + counts[k] +
+      (thin ? ' — needs ' + STYLE_BUCKET_MIN : '') + '</span>';
+  }).join('');
+  var note = '';
+  if (open !== '_global') {
+    note = live.fell
+      ? '<div class="tnCardMeta">The worksheet open is ' + escHtml(styleBucketLabel(open)) +
+        ', which has ' + live.n + ' answers — under ' + STYLE_BUCKET_MIN +
+        ', so it is being answered in your general style until there are more.</div>'
+      : '<div class="tnCardMeta">The worksheet open is being answered in your own ' +
+        escHtml(styleBucketLabel(open)) + ' style.</div>';
+  }
+  return '<div class="tnBuckets">' + chips + '</div>' + note;
+}
+
 function notesTrainingHtml() {
   var st = styleEnsure();
   var n = st.samples.length;
-  var p = st.profile;
+  var edits = (st.edits || []).length;
+  var pick = styleProfilePick(wsMeta && wsMeta.level, wsMeta && wsMeta.subject);
+  var p = pick.profile;
   var learned = Object.keys(st.learnedDocs || {}).length;
-  var stale = p ? Math.max(0, n - (st.profileSamples || 0)) : n;
+  var stale = p ? Math.max(0, (st.learned || 0) - (st.profileLearned || 0)) : n;
+  var fixes = (p && Array.isArray(p.fixes)) ? p.fixes : [];
   var profileHtml = p
     ? '<div class="tnProfile">' +
         (p.styleRules ? '<div class="tnRow"><div class="tnLabel">How you write</div><div class="tnText">' + escHtml(p.styleRules) + '</div></div>' : '') +
         (p.phrasing ? '<div class="tnRow"><div class="tnLabel">Your phrasing</div><div class="tnText">' + escHtml(p.phrasing) + '</div></div>' : '') +
         (p.markingStandards ? '<div class="tnRow"><div class="tnLabel">Your standard</div><div class="tnText">' + escHtml(p.markingStandards) + '</div></div>' : '') +
+        (fixes.length ? '<div class="tnRow"><div class="tnLabel">From your edits</div><div class="tnText">' +
+          fixes.map(function (f) { return '• ' + escHtml(f); }).join('\n') + '</div></div>' : '') +
         ((p.keywords || []).length ? '<div class="tnRow"><div class="tnLabel">Your words</div><div class="tnChips">' +
           p.keywords.map(function (k) { return '<span class="tnChip tnChipKw">' + escHtml(k) + '</span>'; }).join('') + '</div></div>' : '') +
-        '<div class="tnCardMeta" style="margin-top:10px">Worked out from ' + (st.profileSamples || 0) + ' of your answers' +
+        '<div class="tnCardMeta" style="margin-top:10px">' +
+          'The ' + escHtml(styleBucketLabel(pick.bucket)) + ' profile, worked out from ' +
+          (pick.bucket === '_global' ? (st.profileSamples || 0) : pick.n) + ' of your answers' +
           (st.profileAt ? ' on ' + escHtml(notesWhenText(st.profileAt)) : '') +
           (stale ? ' · ' + stale + ' newer answers are not in it yet' : '') + '</div>' +
+        (st.profileNote ? '<div class="tnCardMeta">' + escHtml(st.profileNote) + '</div>' : '') +
       '</div>'
     : '<div class="tnEmpty">Nothing learned yet. Learn from a worksheet you have already answered and the AI starts writing the way you do.</div>';
   return '<div class="tnPanel">' +
     '<h3>🧠 Learning from your own answers</h3>' +
-    '<p class="tnSub">Every answer you type onto a worksheet is picked up when you save it. Press the buttons below to go further: the first reads the worksheet on screen with the AI, <b>handwriting included</b>, and the second sweeps every worksheet you have ever saved. What comes out is a picture of how <i>you</i> answer — and every AI answer, answer key, explanation and mark follows it.</p>' +
+    '<p class="tnSub">Every answer you type onto a worksheet is picked up when you save it, and every time you <b>rewrite</b> an answer this app produced, the difference is learned too — that is the sharpest thing it can know about how you write. The buttons below go further: the first reads the worksheet on screen with the AI, <b>handwriting included</b>, and the second sweeps every worksheet you have ever saved. What comes out is a picture of how <i>you</i> answer — one for each level and subject — and every AI answer, answer key, explanation and mark follows it.</p>' +
     '<div class="tnStats">' +
       '<div class="tnStat"><b>' + n + '</b><span>answers learned</span></div>' +
+      '<div class="tnStat"><b>' + edits + '</b><span>of your corrections</span></div>' +
       '<div class="tnStat"><b>' + learned + '</b><span>worksheets read</span></div>' +
       '<div class="tnStat"><b>' + teachingNotes.length + '</b><span>sets of notes</span></div>' +
     '</div>' +
+    notesFitHtml() +
+    notesBucketsHtml() +
     '<div class="tnBtnRow">' +
       '<button class="btn" onclick="styleLearnOpenWorksheet()"' + (notesBusy ? ' disabled' : '') + '>📖 Learn from this worksheet</button>' +
       '<button class="btn" onclick="styleLearnAllWorksheets()"' + (notesBusy ? ' disabled' : '') + '>📚 Learn from all my saved worksheets</button>' +
-      '<button class="btn" onclick="styleDistil(false)"' + (notesBusy ? ' disabled' : '') + '>🧠 Rebuild my style</button>' +
+      '<button class="btn" onclick="styleDistilAll(false)"' + (notesBusy ? ' disabled' : '') + '>🧠 Rebuild my style</button>' +
       (n ? '<button class="btn" onclick="styleForget()"' + (notesBusy ? ' disabled' : '') + '>Forget what was learned</button>' : '') +
     '</div>' +
     profileHtml +
@@ -12611,8 +13345,13 @@ async function autoLearnRunJob(job) {
   var batch = [];
   (Array.isArray(got.pairs) ? got.pairs : []).forEach(function (pair, n) {
     if (!pair || !styleWorthLearning(pair.a)) return;
+    /* The SAME key rule and the SAME refresh trigger the harvests use. This
+       path built its own by hand, which is how one route goes on filing first
+       drafts after the other has been fixed — the fault is invisible from
+       either side. */
     batch.push({
-      k: job.docId + ':p' + job.num + ':' + n + ':' + styleTrim(pair.a, 24).toLowerCase(),
+      k: job.docId + ':p' + job.num + ':' + n + ':' + _styleHash32(styleTrim(pair.a, 240).toLowerCase()),
+      src: 'read',
       q: styleTrim(pair.q, STYLE_Q_CHARS),
       a: styleTrim(pair.a, STYLE_SAMPLE_CHARS),
       lvl: job.meta.level || '', sub: job.meta.subject || '',
@@ -12623,8 +13362,7 @@ async function autoLearnRunJob(job) {
   var addedStyle = styleAddSamples(batch);
   if (addedStyle) {
     await styleSave();
-    var st = styleEnsure();
-    if ((st.learned || 0) - (st.profileLearned || 0) >= STYLE_DISTIL_EVERY) {
+    if (styleDistilDue(styleEnsure())) {
       styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
     }
   }
@@ -12850,7 +13588,12 @@ function aiApplyText(id, text) {
   setDirty(true);
 }
 
-function aiRequest(id, systemText, userText, busyMsg, images) {
+/* `learn` carries the question this generation is answering, when the caller
+   has one. What the model writes is remembered against the box (see
+   styleNoteGenerated) so that at save time the app can see what the teacher
+   KEPT — the single sharpest thing it can learn about how they write, and the
+   thing this feature threw away until v1.83.0. */
+function aiRequest(id, systemText, userText, busyMsg, images, learn) {
   if (isStudent()) return; // Answer/Improve write answers — teacher-only
   if (aiBusy) { toast(aiEngineName() + ' is still working on the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
@@ -12864,6 +13607,7 @@ function aiRequest(id, systemText, userText, busyMsg, images) {
     aiBusy = false;
     if (!text) { toast(aiEngineName() + ' returned an empty answer — please try again.', 5000); return; }
     aiApplyText(id, text);
+    if (learn) styleNoteGenerated(id, learn.q || '', text);
     toast('✨ Done — Ctrl+Z brings the old text back.');
   }).catch(function (err) {
     aiBusy = false;
@@ -12889,7 +13633,11 @@ function aiAnswer(id) {
   }
   lines.push('The teacher typed in the answer box: "' + q + '"');
   lines.push('Write only the text that should go in the box.');
-  aiRequest(id, AI_ANSWER_SYS + aiGrounding('answer'), lines.join('\n'), '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx);
+  /* The question goes to the grounding as well, so the exemplars served are
+     the teacher's own answers to questions LIKE this one rather than the same
+     six every time. */
+  aiRequest(id, AI_ANSWER_SYS + aiGrounding('answer', { q: q }), lines.join('\n'),
+            '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx, { q: q });
 }
 
 function aiImprove(id) {
@@ -12898,7 +13646,11 @@ function aiImprove(id) {
   if (!a || a.type !== 'text') return;
   var t = (a.text || '').trim();
   if (!t) { toast('The text box is empty — nothing to improve.'); return; }
-  aiRequest(id, AI_IMPROVE_SYS + aiGrounding('answer'), t, '✒️ ' + aiEngineName() + ' is polishing the wording…');
+  /* An improve is learnable too: what comes back is the model's wording, and
+     what survives to the save is the teacher's. The "question" is the text
+     they started from — it is what the rewrite has to preserve. */
+  aiRequest(id, AI_IMPROVE_SYS + aiGrounding('answer', { q: t }), t,
+            '✒️ ' + aiEngineName() + ' is polishing the wording…', null, { q: t });
 }
 
 /* ================= AI notes =================
