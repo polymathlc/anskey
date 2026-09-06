@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## ChatGPT now runs on GPT-6 Astra (v1.88.0)
+
+The ChatGPT side of the app — the engine it starts on — is now
+**`gpt-6-astra`**, OpenAI's new flagship, in place of `gpt-5.6-sol`. Nothing
+about how you use it changes: the same key, pasted once, in the same box.
+
+- **The AI Engine window offers three.** `gpt-6-astra` (recommended),
+  `gpt-6-astra-fast` — the same model with less thinking, for when you want an
+  answer back quickly — and `gpt-5.6-sol`, still there if you want the model
+  you had yesterday.
+- **Nothing to switch on.** If your saved setting was the old default it is
+  moved up for you, once, on this device and in your own settings record — so
+  the new model is simply what answers. Pick `gpt-5.6-sol` from the dropdown
+  deliberately and it stays picked.
+- **The whole answer still arrives.** Astra writes as long an answer as
+  gpt-5.6-sol did, so a Pro note card is not quietly cut short.
+- **It still thinks as hard as you asked it to.** Quick / Standard / Careful /
+  Pro reach it exactly as before.
+- Gemini is untouched and is still what catches anything ChatGPT drops, so a
+  device with no key is unaffected.
+
 ## 💡 Your corrections now say what they MEANT (v1.87.0)
 
 When you rewrite an answer this app wrote, it already kept the before and the

@@ -4230,7 +4230,7 @@
       <div class="profileIntro">
         Choose which AI powers every AI feature on this worksheet — <strong>Answer</strong> and <strong>Improve</strong> on text boxes,
         the <strong>Answer key</strong>, <strong>AI notes</strong>, marking, keyword extraction and Ask AI.
-        The app starts on <strong>ChatGPT gpt-5.6-sol</strong>; paste your key below once and it is used everywhere.
+        The app starts on <strong>ChatGPT gpt-6-astra</strong>; paste your key below once and it is used everywhere.
         Gemini needs no key and is what runs until a key is saved — and whenever ChatGPT fails, the app falls back to it
         by itself, so the AI never simply stops working.
       </div>
@@ -4263,7 +4263,9 @@
       <div class="fieldRow">
         <label for="aiEngineModelSel">ChatGPT model</label>
         <select id="aiEngineModelSel">
-          <option value="gpt-5.6-sol">gpt-5.6-sol — newest (recommended)</option>
+          <option value="gpt-6-astra">gpt-6-astra — newest (recommended)</option>
+          <option value="gpt-6-astra-fast">gpt-6-astra-fast — same model, quicker, less thinking</option>
+          <option value="gpt-5.6-sol">gpt-5.6-sol — the previous flagship</option>
           <option value="gpt-4o-mini">gpt-4o-mini — fast &amp; cheap</option>
           <option value="gpt-4o">gpt-4o</option>
           <option value="gpt-4.1">gpt-4.1</option>
@@ -4621,7 +4623,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.87.0';
+var APP_VERSION = 'v1.88.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -10131,16 +10133,50 @@ function deleteSelected() {
    a new device, a cleared browser or a fresh install all come back with the key
    already in place. That doc is admin-only by Firestore rule (see README) —
    nothing about it is student-readable. */
-var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', imageModel: 'ak_openai_image_model', kimiKey: 'ak_kimi_key', kimiModel: 'ak_kimi_model' };
+var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', imageModel: 'ak_openai_image_model', kimiKey: 'ak_kimi_key', kimiModel: 'ak_kimi_model', modelGen: 'ak_openai_model_gen' };
 var AI_ENGINE_COLLECTION = 'adminSettings';   // one doc per admin uid
-var OPENAI_DEFAULT_MODEL = 'gpt-5.6-sol';
+var OPENAI_DEFAULT_MODEL = 'gpt-6-astra';
 var OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-1';
+/* A REASONING MODEL IS A FAMILY, NOT ONE ID, and this is the one place the
+   family is named. gpt-5.x and gpt-6-astra behave identically where the
+   request shape is concerned — both take `reasoning_effort`, both REFUSE a
+   temperature, and both will write an answer far longer than a 4-series chat
+   model will. So a gate written as /^gpt-5/ does not merely miss the newer
+   model, it sends it the WRONG REQUEST: a temperature it answers with a 400,
+   no thinking at all, and the 16k ceiling meant for gpt-4o. Every one of
+   those is silent — the card comes back looking ordinary, or drops to Gemini
+   for a reason nothing on screen can name. */
+var OPENAI_REASONING_RE = /^(gpt-[5-9]|o[1-9])/;
+/* THE MODEL AN ADMIN NEVER CHOSE IS NOT A CHOICE. The stored model is written
+   every time the AI Engine dialog is saved, so almost everyone is carrying
+   yesterday's DEFAULT pinned in their own settings — and a new default would
+   then reach nobody who had ever opened that dialog, on a screen still naming
+   the old model. That is the whole upgrade silently not happening. So a model
+   that was only ever a default is lifted to the new one ONCE, per device, and
+   the flag is what makes a DELIBERATE pick of the old model stick: it is still
+   in the dropdown, and choosing it there has to mean something. */
+var OPENAI_SUPERSEDED_MODELS = ['gpt-5.6-sol'];
+var OPENAI_MODEL_GEN = 'astra';
+var _openAiLiftOpen = false;   // this device has not done the one-shot lift yet
+(function _openAiLiftDefaultOnce() {
+  try {
+    _openAiLiftOpen = localStorage.getItem(AI_ENGINE_STORE.modelGen) !== OPENAI_MODEL_GEN;
+    if (!_openAiLiftOpen) return;
+    localStorage.setItem(AI_ENGINE_STORE.modelGen, OPENAI_MODEL_GEN);
+    var m = (localStorage.getItem(AI_ENGINE_STORE.model) || '').trim();
+    if (m && OPENAI_SUPERSEDED_MODELS.indexOf(m) >= 0) localStorage.setItem(AI_ENGINE_STORE.model, OPENAI_DEFAULT_MODEL);
+  } catch (e) { /* private browsing: nothing is stored, so there is nothing to lift */ }
+})();
+function openAiLiftModel(m) {
+  m = String(m || '').trim();
+  return (_openAiLiftOpen && OPENAI_SUPERSEDED_MODELS.indexOf(m) >= 0) ? OPENAI_DEFAULT_MODEL : m;
+}
 /* Hard ceiling for one OpenAI answer. A "Pro build" widget is allowed to run
    right up to it, and past it the answer is carried on in a second request
    rather than being cut short. */
 var OPENAI_MAX_OUTPUT = 120000;
 
-/* ChatGPT gpt-5.6-sol is what the app starts on now. The key is the one thing
+/* ChatGPT gpt-6-astra is what the app starts on now. The key is the one thing
    that can never live in this file: the app is served from a public address,
    so a key written here would be in the page source of every student's browser
    and in the repository's history for good. It is pasted once into the AI
@@ -10297,18 +10333,18 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
   if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: content });
 
-  // Only the gpt-5 family will take an answer this long; asking a 4-series
+  // Only a reasoning model will take an answer this long; asking a 4-series
   // model for 110k is a 400, which would drop the card to Gemini for no reason.
-  var modelCap = /^gpt-5/.test(model) ? OPENAI_MAX_OUTPUT : 16000;
+  var modelCap = OPENAI_REASONING_RE.test(model) ? OPENAI_MAX_OUTPUT : 16000;
   var budget = Math.min(modelCap, Math.max(1024, o.maxOutputTokens || 512));
   var body = { model: model, messages: messages, max_completion_tokens: budget };
   if (o.json) body.response_format = { type: 'json_object' };
-  // Build quality: the gpt-5 family thinks harder when asked to. The budget
+  // Build quality: a reasoning model thinks harder when asked to. The budget
   // above has to cover those reasoning tokens as well as the answer, which is
   // why the higher quality levels raise both together.
-  if (o.effort && /^(gpt-5|o[1-9])/.test(model)) body.reasoning_effort = o.effort;
-  // gpt-5.x models only run at their default temperature; sending one is a 400
-  if (o.temperature !== undefined && !/^gpt-5/.test(model)) body.temperature = o.temperature;
+  if (o.effort && OPENAI_REASONING_RE.test(model)) body.reasoning_effort = o.effort;
+  // A reasoning model only runs at its default temperature; sending one is a 400
+  if (o.temperature !== undefined && !OPENAI_REASONING_RE.test(model)) body.temperature = o.temperature;
 
   async function send(payload) {
     var res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -10505,12 +10541,26 @@ async function loadAiEngineFromCloud(user) {
     else promptForOpenAiKey();   // no key anywhere yet — ask for it once
     return;
   }
+  // THE RECORD IS LIFTED TOO, or the device flips straight back. The model in
+  // this doc is what every other device reads, so a superseded default left in
+  // it would be written over the lift on the very next sign-in — and the new
+  // default would reach no device that has ever saved the dialog. It is
+  // written back so the record converges; a deliberate pick of the old model
+  // is untouched, because the lift window is already shut by then.
+  var liftedModel = false;
   try {
     localStorage.setItem(AI_ENGINE_STORE.key, String(d.openAiKey).trim());
     if (d.engine) localStorage.setItem(AI_ENGINE_STORE.engine, d.engine);
-    if (d.model) localStorage.setItem(AI_ENGINE_STORE.model, d.model);
+    if (d.model) {
+      var model = openAiLiftModel(d.model);
+      localStorage.setItem(AI_ENGINE_STORE.model, model);
+      liftedModel = model !== String(d.model).trim();
+    }
     if (d.imageModel) localStorage.setItem(AI_ENGINE_STORE.imageModel, d.imageModel);
   } catch (e) { console.warn('Could not store the AI engine settings on this device', e); return; }
+  if (liftedModel) saveAiEngineToCloud(user).catch(function (e) {
+    console.warn('Could not save the lifted ChatGPT model', e);
+  });
   // The header button and every "Gemini"/"ChatGPT" label now say the right name.
   renderAuthArea();
   refreshAiEngineNames();
@@ -20671,7 +20721,7 @@ function renderAuthArea() {
     engBtn.className = 'btn';
     // The label doubles as the status: it names ChatGPT while that engine is on.
     engBtn.textContent = openAiActive() ? 'AI · ChatGPT' : kimiActive() ? 'AI · Kimi' : 'AI Engine';
-    engBtn.title = 'Choose which AI powers the app — ChatGPT gpt-5.6-sol (default, needs your OpenAI key) or Gemini, which needs none and catches anything ChatGPT drops.';
+    engBtn.title = 'Choose which AI powers the app — ChatGPT gpt-6-astra (default, needs your OpenAI key) or Gemini, which needs none and catches anything ChatGPT drops.';
     engBtn.addEventListener('click', openAiEngineModal);
     area.appendChild(engBtn);
   }
