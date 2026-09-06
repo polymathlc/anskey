@@ -753,6 +753,43 @@ to know whether the upload/deploy went through.
 - Keep spacing scale consistent across the whole app so every surface feels like the same design
   system.
 
+## 🤖 ChatGPT runs on GPT-6 Astra (v1.88.0)
+
+`OPENAI_DEFAULT_MODEL` / **`OPENAI_REASONING_RE`** / `OPENAI_SUPERSEDED_MODELS`
+/ `OPENAI_MODEL_GEN` / `openAiLiftModel`, and the lift in
+`loadAiEngineFromCloud`.
+
+- **A REASONING MODEL IS A FAMILY, NOT ONE ID.** gpt-5.x and `gpt-6-astra`
+  behave identically where the request SHAPE is concerned — both take
+  `reasoning_effort`, both REFUSE a `temperature`, and both write an answer far
+  longer than a 4-series chat model will. So a gate written as `/^gpt-5/` does
+  not merely miss the newer model, it sends it the **WRONG REQUEST**: a
+  temperature it answers with a 400, no thinking at all, and the 16k ceiling
+  meant for gpt-4o. Every one of those is silent — the card drops to Gemini for
+  a reason nothing on screen can name, or comes back fluent and thin. The
+  family is named ONCE and all three gates ask it.
+- **A DEFAULT NOBODY CHOSE IS NOT A CHOICE.** The stored model is written every
+  time the AI Engine dialog is saved, so almost everyone is carrying
+  yesterday's default pinned in their own settings — and a new default then
+  reaches nobody who has ever opened that dialog. A model that was only ever a
+  default is lifted ONCE, per device; the flag is what makes a DELIBERATE pick
+  of the old model stick, because it is still in the dropdown. Bump
+  `OPENAI_MODEL_GEN` and add the outgoing id to `OPENAI_SUPERSEDED_MODELS` on
+  the next flagship.
+- **THE RECORD IS LIFTED TOO.** The model in `adminSettings` is what every
+  other device reads, so a superseded default left in it would be written over
+  the lift on the very next sign-in — the upgrade undone by the very record
+  that exists to carry it. `loadAiEngineFromCloud` lifts it and writes it back.
+- **`gpt-6-astra-fast` is the same model with less thinking**, not a different
+  one, so it matches the family regex like everything else in it.
+- The retry ladder still steps a refused `reasoning_effort` down to `high`
+  before giving it up — a level Astra takes — so a model that narrows its scale
+  again is a slightly less considered card rather than no card.
+- The other four portals (`polymathlc/cer`, `english`, `chinese`, `math`) carry
+  the same pair; the Maths repo carries a THIRD copy in
+  `functions/index.js` for the server route, and that half **needs a functions
+  deploy**, not just a page upload.
+
 ## 🌙 Kimi — the third engine (`kimiActive` / `window.askKimi` / `kimiListModels`)
 
 Everything here answers through Gemini on the shared `mathgen--app` project or
