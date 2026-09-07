@@ -3392,6 +3392,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       <span class="btnLabel">Open PDF</span>
     </button>
+    <button class="btn" id="blankPageBtn" title="Add a blank page at the end — somewhere to paste pictures, work an example or stick a photo of the board. With nothing open it starts a blank worksheet.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/><line x1="17" y1="2" x2="17" y2="8"/><line x1="14" y1="5" x2="20" y2="5"/></svg>
+      <span class="btnLabel">Blank page</span>
+    </button>
   </div>
   <div class="tSep"></div>
 
@@ -3733,7 +3737,8 @@
        and pick up exactly where you left off — or download a copy with everything
        stamped onto the PDF itself.</p>
     <button class="btn btnPrimary" id="emptyUploadBtn" style="font-size:0.95rem; padding: 12px 26px;">Choose a PDF</button>
-    <div id="dropHint">…or drag &amp; drop a PDF anywhere on this page</div>
+    <button class="btn" id="emptyBlankBtn" style="font-size:0.95rem; padding: 12px 26px;">Start with a blank page</button>
+    <div id="dropHint">…or drag &amp; drop a PDF anywhere on this page. A picture dropped or pasted with <b>Ctrl+V</b> lands on the page you are looking at.</div>
   </div>
   <div id="pagesContainer"></div>
 </main>
@@ -4623,7 +4628,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.88.0';
+var APP_VERSION = 'v1.89.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -5235,8 +5240,43 @@ async function loadPdf(bytes, name) {
   $('reviseToggle').checked = false;
   setDirty(false);
 
+  /* A worksheet just opened is always fitted to the width — buildPagesFromBytes
+     reads this flag to decide between re-fitting and keeping the zoom, and a
+     page ADDED to the worksheet in front of you must keep it. */
+  fittedWidth = true;
+  await buildPagesFromBytes();
+  if (window.innerWidth > 900) {
+    $('sideBar').classList.add('open');
+    setThumbPanelOpen(true);
+  }
+  // Fresh worksheet starts on the pen, with the pen's remembered style.
+  if (!isStudent()) setTool('pen');
+  renderSidebar();
+  /* Where we are STARTING, said out loud. Left at 0 the watcher spends its
+     first scroll event working that out, and a quick flick off page 1 is a
+     page written on and then never learned. */
+  autoSeenPage = 1;
+  toast('Loaded “' + docName + '” — ' + pdfDoc.numPages + ' page' + (pdfDoc.numPages > 1 ? 's' : ''));
+}
+
+/* ================= ONE page builder =================
+   `pdfBytes` in, the strip of `pages` out. Opening a worksheet and ADDING a
+   page to the one already open are the same job downstream — a pdf.js
+   document, a wrap/canvas/overlay per page, thumbnails — so they share one
+   builder rather than two that drift. Everything ABOUT the worksheet (its
+   name, its id, its annotations, its meta, its presence) is `loadPdf`'s and
+   is deliberately not touched here: adding a page is not opening a worksheet.
+
+   The zoom is KEPT unless the pages were fitted to the width, in which case
+   it is re-fitted — a blank page appended while the teacher is zoomed into a
+   diagram must not throw them back out to the whole sheet. */
+async function buildPagesFromBytes() {
   // pdf.js transfers (detaches) the buffer it is given — hand it a copy.
   pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
+
+  // Every page object is replaced, so the old ones' renders are cancelled
+  // rather than left painting into canvases that are about to be thrown away.
+  pages.forEach(function (p) { if (p.renderTask) { try { p.renderTask.cancel(); } catch (e) {} } });
 
   $('emptyState').style.display = 'none';
   var container = $('pagesContainer');
@@ -5273,21 +5313,286 @@ async function loadPdf(bytes, name) {
     pages.push(p);
     attachOverlayHandlers(p);
   }
-  fitWidth();
+  if (fittedWidth) fitWidth(); else applyScale();
   buildThumbs();
-  if (window.innerWidth > 900) {
-    $('sideBar').classList.add('open');
-    setThumbPanelOpen(true);
-  }
-  // Fresh worksheet starts on the pen, with the pen's remembered style.
-  if (!isStudent()) setTool('pen');
-  renderSidebar();
-  /* Where we are STARTING, said out loud. Left at 0 the watcher spends its
-     first scroll event working that out, and a quick flick off page 1 is a
-     page written on and then never learned. */
-  autoSeenPage = 1;
-  toast('Loaded “' + docName + '” — ' + pdfDoc.numPages + ' page' + (pdfDoc.numPages > 1 ? 's' : ''));
+  // The overlays live on the new SVGs, so whatever was already written on the
+  // worksheet has to be drawn back onto them.
+  renderAllOverlays();
+  syncThumbStars();
 }
+
+/* ================= ➕ A BLANK PAGE =================
+   Somewhere to put things that are not on the paper: a worked example, a
+   diagram, a photograph of the board, a picture pasted in with Ctrl+V.
+
+   IT IS A REAL PDF PAGE, appended to `pdfBytes` with pdf-lib, and that is the
+   whole design. A synthetic page held only in `pages[]` would have to be
+   taught to the rasteriser, the thumbnails, the answer key, the page
+   snapshots the AI is sent, the flattened download and both print paths —
+   and `outDoc.getPage(a.page - 1)` on the export would simply be out of
+   range, so every annotation on it would vanish from the printed sheet with
+   nothing anywhere saying so. A page pdf.js can open needs none of that.
+
+   Sized from the LAST page, so a blank page in an A4 worksheet is A4 and the
+   sheet still prints as one document rather than as one document and a card. */
+var BLANK_PAGE_W = 595.28, BLANK_PAGE_H = 841.89;  // A4 portrait, in points
+
+async function blankPdfBytes(w, h) {
+  var doc = await PDFLib.PDFDocument.create();
+  doc.addPage([w || BLANK_PAGE_W, h || BLANK_PAGE_H]);
+  return await doc.save();
+}
+
+async function addBlankPage() {
+  if (isStudent() || isSharedVisitor()) {
+    toast('Adding a page to the worksheet is the teacher’s own.');
+    return;
+  }
+  var btn = $('blankPageBtn');
+  if (btn) btn.disabled = true;
+  try {
+    if (!pdfDoc || !pages.length) {
+      // Nothing open: a blank page IS the worksheet. This is the way in for a
+      // sheet built entirely out of pasted pictures.
+      await loadPdf(await blankPdfBytes(), 'Blank worksheet');
+      toast('A blank page to work on — paste a picture straight onto it with Ctrl+V.', 5000);
+      return;
+    }
+    /* Kept so a page that could not be STORED can be taken back off the
+       screen. Left showing, the teacher writes on a page the saved worksheet
+       has never heard of, and the lot is gone at the next sign-in — silently,
+       because nothing else in the app would ever mention it. */
+    var prevBytes = pdfBytes;
+    var last = pages[pages.length - 1];
+    var outDoc = await PDFLib.PDFDocument.load(pdfBytes);
+    outDoc.addPage([last.baseW || BLANK_PAGE_W, last.baseH || BLANK_PAGE_H]);
+    pdfBytes = await outDoc.save();
+    try {
+      /* THE STORED PDF HAS TO BE WRITTEN AGAIN, and this is the load-bearing
+         half. `performSave` uploads the file ONLY when the worksheet is NEW;
+         every later save writes the annotations alone. So without this the
+         new page lives in this tab and nowhere else — and every picture put
+         on it is an annotation pointing at a page that does not exist the
+         next time the worksheet is opened.
+
+         It goes up BEFORE the page is shown, or a failed upload is found out
+         about only once there is work on the page to lose.
+
+         `pageCount` is written with it, and that is not tidiness either:
+         auto-save writes the annotations and the page stars and NOTHING else,
+         so a worksheet that grew a page would go on saying "3 pages" in every
+         list in the app until somebody happened to press Save. */
+      if (currentDocId) {
+        await storage.ref(STORAGE_DIR + '/' + currentDocId + '.pdf')
+          .put(new Blob([pdfBytes], { type: 'application/pdf' }));
+        await db.collection(COLLECTION).doc(currentDocId)
+          .set({ pageCount: outDoc.getPageCount() }, { merge: true });
+      }
+    } catch (upErr) {
+      pdfBytes = prevBytes;
+      throw upErr;
+    }
+    await buildPagesFromBytes();
+    setDirty(true);
+    scheduleDraftSave();
+    var p = pages[pages.length - 1];
+    if (p && p.wrap) p.wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast('Blank page ' + pages.length + ' added — paste a picture onto it with Ctrl+V.', 5000);
+  } catch (e) {
+    console.error(e);
+    toast('The blank page could not be added: ' + (e.message || e), 6000);
+  }
+  if (btn) btn.disabled = false;
+}
+
+/* ================= 📎 PASTE A PICTURE ONTO THE PAGE =================
+   Copy a picture anywhere — a diagram out of a textbook PDF, a screenshot, a
+   photo off a phone — and Ctrl+V puts it on the worksheet where you are
+   looking.
+
+   IT IS AN `ainote` CARD OF KIND 'paste', NOT A NEW ANNOTATION TYPE, and that
+   is the whole trick — the same one the mindmap plays. A new type would have
+   to be taught to annFrame, the resize handles, the hit test, enterEditMode,
+   the eraser, the lasso, the thumbnails and both PDF paths, each silent when
+   missed. A kind the card renderer already knows needs none of them: it
+   moves, resizes, erases, lassoes, undoes, prints, exports and SAVES like
+   every other annotation from the moment it lands.
+
+   Only the card's CHROME is drawn at AI_NOTE_ALPHA — the picture inside it is
+   fully opaque on screen and on paper, which is what makes a see-through
+   frame the right frame for a photograph. */
+var PASTE_IMG_MAX_PX = 1600;   // a worksheet page is ~600pt wide; this is generous
+var PASTE_IMG_QUALITY = 0.9;   // a pasted screenshot is often text — 0.82 goes soft
+var PASTE_CASCADE = 14;        // page units each further picture is stepped by
+
+/* Where a paste belongs. Typing is the commonest thing a teacher is doing
+   when they press Ctrl+V, and a picture landing on the worksheet instead of
+   in the box they are typing into is the one way this feature can be worse
+   than not having it. Anything with its own paste — the mindmap board, the
+   code window, every dialog — keeps its own. */
+function pasteGoesToWorksheet(e) {
+  if (isStudent() || isSharedVisitor()) return false;
+  if (!pdfDoc || !pages.length) return false;
+  /* A DIALOG covers the worksheet, so the paste is its own. A FLOATING window
+     — the mindmap board, the calculator, the code window — does not: the
+     worksheet is live underneath it and being written on, so a paste there is
+     only the window's while the focus is IN it. Bailing on any open
+     `.modalBack` would mean a teacher with the board open could not paste
+     onto the page at all, and neither handler would act. */
+  var open = document.querySelector('.modalBack.open:not(.floatWin)');
+  if (open) return false;
+  var spots = [(e && e.target) || null, document.activeElement];
+  for (var i = 0; i < spots.length; i++) {
+    var t = spots[i];
+    if (!t || !t.closest) continue;
+    if (t.closest('input, textarea, select, [contenteditable="true"]')) return false;
+    if (t.closest('.modalBack')) return false;
+  }
+  return true;
+}
+
+/* The picture, on the page you are looking at. One door, so the clipboard and
+   a dropped file cannot drift into placing pictures differently. */
+async function pasteImageOntoPage(file) {
+  if (!file || !/^image\//.test(file.type || '')) return 0;
+  if (isStudent() || isSharedVisitor()) {
+    toast('Putting pictures on the worksheet is the teacher’s own.');
+    return 0;
+  }
+  var page = mmTargetPage();
+  if (!page) { toast('Open a worksheet — or add a blank page — first.', 4000); return 0; }
+
+  var raw = await new Promise(function (resolve) {
+    var fr = new FileReader();
+    fr.onload = function (ev) { resolve(ev.target.result); };
+    fr.onerror = function () { resolve(null); };
+    fr.readAsDataURL(file);
+  });
+  if (!raw) { toast('That picture could not be read.'); return 0; }
+
+  /* A phone photo is several megabytes of data URL, and a worksheet's
+     annotations are written on every auto-save — so it is redrawn to
+     something a page can actually use. Storage overflow catches what is left
+     (see writeAnnotations); this is what stops every save being a re-upload
+     of a photograph nobody is looking at at full size. */
+  var src = await shrinkImageDataUrl(raw, PASTE_IMG_MAX_PX, PASTE_IMG_QUALITY);
+  var ratio = await imageRatio(src);
+
+  /* A second picture pasted straight after the first must not land exactly on
+     top of it — the teacher would think the paste had done nothing. */
+  var step = annotations.filter(function (x) {
+    return x.page === page.num && x.type === 'ainote' && x.kind === 'paste';
+  }).length;
+  var box = pasteCardBox(page, ratio, step);
+
+  pushUndo();
+  var a = {
+    id: newAnnId(), page: page.num, type: 'ainote', kind: 'paste',
+    x: box.x, y: box.y, w: box.w, h: box.h,
+    color: '#5DADE2', title: 'Picture', text: '', src: src, ts: Date.now()
+  };
+  annotations.push(a);
+  selectedId = a.id;
+  renderAllOverlays();
+  setDirty(true);
+  return page.num;
+}
+
+/* Where a pasted picture goes and how big it is — the ONE place a ratio
+   becomes a box, so what lands on the page and what the harness checks are
+   the same arithmetic.
+
+   Sized to the PICTURE's own shape, so nothing is letterboxed the moment it
+   lands; never taller than the page it is going onto, because a card taller
+   than the paper cannot be dragged back into view; and stepped down the page
+   for each picture already pasted there, cycling so a long run never walks
+   off the corner. */
+function pasteCardBox(page, ratio, index) {
+  var pw = page.baseW || 600, ph = page.baseH || 800;
+  var r = Math.max(0.15, ratio || 0.75);
+  var w = Math.min(420, pw * 0.62);
+  var h = Math.round(w / r) + AI_NOTE_HEAD_H;
+  if (h > ph * 0.82) {
+    h = Math.round(ph * 0.82);
+    w = Math.max(AI_NOTE_MIN_W, Math.round((h - AI_NOTE_HEAD_H) * r));
+  }
+  w = Math.max(AI_NOTE_MIN_W, Math.min(w, pw - 8));
+  h = Math.max(AI_NOTE_MIN_H, Math.min(h, ph - 8));
+  var step = (index || 0) % 6;
+  var x = mmAttachX(page, w) + step * PASTE_CASCADE;
+  var y = mmAttachY(page, h) + step * PASTE_CASCADE;
+  return {
+    x: round2(Math.max(4, Math.min(pw - w - 4, x))),
+    y: round2(Math.max(4, Math.min(ph - h - 4, y))),
+    w: round2(w), h: round2(h)
+  };
+}
+
+/* The picture's own width ÷ height, so the card is not letterboxed. A picture
+   that will not decode falls back to a portrait-ish box rather than throwing
+   — a card with a broken image in it is still one the teacher can delete. */
+function imageRatio(src) {
+  return new Promise(function (resolve) {
+    var img = new Image();
+    img.onload = function () { resolve(img.width && img.height ? img.width / img.height : 0.75); };
+    img.onerror = function () { resolve(0.75); };
+    img.src = src;
+  });
+}
+
+/* Every image on the clipboard, in the order it arrived. A screenshot is one;
+   a selection copied out of a document can be several. */
+async function pasteImagesFromClipboard(dt) {
+  var files = [];
+  var items = dt && dt.items;
+  if (items) {
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file' && /^image\//.test(items[i].type || '')) {
+        var f = items[i].getAsFile();
+        if (f) files.push(f);
+      }
+    }
+  }
+  if (!files.length && dt && dt.files) {
+    for (var j = 0; j < dt.files.length; j++) {
+      if (/^image\//.test(dt.files[j].type || '')) files.push(dt.files[j]);
+    }
+  }
+  if (!files.length) return 0;
+  var done = 0, onPage = 0;
+  for (var k = 0; k < files.length; k++) {
+    var landed = await pasteImageOntoPage(files[k]);
+    if (landed) { done++; onPage = onPage || landed; }
+  }
+  if (done) {
+    scheduleAutoSave();
+    scheduleDraftSave();
+    toast(done === 1
+      ? 'Picture pasted onto page ' + onPage + ' — drag it about, or drag a corner to resize.'
+      : done + ' pictures pasted onto page ' + onPage + '.', 4200);
+  }
+  return done;
+}
+
+document.addEventListener('paste', function (e) {
+  if (!pasteGoesToWorksheet(e)) return;
+  var dt = e.clipboardData;
+  if (!dt) return;
+  var hasImage = false;
+  if (dt.items) {
+    for (var i = 0; i < dt.items.length; i++) {
+      if (dt.items[i].kind === 'file' && /^image\//.test(dt.items[i].type || '')) hasImage = true;
+    }
+  }
+  if (!hasImage && dt.files && dt.files.length) {
+    for (var j = 0; j < dt.files.length; j++) {
+      if (/^image\//.test(dt.files[j].type || '')) hasImage = true;
+    }
+  }
+  if (!hasImage) return;   // text on the clipboard is not this feature's
+  e.preventDefault();
+  pasteImagesFromClipboard(dt);
+});
 
 /* Zoom used to resize AND re-rasterise every page in the document on every
    step, straight from the pinch's pointermove. Assigning canvas.width wipes
@@ -9156,6 +9461,17 @@ function enterEditMode(id, p) {
     // …except a mindmap, which was drawn rather than prompted: the AI note
     // dialog would offer to regenerate a card that never came from a prompt.
     if (a.kind === 'mindmap') { mmEditAttached(id); return; }
+    /* …and neither did a pasted picture: the AI note dialog would offer to
+       regenerate a card that never came from a prompt, and its Delete would
+       be the only thing on it that worked. It gets the ordinary resize
+       handles instead, which is what a picture actually wants. */
+    if (a.kind === 'paste') {
+      if (tool !== 'select') setTool('select');
+      editModeId = id;
+      editingId = null;
+      renderAllOverlays();
+      return;
+    }
     var np = pages.find(function (pg) { return pg.num === a.page; }) || p;
     openAiNoteModal({ mode: 'edit', id: id, page: np });
   } else if (a.type === 'text') {
@@ -14134,6 +14450,15 @@ var AI_NOTE_KINDS = [
   }
 ];
 
+/* PASTE_NOTE_KIND is deliberately NOT in AI_NOTE_KINDS: a picture off the
+   clipboard is not something the ✨ Generate chooser can be asked for, so it
+   must not appear there as a fifth tile. aiNoteKindInfo knows it separately,
+   exactly as it knows the mindmap. */
+var PASTE_NOTE_KIND = {
+  key: 'paste', icon: '📎', name: 'Pasted picture', short: 'Picture',
+  what: 'A picture pasted onto the worksheet.'
+};
+
 /* Left blank, a widget teaches whatever the question at that spot is about.
    That is the common case in a lesson — click beside the question, Generate,
    carry on talking — so it is the default rather than something to type out
@@ -14149,6 +14474,7 @@ var AI_NOTE_SIZE = {
   notes:  { w: 250, h: 160 },
   table:  { w: 290, h: 150 },
   image:  { w: 230, h: 190 },
+  paste:  { w: 260, h: 200 },
   widget: { w: 310, h: 230 },
   mindmap: { w: 340, h: 240 },
   // A Pro build is a full app with a control panel and a second view; dropped
@@ -14179,6 +14505,7 @@ var aiNoteKind = 'notes';
    for free. */
 function aiNoteKindInfo(k) {
   if (k === 'mindmap') return MM_NOTE_KIND;
+  if (k === 'paste') return PASTE_NOTE_KIND;
   return AI_NOTE_KINDS.find(function (x) { return x.key === k; }) || AI_NOTE_KINDS[0];
 }
 
@@ -15024,8 +15351,10 @@ async function aiNoteImage(prompt, instr, q) {
 
 /* Generated pictures are stored inside the worksheet, and a worksheet has to
    fit in one Firestore document — so a photo-sized PNG is redrawn small. */
-function shrinkImageDataUrl(dataUrl, maxPx) {
+function shrinkImageDataUrl(dataUrl, maxPx, quality) {
   maxPx = maxPx || 640;
+  // Left out, it is 0.82 — byte for byte what every existing caller gets.
+  quality = quality || 0.82;
   return new Promise(function (resolve) {
     var img = new Image();
     img.onload = function () {
@@ -15039,7 +15368,7 @@ function shrinkImageDataUrl(dataUrl, maxPx) {
         cx.fillStyle = '#fff';
         cx.fillRect(0, 0, cv.width, cv.height);
         cx.drawImage(img, 0, 0, cv.width, cv.height);
-        resolve(cv.toDataURL('image/jpeg', 0.82));
+        resolve(cv.toDataURL('image/jpeg', quality));
       } catch (e) { resolve(dataUrl); }
     };
     img.onerror = function () { resolve(dataUrl); };
@@ -15144,7 +15473,10 @@ function aiNoteCardNode(a) {
     use.textContent = a.live ? '✋ Lock' : '▶ Use';
     head.appendChild(use);
   }
-  if (!isStudent() && !isSharedVisitor()) {
+  /* A PASTED picture came off the clipboard, so there is nothing behind it to
+     ask for again and nothing to open in an editor — it gets no button here
+     at all. Every other card does. */
+  if (!isStudent() && !isSharedVisitor() && a.kind !== 'paste') {
     var redo = document.createElement('button');
     redo.className = 'aiNoteBtn';
     // A mindmap was drawn, not prompted, so there is nothing to ask the model
@@ -15171,12 +15503,12 @@ function aiNoteCardNode(a) {
 
   var body = document.createElement('div');
   body.className = 'aiNoteBody';
-  if (a.kind === 'image' || a.kind === 'widget' || a.kind === 'mindmap') body.classList.add('aiNoteBodyFlush');
+  if (a.kind === 'image' || a.kind === 'widget' || a.kind === 'mindmap' || a.kind === 'paste') body.classList.add('aiNoteBodyFlush');
   if (a.kind === 'notes') {
     renderMiniMarkdown(body, a.text || '');
   } else if (a.kind === 'table') {
     body.appendChild(aiNoteTableNode(a));
-  } else if (a.kind === 'image' || a.kind === 'mindmap') {
+  } else if (a.kind === 'image' || a.kind === 'mindmap' || a.kind === 'paste') {
     if (a.src) {
       var img = document.createElement('img');
       img.src = a.src;
@@ -20460,7 +20792,7 @@ function isStudent() {
 /* Download and the two Print buttons are deliberately NOT in this list:
    students may keep — and print — a copy of any worksheet they can already
    open, so those buttons stay for everyone. */
-var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
@@ -20518,7 +20850,7 @@ function applyRoleUI() {
   var keyPdfBtn = $('keyPdfBtn');
   if (keyPdfBtn) keyPdfBtn.style.display = (student || sharedVisitor) ? 'none' : '';
   if (sharedVisitor) {
-    ['uploadBtn', 'saveBtn', 'printQBtn', 'printABtn', 'shareBtn'].forEach(function (id) {
+    ['uploadBtn', 'blankPageBtn', 'saveBtn', 'printQBtn', 'printABtn', 'shareBtn'].forEach(function (id) {
       var elm = $(id);
       if (elm) elm.style.display = 'none';
     });
@@ -24424,7 +24756,8 @@ function annBBox(a) {
 async function embedAiNoteImages(outDoc, anns) {
   var out = {};
   var wanted = (anns || []).filter(function (a) {
-    return a.type === 'ainote' && (a.kind === 'image' || a.kind === 'mindmap') && /^data:image\//.test(a.src || '');
+    return a.type === 'ainote' && (a.kind === 'image' || a.kind === 'mindmap' || a.kind === 'paste') &&
+      /^data:image\//.test(a.src || '');
   });
   for (var i = 0; i < wanted.length; i++) {
     var a = wanted[i];
@@ -24534,7 +24867,7 @@ function drawAiNoteOnPdf(o) {
   var bodyTop = y + ph - headH - padY, bodyBottom = y + padY;
   var bodyH = Math.max(0, bodyTop - bodyBottom);
 
-  if (a.kind === 'image' || a.kind === 'mindmap') {
+  if (a.kind === 'image' || a.kind === 'mindmap' || a.kind === 'paste') {
     if (o.image) {
       var f = Math.min(bodyW / o.image.width, bodyH / o.image.height);
       var iw = o.image.width * f, ih = o.image.height * f;
@@ -24940,6 +25273,8 @@ function printPdfBytes(outBytes, label) {
 
 /* ================= Wiring ================= */
 $('uploadBtn').addEventListener('click', openFilePicker);
+$('blankPageBtn').addEventListener('click', addBlankPage);
+$('emptyBlankBtn').addEventListener('click', addBlankPage);
 $('emptyUploadBtn').addEventListener('click', openFilePicker);
 $('fileInput').addEventListener('change', function (e) {
   if (e.target.files && e.target.files[0]) loadPdfFromFile(e.target.files[0]);
@@ -25413,7 +25748,15 @@ window.addEventListener('resize', positionLassoBar);
     if (evt === 'dragleave' && e.relatedTarget) return;
     viewerArea.classList.remove('dragOver');
     if (evt === 'drop' && e.dataTransfer.files && e.dataTransfer.files[0]) {
-      loadPdfFromFile(e.dataTransfer.files[0]);
+      /* A picture dropped on the worksheet is the same gesture as pasting one,
+         so it goes through the same door — dropping one used to be handed to
+         loadPdfFromFile, which refused it as "not a PDF". */
+      var f = e.dataTransfer.files[0];
+      if (/^image\//.test(f.type || '') && pdfDoc && pages.length && !isStudent() && !isSharedVisitor()) {
+        pasteImagesFromClipboard(e.dataTransfer);
+      } else {
+        loadPdfFromFile(f);
+      }
     }
   });
 });
