@@ -670,6 +670,95 @@ in the app, so the wording that comes back is the teacher's.
 - Run **`node tools/mindmap-tests.mjs`** after touching any of it.
 
 
+## 📎 A blank page, and a picture pasted onto it (v1.89.0)
+
+`buildPagesFromBytes` / `BLANK_PAGE_W` / `blankPdfBytes` / **`addBlankPage`** /
+`PASTE_NOTE_KIND` / `PASTE_IMG_MAX_PX` / `PASTE_IMG_QUALITY` / `PASTE_CASCADE` /
+`pasteGoesToWorksheet` / **`pasteImageOntoPage`** / `pasteCardBox` /
+`imageRatio` / `pasteImagesFromClipboard` (search `ONE page builder`,
+`➕ A BLANK PAGE` and `📎 PASTE A PICTURE ONTO THE PAGE`), plus `#blankPageBtn`,
+`#emptyBlankBtn` and the image branch of the page's own drop handler.
+
+➕ **Blank page** puts an empty page on the end of the worksheet — and with
+nothing open, the blank page IS the worksheet, which is the way in for a sheet
+built entirely out of pasted pictures. **Ctrl+V** then drops a picture onto the
+page in view; so does dropping one on it.
+
+- **THE BLANK PAGE IS A REAL PDF PAGE, appended to `pdfBytes` with pdf-lib**,
+  and that is the whole design. A synthetic page held only in `pages[]` would
+  have to be taught to the rasteriser, the thumbnails, the answer key, the page
+  snapshots the AI is sent, the flattened download and both print paths — and
+  `outDoc.getPage(a.page - 1)` in the export would simply be **out of range**,
+  so every annotation on it would vanish from the printed sheet with nothing
+  anywhere saying so. A page pdf.js can open needs none of that.
+- **IT IS APPENDED, NEVER INSERTED.** Every annotation, every star and every
+  answer-key row is keyed by page NUMBER, so putting a page in the middle
+  renumbers the lot silently.
+- **THE STORED PDF HAS TO BE WRITTEN AGAIN, and this is the load-bearing
+  half.** `performSave` uploads the file **only when the worksheet is NEW**;
+  every later save writes the annotations alone. So a page appended without
+  that upload lives in one tab and in no saved worksheet — and every picture
+  put on it is an annotation pointing at a page that does not exist the next
+  time the worksheet is opened. It goes up **BEFORE the page is shown**, or a
+  failed upload is found out about only once there is work on the page to
+  lose, and a failed one puts `pdfBytes` back rather than leaving a page on
+  screen that nothing can save.
+- **`pageCount` is written with it**, as a merge. Auto-save writes the
+  annotations and the page stars and nothing else, so a worksheet that grew a
+  page would go on saying "3 pages" in every list in the app until somebody
+  happened to press Save.
+- **`buildPagesFromBytes` is the ONE page builder**, shared by `loadPdf` and
+  `addBlankPage` — opening a worksheet and adding a page to it are the same job
+  downstream. It touches nothing ABOUT the worksheet (its name, its id, its
+  annotations, its meta, its presence): adding a page is not opening a
+  worksheet. It **keeps the zoom** unless the pages were fitted to the width
+  (`fittedWidth`) — a blank page appended while the teacher is zoomed into a
+  diagram must not throw them back out — and it **draws the annotations back
+  onto the new overlays**, which live on SVGs it has just thrown away.
+- **A PASTED PICTURE IS AN `ainote` CARD OF KIND `'paste'`, NOT A NEW
+  ANNOTATION TYPE** — the same trick the mindmap plays, for the same reason. A
+  new type would have to be taught to `annFrame`, the resize handles, the hit
+  test, `enterEditMode`, the eraser, the lasso, the thumbnails and both PDF
+  paths, each silent when missed.
+- **`PASTE_NOTE_KIND` is deliberately NOT in `AI_NOTE_KINDS`.** A picture off
+  the clipboard is not something the ✨ Generate chooser can be asked for, so it
+  must not appear there as a fifth tile; `aiNoteKindInfo` knows it separately.
+- **It gets no ✨ redo button and never opens the AI note dialog.** There is
+  nothing behind it to ask for again, so a double-tap gives the ordinary resize
+  handles instead — which is what a picture actually wants. Offered the dialog,
+  the only thing on it that works is Delete.
+- **`'paste'` had to be added to BOTH PDF paths** (`embedAiNoteImages` and the
+  card painter) or it prints as an empty box with a heading — a picture on
+  screen and a gap on the sheet.
+- **Only the card's CHROME is at `AI_NOTE_ALPHA`; the picture is opaque**, on
+  screen and on paper. That is what makes a see-through frame the right frame
+  for a photograph parked over a question.
+- **`pasteCardBox` is the ONE place a ratio becomes a box**, so what lands on
+  the page and what the harness checks are the same arithmetic. Sized to the
+  picture's own shape (nothing letterboxed), never taller than the page (a card
+  overhanging the paper cannot be dragged back on), and **stepped for each
+  picture already on that page** — a second paste landing exactly on the first
+  reads as a paste that did nothing. The step cycles, so a long run never walks
+  off the corner.
+- **A phone photo is redrawn small** (`shrinkImageDataUrl`, at
+  `PASTE_IMG_MAX_PX` / `PASTE_IMG_QUALITY`). The annotations are re-written on
+  every auto-save, and Storage overflow is the net rather than the plan. The
+  quality argument is **optional and defaults to the 0.82 it always was**, or
+  every existing caller silently changes what it stores. `PASTE_IMG_QUALITY` is
+  higher because a pasted screenshot is usually text, which 0.82 makes soft.
+- **`pasteGoesToWorksheet` is the ONE place a paste is claimed**, and it is the
+  difference between this feature and one that is worse than nothing: typing is
+  the commonest thing a teacher is doing when they press Ctrl+V, so an input, a
+  textarea, a contenteditable (a text annotation being written) and anything
+  inside a dialog all keep their own paste. **Text on the clipboard is never
+  claimed at all.**
+- **A picture DROPPED on the page goes through the same door.** It used to be
+  handed to `loadPdfFromFile`, which refused it as "not a PDF".
+- Adding a page and pasting a picture are the **teacher's own**, refused in the
+  handlers as well as hidden from the toolbar — the same rule the ✨ note tool
+  follows.
+- Run **`node tools/blank-page-tests.mjs`** after touching any of it.
+
 ## ✏️ Line styles, arrowheads and curly brackets (v1.75.0)
 
 `ANN_DASH_STYLES` / `annDashName` / `annDashPattern` / `ANN_HEAD_ORDER` /
@@ -1062,6 +1151,34 @@ draw.
   `node tools/notes-tests.mjs`. It loads the REAL section out of `index.html` and runs it against
   stubs. Every failure here is silent — a digest that comes back empty is just an ungrounded
   prompt, and nothing throws.
+- After touching **➕ the blank page or 📎 the pasted picture**
+  (`buildPagesFromBytes`, `blankPdfBytes`, `addBlankPage`, `BLANK_PAGE_W`,
+  `PASTE_NOTE_KIND`, `pasteGoesToWorksheet`, `pasteImageOntoPage`,
+  `pasteCardBox`, `imageRatio`, `pasteImagesFromClipboard`,
+  `shrinkImageDataUrl`'s quality argument, either PDF path's `'paste'`, or the
+  image branch of the drop handler), run `node tools/blank-page-tests.mjs`.
+  Every failure here is silent and the page still appears: **stop re-uploading
+  the PDF and the new page exists in one tab and in no saved worksheet**, so
+  every picture put on it is an annotation pointing at a page that is not
+  there the next morning — and nothing on any screen ever mentions it. Show
+  the page before the upload and a refused write is found out about only once
+  there is work on it to lose; leave a page on screen that could not be
+  stored and the teacher writes on it and loses the lot at the next sign-in.
+  Write a second page builder and the zoom, the thumbnails or the overlays
+  come back on one path and not the other — drop `renderAllOverlays` from the
+  builder and every annotation on the worksheet disappears off the screen the
+  moment a page is added, while still sitting in the array and still being
+  saved. Insert the page rather than appending it and every annotation, star
+  and answer-key row after it is silently one page out. Make the picture a new
+  annotation TYPE and it has to be taught to nine places; miss it out of
+  either PDF path and it prints as an empty box with a heading; put its kind
+  into `AI_NOTE_KINDS` and it becomes a fifth tile in the ✨ Generate chooser
+  that cannot be generated. Let a paste be claimed while the teacher is typing
+  and the picture lands on the worksheet instead of in the box they were
+  filling in, which is the one way this is worse than not having it. And let
+  `pasteCardBox` size off anything but the picture's own ratio and every
+  pasted picture is letterboxed — or taller than the paper, which cannot be
+  dragged back into view.
 - After touching **the line styles, the arrowheads or the brace**
   (`ANN_DASH_STYLES`, `annDashName`, `annDashPattern`, `annHeads`,
   `annHasHeadAtStart`/`annHasHeadAtEnd`, `arrowHeadPoints`, `braceDepth`,

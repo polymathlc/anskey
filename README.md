@@ -3,6 +3,38 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 📎 A blank page, and pictures pasted straight onto it (v1.89.0)
+
+Two things that go together. **➕ Blank page** in the toolbar adds an empty
+page at the end of the worksheet — somewhere to work an example, stick a photo
+of the board, or build a page out of nothing. Press it with no worksheet open
+and the blank page *is* the worksheet.
+
+Then **copy a picture anywhere and press Ctrl+V**: a diagram out of a textbook
+PDF, a screenshot, a photo off your phone. It lands on the page you are looking
+at. Dragging a picture onto the page does the same thing.
+
+- **A pasted picture is an ordinary annotation** from the moment it lands, so
+  it drags about, resizes from a corner, erases, lassoes, undoes, prints,
+  downloads with the flattened PDF and saves with the worksheet. Double-tap one
+  for the resize handles.
+- **It is sized to the picture's own shape**, so nothing arrives letterboxed,
+  and never taller than the page it is going onto. Paste several and they step
+  down the page instead of piling on top of one another.
+- **The frame is see-through, the picture is not** — the same 85% transparent
+  card every note card uses, so the printed question underneath still reads,
+  while the picture itself is solid on screen and on paper.
+- **The blank page is a real page of the PDF**, so it prints, exports, takes
+  the pen, appears in the thumbnails and can be starred like any other.
+- **It is saved the moment you add it.** The worksheet's stored file is written
+  again there and then, so a page added on the iPad is a page that is still
+  there tomorrow on the laptop.
+- **Pasting while you are typing still types.** A picture only goes to the
+  worksheet when you are not in a text box, a note, the mindmap board or a
+  dialog — each of those keeps its own paste.
+- Adding pages and pasting pictures are the teacher's; students read what
+  lands.
+
 ## ChatGPT now runs on GPT-6 Astra (v1.88.0)
 
 The ChatGPT side of the app — the engine it starts on — is now
