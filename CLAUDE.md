@@ -1144,11 +1144,35 @@ the first route did not answer.
   Engine dialog, so the last picture's model can be checked after the box has
   gone.
 
+### 🩹 The 2.5 family REFUSES `input_fidelity` — every edit was Gemini's (v1.91.1)
+
+`OPENAI_IMAGE_FIDELITY_RE` / `_imgFidelityFor` / `_imgSizeField` /
+`_isUnsupportedImageParam` in the classic script, and `imgRefusalText` /
+`IMG_ROUTE_LABEL` / `refusedBy` in the module's bridge.
+
+The gpt-image-2 family reads every reference at high fidelity by itself and
+answers an `input_fidelity` field with a 400 — *"does not support the
+'input_fidelity' parameter"* — and v1.90.0 sent it on every edit. The retry
+net matched "not supported" and not "does not support", a 400 is deliberately
+not a route fault, and Gemini drew the picture anyway, so the only symptom was
+the green box saying *(after another route refused)*.
+
+- **`_imgFidelityFor(model)` is the ONE rule**: `'high'` for gpt-image-1 and
+  its mini, `''` for everything newer. **`size: auto` is never sent as a word**
+  (`_imgSizeField`): leaving the field out asks the API for its own default.
+- **The retry net is wide now**, so the next parameter a model stops taking
+  earns one bare retry rather than falling through to Gemini.
+- **THE BADGE SAYS WHO REFUSED AND WHY** — *(after ChatGPT Images (your key)
+  refused: …)*, prefix stripped, clipped to `IMG_REFUSAL_CHARS` — and the AI
+  Engine dialog's *Pictures* line repeats it. "Another route refused" was the
+  right signal and not enough of one.
+
 ## House rules
 - After touching **🖼 the image engine** (`OPENAI_IMAGE_DEFAULT_MODEL`,
   `OPENAI_IMAGE_MODELS`, `OPENAI_IMAGE_25_RE`, `OPENAI_IMAGE_SUPERSEDED`,
   `openAiLiftImageModel`, `getOpenAiImageModel`, `_imgQualityFor`,
   `aiImageEngineSetting`, `imageEngineOrder`, `_imgRouteFault`,
+  `_imgFidelityFor`, `_imgSizeField`, `_isUnsupportedImageParam`,
   `window.askOpenAiImage`, the `window.askGeminiImage` bridge, the **Pictures**
   radios, or the `imageEngine` / `imageModel` fields in `saveAiEngineToCloud`
   / `loadAiEngineFromCloud`), run `node tools/image-engine-tests.mjs` and
@@ -1156,7 +1180,9 @@ the first route did not answer.
   every failure here is silent. **Gate the ChatGPT route on `openAiOn()` again
   and the text engine radio decides who draws**, which is the fault this
   replaced. Return a `null` picture from the bridge instead of throwing and
-  the SVG fallback is never reached — a blank card. Mark the key down on a 400
+  the SVG fallback is never reached — a blank card. **Send `input_fidelity` to
+  the 2.5 family and every edit is refused and drawn by Gemini**, with only the
+  green box to say so. Mark the key down on a 400
   about the picture and one refused prompt closes ChatGPT Images for ten
   minutes. Lift the device without lifting the RECORD and the next sign-in puts
   `gpt-image-1` straight back. Fold `max` down to `high` again and the

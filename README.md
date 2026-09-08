@@ -3,6 +3,15 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 🩹 ChatGPT Images was refusing every edit (v1.91.1)
+
+The green box kept saying *Gemini · (after another route refused)*. The cause
+was one field: the gpt-image-2.5 models refuse `input_fidelity` (they read every
+reference at high fidelity by themselves), and v1.90.0 sent it on every edit.
+It now goes only to gpt-image-1, `size: auto` is no longer sent as a word, the
+bare-retry net catches the API's actual wording, and the box says **which** route
+refused and **why**.
+
 ## 🖼 The green box — which model drew the picture (v1.91.0)
 
 Every time a picture is generated — the 🖼️ **Picture** card, the picture kind
