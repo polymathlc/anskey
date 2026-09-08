@@ -3,6 +3,28 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 🖼 Every picture is drawn by ChatGPT Images 2.5 (v1.90.0)
+
+The 🖼️ **Picture** button and the picture kind inside ✨ AI notes now draw with
+**ChatGPT Images 2.5**, OpenAI's newest image model (8 September 2026), by
+default — and which engine draws is its own choice in the AI Engine dialog,
+not a side effect of the engine you write answers with.
+
+- **Two models to pick from.** *Flare* is OpenAI's own default — sharper than
+  gpt-image-2 at half the wait — and *Sunburst* takes longer for edits that
+  need tighter control. Both cost the same, and both take the builder's
+  **max** quality, which used to be folded down to *high*.
+- **Pictures — which engine draws** is a new pair of radios in the dialog:
+  ChatGPT Images 2.5 (default) or the Gemini image model. Whichever you
+  choose, the other takes over the moment it refuses, and a drawn SVG diagram
+  still stands behind both, so a card never comes back blank.
+- **It follows you.** The choice and the model are kept in your own settings
+  record beside the key, so a new iPad or a cleared browser picks them up at
+  sign-in. A device still carrying the old `gpt-image-1` default is moved to
+  Flare once; a model you deliberately pick afterwards stays picked.
+- **Nothing changes for students.** They never draw a picture, and the key is
+  still only ever in the admin's browser and record.
+
 ## 📎 A blank page, and pictures pasted straight onto it (v1.89.0)
 
 Two things that go together. **➕ Blank page** in the toolbar adds an empty

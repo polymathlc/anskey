@@ -1054,7 +1054,82 @@ draw.
 - Teacher-only, like every other generating path — the handler checks the role
   itself rather than trusting that the button was never built.
 
+## 🖼 The image engine — ChatGPT Images 2.5 for EVERY picture (v1.90.0)
+
+`OPENAI_IMAGE_DEFAULT_MODEL` / `OPENAI_IMAGE_MODELS` / `OPENAI_IMAGE_25_RE` /
+`OPENAI_IMAGE_SUPERSEDED` / `OPENAI_IMAGE_GEN` / `openAiLiftImageModel` /
+`getOpenAiImageModel` / `openAiImageModelOptionsHtml` / `_imgQualityFor` /
+`AI_IMAGE_ENGINES` / `aiImageEngineSetting` / `imageEngineOrder` /
+`imageEngineLabel` / `imageRouteNote` / `_imgRouteFault` / `_imgMarkDown` (in
+the classic script, search `THE IMAGE ENGINE`), `window.askOpenAiImage`, the
+`window.askGeminiImage` bridge in the module at the foot of the file, and the
+**Pictures** radios + image-model dropdown in the AI Engine dialog.
+**`polymathlc/cer` and `polymathlc/math` carry the same block — ship a change
+to all three together.**
+
+The 🖼️ Picture note card is drawn by **ChatGPT Images 2.5** now. OpenAI
+shipped it on 8 September 2026 with two API models: `gpt-image-2.5-flare`
+(its own default — higher quality than gpt-image-2 at half the latency) and
+`gpt-image-2.5-sunburst` (premium edits, slower). Both take `quality` low /
+medium / high / **xhigh** / **max**, `background: transparent` outright,
+arbitrary sizes and up to 16 reference pictures on an edit with
+`input_fidelity`. Both cost the same.
+
+- **BEFORE THIS, WHICH MODEL DREW WAS A SIDE EFFECT.** `askGeminiImage` asked
+  ChatGPT only while `openAiOn()` — the TEXT engine radio — was ChatGPT, so a
+  day on Kimi or Gemini quietly changed what the pictures came out of. **The
+  image engine is its own setting now** (`AI_ENGINE_STORE.imageEngine`, kept
+  in this browser and in the admin's `adminSettings` record beside the key),
+  defaulting to ChatGPT Images.
+- **`window.imageEngineOrder()` IS THE ONE PLACE THE ORDER IS DECIDED**, and
+  the module's bridge walks it: ChatGPT Images by the admin's key, then the
+  Gemini image model, then — in `aiNoteImage`, exactly as before — the drawn
+  SVG. There is no server route here (this app has no functions SDK and a
+  student never draws a picture), so the key in the record is the one route
+  ChatGPT Images has; without a key the order is Gemini alone and the dialog's
+  note says so.
+- **A ROUTE THAT RETURNS NO PICTURE IS A REFUSAL.** `askGeminiImageDirect`
+  hands back `null` when the model answered in words, and the old bridge
+  returned that `null` to the caller; the new one throws, so the next route —
+  and then the SVG — is reached rather than a blank card.
+- **A REFUSAL IS REMEMBERED** (`_imgMarkDown`, `AI_IMAGE_DOWN_MS`) so a refused
+  key is not paid for on the next card, and **a refusal about ONE picture does
+  not close the route** (`_imgRouteFault`: a 400 that is not about the key,
+  billing or quota marks nothing down).
+- **`max` REACHES THE MODEL NOW.** The builder's top build quality used to be
+  folded down to `high` because gpt-image-1 knew nothing above it; on the 2.5
+  family `_imgQualityFor` passes `xhigh` / `max` through and clamps them to
+  `high` only on a legacy model.
+- **A DEFAULT NOBODY CHOSE IS NOT A CHOICE, and THE RECORD IS LIFTED TOO.**
+  `OPENAI_IMAGE_SUPERSEDED` is lifted to Flare once per device
+  (`OPENAI_IMAGE_GEN`), the chat model's own rule, and `loadAiEngineFromCloud`
+  lifts the record's `imageModel` through `openAiLiftImageModel` and writes it
+  back — left at `gpt-image-1` it would be written over the lift on the very
+  next sign-in. A deliberate legacy re-pick afterwards sticks; an id the
+  dropdown no longer offers is the default, never a 404 on every picture.
+- **The dropdown is BUILT from `OPENAI_IMAGE_MODELS`** when the dialog opens,
+  so the ids on screen and the ids the code accepts cannot drift apart.
+- Run **`node tools/image-engine-tests.mjs`** after touching any of it.
+
 ## House rules
+- After touching **🖼 the image engine** (`OPENAI_IMAGE_DEFAULT_MODEL`,
+  `OPENAI_IMAGE_MODELS`, `OPENAI_IMAGE_25_RE`, `OPENAI_IMAGE_SUPERSEDED`,
+  `openAiLiftImageModel`, `getOpenAiImageModel`, `_imgQualityFor`,
+  `aiImageEngineSetting`, `imageEngineOrder`, `_imgRouteFault`,
+  `window.askOpenAiImage`, the `window.askGeminiImage` bridge, the **Pictures**
+  radios, or the `imageEngine` / `imageModel` fields in `saveAiEngineToCloud`
+  / `loadAiEngineFromCloud`), run `node tools/image-engine-tests.mjs` and
+  `node tools/notes-tests.mjs`. A picture comes out whichever model drew it, so
+  every failure here is silent. **Gate the ChatGPT route on `openAiOn()` again
+  and the text engine radio decides who draws**, which is the fault this
+  replaced. Return a `null` picture from the bridge instead of throwing and
+  the SVG fallback is never reached — a blank card. Mark the key down on a 400
+  about the picture and one refused prompt closes ChatGPT Images for ten
+  minutes. Lift the device without lifting the RECORD and the next sign-in puts
+  `gpt-image-1` straight back. Fold `max` down to `high` again and the
+  builder's top quality is a picker that changes nothing. And let a stored id
+  the dropdown no longer offers reach the API and every picture is a 404 with
+  nothing on screen to say the id is merely out of date.
 - **An AI note card is 85% TRANSPARENT, on screen and on paper** (v1.79.0,
   `AI_NOTE_ALPHA`). A card is parked over the question it is teaching, so its
   body, heading, border and spine are painted at 15% and the printed words read
