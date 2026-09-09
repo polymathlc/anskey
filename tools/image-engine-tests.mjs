@@ -228,7 +228,18 @@ await run('badge', async () => {
   ok('the store carries the two new slots', /imageEngine: 'ak_ai_image_engine', imageGen: 'ak_openai_image_gen'/.test(src));
   ok('the old default is gone from the code', !/OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-1'/.test(src));
   ok('no API key is committed', !/sk-[A-Za-z0-9]{20,}/.test(src));
-  ok('the version was bumped', /var APP_VERSION = 'v1\.91\./.test(src));
+  /* A FLOOR, never an exact version. Pinned to `v1.91.` this passed on the day
+     it was written and failed on the very next release — which is a harness
+     reporting a fault in whatever shipped after it rather than in what it
+     covers. What it means is that the picture engine landed in a release of
+     its own and nothing has been rolled back behind it. */
+  const IMG_ENGINE_SINCE = [1, 91, 0];
+  const vm = /var APP_VERSION = 'v(\d+)\.(\d+)\.(\d+)'/.exec(src);
+  const vnow = vm ? [+vm[1], +vm[2], +vm[3]] : null;
+  ok('the version is at or past the one this shipped in',
+    !!vnow && (vnow[0] * 1e6 + vnow[1] * 1e3 + vnow[2]) >=
+      (IMG_ENGINE_SINCE[0] * 1e6 + IMG_ENGINE_SINCE[1] * 1e3 + IMG_ENGINE_SINCE[2]),
+    vm && vm[0]);
 }
 
 console.log(`image-engine tests: ${pass} passed, ${fail} failed`);
