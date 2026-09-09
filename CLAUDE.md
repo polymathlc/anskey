@@ -759,6 +759,65 @@ page in view; so does dropping one on it.
   follows.
 - Run **`node tools/blank-page-tests.mjs`** after touching any of it.
 
+### 🗑 …and taking one back out (v1.92.0)
+
+`annsAfterPageRemoved` / `starsAfterPageRemoved` / `historyAfterPageRemoved` /
+**`deletePage`** (search `🗑 DELETE A PAGE`), plus `#deletePageBtn` and its
+entries in `TEACHER_TOOLBAR_IDS`.
+
+Appending a page renumbers nothing, which is why ➕ Blank page needed no
+remapping at all. **Removing one renumbers everything after it**, and every
+one of those numbers is a key held somewhere else in the app — so the delete
+is three quarters bookkeeping and one quarter pdf-lib.
+
+- **EVERYTHING KEYED BY PAGE NUMBER HAS TO MOVE, and each of them is silent
+  when missed.** `annotations[].page` (ink, text, note cards, pasted
+  pictures), `wsMeta.starPages`, and **BOTH history stacks** — a `redoStack`
+  left unshifted is a ↷ that puts a stroke back on a page it was never on, and
+  the teacher's own undo is the last thing that should lie to them.
+- **THE THREE REMAPPERS ARE PURE AND SEPARATE FROM THE DELETE**, so the
+  harness can run the arithmetic without a PDF, a page or a browser: drop what
+  was ON the page, shift what was AFTER it, leave what was BEFORE it alone.
+  `historyAfterPageRemoved` is `annsAfterPageRemoved` over parsed JSON and
+  nothing else, or the two drift and undo starts disagreeing with the page.
+- **THEY COPY RATHER THAN MUTATE.** An undo snapshot is a serialised copy of
+  `annotations`, so an annotation object shifted in place would be shifted
+  again by every stack that still holds it — a note card two pages up after
+  one delete.
+- **THE ANSWER KEY IS CLEARED, never renumbered.** Every row on it names a
+  page, and a key that quietly cites the old numbers is one a teacher marks
+  thirty scripts from. Regenerating it is a button; a wrong key is not
+  visible at all.
+- **THE AUTO-LEARN QUEUE IS DROPPED** (`autoLearnReset(true)`). A queued job
+  carries its own page number and its own picture, so one captured before the
+  delete would be filed against the wrong page — and a job for the page that
+  has just gone must not be filed at all. `pageSigs` is deliberately left
+  alone: a signature is a hash of the page's TEXT, so a number that has moved
+  simply re-reads that page once, which is self-correcting.
+- **THE STORED PDF IS WRITTEN AGAIN, BEFORE THE PAGE LEAVES THE SCREEN**, and
+  `pageCount` with it as a merge — the same load-bearing rule ➕ Blank page
+  carries, for the same reason: `performSave` uploads the file only when the
+  worksheet is NEW. A refused upload puts `pdfBytes` back and the page stays,
+  because a page that has gone here and is still there tomorrow is the one
+  outcome nothing on any screen would report.
+- **THE LAST PAGE IS REFUSED.** A worksheet with no pages has nothing to
+  render, nothing to raster and nothing to save; deleting the worksheet is a
+  different button in a different place.
+- **IT IS REFUSED IN PRACTICE MODE**, the same gate `autoLearnAllowed` and
+  `styleHarvestAllowed` use. There `annotations` is a CHILD's attempt and the
+  teacher's own answers are parked in `teacherAnswers` — renumbering one and
+  not the other puts two sets of ink permanently out of step, and nothing
+  would ever say which page a mark belonged to.
+- **IT ASKS FIRST, AND THE CONFIRM COUNTS WHAT IS ON THE PAGE.** This is the
+  one control in the app that destroys a teacher's own work with no undo
+  behind it, so "3 things written on it will go with it" is the sentence that
+  makes it safe to have on the toolbar at all.
+- **A failure REBUILDS THE PAGES.** The bytes are already back; without the
+  rebuild the screen is showing pages built from a document that no longer
+  exists.
+- Run **`node tools/blank-page-tests.mjs`** after touching any of it.
+
+
 ## ✏️ Line styles, arrowheads and curly brackets (v1.75.0)
 
 `ANN_DASH_STYLES` / `annDashName` / `annDashPattern` / `ANN_HEAD_ORDER` /
@@ -1285,12 +1344,14 @@ the green box saying *(after another route refused)*.
   `node tools/notes-tests.mjs`. It loads the REAL section out of `index.html` and runs it against
   stubs. Every failure here is silent — a digest that comes back empty is just an ungrounded
   prompt, and nothing throws.
-- After touching **➕ the blank page or 📎 the pasted picture**
-  (`buildPagesFromBytes`, `blankPdfBytes`, `addBlankPage`, `BLANK_PAGE_W`,
-  `PASTE_NOTE_KIND`, `pasteGoesToWorksheet`, `pasteImageOntoPage`,
-  `pasteCardBox`, `imageRatio`, `pasteImagesFromClipboard`,
-  `shrinkImageDataUrl`'s quality argument, either PDF path's `'paste'`, or the
-  image branch of the drop handler), run `node tools/blank-page-tests.mjs`.
+- After touching **➕ the blank page, 📎 the pasted picture or 🗑 the page
+  delete** (`buildPagesFromBytes`, `blankPdfBytes`, `addBlankPage`,
+  `BLANK_PAGE_W`, `PASTE_NOTE_KIND`, `pasteGoesToWorksheet`,
+  `pasteImageOntoPage`, `pasteCardBox`, `imageRatio`,
+  `pasteImagesFromClipboard`, `shrinkImageDataUrl`'s quality argument, either
+  PDF path's `'paste'`, the image branch of the drop handler,
+  `annsAfterPageRemoved`, `starsAfterPageRemoved`, `historyAfterPageRemoved`
+  or `deletePage`), run `node tools/blank-page-tests.mjs`.
   Every failure here is silent and the page still appears: **stop re-uploading
   the PDF and the new page exists in one tab and in no saved worksheet**, so
   every picture put on it is an annotation pointing at a page that is not
@@ -1312,7 +1373,20 @@ the green box saying *(after another route refused)*.
   filling in, which is the one way this is worse than not having it. And let
   `pasteCardBox` size off anything but the picture's own ratio and every
   pasted picture is letterboxed — or taller than the paper, which cannot be
-  dragged back into view.
+  dragged back into view. **The DELETE half is quieter than any of it**,
+  because a renumbering that goes wrong still renders: stop shifting the
+  annotations after the deleted page and every mark on the rest of the
+  worksheet is one page out, on a sheet that looks perfectly ordinary until it
+  is printed; leave `redoStack` unshifted and ↷ puts a stroke back on a page
+  it was never on; leave the stars unshifted and the ⭐ is on the wrong
+  thumbnail; and keep the answer key and a teacher marks a class off page
+  numbers that no longer exist. Mutate an annotation in place rather than
+  copying it and every undo snapshot still holding that object shifts it
+  again. Drop the re-upload and the page is gone here and still there in the
+  morning; allow the LAST page to go and the worksheet has nothing to render
+  or save; and allow it in practice mode and a child's attempt is renumbered
+  while the teacher's parked answers are not, which cannot be told apart
+  afterwards.
 - After touching **the line styles, the arrowheads or the brace**
   (`ANN_DASH_STYLES`, `annDashName`, `annDashPattern`, `annHeads`,
   `annHasHeadAtStart`/`annHasHeadAtEnd`, `arrowHeadPoints`, `braceDepth`,

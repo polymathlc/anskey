@@ -3,6 +3,35 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 🗑 Taking a page back out (v1.92.0)
+
+The other half of ➕ Blank page. **🗑 Delete page** takes the page you are
+looking at out of the worksheet — a blank page added by mistake, a cover sheet
+nobody needs, the back of a paper that scanned twice.
+
+- **Everything written on that page goes with it**, and the confirm says how
+  many things that is before anything happens. There is no undo: the pages
+  after it move up, and the worksheet's stored file is written again there and
+  then, so the page is gone on every device rather than just this tab.
+- **Everything on the pages AFTER it moves up with them.** Ink, highlighting,
+  text boxes, note cards, pasted pictures, arrows — and the ⭐ stars on the
+  thumbnails, which are page numbers too. Nothing is left pointing at a page
+  that has moved.
+- **The undo history moves up with it as well**, so pressing ↶ after a delete
+  puts your last stroke back on the page it was really on rather than on the
+  page that has taken its number.
+- **The answer key is cleared**, because every row on it names a page number
+  and those numbers have just changed. Generate it again and it is right.
+- **The last page cannot be deleted.** A worksheet with no pages has nothing to
+  show and nothing to save; delete the whole worksheet from the list instead.
+- **It is refused in practice mode.** A child's attempt and the teacher's own
+  answers are two separate sets of ink there, and renumbering one and not the
+  other would put them out of step for good.
+- **A failed upload changes nothing.** If the new file cannot be stored the
+  page stays exactly where it was, and the app says so — better than a page
+  that has gone here and is still there in the morning.
+- Deleting pages is the teacher's, like adding them.
+
 ## 🩹 ChatGPT Images was refusing every edit (v1.91.1)
 
 The green box kept saying *Gemini · (after another route refused)*. The cause

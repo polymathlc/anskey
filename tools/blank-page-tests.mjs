@@ -39,6 +39,22 @@ const geom =
   cut('var PASTE_IMG_MAX_PX', 'function imageRatio(', 'paste geometry') +
   cut('function mmAttachX(page, w) {', '/* ✎ on a pinned card', 'mmAttach');
 
+const del = cut('function annsAfterPageRemoved(', 'async function deletePage(', 'delete page');
+const dmod = new Function(`
+  function normalizeStarPages(v) {
+    if (!Array.isArray(v)) return [];
+    var seen = {}, out = [];
+    v.forEach(function (n) {
+      n = parseInt(n, 10);
+      if (!(n > 0) || seen[n]) return;
+      seen[n] = 1; out.push(n);
+    });
+    return out.sort(function (a, b) { return a - b; });
+  }
+  ` + del + `
+  return { annsAfterPageRemoved, starsAfterPageRemoved, historyAfterPageRemoved };
+`)();
+
 const mod = new Function(`
   var AI_NOTE_HEAD_H = 18, AI_NOTE_MIN_W = 90, AI_NOTE_MIN_H = 60;
   var isStudent = function () { return false; };
@@ -247,6 +263,98 @@ ok('…and an empty screen offers one too',
    is offered something that refuses them. */
 ok('a student never sees the button',
   /var TEACHER_TOOLBAR_IDS = \['uploadBtn', 'blankPageBtn'/.test(html));
+
+/* ---------- 🗑 deleting a page ---------- */
+/* DELETING A PAGE RENUMBERS EVERY PAGE AFTER IT — which is the whole
+   difficulty, and the whole silent failure. Miss the shift and page 4's ink
+   is drawn on what is now page 4 (the old page 5) on a worksheet that renders
+   perfectly and is saved that way. */
+const anns = [
+  { id: 'a', page: 1 }, { id: 'b', page: 2 }, { id: 'c', page: 2 },
+  { id: 'd', page: 3 }, { id: 'e', page: 5 }
+];
+const after = dmod.annsAfterPageRemoved(anns, 2);
+ok('what was ON the deleted page goes with it',
+  !after.some((a) => a.id === 'b' || a.id === 'c'), JSON.stringify(after));
+ok('a page BEFORE it does not move',
+  after.find((a) => a.id === 'a').page === 1);
+ok('every page AFTER it moves up one',
+  after.find((a) => a.id === 'd').page === 2 && after.find((a) => a.id === 'e').page === 4,
+  JSON.stringify(after));
+ok('nothing else is lost', after.length === 3, after.length);
+/* The list handed in is the live `annotations`, so a remapper that wrote
+   through it would renumber the very snapshots the undo stack is holding. */
+ok('the annotations handed in are not written through',
+  anns.find((a) => a.id === 'e').page === 5 && anns.length === 5);
+
+const stars = dmod.starsAfterPageRemoved([1, 2, 4, 6], 2);
+ok('a star on the deleted page goes', stars.indexOf(2) === -1, JSON.stringify(stars));
+ok('the stars after it move up', JSON.stringify(stars) === '[1,3,5]', JSON.stringify(stars));
+ok('deleting an unstarred page leaves the stars alone',
+  JSON.stringify(dmod.starsAfterPageRemoved([1, 4], 9)) === '[1,4]');
+
+/* A HISTORY SNAPSHOT LEFT UNSHIFTED is the same corruption one Ctrl+Z later —
+   and worse, because by then nobody connects it to the delete. */
+const hist = dmod.historyAfterPageRemoved(
+  [JSON.stringify([{ id: 'x', page: 4 }, { id: 'y', page: 2 }])], 2);
+ok('every undo snapshot is remapped too',
+  JSON.parse(hist[0]).length === 1 && JSON.parse(hist[0])[0].page === 3, hist[0]);
+ok('a snapshot that cannot be parsed is dropped, never kept unshifted',
+  dmod.historyAfterPageRemoved(['not json'], 2).length === 0);
+ok('both stacks go through it',
+  /undoStack = historyAfterPageRemoved\(undoStack, num\);/.test(html) &&
+  /redoStack = historyAfterPageRemoved\(redoStack, num\);/.test(html));
+
+const dp = cut('async function deletePage(num) {', "/* ================= 📎 PASTE A PICTURE", 'deletePage');
+/* A worksheet with no pages has nothing to render, nothing to save and no way
+   back. */
+ok('the last page cannot be deleted', /if \(pages\.length < 2\)/.test(dp));
+/* In practice mode `annotations` is a CHILD'S attempt and the teacher's own
+   answers are parked in `teacherAnswers`, which this never renumbers. */
+ok('practice mode is refused', /if \(practiceMode\)/.test(dp));
+ok('deleting a page is the teacher’s own',
+  /if \(isStudent\(\) \|\| isSharedVisitor\(\)\)/.test(dp));
+/* The PDF changes and is written to the cloud, so this is past what the undo
+   stack can reach — the confirm has to say so rather than letting the teacher
+   find out by pressing Ctrl+Z. */
+ok('it asks first, and says it cannot be undone',
+  /window\.confirm\(/.test(dp) && /cannot be undone/.test(dp));
+ok('…and says how much written work goes with the page', /onIt \+ ' thing'/.test(dp));
+ok('the page is removed with pdf-lib', /outDoc\.removePage\(num - 1\)/.test(dp));
+/* Same load-bearing rule as the blank page: performSave uploads the file only
+   when the worksheet is NEW, so without this the page is gone from the tab and
+   still in the saved worksheet, every annotation after it one page out. */
+ok('the stored PDF is written again',
+  /if \(currentDocId\) \{[\s\S]{0,300}?storage\.ref\(STORAGE_DIR \+ '\/' \+ currentDocId \+ '\.pdf'\)[\s\S]{0,120}?\.put\(/.test(dp));
+ok('…and the record is told how many pages are left',
+  /pageCount: outDoc\.getPageCount\(\) \}, \{ merge: true \}/.test(dp));
+ok('it is stored BEFORE anything on screen changes',
+  dp.indexOf('.put(new Blob([pdfBytes]') < dp.indexOf('annotations = annsAfterPageRemoved('));
+ok('a page that could not be removed from the stored file is put back',
+  /catch \(upErr\) \{\s*\n\s*pdfBytes = prevBytes;\s*\n\s*throw upErr;/.test(dp));
+/* Selection chrome drawn round an annotation that has just gone. */
+ok('the selection is cleared with the page',
+  /selectedId = null;/.test(dp) && /editModeId = null;/.test(dp));
+ok('the stars are re-saved, not just re-drawn',
+  /rememberStarPages\(currentDocId, starredPages\(\)\)/.test(dp));
+/* An answer key built before the delete cites the OLD page numbers, and it is
+   a card a teacher marks from. 📚 auto-learn holds page numbers too — in
+   `autoSeenPage` and in every queued job — and a job captured for the page
+   that has just gone must not be filed at all. */
+ok('an answer key built on the old numbering is dropped', /lastAnswerKey = null;/.test(dp));
+ok('the auto-learn queue is dropped rather than renumbered',
+  /autoLearnReset\(true\)/.test(dp));
+ok('the work is marked unsaved', /setDirty\(true\);/.test(dp));
+ok('…and the local rescue copy follows', /scheduleDraftSave\(\);/.test(dp));
+/* A failure part-way must not leave the screen showing pages the bytes in
+   hand do not have. */
+ok('a failure puts the screen back in step with the bytes',
+  /catch \(e\) \{[\s\S]{0,400}?try \{ await buildPagesFromBytes\(\); \} catch/.test(dp));
+
+ok('there is a Delete page button', /id="deletePageBtn"/.test(html));
+ok('…wired to deletePage',
+  /\$\('deletePageBtn'\)\.addEventListener\('click', function \(\) \{ deletePage\(\); \}\)/.test(html));
+ok('a student never sees it', /'blankPageBtn', 'deletePageBtn'/.test(html));
 
 console.log((fail ? 'FAILED ' : 'OK ') + pass + '/' + (pass + fail));
 process.exit(fail ? 1 : 0);
