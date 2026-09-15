@@ -3,6 +3,48 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Record and replay a lesson (v1.94.0)
+
+On a saved worksheet, the teacher can choose **Record lesson**, explain while
+writing, then **Stop & save**. The app attaches a **Play lesson** button to the
+starting page. Students and share-link visitors can play it without recording
+permission. Seeking the audio also rewinds or advances the pencil strokes,
+typed text, page position and zoom. Closing replay restores the previous view;
+playback never replaces the worksheet's current answers or undo history.
+
+- Microphone capture requests echo cancellation, noise suppression and automatic
+  gain control. Noise reduction depends on browser and device support.
+- **Talk with GPT-Live-1** optionally includes a two-way voice conversation.
+  The microphone and assistant's voice are mixed into the same local recording.
+  Worksheet questions use the app's existing AI and teaching notes. If the voice
+  helper is unavailable, the app says so and keeps recording the teacher.
+- Recordings are limited to 10 minutes, 64 MiB of encoded audio and 8 MiB of
+  writing events. Keep the app in front; moving it to the background ends capture.
+- Existing pasted pictures and note cards are preserved as static backgrounds,
+  up to 8 MiB. Arrange them before recording; changing a card ends the clip so
+  later writing cannot drift away from its question. Interactive widget actions
+  are not replayed. Pencil strokes, typed annotations and page movements are
+  the recorded actions.
+- Audio and replay data use Firebase Storage under `pdf-annotator/`. The PDF
+  keeps a small recording attachment, using the existing large-annotation save
+  path. The camera/screen recorder and its Drive uploads remain available.
+- Finished clips are backed up in this browser until the attachment saves.
+  **Retry save** reuses completed uploads. **Download backup** keeps the audio
+  and replay JSON locally. Reopen the original worksheet and choose **Record
+  lesson** to recover a finished clip after a reload.
+- A recording belongs to the exact PDF version captured. If its pages are added,
+  deleted or replaced later, the app refuses to replay against mismatched pages.
+  Keep the original PDF if an older recording needs to remain usable.
+
+The optional voice helper also requires deployment of this repository's two
+Firebase functions using the existing `OPENAI_API_KEY` secret. See
+[deployment instructions](functions/README.md). A GitHub Pages update publishes
+the recorder UI; it does not deploy these server functions.
+
+Validation: `node --test tools/*-tests.mjs` and `npm --prefix functions test`.
+Paid voice calls are mocked in automated tests; deployment and a real account
+are needed for a production voice check.
+
 ## 🐾 A mistake written on purpose — for the class to find (v1.93.0)
 
 Every text box's ✨ menu has a third button beside **Answer** and **Improve**: **🐾 Mistake**.

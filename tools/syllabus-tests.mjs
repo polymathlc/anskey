@@ -21,7 +21,7 @@
 //    under every objective would read as broken.
 import fs from 'fs';
 
-const APP = new URL('../index.html', import.meta.url).pathname;
+const APP = new URL('../index.html', import.meta.url);
 const src = fs.readFileSync(APP, 'utf8');
 
 const cut = (from, to, what) => {
