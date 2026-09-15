@@ -670,6 +670,56 @@ in the app, so the wording that comes back is the teacher's.
 - Run **`node tools/mindmap-tests.mjs`** after touching any of it.
 
 
+## 🐾 A deliberate mistake in a text box (v1.93.0)
+
+`MISTAKE_ANIMALS` / `mistakeAnimal` / `mistakeAnimalNormalize` / `mistakeAnimalLabel` /
+`MISTAKE_ANIMAL_RULE` / **`annHoldsMistake`** / `annsHoldMistake` (beside `styleWorthLearning` —
+search `THE MISTAKE ANIMALS`), and `AI_MISTAKE_SYS` / `openMistakeModal` / `aiMistake` /
+**`aiMistakeGenerate`** / `mistakeClear` (beside `aiAnswer` — search `A DELIBERATE MISTAKE`), plus
+the 🐾 **Mistake** button and chip on the text box's AI bar, `#mistakeModal` and the `.mkPick` /
+`.aiBarChip` CSS.
+
+✨ Answer writes the RIGHT answer into a box. 🐾 Mistake writes a WRONG one — an answer a real
+student would plausibly write, carrying exactly ONE mistake of a chosen type with everything else
+correct — so the worksheet becomes a "spot the mistake" exercise.
+
+- **THE LIST IS SHARED, BYTE FOR BYTE, WITH `polymathlc/cer` AND `polymathlc/scan`.** The Portal
+  files students' own answers under these ids and quizzes the class on them; Scan tags a marked
+  answer with one. The `id` is what travels — rename one here and every entry the other apps hold
+  under it reads as an unknown mistake. **Ship a change to the block to all three together.** It
+  lives in the teaching-notes section rather than beside the button because that is the section
+  `tools/notes-tests.mjs` loads, and the predicate it guards has to be pinned there.
+- **`a.mistake` IS THE MARK, AND `annHoldsMistake` IS THE ONE PREDICATE.** This app teaches itself
+  from what the teacher writes, and a box that is wrong on purpose must reach NONE of it. Five paths
+  ask the predicate and all five are needed: `styleHarvestTyped` (the style corpus), `styleCollectEdits`
+  (the correction corpus), `autoLearnWorthReading` (📚 learning as you go — the whole PAGE stands
+  down, however much else is on it, because the notebook would file the wrong science as a key
+  fact), the vision harvest in `styleLearnOpenWorksheet` (same reason, per page), and `runAnswerKey`
+  (or the key comes back carrying it). A sixth path added later that reads a text box must ask it
+  too. The generator also deletes the box's `styleGen` entry and its `aiQ`, and never calls
+  `styleNoteGenerated`: its output is not a generation to compare the teacher's edits against.
+- **A mark naming an animal nobody knows is NOT a mark.** The predicate goes through
+  `mistakeAnimal`, so a stray field cannot silence a learning path.
+- **"Any" that settles on nothing writes nothing.** A wrong answer with no name is an exercise with
+  no answer key, so when the model was asked to choose and chose an animal off the list the box is
+  left alone and the teacher is told to pick one.
+- **The box may be EMPTY.** ✨ Answer needs the question typed; this reads the snapshot round the box
+  when nothing is typed, because the whole point is a box placed under a printed question. With
+  neither a snapshot nor text it refuses.
+- **Grounded as `'teach'`**, with the question threaded through: the key facts and the exemplars
+  are what let everything AROUND the one mistake come out in this teacher's words, so the class is
+  hunting for the error rather than for an unfamiliar style. Never `'mark'` — a marker handed the
+  answer is the rule that kind exists for.
+- **Teacher-only, refused in the handlers** (`isStudent()` in both `openMistakeModal` and
+  `aiMistakeGenerate`), the same way ✨ Answer is: the bar is not drawn for a student, and hiding a
+  button is never the lock.
+- **The chip and its ✕ live on the AI bar**, rebuilt with it, so a box the teacher has rewritten into a
+  real answer is one click from being learned from again — a mark that could never come off would
+  make that box invisible to every learning path for ever. `mistakeClear` is one undo step.
+- The `cer` app shares the `pdfAnnotator` collection and ignores fields it does not know, so
+  `mistake` travels harmlessly, exactly as `aiQ` does.
+- Run **`node tools/notes-tests.mjs`** after touching any of it.
+
 ## 📎 A blank page, and a picture pasted onto it (v1.89.0)
 
 `buildPagesFromBytes` / `BLANK_PAGE_W` / `blankPdfBytes` / **`addBlankPage`** /
@@ -1227,6 +1277,18 @@ the green box saying *(after another route refused)*.
   right signal and not enough of one.
 
 ## House rules
+- After touching **🐾 the deliberate mistake** (`annHoldsMistake`, `annsHoldMistake`,
+  `MISTAKE_ANIMALS`, `mistakeAnimalNormalize`, `aiMistakeGenerate`, `mistakeClear`, the gate in
+  `styleHarvestTyped` / `styleCollectEdits` / `autoLearnWorthReading` / the vision harvest /
+  `runAnswerKey`, or any NEW path that reads a text box's words), run `node tools/notes-tests.mjs`.
+  Every failure is silent and the app goes on answering fluently: drop the gate from any one of the
+  five learning paths and "the ice gains heat and freezes" — written wrong on purpose — is learned as
+  the teacher's own answer, distilled into their style, filed in the notebook as a key fact or
+  printed on the answer key, from a button whose whole point was to be wrong. Let the predicate
+  accept an animal off the list and a stray field silences a learning path; let the generator call
+  `styleNoteGenerated` and every deliberate mistake becomes a "correction" the moment the box is
+  saved. And let the list drift from the one in `polymathlc/cer` and `polymathlc/scan` and the same
+  mistake wears a different animal in each app.
 - After touching **🖼 the image engine** (`OPENAI_IMAGE_DEFAULT_MODEL`,
   `OPENAI_IMAGE_MODELS`, `OPENAI_IMAGE_25_RE`, `OPENAI_IMAGE_SUPERSEDED`,
   `openAiLiftImageModel`, `getOpenAiImageModel`, `_imgQualityFor`,

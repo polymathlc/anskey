@@ -2266,6 +2266,20 @@
   }
   .aiBarDot:hover { transform: scale(1.12); }
   .aiBarDot.active { box-shadow: 0 0 0 2px var(--ink); transform: scale(1.12); }
+  /* 🐾 the chip naming the deliberate mistake a box holds */
+  .aiBarChip {
+    font-size: 0.74rem; font-weight: 700; color: #4C3A8C; background: #F3F1FB;
+    border: 1px solid #D9D2F0; border-radius: 999px; padding: 3px 10px; white-space: nowrap; align-self: center;
+  }
+  .mkGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin: 14px 0 6px; }
+  .mkPick {
+    text-align: left; border: 1px solid var(--line, #E2E0DC); border-radius: 12px; padding: 12px 14px;
+    background: #fff; cursor: pointer; font: inherit; color: inherit; line-height: 1.4;
+  }
+  .mkPick:hover { border-color: var(--accent-deep); background: #F6F1E7; }
+  .mkPick b { display: block; font-size: 0.9rem; }
+  .mkPick span { display: block; font-size: 0.76rem; color: var(--ink-faint); margin-top: 5px; line-height: 1.5; }
+  .mkPick.any { grid-column: 1 / -1; background: #F3F1FB; border-color: #D9D2F0; }
   .aiBarSize {
     flex: 0 0 auto;
     align-self: center;
@@ -4614,6 +4628,27 @@
   </div>
 </div>
 
+<div class="modalBack" id="mistakeModal">
+  <div class="modalCard tnWide">
+    <div class="modalHead">
+      <h2>🐾 Write a mistake for the class to find</h2>
+      <button class="modalClose" id="mistakeCloseBtn" title="Close">&#10005;</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro">
+        <span class="aiName">Chung GPT</span> writes the answer a student would plausibly give &mdash; with
+        <strong>exactly one</strong> mistake of the kind you choose built in, and everything else right. Hand the
+        page over and the class has to say which animal it is and put it right. Nothing is learned from a box
+        marked this way: not your style, not your notes, not the answer key.
+      </div>
+      <div class="mkGrid" id="mistakeGrid"></div>
+      <div class="modalActions">
+        <button class="btn" id="mistakeCancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modalBack" id="noteEditModal">
   <div class="modalCard tnWide">
     <div class="modalHead">
@@ -4680,7 +4715,7 @@
 'use strict';
 
 /* ================= Constants ================= */
-var APP_VERSION = 'v1.92.0';
+var APP_VERSION = 'v1.93.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -6768,6 +6803,18 @@ function renderAiBar(p, a, box) {
   } else {
     addBtn('✨ Answer', '', aiEngineName() + ' answers the question typed in this box', aiAnswer);
     addBtn('✒️ Improve', '', aiEngineName() + ' fixes grammar and sentence structure without changing the content', aiImprove);
+    addBtn('🐾 Mistake', '', aiEngineName() + ' writes a WRONG answer of a chosen kind into this box — a deliberate mistake for the class to find', aiMistake);
+    if (annHoldsMistake(a)) {
+      /* The box is marked: say which animal, and offer to take the mark off.
+         A box the teacher has rewritten into a real answer must not stay
+         invisible to every learning path for ever. */
+      var chip = document.createElement('span');
+      chip.className = 'aiBarChip';
+      chip.textContent = mistakeAnimalLabel(a.mistake.animal);
+      chip.title = (a.mistake.why || 'A deliberate mistake — nothing is learned from this box.') + ' Click ✕ to take the mark off.';
+      bar.appendChild(chip);
+      addBtn('✕', 'aiBarToggle', 'Take the 🐾 mark off — the words stay, the box becomes an ordinary answer', mistakeClear);
+    }
     addSep();
     var dots = addGroup();
     aiBarColors().forEach(function (c) { addDot(c.hex, c.name, dots); });
@@ -12669,6 +12716,148 @@ function styleHarvestAllowed() {
    information the floor was throwing away. When the app knows what question
    the box answers — because ✨ Answer wrote it, or because the model read the
    pair off the page — there is nothing left to guess about. */
+/* =====================================================================
+   🐾 THE MISTAKE ANIMALS — ONE taxonomy, shared by four apps
+   ---------------------------------------------------------------------
+   A wrong answer is wrong in one of a small number of FAMILIAR ways, and a
+   child who can NAME the way they went wrong can watch for it next time.
+   Each way is an animal, because "insufficient specificity in the causal
+   chain" is not a thing a nine-year-old keeps and "you did a Peacock" is.
+
+   THIS LIST IS THE CONTRACT BETWEEN REPOSITORIES THAT CANNOT SEE EACH OTHER.
+   The Science Learning Portal (polymathlc/cer) files students' own answers
+   under these ids and quizzes the class on them; Ans Key (polymathlc/anskey)
+   writes a deliberate mistake of one of them into a text box; Scan & Answer
+   (polymathlc/scan) tags a marked answer with one. The `id` is what travels
+   and what is stored — rename one here and every entry filed under it in
+   another app reads as "an unknown mistake" with nothing anywhere to say so.
+   Ship a change to this block to all of them together, byte for byte.
+
+   Three rules every reader keeps:
+   • `mistakeAnimal(id)` is the ONE lookup and it returns null for anything
+     it does not know, never a guess. A model that invents an eleventh animal
+     must not be able to file a mistake under it.
+   • `mistakeAnimalNormalize(v)` is how a MODEL's answer becomes an id — it
+     takes the id, the animal's name or the mistake's name in any case, and
+     hands back '' for "unsure", "none", an empty string or a word it has
+     never heard. '' means NO type, and no type is a valid answer: forcing a
+     mistake into the nearest animal teaches the wrong lesson with a straight
+     face.
+   • `MISTAKE_ANIMAL_RULE` is the ONE wording every prompt uses to ask for a
+     type, so three apps classify the same answer the same way. */
+var MISTAKE_ANIMALS = [
+  { id: 'rabbit',    emoji: '🐇', animal: 'The Rabbit',    name: 'Rushed it',
+    desc: 'Answered a different question from the one printed — skimmed past NOT, "two reasons", "in terms of", or the unit that was asked for.',
+    spot: 'The answer is fine on its own but does not fit the question.',
+    fix: 'Underline what the question asks for before you write a word.' },
+  { id: 'parrot',    emoji: '🦜', animal: 'The Parrot',    name: 'Repeated the question',
+    desc: 'Restated the question or the data instead of answering it — "the ice melted because it turned into liquid".',
+    spot: 'Nothing in the answer that was not already in the question.',
+    fix: 'Add the science: the process, the cause, the reason.' },
+  { id: 'sloth',     emoji: '🦥', animal: 'The Sloth',     name: 'Stopped halfway',
+    desc: 'A right start with no finish — the cause without the effect, one of two parts, no link back to the question.',
+    spot: 'The answer ends before it reaches the point.',
+    fix: 'Finish every chain: cause → process → effect → back to the question.' },
+  { id: 'chameleon', emoji: '🦎', animal: 'The Chameleon', name: 'Wrong keyword',
+    desc: 'The right idea in the wrong word — "melt" for "dissolve", "heat" for "temperature", "grow" for "reproduce".',
+    spot: 'A near-miss word a marker cannot accept.',
+    fix: 'Use the exact keyword the topic is taught with.' },
+  { id: 'octopus',   emoji: '🐙', animal: 'The Octopus',   name: 'Grabbed everything',
+    desc: 'Everything remembered about the topic, instead of the one point that answers the question.',
+    spot: 'Long, full of facts, and the point is missing or buried.',
+    fix: 'One question, one point: answer it and stop.' },
+  { id: 'monkey',    emoji: '🐒', animal: 'The Monkey',    name: 'Mixed-up ideas',
+    desc: 'Two ideas swapped or blended — evaporation and boiling, conductor and insulator, mass and weight.',
+    spot: 'A confident answer about the wrong concept.',
+    fix: 'Put the pair side by side and say what makes them different.' },
+  { id: 'goldfish',  emoji: '🐟', animal: 'The Goldfish',  name: 'Forgot the fact',
+    desc: 'A plain wrong fact — misremembered, or guessed.',
+    spot: 'The science itself is wrong.',
+    fix: 'Go back to the notes for that topic and relearn the fact.' },
+  { id: 'fox',       emoji: '🦊', animal: 'The Fox',       name: 'Reversed the logic',
+    desc: 'Cause and effect the wrong way round, or a "because" that is really the result.',
+    spot: 'Read backwards, it makes sense.',
+    fix: 'Ask "which happened first?" before you write "because".' },
+  { id: 'bat',       emoji: '🦇', animal: 'The Bat',       name: 'Ignored the evidence',
+    desc: 'Answered from general knowledge and never looked at the diagram, table, graph or experiment the question gave.',
+    spot: 'Nothing from the data appears in the answer.',
+    fix: 'Quote the evidence: the number, the label, the change in the diagram.' },
+  { id: 'peacock',   emoji: '🦚', animal: 'The Peacock',   name: 'Too vague',
+    desc: 'A sweeping statement with nothing specific in it — "it affects the plant", "it gets worse" — no unit, no direction, no amount.',
+    spot: 'Could be written under almost any question.',
+    fix: 'Say what changed, which way, and by how much.' }
+];
+
+/* The ONE lookup. Null for anything not on the list — never a default. */
+function mistakeAnimal(id) {
+  var key = String(id == null ? '' : id).trim().toLowerCase();
+  if (!key) return null;
+  for (var i = 0; i < MISTAKE_ANIMALS.length; i++) {
+    if (MISTAKE_ANIMALS[i].id === key) return MISTAKE_ANIMALS[i];
+  }
+  return null;
+}
+function mistakeAnimalIds() {
+  return MISTAKE_ANIMALS.map(function (m) { return m.id; });
+}
+/* A model's answer becomes an id here, and here only. It accepts the id, the
+   animal ("The Rabbit", "rabbit 🐇"), or the mistake's own name ("rushed it")
+   in any case — and hands back '' for "unsure", "none", nothing at all, or a
+   word it has never heard. '' is an answer: NO type. */
+function mistakeAnimalNormalize(v) {
+  if (v && typeof v === 'object') v = v.animal || v.id || v.type || '';
+  var s = String(v == null ? '' : v).trim().toLowerCase();
+  if (!s) return '';
+  s = s.replace(/[^a-z\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s || s === 'none' || s === 'unsure' || s === 'unknown' || s === 'n a' || s === 'null') return '';
+  var bare = s.replace(/^the\s+/, '');
+  for (var i = 0; i < MISTAKE_ANIMALS.length; i++) {
+    var m = MISTAKE_ANIMALS[i];
+    if (bare === m.id) return m.id;
+    if (bare === m.animal.toLowerCase().replace(/^the\s+/, '')) return m.id;
+    if (s === m.name.toLowerCase()) return m.id;
+  }
+  // "rabbit — rushed it", "The Rabbit (rushed it)": the id is the first word.
+  var first = bare.split(' ')[0];
+  return mistakeAnimal(first) ? first : '';
+}
+/* "🐇 The Rabbit — Rushed it", or '' for an id nobody knows. */
+function mistakeAnimalLabel(id) {
+  var m = mistakeAnimal(id);
+  return m ? m.emoji + ' ' + m.animal + ' — ' + m.name : '';
+}
+/* The list as a prompt reads it: one line per type, the id first because the
+   id is what has to come back. */
+function mistakeAnimalPromptList() {
+  return MISTAKE_ANIMALS.map(function (m) {
+    return '  ' + m.id + ' = ' + m.animal + ' (' + m.name + '): ' + m.desc;
+  }).join('\n');
+}
+/* The ONE wording every prompt that asks for a type uses, so three apps sort
+   the same answer the same way. It asks for the id and it allows "" — a
+   mistake that fits none of the ten is filed under none of them. */
+var MISTAKE_ANIMAL_RULE =
+  'MISTAKE TYPES. Every wrong or partly-right answer is wrong in ONE of these familiar ways, each named after ' +
+  'an animal so that a child can remember it:\n' + mistakeAnimalPromptList() + '\n' +
+  'When you are asked for a "mistake", give the ONE id from that list (the lowercase word before the "=") ' +
+  'that best names the HABIT behind the error — not what the right answer is, but the way the student went ' +
+  'wrong. Judge the habit from what they actually wrote against what the question asked. If two fit, choose ' +
+  'the one a teacher would tell the student to watch for next time. If none genuinely fits, return an empty ' +
+  'string rather than forcing one: a wrong label teaches a wrong lesson with a straight face. ' +
+  'Never give a mistake type to a correct answer or to a question that was not attempted.';
+
+/* 🐾 A box that is WRONG ON PURPOSE (see the section beside ✨ Answer). The
+   ONE predicate every learning path asks — kept here, beside the harvests
+   that ask it, so the harness that loads this section can pin it. */
+function annHoldsMistake(a) {
+  return !!(a && a.type === 'text' && a.mistake && typeof a.mistake === 'object' && mistakeAnimal(a.mistake.animal));
+}
+/* True when any annotation on a page is a deliberate mistake — the page
+   itself is then not a page to learn from, however much else is on it. */
+function annsHoldMistake(anns) {
+  return (anns || []).some(annHoldsMistake);
+}
+
 function styleWorthLearning(text, hasQuestion) {
   var t = String(text || '').trim();
   if (t.length < 2) return false;
@@ -12795,6 +12984,7 @@ function styleHarvestTyped(anns, docId, meta) {
   var out = [];
   (anns || []).forEach(function (a) {
     if (!a || a.type !== 'text' || !styleWorthLearning(a.text, !!a.aiQ)) return;
+    if (annHoldsMistake(a)) return;   // wrong on purpose — not this teacher's answer
     out.push({
       k: styleSampleKey(docId, a.id, a.text),
       src: 'typed',
@@ -12877,6 +13067,7 @@ function styleCollectEdits(anns, docId, meta) {
   var edits = 0, scored = 0;
   (anns || []).forEach(function (a) {
     if (!a || a.type !== 'text') return;
+    if (annHoldsMistake(a)) return;   // a deliberate mistake is not a correction of anything
     var gen = styleGen[a.id];
     if (!gen || !gen.wrote) return;
     var kept = styleTrim(a.text || '', STYLE_EDIT_CHARS);
@@ -13233,6 +13424,7 @@ async function styleLearnOpenWorksheet() {
       var p = withAnns[i];
       notesSetStatus('📖 Reading page ' + p.num + ' of ' + withAnns.length + ' — ' + found + ' answers learned so far…');
       var anns = annotations.filter(function (a) { return a.page === p.num; });
+      if (annsHoldMistake(anns)) continue;   // a deliberate mistake is on this page — not the teacher's answer
       try {
         var img = await keyPageJpeg(p, anns, KEY_PAGE_PX);
         if (!img) continue;
@@ -14411,6 +14603,10 @@ function autoLearnAllowed() {
    thing written by hand on an iPad, and AUTO_INK_MIN is what keeps a single
    tick or a circled number from buying an AI call. */
 function autoLearnWorthReading(anns) {
+  /* A page holding a deliberate mistake is not a page to learn from,
+     however much else is written on it: the notebook would file the wrong
+     science as a key fact, silently, from a box that was wrong on purpose. */
+  if (annsHoldMistake(anns)) return false;
   var ink = 0, words = false;
   (anns || []).forEach(function (a) {
     if (!a) return;
@@ -14755,6 +14951,180 @@ function autoLearnPanelHtml() {
    prevented by App Check (reCAPTCHA v3), enforced in the Firebase console.
    The model bridge (window.askGemini) is set up by the module script at the
    bottom of this file. */
+/* =====================================================================
+   🐾 A DELIBERATE MISTAKE, WRITTEN INTO A TEXT BOX FOR THE CLASS TO FIND
+   ---------------------------------------------------------------------
+   ✨ Answer writes the RIGHT answer into a box. This writes a WRONG one — an
+   answer a real student at this level would plausibly write, carrying
+   exactly ONE mistake of a chosen type, with everything else in it correct —
+   so the worksheet becomes a "spot the mistake" exercise: the teacher hands
+   the page over and the class has to say which animal it is and put it
+   right. The type is one of the ten MISTAKE_ANIMALS above, the same ten the
+   Portal drills and the Scan app tags, so the vocabulary is the centre's.
+
+   THE BOX IS MARKED, AND THE MARK IS THE WHOLE SAFETY STORY. `a.mistake`
+   ({ animal, why }) sits on the annotation and `annHoldsMistake` is the ONE
+   predicate everything that LEARNS from a text box asks — the typed
+   harvest, the edit harvest, 📚 learning as you go, the vision harvest and
+   the answer key. This app teaches itself from what the teacher writes:
+   without the gate a deliberate "the ice gains heat and freezes" is learned
+   as the teacher's own answer, distilled into their style, filed in the
+   notebook as a key fact and printed on the answer key — four ways of
+   teaching the app the wrong science, every one of them silent, every one
+   of them from a button whose whole point was to be wrong on purpose.
+
+   The `cer` app shares the `pdfAnnotator` collection and ignores fields it
+   does not know, so `mistake` travels harmlessly, exactly as `aiQ` does. */
+var AI_MISTAKE_SYS =
+  'You are helping a tuition teacher build a "spot the mistake" exercise on a PDF worksheet for ' +
+  'students from P3 to Secondary 1 (Singapore syllabus). Snapshots of the worksheet may be attached: ' +
+  'the first image shows the part of the page where the teacher placed the box, and the question ' +
+  'nearest that box is the one being answered; the remaining images show the full current page and, ' +
+  'when present, the previous page for context. Your job is the OPPOSITE of answering: write the ' +
+  'answer a real student of that level would plausibly write to that question, containing EXACTLY ONE ' +
+  'deliberate mistake of the type you are told about — and no other error of any kind. It must read ' +
+  'as an honest attempt: the length, the wording and the tone of a student who believes they are ' +
+  'right. Never a parody, never obviously silly, never a joke, never a hint that it is wrong. ' +
+  'Everything else in the answer stays correct, so that the ONE mistake is what a classmate has to ' +
+  'find. Use the worksheet\'s own subject, keywords and style. Return STRICT JSON only, no markdown: ' +
+  '{"answer":"the student\'s wrong answer, plain text, no markdown","animal":"the id of the mistake type ' +
+  'you built in","why":"one sentence FOR THE TEACHER saying exactly where the mistake is and what it ' +
+  'should have been"}.\n' + MISTAKE_ANIMAL_RULE;
+
+var mistakeModalFor = null; // the annotation id the chooser was opened for
+
+function mistakeModalRender() {
+  var grid = $('mistakeGrid');
+  if (!grid) return;
+  var html = '<button type="button" class="mkPick any" data-animal=""><b>🎲 Any — let ' + escHtml(aiEngineName()) +
+    ' choose</b><span>The mistake a student at this level most often makes on this question.</span></button>';
+  MISTAKE_ANIMALS.forEach(function (m) {
+    html += '<button type="button" class="mkPick" data-animal="' + escHtml(m.id) + '"><b>' +
+      escHtml(m.emoji + ' ' + m.animal + ' — ' + m.name) + '</b><span>' + escHtml(m.desc) + '</span></button>';
+  });
+  grid.innerHTML = html;
+  Array.prototype.forEach.call(grid.querySelectorAll('.mkPick'), function (btn) {
+    btn.addEventListener('click', function () {
+      var id = mistakeModalFor;
+      closeMistakeModal();
+      if (id) aiMistakeGenerate(id, btn.getAttribute('data-animal') || '');
+    });
+  });
+}
+function openMistakeModal(annId) {
+  if (isStudent()) return;
+  var modal = $('mistakeModal');
+  if (!modal) return;
+  mistakeModalFor = annId;
+  mistakeModalRender();
+  var close = $('mistakeCloseBtn'), cancel = $('mistakeCancelBtn');
+  if (close) close.onclick = closeMistakeModal;
+  if (cancel) cancel.onclick = closeMistakeModal;
+  modal.classList.add('open');
+}
+function closeMistakeModal() {
+  mistakeModalFor = null;
+  var modal = $('mistakeModal');
+  if (modal) modal.classList.remove('open');
+}
+
+/* The 🐾 button on the box's bar. Whatever is typed in the box is read as
+   the question (the way ✨ Answer reads it); an EMPTY box is fine as long as
+   the page is open, because the snapshot round the box says which question
+   it sits under. */
+function aiMistake(id) {
+  var wasBusy = aiBusy;
+  commitActiveTextEdit();
+  if (!wasBusy && aiBusy) return;
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a || a.type !== 'text') return;
+  openMistakeModal(id);
+}
+
+function aiMistakeGenerate(id, animalId) {
+  if (isStudent()) return; // it writes onto the worksheet — teacher-only, like ✨ Answer
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a || a.type !== 'text') return;
+  if (aiBusy) { toast(aiEngineName() + ' is still working on the previous request…'); return; }
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    toast('AI is not available — check your connection and reload the page.', 5000);
+    return;
+  }
+  var want = mistakeAnimal(animalId); // null means "any"
+  var q = (a.text || '').trim();
+  var ctx = aiContextImages(a);
+  if (!q && !ctx.length) {
+    toast('Type the question in the box first, or put the box on the page the question is on.', 5000);
+    return;
+  }
+  var lines = [];
+  var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
+  var lvl = wsMeta && wsMeta.level ? levelLabel(wsMeta.level) : '';
+  if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
+  if (ctx.length) {
+    lines.push('Attached: ' + ctx.map(function (im, i) { return 'image ' + (i + 1) + ' = ' + im.label; }).join('; ') + '.');
+  }
+  if (q) lines.push('The teacher typed in the box: "' + q + '"' + (ctx.length ? ' — read it as the question, or as a steer about which question, whichever it is.' : ''));
+  else lines.push('The box is empty: the question is the one nearest the box in the first image.');
+  if (want) {
+    lines.push('THE MISTAKE TO BUILD IN: ' + want.id + ' = ' + want.animal + ' (' + want.name + '): ' + want.desc +
+      ' How it shows: ' + want.spot + ' Build exactly this one habit into the answer and nothing else; "animal" is "' + want.id + '".');
+  } else {
+    lines.push('THE MISTAKE TO BUILD IN: choose the ONE type a student at this level most often makes on THIS question, build exactly that one in, and return its id in "animal".');
+  }
+  lines.push('Return only the JSON.');
+  var imgs = ctx.map(function (im) { return { mimeType: im.mimeType, data: im.data }; });
+  aiBusy = true;
+  toast('🐾 ' + aiEngineName() + ' is writing a ' + (want ? want.animal.replace(/^The /, '') : 'student') + ' answer…', 30000);
+  /* Grounded as TEACHING: the key facts and the teacher's exemplars are what
+     let everything AROUND the one mistake come out in this teacher's words,
+     so the class is hunting for the error rather than for an unfamiliar
+     style. The question threads through so the exemplars served are the
+     teacher's answers to questions like this one. */
+  window.askGemini(lines.join('\n'), {
+    system: AI_MISTAKE_SYS + aiGrounding('teach', { q: q || '' }),
+    maxOutputTokens: 900, temperature: 0.7, images: imgs, json: true
+  }).then(function (raw) {
+    aiBusy = false;
+    var res = null;
+    try { res = _parseAIJson(raw); } catch (e) { res = null; }
+    var text = res && typeof res === 'object' ? String(res.answer || '').trim() : '';
+    if (!text) { toast(aiEngineName() + ' returned nothing usable — please try again.', 5000); return; }
+    var animal = want ? want.id : mistakeAnimalNormalize(res.animal);
+    if (!mistakeAnimal(animal)) {
+      /* Asked to choose and chose nothing on the list: a wrong answer with no
+         name is an exercise with no answer key, so nothing is written. */
+      toast(aiEngineName() + ' could not settle on a mistake type for this question — pick one yourself.', 6000);
+      return;
+    }
+    aiApplyText(id, text);               // one undo step, the box regrown
+    var b = annotations.find(function (x) { return x.id === id; });
+    if (!b) return;                      // deleted while the model was writing
+    b.mistake = { animal: animal, why: String(res.why || '').replace(/\s+/g, ' ').trim().slice(0, 400) };
+    delete b.aiQ;                        // it answers nothing the app should learn from
+    delete styleGen[id];                 // and it is not a generation to compare edits against
+    renderAllOverlays();
+    setDirty(true);
+    toast('🐾 ' + mistakeAnimalLabel(animal) + ' is in the box — a deliberate mistake for the class to find. ' +
+      (b.mistake.why ? b.mistake.why + ' ' : '') + 'Ctrl+Z brings the old text back.', 9000);
+  }).catch(function (err) {
+    aiBusy = false;
+    toast(aiEngineName() + ' error: ' + ((err && err.message) || 'request failed — please try again.'), 6000);
+  });
+}
+
+/* Take the mark off a box the teacher has since rewritten into a real
+   answer. The words stay; only the "learn nothing from this" flag goes. */
+function mistakeClear(id) {
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!a || !a.mistake) return;
+  pushUndo();
+  delete a.mistake;
+  renderAllOverlays();
+  setDirty(true);
+  toast('The 🐾 mark is off — this box is an ordinary answer again.');
+}
+
 var AI_ANSWER_SYS =
   'You are helping a tuition teacher fill in answers on a PDF worksheet for ' +
   'students from P3 to Secondary 1 (Singapore syllabus). Snapshots of the ' +
@@ -20739,6 +21109,9 @@ function keyEngineLabel() {
 }
 
 async function runAnswerKey(keyAnns, detailed) {
+  /* A deliberate mistake is not the teacher's answer, so it is not shown to
+     the model that keys the page — or the key comes back carrying it. */
+  keyAnns = (keyAnns || []).filter(function (a) { return !annHoldsMistake(a); });
   var blank = !keyAnns || !keyAnns.length;
   aiBusy = true;
   $('checkTitle').textContent = 'Building the answer key…';
