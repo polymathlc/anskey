@@ -3,6 +3,21 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Recording files protected and voice services deployed (v1.94.1)
+
+Only the teacher, signed in with a verified Google account, can create,
+replace or delete lesson recording files under `pdf-annotator/lesson-*`,
+including nested files. Public playback remains available to students and
+share-link visitors. Other existing file permissions are unchanged.
+
+The voice session function and cleanup job are deployed to `mathgen--app`
+using the existing server secret. Session and quota records are protected
+from client access. See [recording storage protection](docs/lesson-storage-rules.md)
+and [function deployment instructions](functions/README.md) for future updates.
+
+Validation: all 330 Storage permission checks passed, and the deployed cleanup
+jobs completed successfully. A real spoken voice call has not yet been tested.
+
 ## Record and replay a lesson (v1.94.0)
 
 On a saved worksheet, the teacher can choose **Record lesson**, explain while
@@ -36,14 +51,14 @@ playback never replaces the worksheet's current answers or undo history.
   deleted or replaced later, the app refuses to replay against mismatched pages.
   Keep the original PDF if an older recording needs to remain usable.
 
-The optional voice helper also requires deployment of this repository's two
-Firebase functions using the existing `OPENAI_API_KEY` secret. See
-[deployment instructions](functions/README.md). A GitHub Pages update publishes
-the recorder UI; it does not deploy these server functions.
+The optional voice helper uses this repository's two Firebase functions and
+the existing `OPENAI_API_KEY` secret. These functions are now deployed; see
+[deployment instructions](functions/README.md) for future updates. A GitHub Pages
+update publishes the recorder UI; it does not deploy the server functions.
 
 Validation: `node --test tools/*-tests.mjs` and `npm --prefix functions test`.
-Paid voice calls are mocked in automated tests; deployment and a real account
-are needed for a production voice check.
+Paid voice calls are mocked in automated tests; a real account and spoken
+conversation are needed for a production voice check.
 
 ## 🐾 A mistake written on purpose — for the class to find (v1.93.0)
 
