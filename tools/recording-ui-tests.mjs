@@ -274,13 +274,14 @@ await check('attachment save waits for normal autosave and preserves edits made 
 await check('account change stops capture and prevents attachment under the new account', async () => {
   const h = harness();
   await h.run('lessonStart();');
-  h.run(`recorders[0].fireStart(); now = 150; currentUser = { uid: 'student' }; admin = false; lessonRoleChanged();`);
+  h.run(`recorders[0].fireStart(); now = 150; currentUser = { uid: 'student' }; admin = false; annotations = [words('private-student-text')]; lessonRoleChanged();`);
   await h.run('recorders[0].finishStop();');
   assert.equal(h.run('writes.length'), 0);
   assert.equal(h.run('uploads.length'), 0);
   assert.equal(h.run('lessonPending.uid'), 'teacher');
   assert.equal(h.run('recovery.size'), 1);
   assert.equal(h.run("$('lessonBar').hidden"), true);
+  assert.equal(h.run('lessonPending.manifest.timeline.events.length'), 0, 'stop must not capture the next account’s page state');
 });
 
 await check('students can navigate and replay while the teacher has an unsaved backup', async () => {

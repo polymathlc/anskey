@@ -10070,7 +10070,9 @@ function lessonStop(message) {
   if (!c || c.phase === 'stopping') return;
   if (c.phase === 'recording') {
     c.phase = 'stopping'; clearInterval(c.timer);
-    try { c.core.capture(Math.min(LessonReplayCore.limits.duration, performance.now() - c.origin), lessonSnapshot(), lessonView()); } catch (e) {}
+    if (lessonContextOK(c)) {
+      try { c.core.capture(Math.min(LessonReplayCore.limits.duration, performance.now() - c.origin), lessonSnapshot(), lessonView()); } catch (e) {}
+    }
     c.duration = Math.min(LessonReplayCore.limits.duration, Math.max(c.lastMs, performance.now() - c.origin));
   } else { c.phase = 'stopping'; c.duration = 0; }
   lessonStatus(message || 'Saving the lesson…'); $('lessonStopBtn').hidden = true;
