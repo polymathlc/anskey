@@ -59,7 +59,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleRecentEdits, STYLE_PAIRS_MAX, STYLE_DISTIL_EDITS, STYLE_DISTIL_MIN, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, notesLiveNowHtml, STYLE_DISTIL_EVERY, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX, styleLessons, styleWriteNotes, notesLessonsHtml, styleForgetEdit, STYLE_NOTE_SYS, STYLE_LESSONS_MAX, STYLE_NOTE_CHARS, setAsk: fn => { window.askGemini = fn; }, setBusy: v => { aiBusy = v; } };')();
+const mod = new Function(prelude + src + '\nreturn { MISTAKE_ANIMALS, mistakeAnimal, mistakeAnimalNormalize, mistakeAnimalLabel, mistakeAnimalIds, MISTAKE_ANIMAL_RULE, annHoldsMistake, annsHoldMistake, notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleRecentEdits, STYLE_PAIRS_MAX, STYLE_DISTIL_EDITS, STYLE_DISTIL_MIN, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, notesLiveNowHtml, STYLE_DISTIL_EVERY, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX, styleLessons, styleWriteNotes, notesLessonsHtml, styleForgetEdit, STYLE_NOTE_SYS, STYLE_LESSONS_MAX, STYLE_NOTE_CHARS, setAsk: fn => { window.askGemini = fn; }, setBusy: v => { aiBusy = v; } };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -1106,6 +1106,64 @@ ok('and the manual button', /Rebuild my style now/.test(mod.notesLiveNowHtml()))
   ok('forgetting it takes the CORRECTION with it', mod.getEdits().length === 0,
      'the pair alone would teach the same thing again on the very next answer');
   ok('an empty corpus renders no panel at all', mod.notesLessonsHtml() === '');
+}
+
+/* ================= 🐾 A box that is WRONG ON PURPOSE =================
+   The 🐾 Mistake button writes a deliberately wrong answer into a text box
+   for the class to find. This app teaches itself from what the teacher
+   writes, so the mark on that box has to be honoured by EVERY learning path
+   — and every way it is not is silent: the wrong science is learned as the
+   teacher's own answer, distilled into their style, filed in the notebook as
+   a key fact, and printed on the answer key. */
+console.log('\n🐾 A box that is wrong on purpose');
+{
+  ok('there are ten animals, and the list is the shared one',
+     mod.MISTAKE_ANIMALS.length === 10 &&
+     JSON.stringify(mod.mistakeAnimalIds()) === JSON.stringify(['rabbit','parrot','sloth','chameleon','octopus','monkey','goldfish','fox','bat','peacock']));
+  ok('every animal is whole', mod.MISTAKE_ANIMALS.every(m => m.id && m.emoji && m.animal && m.name && m.desc && m.spot && m.fix));
+  ok('the lookup returns null for an animal it does not know', mod.mistakeAnimal('dragon') === null && mod.mistakeAnimal('') === null);
+  ok('a model’s word becomes an id', mod.mistakeAnimalNormalize('The Rabbit') === 'rabbit' && mod.mistakeAnimalNormalize('rushed it') === 'rabbit');
+  ok('"unsure" and an invented animal become NO type', mod.mistakeAnimalNormalize('unsure') === '' && mod.mistakeAnimalNormalize('dragon') === '');
+  ok('the rule names every id and allows none', mod.mistakeAnimalIds().every(id => mod.MISTAKE_ANIMAL_RULE.includes('  ' + id + ' = ')) && /empty string rather than forcing one/.test(mod.MISTAKE_ANIMAL_RULE));
+
+  const wrong = { id: 'w1', type: 'text', page: 1, text: 'The ice gains heat from the surroundings and freezes.', mistake: { animal: 'fox', why: 'Freezing is losing heat.' } };
+  const real  = { id: 'r1', type: 'text', page: 1, text: 'The ice gains heat from the surroundings and melts.', aiQ: 'Why does the ice melt?' };
+  ok('the predicate recognises a marked box', mod.annHoldsMistake(wrong) === true);
+  ok('…and not an ordinary one', mod.annHoldsMistake(real) === false && mod.annHoldsMistake(null) === false);
+  ok('a mark naming an animal nobody knows is not a mark', mod.annHoldsMistake({ type: 'text', text: 'x', mistake: { animal: 'dragon' } }) === false);
+  ok('a mark on something that is not a text box is not a mark', mod.annHoldsMistake({ type: 'pen', mistake: { animal: 'fox' } }) === false);
+  ok('a page holding one is a page holding one', mod.annsHoldMistake([real, wrong]) === true && mod.annsHoldMistake([real]) === false && mod.annsHoldMistake([]) === false);
+
+  // The typed harvest.
+  mod.setStyle({ samples: [], edits: [], scores: [] });
+  const got = mod.styleHarvestTyped([wrong, real], 'doc9', { level: 'P5', subject: 'science', name: 'Heat' });
+  ok('the typed harvest learns the real answer and NOT the deliberate mistake',
+     got.length === 1 && got[0].a === real.text, JSON.stringify(got));
+
+  // The edit harvest: a generation remembered against a box that was then
+  // turned into a deliberate mistake must not be read as a correction.
+  mod.clearGen();
+  mod.setAnns([wrong]);
+  mod.styleNoteGenerated('w1', 'Why does the ice melt?', 'The ice gains heat and melts.');
+  const edits = mod.styleCollectEdits([wrong], 'doc9', { level: 'P5', subject: 'science' });
+  ok('the edit harvest learns nothing from a marked box', edits.edits === 0 && edits.scored === 0, JSON.stringify(edits));
+  mod.setAnns([]);
+
+  // 📚 learning as you go.
+  ok('a page holding a deliberate mistake is not worth reading, whatever else is on it',
+     mod.autoLearnWorthReading([wrong, real, { type: 'pen' }, { type: 'pen' }, { type: 'pen' }, { type: 'pen' }]) === false);
+  ok('…and the same page without it still is', mod.autoLearnWorthReading([real]) === true);
+
+  // Read as text: the vision harvest and the answer key skip it too, and the
+  // generator never records its output as a generation to learn edits from.
+  ok('the vision harvest skips a page holding one', /if \(annsHoldMistake\(anns\)\) continue;/.test(html));
+  ok('the answer key never sees one', /keyAnns = \(keyAnns \|\| \[\]\)\.filter\(function \(a\) \{ return !annHoldsMistake\(a\); \}\);/.test(html));
+  ok('the generator drops the box’s pending generation', /delete styleGen\[id\];\s+\/\/ and it is not a generation/.test(html));
+  ok('the generator never calls styleNoteGenerated', !/function aiMistakeGenerate[\s\S]*?styleNoteGenerated[\s\S]*?\nfunction mistakeClear/.test(html));
+  ok('the generator is grounded', /function aiMistakeGenerate[\s\S]*?aiGrounding\('teach'[\s\S]*?\nfunction mistakeClear/.test(html));
+  ok('the generator refuses a student', /function aiMistakeGenerate\(id, animalId\) \{\s*if \(isStudent\(\)\) return;/.test(html));
+  ok('the chooser refuses a student too', /function openMistakeModal\(annId\) \{\s*if \(isStudent\(\)\) return;/.test(html));
+  ok('the bar offers the button beside ✨ Answer and ✒️ Improve', /addBtn\('🐾 Mistake'/.test(html));
 }
 
 console.log(fails ? '\n' + fails + ' FAILED\n' : '\nAll good.\n');

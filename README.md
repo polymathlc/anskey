@@ -3,6 +3,37 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 🐾 A mistake written on purpose — for the class to find (v1.93.0)
+
+Every text box's ✨ menu has a third button beside **Answer** and **Improve**: **🐾 Mistake**.
+Pick one of ten kinds of mistake — or let Chung GPT pick the one students most often make on that
+question — and it writes the answer a real student would plausibly give, with **exactly one**
+mistake of that kind built in and everything else right. Hand the page over and the class has to
+say which animal it is and put it right.
+
+| | Animal | The habit |
+| --- | --- | --- |
+| 🐇 | The Rabbit | Rushed it — answered a different question from the one printed |
+| 🦜 | The Parrot | Repeated the question instead of answering it |
+| 🦥 | The Sloth | Stopped halfway — the cause without the effect |
+| 🦎 | The Chameleon | Wrong keyword — "melt" for "dissolve" |
+| 🐙 | The Octopus | Grabbed everything — every fact, the point buried |
+| 🐒 | The Monkey | Mixed-up ideas — evaporation and boiling swapped |
+| 🐟 | The Goldfish | Forgot the fact |
+| 🦊 | The Fox | Reversed the logic — cause and effect the wrong way round |
+| 🦇 | The Bat | Ignored the evidence in the diagram or table |
+| 🦚 | The Peacock | Too vague — "it affects the plant" |
+
+They are the same ten animals the Science Learning Portal drills and the Scan app tags, so a
+student meets one vocabulary everywhere.
+
+- **The box is marked.** A 🐾 chip on its menu names the animal, and its tooltip says exactly where
+  the mistake is. ✕ takes the mark off if you later rewrite the box into a real answer.
+- **Nothing is learned from a marked box.** Not your answering style, not a "correction", not the
+  📚 notebook (a page holding one is skipped entirely), not the answer key. A box that is wrong on
+  purpose is the one thing this app must never teach itself from.
+- Ctrl+Z brings the old text back, mark and all. Teacher only, like ✨ Answer.
+
 ## 🗑 Taking a page back out (v1.92.0)
 
 The other half of ➕ Blank page. **🗑 Delete page** takes the page you are
