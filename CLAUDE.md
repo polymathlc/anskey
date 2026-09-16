@@ -2,6 +2,47 @@
 
 Guidance for Claude when working in this repo.
 
+## Check deadlines (v1.94.2)
+
+`aiWithDeadline` bounds Live preparation and each provider attempt. Preserve
+cancellation checks before fallback; a late reply must not speak or start a
+new request. Short checks pass `timeoutMs` and `routeTimeoutMs` explicitly so
+long teacher-generated content retains its own budgets. Gemini 11.10.0 takes
+the timeout in the third argument of `getGenerativeModel`.
+
+Maths teaching uses `tutorMethodRule`: arithmetic and the unitary method first,
+units and parts only for clearly suitable questions, and one step at a time
+in Live. `lessonAnswerKeyContext` reads the current page's available key and
+working without inventing missing entries. Practice marking runs at most two
+independent answers at once and keeps the report in worksheet order.
+
+Run `node --test tools/check-latency-tests.mjs tools/recording-live-tests.mjs
+tools/recording-ui-tests.mjs` and `node tools/notes-tests.mjs` after changes
+to these paths.
+
+## Writing and palm rejection (v1.94.2)
+
+Pointer admission must run before resize handles, text editing and card
+buttons. The viewer's capture-phase navigation handler must honour pen
+priority too: rejecting a touch only in the overlay still lets it scroll.
+Keep rejected contacts blocked until lift, including when the Pencil lifts
+first; the 350 ms post-pen interval covers new trailing palm contacts. Pen
+down stops existing pan/pinch/momentum, and raw touch undo/redo observes the
+same guard. Recheck contact size on movement because palms can start small.
+
+`appendInkSamples` reads one page rectangle per delivered event and retains
+coalesced points. `queueTempRedraw` paints once per display frame;
+`flushTempRedraw` commits the final up position synchronously. Cancellation
+and capture loss preserve existing samples without adding their unreliable
+coordinates. Cancel pending frames and hold timers when discarding a stroke,
+and use `suspendPointerInput` before changing worksheet/practice ownership.
+A background refresh may detach a preview; `redrawTemp` recreates it safely.
+
+Run `node --test tools/writing-tests.mjs` and the full browser-code checks
+after changing these paths. These tests simulate event ordering and frame
+work; they cannot certify hardware palm classification or measured Pencil
+latency on an actual iPad.
+
 ## App
 - `index.html` — **"Ans Key"**, the PDF worksheet annotator. One self-contained file (markup + CSS +
   JS), on the shared `mathgen--app` Firebase project with Google sign-in. Admin

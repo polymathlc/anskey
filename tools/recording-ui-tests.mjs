@@ -11,7 +11,8 @@ function cut(from, to) {
   assert(a >= 0 && b > a, 'shipped recording section must exist');
   return html.slice(a, b);
 }
-const actual = cut('/* ================= Lesson replay core ================= */', '/* ================= End lesson replay core ================= */') +
+const actual = cut('/* ================= AI request deadlines ================= */', '/* ================= End AI request deadlines ================= */') +
+  cut('/* ================= Lesson replay core ================= */', '/* ================= End lesson replay core ================= */') +
   cut('/* ================= Lesson recording backgrounds ================= */', '/* ================= End lesson recording backgrounds ================= */') +
   cut('/* ================= Seekable lesson audio ================= */', '/* ================= Synchronized lesson recording ================= */') +
   cut('/* ================= Synchronized lesson recording ================= */', '/* ================= End synchronized lesson recording ================= */') +
@@ -64,7 +65,7 @@ function setTimeout(fn){ var id = ++nextTimer; timers.set(id, fn); return id; }
 function clearTimeout(id){ timers.delete(id); }
 function requestAnimationFrame(fn){ var id = ++nextTimer; timers.set(id, fn); return id; }
 function cancelAnimationFrame(id){ timers.delete(id); }
-var currentUser = { uid: 'teacher', getIdToken: async function(){ return 'test-token'; } }, currentDocId = 'worksheet', wsEpoch = 1;
+var currentUser = { uid: 'teacher', getIdToken: async function(){ return 'test-token'; } }, currentDocId = 'worksheet', wsEpoch = 1, lastAnswerKey = null;
 var actingStudent = false, practiceMode = false, shared = false, admin = true;
 var annotations = [], drawing = null, editingId = null, scale = 1, fittedWidth = true;
 var pages = [{ num: 1, baseW: 600, baseH: 800, wrap: new Node() }, { num: 2, baseW: 600, baseH: 800, wrap: new Node() }];
