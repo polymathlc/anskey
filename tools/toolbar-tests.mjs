@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 function cut(start, end) {
   const a = html.indexOf(start), b = html.indexOf(end, a + start.length);
   assert(a >= 0 && b > a, start);
