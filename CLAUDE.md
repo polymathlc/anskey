@@ -2,6 +2,25 @@
 
 Guidance for Claude when working in this repo.
 
+## Toolbar dropdowns and exact stroke size (v1.95.0)
+
+Keep the original tool buttons and IDs inside the Shapes, Colour, Print & PDF,
+and Notes & practice dropdowns. Shortcuts, favourites and role visibility use
+those same elements. Only `[data-tool]` buttons select a drawing tool: the
+Shapes panel also contains dash/head controls, which must never call `setTool`.
+Do not offer dropdown triggers as favourites; offer their concrete actions.
+
+`setStrokeWidth` is shared by the slider and the exact number input. Preserve
+decimal values, the 0.5–24 range, per-tool memory and one undo step per edit.
+Blank/non-finite values cannot reach saved annotations. The exact input must
+allow text selection despite the toolbar's no-selection styling.
+
+Dropdowns close before an action opens its dialog, without taking focus back
+afterwards. Escape restores the trigger and must not reach worksheet shortcuts.
+Outside pointer events close the panel without cancelling drawing. Keep full
+option labels visible on narrow screens and all teacher-only gates in place.
+Run `node --test tools/toolbar-tests.mjs tools/line-style-tests.mjs` after changes.
+
 ## Check deadlines (v1.94.2)
 
 `aiWithDeadline` bounds Live preparation and each provider attempt. Preserve

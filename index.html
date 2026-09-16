@@ -788,6 +788,44 @@
   #toolbar .btn { padding: 7px 12px; font-size: 0.8rem; gap: 6px; }
   #toolbar .btn svg { width: 15px; height: 15px; }
   #toolbar .btnIcon { padding: 7px 8px; }
+  .toolbarMenu { display: flex; align-items: center; }
+  .toolbarMenuIcon { display: inline-flex; align-items: center; }
+  .menuChevron { font-size: 10px; opacity: .7; }
+  #toolbar .toolbarMenuBtn { min-height: 30px; white-space: nowrap; }
+  #toolbar .toolbarMenuBtn.active, #toolbar .toolbarMenuBtn[aria-expanded="true"] {
+    background: var(--accent); border-color: var(--accent-strong); color: var(--ink);
+  }
+  .toolbarMenuPanel {
+    position: fixed; z-index: 90; width: 248px;
+    max-width: calc(100vw - 16px); max-height: min(440px, calc(var(--vvh, 100vh) - 16px));
+    overflow-y: auto; overscroll-behavior: contain;
+    padding: 6px; background: #fff; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-modal);
+  }
+  .toolbarMenuPanel[hidden] { display: none !important; }
+  #toolbar .toolbarMenuPanel .toolbarMenuItem {
+    display: flex; width: 100%; height: auto; min-height: 38px; margin: 0;
+    padding: 8px 10px; justify-content: flex-start; text-align: left;
+    border-color: transparent; box-shadow: none; transform: none; gap: 10px;
+  }
+  #toolbar .toolbarMenuPanel .btnLabel { display: inline; white-space: normal; }
+  .toolbarMenuItem kbd { margin-left: auto; color: var(--ink-soft); font: 11px var(--font); }
+  .toolbarMenuPanel .menuCaption { width: 100%; padding: 5px 4px 2px; font-size: 11px; color: var(--ink-soft); }
+  #shapeMenu #lineStyleCtl { flex-wrap: wrap; margin-top: 5px; padding: 4px; border-top: 1px solid var(--line); }
+  .toolbarMenuPanel button:focus-visible, .toolbarMenuBtn:focus-visible, .strokeExact:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 2px;
+  }
+  .colourPreview { display: inline-block; width: 17px; height: 17px; border-radius: 50%; border: 1px solid var(--line); }
+  .toolbarPalette { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 7px 14px; }
+  #colorMenu .colorChip { width: 32px; height: 32px; padding: 0; flex: 0 0 auto; }
+  .customColourLabel { display: flex; align-items: center; justify-content: space-between; padding: 8px; border-top: 1px solid var(--line); font-size: 13px; }
+  #colorMenu #customColor { width: 36px; height: 32px; }
+  .strokeExact { width: 58px; padding: 3px 4px; border: 1px solid var(--line); border-radius: 4px; font: 12px var(--font); color: var(--ink); background: #fff; -webkit-user-select: text; user-select: text; }
+  @media (pointer: coarse) {
+    #toolbar .toolbarMenuBtn, #toolbar .toolbarMenuPanel .toolbarMenuItem { min-height: 42px; }
+    #shapeMenu .lineDashBtn, #shapeMenu .lineHeadBtn { width: 42px; height: 42px; }
+    .strokeExact { min-height: 32px; font-size: 16px; }
+  }
   .toolBtn {
     width: 28px; height: 28px;
     display: inline-flex; align-items: center; justify-content: center;
@@ -3486,21 +3524,63 @@
     <button class="toolBtn" data-tool="ainote" data-key="I" title="AI notes — click a spot, choose notes, a table, a picture or an interactive widget, and say what you want">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M7.5 9h5"/><path d="M7.5 12.5h9"/><path d="M7.5 16h6.5"/><path d="M16.6 5.6l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor" stroke="none"/></svg>
     </button>
-    <button class="toolBtn" data-tool="rect" data-key="R" title="Rectangle">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="1"/></svg>
+  <div class="toolbarMenu" id="shapeTools">
+    <button class="btn toolbarMenuBtn" id="shapeMenuBtn" type="button" data-toolbar-menu="shapeMenu" aria-expanded="false" aria-controls="shapeMenu" title="Shapes">
+      <span class="toolbarMenuIcon" id="shapeMenuIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/></svg></span>
+      <span class="btnLabel" id="shapeMenuLabel">Shapes</span><span class="menuChevron" aria-hidden="true">▾</span>
     </button>
-    <button class="toolBtn" data-tool="ellipse" data-key="O" title="Ellipse">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></svg>
-    </button>
-    <button class="toolBtn" data-tool="line" data-key="L" title="Line">
+    <div class="toolbarMenuPanel " id="shapeMenu" role="group" aria-labelledby="shapeMenuBtn" hidden>
+    <button class="toolbarMenuItem toolBtn" data-tool="line" data-key="L" title="Line">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+      <span class="btnLabel">Line</span>
+      <kbd aria-hidden="true">L</kbd>
     </button>
-    <button class="toolBtn" data-tool="arrow" data-key="A" title="Arrow">
+    <button class="toolbarMenuItem toolBtn" data-tool="arrow" data-key="A" title="Arrow">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg>
+      <span class="btnLabel">Arrow</span>
+      <kbd aria-hidden="true">A</kbd>
     </button>
-    <button class="toolBtn" data-tool="brace" data-key="B" title="Curly bracket — drag along what you want to label; drag the other way to flip which side it bulges">
+    <button class="toolbarMenuItem toolBtn" data-tool="brace" data-key="B" title="Curly bracket — drag along what you want to label; drag the other way to flip which side it bulges">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18q0-4 3.5-4h1.5q3.5 0 3.5-4 0 4 3.5 4h1.5q3.5 0 3.5 4"/></svg>
+      <span class="btnLabel">Bracket</span>
+      <kbd aria-hidden="true">B</kbd>
     </button>
+    <button class="toolbarMenuItem toolBtn" data-tool="rect" data-key="R" title="Rectangle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="1"/></svg>
+      <span class="btnLabel">Rectangle</span>
+      <kbd aria-hidden="true">R</kbd>
+    </button>
+    <button class="toolbarMenuItem toolBtn" data-tool="ellipse" data-key="O" title="Ellipse">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></svg>
+      <span class="btnLabel">Ellipse</span>
+      <kbd aria-hidden="true">O</kbd>
+    </button>
+  <div class="tGroup" id="lineStyleCtl" data-menu-keepopen style="display:none">
+    <span class="menuCaption">Line style</span>
+    <button class="toolBtn lineDashBtn" data-dash="solid" title="Solid line">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/></svg>
+    </button>
+    <button class="toolBtn lineDashBtn" data-dash="dashed" title="Dashed line">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="5 3.5"><line x1="3" y1="12" x2="21" y2="12"/></svg>
+    </button>
+    <button class="toolBtn lineDashBtn" data-dash="dotted" title="Dotted line">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 4.4"><line x1="3.5" y1="12" x2="20.5" y2="12"/></svg>
+    </button>
+    <span class="lineHeadOnly" style="display:contents">
+      <span class="menuCaption">Arrowheads</span>
+      <button class="toolBtn lineHeadBtn" data-heads="none" title="No arrowhead">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/></svg>
+      </button>
+      <button class="toolBtn lineHeadBtn" data-heads="end" title="Arrowhead at the end">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="20" y2="12"/><polyline points="14.5 7.5 20 12 14.5 16.5"/></svg>
+      </button>
+      <button class="toolBtn lineHeadBtn" data-heads="both" title="Arrowheads at both ends">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14.5 7.5 20 12 14.5 16.5"/><polyline points="9.5 7.5 4 12 9.5 16.5"/></svg>
+      </button>
+    </span>
+  </div>
+    </div>
+  </div>
     <button class="toolBtn" data-tool="keyword" data-key="K" title="Mark keywords — click words in a text box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M15 7l3 3"/><path d="M18 4l2 2"/></svg>
     </button>
@@ -3516,40 +3596,26 @@
   </div>
   <div class="tSep"></div>
 
-  <div class="tGroup" id="colorChips">
-    <div class="colorChip" data-color="#1A1A1A" style="background:#1A1A1A" title="Black"></div>
-    <div class="colorChip" data-color="#E53935" style="background:#E53935" title="Red"></div>
-    <div class="colorChip" data-color="#1E88E5" style="background:#1E88E5" title="Blue"></div>
-    <div class="colorChip" data-color="#43A047" style="background:#43A047" title="Green"></div>
-    <div class="colorChip" data-color="#FFEB3B" style="background:#FFEB3B" title="Yellow"></div>
-    <input type="color" id="customColor" value="#E53935" title="Custom colour">
+  <div class="toolbarMenu" id="colorChips">
+    <button class="btn toolbarMenuBtn" id="colorMenuBtn" type="button" data-toolbar-menu="colorMenu" aria-expanded="false" aria-controls="colorMenu" title="Colour">
+      <span class="toolbarMenuIcon" id="colorMenuIcon" aria-hidden="true"><span id="colorPreview" class="colourPreview" style="background:#1A1A1A"></span></span>
+      <span class="btnLabel" id="colorMenuLabel">Colour</span><span class="menuChevron" aria-hidden="true">▾</span>
+    </button>
+    <div class="toolbarMenuPanel colourMenuPanel" id="colorMenu" role="group" aria-labelledby="colorMenuBtn" hidden>
+      <div class="toolbarPalette">
+        <button type="button" class="colorChip" data-color="#1A1A1A" style="background:#1A1A1A" title="Black" aria-label="Black"></button>
+        <button type="button" class="colorChip" data-color="#E53935" style="background:#E53935" title="Red" aria-label="Red"></button>
+        <button type="button" class="colorChip" data-color="#1E88E5" style="background:#1E88E5" title="Blue" aria-label="Blue"></button>
+        <button type="button" class="colorChip" data-color="#43A047" style="background:#43A047" title="Green" aria-label="Green"></button>
+        <button type="button" class="colorChip" data-color="#FFEB3B" style="background:#FFEB3B" title="Yellow" aria-label="Yellow"></button>
+      </div>
+      <label class="customColourLabel" for="customColor">Custom colour <input type="color" id="customColor" value="#E53935" title="Custom colour"></label>
+    </div>
   </div>
   <div class="tGroup sliderCtl" id="strokeCtl" title="Stroke thickness">
     <svg class="sliderIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="4" y1="5" x2="20" y2="5" stroke-width="1.2"/><line x1="4" y1="11.5" x2="20" y2="11.5" stroke-width="2.6"/><line x1="4" y1="19" x2="20" y2="19" stroke-width="5"/></svg>
-    <input type="range" id="strokeRange" min="0.5" max="24" step="0.5" value="3">
-    <span class="sliderVal" id="strokeVal">3</span>
-  </div>
-  <div class="tGroup" id="lineStyleCtl" style="display:none">
-    <button class="toolBtn lineDashBtn" data-dash="solid" title="Solid line">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/></svg>
-    </button>
-    <button class="toolBtn lineDashBtn" data-dash="dashed" title="Dashed line">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="5 3.5"><line x1="3" y1="12" x2="21" y2="12"/></svg>
-    </button>
-    <button class="toolBtn lineDashBtn" data-dash="dotted" title="Dotted line">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 4.4"><line x1="3.5" y1="12" x2="20.5" y2="12"/></svg>
-    </button>
-    <span class="lineHeadOnly" style="display:contents">
-      <button class="toolBtn lineHeadBtn" data-heads="none" title="No arrowhead">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/></svg>
-      </button>
-      <button class="toolBtn lineHeadBtn" data-heads="end" title="Arrowhead at the end">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="20" y2="12"/><polyline points="14.5 7.5 20 12 14.5 16.5"/></svg>
-      </button>
-      <button class="toolBtn lineHeadBtn" data-heads="both" title="Arrowheads at both ends">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14.5 7.5 20 12 14.5 16.5"/><polyline points="9.5 7.5 4 12 9.5 16.5"/></svg>
-      </button>
-    </span>
+    <input type="range" id="strokeRange" min="0.5" max="24" step="any" aria-label="Stroke size slider" value="3">
+    <input class="strokeExact" type="number" id="strokeVal" min="0.5" max="24" step="any" value="3" inputmode="decimal" aria-label="Exact stroke size" title="Exact stroke size, 0.5 to 24 — press Enter to apply">
   </div>
   <div class="tGroup sliderCtl" id="fontCtl" title="Text size">
     <span class="sliderAa">Aa</span>
@@ -3611,9 +3677,6 @@
     <button class="toolBtn" id="calcBtn" data-key="K" title="Calculator — fractions, powers and roots, in a window you can drag anywhere">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="16" height="19" rx="2.5"/><rect x="7" y="5.5" width="10" height="3.5" rx="1"/><line x1="8.2" y1="13" x2="8.2" y2="13"/><line x1="12" y1="13" x2="12" y2="13"/><line x1="15.8" y1="13" x2="15.8" y2="13"/><line x1="8.2" y1="17.5" x2="8.2" y2="17.5"/><line x1="12" y1="17.5" x2="12" y2="17.5"/><line x1="15.8" y1="17.5" x2="15.8" y2="17.5"/></svg>
     </button>
-    <button class="toolBtn" id="mmBtn" data-key="Y" title="Mindmap — a board you can drag anywhere, with boxes, arrows, pictures and links">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9.6" width="6" height="4.8" rx="1.4"/><rect x="1.5" y="2.5" width="5.2" height="4" rx="1.3"/><rect x="17.3" y="2.5" width="5.2" height="4" rx="1.3"/><rect x="1.5" y="17.5" width="5.2" height="4" rx="1.3"/><rect x="17.3" y="17.5" width="5.2" height="4" rx="1.3"/><path d="M9 10.6 6.5 6.4M15 10.6l2.5-4.2M9 13.4l-2.5 4.2M15 13.4l2.5 4.2"/></svg>
-    </button>
     <button class="toolBtn" id="thumbToggleBtn" data-key="N" title="Show / hide page thumbnails — drag the panel edge to resize them">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/><rect x="5.4" y="7" width="2.4" height="3.2"/><rect x="5.4" y="13" width="2.4" height="3.2"/></svg>
     </button>
@@ -3628,18 +3691,30 @@
   <div class="tSep"></div>
 
   <div class="tGroup">
-    <button class="btn" id="downloadBtn" data-key="Ctrl+D" title="Download PDF with annotations baked in">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span class="btnLabel">Download</span>
+  <div class="toolbarMenu" id="printTools">
+    <button class="btn toolbarMenuBtn" id="printMenuBtn" type="button" data-toolbar-menu="printMenu" aria-expanded="false" aria-controls="printMenu" title="Print &amp; PDF">
+      <span class="toolbarMenuIcon" id="printMenuIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
+      <span class="btnLabel" id="printMenuLabel">Print &amp; PDF</span><span class="menuChevron" aria-hidden="true">▾</span>
     </button>
-    <button class="btn btnIcon" id="printQBtn" data-key="Ctrl+P" title="Print questions — the worksheet on its own, with every working and annotation taken out">
+    <div class="toolbarMenuPanel " id="printMenu" role="group" aria-labelledby="printMenuBtn" hidden>
+    <button class="toolbarMenuItem btn btnIcon" id="printQBtn" data-key="Ctrl+P" title="Print questions — the worksheet on its own, with every working and annotation taken out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-      <span class="btnLabel">Questions</span>
+      <span class="btnLabel">Print questions</span>
     </button>
-    <button class="btn btnIcon" id="printABtn" data-key="Ctrl+Shift+P" title="Print answers — the worksheet with all the workings and annotations on it">
+    <button class="toolbarMenuItem btn btnIcon" id="printABtn" data-key="Ctrl+Shift+P" title="Print answers — the worksheet with all the workings and annotations on it">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/><line x1="8.6" y1="17" x2="15.4" y2="17"/><line x1="8.6" y1="19.6" x2="13" y2="19.6"/></svg>
-      <span class="btnLabel">Answers</span>
+      <span class="btnLabel">Print answers</span>
     </button>
+    <button class="toolbarMenuItem btn" id="downloadBtn" data-key="Ctrl+D" title="Download PDF with annotations baked in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span class="btnLabel">Download PDF</span>
+    </button>
+    <button class="toolbarMenuItem btn" id="keyPdfBtn" title="Answer key — AI reads the blank worksheet (never the annotations) and downloads a full answer key with explanations">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><polyline points="14 4 14 10 20 10"/><polyline points="7.5 14.5 9.2 16.2 12.5 12.9"/><line x1="14.5" y1="15.5" x2="17.5" y2="15.5"/><line x1="7.5" y1="19" x2="17.5" y2="19"/></svg>
+      <span class="btnLabel">Answer key PDF</span>
+    </button>
+    </div>
+  </div>
     <button class="btn btnPrimary" id="saveBtn" data-key="Ctrl+S" title="Save PDF + annotations to the cloud">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       <span class="btnLabel">Save</span>
@@ -3652,21 +3727,34 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><polyline points="8.5 12.5 7 22 12 19 17 22 15.5 12.5"/></svg>
       <span class="btnLabel">Reward</span>
     </button>
-    <button class="btn" id="notesBtn" title="Teaching notes — upload your own notes and let the AI learn from the answers you have written, so everything it writes follows your syllabus and your style" style="display:none">
+  <div class="toolbarMenu" id="lessonTools">
+    <button class="btn toolbarMenuBtn" id="lessonMenuBtn" type="button" data-toolbar-menu="lessonMenu" aria-expanded="false" aria-controls="lessonMenu" title="Notes &amp; practice">
+      <span class="toolbarMenuIcon" id="lessonMenuIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19a1 1 0 0 1 1 1v14.5"/><path d="M6 17h14v4H6a2 2 0 0 1 0-4z"/><line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="8.5" y1="11" x2="13.5" y2="11"/></svg></span>
+      <span class="btnLabel" id="lessonMenuLabel">Notes &amp; practice</span><span class="menuChevron" aria-hidden="true">▾</span>
+    </button>
+    <div class="toolbarMenuPanel " id="lessonMenu" role="group" aria-labelledby="lessonMenuBtn" hidden>
+    <button class="toolbarMenuItem btn" id="notesBtn" title="Teaching notes — upload your own notes and let the AI learn from the answers you have written, so everything it writes follows your syllabus and your style" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19a1 1 0 0 1 1 1v14.5"/><path d="M6 17h14v4H6a2 2 0 0 1 0-4z"/><line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="8.5" y1="11" x2="13.5" y2="11"/></svg>
-      <span class="btnLabel">Notes</span>
+      <span class="btnLabel">Teaching notes</span>
     </button>
-    <button class="btn" id="quickNoteBtn" title="Add a note — type a house rule and the AI follows it everywhere, on every worksheet" style="display:none">
+    <button class="toolbarMenuItem btn" id="quickNoteBtn" title="Add a note — type a house rule and the AI follows it everywhere, on every worksheet" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"/><line x1="8" y1="8.5" x2="13" y2="8.5"/><line x1="8" y1="12" x2="12" y2="12"/><line x1="8" y1="15.5" x2="11" y2="15.5"/><line x1="18" y1="3" x2="18" y2="9"/><line x1="15" y1="6" x2="21" y2="6"/></svg>
-      <span class="btnLabel">Add note</span>
+      <span class="btnLabel">Add a note</span>
     </button>
+    <button class="toolbarMenuItem toolBtn" id="mmBtn" data-key="Y" title="Mindmap — a board you can drag anywhere, with boxes, arrows, pictures and links">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9.6" width="6" height="4.8" rx="1.4"/><rect x="1.5" y="2.5" width="5.2" height="4" rx="1.3"/><rect x="17.3" y="2.5" width="5.2" height="4" rx="1.3"/><rect x="1.5" y="17.5" width="5.2" height="4" rx="1.3"/><rect x="17.3" y="17.5" width="5.2" height="4" rx="1.3"/><path d="M9 10.6 6.5 6.4M15 10.6l2.5-4.2M9 13.4l-2.5 4.2M15 13.4l2.5 4.2"/></svg>
+      <span class="btnLabel">Mindmap</span>
+      <kbd aria-hidden="true">Y</kbd>
+    </button>
+    <button class="btn toolbarMenuItem" id="practiceMenuBtn" type="button" title="Practice worksheet — hide the answers and try this worksheet yourself">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H5v18h14V8z"/><path d="M14 3v5h5M8 12h8M8 16h5"/></svg>
+      <span class="btnLabel" id="practiceMenuLabel">Practice worksheet</span>
+    </button>
+    </div>
+  </div>
     <button class="btn" id="docsBtn" data-key="M" title="Open a previously saved PDF">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span class="btnLabel">My PDFs</span>
-    </button>
-    <button class="btn" id="keyPdfBtn" title="Answer key — AI reads the blank worksheet (never the annotations) and downloads a full answer key with explanations">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><polyline points="14 4 14 10 20 10"/><polyline points="7.5 14.5 9.2 16.2 12.5 12.9"/><line x1="14.5" y1="15.5" x2="17.5" y2="15.5"/><line x1="7.5" y1="19" x2="17.5" y2="19"/></svg>
-      <span class="btnLabel">Answer key</span>
     </button>
   </div>
 </div>
@@ -4806,7 +4894,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.94.2';
+var APP_VERSION = 'v1.95.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -4967,7 +5055,7 @@ function syncStyleControls() {
   });
   $('customColor').value = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#E53935';
   $('strokeRange').value = strokeW;
-  $('strokeVal').textContent = String(strokeW);
+  $('strokeVal').value = String(strokeW);
   $('fontRange').value = fontSize;
   $('fontVal').textContent = String(fontSize);
   syncLineStyleCtl();
@@ -4990,6 +5078,7 @@ function syncLineStyleCtl() {
   var lineish = kind === 'line' || kind === 'arrow' || kind === 'brace';
   var allowed = !isStudent() || practiceMode;
   wrap.style.display = (lineish && allowed) ? '' : 'none';
+  if (typeof syncToolbarMenuState === 'function') syncToolbarMenuState();
   if (!lineish) return;
   var dash = a ? annDashName(a) : lineDash;
   var heads = a ? annHeads(a) : lineHeads;
@@ -10420,10 +10509,11 @@ function setTool(t) {
     syncStyleControls();
   }
   saveToolStyles(); // the active tool is part of the remembered state
-  document.querySelectorAll('#toolButtons .toolBtn').forEach(function (b) {
+  document.querySelectorAll('#toolButtons .toolBtn[data-tool]').forEach(function (b) {
     b.classList.toggle('active', b.getAttribute('data-tool') === t);
   });
   if (typeof syncFavActive === 'function') syncFavActive();
+  if (typeof syncToolbarMenuState === 'function') syncToolbarMenuState();
   updateToolCursor();
 }
 
@@ -21833,6 +21923,7 @@ function updatePracticeCard() {
   $('practiceStartBtn').style.display = practiceMode ? 'none' : '';
   $('practiceIntro').style.display = practiceMode ? 'none' : '';
   $('practiceActive').style.display = practiceMode ? '' : 'none';
+  if (typeof syncToolbarMenuState === 'function') syncToolbarMenuState();
 }
 
 function startPractice() {
@@ -23181,6 +23272,7 @@ var PRACTICE_TOOLBAR_IDS = ['toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn'];
 
 function applyRoleUI() {
+  if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
   lessonRoleChanged();
   var student = isStudent();
   var hideTools = student && !practiceMode; // practising students get drawing tools
@@ -27655,7 +27747,132 @@ function printPdfBytes(outBytes, label) {
     }
 }
 
+/* ================= Toolbar dropdowns ================= */
+var openToolbarMenu = null;
+
+// Hidden menu panels still contain the original buttons, so shortcuts and
+// saved favourites keep calling the same actions. Visibility inside the
+// panel follows the existing per-role rules, including nested line settings.
+function toolbarMenuOptions(panel) {
+  return Array.prototype.filter.call(panel.querySelectorAll('button, input'), function (el) {
+    if (el.disabled) return false;
+    for (var n = el; n && n !== panel; n = n.parentElement) {
+      if (n.hidden || n.style.display === 'none') return false;
+    }
+    return true;
+  });
+}
+
+function closeToolbarMenus(restoreFocus) {
+  if (!openToolbarMenu) return;
+  var current = openToolbarMenu;
+  openToolbarMenu = null;
+  current.panel.hidden = true;
+  current.button.setAttribute('aria-expanded', 'false');
+  if (restoreFocus) current.button.focus();
+}
+
+function positionToolbarMenu(current) {
+  var r = current.button.getBoundingClientRect();
+  var panel = current.panel;
+  var w = panel.offsetWidth, h = panel.offsetHeight;
+  var vw = window.innerWidth, vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  panel.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px';
+  var top = r.bottom + 5;
+  if (top + h > vh - 8) top = r.top - h - 5;
+  panel.style.top = Math.max(8, Math.min(top, vh - h - 8)) + 'px';
+}
+
+function toggleToolbarMenu(button, focusLast) {
+  var same = openToolbarMenu && openToolbarMenu.button === button;
+  closeToolbarMenus(false);
+  if (same) return;
+  var panel = $(button.getAttribute('data-toolbar-menu'));
+  if (!panel) return;
+  panel.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  openToolbarMenu = { button: button, panel: panel };
+  positionToolbarMenu(openToolbarMenu);
+  var options = toolbarMenuOptions(panel);
+  if (options.length) options[focusLast ? options.length - 1 : 0].focus();
+}
+
+function syncToolbarMenuState() {
+  var shapeButton = $('shapeMenuBtn');
+  if (!shapeButton) return;
+  var selected = selectedId ? annotations.find(function (a) { return a.id === selectedId; }) : null;
+  var kind = selected ? selected.type : tool;
+  var labels = { line: 'Line', arrow: 'Arrow', brace: 'Bracket', rect: 'Rectangle', ellipse: 'Ellipse' };
+  shapeButton.classList.toggle('active', !!labels[kind]);
+  $('shapeMenuLabel').textContent = labels[kind] || 'Shapes';
+  shapeButton.setAttribute('aria-label', labels[kind] ? 'Shapes: ' + labels[kind] : 'Shapes');
+  if (labels[kind]) {
+    var source = document.querySelector('#shapeMenu [data-tool="' + kind + '"] svg');
+    if (source) { $('shapeMenuIcon').innerHTML = ''; $('shapeMenuIcon').appendChild(source.cloneNode(true)); }
+  }
+  $('colorPreview').style.background = color;
+  $('colorMenuBtn').setAttribute('aria-label', 'Colour: ' + color);
+  var practice = $('practiceMenuBtn');
+  var hasAnswers = practiceMode ? !!(teacherAnswers && teacherAnswers.length) : annotations.length > 0;
+  practice.disabled = !pdfDoc || !hasAnswers;
+  $('practiceMenuLabel').textContent = practiceMode ? 'End practice' : 'Practice worksheet';
+  practice.classList.toggle('active', practiceMode);
+}
+
+function initToolbarMenus() {
+  document.querySelectorAll('[data-toolbar-menu]').forEach(function (button) {
+    button.addEventListener('click', function () { toggleToolbarMenu(button, false); });
+    button.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault(); e.stopPropagation();
+      if (!openToolbarMenu || openToolbarMenu.button !== button) toggleToolbarMenu(button, e.key === 'ArrowUp');
+      else {
+        var options = toolbarMenuOptions(openToolbarMenu.panel);
+        if (options.length) options[e.key === 'ArrowUp' ? options.length - 1 : 0].focus();
+      }
+    });
+  });
+  document.querySelectorAll('.toolbarMenuPanel').forEach(function (panel) {
+    // Close before the action runs, without stealing focus from a modal it
+    // opens. Style buttons stay open so dash and heads can be set together.
+    panel.addEventListener('click', function (e) {
+      var button = e.target.closest('button');
+      if (button && panel.contains(button) && !button.closest('[data-menu-keepopen]')) closeToolbarMenus(true);
+    }, true);
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (openToolbarMenu && !openToolbarMenu.button.contains(e.target) && !openToolbarMenu.panel.contains(e.target)) closeToolbarMenus(false);
+  }, true);
+  document.addEventListener('focusin', function (e) {
+    if (openToolbarMenu && !openToolbarMenu.button.contains(e.target) && !openToolbarMenu.panel.contains(e.target)) closeToolbarMenus(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!openToolbarMenu) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeToolbarMenus(true); return; }
+    var target = e.target;
+    if (!openToolbarMenu.panel.contains(target) || target.tagName === 'INPUT') return;
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].indexOf(e.key) < 0) return;
+    var options = toolbarMenuOptions(openToolbarMenu.panel);
+    if (!options.length) return;
+    e.preventDefault(); e.stopPropagation();
+    var index = options.indexOf(target);
+    var next = e.key === 'Home' ? 0 : e.key === 'End' ? options.length - 1 :
+      (index + (e.key === 'ArrowUp' ? -1 : 1) + options.length) % options.length;
+    options[next].focus();
+  }, true);
+  document.addEventListener('scroll', function (e) {
+    if (openToolbarMenu && !openToolbarMenu.panel.contains(e.target)) closeToolbarMenus(false);
+  }, true);
+  window.addEventListener('resize', function () { closeToolbarMenus(false); });
+  $('practiceMenuBtn').addEventListener('click', function () {
+    if (practiceMode) endPractice(); else startPractice();
+  });
+  syncToolbarMenuState();
+}
+/* ================= End toolbar dropdowns ================= */
+
 /* ================= Wiring ================= */
+initToolbarMenus();
 $('uploadBtn').addEventListener('click', openFilePicker);
 $('blankPageBtn').addEventListener('click', addBlankPage);
 $('deletePageBtn').addEventListener('click', function () { deletePage(); });
@@ -27666,7 +27883,7 @@ $('fileInput').addEventListener('change', function (e) {
   e.target.value = '';
 });
 
-document.querySelectorAll('#toolButtons .toolBtn').forEach(function (b) {
+document.querySelectorAll('#toolButtons .toolBtn[data-tool]').forEach(function (b) {
   b.addEventListener('click', function () { setTool(b.getAttribute('data-tool')); });
 });
 document.querySelectorAll('.colorChip').forEach(function (chip) {
@@ -27683,21 +27900,38 @@ document.querySelectorAll('.lineHeadBtn').forEach(function (b) {
 /* The sliders update live while dragging; a drag over a selected annotation
    restyles it as one single undo step (committed when the drag ends). */
 var strokeUndoPushed = false;
-$('strokeRange').addEventListener('input', function (e) {
-  strokeW = parseFloat(e.target.value);
-  $('strokeVal').textContent = String(strokeW);
+function setStrokeWidth(value) {
+  var text = String(value).trim(), next = Number(text);
+  if (!text || !isFinite(next)) {
+    $('strokeVal').value = String(strokeW);
+    return false;
+  }
+  strokeW = Math.max(0.5, Math.min(24, next));
+  $('strokeVal').value = String(strokeW);
+  $('strokeRange').value = strokeW;
   rememberToolStyle();
   if (selectedId) {
     var a = annotations.find(function (x) { return x.id === selectedId; });
-    if (a && a.width !== undefined && a.type !== 'text') {
+    if (a && a.width !== undefined && a.type !== 'text' && a.width !== strokeW) {
       if (!strokeUndoPushed) { pushUndo(); strokeUndoPushed = true; }
       a.width = strokeW;
       scheduleOverlays();
       setDirty(true);
     }
   }
-});
+  return true;
+}
+$('strokeRange').addEventListener('input', function (e) { setStrokeWidth(e.target.value); });
 $('strokeRange').addEventListener('change', function () { strokeUndoPushed = false; });
+$('strokeVal').addEventListener('change', function (e) {
+  strokeUndoPushed = false;
+  setStrokeWidth(e.target.value);
+  strokeUndoPushed = false;
+});
+$('strokeVal').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); e.target.blur(); }
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.target.value = String(strokeW); e.target.blur(); }
+});
 
 var fontUndoPushed = false;
 $('fontRange').addEventListener('input', function (e) {
@@ -27797,6 +28031,7 @@ function syncFsBtn() {
 
 var fsHomeScreenHintShown = false;
 async function setImmersive(on) {
+  closeToolbarMenus(false);
   document.body.classList.toggle('immersive', on);
   if (on) closeFloatingPanels(); // a panel over half the screen defeats the point
   if (fsApiUsable()) {
@@ -28701,6 +28936,7 @@ function favCandidates() {
   var out = [];
   document.querySelectorAll('#toolbar button, .polymath-header button').forEach(function (b) {
     if (b.closest('#favBar')) return;
+    if (b.hasAttribute('data-toolbar-menu')) return; // favourite the action, not a hidden menu trigger
     if (b.style.display === 'none') return; // hidden for this role
     var t = b.getAttribute('data-tool');
     var key = t ? 'tool:' + t : (b.id ? 'id:' + b.id : '');
@@ -28777,6 +29013,7 @@ function placeFavBar() {
 }
 
 function setToolbarMin(on) {
+  closeToolbarMenus(false);
   toolbarMin = !!on;
   document.body.classList.toggle('toolbarMin', toolbarMin);
   saveFavState();
