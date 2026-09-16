@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## A streamlined toolbar (v1.95.0)
+
+Related tools now sit in compact dropdowns:
+
+- **Shapes:** line, arrow, bracket, rectangle and ellipse, with line styles
+  and arrowhead settings in the same panel.
+- **Colour:** the five swatches and a custom colour picker. The button shows
+  the current colour.
+- **Print & PDF:** questions, answers, annotated PDF download and answer-key PDF.
+- **Notes & practice:** teaching notes, add a note, mindmap and practice worksheet.
+
+Stroke size has a number box beside its slider. Enter an exact decimal size
+from 0.5 to 24 and press Enter or leave the box to apply it. Each tool remembers
+its own size; changing a selected stroke remains an undoable edit.
+
+The dropdowns support keyboard navigation, Escape, outside-click dismissal and
+narrow viewports. Original shortcuts, favourites and role permissions continue
+to use the same actions. Automated checks exercise the actual toolbar markup,
+focus handling, tool selection, exact-size persistence and note visibility;
+the layout has not been checked on physical tablet hardware.
+
 ## Faster answer checks and live explanations (v1.94.2)
 
 Live worksheet checks have a 35-second total limit, including teaching-note
