@@ -34,7 +34,7 @@ function matches(n, selector) {
 class Node {
   constructor(tag, attrs = {}, doc) {
     this.tagName = tag.toUpperCase(); this.attrs = { ...attrs }; this.ownerDocument = doc;
-    this.children = []; this.listeners = {}; this.style = {}; this.textContent = '';
+    this.children = []; this.listeners = {}; this.style = { setProperty(k, v) { this[k] = v; } }; this.textContent = '';
     this.hidden = Object.hasOwn(attrs, 'hidden'); this.disabled = false; this.value = attrs.value || '';
     this.offsetWidth = 248; this.offsetHeight = 180;
     for (const part of (attrs.style || '').split(';')) {
@@ -48,7 +48,11 @@ class Node {
   get id() { return this.attrs.id || ''; }
   get innerHTML() { return ''; }
   set innerHTML(value) { assert.equal(value, ''); this.children = []; }
-  appendChild(n) { this.children.push(n); n.parentElement = this; return n; }
+  appendChild(n) { if (n.parentElement) n.parentElement.children = n.parentElement.children.filter(c => c !== n); this.children.push(n); n.parentElement = this; return n; }
+  insertBefore(n, before) {
+    if (n.parentElement) n.parentElement.children = n.parentElement.children.filter(c => c !== n);
+    const i = this.children.indexOf(before); assert(i >= 0); this.children.splice(i, 0, n); n.parentElement = this; return n;
+  }
   getAttribute(k) { return this.attrs[k] ?? null; }
   hasAttribute(k) { return Object.hasOwn(this.attrs, k); }
   setAttribute(k, v) { this.attrs[k] = String(v); }
@@ -99,13 +103,14 @@ function parseToolbar() {
   }
   assert.equal(stack.length, 1, 'Balanced toolbar markup');
   doc.getElementById = id => doc.querySelector('#' + id);
+  doc.createElement = tag => new Node(tag, {}, doc);
   return doc;
 }
 
-function harness() {
+function harness(saved = []) {
   const document = parseToolbar(), $ = id => document.getElementById(id), calls = { undo: 0, dirty: 0, start: 0, end: 0 };
   const window = new Node('window', {}, document); window.innerWidth = 320; window.innerHeight = 360;
-  const stored = new Map();
+  const stored = new Map(saved);
   const c = vm.createContext({ document, window, $, console, selectedId: null, annotations: [], tool: 'pen', color: '#1A1A1A', strokeW: 3, fontSize: 16,
     lineDash: 'solid', lineHeads: 'end', practiceMode: false, teacherAnswers: null, pdfDoc: null, admin: true, shared: false, currentUser: {}, actingStudent: null,
     localStorage: { getItem: k => stored.get(k) || null, setItem: (k, v) => stored.set(k, v) },
@@ -134,6 +139,53 @@ test('related controls live in labelled dropdowns with their original action ide
   assert.equal(document.querySelectorAll('#colorMenu button.colorChip').length, 5);
   assert.equal($('strokeVal').getAttribute('type'), 'number');
   assert.equal($('strokeRange').getAttribute('step'), 'any');
+});
+
+test('Tools starts compact and expands the same working controls, preserving saved layout', () => {
+  const { c, document, $, stored } = harness();
+  const lasso = document.querySelector('[data-tool="lasso"]');
+  assert($('selectionMenu').contains(lasso)); assert($('expandedTools').hidden);
+  $('selectionMenuBtn').click(); lasso.click();
+  assert.equal(c.tool, 'lasso'); assert($('selectionMenu').hidden);
+  assert.equal($('selectionMenuBtn').getAttribute('aria-label'), 'Tools: Lasso');
+  $('selectionMenuBtn').click(); $('expandToolsBtn').click();
+  assert($('expandedTools').contains(lasso)); assert(!$('expandedTools').hidden);
+  assert.equal(stored.get('annotToolsExpanded'), 'true');
+  assert.equal(document.querySelectorAll('[data-tool="lasso"]').length, 1);
+  assert.equal(c.favSourceEl('tool:lasso'), lasso); lasso.click(); assert.equal(c.tool, 'lasso');
+  $('selectionMenuBtn').click(); $('expandToolsBtn').click();
+  assert($('selectionMenu').contains(lasso)); assert($('expandedTools').hidden);
+  assert.equal(stored.get('annotToolsExpanded'), 'false');
+  assert.equal(document.activeElement, $('selectionMenuBtn'));
+  assert(!c.favCandidates().some(x => x.key === 'id:expandToolsBtn'));
+  const restored = harness([['annotToolsExpanded', 'true']]);
+  assert(!restored.$('expandedTools').hidden);
+});
+
+test('frequent pencil, text and keyword controls keep distinct visual accents', () => {
+  const { document } = harness();
+  for (const [tool, accent] of [['pen','popularPen'], ['text','popularText'], ['keyword','popularKeyword']]) {
+    const button = document.querySelector('[data-tool="' + tool + '"]');
+    assert(button.classList.contains('popularTool')); assert(button.classList.contains(accent));
+    assert(button.getAttribute('aria-label'));
+  }
+});
+
+test('Day offers full day names and All days; choices close the menu and preserve filtering', () => {
+  const { c, document, $ } = harness();
+  c.qDayFilter = 'all'; c.DAY_ORDER = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  c.dayColour = () => ({ ink: '#123', tint: '#eee', line: '#ddd' });
+  c.renderDayFilterBar = () => {}; c.toggleQuestionsDrawer = () => { c.opened = true; };
+  const drawer = document.appendChild(new Node('div', {id:'qDrawer'}, document));
+  vm.runInContext(cut('var DAY_DOT_DAYS =', "/* The banner in the drawer's head"), c);
+  c.renderDayDots();
+  const days = $('dayDots').children;
+  assert.deepEqual(days.map(b => b.textContent), ['All days','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']);
+  $('dayMenuBtn').click(); days[2].click();
+  assert.equal(c.qDayFilter, 'Tuesday'); assert(c.opened); assert($('dayMenu').hidden);
+  assert.equal($('dayMenuBtn').getAttribute('aria-label'), 'Day: Tuesday');
+  $('dayMenuBtn').click(); $('dayDots').children[0].click();
+  assert.equal(c.qDayFilter, 'all'); assert($('dayMenu').hidden);
 });
 
 test('shape choice selects its real tool; dash controls never select an empty tool', () => {

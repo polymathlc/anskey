@@ -3,6 +3,23 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Pages and tools where you need them (v1.96.0)
+
+**Blank page** inserts immediately after the current page. Existing annotations,
+page stars and undo/redo history move with their pages. Saved worksheets retain
+the updated PDF and page metadata. With nothing open, it starts a blank worksheet.
+
+The **Day** dropdown replaces the six day toggles, using full day names and an
+**All days** option. **Tools** groups Select, Lasso and Highlight; choose **Show
+icons on toolbar** to expand them, or put them back in the menu. This preference
+is remembered. Pencil, Text and Keywords have distinct coloured backgrounds.
+
+Text-box actions sit behind one small menu icon. **Fill with AI** responds to the
+text you entered; **Fix grammar** only tidies grammar, spelling and punctuation,
+preserving meaning, facts and numbers. Existing text-box actions remain available
+in the same menu. AI edits are undoable and a late result cannot overwrite newer
+typing or a different worksheet.
+
 ## Live assistance reads typed work and waits quietly (v1.95.1)
 
 The voice helper receives exact text from the current worksheet, including a
