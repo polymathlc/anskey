@@ -185,6 +185,33 @@ test('aborting a live call cancels delegation and discards a late teaching resul
   assert.equal(h.peers[0].channel.messages.filter(row => row.type === 'session.commentary.append').length, 0);
 });
 
+test('a delegated question shows Thinking without sending spoken progress while its answer is pending', async () => {
+  const reply = deferred(), h = harness({ delegate: () => reply.promise }), session = await h.live();
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'q1' } });
+  assert.equal(h.statuses.at(-1).message, 'Thinking…');
+  assert.equal(h.peers[0].channel.messages.filter(row => row.type === 'session.commentary.append').length, 0);
+  reply.resolve('The spring exerts the greatest force.'); await tick();
+  const spoken = h.peers[0].channel.messages.filter(row => row.type === 'session.commentary.append');
+  assert.equal(spoken.length, 1); assert.equal(spoken[0].content, 'The spring exerts the greatest force.');
+  assert.match(h.statuses.at(-1).message, /Listening/);
+  await session.close();
+});
+
+test('worksheet context is quiet, refreshed before a question, deduplicated and stopped on close', async () => {
+  const h = harness(); let context = 'Page 1: current typed answer is Spring X.';
+  const session = await h.live({ getContext: () => context });
+  const quiet = () => h.peers[0].channel.messages.filter(row => row.type === 'session.thinking.append' && row.delegation_id === null);
+  assert.equal(quiet().length, 1); assert.equal(quiet()[0].content, context);
+  h.fire(1000); assert.equal(quiet().length, 1);
+  context = 'Page 2: the current typed answer is Spring Z.';
+  h.fire(1000); assert.equal(quiet().length, 2); assert.equal(quiet()[1].content, context);
+  context = 'The answer has just been edited to Spring Y.';
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'q1' } });
+  assert.equal(quiet().length, 3); assert.equal(quiet()[2].content, context);
+  await tick(); await session.close();
+  context = 'Closed'; h.fire(1000); assert.equal(quiet().length, 3); assert.equal(h.timers.size, 0);
+});
+
 test('initial connection timeout rejects and closes an unstarted session', async () => {
   const h = harness(), waiting = h.begin(); await tick(); h.fire(60000);
   await assert.rejects(waiting, /timed out/); await tick(); assert.equal(h.peers[0].connectionState, 'closed');

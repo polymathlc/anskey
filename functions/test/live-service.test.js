@@ -54,6 +54,11 @@ test('valid start authenticates before reserving and sends only fixed server con
   assert.match(config.instructions, /Remain quiet/);
   assert.match(config.instructions, /Speak only when directly addressed/);
   assert.match(config.instructions, /recording locally/);
+  assert.match(config.instructions, /exact typed text, including the text box still being edited/);
+  assert.match(config.instructions, /Delegate first; never claim the answer is missing/);
+  assert.match(config.instructions, /Stay silent until the tutor result arrives/);
+  assert.match(config.instructions, /Do not acknowledge the request/);
+  assert.doesNotMatch(config.instructions, /only acknowledge that you are checking|You cannot see pictures/);
   assert.ok(!('noise_reduction' in config.audio));
   assert.ok(!config.instructions.includes('give all answers'));
   assert.equal(result.headers['Cache-Control'], 'no-store');

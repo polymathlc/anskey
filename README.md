@@ -3,6 +3,24 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Live assistance reads typed work and waits quietly (v1.95.1)
+
+The voice helper receives exact text from the current worksheet, including a
+text box still being edited, alongside the same page image and handwriting.
+It checks that context when asked about “my answer” or “what I typed” before
+asking the teacher to repeat it. Reading an edit does not close its text box,
+change the saved answer or disturb undo history.
+
+While the worksheet check runs, the recording bar shows **Thinking…**. Chung
+GPT is instructed to wait silently and start with its answer, without “I'll
+check” or other progress speech. Quiet page and focused-text updates keep the
+voice session aware of page changes and edits.
+
+Automated tests cover unsaved text, page isolation, matching image/text
+snapshots, quiet waiting, context updates and cancellation. Real microphone
+behavior still needs a live-session check. Deploy the `ansKeyLive` Firebase
+function as well as the page to apply the updated voice instructions.
+
 ## A streamlined toolbar (v1.95.0)
 
 Related tools now sit in compact dropdowns:
