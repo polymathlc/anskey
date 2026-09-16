@@ -3,6 +3,41 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Faster answer checks and live explanations (v1.94.2)
+
+Live worksheet checks have a 35-second total limit, including teaching-note
+loading and image preparation, with a backup attempted after a 12-second
+provider wait. Ending the lesson cancels the check, and late responses cannot
+start another fallback. Gemini retries only a rejected thinking setting, not
+an unrelated timeout or quota failure. Direct ChatGPT and Kimi requests receive
+the cancellation signal.
+
+Practice checks have a 60-second limit per answer. Whole-page and whole-paper
+reports check two independent answers at a time while preserving worksheet
+order. Close-up images are limited to 1600 pixels on their longest side.
+Long teacher-generated content retains its existing generation budgets.
+
+Maths explanations and generated keys favour step-by-step arithmetic and the
+unitary method; units and parts are reserved for questions where they clearly
+fit. Practice checks and Live read the current page's available key and working,
+as well as the teacher's model answers visible on the worksheet, before replying.
+An unavailable key entry is not represented as having been checked.
+
+Writing now retains the coalesced Pencil samples and the final lift position,
+reads page geometry once per event and paints the growing stroke at most once
+per display frame. A background overlay refresh cannot strand the preview.
+Pen contact stops finger scrolling and momentum; palms cannot take resize
+handles or trigger undo while writing. Rejected contacts stay blocked until
+they lift, with a 350-millisecond settling interval after pen-up. A contact
+that grows into a palm is removed from navigation. Capture loss and leaving
+the tab preserve the sampled ink and release input ownership.
+
+Deterministic regression tests exercise stalls, fallback, cancellation, late
+responses, parallel marking order, teaching instructions and page-specific key
+context. Pointer regression tests exercise pen/touch ordering, palm growth,
+capture loss, coalesced samples and frame scheduling. They do not measure a
+signed-in production voice conversation or physical iPad Pencil latency.
+
 ## Recording files protected and voice services deployed (v1.94.1)
 
 Only the teacher, signed in with a verified Google account, can create,

@@ -249,6 +249,7 @@ console.log('\nEvery AI call site is grounded, or exempt on purpose');
   const UNGROUNDED_BY_DESIGN = {
     aiRequest: 'transport — the system prompt arrives already grounded from aiAnswer / aiImprove',
     askGemini: 'the door every call goes through',
+    askGeminiRoutes: 'transport failover — forwards the caller’s already grounded system prompt unchanged',
     askOpenAI: 'the raw OpenAI call',
     askKimi: 'the raw Moonshot call',
     kimiActive: 'reads a setting',
