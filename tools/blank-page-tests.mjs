@@ -3,7 +3,7 @@
    Every failure here is silent. The blank page still appears, the picture
    still lands, the card still renders — and the worksheet is quietly wrong:
 
-     - a page appended to `pdfBytes` and NOT written back to Storage lives in
+     - a page inserted into `pdfBytes` and NOT written back to Storage lives in
        one tab and nowhere else, so every picture put on it is an annotation
        pointing at a page that does not exist the next time the worksheet is
        opened;
@@ -145,19 +145,19 @@ ok('…and with it shut the worksheet has it back',
    two builders is two that drift — and the one that drifts is always the one
    nobody opens a worksheet with. */
 ok('loadPdf builds its pages through the shared builder',
-  /async function loadPdf\([\s\S]{0,4000}?await buildPagesFromBytes\(\);/.test(html));
+  /async function loadPdf\([\s\S]{0,4000}?await buildPagesFromBytes\(contextCheck\);/.test(html));
 ok('there is exactly ONE pdf.js getDocument in the app',
   (html.match(/pdfjsLib\.getDocument\(/g) || []).length === 1,
   (html.match(/pdfjsLib\.getDocument\(/g) || []).length);
 ok('the builder is what addBlankPage rebuilds with',
-  /async function addBlankPage\([\s\S]{0,3000}?await buildPagesFromBytes\(\);/.test(html));
+  /async function addBlankPage\([\s\S]{0,8500}?await buildPagesFromBytes\(requireCurrent\);/.test(html));
 
-const builder = cut('async function buildPagesFromBytes() {', '/* ================= ➕ A BLANK PAGE', 'builder');
+const builder = cut('async function buildPagesFromBytes(contextCheck) {', '/* ================= ➕ A BLANK PAGE', 'builder');
 /* A page added while the teacher is zoomed into a diagram must not throw them
    back out to the whole sheet — but a worksheet just OPENED is still fitted. */
 ok('the builder keeps the zoom unless the pages were fitted',
   /if \(fittedWidth\) fitWidth\(\); else applyScale\(\);/.test(builder));
-ok('loadPdf asks for the fit explicitly', /fittedWidth = true;\s*\n\s*await buildPagesFromBytes\(\);/.test(html));
+ok('loadPdf asks for the fit explicitly', /fittedWidth = true;\s*\n\s*await buildPagesFromBytes\(contextCheck\);/.test(html));
 /* The overlays live on the SVGs the builder has just thrown away, so without
    this every annotation on the worksheet disappears off the screen the moment
    a page is added — while still sitting in the array, and still saved. */
@@ -169,39 +169,260 @@ ok('the builder cancels the renders of the pages it is replacing',
   /renderTask\.cancel\(\)/.test(builder));
 
 /* ---------- the blank page is a REAL PDF page ---------- */
-const blank = cut('var BLANK_PAGE_W', '/* ================= 📎 PASTE A PICTURE', 'blank page');
-ok('the page is made with pdf-lib', /PDFLib\.PDFDocument\.load\(pdfBytes\)/.test(blank));
-ok('…and appended to the document', /outDoc\.addPage\(/.test(blank));
-ok('…and it becomes the worksheet’s own bytes', /pdfBytes = await outDoc\.save\(\);/.test(blank));
-/* Sized from the LAST page, so a blank page in an A4 worksheet is A4 rather
-   than a card stapled to the back of it. */
+const blank = cut('var BLANK_PAGE_W', '/* ================= 🗑 DELETING A PAGE', 'blank page');
+ok('the page is made with pdf-lib from the captured worksheet bytes', /PDFLib\.PDFDocument\.load\(prev\.bytes\)/.test(blank));
+ok('…and inserted after the page in view', /outDoc\.insertPage\(after,/.test(blank));
+ok('…and it becomes the worksheet’s own bytes', /pdfBytes = nextBytes;/.test(blank));
+/* Sized from the CURRENT page, including mixed portrait/landscape sheets. */
 ok('the blank page is the size of the page before it',
-  /outDoc\.addPage\(\[last\.baseW \|\| BLANK_PAGE_W, last\.baseH \|\| BLANK_PAGE_H\]\)/.test(blank));
+  /outDoc\.insertPage\(after, \[source\.baseW \|\| BLANK_PAGE_W, source\.baseH \|\| BLANK_PAGE_H\]\)/.test(blank));
 ok('with nothing open, a blank page IS the worksheet',
-  /if \(!pdfDoc \|\| !pages\.length\)[\s\S]{0,300}?await loadPdf\(await blankPdfBytes\(\)/.test(blank));
+  /if \(!pdfDoc \|\| !pages\.length\)[\s\S]{0,600}?await loadPdf\(firstBytes, 'Blank worksheet', requireCurrent\)/.test(blank));
 ok('adding a page is the teacher’s own',
   /if \(isStudent\(\) \|\| isSharedVisitor\(\)\)/.test(blank));
 
 /* THE LOAD-BEARING ONE. performSave uploads the PDF only when the worksheet
-   is NEW; every later save writes the annotations alone. So a page appended
+   is NEW; every later save writes the annotations alone. So a page inserted
    without this is a page that exists in one tab and in no saved worksheet. */
 ok('a saved worksheet’s PDF is written again',
-  /if \(currentDocId\) \{[\s\S]{0,300}?storage\.ref\(STORAGE_DIR \+ '\/' \+ currentDocId \+ '\.pdf'\)[\s\S]{0,120}?\.put\(/.test(blank));
+  /if \(prev\.docId\) \{[\s\S]{0,300}?storage\.ref\(STORAGE_DIR \+ '\/' \+ prev\.docId \+ '\.pdf'\)[\s\S]{0,120}?\.put\(/.test(blank));
 /* It goes up BEFORE the page is shown, or a failed upload is only found out
    about once there is work on the page to lose. */
 ok('it is stored BEFORE the page is put on screen',
-  blank.indexOf('.put(new Blob([pdfBytes]') < blank.indexOf('await buildPagesFromBytes();'));
+  blank.indexOf('.put(new Blob([nextBytes]') < blank.indexOf('await buildPagesFromBytes(requireCurrent);'));
 ok('a page that could not be stored is taken back off',
-  /catch \(upErr\) \{\s*\n\s*pdfBytes = prevBytes;\s*\n\s*throw upErr;/.test(blank));
+  /pdfBytes = prev\.bytes; annotations = prev\.anns;/.test(blank));
 /* Auto-save writes the annotations and the page stars and nothing else, so a
    worksheet that grew a page would go on saying "3 pages" in every list in
    the app until somebody happened to press Save. */
 ok('the record is told how many pages there are now',
-  /\.set\(\{ pageCount: outDoc\.getPageCount\(\) \}, \{ merge: true \}\)/.test(blank));
-ok('…as a MERGE, so it cannot take the rest of the record off with it',
-  /pageCount: outDoc\.getPageCount\(\) \}, \{ merge: true \}/.test(blank));
+  /pageCount: outDoc\.getPageCount\(\), starPages: nextStars/.test(blank));
+ok('…together with shifted annotations through the overflow-aware merge writer',
+  /await writeAnnotations\(prev\.docId, JSON\.stringify\(nextAnns\),/.test(blank));
 ok('the work is marked unsaved so the record catches up', /setDirty\(true\);/.test(blank));
 ok('…and the local rescue copy carries the new page too', /scheduleDraftSave\(\);/.test(blank));
+
+/* Run the actual insertion coordinator. Simulated PDF bytes retain page IDs
+   and sizes so order, remapping, persistence, rollback and locks are observable
+   across the same awaits as the application. */
+function insertionHarness(options = {}) {
+  return new Function('options', `
+    var events = [], messages = [], uploads = 0, writes = 0, builds = 0;
+    var time = 0, Date = { now: function () { return options.stalled ? (time += 15000) : globalThis.Date.now(); } };
+    var encode = function (v) { return new TextEncoder().encode(JSON.stringify(v)); };
+    var decode = function (v) { return JSON.parse(new TextDecoder().decode(v)); };
+    var originalPdf = [{ id: 'first', w: 595, h: 842 }, { id: 'middle', w: 842, h: 595 }, { id: 'last', w: 612, h: 792 }];
+    var pdfBytes = options.empty ? null : encode(originalPdf);
+    var annotations = options.empty ? [] : [
+      { id: 'a', page: 1, text: 'first' }, { id: 'b', page: 2, text: 'typed', kw: [0] },
+      { id: 'c', page: 3, type: 'pen', points: [[1, 2], [3, 4]] }
+    ];
+    var undoStack = [JSON.stringify(annotations)], redoStack = [JSON.stringify([{ id: 'r', page: 3 }])];
+    var wsMeta = { starPages: [1, 2, 3] }, dirty = options.dirty !== false, selectedId = 'b', editModeId = 'b', editingId = 'b';
+    var lastAnswerKey = { items: [{ page: 3 }] }, wsEpoch = 5;
+    var annOverflow = false, lastAnnUpload = { path: '', stamp: '' };
+    var currentDocId = options.unsaved || options.empty ? null : 'worksheet', currentUser = { uid: 'teacher' };
+    var practiceMode = !!options.practice, aiBusy = !!options.aiBusy, autoRunning = false, notesBusy = false;
+    var autoSaveTimer = null, autoSaveInFlight = !!options.saving, autoSaveQueued = false;
+    var askTarget = { kind: 'page', page: 3 }, askThreads = { 'page:3': ['old'] }, askCredits = { 'page:3': 20 };
+    var aiNoteEdit = { page: 3 }, videoBtnEdit = { page: 3 }, recTarget = { page: 3 };
+    var elements = { blankPageBtn: { disabled: false }, saveBtn: { disabled: false }, deletePageBtn: { disabled: false } };
+    var document = { body: { inert: false } }, listeners = new Set();
+    var window = { addEventListener: function (name) { listeners.add(name); }, removeEventListener: function (name) { listeners.delete(name); } };
+    var console = { error: function () {} };
+    function $(id) { return elements[id]; }
+    function lessonGuardChange() { return true; }
+    function isStudent() { return !!options.student; }
+    function isSharedVisitor() { return !!options.visitor; }
+    function recBusy() { return false; }
+    function recUploadsPending() { return 0; }
+    function commitActiveTextEdit() { if (options.typed) annotations[1].text = options.typed; editingId = null; events.push('commit'); }
+    function suspendPointerInput() { events.push('suspend'); }
+    function toast(message) { messages.push(message); }
+    function starredPages() { return wsMeta.starPages; }
+    function normalizeStarPages(list) { return [...new Set(list)].sort(function (a, b) { return a - b; }); }
+    function makePages(bytes) { return decode(bytes).map(function (p, i) { return {
+      num: i + 1, baseW: p.w, baseH: p.h, wrap: { scrollIntoView: function () { events.push('land:' + (i + 1)); } }
+    }; }); }
+    var pages = options.empty ? [] : makePages(pdfBytes), pdfDoc = options.empty ? null : { numPages: pages.length };
+    function mmTargetPage() { return pages[(options.current || 2) - 1]; }
+    var remote = { pdf: pdfBytes && decode(pdfBytes), anns: JSON.parse(JSON.stringify(annotations)), count: pages.length, stars: wsMeta.starPages.slice() };
+    function switchIf(stage) {
+      if (options.switchAt !== stage) return;
+      options.switchAt = '';
+      if (options.switchAccount) currentUser = { uid: 'another-user' };
+      currentDocId = 'other-worksheet'; wsEpoch++;
+      pdfBytes = encode([{ id: 'new-document', w: 400, h: 500 }]);
+      annotations = [{ id: 'new-answer', page: 1, text: 'keep this' }];
+      undoStack = ['new-undo']; redoStack = ['new-redo']; wsMeta.starPages = [1];
+      annOverflow = true; lastAnnUpload = { path: 'new-cache', stamp: 'new-stamp' };
+      pages = makePages(pdfBytes); pdfDoc = { numPages: 1 }; lastAnswerKey = { other: true };
+    }
+    var STORAGE_DIR = 'pdfs';
+    var storage = { ref: function (path) { return { put: async function (blob) {
+      uploads++; events.push('upload:' + uploads); events.push('path:' + path);
+      if (options.failUpload && uploads === 1 || options.failRollback && uploads === 2) throw new Error('upload refused');
+      remote.pdf = decode(new Uint8Array(await blob.arrayBuffer()));
+      switchIf('upload');
+    } }; } };
+    async function writeAnnotations(id, json, extra, context) {
+      if (context) context.check();
+      writes++; events.push('write:' + writes);
+      events.push('doc:' + id);
+      if (!autoSaveInFlight) throw new Error('autosave was not locked');
+      if (options.failMetadata && writes === 1) throw new Error('metadata refused');
+      remote.anns = JSON.parse(json); remote.count = extra.pageCount; remote.stars = extra.starPages;
+      switchIf('metadata');
+      if (context) context.check();
+    }
+    var PDFLib = { PDFDocument: {
+      load: async function (bytes) { var docPages = decode(bytes); switchIf('pdf-load'); return {
+        insertPage: function (at, size) { events.push('insert:' + at); docPages.splice(at, 0, { id: 'blank', w: size[0], h: size[1] }); },
+        save: async function () { switchIf('pdf-save'); return encode(docPages); }, getPageCount: function () { return docPages.length; }
+      }; },
+      create: async function () { var docPages = []; return {
+        addPage: function (size) { docPages.push({ id: 'blank', w: size[0], h: size[1] }); },
+        save: async function () { switchIf('blank-create'); return encode(docPages); }
+      }; }
+    } };
+    async function buildPagesFromBytes(contextCheck) {
+      builds++; events.push('build:' + builds);
+      if (options.failRender && builds === 1) throw new Error('render refused');
+      switchIf('render');
+      if (contextCheck) contextCheck();
+      pages = makePages(pdfBytes); pdfDoc = { numPages: pages.length };
+    }
+    async function loadPdf(bytes, name, contextCheck) { wsEpoch++; pdfBytes = bytes; await buildPagesFromBytes(contextCheck); dirty = false; }
+    function clearLassoSel() { events.push('clear-lasso'); }
+    function updateAnswerKeyCard() { events.push('key-cleared'); }
+    function autoLearnReset(drop) { events.push('learn-reset:' + drop); }
+    function rememberStarPages(id, stars) { events.push('stars:' + stars.join(',')); }
+    function setDirty(v) { dirty = v; }
+    function scheduleDraftSave() { events.push('draft'); }
+    function scheduleAutoSave() { events.push('autosave'); }
+    ${blank}
+    return {
+      run: addBlankPage, remap: annsAfterPageInserted, stars: starsAfterPageInserted, history: historyAfterPageInserted,
+      unlock: function () { autoSaveInFlight = false; },
+      state: function () { return { pdf: pdfBytes && decode(pdfBytes), annotations: annotations, undo: undoStack, redo: redoStack,
+        stars: wsMeta.starPages, remote: remote, key: lastAnswerKey, epoch: wsEpoch, askTarget: askTarget, askThreads: askThreads,
+        docId: currentDocId, uid: currentUser.uid, annOverflow: annOverflow, lastAnnUpload: lastAnnUpload,
+        inert: document.body.inert, disabled: elements.blankPageBtn.disabled, locked: autoSaveInFlight, listeners: listeners.size,
+        events: events, messages: messages, uploads: uploads, writes: writes, pageCount: pages.length, dirty: dirty }; }
+    };
+  `)(options);
+}
+
+const inserted = insertionHarness({ typed: 'The exact words just typed.' });
+const beforeInsert = inserted.state();
+await inserted.run();
+const added = inserted.state();
+ok('the new page follows the current middle page, not the document end',
+  added.pdf.map(p => p.id).join(',') === 'first,middle,blank,last');
+ok('the new page inherits the current landscape page dimensions', added.pdf[2].w === 842 && added.pdf[2].h === 595);
+ok('annotations keep their original page before/at insertion and move after it',
+  added.annotations.map(a => a.page).join(',') === '1,2,4');
+ok('newly typed text is committed before numbering and storage change', added.remote.anns[1].text === 'The exact words just typed.');
+ok('ink points and keyword marks are preserved', JSON.stringify(added.annotations[2].points) === '[[1,2],[3,4]]' && added.annotations[1].kw[0] === 0);
+ok('insertion does not mutate earlier annotation snapshots', beforeInsert.annotations[2].page === 3);
+ok('both undo and redo keep their content on the right pages', JSON.parse(added.undo[0])[2].page === 4 && JSON.parse(added.redo[0])[0].page === 4);
+ok('stars shift with their pages', added.stars.join(',') === '1,2,4');
+ok('saved PDF, annotation numbering, star numbering and count agree',
+  added.remote.pdf.map(p => p.id).join(',') === 'first,middle,blank,last' && added.remote.anns[2].page === 4 && added.remote.count === 4 && added.remote.stars.join(',') === '1,2,4');
+ok('the saved metadata reaches storage before the new page is shown', added.events.indexOf('write:1') < added.events.indexOf('build:1'));
+ok('the new blank page is brought into view', added.events.includes('land:3'));
+ok('old answer key and page-based AI context are invalidated', added.key === null && added.askTarget === null && Object.keys(added.askThreads).length === 0 && added.epoch > 5);
+ok('finished insertion releases input, keyboard and autosave locks', !added.inert && !added.disabled && !added.locked && added.listeners === 0);
+ok('corrupt history is discarded instead of restoring old page numbers', inserted.history(['not-json'], 2).length === 0);
+
+for (const [label, options] of [
+  ['PDF upload', { failUpload: true }], ['metadata', { failMetadata: true }], ['rendering', { failRender: true }]
+]) {
+  const attempt = insertionHarness(options);
+  await attempt.run();
+  const s = attempt.state();
+  ok(label + ' failure restores the local PDF and page numbering', s.pdf.map(p => p.id).join(',') === 'first,middle,last' && s.annotations[2].page === 3 && s.stars.join(',') === '1,2,3');
+  ok(label + ' failure leaves the stored PDF and metadata in agreement', s.remote.pdf.map(p => p.id).join(',') === 'first,middle,last' && s.remote.anns[2].page === 3 && s.remote.count === 3 && s.remote.stars.join(',') === '1,2,3');
+  ok(label + ' failure retains both history stacks', JSON.parse(s.undo[0])[2].page === 3 && JSON.parse(s.redo[0])[0].page === 3);
+  ok(label + ' failure releases input and saving locks', !s.inert && !s.disabled && !s.locked && s.listeners === 0);
+  ok(label + ' failure reports the problem', s.messages.some(m => m.includes('could not be added')));
+}
+const unrestored = insertionHarness({ failMetadata: true, failRollback: true });
+await unrestored.run();
+ok('a cloud rollback failure is reported explicitly, preserving local work',
+  unrestored.state().messages.some(m => m.includes('cloud copy could not be restored')) && unrestored.state().annotations[2].page === 3);
+const unsaved = insertionHarness({ unsaved: true, current: 1 });
+await unsaved.run();
+ok('an unsaved worksheet inserts after page one without cloud writes', unsaved.state().pdf[1].id === 'blank' && unsaved.state().uploads === 0 && unsaved.state().writes === 0 && unsaved.state().dirty);
+const atEnd = insertionHarness({ current: 3 });
+await atEnd.run();
+ok('selecting the last page still adds the blank at the end', atEnd.state().pdf[3].id === 'blank' && atEnd.state().annotations[2].page === 3);
+const empty = insertionHarness({ empty: true });
+await empty.run();
+ok('an empty screen creates one A4 page and re-enables the button', empty.state().pageCount === 1 && empty.state().pdf[0].w === 595.28 && !empty.state().disabled && !empty.state().locked);
+for (const gate of ['practice', 'student', 'visitor', 'aiBusy']) {
+  const denied = insertionHarness({ [gate]: true });
+  await denied.run();
+  ok(gate + ' cannot mutate page numbering', denied.state().uploads === 0 && denied.state().pageCount === 3);
+}
+const concurrent = insertionHarness({ saving: true });
+const pendingInsert = concurrent.run();
+await concurrent.run();
+ok('an existing autosave finishes before PDF or annotations change', concurrent.state().uploads === 0 && concurrent.state().pageCount === 3);
+concurrent.unlock();
+await pendingInsert;
+ok('a second click while inserting cannot create duplicate pages', concurrent.state().pageCount === 4 && concurrent.state().uploads === 1);
+const stalled = insertionHarness({ saving: true, stalled: true });
+await stalled.run();
+ok('a stalled autosave cannot trap the worksheet behind the input lock', !stalled.state().inert && !stalled.state().disabled && stalled.state().uploads === 0 && stalled.state().messages.some(m => m.includes('taking too long')));
+const savedRestore = insertionHarness({ dirty: false, failMetadata: true });
+await savedRestore.run();
+ok('rollback preserves an originally clean saved document', !savedRestore.state().dirty && savedRestore.state().pageCount === 3);
+for (const stage of ['pdf-load', 'pdf-save', 'upload', 'metadata', 'render']) {
+  for (const switchAccount of [false, true]) {
+    const changed = insertionHarness({ switchAt: stage, switchAccount });
+    await changed.run();
+    const s = changed.state(), label = (switchAccount ? 'account' : 'worksheet') + ' changed during ' + stage;
+    ok(label + ' preserves the newly opened worksheet', s.docId === 'other-worksheet' && s.pdf[0].id === 'new-document' && s.annotations[0].id === 'new-answer' && s.pageCount === 1);
+    ok(label + ' preserves its history, stars, answer key and annotation cache', s.undo[0] === 'new-undo' && s.redo[0] === 'new-redo' && s.stars.join(',') === '1' && s.key.other && s.annOverflow && s.lastAnnUpload.path === 'new-cache');
+    ok(label + ' never sends old bytes or annotations to the new document', !s.events.some(e => e.includes('path:pdfs/other-worksheet') || e === 'doc:other-worksheet'));
+    ok(label + ' releases input lock', !s.inert && !s.disabled && !s.locked);
+    if (!switchAccount) ok(label + ' restores the original saved document', s.remote.pdf.map(p => p.id).join(',') === 'first,middle,last' && s.remote.anns[2].page === 3);
+  }
+}
+const switchedBlank = insertionHarness({ empty: true, switchAt: 'blank-create' });
+await switchedBlank.run();
+ok('a worksheet opened while a new blank PDF is encoding is preserved', switchedBlank.state().pdf[0].id === 'new-document' && switchedBlank.state().annotations[0].id === 'new-answer');
+
+// Exercise the REAL overflow-aware writer, including its awaits, so the
+// coordinator's guard cannot leave another worksheet's cache contaminated.
+const writerSource = cut('async function annotationFields(', '/* Read them back from wherever', 'annotation writer');
+function guardedWriterHarness(stage) {
+  return new Function('stage', `
+    var annOverflow = false, lastAnnUpload = { path: 'old-cache', stamp: 'old-stamp' };
+    var ANN_INLINE_LIMIT = 5, COLLECTION = 'worksheets', active = true, writes = 0;
+    function annByteLength(json) { return json.length; }
+    function annStoragePath(id) { return 'pdfs/' + id + '.annotations.json'; }
+    function annStamp(json) { return String(json.length); }
+    function change() { active = false; annOverflow = true; lastAnnUpload = { path: 'new-cache', stamp: 'new-stamp' }; }
+    var firebase = { firestore: { FieldValue: { delete: function () { return 'DELETE'; }, serverTimestamp: function () { return 'NOW'; } } } };
+    var storage = { ref: function () { return { put: async function () { if (stage === 'overflow') change(); } }; } };
+    var db = { collection: function () { return { doc: function () { return { set: async function () { writes++; if (stage === 'metadata') change(); } }; } }; } };
+    ${writerSource}
+    return { run: function () { return writeAnnotations('original', '[{"page":4}]', { pageCount: 4 }, {
+      check: function () { if (!active) throw new Error('context changed'); }, apply: function () { return active; },
+      overflow: false, lastUpload: { path: '', stamp: '' }
+    }); }, state: function () { return { annOverflow: annOverflow, lastAnnUpload: lastAnnUpload, writes: writes }; } };
+  `)(stage);
+}
+for (const stage of ['overflow', 'metadata']) {
+  const writer = guardedWriterHarness(stage);
+  let error;
+  try { await writer.run(); } catch (e) { error = e; }
+  ok('real writer detects context change after ' + stage + ' await', error && error.message === 'context changed');
+  ok('real writer leaves the new document cache intact after ' + stage, writer.state().annOverflow && writer.state().lastAnnUpload.path === 'new-cache');
+  if (stage === 'overflow') ok('stale overflow upload cannot trigger a metadata write', writer.state().writes === 0);
+}
 
 /* ---------- the pasted picture is a kind, not a new type ---------- */
 ok('a pasted picture is an ainote card',

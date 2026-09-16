@@ -2,6 +2,26 @@
 
 Guidance for Claude when working in this repo.
 
+## Page insertion and compact controls (v1.96.0)
+
+Blank pages are inserted after the current page at the user's request. Keep
+page-indexed annotations, stars, both history stacks and answer-key state aligned.
+A saved worksheet must
+persist the changed PDF and remapped metadata, and failures must restore a usable
+worksheet. Run `node tools/blank-page-tests.mjs` after changing this path.
+
+The Day and Tools dropdowns reuse the existing toolbar menu keyboard/dismissal
+behavior. `setToolsExpanded` moves the same select/lasso/highlight buttons into
+the toolbar so shortcuts and favourites never point at duplicates. Keep layout
+controls out of favourites and preserve per-role visibility. The three frequent
+tools have distinct colour accents independent of their drawing colour. Run
+`node --test tools/toolbar-tests.mjs tools/line-style-tests.mjs` after changes.
+
+Text actions live in a compact dropdown. Grammar fixes preserve meaning and do
+not apply the teaching-answer style or correct facts. Keep AI changes undoable,
+guard late results against changed content and worksheet ownership, and preserve
+teacher-only AI permissions. Run the text-menu tests and `node tools/notes-tests.mjs`.
+
 ## Toolbar dropdowns and exact stroke size (v1.95.0)
 
 Keep the original tool buttons and IDs inside the Shapes, Colour, Print & PDF,
@@ -789,24 +809,24 @@ correct — so the worksheet becomes a "spot the mistake" exercise.
 `➕ A BLANK PAGE` and `📎 PASTE A PICTURE ONTO THE PAGE`), plus `#blankPageBtn`,
 `#emptyBlankBtn` and the image branch of the page's own drop handler.
 
-➕ **Blank page** puts an empty page on the end of the worksheet — and with
+➕ **Blank page** puts an empty page after the current page — and with
 nothing open, the blank page IS the worksheet, which is the way in for a sheet
 built entirely out of pasted pictures. **Ctrl+V** then drops a picture onto the
 page in view; so does dropping one on it.
 
-- **THE BLANK PAGE IS A REAL PDF PAGE, appended to `pdfBytes` with pdf-lib**,
+- **THE BLANK PAGE IS A REAL PDF PAGE, inserted into `pdfBytes` with pdf-lib**,
   and that is the whole design. A synthetic page held only in `pages[]` would
   have to be taught to the rasteriser, the thumbnails, the answer key, the page
   snapshots the AI is sent, the flattened download and both print paths — and
   `outDoc.getPage(a.page - 1)` in the export would simply be **out of range**,
   so every annotation on it would vanish from the printed sheet with nothing
   anywhere saying so. A page pdf.js can open needs none of that.
-- **IT IS APPENDED, NEVER INSERTED.** Every annotation, every star and every
-  answer-key row is keyed by page NUMBER, so putting a page in the middle
-  renumbers the lot silently.
+- **INSERTION REMAPS PAGE NUMBERS.** Every annotation, star and history entry
+  after the insertion moves with its original page; page-derived answer-key
+  results must be cleared or remapped. Never insert without this bookkeeping.
 - **THE STORED PDF HAS TO BE WRITTEN AGAIN, and this is the load-bearing
   half.** `performSave` uploads the file **only when the worksheet is NEW**;
-  every later save writes the annotations alone. So a page appended without
+  every later save writes the annotations alone. So a page inserted without
   that upload lives in one tab and in no saved worksheet — and every picture
   put on it is an annotation pointing at a page that does not exist the next
   time the worksheet is opened. It goes up **BEFORE the page is shown**, or a
@@ -822,7 +842,7 @@ page in view; so does dropping one on it.
   downstream. It touches nothing ABOUT the worksheet (its name, its id, its
   annotations, its meta, its presence): adding a page is not opening a
   worksheet. It **keeps the zoom** unless the pages were fitted to the width
-  (`fittedWidth`) — a blank page appended while the teacher is zoomed into a
+  (`fittedWidth`) — a blank page inserted while the teacher is zoomed into a
   diagram must not throw them back out — and it **draws the annotations back
   onto the new overlays**, which live on SVGs it has just thrown away.
 - **A PASTED PICTURE IS AN `ainote` CARD OF KIND `'paste'`, NOT A NEW
@@ -875,8 +895,8 @@ page in view; so does dropping one on it.
 **`deletePage`** (search `🗑 DELETE A PAGE`), plus `#deletePageBtn` and its
 entries in `TEACHER_TOOLBAR_IDS`.
 
-Appending a page renumbers nothing, which is why ➕ Blank page needed no
-remapping at all. **Removing one renumbers everything after it**, and every
+Inserting a page now renumbers everything after it, just as deletion does.
+**Removing one renumbers everything after it**, and every
 one of those numbers is a key held somewhere else in the app — so the delete
 is three quarters bookkeeping and one quarter pdf-lib.
 
@@ -1485,8 +1505,8 @@ the green box saying *(after another route refused)*.
   come back on one path and not the other — drop `renderAllOverlays` from the
   builder and every annotation on the worksheet disappears off the screen the
   moment a page is added, while still sitting in the array and still being
-  saved. Insert the page rather than appending it and every annotation, star
-  and answer-key row after it is silently one page out. Make the picture a new
+  saved. Insert a page without remapping later annotations, stars and history
+  or invalidating the answer key and the later pages silently go out of sync. Make the picture a new
   annotation TYPE and it has to be taught to nine places; miss it out of
   either PDF path and it prints as an empty box with a heading; put its kind
   into `AI_NOTE_KINDS` and it becomes a fifth tile in the ✨ Generate chooser
