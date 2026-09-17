@@ -163,13 +163,13 @@ if (!tutor) {
     assert.equal(JSON.stringify(h.c.lastReport.results.map(r => r.res.id)), '[0,1,2]');
     assert.equal(h.c.aiBusy, false);
   });
-  test('live Ans Key reads the current page’s key and does not borrow a different page’s answer', () => {
+  test('the voice helper and practice marking read the current page’s key, never another page’s answer', () => {
     const h = harness();
-    vm.runInContext(cut('function lessonAnswerKeyContext(', 'async function lessonConnectLive'), h.c);
+    vm.runInContext(cut('function answerKeyPageContext(', 'function voiceTypedContext('), h.c);
     h.c.lastAnswerKey = { items: [{ page: 1, number: '3', answer: '48', explanation: 'Find one item, then multiply.' }, { page: 2, number: '8', answer: '999' }] };
-    const context = h.c.lessonAnswerKeyContext({ num: 1 });
+    const context = h.c.answerKeyPageContext({ num: 1 });
     assert.match(context, /48/); assert.match(context, /Find one item/); assert.doesNotMatch(context, /999/);
-    assert.match(h.c.lessonAnswerKeyContext({ num: 3 }), /No separate generated answer-key entry/);
+    assert.match(h.c.answerKeyPageContext({ num: 3 }), /No separate generated answer-key entry/);
   });
   test('practice marking includes the existing answer key and its working before checking', async () => {
     const h = harness(), page = { num: 1 }, answer = { page: 1, type: 'text', text: '48' };
@@ -179,7 +179,7 @@ if (!tutor) {
       annBounds: () => ({ y: 300, y2: 330 }), bandJpeg: () => '', compositeJpeg: () => '', pageJpeg: () => '',
       AI_MARK_SYS: 'Mark the answer.', aiGrounding: () => '', _parseAIJson: JSON.parse });
     h.c.window.askGemini = async (prompt, opts) => { request = { prompt, opts }; return '{"verdict":"correct"}'; };
-    vm.runInContext(cut('function lessonAnswerKeyContext(', 'async function lessonConnectLive'), h.c);
+    vm.runInContext(cut('function answerKeyPageContext(', 'function voiceTypedContext('), h.c);
     vm.runInContext(cut('async function markCluster(', 'function verdictHead('), h.c);
     assert.equal((await h.c.markCluster(page, [answer])).res.verdict, 'correct');
     assert.match(request.prompt, /Question 3: 48 Working: Find one item/);
