@@ -106,5 +106,10 @@ test('truncated EBML, invalid timestamp scales, missing Info and oversized recor
   }
   await assert.rejects(finalize(recording({ scale: 0 }), 2000), /could not be prepared/);
   await assert.rejects(finalize({ type: 'audio/webm', size: 64 * 1024 * 1024 + 1, arrayBuffer() { throw new Error('must not allocate'); } }, 2000), /could not be prepared/);
-  for (const duration of [0, -1, NaN, Infinity, 600001]) await assert.rejects(finalize(recording(), duration), /could not be prepared/);
+  // Read the finalizer's own ceiling: it is checked against the replay core's in
+  // tools/recording-core-tests.mjs, and there is no recording length limit to
+  // pin a literal to here.
+  const maxMs = Function('return ' + /var MAX_MS = ([^;]+);/.exec(source.slice(source.indexOf('var LessonAudioFinalize')))[1])();
+  for (const duration of [0, -1, NaN, Infinity, maxMs + 1]) await assert.rejects(finalize(recording(), duration), /could not be prepared/);
+  await finalize(recording(), maxMs);   // the recorder's own ceiling must still save
 });

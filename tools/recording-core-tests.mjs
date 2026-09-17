@@ -143,8 +143,8 @@ check('duration, event count and byte limits leave the last valid recording inta
   const recorder = core.createRecorder([], view);
   recorder.capture(100, [], view);
   assert.throws(() => recorder.capture(99, [], view), /number|integer/);
-  assert.throws(() => recorder.capture(600001, [], view), /number/);
-  assert.equal(recorder.finish(600000).duration, 600000);
+  assert.throws(() => recorder.capture(core.limits.duration + 1, [], view), /number/);
+  assert.equal(recorder.finish(core.limits.duration).duration, core.limits.duration);
   const events = core.createRecorder([], view);
   for (let n = 1; n <= core.limits.events; n++) events.capture(n, null, { ...view, x: n }, { annotationsChanged: false });
   assert.throws(() => events.capture(core.limits.events + 1, null, view, { annotationsChanged: false }), /full/);
@@ -180,7 +180,7 @@ check('loaded recording rejects malformed structures, coordinates, ids and event
   const invalid = change => { const value = clone(valid); change(value); assert.throws(() => core.parse(value)); };
   invalid(v => { v.version = 2; });
   invalid(v => { v.duration = -1; });
-  invalid(v => { v.duration = 600001; });
+  invalid(v => { v.duration = core.limits.duration + 1; });
   invalid(v => { v.duration = 1.1; });
   invalid(v => { v.initial.view.zoom = 0; });
   invalid(v => { v.initial.view.page = '1'; });
@@ -228,3 +228,19 @@ check('replacing one annotation at the count limit is atomic and valid', () => {
 });
 
 console.log(`${count} recording core checks passed.`);
+
+check('the duration ceiling is a parser bound the byte caps always reach first, and the finalizer shares it', () => {
+  // There is NO recording length limit: a lesson stops when its file is full.
+  // 64 MB of audio at 96 kbps runs out near 97 minutes, so this ceiling exists
+  // only to reject a stored timeline claiming an absurd clock.
+  assert.ok(core.limits.duration >= 4 * 60 * 60 * 1000, 'the ceiling must sit far above any byte-bounded recording');
+  const audioMinutes = (64 * 1024 * 1024 * 8 / 96000) / 60;
+  assert.ok(audioMinutes * 60000 < core.limits.duration, 'the audio size cap must bite before the clock does');
+
+  // The WebM finalizer repeats this number because its own harness runs it
+  // alone. A finalizer stricter than the recorder loses the whole lesson at
+  // save time — the one failure here that costs a teacher an hour of work.
+  const finalizeMax = /var MAX_MS = ([^;]+);/.exec(html.slice(html.indexOf('var LessonAudioFinalize')));
+  assert.ok(finalizeMax, 'LessonAudioFinalize declares its own MAX_MS');
+  assert.equal(Function('return ' + finalizeMax[1])(), core.limits.duration);
+});

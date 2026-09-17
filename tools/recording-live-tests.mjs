@@ -232,3 +232,93 @@ test('server failures stay visible after cleanup and never expose upstream paylo
     assert.ok(!JSON.stringify(h.statuses).includes('sk-private'));
   }
 });
+
+// The harness fires a timer by its exact delay, so firing the idle timer IS the
+// five minutes elapsing. What proves a RESET is that the pending timer has been
+// replaced by a different one — a clock left running would keep its id.
+const idleId = h => [...h.timers].filter(([, timer]) => timer.ms === 300000).map(([id]) => id)[0];
+
+test('a live session has no fixed length and is never ended by a clock', async () => {
+  // The ten-minute expiry timer is gone. Nothing may schedule a close from the
+  // lease the server hands back: a lesson runs for as long as it is being used.
+  const h = harness(), session = await h.live();
+  assert.equal([...h.timers.values()].some(timer => timer.ms >= 600000), false);
+  let previous = idleId(h);
+  for (let round = 0; round < 40; round++) {
+    h.emit({ type: 'session.input_transcript.delta', delta: 'Still explaining page two.', start_ms: round * 1000 });
+    assert.notEqual(idleId(h), previous);
+    previous = idleId(h);
+    h.fire(45000); await tick();
+  }
+  assert.equal(session.closed, false);
+  assert.equal(h.statuses.some(row => row.phase === 'ended'), false);
+  await session.close();
+});
+
+test('five minutes with no meaningful speech stops live mode and says so', async () => {
+  const h = harness(), session = await h.live();
+  assert.ok(idleId(h), 'the silence clock is armed the moment the session goes live');
+  h.fire(300000); await tick();
+  assert.equal(session.closed, true);
+  assert.match(h.statuses.find(row => row.phase === 'ended').message, /5 minutes without speech/);
+  assert.equal(h.track.stopped, 0);   // the recorder keeps the microphone
+  assert.ok(h.calls.some(row => row[0] === 'fetch' && row[1].action === 'stop'));
+});
+
+test('speech from either side restarts the five minutes, and noise alone does not', async () => {
+  for (const type of ['session.input_transcript.delta', 'session.output_transcript.delta']) {
+    const h = harness(); await h.live();
+    const before = idleId(h);
+    h.emit({ type, delta: 'The spring exerts the greatest force.', start_ms: 10 });
+    assert.notEqual(idleId(h), before, type + ' must restart the silence clock');
+    assert.equal([...h.timers.values()].filter(timer => timer.ms === 300000).length, 1);
+  }
+  // A transcriber emits nothing through real silence, so punctuation-only noise
+  // is the one thing that would otherwise keep a dead room open indefinitely.
+  const quiet = harness(), session = await quiet.live();
+  const before = idleId(quiet);
+  quiet.emit({ type: 'session.input_transcript.delta', delta: '. .. ,', start_ms: 10 });
+  assert.equal(idleId(quiet), before);
+  quiet.fire(300000); await tick();
+  assert.equal(session.closed, true);
+});
+
+test('a question still being worked on is use, and never ends mid-answer', async () => {
+  const reply = deferred(), h = harness({ delegate: () => reply.promise }), session = await h.live();
+  const before = idleId(h);
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'q1' } }); await tick();
+  assert.notEqual(idleId(h), before, 'a delegation in flight is use, whatever the transcript said');
+  assert.equal(session.closed, false);
+  reply.resolve('The spring exerts the greatest force.'); await tick();
+  assert.equal(h.peers[0].channel.messages.filter(row => row.type === 'session.commentary.append').length, 1);
+  h.fire(300000); await tick();
+  assert.equal(session.closed, true);
+});
+
+test('the server lease is renewed while the tab is open, and renewal stops the moment it closes', async () => {
+  const h = harness(), session = await h.live();
+  const renewals = () => h.calls.filter(row => row[0] === 'fetch' && row[1].action === 'keepalive');
+  assert.equal(renewals().length, 0);
+  h.fire(45000); await tick();
+  assert.equal(renewals().length, 1);
+  assert.equal(renewals()[0][1].sessionId, 'live-recording-1');
+  assert.equal(renewals()[0][2].headers.Authorization, 'Bearer teacher-id-token');
+  h.fire(45000); await tick();
+  assert.equal(renewals().length, 2);
+  // A tab that dies stops renewing, which is what lets the sweeper end its paid
+  // call. Renewing after close would hold an abandoned session open for ever.
+  await session.close();
+  h.fire(45000); await tick();
+  assert.equal(renewals().length, 2);
+  assert.equal(h.timers.size, 0);
+});
+
+test('one refused renewal is a blip rather than the end of a lesson', async () => {
+  const h = harness(), session = await h.live();
+  h.calls.length = 0;
+  h.fire(45000); await tick(); await tick();
+  assert.equal(session.closed, false);
+  h.fire(45000); await tick();
+  assert.equal(h.calls.filter(row => row[0] === 'fetch' && row[1].action === 'keepalive').length, 2);
+  await session.close();
+});

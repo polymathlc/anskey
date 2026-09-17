@@ -3,6 +3,26 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## Live voice has no time limit, and stops itself when nobody is talking (v1.97.0)
+
+The ten-minute cap on **Talk with GPT-Live-1** is gone. A live session now runs
+for as long as it is being used, and **stops itself after 5 minutes without
+speech** — by either you or the helper — saying so and leaving the recording
+running.
+
+A lesson recording is no longer capped at ten minutes either, because it ended
+the live session with it. It now runs until its file is full, which is roughly
+97 minutes of audio, and the clock shows hours past the hour.
+
+Two things bound a session instead of the clock. The silence stop is one. The
+other is a **server lease the browser renews while the tab is open**: a tab that
+crashes or loses its network stops renewing, and the cleanup job ends its paid
+call within a few minutes. One failed renewal is a blip, not the end of a
+lesson.
+
+This half needs a **functions deploy**, not just a page upload — the browser and
+the server change together.
+
 ## Pages and tools where you need them (v1.96.0)
 
 **Blank page** inserts immediately after the current page. Existing annotations,

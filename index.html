@@ -4104,8 +4104,8 @@
   <div class="modalCard" style="max-width:500px"><div class="modalBody">
     <h2 id="lessonHeading">Record a lesson</h2>
     <p class="lessonHelp">Explain while you write. Your voice, pencil strokes, typed text, zoom and page position play back together. A play button will be attached to this page.</p>
-    <label><input type="checkbox" id="lessonUseLive"><span>Talk with GPT-Live-1<br><small>Ask questions aloud and include the helper’s spoken replies. Microphone audio is sent to OpenAI while connected.</small></span></label>
-    <p class="lessonHelp">Arrange pictures and cards first. Changing them ends the recording so the replay stays aligned. Noise reduction depends on your browser and device. Up to 10 minutes. Keep this app in front.</p>
+    <label><input type="checkbox" id="lessonUseLive"><span>Talk with GPT-Live-1<br><small>Ask questions aloud and include the helper’s spoken replies. There is no time limit, but it stops itself after 5 minutes without speech. Microphone audio is sent to OpenAI while connected.</small></span></label>
+    <p class="lessonHelp">Arrange pictures and cards first. Changing them ends the recording so the replay stays aligned. Noise reduction depends on your browser and device. Record for as long as you need — it stops when the file is full. Keep this app in front.</p>
     <div class="modalActions"><button class="btn" id="lessonCancelBtn">Cancel</button><button class="btn primary" id="lessonStartBtn">Start recording</button></div>
   </div></div>
 </div>
@@ -4944,7 +4944,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.96.0';
+var APP_VERSION = 'v1.97.0';
 var ADMIN_EMAIL = 'chungzhikai@gmail.com';
 var ADMIN_DISPLAY_NAME = 'Mr Chung';  // shown instead of the Google account name
 var COLLECTION = 'pdfAnnotator';
@@ -8696,7 +8696,10 @@ function recExt(mime) {
 function recFmtTime(ms) {
   var s = Math.max(0, Math.floor(ms / 1000));
   var m = Math.floor(s / 60);
-  return m + ':' + ('0' + (s % 60)).slice(-2);
+  // A lesson recording is no longer capped at ten minutes, so an hour is
+  // reachable. Under an hour this is byte-for-byte the m:ss it always was.
+  if (m < 60) return m + ':' + ('0' + (s % 60)).slice(-2);
+  return Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2) + ':' + ('0' + (s % 60)).slice(-2);
 }
 
 function recBusy() {
@@ -9354,7 +9357,14 @@ function recSyncPill(annId) {
    pixels. Audio owns the playback clock. This module has no DOM or network. */
 var LessonReplayCore = (function () {
   'use strict';
-  var LIMITS = Object.freeze({ duration: 600000, bytes: 8 * 1024 * 1024,
+  // duration is a PARSER BOUND, not a lesson length: it is what stops a stored
+  // timeline claiming an absurd clock. A recording is bounded by its bytes —
+  // 64 MB of audio at 96 kbps runs out at roughly 97 minutes, and the 8 MB
+  // timeline earlier still on a heavily written worksheet — so this ceiling is
+  // set far above anything a byte-bounded recording can reach and never bites
+  // first. Raising it is backward compatible; lowering it rejects lessons that
+  // were saved perfectly well.
+  var LIMITS = Object.freeze({ duration: 4 * 60 * 60 * 1000, bytes: 8 * 1024 * 1024,
     events: 18000, annotations: 12000, points: 100000, text: 65536 });
   var TYPES = ['pen', 'highlight', 'rect', 'ellipse', 'line', 'arrow', 'brace', 'text', 'ainote', 'video'];
   var NUMBERS = ['x', 'y', 'w', 'h', 'x1', 'y1', 'x2', 'y2', 'width', 'fontSize', 'rot', 'ts'];
@@ -9632,14 +9642,29 @@ var LessonReplayCore = (function () {
 var AnsKeyLive = (function () {
   'use strict';
   var ENDPOINT = 'https://us-central1-mathgen--app.cloudfunctions.net/ansKeyLive';
-  var MAX_MS = 10 * 60 * 1000;
+  // NO FIXED SESSION LENGTH. A lesson runs for as long as it is being used, and
+  // two independent brakes bound it instead:
+  //   IDLE_MS       — five minutes with no meaningful speech ends it here, which
+  //                   is the brake that replaced the clock. A teacher who stops
+  //                   talking has stopped using it.
+  //   KEEPALIVE_MS  — the server lease is renewed while this tab is open. A tab
+  //                   that dies stops renewing, so the sweeper ends its paid
+  //                   call within one lease window; without this, "no limit"
+  //                   would mean an abandoned call billing until the provider
+  //                   gave up. Keep it well under the server's leaseSeconds.
+  // A delta counts as speech when it carries a letter or a digit: a transcriber
+  // emits nothing at all through real silence, and punctuation-only noise is the
+  // only thing that would otherwise hold a dead room open for ever.
+  var IDLE_MS = 5 * 60 * 1000;
+  var KEEPALIVE_MS = 45000;
+  var SPEECH_RE = /[\p{L}\p{N}]/u;
   function aborted() { var error = new Error('Live assistance ended.'); error.name = 'AbortError'; return error; }
   function connect(opts) {
     opts = opts || {};
     var pc = null, channel = null, sessionId = null, headers = null;
     var active = true, started = false, startedEvent = false, remoteInstalled = false;
     var finalMessage = 'Live assistance ended.';
-    var startupTimer, expiryTimer, lostTimer, closeTimer, contextTimer, cancelIce;
+    var startupTimer, idleTimer, keepTimer, lostTimer, closeTimer, contextTimer, cancelIce;
     var lastContext = '';
     var control = new AbortController(), closingPromise = null;
     var fragments = [], chars = 0, sequence = 0, seen = new Set(), working = false, pending = null;
@@ -9666,6 +9691,26 @@ var AnsKeyLive = (function () {
     function watchContext() {
       updateContext();
       if (current() && typeof opts.getContext === 'function') contextTimer = setTimeout(watchContext, 1000);
+    }
+    // Anything said, by either side, restarts the five minutes. The assistant
+    // only ever speaks after the teacher has asked it something, and a question
+    // still being worked on counts too — ending a session while its answer is in
+    // flight would cut off the very exchange that proves it is in use.
+    function speechHeard() {
+      if (!current() || !started) return;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(function () {
+        finalMessage = 'Live assistance stopped after 5 minutes without speech. You can keep recording.';
+        notify(finalMessage, 'ended'); close();
+      }, IDLE_MS);
+    }
+    // Best effort on purpose. One refused renewal is a blip, not a reason to end
+    // a lesson; a lease that really has gone takes its paid call with it, and the
+    // audio connection dropping is what reports that, with its own wording.
+    function keepAlive() {
+      if (!current() || !started || !sessionId || !headers) return;
+      request({ action: 'keepalive', sessionId: sessionId }, headers).catch(function () {});
+      if (current()) keepTimer = setTimeout(keepAlive, KEEPALIVE_MS);
     }
     async function request(body, authHeaders, keepalive) {
       var controller = new AbortController();
@@ -9702,7 +9747,7 @@ var AnsKeyLive = (function () {
       active = false;
       control.abort();
       if (opts.signal) opts.signal.removeEventListener('abort', externalAbort);
-      clearTimeout(startupTimer); clearTimeout(expiryTimer); clearTimeout(lostTimer); clearTimeout(contextTimer);
+      clearTimeout(startupTimer); clearTimeout(idleTimer); clearTimeout(keepTimer); clearTimeout(lostTimer); clearTimeout(contextTimer);
       if (cancelIce) cancelIce();
       rejectReady(aborted());
       pending = null;
@@ -9750,6 +9795,7 @@ var AnsKeyLive = (function () {
     function transcript(event) {
       if (typeof event.delta !== 'string' || !event.delta) return;
       var delta = event.delta.slice(0, 4000);
+      if (SPEECH_RE.test(delta)) speechHeard();
       var role = event.type === 'session.input_transcript.delta' ? 'user' : 'assistant';
       var start = Number.isFinite(event.start_ms) ? event.start_ms : 0;
       var end = Number.isFinite(event.end_ms) ? event.end_ms : start;
@@ -9769,6 +9815,7 @@ var AnsKeyLive = (function () {
         pending = id; return;
       }
       working = true;
+      speechHeard();
       updateContext();
       notify('Thinking…');
       try {
@@ -9799,6 +9846,8 @@ var AnsKeyLive = (function () {
     function maybeReady() {
       if (!current() || started || !startedEvent || !remoteInstalled || !sessionId) return;
       started = true; clearTimeout(startupTimer);
+      speechHeard();
+      keepTimer = setTimeout(keepAlive, KEEPALIVE_MS);
       watchContext();
       notify('Listening. Ask the AI when you need help.');
       resolveReady(session);
@@ -9871,8 +9920,6 @@ var AnsKeyLive = (function () {
       if (!current()) { if (validId) closeRemote(answer.sessionId, headers); return; }
       if (validId) sessionId = answer.sessionId;
       if (!validId || typeof answer.sdp !== 'string' || answer.sdp.length > 64000 || !/^v=0\r?\n/.test(answer.sdp)) throw new Error('Live assistance returned an incomplete audio connection.');
-      var remaining = Number.isFinite(answer.expiresAt) ? Math.max(0, Math.min(MAX_MS, answer.expiresAt - Date.now())) : MAX_MS;
-      expiryTimer = setTimeout(function () { finalMessage = 'The 10-minute live session ended. You can keep recording.'; notify(finalMessage, 'ended'); close(); }, remaining);
       await pc.setRemoteDescription({ type: 'answer', sdp: answer.sdp }); guard();
       remoteInstalled = true; maybeReady();
     }
@@ -10105,6 +10152,12 @@ async function lessonTeachingPageJpeg(p, snapshot, backgrounds, signal) {
 var LessonAudioFinalize = (function () {
   'use strict';
   var MAX_BYTES = 64 * 1024 * 1024;
+  // Must equal LessonReplayCore.limits.duration. It is repeated rather than
+  // read, because this finalizer is lifted out of the page and run on its own by
+  // its own harness, where that core does not exist. A finalizer that refuses a
+  // duration the recorder accepted throws the whole lesson away at save time, so
+  // tools/recording-core-tests.mjs checks the two literals against each other.
+  var MAX_MS = 4 * 60 * 60 * 1000;
   var ID = { ebml: 0x1a45dfa3, segment: 0x18538067, info: 0x1549a966,
     cluster: 0x1f43b675, duration: 0x4489, scale: 0x2ad7b1, seek: 0x114d9b74,
     cues: 0x1c53bb6b, crc: 0xbf };
@@ -10153,7 +10206,8 @@ var LessonAudioFinalize = (function () {
   async function finalize(blob, durationMs) {
     if (!blob || typeof blob.arrayBuffer !== 'function') invalid();
     if (!/webm/i.test(blob.type)) return blob;
-    if (!blob.size || blob.size > MAX_BYTES || !Number.isFinite(durationMs) || durationMs <= 0 || durationMs > 600000) invalid();
+    if (!blob.size || blob.size > MAX_BYTES || !Number.isFinite(durationMs) ||
+        durationMs <= 0 || durationMs > MAX_MS) invalid();
     var data = new Uint8Array(await blob.arrayBuffer()), first = element(data, 0, data.length);
     if (first.id !== ID.ebml || first.end === null) invalid();
     var segment = element(data, first.end, data.length);
@@ -10292,7 +10346,7 @@ function lessonCaptureTick() {
     c.hadTransient = !!(drawing || editingId);
     c.lastMs = ms;
     $('lessonClock').textContent = recFmtTime(ms);
-    if (ms >= LessonReplayCore.limits.duration || c.bytes >= LESSON_AUDIO_LIMIT) lessonStop('The recording reached its size or 10-minute limit.');
+    if (ms >= LessonReplayCore.limits.duration || c.bytes >= LESSON_AUDIO_LIMIT) lessonStop('The recording reached its size limit. The captured portion will be saved.');
   } catch (e) { lessonStop('The recording is full. The captured portion will be saved.'); }
 }
 function lessonGuardChange() {

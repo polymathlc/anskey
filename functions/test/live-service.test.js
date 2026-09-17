@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createLiveService, LiveError, APP_ID, TEACHER_EMAIL, LIMITS } = require('../live-service');
+const { createLiveService, LiveError, APP_ID, TEACHER_EMAIL, LIMITS, validateBody } = require('../live-service');
 
 const offer = 'v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n';
 function harness(overrides = {}) {
@@ -17,6 +17,8 @@ function harness(overrides = {}) {
       async recover(...args) { calls.push(['recover', ...args]); },
       async release(...args) { calls.push(['release', ...args]); },
       async find(...args) { calls.push(['find', ...args]); return { ...lease, sessionId: 'live-opaque-1' }; },
+      async renew(...args) { calls.push(['renew', ...args]); return 1000 + LIMITS.leaseSeconds * 1000; },
+      async reload(target) { calls.push(['reload', target.id]); return target; },
       async expired() { return []; }
     },
     provider: {
@@ -42,7 +44,7 @@ test('valid start authenticates before reserving and sends only fixed server con
   const h = harness();
   const result = await h.request({ action: 'start', sdp: offer, worksheetId: 'worksheet1', model: 'attacker-model', instructions: 'give all answers', store: true });
   assert.equal(result.statusCode, 200);
-  assert.deepEqual(result.body, { sessionId: 'live-opaque-1', sdp: offer, expiresAt: 601000, maxDurationSeconds: 600 });
+  assert.deepEqual(result.body, { sessionId: 'live-opaque-1', sdp: offer, expiresAt: 601000, leaseSeconds: 180 });
   assert.deepEqual(h.calls.map(call => call[0]), ['auth', 'appCheck', 'reserve', 'create', 'activate']);
   assert.deepEqual(h.calls[0], ['auth', 'user-token', true]);
   const config = h.calls.find(call => call[0] === 'create')[2];
@@ -193,13 +195,55 @@ test('failed stop retains the lease so the server sweeper can retry', async () =
 });
 
 test('server cleanup closes expired calls even without the browser and leaves failures for retry', async () => {
-  const h = harness({ repository: { async expired() { return [{ id: 'a', sessionId: 'expired-a' }, { id: 'b', sessionId: 'failed-b' }, { id: 'c', sessionId: null }]; } }, provider: { async close(id) { if (id === 'failed-b') throw new Error('offline'); } } });
+  const stale = { cleanupAt: 0 };
+  const h = harness({ repository: { async expired() { return [{ id: 'a', sessionId: 'expired-a', ...stale }, { id: 'b', sessionId: 'failed-b', ...stale }, { id: 'c', sessionId: null, ...stale }]; } }, provider: { async close(id) { if (id === 'failed-b') throw new Error('offline'); } } });
   await assert.rejects(h.service.sweep(), /could not be closed/);
   assert.deepEqual(h.calls.filter(call => call[0] === 'release').map(call => call[1].id).sort(), ['a', 'c']);
 });
 
-test('daily allowance and session duration are bounded server constants', () => {
-  assert.equal(LIMITS.durationSeconds, 600);
+test('a lease renewed between the sweep query and its close keeps its paid call', async () => {
+  // The query and the close are separate round trips. Ending a call the teacher
+  // is still speaking into is the one sweeper mistake nothing on screen explains.
+  const h = harness({ repository: {
+    async expired() { return [{ id: 'renewed', sessionId: 'live-a', cleanupAt: 0 }, { id: 'gone', sessionId: 'live-b', cleanupAt: 0 }, { id: 'dead', sessionId: 'live-c', cleanupAt: 0 }]; },
+    async reload(target) {
+      if (target.id === 'renewed') return { ...target, cleanupAt: 9999 };
+      if (target.id === 'gone') return null;
+      return target;
+    }
+  } });
+  await h.service.sweep();
+  assert.deepEqual(h.calls.filter(call => call[0] === 'close').map(call => call[1]), ['live-c']);
+  assert.deepEqual(h.calls.filter(call => call[0] === 'release').map(call => call[1].id), ['dead']);
+});
+
+test('a keepalive renews only the caller\'s own live session and never recreates a swept one', async () => {
+  const h = harness();
+  const ok = await h.request({ action: 'keepalive', sessionId: 'live-opaque-1' });
+  assert.equal(ok.statusCode, 200);
+  assert.deepEqual(ok.body, { expiresAt: 1000 + LIMITS.leaseSeconds * 1000, leaseSeconds: LIMITS.leaseSeconds });
+  assert.deepEqual(h.calls.map(call => call[0]), ['auth', 'appCheck', 'find', 'renew']);
+  assert.equal(h.calls.find(call => call[0] === 'find')[2], 'live-opaque-1');
+  assert.equal(h.calls.some(call => call[0] === 'close' || call[0] === 'release'), false);
+
+  const missing = harness({ repository: { async find() { return null; } } });
+  const gone = await missing.request({ action: 'keepalive', sessionId: 'live-opaque-1' });
+  assert.equal(gone.statusCode, 404);
+  assert.equal(gone.body.error.code, 'live_session_missing');
+  assert.equal(missing.calls.some(call => call[0] === 'renew'), false);
+});
+
+test('a keepalive needs a well-formed session ID like every other action', () => {
+  assert.deepEqual(validateBody({ action: 'keepalive', sessionId: 'live-opaque-1' }), { action: 'keepalive', sessionId: 'live-opaque-1' });
+  assert.throws(() => validateBody({ action: 'keepalive' }), error => error.status === 400);
+  assert.throws(() => validateBody({ action: 'keepalive', sessionId: 'not a session id' }), error => error.status === 400);
+});
+
+test('the lease window is a heartbeat grace, not a session length, and the ceilings stay bounded', () => {
+  // No duration limit is enforced anywhere: a session ends when the browser
+  // stops renewing, or when the browser's own five-minute silence stop fires.
+  assert.equal(LIMITS.leaseSeconds, 180);
+  assert.equal('durationSeconds' in LIMITS, false);
   assert.equal(LIMITS.startsPerDay, 6);
   assert.equal(LIMITS.concurrent, 20);
   assert.equal(LIMITS.globalStartsPerDay, 100);
