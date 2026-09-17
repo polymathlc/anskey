@@ -2,6 +2,69 @@
 
 Guidance for Claude when working in this repo.
 
+## ⏱ Live voice has NO time limit — silence and a lease bound it instead (v1.97.0)
+
+`IDLE_MS` / `KEEPALIVE_MS` / `SPEECH_RE` / **`speechHeard`** / `keepAlive` in
+`AnsKeyLive` (search `NO FIXED SESSION LENGTH`), the `keepalive` action and
+`LIMITS.leaseSeconds` in `functions/live-service.js`, `renew` / `reload` in
+`functions/live-repository.js`, `closeExpired` in the sweeper, and
+`LessonReplayCore.limits.duration` with `LessonAudioFinalize`'s own `MAX_MS`.
+
+The ten-minute cap was enforced in **five** places and every one of them had to
+go, or the feature only looks removed: the client's own expiry timer, the
+server's `durationSeconds` lease, the sweeper that closes on `cleanupAt`, the
+**lesson recording's** `LIMITS.duration` (which ends the live session with it),
+and the WebM finalizer that refused a longer duration at SAVE time.
+
+- **THE SWEEPER IS WHY THIS IS NOT A ONE-LINE DELETE.** It is what ends a paid
+  call whose tab died, and with no duration it would have nothing to fire on —
+  an abandoned session billing until the provider gave up. So the lease became
+  a **heartbeat**: `leaseSeconds` is a grace window the browser renews inside,
+  never a session length. Raise it and cleanup is slower; remove the renewal
+  and "no limit" becomes a money hole nothing on any screen reports.
+- **`speechHeard` IS THE ONE RESET**, called from `maybeReady` (arm it the
+  moment the session is live), `transcript` (a delta carrying a letter or a
+  digit) and `runDelegation` (a question in flight is use — ending a session
+  mid-answer cuts off the very exchange that proves it is being used).
+- **PUNCTUATION-ONLY NOISE MUST NOT COUNT.** A transcriber emits nothing at all
+  through real silence, so that is the only thing that could hold a dead room
+  open for ever. Filler words are speech and are deliberately not filtered: a
+  teacher saying "um… yes" is talking.
+- **SPEECH FROM EITHER SIDE COUNTS.** The assistant only ever speaks after
+  being asked, so it is bounded, and cutting it off mid-sentence is worse.
+- **THE KEEPALIVE IS BEST EFFORT AND SILENT.** One refused renewal is a blip.
+  A lease that really has gone was deleted *after* its provider call was
+  closed, so the WebRTC connection drops and the existing loss path reports it
+  with its own wording — a second, guessed message would be the wrong one.
+- **`closeExpired` re-reads before closing.** The query and the close are
+  separate round trips, so a heartbeat can land between them; ending a call the
+  teacher is still speaking into is the one sweeper mistake nothing on screen
+  can explain. A read that FAILS closes nothing and is retried, rather than
+  guessing from a stale snapshot.
+- **`renew` may never RECREATE a lease.** A swept lease is gone with its paid
+  call already closed; writing it back would count a dead call as open for
+  ever, against the concurrency ceiling, with nothing to close it.
+- **THE RECORDING CAP HAD TO GO WITH IT**, or live mode still ends at ten
+  minutes and only *looks* lifted. `LIMITS.duration` is now a **parser bound**
+  — what stops a stored timeline claiming an absurd clock — set far above
+  anything the 64 MB audio cap (~97 minutes) or the 8 MB timeline can reach, so
+  a recording stops on SIZE and says so. Raising it is backward compatible;
+  lowering it rejects lessons that were saved perfectly well.
+- **`LessonAudioFinalize` REPEATS the ceiling rather than reading it**, because
+  its harness lifts that IIFE out of the page and runs it alone, where
+  `LessonReplayCore` does not exist. A finalizer stricter than the recorder
+  throws the whole lesson away at save time, so
+  `tools/recording-core-tests.mjs` checks the two literals against each other.
+- **`recFmtTime` grew an hours field**, reachable for the first time. Under an
+  hour it is byte-for-byte the `m:ss` it always was.
+- **It needs a functions deploy, not just a page upload.** The browser sends an
+  action the old server rejects as `invalid_request`, and the old server hands
+  back a 10-minute lease the new browser would renew into a call the sweeper
+  has already closed.
+- Run **`node --test tools/recording-live-tests.mjs tools/recording-core-tests.mjs
+  tools/recording-audio-tests.mjs`** and **`cd functions && node --test test/*.test.js`**
+  after touching any of it.
+
 ## Page insertion and compact controls (v1.96.0)
 
 Blank pages are inserted after the current page at the user's request. Keep
@@ -1357,6 +1420,26 @@ the green box saying *(after another route refused)*.
   right signal and not enough of one.
 
 ## House rules
+- After touching **⏱ live voice's length** (`IDLE_MS`, `KEEPALIVE_MS`,
+  `SPEECH_RE`, `speechHeard`, `keepAlive`, `LIMITS.leaseSeconds`, the
+  `keepalive` action, `renew`, `reload`, `closeExpired`,
+  `LessonReplayCore.limits.duration`, `LessonAudioFinalize`'s `MAX_MS`, or
+  `recFmtTime`), run `node --test tools/recording-live-tests.mjs
+  tools/recording-core-tests.mjs tools/recording-audio-tests.mjs` **and**
+  `cd functions && node --test test/*.test.js`. Every failure here is quiet and
+  costs either a lesson or money. Drop the keepalive and an abandoned tab bills
+  a live call until the provider gives up, with nothing on any screen to say so
+  — that is what the clock used to prevent, and it is the whole reason "remove
+  the limit" is not a one-line delete. Drop the silence stop and the same is
+  true of a tab somebody simply left open. Reset the idle clock on punctuation
+  and a noisy empty room holds a session open for ever; stop resetting it on a
+  delegation and a session ends mid-answer. Let `closeExpired` skip its re-read
+  and a heartbeat landing mid-sweep ends a call the teacher is still speaking
+  into. Let `renew` recreate a swept lease and a closed call counts against the
+  concurrency ceiling for good. Put the recording's ten-minute cap back and the
+  live session still dies at ten minutes while every screen says it will not.
+  And let `LessonAudioFinalize`'s `MAX_MS` drift below the replay core's and a
+  long lesson is refused at SAVE time, which costs a teacher the whole hour.
 - After touching **🐾 the deliberate mistake** (`annHoldsMistake`, `annsHoldMistake`,
   `MISTAKE_ANIMALS`, `mistakeAnimalNormalize`, `aiMistakeGenerate`, `mistakeClear`, the gate in
   `styleHarvestTyped` / `styleCollectEdits` / `autoLearnWorthReading` / the vision harvest /

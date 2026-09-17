@@ -71,7 +71,7 @@ test('activation stores the opaque provider ID and changes cleanup from reservat
   const { db, repo, now } = setup();
   const lease = await repo.reserve('child', 'sheet', now, LIMITS);
   assert.equal(lease.cleanupAt, now + 60000);
-  assert.equal(lease.expiresAt, now + 600000);
+  assert.equal(lease.expiresAt, now + LIMITS.leaseSeconds * 1000);
   await repo.activate(lease, 'live-opaque-provider-id');
   const saved = db.data.get(`${SESSION_COLLECTION}/${lease.id}`);
   assert.equal(saved.sessionId, 'live-opaque-provider-id');
@@ -129,9 +129,36 @@ test('expired query includes abandoned reservations and excludes active lessons'
   assert.deepEqual((await repo.expired(now + 61000)).map(lease => lease.id), [pending.id]);
   await repo.activate(pending, 'live-active');
   assert.deepEqual(await repo.expired(now + 61000), []);
-  assert.deepEqual((await repo.expired(now + 600000)).map(lease => lease.id), [pending.id]);
+  assert.deepEqual((await repo.expired(now + LIMITS.leaseSeconds * 1000)).map(lease => lease.id), [pending.id]);
 });
 
 test('user IDs cannot escape bookkeeping document paths', () => {
   assert.match(userKey('../other/user'), /^[a-f0-9]{64}$/);
+});
+
+test('a renewal pushes cleanup forward for the owner only, and a swept lease can never come back', async () => {
+  const { db, repo, now } = setup();
+  const lease = await repo.reserve('child', 'sheet', now, LIMITS);
+  await repo.activate(lease, 'live-opaque-provider-id');
+  const saved = { ...db.data.get(`${SESSION_COLLECTION}/${lease.id}`) };
+
+  const expiresAt = await repo.renew(saved, now + 120000, LIMITS);
+  assert.equal(expiresAt, now + 120000 + LIMITS.leaseSeconds * 1000);
+  const renewed = db.data.get(`${SESSION_COLLECTION}/${lease.id}`);
+  assert.equal(renewed.cleanupAt, expiresAt);
+  assert.equal(renewed.expiresAt, expiresAt);
+  // The sweeper's own query is what the renewal has to move the lease out of.
+  assert.deepEqual(await repo.expired(now + 120000), []);
+  assert.deepEqual((await repo.expired(expiresAt)).map(row => row.id), [lease.id]);
+
+  // Another account holding the same provider ID, and a stale provider ID for
+  // this account, are both refused rather than renewing somebody's live call.
+  await assert.rejects(repo.renew({ ...saved, uid: 'other-child' }, now, LIMITS), error => error.status === 404);
+  await assert.rejects(repo.renew({ ...saved, sessionId: 'old-call' }, now, LIMITS), error => error.status === 404);
+
+  assert.equal(await repo.reload(saved).then(row => row.sessionId), 'live-opaque-provider-id');
+  await repo.release(saved);
+  assert.equal(await repo.reload(saved), null);
+  await assert.rejects(repo.renew(saved, now, LIMITS), error => error.code === 'live_session_missing');
+  assert.equal(db.data.has(`${SESSION_COLLECTION}/${lease.id}`), false);
 });

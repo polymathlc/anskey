@@ -1,6 +1,10 @@
 'use strict';
 
-const LIMITS = Object.freeze({ durationSeconds: 600, startsPerDay: 6, globalStartsPerDay: 100, concurrent: 20 });
+// leaseSeconds is a HEARTBEAT WINDOW, not a session length. A live session runs
+// for as long as it is being used; the browser renews this lease while it is
+// open, so a tab that dies stops renewing and the sweeper ends its paid call
+// within one window plus a scheduler tick. Raising it delays that cleanup.
+const LIMITS = Object.freeze({ leaseSeconds: 180, startsPerDay: 6, globalStartsPerDay: 100, concurrent: 20 });
 const APP_ID = '1:165654161198:web:16c8bd60eb3a2aa7edbcbf';
 const TEACHER_EMAIL = 'chungzhikai@gmail.com';
 const MAX_SDP_BYTES = 64000;
@@ -58,8 +62,9 @@ function validateBody(body) {
     }
     return { action: 'start', worksheetId: body.worksheetId, sdp: body.sdp };
   }
-  if (body.action === 'stop' && typeof body.sessionId === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(body.sessionId)) {
-    return { action: 'stop', sessionId: body.sessionId };
+  if ((body.action === 'stop' || body.action === 'keepalive') &&
+      typeof body.sessionId === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(body.sessionId)) {
+    return { action: body.action, sessionId: body.sessionId };
   }
   throw new LiveError(400, 'invalid_request', 'The live request is not valid.');
 }
@@ -102,7 +107,7 @@ function createLiveService({ auth, appCheck, repository, provider, now = Date.no
       session = await provider.create(body.sdp, sessionConfig());
       await repository.activate(lease, session.sessionId);
       if (abandoned()) throw new Error('Live request disconnected.');
-      return { sessionId: session.sessionId, sdp: session.sdp, expiresAt: lease.expiresAt, maxDurationSeconds: LIMITS.durationSeconds };
+      return { sessionId: session.sessionId, sdp: session.sdp, expiresAt: lease.expiresAt, leaseSeconds: LIMITS.leaseSeconds };
     } catch (error) {
       if (!session && error.sessionId) session = { sessionId: error.sessionId };
       // If creation succeeded but the database write failed, close the paid call
@@ -138,6 +143,13 @@ function createLiveService({ auth, appCheck, repository, provider, now = Date.no
       const uid = await identify(req);
       if (body.action === 'start') return res.status(200).json(await start(uid, body, abandoned));
       const lease = await repository.find(uid, body.sessionId);
+      if (body.action === 'keepalive') {
+        // Only the owner of a live session can hold it open, and only while the
+        // sweeper has not already ended it. A missing lease is not an error to
+        // retry: that call is gone and a new session has to be started.
+        if (!lease) throw new LiveError(404, 'live_session_missing', 'This live session has already ended. Start a new one when you need it.');
+        return res.status(200).json({ expiresAt: await repository.renew(lease, now(), LIMITS), leaseSeconds: LIMITS.leaseSeconds });
+      }
       // Idempotent for this user, without revealing another user's session.
       if (lease) await closeLease(lease);
       return res.status(200).json({ stopped: true });
@@ -149,13 +161,25 @@ function createLiveService({ auth, appCheck, repository, provider, now = Date.no
     }
   }
 
+  // The query and the close are separate round trips, so a heartbeat can land
+  // between them. Re-read the lease and leave a renewed one alone: ending a call
+  // the teacher is still speaking into is the one mistake a sweeper can make
+  // that nothing on screen can explain. A read that fails closes nothing and is
+  // retried, rather than guessing from a stale snapshot.
+  async function closeExpired(lease) {
+    const current = await repository.reload(lease);
+    if (!current) return;
+    if (current.cleanupAt > now()) return;
+    await closeLease(current);
+  }
+
   async function sweep() {
     const leases = await repository.expired(now());
     let failures = 0;
     // Bounded parallelism keeps expired calls closing promptly without a burst
     // of sideband connections for the entire school.
     for (let i = 0; i < leases.length; i += 5) {
-      const results = await Promise.allSettled(leases.slice(i, i + 5).map(closeLease));
+      const results = await Promise.allSettled(leases.slice(i, i + 5).map(closeExpired));
       failures += results.filter(result => result.status === 'rejected').length;
     }
     if (failures) { report('live_cleanup_retry_needed'); throw new Error('Some live sessions could not be closed.'); }

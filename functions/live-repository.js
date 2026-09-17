@@ -22,7 +22,7 @@ function createRepository(db) {
     const day = dayKey(now);
     const lease = {
       id, uid, ownerKey, worksheetId, sessionId: null,
-      createdAt: now, expiresAt: now + policy.durationSeconds * 1000,
+      createdAt: now, expiresAt: now + policy.leaseSeconds * 1000,
       cleanupAt: now + 60000
     };
     await db.runTransaction(async tx => {
@@ -57,6 +57,31 @@ function createRepository(db) {
       if (!snap.exists) throw new Error('Live reservation expired.');
       tx.update(ref, { sessionId, cleanupAt: lease.expiresAt });
     });
+  }
+
+  // The browser holds its own session open by renewing this lease. Only the
+  // owner of the live call may push it forward, and only while it still exists:
+  // a lease the sweeper has already ended is gone for good, and a renewal must
+  // never recreate one, or a closed paid call would be counted as open for ever.
+  async function renew(lease, now, policy) {
+    const expiresAt = now + policy.leaseSeconds * 1000;
+    await db.runTransaction(async tx => {
+      const ref = sessions.doc(lease.id);
+      const snap = await tx.get(ref);
+      const current = snap.data();
+      if (!current || current.uid !== lease.uid || current.sessionId !== lease.sessionId) {
+        throw new LiveError(404, 'live_session_missing', 'This live session has already ended. Start a new one when you need it.');
+      }
+      tx.update(ref, { expiresAt, cleanupAt: expiresAt });
+    });
+    return expiresAt;
+  }
+
+  // Read a lease back as it stands now. The sweeper uses this to tell a call
+  // that is genuinely abandoned from one renewed since its query ran.
+  async function reload(lease) {
+    const snap = await sessions.doc(lease.id).get();
+    return snap.exists ? snap.data() : null;
   }
 
   async function recover(lease) {
@@ -98,7 +123,7 @@ function createRepository(db) {
     return snap.docs.map(doc => doc.data());
   }
 
-  return { reserve, activate, recover, release, find, expired };
+  return { reserve, activate, renew, reload, recover, release, find, expired };
 }
 
 module.exports = { createRepository, dayKey, userKey, SESSION_COLLECTION, LIMIT_COLLECTION };
