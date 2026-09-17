@@ -16,13 +16,16 @@ const actual = cut('/* ================= AI request deadlines ================= 
   cut('/* ================= Lesson recording backgrounds ================= */', '/* ================= End lesson recording backgrounds ================= */') +
   cut('/* ================= Seekable lesson audio ================= */', '/* ================= Synchronized lesson recording ================= */') +
   cut('/* ================= Synchronized lesson recording ================= */', '/* ================= End synchronized lesson recording ================= */') +
+  cut('/* ================= Chung GPT Voice AI', '/* ================= End Chung GPT Voice AI ================= */') +
   cut('function setDirty(v) {', '/* ================= Undo / redo ================= */');
+const recordingSection = cut('/* ================= Synchronized lesson recording ================= */', '/* ================= End synchronized lesson recording ================= */');
 const bootstrap = `
 var now = 0, counter = 0, nextTimer = 0, timers = new Map(), messages = [], writes = [], uploads = [], renders = [], recovery = new Map();
 var failWrite = false, failUpload = false, failRecovery = false, recoveryWait = null, microphoneWait = null, manifestWait = null;
 class Node {
   constructor() { this.hidden = true; this.style = {}; this.attrs = {}; this.children = []; this.listeners = {}; this.textContent = ''; this.innerText = ''; this.scrollHeight = 40; this.checked = false; this.paused = true; this.currentTime = 0; this.clientWidth = 600; this.clientHeight = 800; this.scrollLeft = 0; this.scrollTop = 0; this.classes = new Set(); var self = this;
-    this.classList = { add: function(x){ self.classes.add(x); }, remove: function(x){ self.classes.delete(x); }, contains: function(x){ return self.classes.has(x); } };
+    this.classList = { add: function(x){ self.classes.add(x); }, remove: function(x){ self.classes.delete(x); }, contains: function(x){ return self.classes.has(x); },
+      toggle: function(x, on){ if (on === undefined) on = !self.classes.has(x); if (on) self.classes.add(x); else self.classes.delete(x); return on; } };
   }
   addEventListener(name, fn) { (this.listeners[name] = this.listeners[name] || []).push(fn); }
   emit(name, event) { (this.listeners[name] || []).forEach(function(fn){ fn(event || {}); }); }
@@ -44,10 +47,11 @@ function $(id) { return nodes[id] || (nodes[id] = new Node()); }
 var document = new Node(); document.body = new Node(); document.createElement = function(){ return new Node(); };
 var window = new Node(); window.isSecureContext = true;
 function stream() { var track = { enabled: true, stopped: 0, stop: function(){ this.stopped++; }, getSettings: function(){ return { noiseSuppression: true }; } }; return { track: track, getTracks: function(){ return [track]; }, getAudioTracks: function(){ return [track]; } }; }
-var mic = stream(), micConstraints = null;
-var navigator = { mediaDevices: { getUserMedia: function(opts){ micConstraints = opts; return microphoneWait || Promise.resolve(mic); } } };
+var mic = stream(), micConstraints = null, mics = [mic], micTaken = 0;
+var navigator = { mediaDevices: { getUserMedia: function(opts){ micConstraints = opts; if (microphoneWait) return microphoneWait;
+  var s = mics[micTaken] || (mics[micTaken] = stream()); micTaken++; return Promise.resolve(s); } } };
 class Source { constructor(){ this.connections = []; this.disconnected = false; } connect(to){ this.connections.push(to); } disconnect(){ this.disconnected = true; } }
-class Context { constructor(){ this.state = 'running'; this.destination = {}; } resume(){ return Promise.resolve(); } close(){ this.state = 'closed'; return Promise.resolve(); } createMediaStreamDestination(){ return { stream: stream() }; } createMediaStreamSource(){ return new Source(); } }
+class Context { constructor(){ this.state = 'running'; this.destination = {}; this.sources = 0; } resume(){ return Promise.resolve(); } close(){ this.state = 'closed'; return Promise.resolve(); } createMediaStreamDestination(){ return { stream: stream() }; } createMediaStreamSource(){ this.sources++; return new Source(); } }
 var recorders = [];
 class Recorder {
   constructor(s, opts){ this.state = 'inactive'; this.stream = s; this.mimeType = opts.mimeType || 'audio/mp4'; recorders.push(this); }
@@ -95,6 +99,8 @@ var liveOptions = null, liveClosed = 0;
 var AnsKeyLive = { connect: async function(opts){ liveOptions = opts; return { close: async function(){ liveClosed++; } }; } };
 window.liveAppCheckToken = async function(){ return 'test-appcheck'; };
 function aiNotePageImage(){ return 'test-page-image'; } function aiGrounding(){ return 'grounded'; }
+function tutorMethodRule(){ return 'Use arithmetic.'; } function aiEngineName(){ return 'Chung GPT'; }
+var selectedId = null;
 async function loadTeachingNotes(){}
 window.askGemini = async function(){ return 'Short teaching explanation'; };
 function ink(id){ return { id: id || 'ink', page: 1, type: 'pen', color: '#000', width: 2, points: [{x: 1, y: 1}] }; }
@@ -403,18 +409,106 @@ await check('mismatched PDF and untrusted asset hosts never start playback', asy
   assert.equal(h.run("$('lessonAudio').paused"), true);
 });
 
-await check('voice helper stream is both heard and mixed into the recording', async () => {
+// A RECORDING IS A RECORDING. The helper used to be a checkbox on this very
+// dialog, so the one artefact a class watches could have an AI answering into
+// the middle of it. The guarantee is the wiring, not a flag: the recording
+// section may not reach the live bridge at all.
+await check('a recording never connects the live helper', async () => {
+  assert.equal(recordingSection.includes('AnsKeyLive'), false, 'the recorder must not be able to open a live session');
+  assert.equal(recordingSection.includes('onRemoteStream'), false, 'no assistant audio can reach the recorder');
+  assert.equal(html.includes('lessonUseLive'), false, 'the recording dialog no longer offers the helper');
   const h = harness();
-  await h.run("$('lessonUseLive').checked = true; lessonStart();");
-  h.run('recorders[0].fireStart();');
+  await h.run('lessonStart();');
+  h.run('recorders[0].fireStart(); now = 200;');
   await Promise.resolve(); await Promise.resolve();
-  h.run('liveOptions.onRemoteStream(stream());');
-  assert.equal(h.run('lessonCapture.remoteSource.connections.length'), 2);
-  assert.equal(h.run('liveOptions.worksheetId'), 'worksheet');
-  assert.equal(h.run('lessonCapture.remoteAudio.muted'), true);
-  h.run('now = 100; lessonStop();');
+  assert.equal(h.run('liveOptions'), null);
+  assert.equal(h.run('lessonCapture.audioCtx.sources'), 1, 'the recorder mixes the microphone and nothing else');
+  h.run('lessonStop();');
   await h.run('recorders[0].finishStop();');
+  assert.equal(h.run('Object.prototype.hasOwnProperty.call(annotations[0].lessonRecording, "liveEnabled")'), false);
+});
+
+await check('the voice helper opens its own session, plays aloud and stops cleanly', async () => {
+  const h = harness();
+  await h.run('voiceStart();');
+  assert.equal(h.run('liveOptions.worksheetId'), 'worksheet');
+  assert.equal(h.run("$('voiceBar').hidden"), false);
+  assert.equal(h.run("$('voiceAiBtn').classList.contains('active')"), true);
+  assert.equal(h.run('voiceLive.phase'), 'live');
+  h.run('liveOptions.onRemoteStream(stream());');
+  assert.equal(h.run('voiceLive.audio.paused'), false, 'the reply is heard in the room');
+  h.run('voiceStop();');
+  assert.equal(h.run('voiceLive'), null);
+  assert.equal(h.run("$('voiceBar').hidden"), true);
+  assert.equal(h.run("$('voiceAiBtn').classList.contains('active')"), false);
   assert(h.run('liveClosed') > 0);
+  assert(h.run('mics[0].track.stopped') > 0);
+});
+
+// The one guarantee this whole split exists for, asserted while both are live.
+await check('a helper speaking during a recording is never mixed into the file', async () => {
+  const h = harness();
+  await h.run('voiceStart();');
+  await h.run('lessonStart();');
+  h.run('recorders[0].fireStart(); liveOptions.onRemoteStream(stream());');
+  assert.equal(h.run('lessonCapture.audioCtx.sources'), 1, 'only the recording microphone reaches the recorder');
+  assert.equal(h.run('lessonCapture.remoteSource'), undefined);
+  assert.notEqual(h.run('lessonCapture.stream'), h.run('voiceLive.stream'), 'each feature owns its own microphone');
+  assert(h.run('messages.some(function(m){ return m.indexOf("use headphones") >= 0; })'), 'the room microphone caveat is said out loud');
+  h.run('now = 120; lessonStop();');
+  await h.run('recorders[0].finishStop();');
+  assert.equal(h.run('voiceLive === null'), false, 'ending a recording must not deafen the helper');
+  assert.equal(h.run('voiceLive.stream.track.stopped'), 0);
+  h.run('voiceStop();');
+});
+
+await check('the helper stops the moment the account or role changes', async () => {
+  const h = harness();
+  await h.run('voiceStart();');
+  h.run("currentUser = { uid: 'student' }; admin = false; voiceRoleChanged();");
+  assert.equal(h.run('voiceLive'), null);
+  assert(h.run('liveClosed') > 0);
+  assert(h.run('mics[0].track.stopped') > 0);
+  assert.equal(h.run("$('voiceAiBtn').style.display"), 'none');
+});
+
+await check('stopping while the microphone permission is open releases the late stream', async () => {
+  const h = harness();
+  const start = h.run('var permission = deferred(); microphoneWait = permission.promise; var starting = voiceStart(); starting;');
+  await Promise.resolve(); await Promise.resolve();
+  h.run('voiceStop(); microphoneWait = null; permission.resolve(mics[0]);');
+  await start;
+  assert.equal(h.run('voiceLive'), null);
+  assert.equal(h.run('liveOptions'), null);
+  assert(h.run('mics[0].track.stopped') > 0);
+});
+
+// A helper that cannot start must SAY why. Tearing down from the status hook
+// instead leaves the bar flashing up and vanishing with the real error unread.
+await check('a helper that could not connect reports the reason', async () => {
+  const h = harness();
+  await h.run("AnsKeyLive = { connect: function(){ return Promise.reject(new Error('Live assistance is unavailable.')); } }; voiceStart();");
+  assert.equal(h.run('voiceLive'), null);
+  assert.equal(h.run("$('voiceBar').hidden"), true);
+  assert(h.run('messages.some(function(m){ return m.indexOf("Live assistance is unavailable.") >= 0; })'));
+  assert(h.run('mics[0].track.stopped') > 0, 'a refused session must not leave the microphone open');
+});
+
+await check('a session that closed while resolving does not leave the bar up', async () => {
+  const h = harness();
+  await h.run("AnsKeyLive = { connect: async function(){ return { closed: true, close: async function(){ liveClosed++; } }; } }; voiceStart();");
+  assert.equal(h.run('voiceLive'), null);
+  assert.equal(h.run("$('voiceBar').hidden"), true);
+});
+
+await check('the helper refuses an unsaved worksheet and a student account', async () => {
+  const h = harness();
+  await h.run("currentDocId = ''; voiceStart();");
+  assert.equal(h.run('voiceLive'), null);
+  assert.equal(h.run('micConstraints'), null, 'it must refuse before opening a microphone');
+  await h.run("currentDocId = 'worksheet'; admin = false; voiceStart();");
+  assert.equal(h.run('voiceLive'), null);
+  assert.equal(h.run('micConstraints'), null);
 });
 
 await check('teacher lesson-pill gesture opens replay instead of the ordinary video editor', () => {

@@ -3,6 +3,31 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## 🎙 Voice AI is its own button, and a recording is just a recording (v1.98.0)
+
+**Record lesson** now captures your voice and your writing and **nothing else**.
+The helper used to be a checkbox on that dialog, which meant the AI could answer
+into the middle of the one recording a class watches. That checkbox is gone.
+
+**🎙 Voice AI** is a new toolbar button (**Shift+V**) — live helping mode by
+Chung GPT. Press it and talk: ask about the question on the page, and it reads
+the worksheet, your typed answers, your handwriting and the generated answer key
+before it replies out loud. Press it again, or **Stop Voice AI** on its bar, to
+end it. It is the teacher's own button; students never see it.
+
+The two are independent and can run together:
+
+- **The helper's voice never goes into a recording.** It plays through the
+  speakers and is not wired into the recorder at all — that is the wiring, not a
+  setting. What a room microphone can still pick up is a speaker, so use
+  headphones if you want the helper while you record; the app says so when you
+  start a recording with it on.
+- **Each opens its own microphone**, so stopping one never deafens the other.
+- **The helper follows you** between pages and worksheets rather than stopping
+  at every page turn. It ends when the account changes, when you stop it, or by
+  itself after 5 minutes without speech.
+- Both bars stack above each other, so you can always see what is running.
+
 ## Live voice has no time limit, and stops itself when nobody is talking (v1.97.0)
 
 The ten-minute cap on **Talk with GPT-Live-1** is gone. A live session now runs

@@ -2,6 +2,56 @@
 
 Guidance for Claude when working in this repo.
 
+## 🎙 Recording and helping are TWO BUTTONS (v1.98.0)
+
+`voiceLive` / `voiceTeacher` / `voiceOn` / `voiceContextOK` / `voiceSyncBtn` /
+`voiceRoleChanged` / **`answerKeyPageContext`** / `voiceTypedContext` /
+`voiceContextLine` / **`voicePageBackground`** / **`voiceDelegate`** /
+`voiceStart` / `voiceRelease` / `voiceStop` / `voiceToggle` (search
+`Chung GPT Voice AI`), plus `#voiceAiBtn`, `#voiceBar`, the `.barStack` CSS and
+`Shift+V`.
+
+**A LESSON RECORDING IS A RECORDING.** The helper used to be a checkbox on the
+recording dialog (`lessonUseLive`), which mixed its spoken replies into the
+saved file through `lessonCapture.destination` — so the one artefact a class
+watches could have an AI answering into the middle of it. Helping and recording
+are two jobs; they are two buttons now, and either can run without the other.
+
+- **THE GUARANTEE IS THE WIRING, NOT A FLAG.** The recording section cannot
+  reach the live bridge at all — no `AnsKeyLive`, no `onRemoteStream`, no
+  second `createMediaStreamSource` — and the helper plays through an ordinary
+  `<audio>` element with no AudioContext anywhere near it. `recording-ui-tests`
+  asserts that against the shipped text of the section, because a flag somebody
+  has to remember is exactly how this came back the first time.
+  What is left is physics: a speaker in the room reaches the recording's own
+  microphone. The dialog and a toast on `lessonStart` say to use headphones.
+- **EACH ONE OWNS ITS OWN MICROPHONE.** Sharing a stream would mean one
+  feature's stop button deafening the other — ending a recording would take the
+  helper down mid-answer.
+- **IT FOLLOWS THE TEACHER** and deliberately survives a page or worksheet
+  change: a lesson moves between papers while somebody is still talking, and a
+  helper that stopped at every page turn is one nobody switches on. It ends on
+  the ACCOUNT or ROLE changing (`voiceRoleChanged`, from `applyRoleUI`) — the
+  microphone, the paid live session and the teacher's own AI must never carry
+  across to whoever picks the iPad up next — and on `pagehide`.
+- **`answerKeyPageContext` IS SHARED WITH PRACTICE MARKING**, which is why it
+  is not named `voice*`. Deleting it with this section would quietly take the
+  teacher's own worked answers out of every mark a student is given.
+- **THE CARDS ARE RE-RENDERED WHEN THEY CHANGE** (`voicePageBackground`). A
+  recording renders them once and STOPS if they change; a teacher goes on
+  arranging cards while the helper listens, so the page is redrawn on a new
+  card signature and the last render answers the questions in between. Only the
+  CURRENT page's cards: `lessonCaptureBackgrounds` refuses a card whose page it
+  was not given, and a whole worksheet per spoken question is a wait nobody
+  sits through. A render that FAILS costs the cards and never the answer — the
+  printed page and the teacher's own ink are still in the picture — but a
+  cancelled one is re-thrown, because that question really has ended.
+- **THE SERVER ALLOWS ONE LIVE SESSION PER ACCOUNT** (`reserve`, 409), so there
+  is exactly one live consumer now and a second press is refused in words.
+- Run **`node tools/recording-ui-tests.mjs`**, **`node --test
+  tools/voice-context-tests.mjs tools/check-latency-tests.mjs
+  tools/recording-live-tests.mjs`** after touching any of it.
+
 ## ⏱ Live voice has NO time limit — silence and a lease bound it instead (v1.97.0)
 
 `IDLE_MS` / `KEEPALIVE_MS` / `SPEECH_RE` / **`speechHeard`** / `keepAlive` in
@@ -114,7 +164,7 @@ the timeout in the third argument of `getGenerativeModel`.
 
 Maths teaching uses `tutorMethodRule`: arithmetic and the unitary method first,
 units and parts only for clearly suitable questions, and one step at a time
-in Live. `lessonAnswerKeyContext` reads the current page's available key and
+in Live. `answerKeyPageContext` reads the current page's available key and
 working without inventing missing entries. Practice marking runs at most two
 independent answers at once and keeps the report in worksheet order.
 
@@ -1420,6 +1470,27 @@ the green box saying *(after another route refused)*.
   right signal and not enough of one.
 
 ## House rules
+- After touching **🎙 the split between recording and helping** (`voiceLive`,
+  `voiceTeacher`, `voiceContextOK`, `voiceSyncBtn`, `voiceRoleChanged`,
+  `answerKeyPageContext`, `voiceTypedContext`, `voiceContextLine`,
+  `voicePageBackground`, `voiceDelegate`, `voiceStart`, `voiceRelease`,
+  `voiceStop`, `voiceToggle`, `#voiceAiBtn`, `#voiceBar`, the `.barStack`
+  rules, or anything in the recording section that touches audio), run
+  `node tools/recording-ui-tests.mjs` and `node --test
+  tools/voice-context-tests.mjs tools/check-latency-tests.mjs`. Wire the
+  helper's remote stream back into `lessonCapture.destination` — or put the
+  checkbox back on the recording dialog — and the AI is answering into the one
+  artefact a class watches, which is only ever found on playback, after the
+  lesson. Share one microphone between them and stopping a recording deafens
+  the helper mid-answer. Stop the helper on a page or worksheet change and it
+  is a helper nobody switches on; DON'T stop it on an account change and a
+  live microphone and the teacher's own AI carry across to the next person on
+  the device. Render every page's cards per spoken question and the answer
+  arrives after the moment has passed; let a card that will not render throw
+  and a question that could have been answered from the page comes back "I
+  could not check the worksheet". And rename `answerKeyPageContext` to
+  something `voice*` and the next person deletes it with this feature, taking
+  the teacher's own worked answers out of every mark a student is given.
 - After touching **⏱ live voice's length** (`IDLE_MS`, `KEEPALIVE_MS`,
   `SPEECH_RE`, `speechHeard`, `keepAlive`, `LIMITS.leaseSeconds`, the
   `keepalive` action, `renew`, `reload`, `closeExpired`,
