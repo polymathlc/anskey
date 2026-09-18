@@ -4,6 +4,40 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.100.0 — Chung GPT learns from every app, and says whether it is helping
+
+- **The Science portal's corrections reach this app.** Every correction the
+  teacher makes to an AI-written answer in the Science Learning Portal is read
+  live from that app's own document and folded into the science buckets here,
+  so the very next science answer, hint and answer key follows it — and the
+  🧠 panel lists them, marked *from the Science portal*.
+- **A subject-only profile.** 🧠 Rebuild my style now also distils
+  *all Science* and *all Mathematics* profiles, and a level with too few
+  answers of its own falls to its subject's profile before it falls to the
+  global one — so a new P4 Science worksheet no longer sounds like the maths.
+- **A correction has a kind.** Each lesson call now says whether the change was
+  *style*, *fact* or *cosmetic*. A **fact** the AI got wrong is filed as a
+  teaching note carrying the question and the corrected answer as a key fact,
+  which every app in the family reads — marking included. A lesson that
+  restates one already learned is filed under that lesson's exact words.
+- **📌 Make it a house rule.** A lesson the teacher has had to teach twice is
+  offered on the panel as a house rule; one press writes it as general guidance,
+  which reaches every answer, mark and hint in all four apps.
+- **The inferred marking standard never marks.** The profile's own
+  `markingStandards`, worked out by the model from your answers, no longer
+  reaches a marking prompt in this app (nor in Scan or Study Buddy). Only a
+  standard you typed decides a mark.
+- **Is the style helping?** The fit score is now split into answers written
+  *with* your style in the prompt against *without* it, and by the profile
+  that was in force, so a rebuild can be judged on its own generations.
+- **✍️ Put on page** on every answer-key row places that answer on the
+  worksheet as a text box with the generation remembered — so what you leave
+  in it at the next save is a correction like any other. The key was the
+  biggest thing this app wrote and the only one that could never learn.
+- **🎯 Teach it 10 answers.** Pick a level and subject, ask for ten typical
+  questions, answer them once in your own words, and they go into the corpus as
+  question-bearing exemplars — the fastest way to give a new level a voice.
+
 ## v1.99.0 — All the apps under one roof
 
 - **🧭 Apps** in the header lists every Polymath app — the four subject portals

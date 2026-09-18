@@ -1955,6 +1955,23 @@
     cursor: pointer; color: var(--ink-faint); font-size: 0.9rem; line-height: 1; padding: 4px;
   }
   .tnLearnX:hover { color: #a4442c; }
+  .tnLearnRecur { margin-bottom: 14px; }
+  .tnLearnSub { font-size: 0.78rem; font-weight: bold; color: var(--ink-soft); margin-bottom: 8px; }
+  .tnLearnRowRecur { padding-right: 16px; border-color: #d9c48a; background: #fffbf0; }
+  .tnLearnCount { font-size: 0.72rem; font-weight: bold; color: #7a5c00; background: #f5e6b8; border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
+  .tnLearnSrc { font-size: 0.72rem; color: var(--ink-faint); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; margin-left: 4px; }
+  .tnBtnRowTight { margin-top: 6px; gap: 12px; }
+  .tnFitSplit { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .btn.btnSmall { font-size: 0.76rem; padding: 6px 12px; }
+  .akPutBtn { margin: 8px 0 4px; }
+  .calGrid { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 14px 0; }
+  .calRow { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .calQ { font-size: 0.86rem; line-height: 1.55; margin-bottom: 8px; }
+  .calQ b { color: var(--ink-soft); margin-right: 6px; }
+  .calRow textarea { width: 100%; min-height: 64px; resize: vertical; font: inherit; font-size: 0.86rem; line-height: 1.5; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; box-sizing: border-box; }
+  .calPick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+  .calPick select { font: inherit; font-size: 0.86rem; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; }
+  .calStatus { font-size: 0.8rem; color: var(--ink-soft); min-height: 1.4em; margin-top: 8px; }
   .tnBuckets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
   .tnBucket {
     font-size: 0.75rem; padding: 6px 13px; border-radius: 999px;
@@ -4871,6 +4888,34 @@
   </div>
 </div>
 
+<div class="modalBack" id="calibModal">
+  <div class="modalCard tnWide">
+    <div class="modalHead">
+      <h2>🎯 Teach Chung GPT how you answer</h2>
+      <button class="modalClose" id="calibCloseBtn" title="Close">&#10005;</button>
+    </div>
+    <div class="modalBody">
+      <div class="profileIntro">
+        Ten typical questions for one level and subject, answered once in your own words. Each answer goes
+        straight into your style corpus as an example with its question attached &mdash; the strongest kind of
+        example there is &mdash; so a level you have not yet marked thirty worksheets for sounds like you from the
+        first answer. Skip any question; only the ones you answer are learned.
+      </div>
+      <div class="calPick">
+        <label>Level <select id="calibLevel"></select></label>
+        <label>Subject <select id="calibSubject"></select></label>
+        <button class="btn" id="calibAskBtn" type="button">✨ Ask for 10 questions</button>
+      </div>
+      <div class="calGrid" id="calibGrid"></div>
+      <div class="calStatus" id="calibStatus"></div>
+      <div class="modalActions">
+        <button class="btn" id="calibCancelBtn" type="button">Cancel</button>
+        <button class="btn btnPrimary" id="calibSaveBtn" type="button" disabled>Learn these answers</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modalBack" id="noteEditModal">
   <div class="modalCard tnWide">
     <div class="modalHead">
@@ -4990,7 +5035,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.99.0';
+var APP_VERSION = 'v1.100.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -14285,6 +14330,16 @@ $('aiEngineModal').addEventListener('click', function (e) {
 var TEACHING_NOTES_COLL = 'teachingNotes';
 var AI_TRAINING_COLL = 'aiTraining';
 var AI_STYLE_DOC = 'answerStyle';
+/* ---- THE SCIENCE PORTAL'S CORRECTIONS (v1.100.0) ----
+   `polymathlc/cer` keeps the corrections its teacher makes to AI-written
+   answers in a document of its OWN, `users/{adminUid}/settings/answerStyle`,
+   with no profile and no exemplars. This app READS that document and folds
+   its edits into the science buckets here, so a correction made on a question
+   in the Science portal is obeyed by the very next science answer this app
+   writes — and distilled into the science profile every other app then reads.
+   This app never WRITES it: the corrections in it are that app's to keep. */
+var CER_STYLE_COLL = 'settings';
+var CER_STYLE_DOC = 'answerStyle';
 /* A student's device has no idea who the teacher is until it opens one of
    their worksheets — every worksheet carries `ownerUid`, so the first one
    opened teaches the app where the notes live, and it is remembered. */
@@ -14292,6 +14347,8 @@ var NOTES_OWNER_KEY = 'anskeyNotesOwnerUid';
 
 var teachingNotes = [];       // [{ id, title, keywords[], markingStandards, keyFacts, … }]
 var aiStyle = null;           // { samples: [], profile: {}, profileSamples, learnedDocs: {} }
+var cerStyle = null;          // the Science portal's own corrections document, read-only here
+var cerStyleUnsub = null;     // …and its live listener
 var notesOwnerUid = '';
 var notesLoaded = false;
 var notesLoading = null;      // in-flight load, so ten callers make one read
@@ -14403,6 +14460,9 @@ function notesCollRef(owner) {
 function styleDocRef(owner) {
   return db.collection('users').doc(owner).collection(AI_TRAINING_COLL).doc(AI_STYLE_DOC);
 }
+function cerStyleDocRef(owner) {
+  return db.collection('users').doc(owner).collection(CER_STYLE_COLL).doc(CER_STYLE_DOC);
+}
 
 /* A worksheet was opened: it knows whose worksheet it is, so the notes can
    be fetched on a student's device too. */
@@ -14428,7 +14488,8 @@ function notesNoteOwner(data) {
 function notesDetach() {
   if (notesUnsub) { try { notesUnsub(); } catch (e) {} }
   if (styleUnsub) { try { styleUnsub(); } catch (e) {} }
-  notesUnsub = styleUnsub = null;
+  if (cerStyleUnsub) { try { cerStyleUnsub(); } catch (e) {} }
+  notesUnsub = styleUnsub = cerStyleUnsub = null;
   notesWatching = '';
 }
 function stopTeachingNotes() {
@@ -14440,6 +14501,7 @@ function stopTeachingNotes() {
   notesLoading = null;
   teachingNotes = [];
   aiStyle = null;
+  cerStyle = null;
 }
 /* A repaint must never cost what the teacher is in the middle of typing:
    renderNotesBody() rebuilds the whole window, so a snapshot arriving mid
@@ -14482,6 +14544,14 @@ function loadTeachingNotes(force) {
       aiStyle = snap.exists ? snap.data() : null;
       notesLiveRepaint();
     }, function (e) { console.warn('AI style profile could not be read', e); });
+    /* The Science portal's corrections, live for the same reason the notebook
+       is: a correction made there mid-lesson has to reach the next science
+       answer written here. A denied read is a console line and nothing more —
+       the corpus this app grows itself is still in force. */
+    cerStyleUnsub = cerStyleDocRef(owner).onSnapshot(function (snap) {
+      cerStyle = snap.exists ? snap.data() : null;
+      notesLiveRepaint();
+    }, function (e) { console.warn('Science portal corrections could not be read', e); });
   } catch (e) {
     console.warn('Teaching notes listener could not start', e);
     finish();
@@ -14636,6 +14706,15 @@ function styleBucketOfSample(s) {
 function styleSamplesIn(bucket) {
   var all = styleSamples();
   if (!bucket || bucket === '_global') return all;
+  /* `any:science` is every science answer whatever its level; `p5:any` is
+     every P5 answer whatever its subject. A pair matches exactly. */
+  var bits = String(bucket).split(':');
+  if (bits[0] === 'any' && bits[1] && bits[1] !== 'any') {
+    return all.filter(function (s) { return String((s && s.sub) || '').toLowerCase() === bits[1]; });
+  }
+  if (bits[1] === 'any' && bits[0] && bits[0] !== 'any') {
+    return all.filter(function (s) { return String((s && s.lvl) || '').toLowerCase() === bits[0]; });
+  }
   return all.filter(function (s) { return styleBucketOfSample(s) === bucket; });
 }
 /* Which profile a worksheet gets, and WHY — the panel prints the reason, so a
@@ -14649,6 +14728,18 @@ function styleProfilePick(lvl, sub) {
   var n = key === '_global' ? styleSamples().length : styleSamplesIn(key).length;
   if (key !== '_global' && ps[key] && n >= STYLE_BUCKET_MIN) {
     return { profile: ps[key], bucket: key, fell: false, n: n };
+  }
+  /* THE SUBJECT-ONLY BUCKET SITS BETWEEN THE PAIR AND THE GLOBAL ONE
+     (v1.100.0). A P4 Science worksheet with eleven P4 answers behind it used
+     to fall straight to the global profile — which averages the maths in —
+     while eighty science answers at other levels sat unused. `any:science`
+     is distilled from every science answer whatever its level, so the fall
+     is one step rather than the whole way. Every other reader (the Science
+     portal, Scan, Study Buddy) walks the same three steps. */
+  var subKey = styleBucketKey('', sub);
+  if (subKey !== '_global' && subKey !== key && ps[subKey]) {
+    var sn = styleSamplesIn(subKey).length;
+    if (sn >= STYLE_BUCKET_MIN) return { profile: ps[subKey], bucket: subKey, fell: true, n: sn };
   }
   var g = ps._global || st.profile || null;
   return { profile: g, bucket: '_global', fell: key !== '_global', n: n };
@@ -14800,6 +14891,43 @@ function styleSamples() {
 }
 function styleEdits() {
   return (aiStyle && Array.isArray(aiStyle.edits)) ? aiStyle.edits : [];
+}
+/* The Science portal's corrections, in THIS app's shape. Its records carry a
+   `slot` rather than a `k`, and a subject of their own ('science', always), so
+   they are mapped on the way in: `k` is namespaced under `cer:` so it can
+   never collide with a slot this app wrote, and `src` says where it came from
+   so the panel and the ✕ button both know it is not theirs to delete. */
+function cerEdits() {
+  var list = (cerStyle && Array.isArray(cerStyle.edits)) ? cerStyle.edits : [];
+  var out = [];
+  list.forEach(function (e) {
+    if (!e || !e.wrote || !e.a) return;
+    out.push({
+      k: 'cer:' + String(e.slot || e.k || ''),
+      q: styleTrim(e.q || '', STYLE_Q_CHARS),
+      wrote: styleTrim(e.wrote, STYLE_EDIT_CHARS),
+      a: styleTrim(e.a, STYLE_EDIT_CHARS),
+      dist: typeof e.dist === 'number' ? e.dist : 0,
+      lvl: String(e.lvl || '').toLowerCase(),
+      sub: String(e.sub || 'science').toLowerCase(),
+      note: styleTrim(e.note || '', STYLE_NOTE_CHARS),
+      noteKind: e.noteKind || '',
+      promoted: !!e.promoted,
+      at: e.at || '',
+      src: 'cer'
+    });
+  });
+  return out;
+}
+/* EVERY correction the teacher has made, in either app. This is what SERVES —
+   the lessons, the raw pairs, the rebuild's evidence. What WRITES still goes
+   through `styleEdits()` alone: the portal's records are the portal's. */
+function styleEditsAll() {
+  var mine = styleEdits().map(function (e) {
+    if (e && !e.src) e.src = 'anskey';
+    return e;
+  });
+  return mine.concat(cerEdits());
 }
 function styleScores() {
   return (aiStyle && Array.isArray(aiStyle.scores)) ? aiStyle.scores : [];
@@ -15194,12 +15322,21 @@ function styleHarvestTyped(anns, docId, meta) {
    an edit nobody could attribute anyway. */
 var styleGen = {};
 
-function styleNoteGenerated(id, q, text) {
+function styleNoteGenerated(id, q, text, grounded) {
   if (!isAdmin(currentUser) || actingStudent) return;
   if (!id || !text) return;
+  /* `grounded` says whether the style block was in the prompt that wrote
+     this — so the fit score can be split into "with the style" and "without",
+     which is the only honest way to say whether following it helps. The
+     bucket and the profile's date ride along for the same reason: a rebuild
+     can then be judged on the generations made under it. */
+  var pick = styleProfilePick(wsMeta && wsMeta.level, wsMeta && wsMeta.subject);
   styleGen[id] = {
     q: styleTrim(q || '', STYLE_Q_CHARS),
     wrote: styleTrim(text, STYLE_EDIT_CHARS),
+    g: grounded === undefined ? true : !!grounded,
+    bucket: pick.bucket,
+    pAt: (pick.profile && pick.profile.at) || (aiStyle && aiStyle.profileAt) || '',
     at: Date.now()
   };
   var a = (annotations || []).find(function (x) { return x.id === id; });
@@ -15271,6 +15408,7 @@ function styleCollectEdits(anns, docId, meta) {
     if (styleUpsert(st.scores, {
       k: slot + ':s:' + keptHash, dist: dist,
       lvl: (meta && meta.level) || '', sub: (meta && meta.subject) || '',
+      g: gen.g !== false, bucket: gen.bucket || '', pAt: gen.pAt || '',
       at: new Date().toISOString()
     }, STYLE_SCORES_MAX)) scored++;
     if (dist <= STYLE_EDIT_TRIVIAL) {
@@ -15310,12 +15448,35 @@ function styleFitReport() {
     return t / list.length;
   };
   var kept = recent.filter(function (x) { return ((x && x.dist) || 0) <= STYLE_EDIT_TRIVIAL; }).length;
+  /* SPLIT BY WHETHER THE STYLE WAS IN THE PROMPT (v1.100.0). A trend over
+     every generation cannot tell "the profile is helping" from "the teacher
+     is asking easier questions"; the same window read with the style against
+     without it can. A score from before the flag existed carries none and is
+     counted as grounded, which is what it was. */
+  var withStyle = sc.filter(function (x) { return x && x.g !== false; });
+  var without = sc.filter(function (x) { return x && x.g === false; });
+  /* …and by the profile that was in force, so a rebuild can be judged on the
+     generations made under it rather than on everything since the beginning. */
+  var byProfile = {};
+  sc.forEach(function (x) {
+    if (!x) return;
+    var k = (x.bucket || '_global') + '@' + (x.pAt || '');
+    if (!byProfile[k]) byProfile[k] = { bucket: x.bucket || '_global', pAt: x.pAt || '', n: 0, t: 0 };
+    byProfile[k].n++;
+    byProfile[k].t += x.dist || 0;
+  });
   return {
     n: sc.length,
     now: mean(recent),
     before: mean(older),
     accepted: kept,
-    of: recent.length
+    of: recent.length,
+    grounded: { n: withStyle.length, mean: mean(withStyle.slice(-w)) },
+    ungrounded: { n: without.length, mean: mean(without.slice(-w)) },
+    profiles: Object.keys(byProfile).map(function (k) {
+      var p = byProfile[k];
+      return { bucket: p.bucket, pAt: p.pAt, n: p.n, mean: p.n ? p.t / p.n : null };
+    })
   };
 }
 
@@ -15327,16 +15488,23 @@ function styleFitReport() {
    `fixes` they need no rebuild to take effect — and unlike the raw pairs they
    say what to DO rather than leaving the model to infer it every time. */
 function styleLessons(lvl, sub) {
-  var all = styleEdits().filter(function (e) { return e && String(e.note || '').trim(); });
+  var all = styleEditsAll().filter(function (e) { return e && String(e.note || '').trim(); });
   if (!all.length) return [];
   var bucket = styleBucketKey(lvl, sub);
   var mine = all.filter(function (e) { return styleBucketKey(e.lvl, e.sub) === bucket; });
-  var rest = all.filter(function (e) { return mine.indexOf(e) < 0; });
+  /* The same subject at another level comes before the other subject: a
+     lesson learned on P5 Science is far more likely to hold on P4 Science
+     than one learned on P5 Maths. */
+  var subj = String(sub || '').toLowerCase();
+  var same = subj ? all.filter(function (e) {
+    return mine.indexOf(e) < 0 && String(e.sub || '').toLowerCase() === subj;
+  }) : [];
+  var rest = all.filter(function (e) { return mine.indexOf(e) < 0 && same.indexOf(e) < 0; });
   /* Bucket first, and NEWEST first inside each — reversing the concatenation
      instead reverses the two groups as well, which quietly serves another
      level's lessons ahead of this one's. */
   var out = [], seen = {};
-  mine.slice().reverse().concat(rest.slice().reverse()).forEach(function (e) {
+  mine.slice().reverse().concat(same.slice().reverse()).concat(rest.slice().reverse()).forEach(function (e) {
     var t = styleTrim(e.note, STYLE_NOTE_CHARS);
     var k = t.toLowerCase();
     if (!t || seen[k]) return;
@@ -15344,6 +15512,21 @@ function styleLessons(lvl, sub) {
     out.push(t);
   });
   return out.slice(0, STYLE_LESSONS_MAX);
+}
+/* Every DISTINCT lesson in the corpus, newest first, with how many corrections
+   taught it. A lesson two corrections share is a habit the app keeps getting
+   wrong — and the one the panel offers to make a house rule. */
+function styleLessonGroups() {
+  var groups = [], byKey = {};
+  styleEditsAll().slice().reverse().forEach(function (e) {
+    var t = styleTrim((e && e.note) || '', STYLE_NOTE_CHARS);
+    if (!t) return;
+    var k = t.toLowerCase();
+    if (!byKey[k]) { byKey[k] = { text: t, edits: [], promoted: false }; groups.push(byKey[k]); }
+    byKey[k].edits.push(e);
+    if (e.promoted) byKey[k].promoted = true;
+  });
+  return groups;
 }
 
 /* ---- ASKING WHAT THE CORRECTION MEANT ----
@@ -15362,14 +15545,105 @@ function styleLessons(lvl, sub) {
    worth having and worth nothing beside the worksheet itself. It also yields
    to the teacher (`aiBusy`), so a background call can never answer ✨ Answer
    with "the AI is busy". */
+/* ---- WHAT KIND OF CORRECTION WAS IT? (v1.100.0) ----
+   The first version asked for the lesson alone, told the model "never about
+   this one question's facts", and so a FACT the teacher corrected \u2014 the AI
+   wrote 24 g and they changed it to 42 g \u2014 produced no lesson and was thrown
+   away, on exactly the correction that matters most to the next child who
+   meets that question. The call now says which of three things it was:
+     style    \u2192 a lesson, served in every answer prompt as before;
+     fact     \u2192 NO style lesson (a fact is not a habit), and instead a teaching
+                note carrying the question and the corrected answer as a key
+                fact \u2014 which is the one channel that already reaches every
+                app in the family, marking included;
+     cosmetic \u2192 nothing, asked once.
+   And `sameAs`: the model is handed the lessons already held, and a
+   correction that restates one of them is filed under that lesson's EXACT
+   text rather than a fresh paraphrase \u2014 so counting by text says how many
+   times the teacher has had to make the same point, which is what the panel
+   offers to turn into a house rule. */
 var STYLE_NOTE_SYS =
-  'A teacher has corrected an answer that an AI wrote for them. Write the ONE lesson that would have made the AI write the teacher\'s version first time.\n' +
-  'Rules:\n' +
+  'A teacher has corrected an answer that an AI wrote for them. Decide what kind of correction it was, and write the ONE lesson that would have made the AI write the teacher\'s version first time.\n' +
+  'Kinds:\n' +
+  '\u2022 "style": the science was right and the teacher changed HOW it was said \u2014 the length, the wording, the structure, what must be named or stated, the order. This is the only kind that gets a lesson.\n' +
+  '\u2022 "fact": the teacher changed WHAT the answer says \u2014 a number, a process, a name, a direction, a conclusion \u2014 because the AI was wrong about this question. Return an empty lesson: a fact is not a habit.\n' +
+  '\u2022 "cosmetic": punctuation, a synonym, tidier grammar, a shorter sentence saying the same thing. Return an empty lesson.\n' +
+  'Rules for the lesson:\n' +
   '\u2022 ONE sentence, at most 25 words, written as an instruction to whoever writes the next answer \u2014 "State the direction of heat flow", never "the teacher added the direction".\n' +
   '\u2022 About HOW to answer: the science that must be named, the wording expected, the length, what has to be stated. Never about this one question\'s facts.\n' +
-  '\u2022 If the change is only cosmetic \u2014 punctuation, a synonym, tidier grammar, a shorter sentence saying the same thing \u2014 there is NO lesson. Return an empty string.\n' +
-  'Return ONLY JSON: {"lesson":"..."}';
+  '\u2022 You may be given a numbered list of lessons already learned. If this correction teaches the SAME thing as one of them, return that lesson\'s number as "sameAs" and copy its text as the lesson, word for word. Otherwise "sameAs" is null.\n' +
+  'Return ONLY JSON: {"kind":"style"|"fact"|"cosmetic","lesson":"...","sameAs":null}';
+var STYLE_NOTE_KINDS = ['style', 'fact', 'cosmetic'];
 var styleNoting = false;
+/* The lessons the model may point at instead of writing a new one: distinct,
+   newest first, capped so the call stays small. */
+function styleKnownLessons() {
+  return styleLessonGroups().map(function (g) { return g.text; }).slice(0, 40);
+}
+/* A FACT correction becomes a teaching note, in the same collection and the
+   same shape the \u270d\ufe0f quick note writes, so every app in the family reads it \u2014
+   marking included, because the corrected answer IS the standard for that
+   question. `keyFacts` carries the question and the answer the teacher left;
+   `sourceQuestion` is for the card only, never a prompt; `guidance` stays
+   EMPTY, or a fact about one beaker would be obeyed on every question. */
+function styleFactNoteFor(e) {
+  var q = styleTrim(e.q || '', STYLE_Q_CHARS);
+  var a = styleTrim(e.a || '', STYLE_EDIT_CHARS);
+  if (!a) return null;
+  var levels = e.lvl ? [String(e.lvl).toUpperCase()] : [];
+  var subjects = e.sub ? [String(e.sub).toLowerCase()] : [];
+  return {
+    title: 'Correction: ' + (q ? styleTrim(q, 60) : styleTrim(a, 60)),
+    fileName: '',
+    comment: '',
+    guidance: '',
+    noteKind: 'correction',
+    topics: [],
+    noteTopics: [],
+    subjects: subjects,
+    levels: levels,
+    keywords: [],
+    markingStandards: '',
+    keyFacts: (q ? 'Q: ' + q + '\n' : '') + 'Correct answer: ' + a,
+    sourceQuestion: q,
+    source: 'anskey',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+function styleWriteFactNote(e) {
+  if (!isAdmin(currentUser) || e.factNoted) return Promise.resolve(false);
+  var note = styleFactNoteFor(e);
+  if (!note) return Promise.resolve(false);
+  var id = 'note_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  return notesCollRef(currentUser.uid).doc(id).set(note).then(function () {
+    e.factNoted = id;
+    return true;
+  }).catch(function (err) {
+    console.warn('style: fact note not written', err);
+    return false;
+  });
+}
+function styleReadLessonReply(raw, known) {
+  var pj = _parseAIJson(raw);
+  if (Array.isArray(pj)) pj = pj[0];
+  pj = pj || {};
+  var kind = String(pj.kind || '').toLowerCase();
+  if (STYLE_NOTE_KINDS.indexOf(kind) < 0) kind = '';
+  var lesson = styleTrim(pj.lesson || '', STYLE_NOTE_CHARS);
+  var same = pj.sameAs;
+  if (typeof same === 'string' && /^\d+$/.test(same)) same = parseInt(same, 10);
+  if (typeof same === 'number' && same >= 1 && same <= (known || []).length) {
+    lesson = known[same - 1];
+    if (!kind) kind = 'style';
+  }
+  /* A lesson with no kind is a style lesson \u2014 that is what the field meant
+     before the kinds existed. A kind that forbids a lesson wins over one the
+     model wrote anyway. */
+  if (!kind) kind = lesson ? 'style' : 'cosmetic';
+  if (kind !== 'style') lesson = '';
+  return { kind: kind, lesson: lesson };
+}
 function styleWriteNotes() {
   if (styleNoting || !styleHarvestAllowed() || !window.askGemini) return;
   var st = styleEnsure();
@@ -15378,17 +15652,22 @@ function styleWriteNotes() {
   if (aiBusy) { setTimeout(styleWriteNotes, 4000); return; }
   styleNoting = true;
   var batch = todo.slice(0, STYLE_NOTE_PAR);
+  var known = styleKnownLessons();
+  var knownBlock = known.length
+    ? '\n\nLessons already learned:\n' + known.map(function (t, i) { return (i + 1) + '. ' + t; }).join('\n')
+    : '';
   Promise.all(batch.map(function (e) {
     /* Marked BEFORE the call, so a correction the model has nothing to say
        about is not re-asked on every save for the rest of the account's life. */
     e.noteTried = true;
     var body = (e.q ? 'The question: ' + e.q + '\n\n' : '') +
-      'What the AI wrote:\n' + e.wrote + '\n\nWhat the teacher changed it to:\n' + e.a;
-    return window.askGemini(body, { system: STYLE_NOTE_SYS, maxOutputTokens: 220, temperature: 0.2, json: true })
+      'What the AI wrote:\n' + e.wrote + '\n\nWhat the teacher changed it to:\n' + e.a + knownBlock;
+    return window.askGemini(body, { system: STYLE_NOTE_SYS, maxOutputTokens: 260, temperature: 0.2, json: true })
       .then(function (raw) {
-        var pj = _parseAIJson(raw);
-        if (Array.isArray(pj)) pj = pj[0];
-        e.note = styleTrim((pj && pj.lesson) || '', STYLE_NOTE_CHARS);
+        var got = styleReadLessonReply(raw, known);
+        e.note = got.lesson;
+        e.noteKind = got.kind;
+        if (got.kind === 'fact') return styleWriteFactNote(e);
       })
       .catch(function (err) { console.warn('style: lesson not written', err); });
   })).then(function () {
@@ -15425,11 +15704,15 @@ function styleEditRules(lvl, sub) {
    it. They are capped hard — three pairs is enough to change the next answer
    and small enough to carry on every call. */
 function styleRecentEdits(q, lvl, sub, cap) {
-  var all = styleEdits().filter(function (e) { return e && e.wrote && e.a; });
+  var all = styleEditsAll().filter(function (e) { return e && e.wrote && e.a; });
   if (!all.length) return [];
   var bucket = styleBucketKey(lvl, sub);
   var mine = all.filter(function (e) { return styleBucketKey(e.lvl, e.sub) === bucket; });
-  var pool = mine.length ? mine : all;
+  /* Then the same SUBJECT at any level, then everything — a maths correction
+     is the last thing to show beside a science question. */
+  var subj = String(sub || '').toLowerCase();
+  var same = subj ? all.filter(function (e) { return String(e.sub || '').toLowerCase() === subj; }) : [];
+  var pool = mine.length ? mine : (same.length ? same : all);
   var n = cap || STYLE_PAIRS_MAX;
   if (q) {
     var scored = pool.map(function (e, i) { return { e: e, v: _styleOverlap(q, e.q || e.a), i: i }; })
@@ -15721,10 +16004,15 @@ function _styleProfileBits(p, kind, exemplars, fixes, pairs, lessons) {
   if (p) {
     var rules = String(p.styleRules || '').trim().slice(0, STYLE_RULE_CHARS);
     var phrasing = String(p.phrasing || '').trim().slice(0, 400);
-    var marking = String(p.markingStandards || '').trim().slice(0, 500);
     if (rules) bits.push('How this teacher writes answers: ' + rules);
     if (phrasing) bits.push('Phrasing: ' + phrasing);
-    if (kind === 'mark' && marking) bits.push('How this teacher marks: ' + marking);
+    /* `p.markingStandards` is INFERRED by the model from the teacher's answers
+       and deliberately reaches NO marking prompt (v1.100.0). It used to: a
+       standard nobody typed, worked out by a machine from what an answer
+       LOOKED like, deciding how thirty children were marked — the very thing
+       📚 auto-learn refuses to write. A marking standard the teacher wants
+       obeyed is typed as a note or as guidance, and then it is theirs. The
+       field stays on the profile for the panel and for writing answers. */
     var kw = (Array.isArray(p.keywords) ? p.keywords : []).slice(0, 24)
                .map(function (s) { return String(s).trim(); }).filter(Boolean);
     if (kw.length) bits.push('Words the teacher uses again and again: ' + kw.join(', ') + '.');
@@ -15831,9 +16119,20 @@ function _styleEditLines(list) {
 /* The edits that belong to this bucket, newest first, biggest change first —
    a rewrite says more than a tweak. */
 function styleEditsFor(bucket, cap) {
-  var all = styleEdits().filter(function (e) { return e && e.wrote && e.a; });
+  /* Only STYLE corrections teach a rebuild: a fact the AI got wrong on one
+     beaker is filed as a teaching note, not distilled into a habit. A record
+     from before the kinds existed carries no kind and is kept. */
+  var all = styleEditsAll().filter(function (e) {
+    return e && e.wrote && e.a && e.noteKind !== 'fact' && e.noteKind !== 'cosmetic';
+  });
   var mine = bucket && bucket !== '_global'
-    ? all.filter(function (e) { return styleBucketKey(e.lvl, e.sub) === bucket; })
+    ? all.filter(function (e) {
+        var bk = styleBucketKey(e.lvl, e.sub);
+        if (bk === bucket) return true;
+        /* A subject-only bucket takes every correction in that subject. */
+        var bits = String(bucket).split(':');
+        return bits[0] === 'any' && String(e.sub || '').toLowerCase() === bits[1];
+      })
     : all;
   if (mine.length < 3) mine = all;
   return mine.slice(-40).sort(function (a, b) { return (b.dist || 0) - (a.dist || 0); }).slice(0, cap || 12);
@@ -16044,10 +16343,24 @@ async function styleDistilAll(quiet) {
     if (k === '_global') return;
     counts[k] = (counts[k] || 0) + 1;
   });
-  var buckets = Object.keys(counts)
+  /* THE SUBJECT-ONLY BUCKETS COME FIRST (v1.100.0). `any:science` is what
+     the Science portal, and a science worksheet at a level with too few
+     answers of its own, fall back to — so it is rebuilt whenever there are
+     enough science answers to distil, before the level pairs are. */
+  var bySub = {};
+  styleSamples().forEach(function (s) {
+    var sub = String((s && s.sub) || '').toLowerCase();
+    if (!sub) return;
+    bySub[sub] = (bySub[sub] || 0) + 1;
+  });
+  var subBuckets = Object.keys(bySub)
+    .filter(function (sub) { return bySub[sub] >= STYLE_BUCKET_MIN; })
+    .sort(function (a, b) { return bySub[b] - bySub[a]; })
+    .map(function (sub) { return styleBucketKey('', sub); });
+  var buckets = subBuckets.concat(Object.keys(counts)
     .filter(function (k) { return counts[k] >= STYLE_BUCKET_MIN; })
     .sort(function (a, b) { return counts[b] - counts[a]; })
-    .slice(0, STYLE_BUCKETS_MAX);
+    .slice(0, STYLE_BUCKETS_MAX));
   await styleDistil(quiet, '_global');
   for (var i = 0; i < buckets.length; i++) {
     if (!quiet) notesSetStatus('🧠 Working out how you write ' + styleBucketLabel(buckets[i]) + '…');
@@ -16071,6 +16384,190 @@ async function styleForget() {
   await styleSave();
   renderNotesBody();
   toast('Learned answers cleared.');
+}
+
+/* ================= 🎯 THE CALIBRATION SET (v1.100.0) =================
+   A bucket needs STYLE_BUCKET_MIN answers before it gets a profile of its
+   own, and a level the teacher has only just started marking has none — so
+   for a term it is answered in the global voice, which is the average of
+   everything and sounds like nobody. Ten questions answered once is a small
+   evening's work and gives that bucket ten exemplars of the best kind: each
+   carries its question, so it can be retrieved for a question like it, held
+   out against a rebuild, and regenerated under a draft profile. They are
+   ordinary samples (`src: 'calib'`), keyed under a synthetic worksheet id so
+   `stylePruneDoc` — which sweeps only `typed` samples — never touches them.
+
+   The questions come from the model, not from a list in this file: a fixed
+   list would be one more copy of the syllabus to keep in step, and a teacher
+   can press the button again for ten different ones. Nothing about the
+   ANSWERS comes from the model — that is the whole point. */
+var CALIB_COUNT = 10;
+var CALIB_SYS =
+  'You are helping a tuition teacher in Singapore record how they answer. Write ' + CALIB_COUNT +
+  ' typical exam-style questions for the level and subject given — the kinds of question a worksheet ' +
+  'at that level really asks, spread across the syllabus, a mix of short-answer and explain-why, ' +
+  'no multiple choice, each answerable in one to four sentences (or a short working, for maths). ' +
+  'Reply with STRICT JSON only: {"questions":["...","..."]}. Plain text, no numbering, no markdown.';
+var calib = { level: '', subject: '', questions: [] };
+function calibLevels() {
+  return (typeof LEVELS !== 'undefined' && Array.isArray(LEVELS)) ? LEVELS : ['P3', 'P4', 'P5', 'P6', 'S1'];
+}
+function calibSubjects() {
+  return [{ value: 'science', label: 'Science' }, { value: 'math', label: 'Mathematics' }];
+}
+function openCalibModal() {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  var modal = $('calibModal');
+  if (!modal) return;
+  var lv = $('calibLevel'), sb = $('calibSubject');
+  if (lv && !lv.options.length) {
+    calibLevels().forEach(function (l) {
+      var o = document.createElement('option'); o.value = l; o.textContent = levelLabel(l); lv.appendChild(o);
+    });
+  }
+  if (sb && !sb.options.length) {
+    calibSubjects().forEach(function (s) {
+      var o = document.createElement('option'); o.value = s.value; o.textContent = s.label; sb.appendChild(o);
+    });
+  }
+  if (lv && wsMeta && wsMeta.level) lv.value = wsMeta.level;
+  if (sb && wsMeta && wsMeta.subject && wsMeta.subject !== 'both') sb.value = wsMeta.subject;
+  var close = $('calibCloseBtn'), cancel = $('calibCancelBtn'), ask = $('calibAskBtn'), save = $('calibSaveBtn');
+  if (close) close.onclick = closeCalibModal;
+  if (cancel) cancel.onclick = closeCalibModal;
+  if (ask) ask.onclick = calibAsk;
+  if (save) save.onclick = calibSave;
+  calibRender();
+  modal.classList.add('open');
+}
+function closeCalibModal() {
+  var modal = $('calibModal');
+  if (modal) modal.classList.remove('open');
+}
+function calibStatus(msg) {
+  var el = $('calibStatus');
+  if (el) el.textContent = msg || '';
+}
+function calibRender() {
+  var grid = $('calibGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  var save = $('calibSaveBtn');
+  if (!calib.questions.length) {
+    var empty = document.createElement('div');
+    empty.className = 'tnEmpty';
+    empty.textContent = 'Pick the level and subject, then ask for ten questions.';
+    grid.appendChild(empty);
+    if (save) save.disabled = true;
+    return;
+  }
+  calib.questions.forEach(function (q, i) {
+    var row = document.createElement('div');
+    row.className = 'calRow';
+    var qEl = document.createElement('div');
+    qEl.className = 'calQ';
+    var num = document.createElement('b');
+    num.textContent = (i + 1) + '.';
+    qEl.appendChild(num);
+    qEl.appendChild(document.createTextNode(q));   // model output — never innerHTML
+    row.appendChild(qEl);
+    var ta = document.createElement('textarea');
+    ta.placeholder = 'Your answer, exactly as you would write it on the worksheet — or leave it blank to skip.';
+    ta.dataset.calibIndex = String(i);
+    ta.addEventListener('keydown', function (e) { e.stopPropagation(); });
+    ta.addEventListener('input', calibSyncSave);
+    row.appendChild(ta);
+    grid.appendChild(row);
+  });
+  calibSyncSave();
+}
+function calibAnswers() {
+  var out = [];
+  var tas = document.querySelectorAll('#calibGrid textarea[data-calib-index]');
+  Array.prototype.forEach.call(tas, function (ta) {
+    var i = parseInt(ta.dataset.calibIndex, 10);
+    var a = String(ta.value || '').trim();
+    if (!a || !calib.questions[i]) return;
+    out.push({ i: i, q: calib.questions[i], a: a });
+  });
+  return out;
+}
+function calibSyncSave() {
+  var save = $('calibSaveBtn');
+  if (!save) return;
+  var n = calibAnswers().length;
+  save.disabled = !n;
+  save.textContent = n ? 'Learn these ' + n + ' answer' + (n === 1 ? '' : 's') : 'Learn these answers';
+}
+async function calibAsk() {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) {
+    calibStatus('AI is not available — check your connection and reload the page.');
+    return;
+  }
+  if (aiBusy) { calibStatus(aiEngineName() + ' is busy — one moment…'); return; }
+  var lv = $('calibLevel'), sb = $('calibSubject');
+  calib.level = (lv && lv.value) || '';
+  calib.subject = (sb && sb.value) || '';
+  var ask = $('calibAskBtn');
+  if (ask) ask.disabled = true;
+  aiBusy = true;
+  calibStatus('✨ Writing ' + CALIB_COUNT + ' ' + levelLabel(calib.level) + ' ' + subjectLabel(calib.subject) + ' questions…');
+  try {
+    var raw = await window.askGemini(
+      'Level: ' + levelLabel(calib.level) + '. Subject: ' + subjectLabel(calib.subject) + '. Write the questions.',
+      { system: CALIB_SYS, maxOutputTokens: 1400, temperature: 0.7, json: true });
+    var res = _parseAIJson(raw);
+    var qs = (res && Array.isArray(res.questions)) ? res.questions : [];
+    qs = qs.map(function (q) { return styleTrim(q, STYLE_Q_CHARS); }).filter(Boolean).slice(0, CALIB_COUNT);
+    if (!qs.length) throw new Error('no questions came back');
+    calib.questions = qs;
+    calibStatus('');
+    calibRender();
+  } catch (e) {
+    console.warn('calibration questions', e);
+    calibStatus('Could not write the questions: ' + ((e && e.message) || e));
+  } finally {
+    aiBusy = false;
+    if (ask) ask.disabled = false;
+  }
+}
+async function calibSave() {
+  if (!isAdmin(currentUser) || actingStudent) return;
+  /* The question is known, so a short answer is an answer — that is the rule
+     `styleWorthLearning` carries for a box with `aiQ`. */
+  var answers = calibAnswers().filter(function (x) { return styleWorthLearning(x.a, true); });
+  if (!answers.length) return;
+  var batch = answers.map(function (x) {
+    return {
+      k: 'calib:' + String(calib.level).toLowerCase() + '-' + String(calib.subject).toLowerCase() + ':' + x.i + ':' +
+         _styleHash32(styleTrim(x.a, 240).toLowerCase()),
+      src: 'calib',
+      q: styleTrim(x.q, STYLE_Q_CHARS),
+      a: styleTrim(x.a, STYLE_SAMPLE_CHARS),
+      lvl: calib.level || '',
+      sub: calib.subject || '',
+      ws: 'Calibration set',
+      at: new Date().toISOString()
+    };
+  });
+  var added = styleAddSamples(batch);
+  var save = $('calibSaveBtn');
+  if (save) save.disabled = true;
+  calibStatus('⏳ Saving…');
+  var ok = await styleSave();
+  if (!ok) { calibStatus('Could not save — check your connection and try again.'); if (save) save.disabled = false; return; }
+  calibStatus('');
+  closeCalibModal();
+  calib.questions = [];
+  renderNotesBody();
+  var bucket = styleBucketKey(calib.level, calib.subject);
+  var n = styleSamplesIn(bucket).length;
+  toast('🎯 Learned ' + added + ' of your ' + styleBucketLabel(bucket) + ' answers — ' + n + ' of the ' +
+    STYLE_BUCKET_MIN + ' that bucket needs for a profile of its own.', 6000);
+  if (styleDistilDue(styleEnsure())) {
+    styleDistil(true).catch(function (e) { console.warn('Background style refresh failed', e); });
+  }
 }
 
 /* ================= Uploading notes ================= */
@@ -16468,7 +16965,32 @@ function notesFitHtml() {
       '<div class="tnFitSay">Over the last ' + fit.of + ' answers this app wrote for you, you kept ' + pct +
         '% of the wording.' + trend +
         ' Every answer you rewrite teaches it what to do differently next time.</div>' +
+      notesFitSplitHtml(fit) +
     '</div>';
+}
+/* The same number, split two ways that answer "is the style HELPING": the
+   generations written with the style block in the prompt against the ones
+   written without it, and the generations made under each profile in force.
+   A trend over everything cannot tell a better profile from easier questions;
+   these can. */
+function notesFitSplitHtml(fit) {
+  var bits = [];
+  var pctOf = function (m) { return m == null ? null : Math.round((1 - m) * 100); };
+  if (fit.grounded && fit.ungrounded && fit.grounded.n && fit.ungrounded.n && fit.grounded.mean != null && fit.ungrounded.mean != null) {
+    var g = pctOf(fit.grounded.mean), u = pctOf(fit.ungrounded.mean);
+    bits.push('With your style in the prompt you kept <b>' + g + '%</b> (' + fit.grounded.n + ' answers); without it <b>' + u + '%</b> (' + fit.ungrounded.n + ').' +
+      (g - u >= 3 ? ' Following your style is helping.' : (u - g >= 3 ? ' Following your style is not helping yet — rebuild it, or correct a few more answers.' : ' No difference to speak of yet.')));
+  }
+  var profs = (fit.profiles || []).filter(function (p) { return p.n >= 3 && p.mean != null; });
+  if (profs.length > 1) {
+    profs.sort(function (a, b) { return String(b.pAt).localeCompare(String(a.pAt)); });
+    bits.push('By the profile in force: ' + profs.slice(0, 4).map(function (p) {
+      return escHtml(styleBucketLabel(p.bucket)) + (p.pAt ? ' (' + escHtml(notesWhenText(p.pAt)) + ')' : '') +
+        ' <b>' + pctOf(p.mean) + '%</b> over ' + p.n;
+    }).join(' · ') + '.');
+  }
+  if (!bits.length) return '';
+  return '<div class="tnFitSay tnFitSplit">' + bits.join(' ') + '</div>';
 }
 
 /* Which profile the worksheet on screen is actually being answered with. A
@@ -16516,30 +17038,116 @@ function notesBucketsHtml() {
    dropped — dropping it takes the correction with it, because the pair is
    what would otherwise teach the same thing again on the very next answer. */
 function notesLessonsHtml() {
-  var edits = styleEdits().slice().reverse();
+  var edits = styleEditsAll().slice().reverse();
   if (!edits.length) return '';
   var withNote = edits.filter(function (e) { return String(e.note || '').trim(); }).length;
+  var facts = edits.filter(function (e) { return e.noteKind === 'fact'; }).length;
+  var fromCer = edits.filter(function (e) { return e.src === 'cer'; }).length;
+  /* The recurring lessons first: a lesson the teacher has had to teach twice
+     is the one worth a house rule, and the offer sits on the lesson rather
+     than on any one of the corrections behind it. */
+  var groups = styleLessonGroups().filter(function (g) { return g.edits.length >= 2; });
+  var recurring = groups.length
+    ? '<div class="tnLearnRecur"><div class="tnLearnSub">Lessons you have had to teach more than once</div>' +
+      groups.slice(0, 8).map(function (g) {
+        return '<div class="tnLearnRow tnLearnRowRecur">' +
+          '<div class="tnLearnNote">\ud83d\udca1 ' + escHtml(g.text) +
+            ' <span class="tnLearnCount">\u00d7' + g.edits.length + '</span></div>' +
+          (g.promoted
+            ? '<div class="tnCardMeta">\ud83d\udccc Already a house rule \u2014 every app follows it on every question.</div>'
+            : '<div class="tnBtnRow tnBtnRowTight"><button class="btn btnSmall" type="button" onclick="stylePromoteLesson(' +
+              JSON.stringify(g.text).replace(/</g, '\\u003c').replace(/'/g, '&#39;') +
+              ')">\ud83d\udccc Make it a house rule</button>' +
+              '<span class="tnCardMeta">A house rule reaches every answer, every mark and every hint, in all four apps.</span></div>') +
+          '</div>';
+      }).join('') + '</div>'
+    : '';
+  var kindWord = { fact: 'Filed as a key fact for that question, not as a habit', cosmetic: 'No lesson drawn from this one \u2014 the change was too small to teach anything' };
   var rows = edits.slice(0, 30).map(function (e) {
     var note = styleTrim(e.note || '', STYLE_NOTE_CHARS);
+    var where = e.src === 'cer' ? '<span class="tnLearnSrc">from the Science portal</span>' : '';
+    var none = kindWord[e.noteKind] || kindWord.cosmetic;
     return '<div class="tnLearnRow">' +
       '<div class="tnLearnNote">' + (note ? '\ud83d\udca1 ' + escHtml(note)
-        : '<span class="tnNone">No lesson drawn from this one \u2014 the change was too small to teach anything</span>') + '</div>' +
-      '<div class="tnLearnPair"><div><b>This app wrote:</b> ' + escHtml(styleTrim(e.wrote, 200)) + '</div>' +
+        : '<span class="tnNone">' + escHtml(e.noteTried || e.noteKind ? none : 'Working out the lesson\u2026') + '</span>') + ' ' + where + '</div>' +
+      '<div class="tnLearnPair"><div><b>' + (e.src === 'cer' ? 'The portal' : 'This app') + ' wrote:</b> ' + escHtml(styleTrim(e.wrote, 200)) + '</div>' +
       '<div><b>You changed it to:</b> ' + escHtml(styleTrim(e.a, 200)) + '</div></div>' +
-      '<button class="tnLearnX" type="button" onclick="styleForgetEdit(\'' + escHtml(e.k) + '\')" title="Forget this correction">\u2715</button>' +
+      (e.src === 'cer' ? ''
+        : '<button class="tnLearnX" type="button" onclick="styleForgetEdit(\'' + escHtml(e.k) + '\')" title="Forget this correction">\u2715</button>') +
       '</div>';
   }).join('');
   return '<div class="tnLearn"><div class="tnLearnHead">\ud83e\udde0 What your edits have taught this app</div>' +
     '<div class="tnLearnSay">' + edits.length + ' correction' + (edits.length === 1 ? '' : 's') +
-    ' kept \u00b7 ' + withNote + ' turned into a lesson the next answer follows.</div>' + rows + '</div>';
+    ' kept' + (fromCer ? ' (' + fromCer + ' from the Science portal)' : '') +
+    ' \u00b7 ' + withNote + ' turned into a lesson the next answer follows' +
+    (facts ? ' \u00b7 ' + facts + ' filed as key facts in your teaching notes' : '') + '.</div>' +
+    recurring + rows + '</div>';
 }
 function styleForgetEdit(k) {
+  /* A record namespaced `cer:` is the Science portal's own and is deleted
+     THERE; this app never writes that document. */
+  if (String(k || '').indexOf('cer:') === 0) {
+    toast('That correction was made in the Science portal — forget it from its Teaching Notes page.', 5000);
+    return;
+  }
   var st = styleEnsure();
   var at = st.edits.findIndex(function (e) { return e && e.k === k; });
   if (at < 0) return;
   st.edits.splice(at, 1);
   styleSave();
   if (typeof renderNotesBody === 'function') { try { renderNotesBody(); } catch (e) {} }
+}
+
+/* ---- A LESSON TAUGHT TWICE IS A HOUSE RULE (v1.100.0) ----
+   A lesson lives in the style block, which reaches answers and never marking,
+   and it is one of eight in a prompt. A rule the teacher has had to make two
+   or more times is a rule they want obeyed everywhere — and `guidance` is the
+   one channel that already reaches every kind of call in all four apps. So
+   the panel offers to promote it, and the promotion is a quick note by the
+   same door ✍️ Add a note uses. The edits behind it are marked so the offer
+   is made once; the lesson itself stays, because the pairs it came from are
+   still the sharpest example of what was wrong. */
+function stylePromoteLesson(text) {
+  if (!isAdmin(currentUser) || actingStudent) return Promise.resolve(false);
+  text = styleTrim(text, STYLE_NOTE_CHARS);
+  if (!text) return Promise.resolve(false);
+  var note = {
+    title: styleTrim(text, 140),
+    fileName: '',
+    comment: '',
+    guidance: text,
+    noteKind: 'guidance',
+    topics: [],
+    noteTopics: [],
+    subjects: [],
+    levels: [],
+    keywords: [],
+    markingStandards: '',
+    keyFacts: '',
+    source: 'anskey',
+    promotedFrom: 'style',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  var id = 'note_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  return notesCollRef(currentUser.uid).doc(id).set(note).then(function () {
+    note.id = id;
+    teachingNotes.unshift(note);
+    var st = styleEnsure();
+    var key = text.toLowerCase();
+    st.edits.forEach(function (e) {
+      if (e && styleTrim(e.note || '', STYLE_NOTE_CHARS).toLowerCase() === key) e.promoted = true;
+    });
+    return styleSave();
+  }).then(function () {
+    if (typeof renderNotesBody === 'function') { try { renderNotesBody(); } catch (e) {} }
+    toast('📌 Now a house rule — every answer, mark and hint in every app follows it.', 5000);
+    return true;
+  }).catch(function (err) {
+    console.warn('style: could not promote the lesson', err);
+    toast('Could not save the house rule: ' + ((err && err.message) || err), 6000);
+    return false;
+  });
 }
 
 function notesLiveNowHtml() {
@@ -16618,6 +17226,7 @@ function notesTrainingHtml() {
       '<button class="btn" onclick="styleLearnOpenWorksheet()"' + (notesBusy ? ' disabled' : '') + '>📖 Learn from this worksheet</button>' +
       '<button class="btn" onclick="styleLearnAllWorksheets()"' + (notesBusy ? ' disabled' : '') + '>📚 Learn from all my saved worksheets</button>' +
       '<button class="btn" onclick="styleDistilAll(false)"' + (notesBusy ? ' disabled' : '') + '>🧠 Rebuild my style</button>' +
+      '<button class="btn" onclick="openCalibModal()"' + (notesBusy ? ' disabled' : '') + ' title="Answer ten typical questions for one level and subject, once">🎯 Teach it 10 answers</button>' +
       (n ? '<button class="btn" onclick="styleForget()"' + (notesBusy ? ' disabled' : '') + '>Forget what was learned</button>' : '') +
     '</div>' +
     profileHtml +
@@ -17474,7 +18083,7 @@ function aiRequest(id, systemText, userText, busyMsg, images, learn) {
     if (!text) { toast(aiEngineName() + ' returned an empty answer — please try again.', 5000); return; }
     if (text === request.text) { toast('The text is already correct — no changes needed.'); return; }
     aiApplyText(id, text);
-    if (learn) styleNoteGenerated(id, learn.q || '', text);
+    if (learn) styleNoteGenerated(id, learn.q || '', text, learn.g);
     toast('✨ Done — Ctrl+Z brings the old text back.');
   }).catch(function (err) {
     aiBusy = false;
@@ -17501,8 +18110,11 @@ function aiAnswer(id) {
   /* The question goes to the grounding as well, so the exemplars served are
      the teacher's own answers to questions LIKE this one rather than the same
      six every time. */
+  /* Whether the style block really was in this prompt is recorded with the
+     generation, so the fit score can be split by it. */
+  var grounded = !!styleBlock('answer', q);
   return aiRequest(id, AI_ANSWER_SYS + aiGrounding('answer', { q: q }), lines.join('\n'),
-            '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx, { q: q });
+            '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx, { q: q, g: grounded });
 }
 
 function aiImprove(id) {
@@ -23587,9 +24199,74 @@ function renderAnswerKey() {
       ex.textContent = q.explanation;   // model output — never innerHTML
       inner.appendChild(ex);
     }
+    /* ✍️ Put on page (v1.100.0): the key was the biggest thing this app ever
+       wrote and the one surface that could never learn — its rows were read
+       and never edited. A row placed on the page becomes an ordinary text box
+       with the generation remembered against it, so what the teacher leaves
+       in that box at the next save is a correction like any other. */
+    if (isAdmin(currentUser) && !actingStudent && !practiceMode) {
+      var put = document.createElement('button');
+      put.className = 'btn btnSmall akPutBtn';
+      put.type = 'button';
+      put.textContent = q.placedId ? '✓ On the page' : '✍️ Put on page';
+      put.title = 'Place this answer on the worksheet as a text box you can edit — and every edit teaches ' + aiEngineName() + ' how you answer.';
+      put.disabled = !!q.placedId;
+      put.addEventListener('click', function () { answerKeyToPage(i); });
+      inner.appendChild(put);
+    }
     item.appendChild(inner);
     body.appendChild(item);
   });
+}
+
+/* Where a key row lands: the page it was read from, stepped down the left
+   margin one row at a time so two rows never land on each other. The box is
+   sized off the page's own width and measured once it is drawn, the way the
+   beautify path does it. */
+var AK_PUT_X = 24;
+var AK_PUT_Y0 = 40;
+var AK_PUT_STEP = 34;
+function answerKeyToPage(i) {
+  if (!isAdmin(currentUser) || actingStudent) { toast('Only the teacher can place answers.'); return; }
+  if (practiceMode) { toast('Leave practice mode first — the page is holding a student\'s attempt.'); return; }
+  var key = lastAnswerKey;
+  var q = key && key.items && key.items[i];
+  if (!q || q.placedId) return;
+  var p = pages.find(function (pg) { return pg.num === (q.page || 0); }) || pages[0];
+  if (!p) { toast('Open the worksheet first.'); return; }
+  var text = q.option
+    ? ((/[.)]$/.test(q.option) ? q.option : q.option + '.') + (q.answer ? ' ' + q.answer : ''))
+    : q.answer;
+  text = String(text || '').trim();
+  if (!text) return;
+  var onPage = annotations.filter(function (a) { return a && a.page === p.num && a.type === 'text' && a.fromKey; }).length;
+  var pw = (p.baseW || p.viewport1 && p.viewport1.width || 600);
+  var box = {
+    id: newAnnId(), page: p.num, type: 'text', color: '#1A1A1A', fontSize: 16,
+    x: AK_PUT_X, y: AK_PUT_Y0 + (onPage % 12) * AK_PUT_STEP,
+    w: round2(Math.max(160, Math.min(pw - AK_PUT_X * 2, pw * 0.6))), h: 0,
+    text: text, kw: [], fromKey: true, ts: Date.now()
+  };
+  var qLabel = 'Question ' + ((q.number || '').replace(/^\s*(question|qn?)[\s.:]*/i, '').trim() || (i + 1)) +
+               (q.page ? ' on page ' + q.page : '');
+  box.aiQ = styleTrim(qLabel, STYLE_Q_CHARS);
+  pushUndo();
+  annotations.push(box);
+  renderOverlay(p);
+  var node = p.svg && p.svg.querySelector('[data-id="' + box.id + '"] .annText');
+  if (node) {
+    box.h = Math.max(node.scrollHeight, box.fontSize * 1.8);
+    renderOverlay(p);
+  }
+  /* Remembered as a generation, so a rewrite of this box at the next save is
+     a correction and an untouched one is a score. The key is written with the
+     style in the prompt, so the generation is grounded. */
+  styleNoteGenerated(box.id, qLabel, text, true);
+  q.placedId = box.id;
+  setDirty(true);
+  try { p.wrap.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+  renderAnswerKey();
+  toast('✍️ On page ' + p.num + ' — edit it there, and what you keep teaches ' + aiEngineName() + '.', 4500);
 }
 
 function answerKeyMeta(key) {
