@@ -2,6 +2,75 @@
 
 Guidance for Claude when working in this repo.
 
+## 🧠 Chung GPT learns from every app, and says whether it is helping (v1.100.0)
+
+`CER_STYLE_COLL` / `CER_STYLE_DOC` / `cerStyle` / `cerStyleUnsub` / `cerStyleDocRef` /
+**`cerEdits`** / **`styleEditsAll`** / `styleLessonGroups` / `STYLE_NOTE_KINDS` /
+`styleKnownLessons` / `styleFactNoteFor` / `styleWriteFactNote` / `styleReadLessonReply` /
+**`stylePromoteLesson`** / `notesFitSplitHtml` / **`answerKeyToPage`** / `AK_PUT_*` /
+`CALIB_COUNT` / `CALIB_SYS` / `calib*` / `openCalibModal` (search `THE SCIENCE PORTAL'S
+CORRECTIONS`, `WHAT KIND OF CORRECTION WAS IT`, `A LESSON TAUGHT TWICE`, `Put on page` and
+`THE CALIBRATION SET`), plus `#calibModal`, the `.cal*` / `.tnLearn*` CSS and the 🎯 button
+on the 🧠 panel. **`polymathlc/cer`, `polymathlc/scan` and `polymathlc/tutor` carry the reader
+half of this contract — ship a change to the document shapes to all four together.**
+
+The learning machinery here was sound and stayed inside this app. The Science portal ran a
+second, thinner corrections loop in a document of its own; Scan and Study Buddy read the flat
+`profile` field and six frozen exemplars and nothing else. A correction made here changed the
+next answer here and changed a Study Buddy hint never.
+
+- **TWO DOCUMENTS, ONE CORPUS.** `users/{adminUid}/aiTraining/answerStyle` is still the master
+  and this app is still its only writer. `users/{adminUid}/settings/answerStyle` is the Science
+  portal's corrections document; this app READS it (`cerStyleDocRef`, live, released with the
+  notebook and dropped on an account change) and **never writes it** — `styleForgetEdit`
+  refuses a `cer:` key in words. `cerEdits` maps each record into this app's shape (`k` namespaced
+  `cer:`, `src: 'cer'`, `sub` defaulting to science) and **`styleEditsAll` is what SERVES**: the
+  lessons, the raw pairs, the panel and the rebuild's evidence. **What WRITES still goes through
+  `styleEdits()` alone**, or the portal's records would be re-saved into this document and exist
+  twice.
+- **THE SUBJECT-ONLY BUCKET SITS BETWEEN THE PAIR AND THE GLOBAL ONE.** `styleProfilePick` walks
+  `lvl:sub` → `any:sub` → `_global`, `styleSamplesIn('any:science')` is every science answer at
+  every level, and `styleDistilAll` rebuilds the subject buckets FIRST. It is what the Science
+  portal and a thin level both fall to, so it must exist before the level pairs do.
+- **A CORRECTION HAS A KIND, and only a STYLE correction becomes a lesson.** The old prompt told
+  the model "never about this one question's facts", so a fact the AI got wrong produced nothing
+  and was thrown away — on exactly the correction the next child to meet that question needs.
+  `styleReadLessonReply` reads `{kind, lesson, sameAs}`: a **fact** writes a teaching note
+  (`styleFactNoteFor`: `keyFacts` = the question and the corrected answer, `sourceQuestion` for the
+  card, **`guidance` EMPTY** or one beaker's fact is obeyed on every question), a **cosmetic** change
+  writes nothing, and `sameAs` files a restated lesson under the EXISTING lesson's exact text, which
+  is what makes counting by text mean "how many times has the teacher had to say this".
+  `styleEditsFor` keeps facts and cosmetics out of the rebuild: a fact is not a habit.
+- **A LESSON TAUGHT TWICE IS OFFERED AS A HOUSE RULE.** `styleLessonGroups` groups by exact text;
+  the panel shows `×N` and 📌 on any group of two or more; `stylePromoteLesson` writes a quick note
+  (`guidance`, `noteKind: 'guidance'`, `promotedFrom: 'style'`) by the door ✍️ Add a note uses and
+  marks the edits `promoted` so the offer is made once. Guidance is the one channel that already
+  reaches every kind of call in all four apps — that is why a recurring lesson goes there rather
+  than staying one of eight in a style block that marking never sees.
+- **THE INFERRED MARKING STANDARD NEVER MARKS.** `_styleProfileBits` used to hand
+  `p.markingStandards` — worked out by the model from what the answers LOOKED like — to every
+  `'mark'` prompt: a standard nobody typed deciding thirty children's marks, the very thing
+  📚 auto-learn refuses to write. It stays on the profile for the panel and for answering. The
+  typed notes' `markingStandards` still reach marking, and the harness pins both halves.
+- **THE FIT SCORE IS SPLIT BY WHETHER THE STYLE WAS THERE.** `styleNoteGenerated(id, q, text,
+  grounded)` records `g`, the bucket and the profile's date on the generation; `styleCollectEdits`
+  stamps them on the score; `styleFitReport` returns `grounded` / `ungrounded` / `profiles` and
+  `notesFitSplitHtml` says which. A trend over everything cannot tell a better profile from easier
+  questions. A score from before the flag existed is counted as grounded, which is what it was.
+- **✍️ PUT ON PAGE closes the answer key's loop.** The key was the biggest thing this app wrote
+  and its rows were read and never edited, so it could never learn. `answerKeyToPage` places a row
+  as an ordinary text box (`fromKey: true`, stepped down the margin so two never land together,
+  measured after it is drawn) and calls `styleNoteGenerated` with the generation, so a rewrite at
+  the next save is a correction and an untouched box is a score. Teacher-only, refused in the
+  handler, never in practice mode (the page holds a child's attempt).
+- **🎯 THE CALIBRATION SET gives a new level a voice.** Ten model-written questions for one level
+  and subject, answered once by the teacher, filed through `styleAddSamples` as `src: 'calib'`
+  samples with a content hash in the key and the question attached — the best kind of exemplar,
+  retrievable, holdable-out and regenerable. The questions come from the model (a fixed list would
+  be another copy of the syllabus to keep in step); the answers never do. `calibAsk` is named in
+  the census's `UNGROUNDED_BY_DESIGN`: grounding the questions in the answers is the echo.
+- Run **`node tools/notes-tests.mjs`** after touching any of it.
+
 ## 🧭 All the apps under one roof (v1.99.0)
 
 `APP_KEY` / `POLYMATH_APPS` / `appsIsFramed` / `renderAppsMenu` / `appsMenuOpen` (search
@@ -1481,6 +1550,21 @@ the green box saying *(after another route refused)*.
   right signal and not enough of one.
 
 ## House rules
+- After touching **🧠 the cross-app corpus** (`cerEdits`, `styleEditsAll`, `styleProfilePick`'s
+  subject step, `styleSamplesIn`'s `any:` branches, `styleDistilAll`'s subject buckets,
+  `STYLE_NOTE_SYS` / `styleReadLessonReply` / `styleFactNoteFor` / `styleWriteFactNote`,
+  `styleLessonGroups` / `stylePromoteLesson`, `_styleProfileBits`'s marking branch, the `g` /
+  `bucket` / `pAt` stamps, `answerKeyToPage`, or `calibSave`), run `node tools/notes-tests.mjs`.
+  Every failure is silent and every app goes on answering fluently. Serve `styleEdits()` instead
+  of `styleEditsAll()` and a correction made in the Science portal reaches nothing here while its
+  panel says it was learned; WRITE `styleEditsAll()` back and the portal's records exist twice.
+  Let a fact correction become a style lesson and "say 42 g" is obeyed on every question; let it
+  become guidance and the same. Hand `p.markingStandards` to a mark again and a machine's guess at
+  a standard decides thirty children's marks. Skip the subject bucket and a thin level is answered
+  in the maths-flavoured global voice. Score a generation made without the style as grounded and
+  the split lies in the direction that says the feature works. Place a key row without
+  `styleNoteGenerated` and the biggest surface in the app is back to never learning. And let the
+  calibration questions be grounded in the answers and the corpus fills with its own echo.
 - After touching **🎙 the split between recording and helping** (`voiceLive`,
   `voiceTeacher`, `voiceContextOK`, `voiceSyncBtn`, `voiceRoleChanged`,
   `answerKeyPageContext`, `voiceTypedContext`, `voiceContextLine`,

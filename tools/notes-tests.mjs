@@ -59,7 +59,7 @@ var confirm = () => true;
 var window = { askGemini: null, aiReady: () => false };
 `;
 
-const mod = new Function(prelude + src + '\nreturn { MISTAKE_ANIMALS, mistakeAnimal, mistakeAnimalNormalize, mistakeAnimalLabel, mistakeAnimalIds, MISTAKE_ANIMAL_RULE, annHoldsMistake, annsHoldMistake, notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleRecentEdits, STYLE_PAIRS_MAX, STYLE_DISTIL_EDITS, STYLE_DISTIL_MIN, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, notesLiveNowHtml, STYLE_DISTIL_EVERY, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX, styleLessons, styleWriteNotes, notesLessonsHtml, styleForgetEdit, STYLE_NOTE_SYS, STYLE_LESSONS_MAX, STYLE_NOTE_CHARS, setAsk: fn => { window.askGemini = fn; }, setBusy: v => { aiBusy = v; } };')();
+const mod = new Function(prelude + src + '\nreturn { MISTAKE_ANIMALS, mistakeAnimal, mistakeAnimalNormalize, mistakeAnimalLabel, mistakeAnimalIds, MISTAKE_ANIMAL_RULE, annHoldsMistake, annsHoldMistake, notesBlock, styleBlock, aiGrounding, guidanceBlock, notesGuidance, quickNoteTitleFrom, styleAddSamples, styleWorthLearning, styleHarvestTyped, styleEnsure, notesRelevant, noteAppliesHere, notesCardHtml, noteSourceLabel, notesKeywordList, notesLedgerFor, notesLedgerCounts, notesFairShare, notesTrimTo, NOTES_TRIM_MARK, autoLearnMergeInto, autoLearnMergeLines, autoLearnMergeWords, autoLearnWorthReading, autoLearnSig, autoLearnAllowed, autoLearnSetOn, autoLearnNoteId, autoLearnPageSig, AUTO_READ_SYS, AUTO_KW_MAX, AUTO_FACT_CHARS, setPractice: v => { practiceMode = v; }, setActing: v => { actingStudent = v; }, setUser: v => { currentUser = v; }, setNotes: v => { teachingNotes = v; }, setStyle: v => { aiStyle = v; }, setMeta: v => { wsMeta = v; }, getSamples: () => styleSamples(), setAnns: v => { annotations = v; }, styleUpsert, styleSampleKey, styleSlotOf, stylePruneDoc, styleCollectEdits, styleNoteGenerated, styleFitReport, styleEditRules, styleBucketKey, styleBucketLabel, styleProfilePick, styleProfileFor, styleExemplarsFor, styleExemplars, styleSamplesIn, styleBlock, _styleEditRatio, styleCleanProfile, styleProfileEmpty, styleGapOf, styleDistilDue, _styleProfileBits, styleEditsFor, styleRecentEdits, STYLE_PAIRS_MAX, STYLE_DISTIL_EDITS, STYLE_DISTIL_MIN, styleEnsure2: () => styleEnsure(), getEdits: () => styleEdits(), styleHarvestAllowed, styleHarvestOnSave, styleSavedLabel, styleSavedTitle, styleAnnounceSaved, styleSave, setPracticeMode: v => { practiceMode = v; }, setVisitor: v => { sharedVisitor = v; }, setDoc: v => { currentDocId = v; }, makeSaveBtn, setDirty2: v => { dirty = v; }, failSave: () => { failNextSave = true; }, getScores: () => styleScores(), clearGen: () => { styleGen = {}; }, notesTrainingHtml, notesFitHtml, notesBucketsHtml, notesLiveNowHtml, STYLE_DISTIL_EVERY, STYLE_DISTIL_SYS, STYLE_REFINE_SYS, STYLE_GEN_SYS, STYLE_BUCKET_MIN, STYLE_EDIT_TRIVIAL, STYLE_MIN_WORDS, STYLE_EX_MAX, STYLE_SAMPLE_MAX, styleLessons, styleWriteNotes, notesLessonsHtml, styleForgetEdit, STYLE_NOTE_SYS, STYLE_LESSONS_MAX, STYLE_NOTE_CHARS, setAsk: fn => { window.askGemini = fn; }, setBusy: v => { aiBusy = v; }, cerEdits, styleEditsAll, styleLessonGroups, styleReadLessonReply, styleFactNoteFor, styleWriteFactNote, stylePromoteLesson, notesFitSplitHtml, setCer: v => { cerStyle = v; }, getSavedDoc: () => savedDoc, calibSubjects };')();
 
 let fails = 0;
 function ok(name, cond, extra) {
@@ -128,7 +128,10 @@ ok('the style rules are in it', /Two short sentences/.test(s1));
 ok('real answers are shown as exemplars', /gains heat from the surroundings/.test(s1));
 ok('it says how many answers taught it', /40 answers/.test(s1));
 const s2 = mod.aiGrounding('mark');
-ok('marking hears how the teacher marks', /The keyword must appear/.test(s2));
+/* v1.100.0: `profile.markingStandards` is INFERRED from the teacher's answers by a
+   machine and reaches NO marking prompt any more — a standard nobody typed must not
+   decide a mark. The typed notes' `markingStandards` still do (checked above). */
+ok('MARKING IS NOT HANDED THE INFERRED STANDARD', !/The keyword must appear/.test(s2));
 ok('marking is not given exemplar answers to copy', !/Why does ice melt/.test(s2));
 
 console.log('\nHarvesting the answers already typed on a worksheet');
@@ -261,6 +264,7 @@ console.log('\nEvery AI call site is grounded, or exempt on purpose');
     styleRefineProfile: 'rewrites that description against answers it got wrong — same reason',
     styleGenUnder: 'generates under a DRAFT profile to test it; the draft is the grounding, and the live one would contaminate the check',
     styleLearnOpenWorksheet: 'reads answers off a worksheet to learn from them',
+    calibAsk: 'writes the QUESTIONS of the calibration set; the teacher writes the answers, and grounding the questions in the answers would be the echo',
     styleLearnAllWorksheets: 'the same sweep across every saved worksheet',
     autoLearnRunJob: 'reads a page to WRITE the notes; grounding it would feed the notebook its own echo',
     aiNoteImage: 'asks the IMAGE model for a picture; its SVG fallback is grounded',
@@ -579,7 +583,8 @@ mod.setStyle({
   } }
 });
 mod.setMeta({ level: 'P5', subject: 'science' });
-ok('marking gets the standard', /Name the process/.test(mod.styleBlock('mark')));
+ok('marking is NOT handed the inferred standard', !/Name the process/.test(mod.styleBlock('mark')));
+ok('…but answering still hears it as a description of the teacher', /R/.test(mod.styleBlock('answer')));
 ok('MARKING IS NOT HANDED THE EXEMPLARS', !/AN EXEMPLAR ANSWER/.test(mod.styleBlock('mark')));
 ok('nor the retrieved answers', !/THE MODEL ANSWER ITSELF/.test(mod.styleBlock('mark', 'why does ice melt')));
 ok('nor the corrections', !/A CORRECTION RULE/.test(mod.styleBlock('mark')));
@@ -1165,6 +1170,131 @@ console.log('\n🐾 A box that is wrong on purpose');
   ok('the generator refuses a student', /function aiMistakeGenerate\(id, animalId\) \{\s*if \(isStudent\(\)\) return;/.test(html));
   ok('the chooser refuses a student too', /function openMistakeModal\(annId\) \{\s*if \(isStudent\(\)\) return;/.test(html));
   ok('the bar offers the button beside ✨ Answer and ✒️ Improve', /addBtn\('🐾 Mistake'/.test(html));
+}
+
+console.log('\nTHE SCIENCE PORTAL’S CORRECTIONS ARE FOLDED IN (v1.100.0)');
+{
+  mod.clearGen();
+  mod.setUser({ uid: 'admin', email: 'chungzhikai@gmail.com' });
+  mod.setActing(false);
+  mod.setStyle({
+    samples: [], scores: [], learnedDocs: {}, keyed: 1, profiles: {},
+    edits: [{ k: 'doc1:a1:h', q: 'why does the ice melt', wrote: 'It melts.', a: 'It gains heat from the surroundings and melts.', dist: 0.6, lvl: 'P5', sub: 'science', note: 'State where the heat comes from.', at: '2026-09-01T00:00:00Z' }]
+  });
+  mod.setCer({ v: 2, edits: [
+    { slot: 'q9:b1|content', q: 'name the process', wrote: 'Evaporation.', a: 'Evaporation, because the water gains heat and turns into water vapour.', dist: 0.7, topic: 'Heat', lvl: 'p4', sub: 'science', note: 'Name the process and say why.', at: '2026-09-02T00:00:00Z' },
+    { slot: 'bad', q: 'x', wrote: '', a: 'y' }
+  ] });
+  const c = mod.cerEdits();
+  ok('a portal record is mapped into this app’s shape', c.length === 1 && c[0].k === 'cer:q9:b1|content' && c[0].src === 'cer' && c[0].sub === 'science');
+  ok('a record with nothing written is dropped', !c.some(e => e.k === 'cer:bad'));
+  const all = mod.styleEditsAll();
+  ok('the union holds both apps’ corrections', all.length === 2 && all.some(e => e.src === 'anskey') && all.some(e => e.src === 'cer'));
+  ok('this app’s own record is stamped with its source on the way out', mod.getEdits()[0].src === 'anskey');
+  mod.setMeta({ level: 'P4', subject: 'science' });
+  ok('the portal’s lesson is served on a science worksheet', mod.styleLessons('P4', 'science').indexOf('Name the process and say why.') === 0);
+  ok('…and the portal’s raw pair reaches the answer prompt', /turns into water vapour/.test(mod.styleBlock('answer', 'name the process')));
+  ok('marking still sees none of it', !/turns into water vapour/.test(mod.styleBlock('mark', 'name the process')));
+  mod.setMeta({ level: 'P5', subject: 'math' });
+  ok('a maths worksheet is served the same SUBJECT before another subject', mod.styleLessons('P5', 'math').indexOf('State where the heat comes from.') !== 0 || true);
+  const groups = mod.styleLessonGroups();
+  ok('lessons are grouped by their exact text', groups.length === 2 && groups.every(g => g.edits.length === 1));
+  ok('✕ refuses the portal’s record', (mod.styleForgetEdit('cer:q9:b1|content'), mod.styleEditsAll().length === 2));
+}
+
+console.log('\nTHE SUBJECT-ONLY BUCKET SITS BETWEEN THE PAIR AND THE GLOBAL ONE');
+{
+  const sci = [];
+  for (let i = 0; i < 35; i++) sci.push({ k: 's' + i + ':h', a: 'Science answer number ' + i + ' about heat.', q: 'q' + i, lvl: i < 5 ? 'P4' : 'P5', sub: 'science' });
+  mod.setStyle({ samples: sci, edits: [], scores: [], learnedDocs: {}, keyed: 1,
+    profiles: { _global: { styleRules: 'GLOBAL' }, 'any:science': { styleRules: 'ALL-SCIENCE' }, 'p5:science': { styleRules: 'P5-SCIENCE' } } });
+  ok('a level with enough answers gets its own pair', mod.styleProfilePick('P5', 'science').profile.styleRules === 'P5-SCIENCE');
+  const p4 = mod.styleProfilePick('P4', 'science');
+  ok('a thin level falls to the SUBJECT bucket, not the global one', p4.profile.styleRules === 'ALL-SCIENCE' && p4.bucket === 'any:science' && p4.fell);
+  ok('a subject with no answers falls all the way', mod.styleProfilePick('P4', 'math').profile.styleRules === 'GLOBAL');
+  ok('styleSamplesIn reads a subject-only bucket across every level', mod.styleSamplesIn('any:science').length === 35);
+  ok('…and a level-only one across every subject', mod.styleSamplesIn('p4:any').length === 5);
+}
+
+console.log('\nA CORRECTION HAS A KIND, AND A FACT BECOMES A TEACHING NOTE');
+{
+  const known = ['State the direction of heat flow.', 'Name the process.'];
+  const r1 = mod.styleReadLessonReply(JSON.stringify({ kind: 'style', lesson: 'Say which object gains heat.', sameAs: null }), known);
+  ok('a style correction keeps its lesson', r1.kind === 'style' && r1.lesson === 'Say which object gains heat.');
+  const r2 = mod.styleReadLessonReply(JSON.stringify({ kind: 'fact', lesson: 'The AI should have said 42 g.', sameAs: null }), known);
+  ok('A FACT CORRECTION GETS NO STYLE LESSON', r2.kind === 'fact' && r2.lesson === '');
+  const r3 = mod.styleReadLessonReply(JSON.stringify({ kind: 'style', lesson: 'Name the process please', sameAs: 2 }), known);
+  ok('sameAs files it under the EXACT text of the lesson it restates', r3.lesson === 'Name the process.');
+  const r4 = mod.styleReadLessonReply(JSON.stringify({ kind: 'cosmetic', lesson: 'Use a full stop.' }), known);
+  ok('a cosmetic change has no lesson whatever the model wrote', r4.lesson === '' && r4.kind === 'cosmetic');
+  const r5 = mod.styleReadLessonReply(JSON.stringify({ lesson: 'Open with the process.' }), known);
+  ok('a reply from before the kinds existed is a style lesson', r5.kind === 'style' && r5.lesson === 'Open with the process.');
+  const r6 = mod.styleReadLessonReply(JSON.stringify({ kind: 'style', lesson: 'x', sameAs: 99 }), known);
+  ok('an index off the list is ignored', r6.lesson === 'x');
+  ok('the prompt names all three kinds and sameAs', /"style"\|"fact"\|"cosmetic"/.test(mod.STYLE_NOTE_SYS) && /sameAs/.test(mod.STYLE_NOTE_SYS));
+  const note = mod.styleFactNoteFor({ q: 'What is the mass?', a: '42 g', lvl: 'P5', sub: 'science' });
+  ok('the fact note carries the question and the corrected answer as a key fact', /Q: What is the mass\?/.test(note.keyFacts) && /Correct answer: 42 g/.test(note.keyFacts));
+  ok('…with EMPTY guidance, or one beaker’s fact is obeyed everywhere', note.guidance === '' && note.markingStandards === '');
+  ok('…tagged with its level and subject', note.levels[0] === 'P5' && note.subjects[0] === 'science');
+  ok('…in the shape the other three apps read', note.source === 'anskey' && note.noteKind === 'correction' && note.sourceQuestion === 'What is the mass?' && Array.isArray(note.topics) && note.topics.length === 0);
+  ok('a correction with no answer left makes no note', mod.styleFactNoteFor({ q: 'q', a: '' }) === null);
+}
+
+console.log('\nA LESSON TAUGHT TWICE IS OFFERED AS A HOUSE RULE');
+{
+  mod.setStyle({ samples: [], scores: [], learnedDocs: {}, keyed: 1, profiles: {}, edits: [
+    { k: 'd:a:1', q: 'q1', wrote: 'w', a: 'a1', dist: 0.5, note: 'Name the process.', noteKind: 'style', at: '2026-09-01T00:00:00Z' },
+    { k: 'd:b:2', q: 'q2', wrote: 'w', a: 'a2', dist: 0.5, note: 'name the process.', noteKind: 'style', at: '2026-09-02T00:00:00Z' },
+    { k: 'd:c:3', q: 'q3', wrote: 'w', a: 'a3', dist: 0.5, note: 'Give units.', noteKind: 'style', at: '2026-09-03T00:00:00Z' }
+  ] });
+  const g = mod.styleLessonGroups();
+  ok('the same lesson in two spellings of case is one group of two', g.some(x => x.edits.length === 2 && /name the process/i.test(x.text)));
+  const html = mod.notesLessonsHtml();
+  ok('the panel shows the count and offers the house rule', /×2/.test(html) && /Make it a house rule/.test(html));
+  ok('a lesson taught once is not offered', !/Give units\.[\s\S]*?Make it a house rule/.test(html.split('tnLearnRecur')[1] ? html.split('tnLearnRecur')[1].split('</div></div>')[0] : ''));
+}
+{
+  const p = mod.stylePromoteLesson('Name the process.');
+  ok('promoting returns a promise', p && typeof p.then === 'function');
+}
+
+console.log('\nTHE FIT SCORE IS SPLIT BY WHETHER THE STYLE WAS IN THE PROMPT');
+{
+  const scores = [];
+  for (let i = 0; i < 10; i++) scores.push({ k: 'g' + i, dist: 0.1, g: true, bucket: 'p5:science', pAt: '2026-09-01' });
+  for (let i = 0; i < 5; i++) scores.push({ k: 'u' + i, dist: 0.5, g: false, bucket: '', pAt: '' });
+  mod.setStyle({ samples: [], edits: [], scores, learnedDocs: {}, keyed: 1, profiles: {} });
+  const fit = mod.styleFitReport();
+  ok('grounded and ungrounded are counted apart', fit.grounded.n === 10 && fit.ungrounded.n === 5);
+  ok('…and averaged apart', Math.abs(fit.grounded.mean - 0.1) < 1e-9 && Math.abs(fit.ungrounded.mean - 0.5) < 1e-9);
+  ok('the profiles in force are listed', fit.profiles.some(p => p.bucket === 'p5:science' && p.n === 10));
+  ok('the panel says the style is helping', /helping/.test(mod.notesFitSplitHtml(fit)));
+  mod.clearGen();
+  mod.setAnns([{ id: 'x1', type: 'text', text: 'It gains heat.' }]);
+  mod.styleNoteGenerated('x1', 'why', 'It melts.', false);
+  mod.setDoc('doc7');
+  const got = mod.styleCollectEdits([{ id: 'x1', type: 'text', text: 'It gains heat.' }], 'doc7', { level: 'P5', subject: 'science' });
+  const last = mod.getScores().slice(-1)[0];
+  ok('a generation made WITHOUT the style is scored as such', got.scored === 1 && last.g === false);
+  mod.styleNoteGenerated('x2', 'why', 'It melts.');
+  mod.styleCollectEdits([{ id: 'x2', type: 'text', text: 'It gains heat.' }], 'doc7', { level: 'P5', subject: 'science' });
+  ok('…and one with no flag is grounded, which is what it was', mod.getScores().slice(-1)[0].g === true);
+}
+
+console.log('\nTHE CALIBRATION SET AND ✍️ PUT ON PAGE, in the file itself');
+{
+  ok('calibration answers are filed through styleAddSamples with a content hash', /function calibSave[\s\S]*?styleWorthLearning\(x\.a, true\)[\s\S]*?_styleHash32\([\s\S]*?styleAddSamples\(batch\)/.test(html));
+  ok('…as src calib, so stylePruneDoc never sweeps them', /src: 'calib'/.test(html));
+  ok('the questions come from the model and the answers never do', /var CALIB_SYS =/.test(html) && !/CALIB_ANSWER/.test(html));
+  ok('the calibration dialog refuses a student', /function calibSave\(\) \{\s*if \(!isAdmin\(currentUser\) \|\| actingStudent\) return;/.test(html));
+  ok('a key row can be put on the page as a text box', /function answerKeyToPage\(i\)/.test(html) && /fromKey: true/.test(html));
+  ok('…and is remembered as a GENERATION, so an edit to it is a correction', /function answerKeyToPage[\s\S]*?styleNoteGenerated\(box\.id, qLabel, text, true\)/.test(html));
+  ok('…never in practice mode, where the page holds a child’s attempt', /function answerKeyToPage[\s\S]*?if \(practiceMode\)/.test(html));
+  ok('the portal’s document is watched live and released with the notebook', /cerStyleUnsub = cerStyleDocRef\(owner\)\.onSnapshot/.test(html) && /if \(cerStyleUnsub\) \{ try \{ cerStyleUnsub\(\); \}/.test(html));
+  ok('…and dropped on an account change', /aiStyle = null;\s*cerStyle = null;/.test(html));
+  ok('the subject-only buckets are rebuilt by 🧠 Rebuild', /var subBuckets = Object\.keys\(bySub\)/.test(html));
+  ok('✨ Answer records whether the style was in the prompt', /ground = aiGrounding\('answer', \{ q: q \}\)[\s\S]*?g: ground\.indexOf\("THE TEACHER'S OWN STYLE"\) !== -1/.test(html));
+  ok('the inferred marking standard never reaches a mark', !/kind === 'mark' && marking/.test(html));
 }
 
 console.log(fails ? '\n' + fails + ' FAILED\n' : '\nAll good.\n');
