@@ -3,6 +3,16 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+
+## v1.99.0 — All the apps under one roof
+
+- **🧭 Apps** in the header lists every Polymath app — the four subject portals
+  and the two tools (this one and Study Buddy) — from ONE table (`POLYMATH_APPS`)
+  that every app carries byte for byte: relative sibling-folder links, the repo
+  name as the folder (Science is `cer`), and you stay signed in. Inside the
+  Science portal this app is embedded on a page of its own; a link followed
+  from in there moves the whole portal (`target="_top"`).
+
 ## 🎙 Voice AI is its own button, and a recording is just a recording (v1.98.0)
 
 **Record lesson** now captures your voice and your writing and **nothing else**.
