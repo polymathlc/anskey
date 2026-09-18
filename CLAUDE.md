@@ -2,6 +2,17 @@
 
 Guidance for Claude when working in this repo.
 
+## 🧭 All the apps under one roof (v1.99.0)
+
+`APP_KEY` / `POLYMATH_APPS` / `appsIsFramed` / `renderAppsMenu` / `appsMenuOpen` (search
+`ALL THE APPS UNDER ONE ROOF`), the `#appsMenu` in the header and the `.appsMenu` / `.appsPanel`
+CSS. **`POLYMATH_APPS` is ONE table carried by every Polymath app** (the portals split it as
+`SUBJECT_APPS` + `POLYMATH_TOOLS`; Study Buddy carries it under this very name) — same keys, same
+relative urls, the folder is the REPO name (Science is `cer`). Ship a change to all of them. A
+link followed while this app is embedded inside the Science portal goes to `_top`, never into
+the frame. The panel stops its own keystrokes, or a letter typed with the menu open fires a
+one-letter tool shortcut. Every keystroke inside `#appsPanel` is stopped there for that reason.
+
 ## 🎙 Recording and helping are TWO BUTTONS (v1.98.0)
 
 `voiceLive` / `voiceTeacher` / `voiceOn` / `voiceContextOK` / `voiceSyncBtn` /
