@@ -18110,11 +18110,13 @@ function aiAnswer(id) {
   /* The question goes to the grounding as well, so the exemplars served are
      the teacher's own answers to questions LIKE this one rather than the same
      six every time. */
-  /* Whether the style block really was in this prompt is recorded with the
-     generation, so the fit score can be split by it. */
-  var grounded = !!styleBlock('answer', q);
-  return aiRequest(id, AI_ANSWER_SYS + aiGrounding('answer', { q: q }), lines.join('\n'),
-            '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx, { q: q, g: grounded });
+  /* Whether the style block really was in THIS prompt is recorded with the
+     generation, so the fit score can be split by it — read off the prompt
+     itself rather than by a second call, so the two can never disagree. */
+  var ground = '';
+  return aiRequest(id, AI_ANSWER_SYS + (ground = aiGrounding('answer', { q: q })), lines.join('\n'),
+            '✨ ' + aiEngineName() + ' is reading the worksheet…', ctx,
+            { q: q, g: ground.indexOf("THE TEACHER'S OWN STYLE") !== -1 });
 }
 
 function aiImprove(id) {

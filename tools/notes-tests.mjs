@@ -1293,7 +1293,7 @@ console.log('\nTHE CALIBRATION SET AND ✍️ PUT ON PAGE, in the file itself');
   ok('the portal’s document is watched live and released with the notebook', /cerStyleUnsub = cerStyleDocRef\(owner\)\.onSnapshot/.test(html) && /if \(cerStyleUnsub\) \{ try \{ cerStyleUnsub\(\); \}/.test(html));
   ok('…and dropped on an account change', /aiStyle = null;\s*cerStyle = null;/.test(html));
   ok('the subject-only buckets are rebuilt by 🧠 Rebuild', /var subBuckets = Object\.keys\(bySub\)/.test(html));
-  ok('✨ Answer records whether the style was in the prompt', /var grounded = !!styleBlock\('answer', q\);[\s\S]*?\{ q: q, g: grounded \}/.test(html));
+  ok('✨ Answer records whether the style was in the prompt', /ground = aiGrounding\('answer', \{ q: q \}\)[\s\S]*?g: ground\.indexOf\("THE TEACHER'S OWN STYLE"\) !== -1/.test(html));
   ok('the inferred marking standard never reaches a mark', !/kind === 'mark' && marking/.test(html));
 }
 
