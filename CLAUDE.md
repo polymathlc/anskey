@@ -1549,7 +1549,76 @@ the green box saying *(after another route refused)*.
   Engine dialog's *Pictures* line repeats it. "Another route refused" was the
   right signal and not enough of one.
 
+## ✍️ A TABLET PEN MUST NOT PICK THE WRITING UP (v1.101.0)
+
+`DRAG_SLOP_PX` / **`dragStarted`** (beside the palm-rejection state — search
+`A GRAB IS NOT YET A MOVE`), **`selectToolForEdit`** and the `isDrawTool` guard
+on the overlay's `dblclick` fallback (search `WHILE A DRAWING TOOL IS IN HAND`),
+the `e.button > 0` line at the top of `pointerdown`, and the `cx`/`cy` every
+grab now records. **`polymathlc/tutor` carries the same three fixes — ship a
+change to both.**
+
+Reported on a Wacom: *"when I'm writing it's very easy to suddenly select
+strokes and move them instead of continuing writing."* Three causes, and every
+one of them is silent — the page goes on drawing, the toolbar goes on showing
+the pen, and nothing on any screen says what changed.
+
+- **A DOUBLE-TAP WHILE A DRAWING TOOL IS IN HAND IS TWO MARKS, AND NOTHING
+  ELSE.** Writing is short, rapid marks landing on top of ink that is already
+  there — a decimal point, the dot of an `i`, a tick, the two strokes of an
+  equals sign — and a pen puts them down at very nearly the same spot, which is
+  precisely what the browser calls a double-click. The overlay's `dblclick`
+  fallback ran anyway, `enterEditMode` did `setTool('select')`, and the next
+  stroke picked the ink up and MOVED it. A tablet pen makes it constant: it is
+  absolutely positioned, so consecutive taps land inside the double-click slop
+  far more often than a mouse's do, and a stylus has a known habit of
+  double-clicking by itself. The select tool's own double-click is untouched.
+- **AND `enterEditMode` MAY NOT SWITCH THE TOOL EITHER** (`selectToolForEdit`),
+  because hiding a path has never been the lock in this app. **The switch was
+  never what made the handles work**: a resize handle is grabbed at the very top
+  of `pointerdown`, before any tool is consulted, so it works with a pen in hand
+  — all `setTool('select')` ever did was leave the tool quietly changed.
+- **A GRAB IS NOT YET A MOVE.** A pen tip is never perfectly still: it wobbles
+  as it touches down, so *selecting* a stroke shifted it. `dragStarted` holds
+  every move, resize and group-drag until the pointer has really travelled, and
+  the flag it sets is the same one the undo push reads — so a tap no longer
+  costs a Ctrl+Z that undoes nothing.
+- **THE THRESHOLD IS SCREEN PIXELS, NEVER PAGE UNITS**, and that is the whole
+  point of it: page units are a hair at 400% and most of a centimetre at
+  fit-width, so the same tremor would be swallowed on one worksheet and move the
+  ink on the next. That is exactly how the old `> 0.5` page-unit test failed.
+- **ONLY THE PRIMARY BUTTON STARTS ANYTHING, WHATEVER THE POINTER IS.** A
+  tablet pen's barrel button sits where the fingers grip, and squeezing it
+  mid-word fires a second `pointerdown` with the **SAME pointerId** as the tip
+  already down — so the one-pointer-at-a-time guard cannot see it, and it
+  abandoned the stroke in progress to start a fresh gesture. The old test asked
+  `e.button !== 0` for a MOUSE only. The eraser end of a pen (button 5) arrives
+  the same way.
+- Run **`node --test tools/writing-tests.mjs`** after touching any of it.
+
 ## House rules
+- After touching **✍️ the stylus guards** (`DRAG_SLOP_PX`, `dragStarted`,
+  `selectToolForEdit`, the `isDrawTool` test on the `dblclick` fallback, the
+  `e.button > 0` line in `pointerdown`, the `cx`/`cy` on any grab, or the
+  threshold in `applyLassoMove` / `resizingSel` / `draggingSel`), run
+  `node --test tools/writing-tests.mjs` **and write on a page with a stylus**.
+  Every failure here is silent and the page goes on drawing. Let the `dblclick`
+  fallback run for a drawing tool again and two quick marks on existing ink turn
+  the pen into the select tool, so the next stroke MOVES the writing — with the
+  toolbar still showing the pen, which is why it reads as the app going mad
+  rather than as anything reportable. Let `enterEditMode` switch the tool and
+  the same thing arrives through the other door; it was never what made the
+  resize handles work, so nothing is bought by putting it back. Drop the drag
+  threshold and the act of SELECTING a stroke nudges it out of place, because no
+  pen taps perfectly still. Measure that threshold in PAGE units and it is a
+  hair when zoomed in and most of a centimetre when zoomed out, so a tremor
+  moves the ink on one worksheet and a deliberate drag does nothing on the next.
+  Hang the undo push on crossing the threshold rather than on a real translate
+  and every tap costs a Ctrl+Z that undoes nothing. And go back to testing
+  `e.button` for a MOUSE only and the pen's barrel button — which sits exactly
+  where the fingers grip — abandons the stroke being written and starts a fresh
+  gesture under the hand, carrying the same pointerId, so the one-pointer guard
+  never sees it.
 - After touching **🧠 the cross-app corpus** (`cerEdits`, `styleEditsAll`, `styleProfilePick`'s
   subject step, `styleSamplesIn`'s `any:` branches, `styleDistilAll`'s subject buckets,
   `STYLE_NOTE_SYS` / `styleReadLessonReply` / `styleFactNoteFor` / `styleWriteFactNote`,

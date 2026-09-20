@@ -14,6 +14,7 @@ function cut(start, end) {
 const actual = cut('/* Palm rejection / iPad state */', '/* ---- Laser pointer:') +
   cut('function eventPoint(e, p, rect)', 'function setTool(t)') +
   cut('function attachOverlayHandlers(p)', '/* Put an annotation into edit mode:') +
+  cut('function enterEditMode(id, p)', 'function cancelTempRedraw(stroke)') +
   cut('function cancelTempRedraw(stroke)', '/* ================= Lasso multi-select') +
   cut('/* ================= Touch navigation & gestures', '/* Keyboard shortcuts */');
 
@@ -21,6 +22,7 @@ function harness() {
   const c = vm.createContext({ console, Set, Map, performance: { now: () => c.now } });
   vm.runInContext(`
 var now = 0, nextId = 0, frames = new Map(), timers = new Map(), pathWrites = 0, rectReads = 0, renders = 0, undoCount = 0;
+var rectW = 300, rectH = 400;   // the page's RENDERED size — a test changes it to simulate zoom
 function requestAnimationFrame(fn) { var id = ++nextId; frames.set(id, fn); return id; }
 function cancelAnimationFrame(id) { frames.delete(id); }
 function setTimeout(fn) { var id = ++nextId; timers.set(id, fn); return id; }
@@ -35,9 +37,14 @@ class Node {
   setAttribute(k, v) { this.attrs[k] = v; if (k === 'd') pathWrites++; }
   getAttribute(k) { return this.attrs[k] || null; }
   removeAttribute(k) { delete this.attrs[k]; }
-  querySelector(q) { return q === 'path' ? this.children.find(x => x.tag === 'path') : null; }
-  closest(q) { if (q === 'svg.overlay') return this.tag === 'svg' ? this : p.svg; return null; }
-  getBoundingClientRect() { rectReads++; return { left: 10, top: 20, width: 300, height: 400 }; }
+  querySelector(q) {
+    if (q === 'path') return this.children.find(x => x.tag === 'path');
+    const m = /^\[data-id="(.+)"\]$/.exec(q);
+    if (m) return this.children.find(x => x.attrs['data-id'] === m[1]) || null;
+    return null;
+  }
+  closest(q) { if (q === 'svg.overlay') return this.tag === 'svg' ? this : p.svg; if ((q === '[data-id]' || q === 'g[data-id]') && this.attrs['data-id']) return this; return null; }
+  getBoundingClientRect() { rectReads++; return { left: 10, top: 20, width: rectW, height: rectH }; }
   setPointerCapture(id) { this.capture = id; }
   hasPointerCapture(id) { return this.capture === id; }
   releasePointerCapture(id) { if (this.capture === id) this.capture = null; }
@@ -61,6 +68,13 @@ function setDirty() {} function refreshTsLabels() {} function toast() {}
 function armSnapHold(e) { drawing.holdCX = e.clientX; drawing.holdCY = e.clientY; drawing.holdTimer = setTimeout(function(){}); }
 function scheduleRaster() {} function applyScale() {} function undo() { undoCount++; } function redo() { undoCount++; }
 function setStylusOnly(v) { stylusOnly = v; }
+var toolChanges = [], lastTap = { id: null, t: 0 };
+function setTool(t) { tool = t; toolChanges.push(t); }
+function handleAiNoteAction() {} function openAiNoteModal() {} function mmEditAttached() {}
+function translateAnn(a, dx, dy) { (a.points || []).forEach(function (q) { q.x += dx; q.y += dy; }); }
+function focusTextAnn() {} function clearLassoSel() {} function showLassoBar() {}
+function startLassoMove() {} function startLassoResize() {} function startLassoRotate() {}
+function lassoGroupBBox() { return null; }
 ` + actual + `
 attachOverlayHandlers(p);
 function pointer(type, options) {
@@ -190,4 +204,116 @@ test('blur preserves ink, clears pending input and allows later gestures', () =>
   assert.equal(c.navPenPointerId, null);
   assert.equal(c.frames.size, 0);
   assert.equal(c.nav.mode, 'pan');
+});
+
+/* ---- A tablet pen must not have the tool taken out of its hand ----
+   Writing is short, rapid marks landing on top of ink that is already there,
+   and a pen puts them down at very nearly the same spot — which is what the
+   browser calls a double-click. Every one of these failures is silent: the
+   page still draws, the tool button still looks like the pen, and the next
+   stroke picks the ink up and moves it instead. */
+
+function inked() {
+  const { c, run } = harness();
+  run(`annotations.push({ id: 'ink1', page: 1, type: 'pen', color: '#000', width: 2, points: [{x:10,y:10},{x:50,y:50}] });
+       var inkNode = new Node('g'); inkNode.setAttribute('data-id', 'ink1');
+       p.svg.appendChild(inkNode);
+       function dbl(t) { p.svg.emit('dblclick', { type: 'dblclick', target: t, preventDefault: function(){} }); }`);
+  return { c, run };
+}
+
+test('a stray double-tap while writing never switches the tool or opens edit mode', () => {
+  const { c, run } = inked();
+  run(`tool = 'pen'; dbl(inkNode);`);
+  assert.equal(c.tool, 'pen');
+  assert.equal(c.toolChanges.length, 0);
+  assert.equal(c.editModeId, null);
+  for (const t of ['highlight', 'line', 'arrow', 'rect', 'ellipse', 'brace', 'eraser', 'lasso', 'text']) {
+    run(`tool = '${t}'; editModeId = null; toolChanges = []; dbl(inkNode);`);
+    assert.equal(c.tool, t, `${t} lost the tool to a double-tap`);
+    assert.equal(c.editModeId, null, `${t} opened edit mode from a double-tap`);
+  }
+});
+
+test('the select tool still opens edit mode on a double-click', () => {
+  const { c, run } = inked();
+  run(`tool = 'select'; dbl(inkNode);`);
+  assert.equal(c.editModeId, 'ink1');
+  assert.equal(c.tool, 'select');
+});
+
+test('enterEditMode never takes a drawing tool away, even when reached directly', () => {
+  const { c, run } = inked();
+  run(`tool = 'pen'; enterEditMode('ink1', p);`);
+  assert.equal(c.toolChanges.length, 0, 'a drawing tool was silently switched to select');
+  assert.equal(c.tool, 'pen');
+  // …and it still hands over the handles, which are grabbed before any tool
+  // is consulted, so nothing is lost by leaving the pen in hand.
+  assert.equal(c.editModeId, 'ink1');
+});
+
+test('a pen tremor selects without nudging the ink, and a real drag still moves it', () => {
+  const { c, run } = inked();
+  // A tap with the 2px wobble every stylus puts down: it must SELECT and
+  // leave the writing exactly where it was.
+  run(`tool = 'select';
+       pointer('pointerdown', { target: inkNode, clientX: 100, clientY: 100 });
+       var armed = !!draggingSel;
+       pointer('pointermove', { target: inkNode, clientX: 102, clientY: 101 });
+       var tremor = draggingSel.moved;
+       pointer('pointerup', { target: inkNode, clientX: 102, clientY: 101 });
+       var at = annotations[0].points[0];
+       var restX = at.x, restY = at.y, undosAfterTap = undoCount;`);
+  assert.equal(c.armed, true, 'the tap did not select');
+  assert.equal(c.selectedId, 'ink1');
+  assert.equal(c.tremor, false, 'a 2px pen tremor counted as a drag');
+  assert.equal(c.restX, 10, 'the ink moved under a pen that only tapped it');
+  assert.equal(c.restY, 10, 'the ink moved under a pen that only tapped it');
+  assert.equal(c.undosAfterTap, 0, 'a tap cost an undo step that undoes nothing');
+  // A deliberate drag still works, and is still one undo step. (The tap
+  // above armed the double-tap detector; clear it, or this second press is
+  // read as a double-tap and opens edit mode instead.)
+  run(`lastTap = { id: null, t: 0 };
+       pointer('pointerdown', { target: inkNode, clientX: 100, clientY: 100 });
+       pointer('pointermove', { clientX: 160, clientY: 100 });
+       var dragging = draggingSel.moved;
+       pointer('pointerup', { clientX: 160, clientY: 100 });
+       var movedX = annotations[0].points[0].x, undosAfterDrag = undoCount;`);
+  assert.equal(c.dragging, true, 'a real drag was swallowed by the threshold');
+  assert(c.movedX > 10, 'a real drag moved nothing');
+  assert.equal(c.undosAfterDrag, 1, 'a drag is one undo step');
+});
+
+test('the threshold is screen pixels, so it means the same at every zoom', () => {
+  /* The page is 600 units wide; how many SCREEN pixels that is depends on the
+     zoom, so a threshold measured in page units is a different physical
+     distance on every worksheet — a hair when zoomed in (so the tremor still
+     moves the ink) and most of a centimetre when zoomed out (so a deliberate
+     drag does nothing). Both directions are checked. */
+  const { c, run } = inked();
+  // Zoomed IN (600 units drawn across 2400px): a deliberate 10px drag moves it.
+  run(`rectW = 2400; rectH = 3200; tool = 'select';
+       pointer('pointerdown', { target: inkNode, clientX: 100, clientY: 100 });
+       pointer('pointermove', { clientX: 110, clientY: 100 });
+       var zoomedInDrag = draggingSel.moved;
+       pointer('pointerup', { clientX: 110, clientY: 100 }); lastTap = { id: null, t: 0 };`);
+  assert.equal(c.zoomedInDrag, true, 'zoomed in, a real 10px drag was swallowed');
+  // Zoomed OUT (600 units drawn across 150px): the same 2px tremor is still a tap.
+  run(`rectW = 150; rectH = 200;
+       pointer('pointerdown', { target: inkNode, clientX: 100, clientY: 100 });
+       pointer('pointermove', { clientX: 102, clientY: 101 });
+       var zoomedOutTremor = draggingSel.moved;`);
+  assert.equal(c.zoomedOutTremor, false, 'zoomed out, a 2px tremor moved the ink');
+});
+
+test('a barrel-button press mid-word cannot hijack the stroke in progress', () => {
+  const { c, run } = harness();
+  run(`tool = 'pen';
+       pointer('pointerdown', { clientX: 60, clientY: 60 });
+       var first = drawing && drawing.ann.id;
+       // Same pointerId — the one-pointer-at-a-time guard cannot see this one.
+       pointer('pointerdown', { clientX: 60, clientY: 60, button: 2, buttons: 3 });
+       var after = drawing && drawing.ann.id;`);
+  assert.equal(c.after, c.first, 'the barrel button started a second gesture over the stroke');
+  assert.equal(c.activePointerId, 1);
 });

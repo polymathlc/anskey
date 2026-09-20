@@ -5035,7 +5035,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.100.0';
+var APP_VERSION = 'v1.101.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -5448,6 +5448,34 @@ function cancelStaleGesture() {
   renderAllOverlays();
 }
 var erasing = null;         // { page, snap, removed, lastX, lastY } while the eraser is down
+
+/* ---- A GRAB IS NOT YET A MOVE ----
+   A pen tip is never perfectly still. It wobbles a pixel or two as it touches
+   down and again as it lifts, and a graphics tablet reports absolute
+   positions, so what the hand meant as a tap arrives as a tap AND a small
+   drag. Without a threshold the very act of SELECTING a stroke nudges it out
+   of place, which is exactly what "it moves my writing instead of writing"
+   feels like. So a grab becomes a MOVE only once the pointer has travelled a
+   real distance.
+
+   IT IS MEASURED IN SCREEN PIXELS, NEVER IN PAGE UNITS, and that is the whole
+   point of it: a page-unit threshold is a hair at 400% zoom and most of a
+   centimetre at fit-width, so the same tremor would be swallowed on one
+   worksheet and move the ink on the next. `cx`/`cy` are the client
+   coordinates the gesture started at — every grab records them. */
+var DRAG_SLOP_PX = 4;
+function dragStarted(g, e) {
+  if (!g) return false;
+  if (g.moved) return true;
+  // A gesture from before this existed (no start point) is let through rather
+  // than frozen: a drag that cannot be measured is better than one that can
+  // never begin.
+  if (typeof g.cx !== 'number' || typeof g.cy !== 'number') { g.moved = true; return true; }
+  if (Math.hypot(e.clientX - g.cx, e.clientY - g.cy) <= DRAG_SLOP_PX) return false;
+  g.moved = true;
+  return true;
+}
+
 // iPads report ordinary fingertips with contact sizes up to ~45px, so the
 // palm threshold must sit above that or normal finger scrolling gets eaten.
 var PALM_CONTACT = 55;
@@ -11181,7 +11209,14 @@ function attachOverlayHandlers(p) {
   var svg = p.svg;
 
   svg.addEventListener('pointerdown', function (e) {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    /* Only the PRIMARY button starts anything, whatever the pointer is.
+       A graphics-tablet pen carries a barrel button exactly where the fingers
+       grip it, and squeezing it mid-word fires a second `pointerdown` — with
+       the SAME pointerId as the tip already down, so the one-pointer-at-a-time
+       guard below cannot see it. Left through, it abandons the stroke in
+       progress and starts a fresh gesture under the hand. The eraser end of a
+       pen (button 5) arrives the same way. */
+    if (e.button > 0) return;
     // Admission precedes handles, typing and card buttons: those branches
     // can claim capture too, so a palm must never reach them mid-stroke.
     if (rejectPointerTouch(e)) { e.preventDefault(); return; }
@@ -11205,7 +11240,7 @@ function attachOverlayHandlers(p) {
             return; // the box was empty and vanished on commit
           }
         }
-        resizingSel = { id: hAnnId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false };
+        resizingSel = { id: hAnnId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false, cx: e.clientX, cy: e.clientY };
         claimPointer(e);
         svg.setPointerCapture(e.pointerId);
         e.preventDefault();
@@ -11319,7 +11354,7 @@ function attachOverlayHandlers(p) {
         renderAllOverlays();
         var gPt = eventPoint(e, p);
         draggingSel = {
-          id: gId, startX: gPt.x, startY: gPt.y,
+          id: gId, startX: gPt.x, startY: gPt.y, cx: e.clientX, cy: e.clientY,
           node: svg.querySelector('[data-id="' + gId + '"]'),
           page: p, snapshot: snapshot(), moved: false
         };
@@ -11359,7 +11394,7 @@ function attachOverlayHandlers(p) {
     }
 
     if (tool === 'select' && editModeId && e.target.getAttribute && e.target.getAttribute('data-handle')) {
-      resizingSel = { id: editModeId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false };
+      resizingSel = { id: editModeId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false, cx: e.clientX, cy: e.clientY };
       claimPointer(e);
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
@@ -11491,7 +11526,7 @@ function attachOverlayHandlers(p) {
         if (selA && (selA.type === 'text' || selA.type === 'ainote')) editModeId = id;
         renderAllOverlays();
         var node = svg.querySelector('[data-id="' + id + '"]');
-        draggingSel = { id: id, startX: pt.x, startY: pt.y, node: node, page: p, snapshot: snapshot(), moved: false };
+        draggingSel = { id: id, startX: pt.x, startY: pt.y, cx: e.clientX, cy: e.clientY, node: node, page: p, snapshot: snapshot(), moved: false };
         claimPointer(e);
         svg.setPointerCapture(e.pointerId);
       } else {
@@ -11571,6 +11606,7 @@ function attachOverlayHandlers(p) {
       return;
     }
     if (lassoMoving && lassoMoving.page === p) {
+      if (!dragStarted(lassoMoving, e)) return;   // a tap is not a drag
       applyLassoMove(eventPoint(e, p));
       return;
     }
@@ -11584,20 +11620,22 @@ function attachOverlayHandlers(p) {
       return;
     }
     if (resizingSel && resizingSel.page === p) {
+      if (!dragStarted(resizingSel, e)) return;   // a tap is not a resize
       var rpt = eventPoint(e, p);
       var ra = annotations.find(function (x) { return x.id === resizingSel.id; });
       if (ra) {
         applyHandle(ra, resizingSel.handle, rpt);
-        resizingSel.moved = true;
         renderOverlay(p);
       }
       return;
     }
     if (draggingSel && draggingSel.page === p) {
+      // Nothing moves until the pointer has really travelled: the ink must
+      // not shift under a pen that was only ever tapped down on it.
+      if (!dragStarted(draggingSel, e)) return;
       var pt = eventPoint(e, p);
       var dx = pt.x - draggingSel.startX;
       var dy = pt.y - draggingSel.startY;
-      if (Math.abs(dx) + Math.abs(dy) > 0.5) draggingSel.moved = true;
       if (draggingSel.node) draggingSel.node.setAttribute('transform', 'translate(' + dx + ' ' + dy + ')');
       // A live widget floats above the overlay rather than inside it, so it
       // has to be carried along by hand or it would stay behind until the
@@ -11884,15 +11922,38 @@ function attachOverlayHandlers(p) {
     e.preventDefault();
   }, { passive: false });
 
-  /* Fallback for tools other than select — double-click detection in the
-     select branch above is the primary path (dblclick doesn't fire reliably
-     once the overlay takes pointer capture). */
+  /* Fallback for the SELECTING tools — double-click detection in the select
+     branch above is the primary path (dblclick doesn't fire reliably once the
+     overlay takes pointer capture).
+
+     WHILE A DRAWING TOOL IS IN HAND A DOUBLE-TAP IS TWO MARKS, AND NOTHING
+     ELSE. Writing is made of short, rapid strokes landing on top of ink that
+     is already there — a decimal point, the dot of an `i`, a tick, the two
+     strokes of an equals sign — and a pen puts them down at very nearly the
+     same spot, which is precisely what the browser calls a double-click. This
+     handler used to run anyway and `enterEditMode` would switch the tool to
+     select, so the next stroke picked the ink up and MOVED it instead of
+     writing, with nothing on screen to say the tool had changed. A tablet pen
+     makes it happen constantly: it is absolutely positioned, so consecutive
+     taps land inside the double-click slop far more often than a mouse's do. */
   svg.addEventListener('dblclick', function (e) {
     if (isStudent() || tool === 'keyword' || reviseMode) return;
+    if (isDrawTool(tool)) return;
     var target = e.target.closest ? e.target.closest('[data-id]') : null;
     if (!target) return;
     enterEditMode(target.getAttribute('data-id'), p);
   });
+}
+
+/* Reaching for the select tool so the thing just opened can be dragged —
+   but NEVER out of a hand that is in the middle of writing. The resize
+   handles are grabbed before any tool is consulted (see the top of the
+   pointerdown handler), so they work whatever is in hand and this switch was
+   never what made them work; all it did was leave a pen tool quietly changed
+   into select, so the next stroke moved the ink instead of adding to it. */
+function selectToolForEdit() {
+  if (isDrawTool(tool)) return;
+  if (tool !== 'select') setTool('select');
 }
 
 /* Put an annotation into edit mode: text boxes open for typing, shapes and
@@ -11919,7 +11980,7 @@ function enterEditMode(id, p) {
        be the only thing on it that worked. It gets the ordinary resize
        handles instead, which is what a picture actually wants. */
     if (a.kind === 'paste') {
-      if (tool !== 'select') setTool('select');
+      selectToolForEdit();
       editModeId = id;
       editingId = null;
       renderAllOverlays();
@@ -11935,7 +11996,7 @@ function enterEditMode(id, p) {
     focusTextAnn(id);
   } else {
     if (editModeId === id) return; // already in handle mode
-    if (tool !== 'select') setTool('select');
+    selectToolForEdit();
     editModeId = id;
     editingId = null;
     renderAllOverlays();
@@ -12217,7 +12278,7 @@ function startLassoMove(e, p, pt) {
   claimPointer(e);
   p.svg.setPointerCapture(e.pointerId);
   lassoMoving = {
-    page: p, startX: pt.x, startY: pt.y, moved: false,
+    page: p, startX: pt.x, startY: pt.y, cx: e.clientX, cy: e.clientY, moved: false,
     snap: snapshot(),
     base: lassoSel.ids.map(function (id) {
       var a = annotations.find(function (x) { return x.id === id; });
@@ -12229,7 +12290,6 @@ function startLassoMove(e, p, pt) {
 function applyLassoMove(pt) {
   var r = lassoMoving;
   var dx = pt.x - r.startX, dy = pt.y - r.startY;
-  if (Math.abs(dx) + Math.abs(dy) > 0.5) r.moved = true;
   r.base.forEach(function (orig) {
     var a = annotations.find(function (x) { return x.id === orig.id; });
     if (a) translateAnnFrom(orig, a, dx, dy);
