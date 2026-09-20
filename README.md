@@ -4,6 +4,37 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.101.0 — Writing with a tablet pen no longer picks the writing up
+
+Reported on a Wacom: *"when I'm writing it's very easy to suddenly select
+strokes and move them instead of continuing writing."* Three separate causes,
+each of them silent — the page went on drawing, the toolbar went on showing the
+pen, and nothing on any screen said what had changed.
+
+- **A stray double-tap no longer takes the tool out of your hand.** Writing is
+  short, rapid marks landing on top of ink that is already there — a decimal
+  point, the dot of an `i`, a tick, the two strokes of an equals sign — and a
+  pen puts them down at very nearly the same spot, which is exactly what the
+  browser calls a double-click. The overlay's double-click fallback ran anyway
+  and quietly switched the tool to **select**, so the next stroke picked the ink
+  up and moved it instead of writing. A tablet pen makes it happen constantly:
+  it is absolutely positioned, so consecutive taps land inside the double-click
+  slop far more often than a mouse's do. While a drawing tool is in hand a
+  double-tap is now **two marks, and nothing else**. Double-clicking with the
+  select tool opens edit mode exactly as before.
+- **A tap selects without nudging the writing.** A pen tip is never perfectly
+  still — it wobbles a pixel or two as it touches down — so selecting a stroke
+  used to shift it. A grab becomes a *move* only once the pointer has really
+  travelled, measured in screen pixels so it means the same distance at every
+  zoom. Moving, resizing and dragging a group all follow the same rule, and a
+  tap no longer costs an undo step that undoes nothing.
+- **The pen's barrel button no longer breaks the stroke you are writing.** It
+  sits exactly where the fingers grip, and squeezing it mid-word fired a second
+  `pointerdown` carrying the same pointer id as the tip already down — so the
+  one-pointer-at-a-time guard could not see it, and it abandoned the stroke in
+  progress to start a fresh gesture. Only the primary button starts anything
+  now, whatever the pointer is; the eraser end of a pen arrived the same way.
+
 ## v1.100.0 — Chung GPT learns from every app, and says whether it is helping
 
 - **The Science portal's corrections reach this app.** Every correction the
