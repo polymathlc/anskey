@@ -4,6 +4,24 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.102.1 — A corner drag answers whichever way you pull it
+
+A pasted picture keeps its own shape on a corner drag, and the scale is now the
+drag **projected onto the picture's own diagonal** rather than whichever axis
+happened to travel further.
+
+Taking the larger axis meant a wide picture pulled straight in along its long
+edge did not move at all — its height never changed, so the scale never changed
+— and taking the smaller one would have done the same to a picture pulled
+straight out. Either way the corner reads as a handle that does nothing, which
+is worse than no handle. The projection answers to either axis, is exact when
+the corner is pulled down the diagonal, and still keeps the shape when the drag
+runs into the minimum size.
+
+`polymathlc/tutor` carries the identical rule.
+
+---
+
 ## v1.102.0 — A pasted picture has no window round it
 
 Copy a diagram, screenshot or photo and press Ctrl+V and you used to get a

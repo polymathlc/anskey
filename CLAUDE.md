@@ -997,7 +997,7 @@ correct — so the worksheet becomes a "spot the mistake" exercise.
 
 `buildPagesFromBytes` / `BLANK_PAGE_W` / `blankPdfBytes` / **`addBlankPage`** /
 `PASTE_NOTE_KIND` / `PASTE_IMG_MAX_PX` / `PASTE_IMG_QUALITY` / `PASTE_CASCADE` /
-`pasteGoesToWorksheet` / **`pasteImageOntoPage`** / `pastePicBox` /
+`pasteGoesToWorksheet` / **`pasteImageOntoPage`** / `pastePicBox` / **`picFitRatio`** /
 `imageRatio` / `pasteImagesFromClipboard` (search `ONE page builder`,
 `➕ A BLANK PAGE` and `📎 PASTE A PICTURE ONTO THE PAGE`), plus `#blankPageBtn`,
 `#emptyBlankBtn` and the image branch of the page's own drop handler.
@@ -1124,6 +1124,19 @@ selected with a tap, moved by dragging it, resized by its corners, and 🔒
   `contain` letterboxed it away where nobody could see it — so the moment the
   frame went, free resize became visible stretching. A picture saved before
   `ratio` existed has none and resizes freely, exactly as it always did.
+- **`picFitRatio` IS THE ONE PLACE THAT ARITHMETIC LIVES, AND THE SCALE IS THE
+  DRAG PROJECTED ONTO THE SHAPE'S OWN DIAGONAL** (v1.102.1) — never whichever
+  axis happens to have travelled further. Taking the LARGER refuses to shrink a
+  wide picture pulled straight in along its long edge: its height never changed,
+  so the scale never changes and **the corner appears dead**. Taking the SMALLER
+  does the same to one pulled straight out. Both read as a handle that does
+  nothing, which is worse than no handle at all — and it is the shipped fault
+  v1.102.0's own browser check caught. The projection answers to either axis, is
+  EXACT on a true diagonal drag, and is IDEMPOTENT, which is what lets it run on
+  every pointermove with no start snapshot kept. **THE FLOOR KEEPS THE SHAPE
+  TOO** (whichever of `minW` / `minH` bites harder decides), or a picture
+  dragged down to nothing comes back a square. It is pure, so the harness pins
+  it without a DOM, and it is shared byte for byte with `polymathlc/tutor`.
 - **THE RESIZE IS ANCHORED TO THE OPPOSITE CORNER, not to the pointer.** Clamped
   up to the floor, `Math.min(anchor, pt)` puts the box's own edge past the
   pointer and the picture creeps away under the drag.
@@ -1887,13 +1900,17 @@ the pen, and nothing on any screen says what changed.
 - After touching **➕ the blank page, 📎 the pasted picture or 🗑 the page
   delete** (`buildPagesFromBytes`, `blankPdfBytes`, `addBlankPage`,
   `BLANK_PAGE_W`, `PASTE_NOTE_KIND`, `pasteGoesToWorksheet`,
-  `pasteImageOntoPage`, `pastePicBox`, `imageRatio`,
+  `pasteImageOntoPage`, `pastePicBox`, `picFitRatio`, `imageRatio`,
   `pasteImagesFromClipboard`, `shrinkImageDataUrl`'s quality argument, either
   PDF path's `'paste'`, the image branch of the drop handler, `annLocked`,
   `annNoteMin`, `annPastePic`, `annNoteMinW` / `annNoteMinH`, `PASTE_MIN_PX`,
   `pastePicNode`, `renderPictureBar`, `togglePictureLock`, `removePictureAnn`,
   `annsAfterPageRemoved`, `starsAfterPageRemoved`, `historyAfterPageRemoved`
-  or `deletePage`), run `node tools/blank-page-tests.mjs`.
+  or `deletePage`), run `node tools/blank-page-tests.mjs` **and**
+  `node tools/picture-check.mjs`. **The browser one is not ceremony**: every
+  source-level pin here passes on a build where the picture never picks up or a
+  corner never scales it, because each of them asks what the source SAYS — the
+  dead-corner fault v1.102.1 fixes is exactly what it caught.
   Every failure here is silent and the page still appears: **stop re-uploading
   the PDF and the new page exists in one tab and in no saved worksheet**, so
   every picture put on it is an annotation pointing at a page that is not
@@ -1915,7 +1932,15 @@ the pen, and nothing on any screen says what changed.
   filling in, which is the one way this is worse than not having it. And let
   `pastePicBox` size off anything but the picture's own ratio and every
   pasted picture is letterboxed — or taller than the paper, which cannot be
-  dragged back into view. **The FRAMELESS half fails silently in both
+  dragged back into view. Take the projection out of `picFitRatio` and go back
+  to whichever axis travelled further, and a wide picture pulled straight in
+  along its long edge does not move at all: the height never changed, so the
+  scale never changes and **the corner reads as a handle that does nothing** —
+  which is exactly how v1.102.0 shipped. Take the SMALLER instead and the same
+  corner refuses to grow it. Drop the floor's own ratio and a picture dragged
+  down to nothing comes back a square. And write that arithmetic a second time
+  at either call site and the two apps — which share it byte for byte — drift
+  apart on the one thing a teacher can see happening under their hand. **The FRAMELESS half fails silently in both
   directions**: let `aiNoteCardNode` build the card before it asks
   `annPastePic` and the heading, the border and the spine are back over the
   printed question; leave the paste arm out of `drawAiNoteOnPdf` and it is

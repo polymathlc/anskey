@@ -5061,7 +5061,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.102.0';
+var APP_VERSION = 'v1.102.1';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -5689,6 +5689,28 @@ function annLockedId(id) {
 }
 /* A pasted picture — the one annotation that is drawn with no frame at all. */
 function annPastePic(a) { return !!(a && a.type === 'ainote' && a.kind === 'paste'); }
+
+/* A CORNER DRAG KEEPS A PICTURE'S OWN SHAPE, and the scale is the drag
+   PROJECTED ONTO THE SHAPE'S OWN DIAGONAL rather than whichever axis happens
+   to have travelled further. Taking the LARGER refuses to shrink a wide
+   picture dragged straight in along its long edge — its height never changed,
+   so the scale never changes and the handle appears dead; taking the SMALLER
+   refuses to grow one the same way. Both read as a handle that does nothing,
+   which is worse than no handle. The projection answers to either axis, is
+   EXACT on a true diagonal drag, and is idempotent — a point already on the
+   diagonal projects to itself, which is what lets it run on every pointermove
+   with no start snapshot to keep. It is pure and shared with
+   `polymathlc/tutor`; keep the two in step. */
+function picFitRatio(dx, dy, ratio, minW, minH) {
+  var w = Math.abs(dx), h = Math.abs(dy);
+  if (!(ratio > 0)) return { w: Math.max(minW, w), h: Math.max(minH, h) };
+  var t = (w * ratio + h) / (ratio * ratio + 1);
+  w = t * ratio; h = t;
+  // Whichever floor bites harder decides, and the shape is kept either way.
+  if (w < minW) { w = minW; h = minW / ratio; }
+  if (h < minH) { h = minH; w = minH * ratio; }
+  return { w: w, h: h };
+}
 
 /* Unrotated frame of an x/y/w/h annotation. Text boxes never render shorter
    than one line, so their frame uses the same effective height everywhere.
@@ -12940,16 +12962,18 @@ function applyHandle(a, h, pt) {
        the card would creep away under the drag. */
     var nfx = (h === 'nw' || h === 'sw') ? a.x + a.w : a.x;
     var nfy = (h === 'nw' || h === 'ne') ? a.y + a.h : a.y;
-    var nw = Math.max(annNoteMinW(a), Math.abs(pt.x - nfx));
-    var nh = Math.max(annNoteMinH(a), Math.abs(pt.y - nfy));
+    var nw, nh;
     /* A PICTURE KEEPS ITS SHAPE. A frame could letterbox a stretched picture
-       out of sight; a frameless one cannot, so the drag is driven by whichever
-       axis has travelled further and the other follows the picture's own
-       ratio. A picture pasted before `ratio` was stored has none, and is
-       resized freely exactly as it always was. */
-    if (annPastePic(a) && a.ratio > 0) {
-      if (nw / a.ratio >= nh) nh = Math.max(annNoteMinH(a), nw / a.ratio);
-      else nw = Math.max(annNoteMinW(a), nh * a.ratio);
+       out of sight; a frameless one cannot. `picFitRatio` is the one place
+       that arithmetic lives. A picture pasted before `ratio` was stored has
+       none, and is resized freely exactly as it always was. */
+    if (annPastePic(a)) {
+      var fit = picFitRatio(pt.x - nfx, pt.y - nfy, a.ratio,
+                            annNoteMinW(a), annNoteMinH(a));
+      nw = fit.w; nh = fit.h;
+    } else {
+      nw = Math.max(annNoteMinW(a), Math.abs(pt.x - nfx));
+      nh = Math.max(annNoteMinH(a), Math.abs(pt.y - nfy));
     }
     a.x = round2((h === 'ne' || h === 'se') ? nfx : nfx - nw);
     a.y = round2((h === 'sw' || h === 'se') ? nfy : nfy - nh);

@@ -82,7 +82,7 @@ const hmod = new Function(`
   function round2(n) { return Math.round(n * 100) / 100; }
   ` + cut('function annNoteMin(a) {', '/* Unrotated frame of an', 'predicates')
     + cut('function applyHandle(a, h, pt) {', 'function translateAnn(', 'applyHandle') + `
-  return { annNoteMin, annLocked, annPastePic, annNoteMinW, annNoteMinH, applyHandle };
+  return { annNoteMin, annLocked, annPastePic, annNoteMinW, annNoteMinH, applyHandle, picFitRatio };
 `)();
 
 const A4 = { num: 1, baseW: 595, baseH: 842, wrap: null };
@@ -496,7 +496,12 @@ ok('the stylesheet gives it no frame at all',
 
 /* ON PAPER TOO, or the picture is frameless on screen and prints with a
    heading band — found only once the sheet is in front of a class. */
-const pdfPaste = cut('  if (annPastePic(a)) {', '  var headH = Math.min(14', 'pdf paste');
+/* The anchor is the PDF branch's OWN first line — `if (annPastePic(a)) {` on
+   its own is a substring of `applyHandle`'s copy of the same test, which sits
+   earlier in the file, so a bare cut on it silently slices the resize instead
+   and this check then reports on code it was never about. */
+const pdfPaste = cut('  if (annPastePic(a)) {\n    if (o.image) {',
+                     '  var headH = Math.min(14', 'pdf paste');
 ok('the printed picture has no heading, border or spine',
   /page\.drawImage/.test(pdfPaste) && !/drawRectangle/.test(pdfPaste));
 ok('…and is FITTED, not stretched, so paper agrees with `contain`',
@@ -552,12 +557,47 @@ r = box();
 hmod.applyHandle(r, 'sw', { x: 0, y: 400 });
 ok('…and the top-right for the bottom-left',
   Math.abs((r.x + r.w) - 300) < 0.02 && r.y === 100, JSON.stringify(r));
+/* THE SCALE IS THE DRAG PROJECTED ONTO THE SHAPE'S OWN DIAGONAL, and these
+   four cases are why. Whichever way the corner is pulled the picture has to
+   ANSWER: a "larger axis wins" rule leaves a wide picture dead when it is
+   pulled straight in along its long edge (the height never moved, so the scale
+   never moves) and a "smaller axis wins" rule leaves it dead when pulled
+   straight out — and a handle that does nothing reads as a feature that does
+   not work. On a true diagonal it must be EXACT, and it must be IDEMPOTENT,
+   because it runs on every single pointermove with no start snapshot kept. */
+let fit = hmod.picFitRatio(200, 100, 2, 24, 24);
+ok('a drag straight down the diagonal comes back exact',
+  Math.abs(fit.w - 200) < 0.001 && Math.abs(fit.h - 100) < 0.001, JSON.stringify(fit));
+ok('…so running it again changes nothing',
+  JSON.stringify(hmod.picFitRatio(fit.w, fit.h, 2, 24, 24)) === JSON.stringify(fit));
+ok('a corner pulled straight IN along the long edge still shrinks',
+  hmod.picFitRatio(140, 100, 2, 24, 24).w < 195,
+  JSON.stringify(hmod.picFitRatio(140, 100, 2, 24, 24)));
+ok('…and one pulled straight OUT along it still grows',
+  hmod.picFitRatio(260, 100, 2, 24, 24).w > 205,
+  JSON.stringify(hmod.picFitRatio(260, 100, 2, 24, 24)));
+ok('…and both keep the shape',
+  Math.abs(hmod.picFitRatio(140, 100, 2, 24, 24).w / hmod.picFitRatio(140, 100, 2, 24, 24).h - 2) < 0.001
+  && Math.abs(hmod.picFitRatio(260, 100, 2, 24, 24).w / hmod.picFitRatio(260, 100, 2, 24, 24).h - 2) < 0.001);
+/* THE FLOOR KEEPS THE SHAPE TOO, or a picture dragged down to nothing comes
+   back as a square. Whichever floor bites harder is the one that decides. */
+fit = hmod.picFitRatio(2, 2, 2, 24, 24);
+ok('the floor keeps the picture’s shape', Math.abs(fit.w / fit.h - 2) < 0.001
+  && fit.w >= 24 && fit.h >= 24, JSON.stringify(fit));
+fit = hmod.picFitRatio(2, 2, 0.25, 24, 24);
+ok('…whichever way round the picture is', Math.abs(fit.w / fit.h - 0.25) < 0.001
+  && fit.w >= 24 && fit.h >= 24, JSON.stringify(fit));
+ok('a negative drag is read by its distance', Math.abs(
+  hmod.picFitRatio(-200, -100, 2, 24, 24).w - 200) < 0.001);
+
 /* A picture pasted before `ratio` was stored has none. Free resize is what it
    always had, and `contain` is what stops that one ever looking stretched. */
 r = box({ ratio: undefined });
 hmod.applyHandle(r, 'se', { x: 400, y: 150 });
 ok('a picture with no stored ratio resizes freely',
   Math.abs(r.w - 300) < 0.02 && Math.abs(r.h - 50) < 0.02, JSON.stringify(r));
+ok('…which is `picFitRatio` refusing to invent one',
+  JSON.stringify(hmod.picFitRatio(300, 50, 0, 24, 24)) === JSON.stringify({ w: 300, h: 50 }));
 /* A CARD keeps its own 90 x 60 floor: there is a heading and a body inside it
    that have nowhere else to go. */
 r = { type: 'ainote', kind: 'notes', x: 100, y: 100, w: 200, h: 100 };
@@ -576,6 +616,10 @@ ok('a pasted picture is never folded to a pill',
   !hmod.annNoteMin({ type: 'ainote', kind: 'paste', min: true }));
 ok('…but a note card still is',
   hmod.annNoteMin({ type: 'ainote', kind: 'notes', min: true }));
+
+ok('the resize reads `picFitRatio` rather than carrying its own arithmetic',
+  /var fit = picFitRatio\(pt\.x - nfx, pt\.y - nfy, a\.ratio,/.test(html)
+  && (html.match(/function picFitRatio\(/g) || []).length === 1);
 
 /* ---------- the paste itself ---------- */
 const paste = cut('/* ================= 📎 PASTE A PICTURE', "document.addEventListener('paste'", 'paste');
