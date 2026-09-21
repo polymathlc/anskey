@@ -14,7 +14,7 @@ const start = '/* ================= Lesson recording backgrounds ===============
 const end = '/* ================= End lesson recording backgrounds ================= */';
 const helper = section(html, start, end);
 const actualRenderers = section(html, 'function drawAiNotePillOnPdf(', 'async function buildAnnotatedPdf(') +
-  section(html, 'function annFrame(a)', '/* Corners of a possibly-rotated frame') +
+  section(html, 'function annNoteMin(a) {', '/* Corners of a possibly-rotated frame') +
   section(html, 'function winAnsiSafe(', '/* ================= Flattened PDF download ================= */');
 
 function png(width = 600, height = 800, padding = 0) {
@@ -56,7 +56,8 @@ function harness(options = {}) {
     AbortController, DOMException, setTimeout, clearTimeout, Image,
     atob: value => Buffer.from(value, 'base64').toString('binary'),
     document: { createElement(name) { assert.equal(name, 'canvas', 'only inert canvases may be created'); return new Canvas(); } },
-    AI_NOTE_MIN_W: 90, AI_NOTE_MIN_H: 60, AI_NOTE_PILL_W: 110, AI_NOTE_PILL_H: 20, AI_NOTE_ALPHA: 0.15,
+    AI_NOTE_MIN_W: 90, AI_NOTE_MIN_H: 60, PASTE_MIN_PX: 24,
+    AI_NOTE_PILL_W: 110, AI_NOTE_PILL_H: 20, AI_NOTE_ALPHA: 0.15,
     aiNoteShortName: a => a.title || 'Card',
     keyPageJpeg: async (...args) => { keyCalls.push(args); return options.keyPromise || 'cGRm'; },
     drawAnnsOnCtx: (...args) => { calls.push(['ink', JSON.parse(JSON.stringify(args[3])), args[4]]); }

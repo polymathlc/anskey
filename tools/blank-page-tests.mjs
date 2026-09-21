@@ -67,9 +67,22 @@ const mod = new Function(`
   function toast() {}
   ` + geom + `
   return { setOpenDialog: function (v) { openDialog = v; },
-           pasteCardBox: pasteCardBox, pasteGoesToWorksheet: pasteGoesToWorksheet,
+           pastePicBox: pastePicBox, pasteGoesToWorksheet: pasteGoesToWorksheet,
            PASTE_IMG_MAX_PX: PASTE_IMG_MAX_PX, PASTE_IMG_QUALITY: PASTE_IMG_QUALITY,
            PASTE_CASCADE: PASTE_CASCADE };
+`)();
+
+/* 🔒 THE PREDICATES AND THE RESIZE, run for real. A locked picture that can
+   still be dragged is a lock that does nothing, and a picture that stretches
+   on a corner drag is the one thing the frame used to hide — inside a frame
+   `object-fit: contain` letterboxed the distortion away where nobody saw it. */
+const hmod = new Function(`
+  var AI_NOTE_MIN_W = 90, AI_NOTE_MIN_H = 60, PASTE_MIN_PX = 24;
+  var annotations = [];
+  function round2(n) { return Math.round(n * 100) / 100; }
+  ` + cut('function annNoteMin(a) {', '/* Unrotated frame of an', 'predicates')
+    + cut('function applyHandle(a, h, pt) {', 'function translateAnn(', 'applyHandle') + `
+  return { annNoteMin, annLocked, annPastePic, annNoteMinW, annNoteMinH, applyHandle, picFitRatio };
 `)();
 
 const A4 = { num: 1, baseW: 595, baseH: 842, wrap: null };
@@ -78,35 +91,47 @@ const A4 = { num: 1, baseW: 595, baseH: 842, wrap: null };
    portrait card. Letterboxing is what `object-fit: contain` then does to it —
    the picture is still all there, sitting in a band of empty card, and it
    reads as a paste that went wrong. */
-const wide = mod.pasteCardBox(A4, 16 / 9, 0);
-const tall = mod.pasteCardBox(A4, 3 / 4, 0);
-ok('a wide picture gets a wide card', wide.w > (wide.h - 18), JSON.stringify(wide));
-ok('a tall picture gets a tall card', (tall.h - 18) > tall.w, JSON.stringify(tall));
-ok('the card matches the picture’s own ratio',
-  Math.abs((wide.w / (wide.h - 18)) - 16 / 9) < 0.06, JSON.stringify(wide));
+const wide = mod.pastePicBox(A4, 16 / 9, 0);
+const tall = mod.pastePicBox(A4, 3 / 4, 0);
+ok('a wide picture gets a wide box', wide.w > wide.h, JSON.stringify(wide));
+ok('a tall picture gets a tall box', tall.h > tall.w, JSON.stringify(tall));
+/* THE BOX **IS** THE PICTURE. Nothing is added for a heading any more, so the
+   box's own shape has to be the picture's — a stray + AI_NOTE_HEAD_H here is a
+   band of nothing under every picture on the page. */
+ok('the box matches the picture’s own ratio',
+  Math.abs((wide.w / wide.h) - 16 / 9) < 0.02, JSON.stringify(wide));
+ok('…and a portrait one too',
+  Math.abs((tall.w / tall.h) - 3 / 4) < 0.02, JSON.stringify(tall));
+ok('nothing is left over for a heading',
+  !/AI_NOTE_HEAD_H/.test(cut('function pastePicBox(', 'function imageRatio(', 'box')));
 
 /* NEVER TALLER THAN THE PAPER. A card that overhangs the page cannot be
    dragged back onto it — the drag is clamped to the page it is on. */
-const skinny = mod.pasteCardBox(A4, 0.2, 0);
+const skinny = mod.pastePicBox(A4, 0.2, 0);
 ok('a very tall picture is capped to the page', skinny.h <= A4.baseH - 8, JSON.stringify(skinny));
 ok('…and stays on the page top to bottom',
   skinny.y >= 0 && skinny.y + skinny.h <= A4.baseH, JSON.stringify(skinny));
-const panorama = mod.pasteCardBox(A4, 8, 0);
+const panorama = mod.pastePicBox(A4, 8, 0);
 ok('a panorama stays on the page left to right',
   panorama.x >= 0 && panorama.x + panorama.w <= A4.baseW, JSON.stringify(panorama));
 ok('a picture with NO ratio still gets a real box',
-  mod.pasteCardBox(A4, 0, 0).w >= 90 && mod.pasteCardBox(A4, 0, 0).h >= 60);
+  mod.pastePicBox(A4, 0, 0).w >= 24 && mod.pastePicBox(A4, 0, 0).h >= 24);
+/* A card's 90 x 60 floor made room for a heading and a body. A picture has
+   neither, and that floor DISTORTED a wide thin one — an 8 : 1 panorama came
+   back 6 : 1 for no reason anybody chose. */
+ok('a panorama keeps its shape rather than being floored to a card',
+  Math.abs((panorama.w / panorama.h) - 8) < 0.2, JSON.stringify(panorama));
 
 /* A SECOND PICTURE MUST NOT LAND ON THE FIRST, or the teacher presses Ctrl+V,
    sees nothing move, and presses it again. */
-const first = mod.pasteCardBox(A4, 1, 0);
-const second = mod.pasteCardBox(A4, 1, 1);
+const first = mod.pastePicBox(A4, 1, 0);
+const second = mod.pastePicBox(A4, 1, 1);
 ok('the second picture is stepped off the first',
   second.x !== first.x || second.y !== first.y, JSON.stringify([first, second]));
 ok('the cascade comes back round rather than walking off the page',
-  JSON.stringify(mod.pasteCardBox(A4, 1, 6)) === JSON.stringify(first));
+  JSON.stringify(mod.pastePicBox(A4, 1, 6)) === JSON.stringify(first));
 for (let i = 0; i < 12; i++) {
-  const b = mod.pasteCardBox(A4, 1, i);
+  const b = mod.pastePicBox(A4, 1, i);
   ok('picture ' + i + ' is on the page',
     b.x >= 0 && b.y >= 0 && b.x + b.w <= A4.baseW && b.y + b.h <= A4.baseH, JSON.stringify(b));
 }
@@ -449,10 +474,152 @@ ok('the picture is EMBEDDED in the printed PDF',
   /a\.kind === 'image' \|\| a\.kind === 'mindmap' \|\| a\.kind === 'paste'\) &&\s*\n?\s*\/\^data:image/.test(html));
 ok('…and PAINTED by the card painter',
   /if \(a\.kind === 'image' \|\| a\.kind === 'mindmap' \|\| a\.kind === 'paste'\) \{\s*\n\s*if \(o\.image\)/.test(html));
-ok('the card body draws it on screen',
+ok('the card body would still draw it, if it ever got there',
   /\} else if \(a\.kind === 'image' \|\| a\.kind === 'mindmap' \|\| a\.kind === 'paste'\) \{/.test(html));
-ok('…edge to edge, like every other picture card',
-  /a\.kind === 'image' \|\| a\.kind === 'widget' \|\| a\.kind === 'mindmap' \|\| a\.kind === 'paste'\) body\.classList\.add\('aiNoteBodyFlush'\)/.test(html));
+
+/* ---------- 📎 NO WINDOW ROUND THE PICTURE ---------- */
+/* The card came FIRST and the picture was inside it, so the screen renderer
+   has to turn away before it builds any of that. Miss this and the heading,
+   the border and the coloured spine are back over the printed question. */
+ok('the screen renderer turns a pasted picture away before the card',
+  /function aiNoteCardNode\(a\) \{\s*\n\s*if \(annNoteMin\(a\)\) return aiNotePillNode\(a\);\s*\n\s*if \(annPastePic\(a\)\) return pastePicNode\(a\);/.test(html));
+const picNode = cut('function pastePicNode(a) {', 'function aiNoteCardNode(', 'pastePicNode');
+ok('…and what it draws is the picture and nothing else',
+  /className = 'pastePic'/.test(picNode) &&
+  !/aiNoteHead|aiNoteBtn|aiNoteTitle|aiNoteBody/.test(picNode));
+/* An <img> is natively draggable: without this a mouse drag on the picture
+   starts the browser's own drag of the image file instead of moving it. */
+ok('…with the browser’s own image drag switched off', /img\.draggable = false/.test(picNode));
+ok('the stylesheet gives it no frame at all',
+  /\.pastePic \{ display: block; width: 100%; height: 100%; \}/.test(html) &&
+  /\.pastePic img \{[\s\S]{0,400}?object-fit: contain/.test(html));
+
+/* ON PAPER TOO, or the picture is frameless on screen and prints with a
+   heading band — found only once the sheet is in front of a class. */
+/* The anchor is the PDF branch's OWN first line — `if (annPastePic(a)) {` on
+   its own is a substring of `applyHandle`'s copy of the same test, which sits
+   earlier in the file, so a bare cut on it silently slices the resize instead
+   and this check then reports on code it was never about. */
+const pdfPaste = cut('  if (annPastePic(a)) {\n    if (o.image) {',
+                     '  var headH = Math.min(14', 'pdf paste');
+ok('the printed picture has no heading, border or spine',
+  /page\.drawImage/.test(pdfPaste) && !/drawRectangle/.test(pdfPaste));
+ok('…and is FITTED, not stretched, so paper agrees with `contain`',
+  /Math\.min\(pw \/ o\.image\.width, ph \/ o\.image\.height\)/.test(pdfPaste));
+ok('…before any of the chrome is drawn',
+  html.indexOf('if (annPastePic(a)) {\n    if (o.image) {') <
+  html.indexOf('var headH = Math.min(14'));
+
+/* ---------- 🔒 LOCKED IN POSITION ---------- */
+ok('a lock is one flag, read in one place',
+  /function annLocked\(a\) \{ return !!\(a && a\.locked\); \}/.test(html));
+ok('the eraser steps over a locked picture', /if \(annLockedId\(id\)\) continue;/.test(html));
+ok('the lasso steps over it too',
+  /if \(annLocked\(a\)\) return;\s*\n\s*var b = annBBox\(a\);/.test(html));
+ok('the select tool selects it and does not pick it up',
+  /if \(annLocked\(selA\)\) return;/.test(html));
+ok('a card’s grip does not pick it up either',
+  /if \(annLocked\(gAnn\)\) return;/.test(html));
+ok('the resize refuses it', /if \(annLocked\(a\)\) return;/.test(cut('function applyHandle(', 'function translateAnn(', 'ah')));
+ok('…and no handles are drawn on it at all',
+  /\} else if \(annLocked\(a\)\) \{/.test(html));
+/* A lock nothing can undo is a picture nobody can take off the page. */
+ok('a locked picture can still be removed from its own bar',
+  /function removePictureAnn\(id\) \{[\s\S]{0,260}?deleteSelected\(\);/.test(html));
+ok('the lock flag is DELETED rather than written false',
+  /if \(a\.locked\) delete a\.locked; else a\.locked = true;/.test(html));
+/* The controls have to exist somewhere, and a frameless picture has no
+   heading to put them on — so they are on the bar, which is drawn only while
+   the picture is the one in hand. */
+ok('its bar carries Lock and Remove',
+  /🔓 Unlock' : '🔒 Lock'/.test(html) && /'✕ Remove'/.test(html));
+ok('…and is only drawn while it is selected',
+  /else if \(annPastePic\(a\) && !isStudent\(\) && !isSharedVisitor\(\)\) renderPictureBar/.test(html));
+ok('a student never gets the bar',
+  /function togglePictureLock\(id\) \{\s*\n\s*if \(isStudent\(\) \|\| isSharedVisitor\(\)\) return;/.test(html));
+
+/* ---------- the resize, run for real ---------- */
+function box(o) { return { type: 'ainote', kind: 'paste', ratio: 2, x: 100, y: 100, w: 200, h: 100, ...o }; }
+let r = box();
+hmod.applyHandle(r, 'se', { x: 400, y: 400 });
+ok('a corner drag keeps the picture’s shape', Math.abs(r.w / r.h - 2) < 0.02, JSON.stringify(r));
+ok('…anchored to the opposite corner', r.x === 100 && r.y === 100, JSON.stringify(r));
+r = box();
+hmod.applyHandle(r, 'nw', { x: 0, y: 0 });
+ok('…and dragging the top-left anchors the bottom-right',
+  Math.abs((r.x + r.w) - 300) < 0.02 && Math.abs((r.y + r.h) - 200) < 0.02, JSON.stringify(r));
+ok('…still in the picture’s shape', Math.abs(r.w / r.h - 2) < 0.02, JSON.stringify(r));
+r = box();
+hmod.applyHandle(r, 'ne', { x: 400, y: 0 });
+ok('…the bottom-left for the top-right',
+  r.x === 100 && Math.abs((r.y + r.h) - 200) < 0.02, JSON.stringify(r));
+r = box();
+hmod.applyHandle(r, 'sw', { x: 0, y: 400 });
+ok('…and the top-right for the bottom-left',
+  Math.abs((r.x + r.w) - 300) < 0.02 && r.y === 100, JSON.stringify(r));
+/* THE SCALE IS THE DRAG PROJECTED ONTO THE SHAPE'S OWN DIAGONAL, and these
+   four cases are why. Whichever way the corner is pulled the picture has to
+   ANSWER: a "larger axis wins" rule leaves a wide picture dead when it is
+   pulled straight in along its long edge (the height never moved, so the scale
+   never moves) and a "smaller axis wins" rule leaves it dead when pulled
+   straight out — and a handle that does nothing reads as a feature that does
+   not work. On a true diagonal it must be EXACT, and it must be IDEMPOTENT,
+   because it runs on every single pointermove with no start snapshot kept. */
+let fit = hmod.picFitRatio(200, 100, 2, 24, 24);
+ok('a drag straight down the diagonal comes back exact',
+  Math.abs(fit.w - 200) < 0.001 && Math.abs(fit.h - 100) < 0.001, JSON.stringify(fit));
+ok('…so running it again changes nothing',
+  JSON.stringify(hmod.picFitRatio(fit.w, fit.h, 2, 24, 24)) === JSON.stringify(fit));
+ok('a corner pulled straight IN along the long edge still shrinks',
+  hmod.picFitRatio(140, 100, 2, 24, 24).w < 195,
+  JSON.stringify(hmod.picFitRatio(140, 100, 2, 24, 24)));
+ok('…and one pulled straight OUT along it still grows',
+  hmod.picFitRatio(260, 100, 2, 24, 24).w > 205,
+  JSON.stringify(hmod.picFitRatio(260, 100, 2, 24, 24)));
+ok('…and both keep the shape',
+  Math.abs(hmod.picFitRatio(140, 100, 2, 24, 24).w / hmod.picFitRatio(140, 100, 2, 24, 24).h - 2) < 0.001
+  && Math.abs(hmod.picFitRatio(260, 100, 2, 24, 24).w / hmod.picFitRatio(260, 100, 2, 24, 24).h - 2) < 0.001);
+/* THE FLOOR KEEPS THE SHAPE TOO, or a picture dragged down to nothing comes
+   back as a square. Whichever floor bites harder is the one that decides. */
+fit = hmod.picFitRatio(2, 2, 2, 24, 24);
+ok('the floor keeps the picture’s shape', Math.abs(fit.w / fit.h - 2) < 0.001
+  && fit.w >= 24 && fit.h >= 24, JSON.stringify(fit));
+fit = hmod.picFitRatio(2, 2, 0.25, 24, 24);
+ok('…whichever way round the picture is', Math.abs(fit.w / fit.h - 0.25) < 0.001
+  && fit.w >= 24 && fit.h >= 24, JSON.stringify(fit));
+ok('a negative drag is read by its distance', Math.abs(
+  hmod.picFitRatio(-200, -100, 2, 24, 24).w - 200) < 0.001);
+
+/* A picture pasted before `ratio` was stored has none. Free resize is what it
+   always had, and `contain` is what stops that one ever looking stretched. */
+r = box({ ratio: undefined });
+hmod.applyHandle(r, 'se', { x: 400, y: 150 });
+ok('a picture with no stored ratio resizes freely',
+  Math.abs(r.w - 300) < 0.02 && Math.abs(r.h - 50) < 0.02, JSON.stringify(r));
+ok('…which is `picFitRatio` refusing to invent one',
+  JSON.stringify(hmod.picFitRatio(300, 50, 0, 24, 24)) === JSON.stringify({ w: 300, h: 50 }));
+/* A CARD keeps its own 90 x 60 floor: there is a heading and a body inside it
+   that have nowhere else to go. */
+r = { type: 'ainote', kind: 'notes', x: 100, y: 100, w: 200, h: 100 };
+hmod.applyHandle(r, 'se', { x: 101, y: 101 });
+ok('a note card keeps the card floor', r.w === 90 && r.h === 60, JSON.stringify(r));
+ok('…and a picture gets a far smaller one',
+  hmod.annNoteMinW({ type: 'ainote', kind: 'paste' }) === 24);
+r = box({ locked: true });
+hmod.applyHandle(r, 'se', { x: 400, y: 400 });
+ok('a LOCKED picture is not resized at all',
+  r.w === 200 && r.h === 100 && r.x === 100 && r.y === 100, JSON.stringify(r));
+/* `min` on a pasted picture can only have come from a save made while it still
+   had a frame to fold into. Drawn as a pill it would be a photograph squashed
+   into a 60-point tab. */
+ok('a pasted picture is never folded to a pill',
+  !hmod.annNoteMin({ type: 'ainote', kind: 'paste', min: true }));
+ok('…but a note card still is',
+  hmod.annNoteMin({ type: 'ainote', kind: 'notes', min: true }));
+
+ok('the resize reads `picFitRatio` rather than carrying its own arithmetic',
+  /var fit = picFitRatio\(pt\.x - nfx, pt\.y - nfy, a\.ratio,/.test(html)
+  && (html.match(/function picFitRatio\(/g) || []).length === 1);
 
 /* ---------- the paste itself ---------- */
 const paste = cut('/* ================= 📎 PASTE A PICTURE', "document.addEventListener('paste'", 'paste');
