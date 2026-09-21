@@ -67,7 +67,7 @@ const mod = new Function(`
   function toast() {}
   ` + geom + `
   return { setOpenDialog: function (v) { openDialog = v; },
-           pasteCardBox: pasteCardBox, pasteGoesToWorksheet: pasteGoesToWorksheet,
+           pastePicBox: pastePicBox, pasteGoesToWorksheet: pasteGoesToWorksheet,
            PASTE_IMG_MAX_PX: PASTE_IMG_MAX_PX, PASTE_IMG_QUALITY: PASTE_IMG_QUALITY,
            PASTE_CASCADE: PASTE_CASCADE };
 `)();
@@ -91,8 +91,8 @@ const A4 = { num: 1, baseW: 595, baseH: 842, wrap: null };
    portrait card. Letterboxing is what `object-fit: contain` then does to it —
    the picture is still all there, sitting in a band of empty card, and it
    reads as a paste that went wrong. */
-const wide = mod.pasteCardBox(A4, 16 / 9, 0);
-const tall = mod.pasteCardBox(A4, 3 / 4, 0);
+const wide = mod.pastePicBox(A4, 16 / 9, 0);
+const tall = mod.pastePicBox(A4, 3 / 4, 0);
 ok('a wide picture gets a wide box', wide.w > wide.h, JSON.stringify(wide));
 ok('a tall picture gets a tall box', tall.h > tall.w, JSON.stringify(tall));
 /* THE BOX **IS** THE PICTURE. Nothing is added for a heading any more, so the
@@ -103,19 +103,19 @@ ok('the box matches the picture’s own ratio',
 ok('…and a portrait one too',
   Math.abs((tall.w / tall.h) - 3 / 4) < 0.02, JSON.stringify(tall));
 ok('nothing is left over for a heading',
-  !/AI_NOTE_HEAD_H/.test(cut('function pasteCardBox(', 'function imageRatio(', 'box')));
+  !/AI_NOTE_HEAD_H/.test(cut('function pastePicBox(', 'function imageRatio(', 'box')));
 
 /* NEVER TALLER THAN THE PAPER. A card that overhangs the page cannot be
    dragged back onto it — the drag is clamped to the page it is on. */
-const skinny = mod.pasteCardBox(A4, 0.2, 0);
+const skinny = mod.pastePicBox(A4, 0.2, 0);
 ok('a very tall picture is capped to the page', skinny.h <= A4.baseH - 8, JSON.stringify(skinny));
 ok('…and stays on the page top to bottom',
   skinny.y >= 0 && skinny.y + skinny.h <= A4.baseH, JSON.stringify(skinny));
-const panorama = mod.pasteCardBox(A4, 8, 0);
+const panorama = mod.pastePicBox(A4, 8, 0);
 ok('a panorama stays on the page left to right',
   panorama.x >= 0 && panorama.x + panorama.w <= A4.baseW, JSON.stringify(panorama));
 ok('a picture with NO ratio still gets a real box',
-  mod.pasteCardBox(A4, 0, 0).w >= 24 && mod.pasteCardBox(A4, 0, 0).h >= 24);
+  mod.pastePicBox(A4, 0, 0).w >= 24 && mod.pastePicBox(A4, 0, 0).h >= 24);
 /* A card's 90 x 60 floor made room for a heading and a body. A picture has
    neither, and that floor DISTORTED a wide thin one — an 8 : 1 panorama came
    back 6 : 1 for no reason anybody chose. */
@@ -124,14 +124,14 @@ ok('a panorama keeps its shape rather than being floored to a card',
 
 /* A SECOND PICTURE MUST NOT LAND ON THE FIRST, or the teacher presses Ctrl+V,
    sees nothing move, and presses it again. */
-const first = mod.pasteCardBox(A4, 1, 0);
-const second = mod.pasteCardBox(A4, 1, 1);
+const first = mod.pastePicBox(A4, 1, 0);
+const second = mod.pastePicBox(A4, 1, 1);
 ok('the second picture is stepped off the first',
   second.x !== first.x || second.y !== first.y, JSON.stringify([first, second]));
 ok('the cascade comes back round rather than walking off the page',
-  JSON.stringify(mod.pasteCardBox(A4, 1, 6)) === JSON.stringify(first));
+  JSON.stringify(mod.pastePicBox(A4, 1, 6)) === JSON.stringify(first));
 for (let i = 0; i < 12; i++) {
-  const b = mod.pasteCardBox(A4, 1, i);
+  const b = mod.pastePicBox(A4, 1, i);
   ok('picture ' + i + ' is on the page',
     b.x >= 0 && b.y >= 0 && b.x + b.w <= A4.baseW && b.y + b.h <= A4.baseH, JSON.stringify(b));
 }

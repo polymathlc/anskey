@@ -997,7 +997,7 @@ correct — so the worksheet becomes a "spot the mistake" exercise.
 
 `buildPagesFromBytes` / `BLANK_PAGE_W` / `blankPdfBytes` / **`addBlankPage`** /
 `PASTE_NOTE_KIND` / `PASTE_IMG_MAX_PX` / `PASTE_IMG_QUALITY` / `PASTE_CASCADE` /
-`pasteGoesToWorksheet` / **`pasteImageOntoPage`** / `pasteCardBox` /
+`pasteGoesToWorksheet` / **`pasteImageOntoPage`** / `pastePicBox` /
 `imageRatio` / `pasteImagesFromClipboard` (search `ONE page builder`,
 `➕ A BLANK PAGE` and `📎 PASTE A PICTURE ONTO THE PAGE`), plus `#blankPageBtn`,
 `#emptyBlankBtn` and the image branch of the page's own drop handler.
@@ -1053,7 +1053,7 @@ page in view; so does dropping one on it.
 - **`'paste'` had to be added to BOTH PDF paths** (`embedAiNoteImages` and the
   card painter) or it prints as an empty box with a heading — a picture on
   screen and a gap on the sheet.
-- **`pasteCardBox` is the ONE place a ratio becomes a box**, so what lands on
+- **`pastePicBox` is the ONE place a ratio becomes a box**, so what lands on
   the page and what the harness checks are the same arithmetic. Sized to the
   picture's own shape, never taller than the page (a picture overhanging the
   paper cannot be dragged back on), and **stepped for each picture already on
@@ -1112,7 +1112,7 @@ selected with a tap, moved by dragging it, resized by its corners, and 🔒
   drawn ONLY while the picture is the one in hand — which is what makes "no
   window" and "it has controls" both true. A frameless picture with a permanent
   🔒 badge on it is a frame with one button in it.
-- **THE BOX **IS** THE PICTURE.** `AI_NOTE_HEAD_H` is gone from `pasteCardBox`,
+- **THE BOX **IS** THE PICTURE.** `AI_NOTE_HEAD_H` is gone from `pastePicBox`,
   so the box's own shape is the picture's; a stray `+ AI_NOTE_HEAD_H` left there
   is a band of nothing under every picture on the page. A picture pasted BEFORE
   this carries a box 18 points too tall, which is why both renderers FIT the
@@ -1151,6 +1151,9 @@ selected with a tap, moved by dragging it, resized by its corners, and 🔒
   save made while it still had a frame to fold into — and drawn as a pill it is a
   photograph squashed into a 60-point tab. ONE predicate, asked by all nine
   places that used to read `a.min` directly.
+- **`pasteCardBox` IS NOW `pastePicBox`.** The box is not a card any more, and the two apps are
+  meant to be grep-identical: `polymathlc/tutor` carries the same feature under the same names, so
+  a fix to either copies straight across rather than being re-derived.
 - **THE TWO vm HARNESSES CUT THE REAL PREDICATES** rather than stubbing them
   (`writing-tests`, `recording-background-tests`), so a guard that changes
   meaning changes there too.
@@ -1884,7 +1887,7 @@ the pen, and nothing on any screen says what changed.
 - After touching **➕ the blank page, 📎 the pasted picture or 🗑 the page
   delete** (`buildPagesFromBytes`, `blankPdfBytes`, `addBlankPage`,
   `BLANK_PAGE_W`, `PASTE_NOTE_KIND`, `pasteGoesToWorksheet`,
-  `pasteImageOntoPage`, `pasteCardBox`, `imageRatio`,
+  `pasteImageOntoPage`, `pastePicBox`, `imageRatio`,
   `pasteImagesFromClipboard`, `shrinkImageDataUrl`'s quality argument, either
   PDF path's `'paste'`, the image branch of the drop handler, `annLocked`,
   `annNoteMin`, `annPastePic`, `annNoteMinW` / `annNoteMinH`, `PASTE_MIN_PX`,
@@ -1910,7 +1913,7 @@ the pen, and nothing on any screen says what changed.
   that cannot be generated. Let a paste be claimed while the teacher is typing
   and the picture lands on the worksheet instead of in the box they were
   filling in, which is the one way this is worse than not having it. And let
-  `pasteCardBox` size off anything but the picture's own ratio and every
+  `pastePicBox` size off anything but the picture's own ratio and every
   pasted picture is letterboxed — or taller than the paper, which cannot be
   dragged back into view. **The FRAMELESS half fails silently in both
   directions**: let `aiNoteCardNode` build the card before it asks

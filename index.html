@@ -6388,7 +6388,7 @@ async function pasteImageOntoPage(file) {
   var step = annotations.filter(function (x) {
     return x.page === page.num && x.type === 'ainote' && x.kind === 'paste';
   }).length;
-  var box = pasteCardBox(page, ratio, step);
+  var box = pastePicBox(page, ratio, step);
 
   pushUndo();
   var a = {
@@ -6420,7 +6420,7 @@ async function pasteImageOntoPage(file) {
 
    The floor is PASTE_MIN_PX rather than the card floor, because a wide thin
    picture is a perfectly ordinary thing to paste. */
-function pasteCardBox(page, ratio, index) {
+function pastePicBox(page, ratio, index) {
   var pw = page.baseW || 600, ph = page.baseH || 800;
   var r = Math.max(0.15, ratio || 0.75);
   var w = Math.min(420, pw * 0.62);
