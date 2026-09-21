@@ -1053,16 +1053,12 @@ page in view; so does dropping one on it.
 - **`'paste'` had to be added to BOTH PDF paths** (`embedAiNoteImages` and the
   card painter) or it prints as an empty box with a heading — a picture on
   screen and a gap on the sheet.
-- **Only the card's CHROME is at `AI_NOTE_ALPHA`; the picture is opaque**, on
-  screen and on paper. That is what makes a see-through frame the right frame
-  for a photograph parked over a question.
 - **`pasteCardBox` is the ONE place a ratio becomes a box**, so what lands on
   the page and what the harness checks are the same arithmetic. Sized to the
-  picture's own shape (nothing letterboxed), never taller than the page (a card
-  overhanging the paper cannot be dragged back on), and **stepped for each
-  picture already on that page** — a second paste landing exactly on the first
-  reads as a paste that did nothing. The step cycles, so a long run never walks
-  off the corner.
+  picture's own shape, never taller than the page (a picture overhanging the
+  paper cannot be dragged back on), and **stepped for each picture already on
+  that page** — a second paste landing exactly on the first reads as a paste
+  that did nothing. The step cycles, so a long run never walks off the corner.
 - **A phone photo is redrawn small** (`shrinkImageDataUrl`, at
   `PASTE_IMG_MAX_PX` / `PASTE_IMG_QUALITY`). The annotations are re-written on
   every auto-save, and Storage overflow is the net rather than the plan. The
@@ -1081,6 +1077,87 @@ page in view; so does dropping one on it.
   handlers as well as hidden from the toolbar — the same rule the ✨ note tool
   follows.
 - Run **`node tools/blank-page-tests.mjs`** after touching any of it.
+
+### 🖼 …and THERE IS NO WINDOW ROUND THE PICTURE (v1.102.0)
+
+`annNoteMin` / `annLocked` / `annLockedId` / **`annPastePic`** / `annNoteMinW` /
+`annNoteMinH` / `PASTE_MIN_PX` / **`pastePicNode`** / **`renderPictureBar`** /
+`togglePictureLock` / `removePictureAnn`, the `.pastePic` CSS, the `ratio` on the
+annotation, the `annPastePic` arm of **`drawAiNoteOnPdf`**, and the `annLocked`
+guards in `eraseAlong` / `completeLasso` / `applyHandle` / both `draggingSel`
+call sites (search `📎 A PASTED PICTURE HAS NO WINDOW ROUND IT`).
+
+It shipped as a CARD — a heading bar, a border and a coloured spine — because
+that is what the kind it borrows is. On a worksheet that reads as a screenshot
+dropped on top of the page rather than as part of it, and the frame sits over
+the printed question beside it. It is **the picture and nothing else** now:
+selected with a tap, moved by dragging it, resized by its corners, and 🔒
+**locked in position**.
+
+- **IT IS STILL THE SAME `ainote` KIND, and that is still the whole trick.**
+  Nothing about the type changed, so the hit test, the resize handles,
+  `enterEditMode`, the eraser, the lasso, undo, the thumbnails, both PDF paths
+  and the save are untouched and every picture already pasted keeps working.
+  What was taken away is the CHROME.
+- **`pastePicNode` TURNS AWAY BEFORE THE CARD IS BUILT** — the second line of
+  `aiNoteCardNode`, after the pill. The card came first and the picture was
+  inside it, so anything short of turning away early leaves the heading, the
+  border and the spine on the page.
+- **`img.draggable = false` IS NOT DECORATION.** An `<img>` is natively
+  draggable, so without it a mouse drag on the picture starts the browser's own
+  drag of the image FILE instead of moving it on the page — and natively
+  selectable, so a stylus travelling across it paints a blue selection over the
+  picture.
+- **EVERYTHING THE HEADING CARRIED IS ON `renderPictureBar` INSTEAD**, and it is
+  drawn ONLY while the picture is the one in hand — which is what makes "no
+  window" and "it has controls" both true. A frameless picture with a permanent
+  🔒 badge on it is a frame with one button in it.
+- **THE BOX **IS** THE PICTURE.** `AI_NOTE_HEAD_H` is gone from `pasteCardBox`,
+  so the box's own shape is the picture's; a stray `+ AI_NOTE_HEAD_H` left there
+  is a band of nothing under every picture on the page. A picture pasted BEFORE
+  this carries a box 18 points too tall, which is why both renderers FIT the
+  picture rather than stretching it — `object-fit: contain` on screen and
+  `Math.min(pw / w, ph / h)` on paper. The two must agree: a picture stretched on
+  paper and not on screen is only ever found with the sheet in front of a class.
+- **A PICTURE KEEPS ITS SHAPE ON A CORNER DRAG**, from the `ratio` stored the
+  moment it lands. The frame used to hide the distortion — inside a frame
+  `contain` letterboxed it away where nobody could see it — so the moment the
+  frame went, free resize became visible stretching. A picture saved before
+  `ratio` existed has none and resizes freely, exactly as it always did.
+- **THE RESIZE IS ANCHORED TO THE OPPOSITE CORNER, not to the pointer.** Clamped
+  up to the floor, `Math.min(anchor, pt)` puts the box's own edge past the
+  pointer and the picture creeps away under the drag.
+- **`PASTE_MIN_PX` IS A SMALLER FLOOR ON PURPOSE.** A note, a table or a widget
+  has a heading and a body inside it that need 90 × 60 points; a picture has
+  neither, and that floor DISTORTED a wide thin one — an 8 : 1 panorama came
+  back 6 : 1 for no reason anybody chose.
+- **`annLocked` IS ONE FLAG READ IN ONE PLACE, and five surfaces ask it.** A
+  locked picture is part of the page: the eraser steps over it (rubbing out a
+  stroke drawn ON a picture must not take the picture with it — that is the
+  accident locking exists to prevent, and by the time it is noticed the picture
+  has gone), the lasso steps over it (a loop drawn across one is nearly always
+  gathering the ink on it), neither `draggingSel` call site picks it up, and
+  `applyHandle` refuses it — belt to the brace of no handles being drawn.
+- **A LOCKED PICTURE IS STILL SELECTABLE AND STILL REMOVABLE.** Selectable, or
+  the 🔓 that unlocks it could never be reached; removable from its own bar and
+  with Delete, because both are deliberate acts aimed at exactly this picture
+  rather than an accident of writing near it. **A lock nothing can undo is a
+  picture nobody can take off the page.**
+- **THE FLAG IS DELETED RATHER THAN WRITTEN FALSE**, the rule `min` already
+  follows: every annotation is written out on every auto-save, so an inert
+  `locked: false` on each picture is bytes on the wire that mean nothing.
+- **`annNoteMin` EXISTS BECAUSE `min` ON A PASTE CAN ONLY BE STALE.** There is no
+  minimise button on a frameless picture, so the flag can only have come from a
+  save made while it still had a frame to fold into — and drawn as a pill it is a
+  photograph squashed into a 60-point tab. ONE predicate, asked by all nine
+  places that used to read `a.min` directly.
+- **THE TWO vm HARNESSES CUT THE REAL PREDICATES** rather than stubbing them
+  (`writing-tests`, `recording-background-tests`), so a guard that changes
+  meaning changes there too.
+- Run **`node tools/blank-page-tests.mjs`**, **`node --test
+  tools/writing-tests.mjs`** and **`node tools/recording-background-tests.mjs`**
+  after touching any of it — **and paste a picture, drag it, resize it and lock
+  it**, which is the one thing reading the source cannot check.
 
 ### 🗑 …and taking one back out (v1.92.0)
 
@@ -1809,7 +1886,9 @@ the pen, and nothing on any screen says what changed.
   `BLANK_PAGE_W`, `PASTE_NOTE_KIND`, `pasteGoesToWorksheet`,
   `pasteImageOntoPage`, `pasteCardBox`, `imageRatio`,
   `pasteImagesFromClipboard`, `shrinkImageDataUrl`'s quality argument, either
-  PDF path's `'paste'`, the image branch of the drop handler,
+  PDF path's `'paste'`, the image branch of the drop handler, `annLocked`,
+  `annNoteMin`, `annPastePic`, `annNoteMinW` / `annNoteMinH`, `PASTE_MIN_PX`,
+  `pastePicNode`, `renderPictureBar`, `togglePictureLock`, `removePictureAnn`,
   `annsAfterPageRemoved`, `starsAfterPageRemoved`, `historyAfterPageRemoved`
   or `deletePage`), run `node tools/blank-page-tests.mjs`.
   Every failure here is silent and the page still appears: **stop re-uploading
@@ -1833,7 +1912,22 @@ the pen, and nothing on any screen says what changed.
   filling in, which is the one way this is worse than not having it. And let
   `pasteCardBox` size off anything but the picture's own ratio and every
   pasted picture is letterboxed — or taller than the paper, which cannot be
-  dragged back into view. **The DELETE half is quieter than any of it**,
+  dragged back into view. **The FRAMELESS half fails silently in both
+  directions**: let `aiNoteCardNode` build the card before it asks
+  `annPastePic` and the heading, the border and the spine are back over the
+  printed question; leave the paste arm out of `drawAiNoteOnPdf` and it is
+  frameless on screen and prints with a heading band, which is only ever found
+  with the sheet in front of a class; STRETCH it in either renderer instead of
+  fitting it and every picture pasted before the frame came off prints 18 points
+  too tall; drop `img.draggable = false` and a mouse drag on the picture starts
+  the browser's own drag of the image file instead of moving it. And on the
+  LOCK: miss any one of the five `annLocked` guards and the lock is a button
+  that does nothing on that surface alone — the eraser's is the one that costs
+  the picture, because rubbing a stroke off it takes it with it; make a locked
+  picture unselectable and the 🔓 can never be reached; make it undeletable and
+  it can never come off the page; and write `locked: false` rather than deleting
+  the flag and every picture carries it on every auto-save for ever.
+  **The DELETE half is quieter than any of it**,
   because a renumbering that goes wrong still renders: stop shifting the
   annotations after the deleted page and every mark on the rest of the
   worksheet is one page out, on a sheet that looks perfectly ordinary until it

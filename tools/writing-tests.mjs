@@ -11,7 +11,8 @@ function cut(start, end) {
   assert(a >= 0 && b > a, `Missing shipped section: ${start}`);
   return html.slice(a, b);
 }
-const actual = cut('/* Palm rejection / iPad state */', '/* ---- Laser pointer:') +
+const actual = cut('function annNoteMin(a) {', '/* Unrotated frame of an') +
+  cut('/* Palm rejection / iPad state */', '/* ---- Laser pointer:') +
   cut('function eventPoint(e, p, rect)', 'function setTool(t)') +
   cut('function attachOverlayHandlers(p)', '/* Put an annotation into edit mode:') +
   cut('function enterEditMode(id, p)', 'function cancelTempRedraw(stroke)') +

@@ -4,6 +4,40 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.102.0 — A pasted picture has no window round it
+
+Copy a diagram, screenshot or photo and press Ctrl+V and you used to get a
+**card**: the picture inside a heading bar, a border and a coloured spine. On a
+worksheet that reads as a screenshot dropped on top of the page rather than as
+part of it, and the frame sits over the printed question beside it.
+
+A pasted picture is now **the picture and nothing else**.
+
+- **No heading, no border, no background, no buttons.** At rest the page shows
+  the picture, full stop.
+- **Tap it to pick it up.** Drag the picture to move it; drag a corner to
+  resize it. Everything it needs while you are handling it is on a small bar
+  that appears beside it — and disappears the moment you tap somewhere else.
+- **It keeps its shape.** Dragging a corner scales the picture rather than
+  stretching it. (The frame used to hide that: inside a frame the distortion was
+  letterboxed away where nobody could see it.)
+- **🔒 Lock it in position.** A locked picture is part of the page: write over
+  it, rub a stroke off it, lasso across it — it stays exactly where it is. Press
+  🔓 to move it again, or **✕ Remove** to take it off. It is still selectable
+  while locked, so the unlock is always one tap away.
+- **On paper as on screen.** The printed sheet and the PDF draw the picture edge
+  to edge in its own box, fitted rather than stretched, with no heading band and
+  no border.
+
+A wide thin picture also comes out true to its shape now: the old card floor of
+90 × 60 points made room for a heading and a body, and it quietly turned an 8 : 1
+panorama into a 6 : 1 one.
+
+Pictures pasted before this update lose their frames and keep working: they are
+resized freely rather than proportionally, because they were saved without the
+picture's own ratio on them.
+
+
 ## v1.101.0 — Writing with a tablet pen no longer picks the writing up
 
 Reported on a Wacom: *"when I'm writing it's very easy to suddenly select
