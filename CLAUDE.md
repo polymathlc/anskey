@@ -41,6 +41,18 @@ from lists, previews the one, and meters and plays back the other.
   `micFor`, beside the device it really opened, `camId` / `micId`). That is what stops a failing
   device being reopened on every device-list event; Try again clears `camFor` and is the only
   retry.
+- **A GUESS NEVER OVERWRITES A CHOICE.** Opened as "a camera" before the list is named, the browser
+  may hand over a DIFFERENT camera when the remembered one is unplugged or re-issued its id. That
+  camera is remembered only when the teacher had picked "a camera" (`want.any`); a remembered
+  `{ id, label }` is left for the named list to decide — reopened exactly, or turned off and named
+  as missing. And Start refuses while "a camera" is still opening (`camState === 'opening'` with no
+  `camId`): which camera the browser picks is exactly what the preview is about to show.
+- **A PREVIEW WAITING ON THE BROWSER IS NOT ASKED FOR TWICE** (`camWantFor` / `micWantFor`). The
+  other device being allowed names every device, which changes the LIST, not the choice; restarting
+  then is a second request mid-prompt. The waiting preview re-syncs itself when it opens.
+- **`lessonPrefMemory` holds the choices where storage is blocked**, for the visit. Read from
+  storage alone the mirror switch snapped back as it was unticked, and a camera chosen a minute ago
+  was forgotten the next time the window opened.
 - **THE RECORDING IS EXACT, AND A CAMERA THAT WILL NOT OPEN REFUSES THE START.** The chosen
   devices go in as `{ exact }` — the teacher has just looked at them. Falling back to voice only
   would be a lesson the teacher believes has them in it, so the start is refused loudly and names

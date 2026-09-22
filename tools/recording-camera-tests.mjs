@@ -123,7 +123,7 @@ var navigator = { mediaDevices: {
       return Promise.reject(err);
     }
     var ask = spec && spec.deviceId ? (spec.deviceId.exact || spec.deviceId.ideal) : '';
-    var pool = NAMED.filter(function (d) { return d.kind === kind + 'input' && d.deviceId !== 'default' && devices.some(function (x) { return x.deviceId === d.deviceId || !x.deviceId; }); });
+    var pool = NAMED.filter(function (d) { return d.kind === kind + 'input' && d.deviceId !== 'default' && !removed.has(d.deviceId) && devices.some(function (x) { return x.deviceId === d.deviceId || !x.deviceId; }); });
     var hit = pool.filter(function (d) { return d.deviceId === ask; })[0];
     if (spec && spec.deviceId && spec.deviceId.exact && !hit) { var e = new Error(''); e.name = 'OverconstrainedError'; return Promise.reject(e); }
     var dev = hit || (kind === 'audio' && !ask ? { deviceId: 'default', label: 'Default - Desk Mic' } : pool[0]) || { deviceId: kind + '-only', label: '' };
@@ -801,4 +801,84 @@ test('a meter the browser has not let start yet asks for a tap, and never blames
   await h.settle();
   h.run('level = 0.1; runFrames();');
   assert.match(h.run("$('lessonMicHint').textContent"), /can hear you/, 'one tap in the window wakes it');
+});
+
+
+/* ---------------------------------------------------------------------
+   Before the browser names its devices, "a camera" is a guess — and a
+   guess must never overwrite what the teacher chose
+   --------------------------------------------------------------------- */
+test('a remembered camera that is NOT plugged in stays remembered when the browser opens another one instead', async () => {
+  // Safari, Firefox, and Chrome set to "ask": the list is unnamed when the window opens.
+  const h = harness(`store.set('polymath.lessonCamera', '${TEACHER_CAM}'); devices = UNNAMED.slice(); removed.add('cam-doc');`);
+  h.run('lessonOpenModal();');
+  await h.settle();
+  assert.deepEqual(h.json('JSON.parse(store.get("polymath.lessonCamera"))'), { id: 'cam-doc', label: 'Document Camera' },
+    'the front camera the browser fell back to is NOT remembered in its place');
+  assert.equal(h.run('lessonDev.camStream'), null, 'and it is not left running as if it were the chosen camera');
+  assert.equal(h.run("$('lessonCamSelect').value"), '');
+  assert.match(h.run("$('lessonCamOffText').textContent"), /“Document Camera” is not connected/);
+  assert.equal(h.run('liveTracks()'), 1, 'only the microphone is live');
+  h.run("plugIn('cam-doc'); runTimeouts();");
+  await h.settle();
+  assert.equal(h.run('lessonDev.camId'), 'cam-doc', 'plugged back in, the REMEMBERED camera comes back');
+});
+
+test('a remembered camera the browser renamed is reopened exactly, not swapped for the one the guess opened', async () => {
+  const h = harness(`store.set('polymath.lessonCamera', JSON.stringify({ id: 'cam-doc-old-id', label: 'Document Camera' })); devices = UNNAMED.slice();`);
+  h.run('lessonOpenModal();');
+  await h.settle();
+  assert.equal(h.run('lessonDev.camId'), 'cam-doc', 'found by its NAME once the list is named, and opened exactly');
+  assert.equal(h.run('liveTracks()'), 2, 'the camera the guess opened was let go');
+  assert.deepEqual(h.json('JSON.parse(store.get("polymath.lessonCamera"))'), { id: 'cam-doc', label: 'Document Camera' });
+});
+
+test('Start waits while "a camera" is still being opened, rather than recording whichever one the browser picks', async () => {
+  const h = harness(`store.set('polymath.lessonCamera', '${TEACHER_CAM}'); devices = UNNAMED.slice(); namedAfterGrant = false;`);
+  h.run('var late = deferred(); gumWait.video = late; lessonOpenModal();');
+  await h.settle();
+  assert.equal(h.run('lessonDev.camState'), 'opening');
+  await h.run('lessonStart();');
+  assert.equal(h.run('lessonCapture'), null, 'no recording started on a camera nobody has seen yet');
+  assert.ok(h.run('messages.some(function (m) { return /still opening/.test(m); })'));
+  assert.equal(h.run("$('lessonModal').classList.contains('open')"), true, 'the window stays up to show it');
+  h.run('late.resolve();');
+  await h.settle();
+  assert.equal(h.run('lessonDev.camState'), 'live');
+});
+
+test('one preview being allowed never sends the OTHER device\'s request a second time while it is still waiting', async () => {
+  const h = harness(`store.set('polymath.lessonCamera', '${TEACHER_CAM}'); devices = UNNAMED.slice();`);
+  h.run('var late = deferred(); gumWait.video = late; lessonOpenModal();');
+  await h.settle();   // the microphone is allowed first, and that names every device
+  assert.equal(h.run('gum.filter(function (c) { return c.video; }).length'), 1, 'the camera is not asked for again mid-prompt');
+  h.run('late.resolve();');
+  await h.settle();
+  assert.equal(h.run('lessonDev.camId'), 'cam-doc');
+  assert.equal(h.run('gum.filter(function (c) { return c.video; }).length'), 1, 'one camera request, from first to last');
+  assert.equal(h.run('liveTracks()'), 2);
+
+  const mic = harness(`store.set('polymath.lessonCamera', '${TEACHER_CAM}'); store.set('polymath.lessonMic', JSON.stringify({ id: 'mic-usb', label: 'USB Mic' })); devices = UNNAMED.slice();`);
+  mic.run('var lateMic = deferred(); gumWait.audio = lateMic; lessonOpenModal();');
+  await mic.settle();   // this time the camera is allowed first
+  assert.equal(mic.run('gum.filter(function (c) { return c.audio; }).length'), 1, 'nor the microphone');
+  mic.run('lateMic.resolve();');
+  await mic.settle();
+  assert.equal(mic.run('lessonDev.micId'), 'mic-usb');
+  assert.equal(mic.run('gum.filter(function (c) { return c.audio; }).length'), 1);
+});
+
+test('with storage blocked, the mirror switch and the choices still hold for the visit', async () => {
+  const h = harness(`localStorage = { getItem: function(){ throw new Error('blocked'); }, setItem: function(){ throw new Error('blocked'); }, removeItem: function(){ throw new Error('blocked'); } };`);
+  h.run('lessonOpenModal();');
+  await h.settle();
+  h.run("$('lessonCamSelect').value = 'cam-front'; $('lessonCamSelect').emit('change');");
+  await h.settle();
+  h.run("$('lessonMirror').checked = false; $('lessonMirror').emit('change');");
+  assert.equal(h.run("$('lessonMirror').checked"), false, 'unticked, it stays unticked');
+  assert.equal(h.run("$('lessonCamPreview').classList.contains('mirror')"), false);
+  h.run('lessonCloseModal(); gum.length = 0; lessonOpenModal();');
+  await h.settle();
+  assert.equal(h.run("$('lessonCamSelect').value"), 'cam-front', 'the camera chosen a moment ago is still the one chosen');
+  assert.equal(h.run("$('lessonCamPreview').classList.contains('mirror')"), false);
 });

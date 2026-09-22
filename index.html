@@ -10876,6 +10876,7 @@ var lessonDev = {
   camMissing: '', micMissing: '',    // a chosen device that is not plugged in
   noCams: false,
   camFor: null, micFor: null,        // the <select> value each preview was opened FOR
+  camWantFor: '', micWantFor: '',    // …and the choice it was opened for
   camId: '', micId: '',              // the device each preview really opened
   camStream: null, micStream: null,
   camState: 'off', micState: 'off',  // 'off' | 'opening' | 'live' | 'error'
@@ -10886,15 +10887,23 @@ var lessonDev = {
   test: null, testNote: '', testTone: ''
 };
 
+// Where storage is blocked — a private window, a locked-down school iPad —
+// the choices are kept here instead, for the visit. Read from storage alone,
+// the mirror switch snapped back the moment it was unticked, and a camera
+// chosen a minute ago was forgotten the next time the window opened.
+var lessonPrefMemory = {};
 function lessonPrefGet(key) {
-  try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }
-  catch (e) { return null; }
+  try { var raw = localStorage.getItem(key); if (raw !== null && raw !== undefined) return JSON.parse(raw); }
+  catch (e) { /* blocked or unreadable: this visit's memory answers */ }
+  return Object.prototype.hasOwnProperty.call(lessonPrefMemory, key) ? lessonPrefMemory[key] : null;
 }
 function lessonPrefSet(key, value) {
+  if (value === null || value === undefined) delete lessonPrefMemory[key];
+  else lessonPrefMemory[key] = value;
   try {
     if (value === null || value === undefined) localStorage.removeItem(key);
     else localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) { /* a private window keeps the choice for this visit only */ }
+  } catch (e) { /* kept in lessonPrefMemory, for this visit only */ }
 }
 function lessonMirrorOn() { return lessonPrefGet(LESSON_MIRROR_PREF) !== false; }
 // A remembered device is { id, label }. Anything else is no choice at all.
@@ -11043,7 +11052,7 @@ function lessonDevStopCam() {
 async function lessonDevStartCam() {
   lessonDevStopCam();
   var value = lessonDev.camValue, token = lessonDev.camToken, want = lessonDev.wantCam;
-  lessonDev.camFor = value;
+  lessonDev.camFor = value; lessonDev.camWantFor = JSON.stringify(want);
   if (!value || !lessonDev.open) { lessonDev.camState = 'off'; lessonDevRenderCam(); return; }
   var md = navigator.mediaDevices;
   if (!md || typeof md.getUserMedia !== 'function' || !window.isSecureContext) {
@@ -11074,8 +11083,12 @@ async function lessonDevStartCam() {
     lessonDev.camError = 'The camera stopped — it may have been unplugged or taken by another app.';
     lessonDevRenderCam();
   };
-  // "A camera" has a name and an id now: that is the one remembered.
-  if (any && lessonDev.camId) {
+  // "A camera" has a name and an id now — and it is remembered ONLY when the
+  // teacher asked for "a camera". A REMEMBERED camera the browser could not
+  // find has not been chosen again by whichever one it opened instead: the
+  // list, named now, decides — sync reopens the remembered one exactly, or
+  // turns the camera off and says which is missing.
+  if (any && lessonDev.camId && want && want.any) {
     lessonDev.wantCam = { id: lessonDev.camId, label: String((track && track.label) || '') };
     lessonPrefSet(LESSON_CAM_PREF, lessonDev.wantCam);
   }
@@ -11092,7 +11105,7 @@ function lessonDevStopMic() {
 async function lessonDevStartMic() {
   lessonDevStopMic();
   var value = lessonDev.micValue, token = lessonDev.micToken, want = lessonDev.wantMic;
-  lessonDev.micFor = value; lessonDev.testNote = '';
+  lessonDev.micFor = value; lessonDev.micWantFor = JSON.stringify(want); lessonDev.testNote = '';
   if (!lessonDev.open) return;
   var md = navigator.mediaDevices;
   if (!md || typeof md.getUserMedia !== 'function' || !window.isSecureContext) {
@@ -11391,12 +11404,18 @@ function lessonDevSync() {
   lessonDevFill($('lessonCamSelect'), cams, cam.value, 'cam');
   lessonDevFill($('lessonMicSelect'), mics, mic.value, 'mic');
   if (lessonDev.open && !lessonDev.paused) {
+    // A preview still waiting on the browser is left to finish when only the
+    // LIST changed: the other device being allowed names every device, and
+    // that is not a new choice — asking again mid-prompt is a second prompt.
+    // It re-syncs itself the moment it opens.
+    var camWaiting = lessonDev.camState === 'opening' && lessonDev.camWantFor === JSON.stringify(lessonDev.wantCam);
+    var micWaiting = lessonDev.micState === 'opening' && lessonDev.micWantFor === JSON.stringify(lessonDev.wantMic);
     if (!cam.value) {
       if (lessonDev.camFor !== null) lessonDevStopCam();
       lessonDev.camState = 'off';
-    } else if (cam.value !== lessonDev.camFor && cam.value !== lessonDev.camId) lessonDevStartCam();
+    } else if (!camWaiting && cam.value !== lessonDev.camFor && cam.value !== lessonDev.camId) lessonDevStartCam();
     // The microphone runs whenever the window is up: it IS the meter.
-    if (mic.value !== lessonDev.micFor && !(mic.value && mic.value === lessonDev.micId)) lessonDevStartMic();
+    if (!micWaiting && mic.value !== lessonDev.micFor && !(mic.value && mic.value === lessonDev.micId)) lessonDevStartMic();
   }
   lessonDevRenderCam(); lessonDevRenderMic(); lessonDevRenderSize();
 }
@@ -11640,6 +11659,12 @@ async function lessonStart() {
   if (drawing || editingId) { toast('Finish the current stroke or text box, then start recording.'); return; }
   // What the window chose, read BEFORE the window lets go of its previews.
   var choice = lessonDevChoice();
+  // "A camera" still being opened is one nobody has seen yet, and WHICH one
+  // the browser picks is exactly what the preview is about to show.
+  if (choice.camera && !choice.camId && lessonDev.camState === 'opening') {
+    toast('The camera is still opening — press Start once you can see yourself in the preview.', 5000);
+    return;
+  }
   // The helper's replies cannot reach the file — they are never wired into the
   // recorder — but a speaker in the room reaches the microphone, and a teacher
   // who finds that out on playback has lost the lesson.
