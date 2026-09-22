@@ -80,7 +80,6 @@ function el(){ return new Node(); }
 function annNode(a){ renders.push(a); var n = new Node(); n.annotation = a; n.setAttribute('data-id', a.id); return n; }
 function annTextNode(id){ return $('text-' + id); }
 function toast(text){ messages.push(text); }
-function recBusy(){ return false; }
 function recDropSpot(){ return { page: pages[0], x: 50, y: 60 }; }
 function newAnnId(){ return 'lesson' + (++counter); }
 // Simulated MP4 exercises the real finalizer's pass-through path. Real WebM
@@ -514,7 +513,7 @@ await check('the helper refuses an unsaved worksheet and a student account', asy
 await check('teacher lesson-pill gesture opens replay instead of the ordinary video editor', () => {
   const h = harness();
   const routing = cut('    var vHost = e.target.closest ?', '    // The buttons on an AI note card');
-  const popup = cut('function openVideoPop(p, a) {', '/* ================= Google Drive =================');
+  const popup = cut('function openVideoPop(p, a) {', '/* ================= Recording helpers =================');
   h.run(popup + `
     var played = [], edited = [], tool = 'pen';
     function isStudent(){ return false; }

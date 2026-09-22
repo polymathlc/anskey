@@ -259,8 +259,6 @@ function insertionHarness(options = {}) {
     function lessonGuardChange() { return true; }
     function isStudent() { return !!options.student; }
     function isSharedVisitor() { return !!options.visitor; }
-    function recBusy() { return false; }
-    function recUploadsPending() { return 0; }
     function commitActiveTextEdit() { if (options.typed) annotations[1].text = options.typed; editingId = null; events.push('commit'); }
     function suspendPointerInput() { events.push('suspend'); }
     function toast(message) { messages.push(message); }
