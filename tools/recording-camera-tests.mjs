@@ -195,7 +195,6 @@ function el(){ return new Node(); }
 function annNode(a){ renders.push(a); var n = new Node(); n.annotation = a; n.setAttribute('data-id', a.id); return n; }
 function annTextNode(id){ return $('text-' + id); }
 function toast(text){ messages.push(text); }
-function recBusy(){ return false; }
 function recDropSpot(){ return { page: pages[0], x: 50, y: 60 }; }
 function newAnnId(){ return 'lesson' + (++counter); }
 function recPickMime(withVideo){ return withVideo ? 'video/webm;codecs=vp8,opus' : 'audio/mp4'; }
@@ -881,4 +880,54 @@ test('with storage blocked, the mirror switch and the choices still hold for the
   await h.settle();
   assert.equal(h.run("$('lessonCamSelect').value"), 'cam-front', 'the camera chosen a moment ago is still the one chosen');
   assert.equal(h.run("$('lessonCamPreview').classList.contains('mirror')"), false);
+});
+
+
+/* ---------------------------------------------------------------------
+   ⏺ ONE record button (v1.104.0): the video-answer recorder is gone, and
+   the lesson recorder is an icon, not two words spilling off a 28px square
+   --------------------------------------------------------------------- */
+function toolbarButton(id) {
+  const at = html.indexOf('id="' + id + '"');
+  assert.ok(at > 0, id + ' is on the toolbar');
+  const start = html.lastIndexOf('<button', at), end = html.indexOf('</button>', at);
+  return html.slice(start, end);
+}
+
+test('the one record button is an icon that says what it does, and its dot pulses while a lesson records', async () => {
+  const rec = toolbarButton('lessonRecordBtn'), voice = toolbarButton('voiceAiBtn');
+  assert.doesNotMatch(rec, /btnLabel/, 'no words: they spilled out of the icon square and over the next button');
+  assert.doesNotMatch(voice, /btnLabel/, 'nor on Voice AI, which was the other half of the same jumble');
+  assert.match(rec, /title="Record a lesson — your camera, voice, pencil strokes/, 'the tooltip (and the aria-label made from it) still says it');
+  assert.match(rec, /data-key="Shift\+R"/, 'the shortcut badge travels with it');
+  assert.match(rec, /class="recGlyphDot"/, 'a record dot a teacher recognises at a glance');
+  assert.match(html, /#lessonRecordBtn \.recGlyphDot \{ fill:#E53935; \}/, 'drawn red, as every recorder draws it');
+  assert.match(html, /if \(e\.shiftKey[^\n]*toLowerCase\(\) === 'r'\) \{\n\s*e\.preventDefault\(\);\n\s*if \(lessonTeacher\(\)\) lessonOpen\(\);/,
+    'Shift+R opens the lesson recorder — the only one left');
+  const h = harness();
+  await h.run('lessonStart();');
+  assert.equal(h.run("$('lessonRecordBtn').classList.contains('active')"), true, 'recording: the dot pulses');
+  h.run('recorders[recorders.length - 1].fireStart(); now = 900; lessonStop();');
+  await h.run('recorders[recorders.length - 1].finishStop();');
+  await h.settle();
+  assert.equal(h.run("$('lessonRecordBtn').classList.contains('active')"), false, 'saved: it stops');
+});
+
+test('the video-answer recorder is gone, window, tray, Drive and all — and what it left on worksheets still plays', () => {
+  for (const gone of ['id="recordBtn"', 'id="recModal"', 'id="recTray"', 'videoBtnRecBtn', 'openRecModal', 'recUploads',
+    'driveConnect', 'DRIVE_SCOPE', 'drive.file', 'recordIntoVideoBtn', 'renderRecTray']) {
+    assert.equal(html.includes(gone), false, gone + ' is removed');
+  }
+  const helpers = cut('/* ================= Recording helpers =================', '/* ================= Lesson replay core ================= */');
+  const box = vm.createContext({ MediaRecorder: { isTypeSupported: type => type === 'video/mp4' } });
+  vm.runInContext(helpers, box);
+  assert.equal(box.videoPillLabel({ url: 'https://drive.google.com/file/d/abc/view', label: 'Watch the recording' }), 'Watch the recording',
+    'a pill the old recorder put on a worksheet keeps its label, and openVideoPop plays its link');
+  assert.equal(box.videoPillLabel({ url: 'https://youtu.be/x' }), 'Watch video solution');
+  assert.equal(box.videoPillLabel({ url: '' }), 'Video not uploaded', 'an abandoned upload says so rather than pretending');
+  assert.equal(box.recPickMime(true), 'video/mp4', 'the lesson recorder keeps its helpers');
+  assert.equal(box.recExt('video/mp4'), 'mp4');
+  assert.equal(box.recFmtTime(3723000), '1:02:03');
+  // The pasted-link video-solution tool is NOT the recorder, and stays.
+  assert.ok(html.includes('data-tool="video"') && html.includes('id="videoBtnModal"'));
 });

@@ -4,6 +4,32 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.104.0 — ⏺ One record button, and the old video recorder is gone
+
+- **Recording is one icon on the toolbar**: a red ⏺ record button (or
+  **Shift+R**) that opens **Record a lesson** — your camera, voice and writing
+  together. The words "Record lesson" and "Voice AI" used to spill out of
+  their little icon squares and over each other; both are clean icons now, and
+  hovering (or a long press on an iPad) still says what each one does. The red
+  dot pulses while a lesson is recording.
+- **The old "Record a video" answer recorder is removed** — the 🎥 button that
+  saved camera, screen or microphone clips to Google Drive, with its window,
+  its upload tray and the "🎥 Record" button inside the video-solution window.
+  The lesson recording carries the camera now, so it had become a second record
+  button making a different kind of recording.
+- **Nothing already on a worksheet changes.** Every video pill that recorder
+  made keeps playing, and pasting a video link with the video-solution tool
+  (**U**) works exactly as before. The Google Drive API setting in the Google
+  Cloud console is no longer used by this app.
+- **Choosing a camera is steadier.** Where the browser has not yet named its
+  cameras (Safari, Firefox, or Chrome set to ask), the camera it happens to open
+  can no longer replace the one you chose; **Start** waits while that camera is
+  still opening; a camera or microphone is never asked for twice while its
+  permission prompt is up; and with the browser's storage blocked, the mirror
+  switch and your choices still hold for the visit.
+
+---
+
 ## v1.103.0 — 🎥 Record a lesson with your camera, and choose the camera and the microphone
 
 **Record lesson** used to capture your voice and your writing. It can capture

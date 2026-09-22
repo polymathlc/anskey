@@ -260,6 +260,26 @@ for (const [name, act] of [['Escape', 'key'], ['Cancel', '#lessonCancelBtn'], ['
   ok(name + ' closes the window with nothing left capturing', was === 2 && now.live === 0 && !now.open, 'before ' + was + ', after ' + JSON.stringify(now));
 }
 
+console.log('\n⏺ One record button, an icon, on the toolbar');
+const tb = await page.evaluate(() => {
+  applyRoleUI();
+  const b = $('lessonRecordBtn'), v = $('voiceAiBtn');
+  const spill = el => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+  return { shown: b.style.display !== 'none', text: (b.textContent + v.textContent).trim(), spills: spill(b) || spill(v),
+    dot: getComputedStyle(b.querySelector('.recGlyphDot')).fill, old: !!document.getElementById('recordBtn'), label: b.getAttribute('aria-label') || '' };
+});
+ok('the record button is on the toolbar for the teacher', tb.shown);
+ok('…as an icon with no words, and nothing spills out of it or Voice AI', tb.text === '' && !tb.spills, JSON.stringify(tb));
+ok('…a red record dot', /229, 57, 53/.test(tb.dot), tb.dot);
+ok('…still named for a screen reader', /^Record a lesson/.test(tb.label), tb.label);
+ok('the old "Record a video" button is gone', !tb.old);
+await page.evaluate(() => document.body.focus());
+await page.keyboard.press('Shift+R');
+const shiftR = await page.waitForFunction(() => $('lessonModal').classList.contains('open'), null, { timeout: 5000 }).then(() => true).catch(() => false);
+ok('Shift+R opens the lesson recorder', shiftR);
+await page.keyboard.press('Escape');
+await shot(page, '4-toolbar');
+
 ok('no uncaught error anywhere along the way', errors.length === 0, errors.join('\n      '));
 await browser.close();
 console.log('\n' + (fail ? '✗ ' + fail + ' failed, ' : '✓ all ') + pass + ' passed');

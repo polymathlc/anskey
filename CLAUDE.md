@@ -2,6 +2,38 @@
 
 Guidance for Claude when working in this repo.
 
+## ⏺ One record button, and the video-answer recorder is gone (v1.104.0)
+
+`#lessonRecordBtn` / `.recGlyphDot` / `#voiceAiBtn`, the `.active` toggle in **`lessonBar`**, the
+Shift+R branch of the keyboard handler, and the `/* ================= Recording helpers =================`
+section (`recPickMime` / `recExt` / `recFmtTime` / `recDropSpot` / **`videoPillLabel`**).
+
+The v1.52.0 "Record a video answer" recorder — `openRecModal`, `#recModal`, the Google Drive
+section, the Firebase fallback upload, `#recTray`, `#recordBtn` and the "🎥 Record" button in the
+video-solution window — was REMOVED. With the camera in the lesson recording it was a second
+record button making a different kind of recording.
+
+- **THE TWO TOOLBAR BUTTONS ARE ICONS, AND MUST STAY ICONS.** A `.btnLabel` inside a `.toolBtn` —
+  a 28 px square — spills out of it and over the next button, which is exactly the "RecordVoice
+  lesson AI" jumble this release removed. Their words live in the `title`, which the toolbar
+  tooltip shows with its `data-key` badge and turns into the `aria-label`.
+- **THE RECORD DOT IS RED AND PULSES WHILE A LESSON RECORDS.** `lessonBar` is the one place the
+  recording bar comes and goes, so it is the one place `.active` is toggled (from
+  `!!lessonCapture`), exactly as `voiceSyncBtn` does for Voice AI.
+- **Shift+R opens Record a lesson** — the only recorder left.
+- **THE RECORDING HELPERS ARE THE LESSON RECORDER'S OWN**, and are all that is left of the old
+  section: removing them with the old recorder's memory takes out the lesson recorder's mime
+  choice, its file extension, its clock and where its pill lands.
+- **PILLS THE OLD RECORDER MADE STILL PLAY.** They are ordinary `type: 'video'` annotations with a
+  link (a Drive file or a Firebase `rec-` object), and `openVideoPop` plays them. The video-solution
+  pill machinery — `annNode`'s video branch, `videoPillLabel`, `openVideoPop`, the U tool — is
+  also how every LESSON recording is drawn and opened. It is not the recorder, and must not go
+  with it.
+- `tools/recording-ui-tests.mjs` cuts `openVideoPop` up to the Recording helpers header; rename
+  that header and the cut fails loudly, which is the point.
+- Run **`node --test tools/recording-camera-tests.mjs`**, **`node tools/recording-ui-tests.mjs`**
+  and **`node tools/camera-check.mjs`** after touching any of it.
+
 ## 🎥 A lesson can carry the camera, and the teacher chooses the devices (v1.103.0)
 
 `LESSON_CAM_PREF` / `LESSON_MIC_PREF` / `LESSON_MIRROR_PREF` / `LESSON_CAMWIN_PREF` /

@@ -677,132 +677,11 @@
     display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000;
   }
 
-  /* ---------- Recorder ---------- */
-  .recPreviewBox {
-    position: relative;
-    background: #111;
-    border-radius: var(--radius);
-    overflow: hidden;
-    aspect-ratio: 16 / 9;
-  }
-  .recPreviewBox video {
-    display: block; width: 100%; height: 100%;
-    object-fit: contain; background: #000;
-  }
-  .recPlaceholder {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 12px; padding: 24px;
-    color: rgba(255,255,255,0.72); font-size: 0.82rem; text-align: center; line-height: 1.6;
-  }
-  .recPlaceholder svg { width: 36px; height: 36px; opacity: 0.6; }
-  .recBadge {
-    position: absolute; top: 12px; left: 12px;
-    display: none; align-items: center; gap: 8px;
-    padding: 6px 12px;
-    background: rgba(0,0,0,0.55);
-    border-radius: 999px;
-    color: #fff; font-size: 0.78rem; font-weight: bold;
-    font-variant-numeric: tabular-nums;
-  }
-  .recBadge.live { display: inline-flex; }
-  .recDot {
-    width: 9px; height: 9px; border-radius: 50%;
-    background: #FF5252;
-    animation: recPulse 1.4s ease-in-out infinite;
-  }
-  @keyframes recPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-  .recDest {
-    display: flex; align-items: center; gap: 14px;
-    padding: 14px 18px;
-    margin-bottom: 20px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: #FBFBFA;
-  }
-  .recDestMark { width: 26px; height: 26px; flex: 0 0 auto; }
-  .recDestText { flex: 1; min-width: 0; }
-  .recDestTitle { font-size: 0.84rem; font-weight: bold; color: var(--ink); margin-bottom: 4px; }
-  .recDestHint { font-size: 0.74rem; color: var(--ink-faint); line-height: 1.55; }
-  .recDest .btn { flex: 0 0 auto; padding: 8px 15px; font-size: 0.78rem; }
-  .recDest.ready { background: #F6FBF6; border-color: #D7EAD8; }
-  .recSourceRow { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
-  .recSource {
-    display: flex; align-items: center; gap: 9px;
-    padding: 11px 16px;
-    border: 1.5px solid var(--line);
-    border-radius: 999px;
-    background: #fff;
-    cursor: pointer;
-    font-family: var(--font); font-size: 0.82rem; color: var(--ink-soft);
-    transition: border-color 0.2s ease, background 0.2s ease;
-  }
-  .recSource svg { width: 17px; height: 17px; flex: 0 0 auto; }
-  .recSource:hover { border-color: var(--accent-strong); }
-  .recSource.active {
-    border-color: var(--accent-deep);
-    background: var(--accent);
-    color: var(--ink);
-    font-weight: bold;
-  }
-  .recSource:disabled { opacity: 0.45; cursor: not-allowed; }
-  .recStatus {
-    margin-top: 16px;
-    font-size: 0.78rem; color: var(--ink-faint); line-height: 1.6;
-    min-height: 1.2em;
-  }
-  .recActions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
-  .recActions .recSpacer { flex: 1; }
+  /* The red "start recording" button, in the lesson window. */
   .btnRec {
     background: #E53935; color: #fff; border-color: #E53935;
   }
   .btnRec:hover { background: #C62828; border-color: #C62828; }
-
-  /* The background-upload tray — recordings carry on uploading while the
-     lesson goes on, so the progress lives in its own corner card. */
-  #recTray {
-    position: fixed;
-    left: 18px; bottom: 18px;
-    z-index: 120;
-    width: 300px; max-width: calc(100vw - 36px);
-    display: none;
-    flex-direction: column; gap: 12px;
-    padding: 16px 18px;
-    background: #fff;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-modal);
-  }
-  #recTray.open { display: flex; }
-  .recTrayHead {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 0.76rem; font-weight: bold; color: var(--ink-soft);
-    letter-spacing: 0.02em;
-  }
-  .recJob { display: flex; flex-direction: column; gap: 8px; }
-  .recJobTop { display: flex; align-items: baseline; gap: 10px; }
-  .recJobName { flex: 1; font-size: 0.8rem; color: var(--ink); }
-  .recJobPct { font-size: 0.76rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
-  .recJobBar { height: 6px; border-radius: 999px; background: #F1F0EE; overflow: hidden; }
-  .recJobFill {
-    height: 100%; width: 0%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #42A5F5, #7E57C2);
-    transition: width 0.3s ease;
-  }
-  .recJobFoot { display: flex; align-items: center; gap: 10px; }
-  .recJobHint { flex: 1; font-size: 0.72rem; color: var(--ink-faint); }
-  .recJob.failed .recJobHint { color: var(--danger); }
-  .recJob.failed .recJobFill { background: var(--danger); width: 100%; }
-  .recJobFoot .recJobBtn.primary { color: var(--ink); font-weight: bold; }
-  .recJobBtn {
-    border: none; background: none; cursor: pointer;
-    font-family: var(--font); font-size: 0.72rem; color: var(--ink-faint);
-    padding: 3px 8px; border-radius: 7px;
-  }
-  .recJobBtn:hover { background: #F1F0EE; color: var(--ink); }
-  /* A pill still waiting on its upload reads as busy rather than tappable. */
-  .videoAnnBtn.pending { background: linear-gradient(135deg, #90A4AE, #78909C); }
 
   /* ---------- Toolbar ----------
      Short and sweet: the bar is chrome, not the work. Every icon is trimmed
@@ -3547,6 +3426,10 @@
 @keyframes voicePulse { 70% { box-shadow:0 0 0 9px #1f6f4a00; } 100% { box-shadow:0 0 0 0 #1f6f4a00; } }
 @media (prefers-reduced-motion: reduce) { #voiceDot { animation:none; } }
 #voiceAiBtn.active { color:#1f6f4a; }
+#lessonRecordBtn .recGlyphDot { fill:#E53935; }
+#lessonRecordBtn.active .recGlyphDot { animation:recGlyphPulse 1.4s ease-in-out infinite; }
+@keyframes recGlyphPulse { 0%, 100% { opacity:1; } 50% { opacity:0.3; } }
+@media (prefers-reduced-motion: reduce) { #lessonRecordBtn.active .recGlyphDot { animation:none; } }
 #lessonClock { font-variant-numeric:tabular-nums; font-weight:700; }
 .lessonPlayer audio { width:100%; height:40px; }
 #lessonPlayerTitle { flex:1; font-size:13px; font-weight:600; }
@@ -3849,18 +3732,13 @@ video.mirror { transform:scaleX(-1); }
     <button class="toolBtn" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps — tap one to jump the lesson recording to that moment">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
     </button>
-    <button class="toolBtn" id="lessonRecordBtn" title="Record lesson — replay your camera, voice, pencil strokes, typed text and page position" style="display:none">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg>
-      <span class="btnLabel">Record lesson</span>
+    <button class="toolBtn" id="lessonRecordBtn" data-key="Shift+R" title="Record a lesson — your camera, voice, pencil strokes, typed text and page position, replayed together" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle class="recGlyphDot" cx="12" cy="12" r="4.2" stroke="none"/></svg>
     </button>
     <button class="toolBtn" id="voiceAiBtn" data-key="Shift+V" style="display:none"
       data-ai-title="Voice AI — talk to {ai} out loud while you teach. It is never mixed into a lesson recording."
       title="Voice AI — talk to Chung GPT out loud while you teach. It is never mixed into a lesson recording.">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21.5"/></svg>
-      <span class="btnLabel">Voice AI</span>
-    </button>
-    <button class="toolBtn" id="recordBtn" data-key="Shift+R" title="Record a video — camera and microphone, saved to your Google Drive and dropped on the page as a button students tap to watch">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5 21.5 7v10l-6-3.5z"/><circle cx="9" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="6" height="10.5" rx="3"/><path d="M3 11a6.5 6.5 0 0 0 13 0"/><line x1="9.5" y1="17.5" x2="9.5" y2="21"/><path d="M18.5 2.5l1.1 2.4 2.4 1.1-2.4 1.1-1.1 2.4-1.1-2.4-2.4-1.1 2.4-1.1z" fill="currentColor" stroke-width="1"/></svg>
     </button>
     <button class="toolBtn" id="codeWinBtn" data-key="J" title="Code window — paste HTML and it runs in a window you can show the class">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8.5 8 4.5 12 8.5 16"/><polyline points="15.5 8 19.5 12 15.5 16"/><line x1="13.5" y1="5.5" x2="10.5" y2="18.5"/></svg>
@@ -4230,7 +4108,6 @@ video.mirror { transform:scaleX(-1); }
       </div>
       <div class="modalActions">
         <div class="videoBtnRow" style="margin:0 auto 0 0">
-          <button class="btn" id="videoBtnRecBtn" title="Record a video with your camera and microphone instead of pasting a link">🎥 Record</button>
           <button class="btn" id="videoBtnWatchBtn" style="display:none">▶ Watch</button>
         </div>
         <button class="btn" id="videoBtnRemoveBtn">Remove</button>
@@ -4313,58 +4190,6 @@ video.mirror { transform:scaleX(-1); }
     <button type="button" class="lessonCamWinBtn" id="lessonCamWinSize" title="Bigger video" aria-label="Bigger video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
   </div>
   <video id="lessonVideo" controls playsinline preload="metadata" aria-label="Lesson video and timeline"></video>
-</div>
-<div class="modalBack" id="recModal">
-  <div class="modalCard wide">
-    <div class="modalHead">
-      <h2>Record a video</h2>
-      <button class="modalClose" id="recCloseBtn" title="Close">✕</button>
-    </div>
-    <div class="modalBody">
-      <div class="recDest" id="recDest">
-        <svg class="recDestMark" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 2.5h6.8l6.1 10.6-3.4 5.9-6.1-10.6z" fill="#FFC107"/><path d="M2.5 13.1 8.6 2.5l3.4 5.9-6.1 10.6z" fill="#1E88E5"/><path d="M5.9 19 9.3 13.1h12.2L18.1 19z" fill="#43A047"/></svg>
-        <div class="recDestText">
-          <div class="recDestTitle" id="recDestTitle">Google Drive</div>
-          <div class="recDestHint" id="recDestHint">Recordings go into a folder called “Ans Key recordings” in your own Drive.</div>
-        </div>
-        <button class="btn" id="recConnectBtn">Connect</button>
-      </div>
-      <div class="recSourceRow" id="recSourceRow">
-        <button class="recSource active" data-recsrc="camera">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5 21.5 7v10l-6-3.5z"/></svg>
-          Camera + microphone
-        </button>
-        <button class="recSource" data-recsrc="screen" id="recScreenSrc">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          This screen + microphone
-        </button>
-        <button class="recSource" data-recsrc="audio">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg>
-          Microphone only
-        </button>
-      </div>
-      <div class="recPreviewBox">
-        <video id="recPreview" muted playsinline autoplay></video>
-        <div class="recPlaceholder" id="recPlaceholder">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5 21.5 7v10l-6-3.5z"/></svg>
-          <span id="recPlaceholderText">Choose what to record, then press Start — the camera only switches on once you do.</span>
-        </div>
-        <div class="recBadge" id="recBadge"><span class="recDot"></span><span id="recTimer">0:00</span></div>
-      </div>
-      <div class="recStatus" id="recStatus">Recorded at 720p to keep the file small. The video uploads to your Drive in the background and lands on the page as a button students tap to watch — full screen included.</div>
-      <div class="recActions">
-        <button class="btn btnRec" id="recStartBtn">● Start recording</button>
-        <button class="btn btnPrimary" id="recStopBtn" style="display:none">■ Stop &amp; upload</button>
-        <div class="recSpacer"></div>
-        <button class="btn" id="recCancelBtn">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="recTray">
-  <div class="recTrayHead">🎥 <span id="recTrayTitle">Uploading recording</span></div>
-  <div id="recTrayJobs"></div>
 </div>
 
 <div class="modalBack floatWin" id="aiNoteModal">
@@ -5168,7 +4993,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.103.0';
+var APP_VERSION = 'v1.104.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6117,7 +5942,7 @@ async function addBlankPage() {
   commitActiveTextEdit();
   // These readers retain page numbers while awaiting AI. Let their current
   // request finish before changing those numbers underneath it.
-  if (aiBusy || autoRunning || notesBusy || recBusy() || recUploadsPending() ||
+  if (aiBusy || autoRunning || notesBusy ||
       $('saveBtn').disabled || $('deletePageBtn').disabled) {
     toast('Let the current save or AI request finish, then add the page.', 4500);
     return;
@@ -7990,7 +7815,7 @@ function annNode(a) {
     var vfo = el('foreignObject', { x: a.x, y: a.y, width: a.w || 150, height: a.h || 30 });
     vfo.style.overflow = 'visible';
     var vbtn = document.createElement('div');
-    vbtn.className = 'videoAnnBtn' + (recUploads[a.id] ? ' pending' : '');
+    vbtn.className = 'videoAnnBtn';
     var vicon = el('svg', { viewBox: '0 0 24 24' });
     vicon.appendChild(el('circle', { cx: 12, cy: 12, r: 10, fill: 'rgba(255,255,255,0.25)' }));
     if (a.lessonRecording && a.lessonRecording.video) {
@@ -8724,8 +8549,6 @@ function openVideoBtnModal(ctx) {
   $('videoBtnTitle').textContent = editing ? 'Video solution button' : 'New video solution button';
   $('videoBtnWatchBtn').style.display = editing && a && a.url ? '' : 'none';
   $('videoBtnRemoveBtn').style.display = editing ? '' : 'none';
-  $('videoBtnRecBtn').style.display = recSupported() ? '' : 'none';
-  $('videoBtnRecBtn').textContent = editing && a && a.url ? '🎥 Record over it' : '🎥 Record';
   $('videoBtnModal').classList.add('open');
   setTimeout(function () { $('videoBtnUrlInput').focus(); }, 50);
 }
@@ -8787,15 +8610,6 @@ function watchVideoBtnFromModal() {
   if (a && p) openVideoPop(p, a);
 }
 
-/* Record straight into this pill instead of hunting for a link to paste —
-   the spot (or the pill being edited) carries over to the recorder. */
-function recordIntoVideoBtn() {
-  if (!videoBtnEdit) return;
-  var ctx = videoBtnEdit;
-  closeVideoBtnModal();
-  openRecModal(ctx);
-}
-
 var videoPopDocClose = null; // tap-outside-to-close listener while a pop is open
 
 function closeVideoPops() {
@@ -8813,13 +8627,7 @@ function closeVideoPops() {
 function openVideoPop(p, a) {
   if (a.lessonRecording) { lessonPlay(a); return; }
   closeVideoPops();
-  if (!a.url) {
-    var job = recUploads[a.id];
-    toast(job
-      ? 'Still uploading — ' + job.pct + '% done. The button plays as soon as it lands.'
-      : 'No video on this button yet.', job ? 4000 : 2600);
-    return;
-  }
+  if (!a.url) { toast('No video on this button yet.', 2600); return; }
   var info = videoEmbedInfo(a.url);
   if (info.kind === 'link') {
     // Nothing we can embed — open the link itself.
@@ -8894,267 +8702,18 @@ function openVideoPop(p, a) {
   document.addEventListener('pointerdown', videoPopDocClose, true);
 }
 
-/* ================= Google Drive =================
-   Recordings live in the teacher's own Google Drive rather than in Firebase
-   Storage — the Drive plan has the room for them, and the bucket does not.
+/* ================= Recording helpers =================
+   What is left of the old "Record a video answer" recorder (v1.52.0), which
+   saved camera, screen or microphone clips to Google Drive as a pill on the
+   page. The LESSON recording carries the camera now (v1.103.0), so that
+   second recorder — its toolbar button, its window, its upload tray and its
+   Google Drive connection — was removed in v1.104.0: two record buttons that
+   each made a different kind of recording was one too many.
 
-   The token comes from the Google account already signed in: the same sign-in
-   popup, asked a second time with the drive.file scope on it. drive.file is
-   per-file access, so the app can only ever see the folder and the recordings
-   it made itself — nothing else in Drive is reachable, which is also why it
-   needs no Google review.
-
-   Firebase hands back a plain OAuth access token and never refreshes it, so it
-   is kept for the hour it lives and asked for again after that. */
-var DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-var DRIVE_FOLDER_NAME = 'Ans Key recordings';
-var DRIVE_TOK_KEY = 'anskeyDriveToken';
-var DRIVE_FOLDER_KEY = 'anskeyDriveFolder';
-var DRIVE_RETURN_KEY = 'anskeyDriveReturn';
-var DRIVE_TOKEN_LIFE = 55 * 60 * 1000;  // Google gives an hour; leave a margin
-var driveToken = null;      // { token, exp, email }
-var driveFolderId = '';
-
-(function loadDriveState() {
-  try {
-    var raw = JSON.parse(sessionStorage.getItem(DRIVE_TOK_KEY) || 'null');
-    if (raw && raw.token && raw.exp > Date.now()) driveToken = raw;
-  } catch (e) {}
-  try { driveFolderId = localStorage.getItem(DRIVE_FOLDER_KEY) || ''; } catch (e) {}
-})();
-
-/* Enough life left to record for as long as the recorder allows and still
-   have time to upload afterwards. */
-function driveReady(marginMs) {
-  var margin = marginMs === undefined ? 60000 : marginMs;
-  if (!driveToken || driveToken.exp <= Date.now() + margin) return false;
-  // A different account signed in since — that token is not theirs.
-  if (currentUser && driveToken.email && driveToken.email !== currentUser.email) return false;
-  return true;
-}
-
-function driveMinutesLeft() {
-  return driveToken ? Math.max(0, Math.round((driveToken.exp - Date.now()) / 60000)) : 0;
-}
-
-function driveStoreCred(result) {
-  var cred = result && result.credential;
-  var tok = cred && cred.accessToken;
-  if (!tok) return false;
-  driveToken = {
-    token: tok,
-    exp: Date.now() + DRIVE_TOKEN_LIFE,
-    email: (result.user && result.user.email) || (currentUser && currentUser.email) || ''
-  };
-  try { sessionStorage.setItem(DRIVE_TOK_KEY, JSON.stringify(driveToken)); } catch (e) {}
-  return true;
-}
-
-function driveForget() {
-  driveToken = null;
-  try { sessionStorage.removeItem(DRIVE_TOK_KEY); } catch (e) {}
-}
-
-/* Must be called straight from a click — it opens a popup. On an installed
-   (Home Screen) app the popup never reports back, so it redirects instead and
-   the token is picked up when the app loads again. */
-async function driveConnect() {
-  var provider = new firebase.auth.GoogleAuthProvider();
-  provider.addScope(DRIVE_SCOPE);
-  if (currentUser && currentUser.email) provider.setCustomParameters({ login_hint: currentUser.email });
-  if (standaloneApp()) {
-    try { sessionStorage.setItem(DRIVE_RETURN_KEY, '1'); } catch (e) {}
-    // The redirect takes the app down with it — flush the draft first so the
-    // worksheet is offered back on the way in.
-    if (typeof saveDraftNow === 'function') saveDraftNow();
-    await auth.signInWithRedirect(provider);
-    return false; // the page is on its way out
-  }
-  var res = await auth.signInWithPopup(provider);
-  if (!driveStoreCred(res)) throw new Error('Google did not hand back a Drive token — try again.');
-  return true;
-}
-
-function driveErr(status, body) {
-  var msg = '';
-  try { msg = (JSON.parse(body).error || {}).message || ''; } catch (e) {}
-  var e = new Error(msg || ('Drive replied ' + status));
-  e.status = status;
-  // The API being switched off in the Google Cloud project is the one failure
-  // a teacher can actually fix, so it says so in plain words.
-  if (status === 403 && /has not been used|is disabled/i.test(msg)) {
-    e.setup = true;
-    e.message = 'The Google Drive API is switched off for this project. Turn it on in the Google Cloud console (APIs & Services → Enable APIs → Google Drive API) and try again.';
-  }
-  if (status === 401) e.auth = true;
-  return e;
-}
-
-async function driveFetch(url, opts) {
-  opts = opts || {};
-  var headers = opts.headers || {};
-  headers.Authorization = 'Bearer ' + (driveToken && driveToken.token);
-  if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json; charset=UTF-8';
-  var res = await fetch(url, { method: opts.method || 'GET', headers: headers, body: opts.body });
-  if (!res.ok) throw driveErr(res.status, await res.text());
-  if (opts.raw) return res;
-  var text = await res.text();
-  try { return JSON.parse(text); } catch (e) { return {}; }
-}
-
-/* One folder for everything the app records. drive.file only ever lists the
-   app's own files, so this search can never turn up the teacher's own
-   folders — only the one made here. */
-async function driveEnsureFolder() {
-  if (driveFolderId) {
-    try {
-      var chk = await driveFetch('https://www.googleapis.com/drive/v3/files/' +
-        encodeURIComponent(driveFolderId) + '?fields=id,trashed');
-      if (chk.id && !chk.trashed) return driveFolderId;
-    } catch (e) {
-      if (e.auth || e.setup) throw e; // not a "the folder went away" problem
-    }
-    driveFolderId = '';
-  }
-  var q = "mimeType='application/vnd.google-apps.folder' and name='" +
-    DRIVE_FOLDER_NAME.replace(/'/g, "\\'") + "' and trashed=false";
-  var found = await driveFetch('https://www.googleapis.com/drive/v3/files?q=' +
-    encodeURIComponent(q) + '&fields=files(id)&pageSize=1');
-  if (found.files && found.files.length) driveFolderId = found.files[0].id;
-  else {
-    var made = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id', {
-      method: 'POST',
-      body: JSON.stringify({ name: DRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
-    });
-    driveFolderId = made.id;
-  }
-  try { localStorage.setItem(DRIVE_FOLDER_KEY, driveFolderId); } catch (e) {}
-  return driveFolderId;
-}
-
-/* A resumable session so the PUT can report progress as it goes. */
-async function driveStartResumable(meta, blob) {
-  var res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + driveToken.token,
-      'Content-Type': 'application/json; charset=UTF-8',
-      'X-Upload-Content-Type': blob.type || 'application/octet-stream',
-      'X-Upload-Content-Length': String(blob.size)
-    },
-    body: JSON.stringify(meta)
-  });
-  if (!res.ok) throw driveErr(res.status, await res.text());
-  return res.headers.get('Location') || res.headers.get('location') || '';
-}
-
-function drivePutBlob(session, blob, job, onProgress) {
-  return new Promise(function (resolve, reject) {
-    var xhr = new XMLHttpRequest();
-    job.xhr = xhr;
-    xhr.open('PUT', session, true);
-    xhr.setRequestHeader('Content-Type', blob.type || 'application/octet-stream');
-    xhr.upload.onprogress = function (ev) {
-      if (ev.lengthComputable) onProgress(ev.loaded / ev.total);
-    };
-    xhr.onload = function () {
-      job.xhr = null;
-      if (xhr.status >= 200 && xhr.status < 300) {
-        var out = {};
-        try { out = JSON.parse(xhr.responseText); } catch (e) {}
-        resolve(out);
-      } else reject(driveErr(xhr.status, xhr.responseText));
-    };
-    xhr.onerror = function () { job.xhr = null; reject(new Error('The connection dropped while uploading.')); };
-    xhr.onabort = function () { job.xhr = null; var e = new Error('cancelled'); e.cancelled = true; reject(e); };
-    xhr.send(blob);
-  });
-}
-
-/* Whole-file upload for browsers where the resumable session's Location
-   header never makes it through — no progress, but the file still lands. */
-async function driveMultipart(meta, blob) {
-  var bound = '-----anskey' + Date.now().toString(36);
-  var body = new Blob([
-    '--' + bound + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n',
-    JSON.stringify(meta),
-    '\r\n--' + bound + '\r\nContent-Type: ' + (blob.type || 'application/octet-stream') + '\r\n\r\n',
-    blob,
-    '\r\n--' + bound + '--\r\n'
-  ]);
-  return await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-    method: 'POST',
-    headers: { 'Content-Type': 'multipart/related; boundary=' + bound },
-    body: body
-  });
-}
-
-/* Anyone with the link can watch — students open the worksheet without any
-   Drive account of their own. */
-async function driveShareAnyone(fileId) {
-  await driveFetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-    '/permissions?fields=id', {
-      method: 'POST',
-      body: JSON.stringify({ role: 'reader', type: 'anyone' })
-    });
-}
-
-function driveFileLink(id) {
-  return 'https://drive.google.com/file/d/' + id + '/view';
-}
-
-function driveFileName(hadVideo, ext) {
-  var d = new Date();
-  var pad = function (n) { return ('0' + n).slice(-2); };
-  var stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
-    ' ' + pad(d.getHours()) + '.' + pad(d.getMinutes());
-  var base = (docName || 'Worksheet').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 60);
-  return base + ' — ' + (hadVideo ? 'recording' : 'audio note') + ' ' + stamp + '.' + ext;
-}
-
-/* ================= Recording =================
-   The teacher records a video answer without leaving the worksheet: camera +
-   microphone, this screen + microphone, or microphone only. The capture is
-   pinned to 720p and a modest bitrate so a lesson-length clip stays small
-   enough to upload over a classroom connection.
-
-   Stopping closes the window straight away — the file is packed up and
-   uploaded to Firebase Storage in the background while the lesson carries on,
-   with a tray in the corner showing how far along it is. What lands on the
-   page is an ordinary video-solution pill: students tap it and the player
-   opens right there, native controls and full screen included. */
-var REC_MAX_MS = 20 * 60 * 1000;   // one recording's ceiling — it stops itself
-var REC_VIDEO_BPS = 1200000;       // ~9 MB a minute at 720p
-var REC_AUDIO_BPS = 96000;
-var REC_VIDEO_CONSTRAINTS = {
-  // max as well as ideal: a camera that only offers 1080p is scaled down by
-  // the browser rather than handed to us full size.
-  width: { ideal: 1280, max: 1280 },
-  height: { ideal: 720, max: 720 },
-  frameRate: { ideal: 30, max: 30 }
-};
-var REC_AUDIO_CONSTRAINTS = { echoCancellation: true, noiseSuppression: true };
-
-var recSource = 'camera';   // 'camera' | 'screen' | 'audio'
-var recTarget = null;       // where the finished pill goes; null = drop it on the page in view
-var recStream = null;       // the composed stream handed to the recorder
-var recRawStreams = [];     // every stream we opened, so all of them get stopped
-var recAudioCtx = null;     // only when a screen's sound and a mic are mixed
-var recRecorder = null;
-var recChunks = [];
-var recHadVideo = false;
-var recDiscard = false;     // Cancel mid-recording throws the clip away
-var recStartedAt = 0;
-var recTimer = null;
-var recUploads = {};        // annotation id -> { pct, task, name, mb }
-
-function recSupported() {
-  return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-}
-
-function recScreenSupported() {
-  return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
-}
+   Pills it already put on worksheets keep playing: they are ordinary
+   video-solution pills with a link on them, and openVideoPop plays those.
+   What stays is the lesson recorder's own — its mime choice, its file
+   extension, its clock, where its pill lands — and the words on every pill. */
 
 /* mp4 first — it plays on every device a student might open the link on.
    webm is the fallback for browsers that will not write mp4. */
@@ -9185,318 +8744,6 @@ function recFmtTime(ms) {
   return Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2) + ':' + ('0' + (s % 60)).slice(-2);
 }
 
-function recBusy() {
-  return !!(recRecorder && recRecorder.state === 'recording');
-}
-
-/* ---- the recorder window ---- */
-function openRecModal(ctx) {
-  if (lessonBusy() || lessonPlayback || lessonOpening) { toast('Finish the lesson recording or replay first.'); return; }
-  if (isStudent() || isSharedVisitor()) return; // recording is teacher-only
-  if (!recSupported()) {
-    toast('This browser cannot record video. Chrome, Edge or Safari 15+ can.', 5500);
-    return;
-  }
-  if (!pages.length) { toast('Open a worksheet first — the recording lands on a page as a button.', 4500); return; }
-  recTarget = ctx || null;
-  recDiscard = false;
-  $('recScreenSrc').disabled = !recScreenSupported();
-  if (!recScreenSupported() && recSource === 'screen') recSetSource('camera');
-  recResetUI();
-  $('recModal').classList.add('open');
-}
-
-function closeRecModal(keepClip) {
-  if (recBusy()) {
-    if (!keepClip) recDiscard = true;
-    try { recRecorder.stop(); } catch (e) {}
-  } else {
-    recStopTracks();
-  }
-  $('recModal').classList.remove('open');
-  if (!keepClip) recTarget = null;
-}
-
-function recSetSource(src) {
-  if (recBusy()) return; // no swapping horses mid-recording
-  recSource = src;
-  document.querySelectorAll('#recSourceRow .recSource').forEach(function (b) {
-    b.classList.toggle('active', b.getAttribute('data-recsrc') === src);
-  });
-  $('recStatus').textContent = recIdleHint();
-}
-
-function recIdleHint() {
-  if (recSource === 'screen') return 'Your screen and your voice, recorded at up to 720p. The browser asks which window or tab to share when you press Start.';
-  if (recSource === 'audio') return 'Voice only — the smallest file of the lot, and it still lands on the page as a button.';
-  return 'Camera and microphone at 720p, so a long answer still uploads quickly.';
-}
-
-/* The destination card at the top of the recorder — and the gate on Start,
-   because there is no point capturing anything with nowhere to put it. */
-function renderRecDest() {
-  var row = $('recDest');
-  if (!row) return;
-  var ready = driveReady(0);
-  row.classList.toggle('ready', ready);
-  $('recDestTitle').textContent = ready ? 'Google Drive — connected' : 'Google Drive';
-  $('recDestHint').textContent = ready
-    ? 'Saving into “' + DRIVE_FOLDER_NAME + '” in ' + (driveToken.email || 'your Drive') +
-      '. Access lasts about ' + driveMinutesLeft() + ' more minutes; reconnect when it runs out.'
-    : (standaloneApp()
-        ? 'Connect your Google account to record. The app reloads once while Google asks.'
-        : 'Connect your Google account so recordings go to your own Drive. Ans Key only ever sees the folder it makes there — nothing else.');
-  var btn = $('recConnectBtn');
-  btn.textContent = ready ? 'Reconnect' : 'Connect';
-  btn.className = ready ? 'btn' : 'btn btnPrimary';
-  var start = $('recStartBtn');
-  if (start && !recBusy()) {
-    start.disabled = !ready;
-    start.title = ready ? '' : 'Connect your Google Drive first';
-  }
-}
-
-async function recConnectClick() {
-  var btn = $('recConnectBtn');
-  btn.disabled = true;
-  try {
-    await driveConnect(); // false means the app is redirecting away
-  } catch (e) {
-    if (!e || (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request')) {
-      $('recStatus').textContent = 'Could not connect to Google Drive: ' + ((e && e.message) || e);
-    }
-  }
-  btn.disabled = false;
-  renderRecDest();
-  if (driveReady(0)) $('recStatus').textContent = recIdleHint();
-}
-
-function recResetUI() {
-  $('recBadge').classList.remove('live');
-  $('recTimer').textContent = '0:00';
-  $('recStartBtn').style.display = '';
-  $('recStartBtn').disabled = false;
-  $('recStopBtn').style.display = 'none';
-  $('recCancelBtn').textContent = 'Cancel';
-  $('recPreview').style.display = 'none';
-  $('recPlaceholder').style.display = '';
-  $('recPlaceholderText').textContent = 'Choose what to record, then press Start — the camera only switches on once you do.';
-  $('recStatus').textContent = recIdleHint();
-  document.querySelectorAll('#recSourceRow .recSource').forEach(function (b) {
-    b.disabled = b.id === 'recScreenSrc' && !recScreenSupported();
-  });
-  renderRecDest();
-}
-
-/* ---- capture ---- */
-function recMixAudio(streams) {
-  var Ctx = window.AudioContext || window.webkitAudioContext;
-  var ctx = new Ctx();
-  var dest = ctx.createMediaStreamDestination();
-  streams.forEach(function (s) {
-    if (s && s.getAudioTracks().length) ctx.createMediaStreamSource(s).connect(dest);
-  });
-  return { ctx: ctx, track: dest.stream.getAudioTracks()[0] };
-}
-
-async function recGetStream(src) {
-  if (src === 'audio') {
-    var micOnly = await navigator.mediaDevices.getUserMedia({ audio: REC_AUDIO_CONSTRAINTS });
-    recRawStreams.push(micOnly);
-    return micOnly;
-  }
-  if (src === 'screen') {
-    var disp = await navigator.mediaDevices.getDisplayMedia({
-      video: { width: { max: 1280 }, height: { max: 720 }, frameRate: { max: 30 } },
-      audio: true
-    });
-    recRawStreams.push(disp);
-    // A screen share often starts at the full monitor size whatever we asked
-    // for; pulling it back to 720p here keeps the file honest.
-    try {
-      await disp.getVideoTracks()[0].applyConstraints({
-        width: { max: 1280 }, height: { max: 720 }, frameRate: { max: 30 }
-      });
-    } catch (e) { /* the browser kept its own size — the bitrate cap still holds */ }
-    var mic = null;
-    try {
-      mic = await navigator.mediaDevices.getUserMedia({ audio: REC_AUDIO_CONSTRAINTS });
-      recRawStreams.push(mic);
-    } catch (e) { /* no microphone allowed — a silent screen recording still works */ }
-    var out = new MediaStream(disp.getVideoTracks());
-    var dispAudio = disp.getAudioTracks();
-    if (dispAudio.length && mic) {
-      // A recorder writes one audio track, so the tab's sound and the
-      // teacher's voice are mixed together before it sees them.
-      var mixed = recMixAudio([disp, mic]);
-      recAudioCtx = mixed.ctx;
-      out.addTrack(mixed.track);
-    } else if (mic) {
-      out.addTrack(mic.getAudioTracks()[0]);
-    } else if (dispAudio.length) {
-      out.addTrack(dispAudio[0]);
-    }
-    return out;
-  }
-  var cam = await navigator.mediaDevices.getUserMedia({
-    video: REC_VIDEO_CONSTRAINTS, audio: REC_AUDIO_CONSTRAINTS
-  });
-  recRawStreams.push(cam);
-  return cam;
-}
-
-function recPermissionMessage(e) {
-  var name = (e && (e.name || e.code)) || '';
-  if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'Permission was refused. Allow the camera and microphone for this site, then press Start again.';
-  }
-  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-    return 'No camera or microphone was found on this device.';
-  }
-  if (name === 'NotReadableError') {
-    return 'The camera is busy — close anything else using it and try again.';
-  }
-  return 'Could not start recording: ' + ((e && e.message) || e);
-}
-
-async function recStart() {
-  if (lessonBusy() || lessonPlayback || lessonOpening) { toast('Finish the lesson recording or replay first.'); return; }
-  if (recBusy()) return;
-  if (!driveReady(0)) {
-    // Nowhere to put it — the Connect button just above sorts this out.
-    $('recStatus').textContent = 'Connect your Google Drive first — the button is at the top of this window.';
-    renderRecDest();
-    return;
-  }
-  var startBtn = $('recStartBtn');
-  if (startBtn.disabled) return;
-  var startedEpoch = wsEpoch, startedUser = currentUser;
-  startBtn.disabled = true;
-  $('recStatus').textContent = 'Waiting for permission…';
-  try {
-    recStream = await recGetStream(recSource);
-    if (lessonBusy() || startedEpoch !== wsEpoch || currentUser !== startedUser ||
-        isStudent() || isSharedVisitor() || !$('recModal').classList.contains('open')) {
-      recStopTracks(); startBtn.disabled = false; return;
-    }
-  } catch (e) {
-    recStopTracks();
-    startBtn.disabled = false;
-    $('recStatus').textContent = recPermissionMessage(e);
-    return;
-  }
-  recHadVideo = recStream.getVideoTracks().length > 0;
-  var mime = recPickMime(recHadVideo);
-  var opts = { audioBitsPerSecond: REC_AUDIO_BPS };
-  if (mime) opts.mimeType = mime;
-  if (recHadVideo) opts.videoBitsPerSecond = REC_VIDEO_BPS;
-  try {
-    recRecorder = new MediaRecorder(recStream, opts);
-  } catch (e) {
-    try { recRecorder = new MediaRecorder(recStream); }
-    catch (e2) {
-      recStopTracks();
-      startBtn.disabled = false;
-      $('recStatus').textContent = 'This browser refused to record that source: ' + ((e2 && e2.message) || e2);
-      return;
-    }
-  }
-  recChunks = [];
-  recRecorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) recChunks.push(ev.data); };
-  recRecorder.onstop = recFinish;
-  recRecorder.onerror = function () { toast('The recording stopped unexpectedly — whatever was captured is still uploaded.', 5000); };
-  try {
-    recRecorder.start(1000); // a chunk a second, so a crash costs at most a second
-  } catch (e) {
-    recStopTracks();
-    startBtn.disabled = false;
-    $('recStatus').textContent = 'Could not start recording: ' + ((e && e.message) || e);
-    return;
-  }
-  // Ending the share from the browser's own bar ends the recording too.
-  recStream.getTracks().forEach(function (t) {
-    t.addEventListener('ended', function () { if (recBusy()) recStop(); });
-  });
-  // Preview: muted, so the room never hears itself.
-  var prev = $('recPreview');
-  prev.srcObject = recHadVideo ? recStream : null;
-  prev.muted = true;
-  prev.style.display = recHadVideo ? '' : 'none';
-  $('recPlaceholder').style.display = recHadVideo ? 'none' : '';
-  if (!recHadVideo) $('recPlaceholderText').textContent = 'Microphone only — nothing to see, but your voice is going down.';
-  if (recHadVideo) { try { prev.play(); } catch (e) {} }
-  recStartedAt = Date.now();
-  $('recBadge').classList.add('live');
-  $('recTimer').textContent = '0:00';
-  startBtn.style.display = 'none';
-  $('recStopBtn').style.display = '';
-  $('recCancelBtn').textContent = 'Discard';
-  $('recStatus').textContent = 'Recording. Stop when you are done — the upload then happens in the background, so you can carry on with the lesson.';
-  document.querySelectorAll('#recSourceRow .recSource').forEach(function (b) { b.disabled = true; });
-  clearInterval(recTimer);
-  recTimer = setInterval(recTick, 250);
-}
-
-function recTick() {
-  var ms = Date.now() - recStartedAt;
-  $('recTimer').textContent = recFmtTime(ms);
-  if (ms >= REC_MAX_MS) {
-    toast('20 minutes is the most one recording holds — stopping and uploading it now.', 6000);
-    recStop();
-  }
-}
-
-function recStop() {
-  if (!recBusy()) return;
-  clearInterval(recTimer);
-  recTimer = null;
-  $('recStopBtn').disabled = true;
-  $('recStatus').textContent = 'Packing the recording up…';
-  try { recRecorder.stop(); } catch (e) { /* onstop still runs */ }
-}
-
-/* Let go of the camera, the microphone and any screen share. */
-function recStopTracks() {
-  clearInterval(recTimer);
-  recTimer = null;
-  recRawStreams.forEach(function (s) {
-    try { s.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
-  });
-  recRawStreams = [];
-  if (recStream) {
-    try { recStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
-    recStream = null;
-  }
-  if (recAudioCtx) {
-    try { recAudioCtx.close(); } catch (e) {}
-    recAudioCtx = null;
-  }
-  var prev = $('recPreview');
-  if (prev) { prev.srcObject = null; prev.style.display = 'none'; }
-}
-
-/* MediaRecorder has handed over the last chunk: the window closes and
-   everything from here on happens in the background. */
-function recFinish() {
-  var type = (recRecorder && recRecorder.mimeType) || (recChunks[0] && recChunks[0].type) || 'video/webm';
-  var blob = recChunks.length ? new Blob(recChunks, { type: type }) : null;
-  var hadVideo = recHadVideo;
-  var target = recTarget;
-  var discarded = recDiscard;
-  recChunks = [];
-  recRecorder = null;
-  recDiscard = false;
-  recTarget = null;
-  recStopTracks();
-  $('recStopBtn').disabled = false;
-  recResetUI();
-  $('recModal').classList.remove('open');
-  if (discarded) { toast('Recording discarded.'); return; }
-  if (!blob || !blob.size) { toast('Nothing was captured — try recording again.', 4500); return; }
-  recPlaceAndUpload(blob, hadVideo, target);
-}
-
-/* ---- where the pill goes ---- */
 /* No spot was picked, so it lands near the top of whatever page is on
    screen, stepping down past any pill already sitting there. */
 function recDropSpot() {
@@ -9517,322 +8764,12 @@ function recDropSpot() {
   return { page: p, x: x, y: Math.min(y, p.baseH - VIDEO_BTN_H - 6) };
 }
 
-function recPlaceAndUpload(blob, hadVideo, target) {
-  var label = hadVideo ? 'Watch the recording' : 'Play the audio note';
-  var ann = null;
-  if (target && target.mode === 'edit') {
-    ann = annotations.find(function (x) { return x.id === target.id; });
-  }
-  pushUndo();
-  if (ann) {
-    ann.url = '';
-    ann.label = label;
-  } else {
-    var spot = (target && target.mode === 'new' && target.page)
-      ? {
-          page: target.page,
-          x: Math.max(4, Math.min(target.x - VIDEO_BTN_W / 2, target.page.baseW - VIDEO_BTN_W - 4)),
-          y: Math.max(4, Math.min(target.y, target.page.baseH - VIDEO_BTN_H - 4))
-        }
-      : recDropSpot();
-    if (!spot) { toast('Open a worksheet first — the recording needs a page to sit on.', 4500); return; }
-    ann = {
-      id: newAnnId(), page: spot.page.num, type: 'video',
-      x: round2(spot.x), y: round2(spot.y),
-      w: VIDEO_BTN_W, h: VIDEO_BTN_H, url: '', label: label, ts: Date.now()
-    };
-    annotations.push(ann);
-  }
-  renderAllOverlays();
-  setDirty(true);
-  recQueueUpload(ann.id, blob, hadVideo);
-}
-
-/* ---- the background upload ----
-   Drive is where recordings go. The blob is kept on the job so a failed
-   upload can be retried (or sent to Firebase Storage as a last resort)
-   without the recording being lost. */
-function recQueueUpload(annId, blob, hadVideo) {
-  recUploads[annId] = {
-    state: 'uploading', pct: 0, blob: blob, hadVideo: hadVideo,
-    mb: blob.size / 1048576, name: hadVideo ? 'Recording' : 'Audio note',
-    xhr: null, task: null, error: '', where: 'Drive'
-  };
-  renderRecTray();
-  recSyncPill(annId);
-  recRunUpload(annId);
-}
-
-function recJobProgress(annId, frac, cap) {
-  var job = recUploads[annId];
-  if (!job) return;
-  job.pct = Math.max(0, Math.min(cap === undefined ? 99 : cap, Math.round(frac * 100)));
-  renderRecTray();
-  recSyncPill(annId);
-}
-
-async function recRunUpload(annId) {
-  var job = recUploads[annId];
-  if (!job) return;
-  job.state = 'uploading';
-  job.where = 'Drive';
-  job.error = '';
-  job.pct = 0;
-  renderRecTray();
-  recSyncPill(annId);
-  if (!driveReady(0)) {
-    recJobFailed(annId, 'Drive access has expired. Reconnect and this carries on.');
-    return;
-  }
-  try {
-    var url = await driveUploadJob(annId);
-    recUploadDone(annId, url, true);
-  } catch (e) {
-    if (!recUploads[annId]) return;           // cancelled or deleted meanwhile
-    if (e && e.cancelled) return;
-    if (e && e.auth) {
-      driveForget();
-      renderRecDest();
-      recJobFailed(annId, 'Drive access has expired. Reconnect and this carries on.');
-      return;
-    }
-    if (e && e.setup) { recJobFailed(annId, e.message); return; }
-    // Anything else and the recording must not be the thing that is lost:
-    // Firebase Storage takes it, and the toast says so plainly.
-    toast('Google Drive would not take the recording (' + ((e && e.message) || e) +
-      ') — it has gone into Firebase Storage instead so it is not lost.', 9000);
-    recFirebaseUpload(annId);
-  }
-}
-
-async function driveUploadJob(annId) {
-  var job = recUploads[annId];
-  var folder = await driveEnsureFolder();
-  var meta = {
-    name: driveFileName(job.hadVideo, recExt(job.blob.type)),
-    mimeType: job.blob.type || 'video/mp4',
-    parents: [folder],
-    description: 'Recorded in Ans Key' + (docName ? ' for “' + docName + '”' : '')
-  };
-  var session = '';
-  try {
-    session = await driveStartResumable(meta, job.blob);
-  } catch (e) {
-    if (e && (e.auth || e.setup)) throw e;
-    // Fall through to the one-shot upload below.
-  }
-  var file;
-  if (session) {
-    file = await drivePutBlob(session, job.blob, job, function (frac) { recJobProgress(annId, frac); });
-  } else {
-    recJobProgress(annId, 0.05);
-    file = await driveMultipart(meta, job.blob);
-  }
-  if (!file || !file.id) throw new Error('Drive did not say where it put the file');
-  recJobProgress(annId, 1, 100);
-  try {
-    await driveShareAnyone(file.id);
-  } catch (e) {
-    toast('The recording is in your Drive, but it could not be set to “anyone with the link”. ' +
-      'Students cannot open it until you share it from Drive yourself.', 9000);
-  }
-  return driveFileLink(file.id);
-}
-
-/* The safety net: the app's own Storage bucket, used only when Drive has
-   turned the file away. */
-function recFirebaseUpload(annId) {
-  var job = recUploads[annId];
-  if (!job) return;
-  job.state = 'uploading';
-  job.where = 'Firebase';
-  job.error = '';
-  job.pct = 0;
-  var path = STORAGE_DIR + '/rec-' + (currentDocId || 'loose') + '-' +
-    Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + '.' + recExt(job.blob.type);
-  var task;
-  try {
-    task = storage.ref(path).put(job.blob, {
-      contentType: job.blob.type || 'video/webm',
-      cacheControl: 'public, max-age=31536000'
-    });
-  } catch (e) {
-    recJobFailed(annId, 'Could not start the upload: ' + ((e && e.message) || e));
-    return;
-  }
-  job.task = task;
-  renderRecTray();
-  recSyncPill(annId);
-  task.on('state_changed', function (snap) {
-    if (snap.totalBytes) recJobProgress(annId, snap.bytesTransferred / snap.totalBytes, 100);
-  }, function (err) {
-    if (err && err.code === 'storage/canceled') return;
-    recJobFailed(annId, 'Upload failed: ' + ((err && err.message) || err));
-  }, function () {
-    task.snapshot.ref.getDownloadURL().then(function (url) {
-      var a = annotations.find(function (x) { return x.id === annId; });
-      if (a) a.recPath = path;
-      recUploadDone(annId, url, false);
-    }).catch(function (e) {
-      recJobFailed(annId, 'Uploaded, but its link could not be read: ' + ((e && e.message) || e));
-    });
-  });
-}
-
-function recUploadDone(annId, url, toDrive) {
-  var a = annotations.find(function (x) { return x.id === annId; });
-  delete recUploads[annId];
-  renderRecTray();
-  if (!a) return; // the pill was deleted while it uploaded
-  a.url = url;
-  renderAllOverlays();
-  setDirty(true);
-  toast(toDrive
-    ? 'Saved to your Google Drive — the button on the page plays it. Drive may need a minute to process a new video before it plays.'
-    : 'Recording uploaded — tapping the button on the page plays it.', toDrive ? 6500 : 4200);
-}
-
-function recJobFailed(annId, message) {
-  var job = recUploads[annId];
-  if (!job) return;
-  job.state = 'failed';
-  job.error = message;
-  job.xhr = null;
-  job.task = null;
-  renderRecTray();
-  recSyncPill(annId);
-}
-
-/* Reconnecting opens a popup, so this only ever runs straight from the
-   tray's own button. */
-async function recRetryUpload(annId) {
-  if (!recUploads[annId]) return;
-  if (!driveReady(0)) {
-    try {
-      if (!(await driveConnect())) return; // redirect path — the app is reloading
-    } catch (e) {
-      if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')) return;
-      toast('Could not connect to Google Drive: ' + ((e && e.message) || e), 7000);
-      return;
-    }
-    renderRecDest();
-  }
-  recRunUpload(annId);
-}
-
-function recCancelUpload(annId) {
-  var job = recUploads[annId];
-  if (!job) return;
-  try { if (job.xhr) job.xhr.abort(); } catch (e) {}
-  try { if (job.task) job.task.cancel(); } catch (e) {}
-  delete recUploads[annId];
-  var a = annotations.find(function (x) { return x.id === annId; });
-  if (a && !a.url) {
-    pushUndo();
-    annotations = annotations.filter(function (x) { return x.id !== annId; });
-    renderAllOverlays();
-    setDirty(true);
-  }
-  renderRecTray();
-  toast('Upload stopped — the button was taken off the page.');
-}
-
-function recUploadsPending() {
-  return Object.keys(recUploads).length;
-}
-
-function renderRecTray() {
-  var tray = $('recTray');
-  var wrap = $('recTrayJobs');
-  if (!tray || !wrap) return;
-  var ids = Object.keys(recUploads);
-  tray.classList.toggle('open', ids.length > 0);
-  var stuck = ids.filter(function (id) { return recUploads[id].state === 'failed'; }).length;
-  $('recTrayTitle').textContent = stuck
-    ? (stuck > 1 ? stuck + ' recordings need a hand' : 'This recording needs a hand')
-    : (ids.length > 1 ? 'Uploading ' + ids.length + ' recordings' : 'Uploading recording');
-  wrap.innerHTML = '';
-  ids.forEach(function (id) {
-    var job = recUploads[id];
-    var failed = job.state === 'failed';
-    var row = document.createElement('div');
-    row.className = 'recJob' + (failed ? ' failed' : '');
-    var top = document.createElement('div');
-    top.className = 'recJobTop';
-    var nm = document.createElement('div');
-    nm.className = 'recJobName';
-    nm.textContent = job.name + ' · ' + job.mb.toFixed(1) + ' MB';
-    var pct = document.createElement('div');
-    pct.className = 'recJobPct';
-    pct.textContent = failed ? 'stuck' : job.pct + '%';
-    top.appendChild(nm);
-    top.appendChild(pct);
-    var bar = document.createElement('div');
-    bar.className = 'recJobBar';
-    var fill = document.createElement('div');
-    fill.className = 'recJobFill';
-    fill.style.width = (failed ? 100 : job.pct) + '%';
-    bar.appendChild(fill);
-    var foot = document.createElement('div');
-    foot.className = 'recJobFoot';
-    var hint = document.createElement('div');
-    hint.className = 'recJobHint';
-    hint.textContent = failed
-      ? job.error
-      : (job.pct >= 100
-          ? 'Finishing off…'
-          : 'To ' + (job.where === 'Drive' ? 'your Drive' : 'Firebase') + ' — carry on, this keeps going.');
-    foot.appendChild(hint);
-    if (failed) {
-      var retry = document.createElement('button');
-      retry.className = 'recJobBtn primary';
-      retry.textContent = 'Retry';
-      retry.title = 'Reconnect to Google Drive if needed, then upload again';
-      retry.addEventListener('click', function () { recRetryUpload(id); });
-      foot.appendChild(retry);
-      var alt = document.createElement('button');
-      alt.className = 'recJobBtn';
-      alt.textContent = 'Use Firebase';
-      alt.title = 'Put this recording in the app’s own storage instead of Drive';
-      alt.addEventListener('click', function () { recFirebaseUpload(id); });
-      foot.appendChild(alt);
-    }
-    var stop = document.createElement('button');
-    stop.className = 'recJobBtn';
-    stop.textContent = failed ? 'Discard' : 'Stop';
-    stop.title = 'Throw this recording away and take the button off the page';
-    stop.addEventListener('click', function () { recCancelUpload(id); });
-    foot.appendChild(stop);
-    row.appendChild(top);
-    row.appendChild(bar);
-    row.appendChild(foot);
-    wrap.appendChild(row);
-  });
-}
-
-/* What the pill on the page says — an upload in flight reports its progress
-   rather than pretending there is something to watch. */
+/* What the pill on the page says. A pill with no link on it — an old
+   recording whose upload was abandoned — says so rather than pretending
+   there is something to watch. */
 function videoPillLabel(a) {
-  var job = recUploads[a.id];
-  if (job) {
-    if (job.state === 'failed') return 'Upload needs a hand';
-    return job.pct >= 100 ? 'Finishing upload…' : 'Uploading… ' + job.pct + '%';
-  }
   if (!a.url) return 'Video not uploaded';
   return a.label || 'Watch video solution';
-}
-
-/* Repaint one pill in place — cheaper than re-rendering every overlay on
-   each progress event. */
-function recSyncPill(annId) {
-  var a = annotations.find(function (x) { return x.id === annId; });
-  if (!a) return;
-  var g = document.querySelector('g[data-id="' + annId + '"]');
-  var btn = g && g.querySelector('.videoAnnBtn');
-  if (!btn) return;
-  btn.classList.toggle('pending', !!recUploads[annId]);
-  var span = btn.querySelector('span');
-  if (span) span.textContent = videoPillLabel(a);
 }
 
 /* ================= Lesson replay core ================= */
@@ -11549,7 +10486,13 @@ function lessonContextOK(c) {
   return lessonTeacher() && currentDocId === c.docId && wsEpoch === c.epoch && currentUser.uid === c.uid;
 }
 function lessonStatus(text) { $('lessonStatus').textContent = text; }
-function lessonBar(show) { $('lessonBar').hidden = !show; }
+function lessonBar(show) {
+  $('lessonBar').hidden = !show;
+  // The toolbar's red dot pulses while a lesson is going down, so the one
+  // record button says whether it is recording without a word on it.
+  $('lessonRecordBtn').classList.toggle('active', !!lessonCapture);
+  if (typeof syncFavActive === 'function') syncFavActive();
+}
 function lessonView() {
   var area = $('viewerArea'), r = area.getBoundingClientRect();
   var p = pages[Math.max(0, currentPageNum() - 1)];
@@ -11639,7 +10582,6 @@ async function lessonOpen() {
   if (lessonCapture) { lessonBar(true); return; }
   if (lessonPending) { lessonPendingUI(); return; }
   if (!pages.length || !currentDocId) { toast('Save this worksheet first, then record a lesson.'); return; }
-  if (recBusy() || $('recModal').classList.contains('open')) { toast('Close the video recorder first.'); return; }
   lessonExitPlayback();
   var id = currentDocId, uid = currentUser.uid, epoch = wsEpoch;
   try {
@@ -11651,7 +10593,7 @@ async function lessonOpen() {
   lessonOpenModal();
 }
 async function lessonStart() {
-  if (lessonBusy() || !lessonTeacher() || !currentDocId || !pages.length || recBusy()) return;
+  if (lessonBusy() || !lessonTeacher() || !currentDocId || !pages.length) return;
   if (lessonDocumentBusy()) { toast('Wait for the worksheet to finish saving or changing pages.'); return; }
   if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.isSecureContext) {
     toast('Recording needs microphone support and a secure browser connection.', 5000); return;
@@ -25965,10 +24907,6 @@ function applyRoleUI() {
   // spends the teacher's own AI. Re-checked here, so a device handed back to
   // a student mid-lesson does not keep it.
   if (typeof mmAiSyncBar === 'function') mmAiSyncBar();
-  // Recording is the teacher making the answer — students only ever watch.
-  var recBtn = $('recordBtn');
-  if (recBtn) recBtn.style.display = student ? 'none' : '';
-  if (student && typeof closeRecModal === 'function' && $('recModal').classList.contains('open')) closeRecModal(false);
   // Share-link visitors: downloading is always allowed, but uploading, cloud
   // saving, printing the answer key, AI answers and browsing the other
   // worksheets never are — whatever the link's mode.
@@ -26067,19 +25005,7 @@ async function signIn() {
 /* Collect the result of a redirect sign-in when the app opens again after
    one. A no-op on every other load, including every load in a browser tab. */
 try {
-  auth.getRedirectResult().then(function (res) {
-    // A redirect that was asking for Drive access comes back with the token
-    // on it — that is the only way an installed app can be granted one.
-    var wanted = false;
-    try {
-      wanted = sessionStorage.getItem(DRIVE_RETURN_KEY) === '1';
-      sessionStorage.removeItem(DRIVE_RETURN_KEY);
-    } catch (e) {}
-    if (res && res.credential && driveStoreCred(res) && wanted) {
-      toast('Google Drive connected — recordings are saved there.', 4000);
-      if (typeof renderRecDest === 'function') renderRecDest();
-    }
-  }).catch(function (e) {
+  auth.getRedirectResult().catch(function (e) {
     if (e && e.code) toast('Sign-in failed: ' + (e.message || e));
   });
 } catch (e) { /* older SDKs without the method — the popup path is unaffected */ }
@@ -26209,8 +25135,6 @@ function renderAuthArea() {
 }
 
 auth.onAuthStateChanged(function (user) {
-  // Drive access belongs to the account that granted it, and to nobody else.
-  if (!user || (driveToken && driveToken.email && user.email !== driveToken.email)) driveForget();
   currentUser = user;
   studentProfile = null;
   actingStudent = null; // a real sign-in/out always ends the handover
@@ -31022,23 +29946,6 @@ $('videoBtnModal').addEventListener('click', function (e) {
 $('videoBtnUrlInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { e.preventDefault(); saveVideoBtn(); }
 });
-$('videoBtnRecBtn').addEventListener('click', recordIntoVideoBtn);
-
-/* ---- recorder ---- */
-$('recordBtn').addEventListener('click', function () { openRecModal(null); });
-$('recConnectBtn').addEventListener('click', recConnectClick);
-$('recStartBtn').addEventListener('click', recStart);
-$('recStopBtn').addEventListener('click', recStop);
-$('recCancelBtn').addEventListener('click', function () { closeRecModal(false); });
-$('recCloseBtn').addEventListener('click', function () { closeRecModal(false); });
-$('recModal').addEventListener('click', function (e) {
-  // A stray tap on the backdrop must never bin a recording in progress.
-  if (e.target === $('recModal') && !recBusy()) closeRecModal(false);
-});
-$('recSourceRow').addEventListener('click', function (e) {
-  var b = e.target.closest ? e.target.closest('.recSource') : null;
-  if (b && !b.disabled) recSetSource(b.getAttribute('data-recsrc'));
-});
 
 $('videoAttachBtn').addEventListener('click', attachVideoLink);
 $('videoRemoveBtn').addEventListener('click', removeVideo);
@@ -31431,12 +30338,6 @@ document.addEventListener('keydown', function (e) {
     closeCodeWin();
     return;
   }
-  // Esc closes the recorder, but never throws away a recording in progress —
-  // that takes a deliberate Discard.
-  if (e.key === 'Escape' && !editingText && $('recModal').classList.contains('open')) {
-    if (!recBusy()) closeRecModal(false);
-    return;
-  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDoc();
@@ -31470,10 +30371,11 @@ document.addEventListener('keydown', function (e) {
     if (fsSupported()) toggleFullscreen();
     return;
   }
-  // Shift+R opens the recorder — plain R is the rectangle tool.
+  // Shift+R records a lesson — plain R is the rectangle tool. It opened the
+  // video-answer recorder until that was folded into this one (v1.104.0).
   if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'r') {
     e.preventDefault();
-    if (!isStudent() && !isSharedVisitor()) openRecModal(null);
+    if (lessonTeacher()) lessonOpen();
     return;
   }
   // Shift+V starts and stops the voice helper — plain V is the select tool.
@@ -31588,13 +30490,6 @@ document.addEventListener('keydown', function (e) {
 })();
 
 window.addEventListener('beforeunload', function () { stopLivePresence(true); });
-// A recording still on its way up is lost if the tab goes — worth a prompt
-// even when everything else is saved.
-window.addEventListener('beforeunload', function (e) {
-  if (!recBusy() && !recUploadsPending()) return;
-  e.preventDefault();
-  e.returnValue = '';
-});
 window.addEventListener('beforeunload', function (e) {
   if (!dirty || !annotations.length) return;
   saveDraftNow(); // last-chance flush into the local draft failsafe
