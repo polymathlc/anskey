@@ -4,6 +4,47 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.103.0 — 🎥 Record a lesson with your camera, and choose the camera and the microphone
+
+**Record lesson** used to capture your voice and your writing. It can capture
+**you** now as well — and before a second is recorded you choose which camera
+and which microphone, see the camera, and hear the microphone back.
+
+- **📷 Pick the camera from a list.** Every camera the device has — the laptop's
+  own, a USB webcam, a document camera, an iPad's front and back — with
+  **No camera** at the top for a voice-and-writing lesson exactly as before.
+- **See it before you record.** The chosen camera shows live in the window, at
+  the framing the recording will use. The preview is mirrored like a video
+  call; the recording itself never is, so the class sees you (and the board)
+  the right way round. A document camera can switch the mirror off.
+- **🎙 Pick the microphone, and test it.** A level bar moves as you speak and
+  says when it can hear you — or warns you when nothing is coming through,
+  which is how a muted headset shows itself. **Test sound** records four
+  seconds and plays them straight back, through the same noise reduction the
+  lesson uses, so what you hear is what the class will hear.
+- **Your choice is remembered** on the device. A remembered camera that is not
+  plugged in turns the camera **off** and says which one is missing, rather
+  than quietly recording from a different lens — and plug it back in and it is
+  picked up again by itself.
+- **While you record** your camera shows as a small live picture in the
+  recording bar, so you can check you are still in frame without anything
+  covering the page.
+- **The replay plays the video in its own window** over the worksheet — drag it
+  by its bar, make it bigger or smaller — and the writing follows the video's
+  own clock, so your face, your voice and your pen never drift apart. The page
+  button wears a camera and reads **Play video lesson**.
+- **Size, said up front.** With the camera on a lesson is about 4.3 MB a minute,
+  so one recording holds about two hours; the window says so, and the upload
+  shows its progress in per cent.
+- Closing the window by any route — Start, Cancel, ✕, Escape, switching
+  account, or leaving the page — lets go of the camera and the microphone at
+  once, so the camera light never stays on.
+
+A recording is still **you and your writing, and nothing else**: the Voice AI
+helper is never mixed into it, camera or no camera.
+
+---
+
 ## v1.102.1 — A corner drag answers whichever way you pull it
 
 A pasted picture keeps its own shape on a corner drag, and the scale is now the

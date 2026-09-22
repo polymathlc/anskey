@@ -244,3 +244,32 @@ check('the duration ceiling is a parser bound the byte caps always reach first, 
   assert.ok(finalizeMax, 'LessonAudioFinalize declares its own MAX_MS');
   assert.equal(Function('return ' + finalizeMax[1])(), core.limits.duration);
 });
+
+check('the finalizer\'s byte ceilings are the recorder\'s, and the recorder stops a slack short of them', () => {
+  // The same rule as the clock above, for bytes: the finalizer runs at SAVE
+  // time, so a ceiling stricter than the recorder's throws away a lesson the
+  // recorder was still allowed to write — and a video lesson is the biggest
+  // file this app makes.
+  const finalizer = html.slice(html.indexOf('var LessonAudioFinalize'));
+  const literal = (text, name) => {
+    const found = new RegExp('var ' + name + ' = ([^;]+);').exec(text);
+    assert.ok(found, name + ' is declared');
+    return Function('return ' + found[1])();
+  };
+  const recorder = html.slice(html.indexOf('/* ================= Synchronized lesson recording ================= */'));
+  const audioLimit = literal(recorder, 'LESSON_AUDIO_LIMIT'), videoLimit = literal(recorder, 'LESSON_VIDEO_LIMIT');
+  const slack = literal(recorder, 'LESSON_BYTES_SLACK');
+  assert.equal(literal(finalizer, 'MAX_BYTES'), audioLimit, 'audio: the finalizer repeats the recorder\'s ceiling');
+  assert.equal(literal(finalizer, 'MAX_VIDEO_BYTES'), videoLimit, 'video: the finalizer repeats the recorder\'s ceiling');
+  assert.ok(videoLimit > audioLimit);
+  // A chunk a second at a few hundred kilobits is tens of kilobytes; the tick
+  // that notices is 50 ms late at most. A megabyte of slack covers both many
+  // times over, and it must never eat a meaningful part of the lesson.
+  assert.ok(slack >= 1024 * 1024, 'the recorder stops at least a megabyte short');
+  assert.ok(slack <= audioLimit / 16, 'the slack is a margin, not a second, smaller limit');
+  assert.match(recorder, /c\.bytes >= \(c\.limit \|\| LESSON_AUDIO_LIMIT\) - LESSON_BYTES_SLACK/, 'the capture tick stops short by the slack');
+  // And the video ceiling is reachable only well inside the replay clock.
+  const bps = literal(html, 'LESSON_AUDIO_BPS') + literal(html, 'LESSON_VIDEO_BPS');
+  assert.ok(videoLimit * 8 / bps * 1000 < core.limits.duration, 'a full video file is far shorter than the clock\'s parser bound');
+});
+console.log('recording byte ceilings checked.');

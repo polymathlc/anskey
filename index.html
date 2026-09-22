@@ -3554,9 +3554,67 @@
 .lessonReplayText { white-space:pre-wrap; overflow-wrap:break-word; line-height:1.35; font-family:var(--font); min-height:1.2em; padding:3px 5px; border-radius:4px; }
 .lessonPlaying .pageWrap > .overlay,.lessonPlaying .aiWidgetHost,.lessonPlaying .editBadge,.lessonPlaying .pageEditChrome { visibility:hidden!important; }
 .lessonPlaying .pageWrap { pointer-events:none; }
+/* 🎥 The lesson window: choose the camera and the microphone, SEE the one and
+   HEAR the other before a second is recorded. A card per device, the same
+   breathing space as every other window, and wide enough to hold a 16:9
+   preview without crowding it. */
+.modalCard.lessonCard { max-width:580px; max-height:88vh; max-height:min(88dvh, calc(var(--vvh, 100vh) - 40px)); }
+.modalCard.lessonCard:focus { outline:none; }
 #lessonModal .lessonHelp { color:#536577; line-height:1.6; font-size:14px; }
-#lessonModal label { display:flex; gap:10px; align-items:flex-start; margin:18px 0; line-height:1.5; }
-@media print { .barStack,.lessonBar,.lessonPlayer,#lessonModal { display:none!important; } }
+#lessonModal .lessonHelp + .lessonHelp { margin-top:10px; }
+#lessonModal .lessonSmall { font-size:12.5px; }
+.lessonDev { margin:18px 0; padding:16px 18px 18px; border:1px solid var(--line); border-radius:var(--radius); background:#FBFBFA; }
+.lessonDevHead { display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; margin-bottom:14px; }
+.lessonDevLabel { display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; min-width:118px; font-size:0.84rem; font-weight:bold; color:var(--ink); }
+.lessonDevLabel svg { width:18px; height:18px; color:var(--ink-soft); }
+.lessonDevSelect { flex:1 1 220px; min-width:0; font-family:var(--font); font-size:0.86rem; color:var(--ink); padding:9px 12px; border:1px solid var(--line); border-radius:var(--radius-sm); background:#fff; outline:none; transition:border-color .2s ease, box-shadow .2s ease; }
+.lessonDevSelect:focus { border-color:var(--accent-strong); box-shadow:0 0 0 3px rgba(255,224,178,0.5); }
+.lessonCamStage { position:relative; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#15181b; }
+.lessonCamStage video { display:block; width:100%; height:100%; object-fit:cover; background:#000; }
+.lessonCamStage video[hidden] { display:none; }
+/* Only ever on a PREVIEW. The recording is never mirrored, so a class
+   watching the replay sees the teacher — and the board — the right way round. */
+video.mirror { transform:scaleX(-1); }
+.lessonCamOff { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:22px 30px; text-align:center; color:rgba(255,255,255,0.74); font-size:0.8rem; line-height:1.6; }
+.lessonCamOff[hidden] { display:none; }
+.lessonCamOff svg { width:32px; height:32px; opacity:0.6; }
+.lessonCamOff .btn { padding:7px 14px; font-size:0.78rem; }
+.lessonCamOff .btn[hidden] { display:none; }
+.lessonCheck { display:flex; align-items:center; gap:9px; margin-top:12px; font-size:0.78rem; color:var(--ink-soft); line-height:1.5; cursor:pointer; }
+.lessonCheck[hidden] { display:none; }
+.lessonCheck em { font-style:normal; color:var(--ink-faint); }
+.lessonCheck input { width:16px; height:16px; flex:0 0 auto; accent-color:var(--accent-deep); }
+.lessonMeterRow { display:flex; align-items:center; gap:12px; }
+.lessonMeter { flex:1; height:12px; border-radius:999px; background:#E6E8EA; overflow:hidden; }
+.lessonMeterFill { width:0%; height:100%; border-radius:999px; background:linear-gradient(90deg, #66BB6A, #43A047); transition:width 70ms linear; }
+.lessonMeterFill.hot { background:linear-gradient(90deg, #FFA726, #E53935); }
+.lessonMeterRow .btn { flex:0 0 auto; min-width:118px; justify-content:center; }
+.lessonDevHint { margin-top:10px; min-height:1.55em; font-size:0.76rem; line-height:1.55; color:var(--ink-faint); }
+.lessonDevHint.ok { color:#2E7D32; }
+.lessonDevHint.warn { color:#9A5B00; }
+.lessonDevHint.bad { color:var(--danger); }
+.lessonLink { margin-top:6px; padding:2px 0; border:0; background:none; font-family:var(--font); font-size:0.76rem; color:#1565C0; text-decoration:underline; cursor:pointer; }
+.lessonLink[hidden] { display:none; }
+@media (prefers-reduced-motion: reduce) { .lessonMeterFill { transition:none; } }
+/* The camera, live, in the recording bar: a teacher mid-lesson glances down to
+   check they are still in frame, and nothing is laid over the page to do it. */
+.lessonLiveCam { flex:0 0 auto; width:96px; aspect-ratio:16/9; border-radius:10px; object-fit:cover; background:#000; }
+.lessonLiveCam[hidden] { display:none; }
+/* The replay's video: a window of its own over the page, dragged by its bar,
+   in three sizes. Fixed to the viewport and OUTSIDE .barStack — the stack is
+   translated, and a fixed child of a transformed parent is placed against the
+   parent rather than the screen. */
+.lessonCamWin { position:fixed; z-index:1090; right:16px; bottom:96px; width:320px; max-width:calc(100vw - 32px); display:flex; flex-direction:column; border-radius:16px; overflow:hidden; background:#12161a; box-shadow:0 12px 40px rgba(11,26,42,0.35); }
+.lessonCamWin[hidden] { display:none; }
+.lessonCamWinBar { display:flex; align-items:center; gap:8px; padding:8px 8px 8px 10px; color:#E8EEF3; font-size:12px; font-weight:600; cursor:grab; touch-action:none; -webkit-user-select:none; user-select:none; }
+.lessonCamWin.dragging .lessonCamWinBar { cursor:grabbing; }
+.lessonCamWinGrip { width:16px; height:16px; flex:0 0 auto; fill:currentColor; opacity:0.55; }
+.lessonCamWinTitle { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lessonCamWinBtn { width:30px; height:30px; flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:8px; background:rgba(255,255,255,0.1); color:#fff; cursor:pointer; }
+.lessonCamWinBtn:hover { background:rgba(255,255,255,0.2); }
+.lessonCamWinBtn svg { width:15px; height:15px; }
+.lessonCamWin video { display:block; width:100%; height:auto; max-height:70vh; background:#000; }
+@media print { .barStack,.lessonBar,.lessonPlayer,#lessonModal,.lessonCamWin { display:none!important; } }
 </style>
 </head>
 <body>
@@ -3791,7 +3849,7 @@
     <button class="toolBtn" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps — tap one to jump the lesson recording to that moment">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
     </button>
-    <button class="toolBtn" id="lessonRecordBtn" title="Record lesson — replay voice, pencil strokes, typed text and page position" style="display:none">
+    <button class="toolBtn" id="lessonRecordBtn" title="Record lesson — replay your camera, voice, pencil strokes, typed text and page position" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg>
       <span class="btnLabel">Record lesson</span>
     </button>
@@ -4184,13 +4242,53 @@
 </div>
 
 <div class="modalBack" id="lessonModal" role="dialog" aria-modal="true" aria-labelledby="lessonHeading">
-  <div class="modalCard" style="max-width:500px"><div class="modalBody">
-    <h2 id="lessonHeading">Record a lesson</h2>
-    <p class="lessonHelp">Explain while you write. Your voice, pencil strokes, typed text, zoom and page position play back together. A play button will be attached to this page.</p>
-    <p class="lessonHelp"><strong>A recording is your voice and your writing, and nothing else.</strong> The AI never answers into it. 🎙 <span class="aiName">Chung GPT</span> Voice AI is a separate button on the toolbar — its replies are never mixed into a recording, so use headphones if you want it while you record.</p>
-    <p class="lessonHelp">Arrange pictures and cards first. Changing them ends the recording so the replay stays aligned. Noise reduction depends on your browser and device. Record for as long as you need — it stops when the file is full. Keep this app in front.</p>
-    <div class="modalActions"><button class="btn" id="lessonCancelBtn">Cancel</button><button class="btn primary" id="lessonStartBtn">Start recording</button></div>
-  </div></div>
+  <div class="modalCard lessonCard" id="lessonCard" tabindex="-1">
+    <div class="modalHead">
+      <h2 id="lessonHeading">Record a lesson</h2>
+      <button class="modalClose" id="lessonCloseBtn" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <p class="lessonHelp">Explain while you write. Your voice, pencil strokes, typed text, zoom and page position play back together — and you on camera too, if you switch one on. A play button will be attached to this page.</p>
+
+      <section class="lessonDev" aria-labelledby="lessonCamLabel">
+        <div class="lessonDevHead">
+          <label class="lessonDevLabel" id="lessonCamLabel" for="lessonCamSelect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5 21.5 7v10l-6-3.5z"/></svg>Camera</label>
+          <select class="lessonDevSelect" id="lessonCamSelect"><option value="">No camera — voice and writing only</option></select>
+        </div>
+        <div class="lessonCamStage" id="lessonCamStage">
+          <video id="lessonCamPreview" muted playsinline autoplay hidden aria-label="Camera preview"></video>
+          <div class="lessonCamOff" id="lessonCamOff">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 13.2V9a3 3 0 0 0-3-3H8.3"/><path d="M4.4 6.4A3 3 0 0 0 2.5 9v6a3 3 0 0 0 3 3h7a3 3 0 0 0 2.6-1.5"/><path d="M15.5 10.5 21.5 7v10l-6-3.5"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+            <span id="lessonCamOffText">Camera off. Choose a camera above to appear in the recording too.</span>
+            <button type="button" class="btn" id="lessonCamRetry" hidden>Try again</button>
+          </div>
+        </div>
+        <label class="lessonCheck" id="lessonMirrorRow" hidden>
+          <input type="checkbox" id="lessonMirror" checked>
+          <span>Mirror my preview <em>— the recording itself is never mirrored</em></span>
+        </label>
+      </section>
+
+      <section class="lessonDev" aria-labelledby="lessonMicLabel">
+        <div class="lessonDevHead">
+          <label class="lessonDevLabel" id="lessonMicLabel" for="lessonMicSelect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg>Microphone</label>
+          <select class="lessonDevSelect" id="lessonMicSelect"><option value="">Default microphone</option></select>
+        </div>
+        <div class="lessonMeterRow">
+          <div class="lessonMeter" id="lessonMeter" role="meter" aria-label="Microphone level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="lessonMeterFill" id="lessonMeterFill"></div></div>
+          <button type="button" class="btn" id="lessonTestBtn" disabled>Test sound</button>
+        </div>
+        <div class="lessonDevHint" id="lessonMicHint" role="status" aria-live="polite">Opening the microphone…</div>
+        <button type="button" class="lessonLink" id="lessonMicRetry" hidden>Try the microphone again</button>
+        <audio id="lessonTestAudio" preload="auto" hidden></audio>
+      </section>
+
+      <p class="lessonHelp lessonSmall" id="lessonSizeHint">Voice and writing only: under 1 MB a minute.</p>
+      <p class="lessonHelp lessonSmall"><strong>A recording is you and your writing, and nothing else.</strong> The AI never answers into it. 🎙 <span class="aiName">Chung GPT</span> Voice AI is a separate button on the toolbar — its replies are never mixed into a recording, so use headphones if you want it while you record.</p>
+      <p class="lessonHelp lessonSmall">Arrange pictures and cards first. Changing them ends the recording so the replay stays aligned. Noise reduction depends on your browser and device. Record for as long as you need — it stops when the file is full. Keep this app in front.</p>
+      <div class="modalActions"><button class="btn" id="lessonCancelBtn">Cancel</button><button class="btn btnRec" id="lessonStartBtn">● Start recording</button></div>
+    </div>
+  </div>
 </div>
 <div class="barStack" id="barStack">
 <div class="lessonBar" id="voiceBar" hidden role="region" aria-label="Voice AI helper">
@@ -4198,6 +4296,7 @@
   <button id="voiceStopBtn">Stop Voice AI</button>
 </div>
 <div class="lessonBar" id="lessonBar" hidden role="region" aria-label="Lesson recording">
+  <video class="lessonLiveCam" id="lessonLiveCam" muted playsinline autoplay hidden aria-label="Your camera, as it is being recorded"></video>
   <span id="lessonClock">0:00</span><div class="lessonInfo" id="lessonStatus" role="status" aria-live="polite"></div>
   <button id="lessonStopBtn">Stop &amp; save</button><button id="lessonRetryBtn" hidden>Retry save</button>
   <button id="lessonDownloadBtn" hidden>Download backup</button><button id="lessonDismissBtn" hidden>Discard</button>
@@ -4206,6 +4305,14 @@
   <span id="lessonPlayerTitle" role="status"></span><button id="lessonPlayerClose">Close replay</button>
   <audio id="lessonAudio" controls preload="metadata" aria-label="Lesson audio and timeline"></audio>
 </div>
+</div>
+<div class="lessonCamWin" id="lessonCamWin" hidden role="region" aria-label="Lesson video">
+  <div class="lessonCamWinBar" id="lessonCamWinBar" title="Drag to move the video">
+    <svg class="lessonCamWinGrip" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+    <span class="lessonCamWinTitle">Lesson video</span>
+    <button type="button" class="lessonCamWinBtn" id="lessonCamWinSize" title="Bigger video" aria-label="Bigger video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+  </div>
+  <video id="lessonVideo" controls playsinline preload="metadata" aria-label="Lesson video and timeline"></video>
 </div>
 <div class="modalBack" id="recModal">
   <div class="modalCard wide">
@@ -5061,7 +5168,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.102.1';
+var APP_VERSION = 'v1.103.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -7886,7 +7993,12 @@ function annNode(a) {
     vbtn.className = 'videoAnnBtn' + (recUploads[a.id] ? ' pending' : '');
     var vicon = el('svg', { viewBox: '0 0 24 24' });
     vicon.appendChild(el('circle', { cx: 12, cy: 12, r: 10, fill: 'rgba(255,255,255,0.25)' }));
-    vicon.appendChild(el('path', { d: 'M10 8.3v7.4l6-3.7z', fill: '#fff' }));
+    if (a.lessonRecording && a.lessonRecording.video) {
+      // A lesson recorded with the camera wears a camera, so a class can tell
+      // "watch the teacher" from "listen to the teacher" before tapping.
+      vicon.appendChild(el('rect', { x: 5.5, y: 8.5, width: 8.5, height: 7, rx: 1.8, fill: '#fff' }));
+      vicon.appendChild(el('path', { d: 'M14.6 11.1 18.5 9v6l-3.9-2.1z', fill: '#fff' }));
+    } else vicon.appendChild(el('path', { d: 'M10 8.3v7.4l6-3.7z', fill: '#fff' }));
     vbtn.appendChild(vicon);
     var vlabel = document.createElement('span');
     vlabel.textContent = videoPillLabel(a);
@@ -10520,28 +10632,70 @@ async function lessonTeachingPageJpeg(p, snapshot, backgrounds, signal) {
 // MediaRecorder's streaming WebM omits Duration. Add its finite recorder-clock
 // duration to Segment/Info without decoding or changing any audio block. The
 // bounded parser reads EBML element sizes; it never searches compressed bytes.
+// A lesson recorded WITH THE CAMERA is a WebM of exactly the same shape — a
+// video track beside the audio one — only far larger, which is why the file is
+// read a window at a time and never whole (see WINDOW).
 var LessonAudioFinalize = (function () {
   'use strict';
   var MAX_BYTES = 64 * 1024 * 1024;
+  // Must equal LESSON_VIDEO_LIMIT, the ceiling of a lesson recorded with the
+  // camera. Repeated rather than read for MAX_MS's reason below, and checked
+  // against the recorder's own literal by tools/recording-core-tests.mjs: a
+  // finalizer that refuses a file the recorder was still allowed to write
+  // throws away a whole video lesson at the moment it is being saved.
+  var MAX_VIDEO_BYTES = 512 * 1024 * 1024;
   // Must equal LessonReplayCore.limits.duration. It is repeated rather than
   // read, because this finalizer is lifted out of the page and run on its own by
   // its own harness, where that core does not exist. A finalizer that refuses a
   // duration the recorder accepted throws the whole lesson away at save time, so
   // tools/recording-core-tests.mjs checks the two literals against each other.
   var MAX_MS = 4 * 60 * 60 * 1000;
+  // Only element HEADERS are ever read — at most twelve bytes apiece — so the
+  // file is taken a window at a time. Reading it whole held an hour of video in
+  // memory, hundreds of megabytes on a school laptop, to look at a few hundred
+  // kilobytes of it.
+  var WINDOW = 1024 * 1024;
+  var HEADER = 12;
   var ID = { ebml: 0x1a45dfa3, segment: 0x18538067, info: 0x1549a966,
     cluster: 0x1f43b675, duration: 0x4489, scale: 0x2ad7b1, seek: 0x114d9b74,
     cues: 0x1c53bb6b, crc: 0xbf };
   var TOP = [ID.info, ID.cluster, ID.seek, ID.cues, 0x1654ae6b, 0x1941a469, 0x1043a770, 0x1254c367];
   function invalid() { throw new Error('The browser audio could not be prepared for seeking. Download the recording and try a new recording.'); }
+  // A window onto the blob, addressed by ABSOLUTE offset. The parser asks
+  // `ready` before every header and `load`s when the answer is no; a byte
+  // outside the window reads as undefined, which every check below turns into
+  // invalid() rather than a guess.
+  function reader(blob) {
+    var base = 0, bytes = new Uint8Array(0), size = blob.size;
+    return {
+      size: size,
+      byte: function (at) { return bytes[at - base]; },
+      ready: function (at, n) {
+        n = Math.max(0, Math.min(n, size - at));
+        return at >= base && at + n <= base + bytes.length;
+      },
+      load: async function (at, n) {
+        var stop = Math.min(size, at + Math.max(WINDOW, n));
+        var chunk = new Uint8Array(await blob.slice(at, stop).arrayBuffer());
+        base = at; bytes = chunk;
+      },
+      float: function (at, n) {
+        var view = new DataView(bytes.buffer, bytes.byteOffset + at - base, n);
+        return n === 4 ? view.getFloat32(0, false) : view.getFloat64(0, false);
+      }
+    };
+  }
   function vint(data, at, isId) {
-    if (at >= data.length || !data[at]) invalid();
-    var length = 1, flag = 0x80;
-    while (!(data[at] & flag)) { length++; flag >>= 1; }
-    if (length > (isId ? 4 : 8) || at + length > data.length) invalid();
-    var value = isId ? data[at] : data[at] & (flag - 1);
+    if (at >= data.size || !data.byte(at)) invalid();
+    var lead = data.byte(at), length = 1, flag = 0x80;
+    while (!(lead & flag)) { length++; flag >>= 1; }
+    if (length > (isId ? 4 : 8) || at + length > data.size) invalid();
+    var value = isId ? lead : lead & (flag - 1);
     var unknown = !isId && value === flag - 1;
-    for (var i = 1; i < length; i++) { value = value * 256 + data[at + i]; unknown = unknown && data[at + i] === 255; }
+    for (var i = 1; i < length; i++) {
+      var next = data.byte(at + i);
+      value = value * 256 + next; unknown = unknown && next === 255;
+    }
     if (!unknown && !Number.isSafeInteger(value)) invalid();
     return { length: length, value: unknown ? null : value };
   }
@@ -10555,7 +10709,8 @@ var LessonAudioFinalize = (function () {
   function unsigned(data, at, end) {
     if (end <= at || end - at > 6) invalid();
     var value = 0;
-    for (; at < end; at++) value = value * 256 + data[at];
+    for (; at < end; at++) value = value * 256 + data.byte(at);
+    if (!Number.isSafeInteger(value)) invalid();
     return value;
   }
   function sizeBytes(value, minimum) {
@@ -10577,28 +10732,46 @@ var LessonAudioFinalize = (function () {
   async function finalize(blob, durationMs) {
     if (!blob || typeof blob.arrayBuffer !== 'function') invalid();
     if (!/webm/i.test(blob.type)) return blob;
-    if (!blob.size || blob.size > MAX_BYTES || !Number.isFinite(durationMs) ||
-        durationMs <= 0 || durationMs > MAX_MS) invalid();
-    var data = new Uint8Array(await blob.arrayBuffer()), first = element(data, 0, data.length);
+    var ceiling = /^video\//i.test(blob.type) ? MAX_VIDEO_BYTES : MAX_BYTES;
+    if (!blob.size || blob.size > ceiling || !Number.isFinite(durationMs) ||
+        durationMs <= 0 || durationMs > MAX_MS || typeof blob.slice !== 'function') invalid();
+    var data = reader(blob), total = data.size;
+    // A bound on the WORK, not on the lesson, so it grows with the file: an
+    // hour of video is tens of blocks a second — past a hundred thousand in
+    // forty minutes — while a file made of nothing but two-byte elements is
+    // still refused long before it could keep a laptop busy.
+    var maxSteps = Math.max(100000, Math.ceil(total / 32));
+    if (!data.ready(0, HEADER)) await data.load(0, HEADER);
+    var first = element(data, 0, total);
     if (first.id !== ID.ebml || first.end === null) invalid();
-    var segment = element(data, first.end, data.length);
-    if (segment.id !== ID.segment || segment.end !== null && segment.end !== data.length) invalid();
-    var end = segment.end === null ? data.length : segment.end;
-    var at = segment.body, info = null, duration = null, scale = 1000000;
+    if (!data.ready(first.end, HEADER)) await data.load(first.end, HEADER);
+    var segment = element(data, first.end, total);
+    if (segment.id !== ID.segment || segment.end !== null && segment.end !== total) invalid();
+    var end = segment.end === null ? total : segment.end;
+    var at = segment.body, info = null, duration = null, oldDuration = NaN, scale = 1000000;
     var indexed = false, checksum = false, steps = 0;
     while (at < end) {
-      if (++steps > 100000) invalid();
+      if (++steps > maxSteps) invalid();
+      if (!data.ready(at, HEADER)) await data.load(at, HEADER);
       var item = element(data, at, end);
       if (item.id === ID.seek || item.id === ID.cues) indexed = true;
       if (item.id === ID.crc) checksum = true;
       if (item.id === ID.info) {
         if (info || item.end === null || item.size > 65536 || item.at > 1024 * 1024) invalid();
         info = item;
+        if (!data.ready(item.body, item.size + HEADER)) await data.load(item.body, item.size + HEADER);
         for (var pos = item.body; pos < item.end;) {
           var field = element(data, pos, item.end);
           if (field.end === null) invalid();
           if (field.id === ID.scale) scale = unsigned(data, field.body, field.end);
-          if (field.id === ID.duration) { if (duration) invalid(); duration = field; }
+          if (field.id === ID.duration) {
+            if (duration) invalid();
+            duration = field;
+            // Read NOW: the window moves on down the file while the clusters
+            // are walked, and these bytes are not in it by the time they are
+            // needed.
+            if (field.size === 4 || field.size === 8) oldDuration = data.float(field.body, field.size);
+          }
           if (field.id === ID.crc) checksum = true;
           pos = field.end;
         }
@@ -10609,7 +10782,8 @@ var LessonAudioFinalize = (function () {
         if (item.id !== ID.cluster) invalid();
         var child = item.body;
         while (child < end) {
-          if (++steps > 100000) invalid();
+          if (++steps > maxSteps) invalid();
+          if (!data.ready(child, HEADER)) await data.load(child, HEADER);
           var block = element(data, child, end);
           if (TOP.indexOf(block.id) !== -1) break;
           if (block.end === null) invalid();
@@ -10621,8 +10795,6 @@ var LessonAudioFinalize = (function () {
     if (!info || !Number.isFinite(scale) || scale <= 0) invalid();
     if (duration) {
       if (duration.size !== 4 && duration.size !== 8) invalid();
-      var oldView = new DataView(data.buffer, data.byteOffset + duration.body, duration.size);
-      var oldDuration = duration.size === 4 ? oldView.getFloat32(0, false) : oldView.getFloat64(0, false);
       if (Number.isFinite(oldDuration) && oldDuration > 0) return blob;
       if (checksum) invalid();
       return new Blob([blob.slice(0, duration.body), durationBytes(durationMs * 1000000 / scale, duration.size),
@@ -10646,9 +10818,697 @@ var LessonAudioFinalize = (function () {
   return { finalize: finalize };
 })();
 
+/* ================= Lesson camera and microphone ================= */
+/* 🎥 A lesson recording can carry the CAMERA now, and the teacher chooses which
+   camera and which microphone, SEES the camera before a second is recorded,
+   and HEARS the microphone back before trusting an hour to it.
+
+   THE WINDOW'S PREVIEW OWNS ITS OWN STREAMS AND LETS GO OF THEM FIRST. The
+   camera and the microphone shown here are closed the moment the window
+   closes — by Start, Cancel, Escape, the account changing or the page going
+   away — and the recording then opens its own. Safari on an iPad gives a
+   device to one capture at a time and silences the older one, and the older
+   one would be the recording. A preview that outlived its window would also be
+   a camera light left on over a classroom, which nobody forgives.
+
+   NOTHING IS OPENED THAT WAS NOT ASKED FOR. The camera stays off until a camera
+   is chosen, and the choice is remembered on this device, so a teacher who
+   records voice only never sees the light come on.
+
+   WHAT THE TEACHER WANTS IS KEPT APART FROM WHAT IS PLUGGED IN. `wantCam` and
+   `wantMic` are the choice; every device list that arrives is resolved against
+   them by `lessonDevResolve` — by id, then by NAME, because a browser may
+   reissue an id and a USB camera in another port comes back under a new one.
+   A remembered camera that is simply not connected turns the camera OFF and
+   says which, rather than quietly recording from the laptop's own lens; plugged
+   back in, it comes back by itself.
+
+   THE PREVIEW IS MIRRORED AND THE RECORDING NEVER IS, the way every video call
+   works: a class watching the replay sees the teacher the right way round, and
+   a document camera can switch the mirror off.
+
+   THE SOUND TEST RECORDS THROUGH THE SAME PROCESSING AS A LESSON — echo
+   cancellation, noise suppression, automatic gain — so what the teacher hears
+   back is what the class will hear. It plays through an ordinary <audio>
+   element, and nothing in this section reaches the live helper. */
+var LESSON_CAM_PREF = 'polymath.lessonCamera';
+var LESSON_MIC_PREF = 'polymath.lessonMic';
+var LESSON_MIRROR_PREF = 'polymath.lessonMirror';
+var LESSON_CAMWIN_PREF = 'polymath.lessonCamWin';
+// The one camera a browser lists before access is allowed: no id, no name.
+var LESSON_CAM_ANY = '__any__';
+var LESSON_AUDIO_BPS = 96000;
+// The camera is a face in a corner of the replay, so 360p at half a megabit is
+// plenty — and keeps an hour of it near 250 MB (see lessonSizeHint).
+var LESSON_VIDEO_BPS = 500000;
+var LESSON_TEST_SECONDS = 4;
+// About -39 dBFS: somebody talking, never the room behind them.
+var LESSON_HEARD_LEVEL = 0.35;
+// Silence this long from a microphone that should be hearing a teacher earns a
+// warning in the window: a muted headset reads exactly like a quiet room.
+var LESSON_SILENT_MS = 6000;
+
+var lessonDev = {
+  open: false, paused: false, listToken: 0, changeTimer: 0,
+  devices: [], camOptions: [], micOptions: [], fillKeys: {},
+  wantCam: null, wantMic: null,      // the teacher's choice: null = none / the default
+  camValue: '', micValue: '',        // where the two <select>s stand
+  camMissing: '', micMissing: '',    // a chosen device that is not plugged in
+  noCams: false,
+  camFor: null, micFor: null,        // the <select> value each preview was opened FOR
+  camId: '', micId: '',              // the device each preview really opened
+  camStream: null, micStream: null,
+  camState: 'off', micState: 'off',  // 'off' | 'opening' | 'live' | 'error'
+  camError: '', micError: '',
+  camToken: 0, micToken: 0,
+  ctx: null, source: null, analyser: null, buf: null, float: false, raf: 0,
+  level: 0, painted: -1, heard: false, micSince: 0, silentShown: false, asleepShown: false,
+  test: null, testNote: '', testTone: ''
+};
+
+function lessonPrefGet(key) {
+  try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }
+  catch (e) { return null; }
+}
+function lessonPrefSet(key, value) {
+  try {
+    if (value === null || value === undefined) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) { /* a private window keeps the choice for this visit only */ }
+}
+function lessonMirrorOn() { return lessonPrefGet(LESSON_MIRROR_PREF) !== false; }
+// A remembered device is { id, label }. Anything else is no choice at all.
+function lessonDevWant(pref) {
+  if (!pref || typeof pref !== 'object') return null;
+  var id = typeof pref.id === 'string' ? pref.id.slice(0, 256) : '';
+  var label = typeof pref.label === 'string' ? pref.label.slice(0, 200) : '';
+  return id || label ? { id: id, label: label } : null;
+}
+function lessonStopStream(stream) {
+  if (!stream) return;
+  try { stream.getTracks().forEach(function (t) { t.onended = null; t.stop(); }); } catch (e) {}
+}
+// The recording and the preview ask for the SAME processing, so the sound test
+// is honest. A named device is `exact` once the teacher has chosen it; `loose`
+// only leans towards a remembered one the browser has not named yet.
+function lessonMicConstraints(id, loose) {
+  var audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  if (id) audio.deviceId = loose ? { ideal: id } : { exact: id };
+  return audio;
+}
+function lessonCamConstraints(id, loose) {
+  var video = { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } };
+  if (id) video.deviceId = loose ? { ideal: id } : { exact: id };
+  return video;
+}
+// The recording opens its devices a moment after the window's preview let go
+// of them, and some camera drivers take a beat to hand one back ("could not
+// start video source"). One retry for a BUSY device, never for a refusal.
+async function lessonGetMedia(constraints) {
+  try { return await navigator.mediaDevices.getUserMedia(constraints); }
+  catch (e) {
+    var name = (e && e.name) || '';
+    if (name !== 'NotReadableError' && name !== 'TrackStartError' && name !== 'AbortError') throw e;
+    await new Promise(function (resolve) { setTimeout(resolve, 400); });
+    return navigator.mediaDevices.getUserMedia(constraints);
+  }
+}
+function lessonMediaErrorMessage(e, what) {
+  var name = (e && (e.name || e.code)) || '', thing = what === 'camera' ? 'camera' : 'microphone';
+  if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') {
+    return 'The browser has not allowed the ' + thing + '. Allow it for this site — the icon at the left of the address bar — then try again.';
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') {
+    return 'That ' + thing + ' is not connected. Plug it in or choose another one.';
+  }
+  if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') {
+    return 'The ' + thing + ' is busy — close any other app or tab using it, then try again.';
+  }
+  return 'The ' + thing + ' could not be opened' + (e && e.message ? ': ' + e.message : '.');
+}
+
+// What each <select> offers, from ONE enumeration. Pure, so the harness can
+// feed it every shape a browser hands back: nothing named before access is
+// allowed, Chrome's "default" and "communications" aliases, two cameras of the
+// same make. `named` is false while the browser is still hiding names — and
+// nothing can be called missing from a list like that.
+function lessonDevOptions(devices, kind) {
+  var all = (devices || []).filter(function (d) { return d && d.kind === kind; });
+  var real = all.filter(function (d) { return d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications'; });
+  var noun = kind === 'videoinput' ? 'Camera' : 'Microphone', seen = {};
+  var named = real.map(function (d, i) {
+    var label = String(d.label || '').trim() || noun + ' ' + (i + 1);
+    seen[label] = (seen[label] || 0) + 1;
+    return { value: String(d.deviceId), label: seen[label] > 1 ? label + ' (' + seen[label] + ')' : label };
+  });
+  var out;
+  if (kind === 'videoinput') {
+    out = [{ value: '', label: 'No camera — voice and writing only' }].concat(named);
+    // Listed, but without an id: the browser names its cameras once access is
+    // allowed, and choosing this is what asks.
+    if (!named.length && all.length) out.push({ value: LESSON_CAM_ANY, label: 'Camera — allow access to choose one' });
+  } else {
+    var def = all.filter(function (d) { return d.deviceId === 'default'; })[0];
+    var defName = def ? String(def.label || '').replace(/^default\s*[-–—:]\s*/i, '').trim() : '';
+    out = [{ value: '', label: defName ? 'Default — ' + defName : 'Default microphone' }].concat(named);
+  }
+  out.named = !all.length || named.length > 0;
+  out.noun = noun.toLowerCase();
+  return out;
+}
+// Where a <select> lands, given what the teacher wants and what is listed.
+// Pure, like the one above.
+//   want: null          — no camera / the default microphone
+//         { id, label } — one remembered device
+//         { any: true } — "a camera", chosen before the browser named any
+// `want` comes back with a FRESH id when the device was found by its name
+// under a new one, and that is what gets remembered from then on.
+function lessonDevResolve(options, want) {
+  if (!want) return { value: '', missing: '', want: null };
+  var offered = function (v) { return options.some(function (o) { return o.value === v; }); };
+  var realOnes = options.filter(function (o) { return o.value && o.value !== LESSON_CAM_ANY; });
+  if (want.any) {
+    if (offered(LESSON_CAM_ANY)) return { value: LESSON_CAM_ANY, missing: '', want: want };
+    // Named since it was asked for: the first camera is the one the browser
+    // itself would have opened for "a camera".
+    return realOnes.length ? { value: realOnes[0].value, missing: '', want: { id: realOnes[0].value, label: realOnes[0].label } }
+      : { value: '', missing: '', want: want };
+  }
+  var hit = want.id && offered(want.id) ? want.id : '';
+  if (!hit && want.label) {
+    var byName = realOnes.filter(function (o) { return o.label === want.label; })[0];
+    if (byName) hit = byName.value;
+  }
+  if (hit) {
+    return { value: hit, missing: '', want: { id: hit, label: options.filter(function (o) { return o.value === hit; })[0].label } };
+  }
+  // Not named yet, so not missing: the camera opens on the browser's choice,
+  // leaning towards the remembered one, and the lists fill in once allowed.
+  if (!options.named) return { value: offered(LESSON_CAM_ANY) ? LESSON_CAM_ANY : '', missing: '', want: want };
+  // Said as the teacher would say it: by its name, or plainly when it has none.
+  return { value: '', missing: want.label ? '“' + want.label + '”' : 'The ' + (options.noun || 'device') + ' you chose', want: want };
+}
+// What Start records with — read BEFORE the window lets go of its previews.
+// The camera is exact: the teacher has just looked at it.
+function lessonDevChoice() {
+  var cam = lessonDev.camValue || '';
+  return {
+    camera: !!cam,
+    camId: cam === LESSON_CAM_ANY ? lessonDev.camId || '' : cam,
+    micId: lessonDev.micValue || '',
+    mirror: lessonMirrorOn()
+  };
+}
+// What a minute costs, from the bitrates the recorder is really handed, and so
+// how long one recording runs before its file is full. A cap nobody can see is
+// a lesson that stops for no reason anybody can name.
+function lessonSizeHint(camera) {
+  var perMin = (LESSON_AUDIO_BPS + (camera ? LESSON_VIDEO_BPS : 0)) * 60 / 8 / 1048576;
+  var cap = (camera ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT) - LESSON_BYTES_SLACK;
+  var minutes = Math.floor(cap / 1048576 / perMin), halves = Math.round(minutes / 30) / 2;
+  var run = minutes < 60 ? 'about ' + Math.max(5, Math.round(minutes / 5) * 5) + ' minutes'
+    : 'about ' + (halves % 1 ? Math.floor(halves) + '½' : halves) + (halves === 1 ? ' hour' : ' hours');
+  return (camera ? 'Camera on: about ' + Math.round(perMin * 10) / 10 + ' MB a minute'
+    : 'Voice and writing only: under 1 MB a minute') + ', so one recording holds ' + run + '.';
+}
+
+/* ---- the two previews ---- */
+function lessonDevStopCam() {
+  lessonDev.camToken++;
+  lessonStopStream(lessonDev.camStream);
+  lessonDev.camStream = null; lessonDev.camId = ''; lessonDev.camFor = null;
+  var v = $('lessonCamPreview');
+  if (v) { try { v.pause(); } catch (e) {} v.srcObject = null; }
+}
+async function lessonDevStartCam() {
+  lessonDevStopCam();
+  var value = lessonDev.camValue, token = lessonDev.camToken, want = lessonDev.wantCam;
+  lessonDev.camFor = value;
+  if (!value || !lessonDev.open) { lessonDev.camState = 'off'; lessonDevRenderCam(); return; }
+  var md = navigator.mediaDevices;
+  if (!md || typeof md.getUserMedia !== 'function' || !window.isSecureContext) {
+    lessonDev.camState = 'error';
+    lessonDev.camError = 'This browser cannot open a camera here. Chrome, Edge or Safari over a secure connection can.';
+    lessonDevRenderCam(); return;
+  }
+  var any = value === LESSON_CAM_ANY;
+  lessonDev.camState = 'opening'; lessonDev.camError = ''; lessonDevRenderCam();
+  var stream;
+  try { stream = await md.getUserMedia({ video: lessonCamConstraints(any ? (want && want.id) || '' : value, any) }); }
+  catch (e) {
+    if (token !== lessonDev.camToken || !lessonDev.open) return;
+    lessonDev.camState = 'error'; lessonDev.camError = lessonMediaErrorMessage(e, 'camera');
+    lessonDevRenderCam(); return;
+  }
+  // Closed, or another camera chosen, while the browser was asking: this one
+  // is let go at once, or its light stays on with nothing showing it.
+  if (token !== lessonDev.camToken || !lessonDev.open) { lessonStopStream(stream); return; }
+  var track = stream.getVideoTracks()[0], settings = track && track.getSettings ? track.getSettings() : {};
+  lessonDev.camStream = stream; lessonDev.camState = 'live';
+  lessonDev.camId = (settings && settings.deviceId) || (any ? '' : value);
+  if (track) track.onended = function () {
+    if (lessonDev.camStream !== stream) return;
+    lessonDevStopCam();
+    lessonDev.camFor = value;   // held, so a camera that keeps dropping is not reopened in a loop
+    lessonDev.camState = 'error';
+    lessonDev.camError = 'The camera stopped — it may have been unplugged or taken by another app.';
+    lessonDevRenderCam();
+  };
+  // "A camera" has a name and an id now: that is the one remembered.
+  if (any && lessonDev.camId) {
+    lessonDev.wantCam = { id: lessonDev.camId, label: String((track && track.label) || '') };
+    lessonPrefSet(LESSON_CAM_PREF, lessonDev.wantCam);
+  }
+  lessonDevRenderCam();
+  lessonDevRefresh();   // access is allowed, so the lists can carry names
+}
+function lessonDevStopMic() {
+  lessonDev.micToken++;
+  lessonDevTestStop();   // a test cannot outlive the microphone it is recording
+  lessonDevMeterStop();
+  lessonStopStream(lessonDev.micStream);
+  lessonDev.micStream = null; lessonDev.micId = ''; lessonDev.micFor = null;
+}
+async function lessonDevStartMic() {
+  lessonDevStopMic();
+  var value = lessonDev.micValue, token = lessonDev.micToken, want = lessonDev.wantMic;
+  lessonDev.micFor = value; lessonDev.testNote = '';
+  if (!lessonDev.open) return;
+  var md = navigator.mediaDevices;
+  if (!md || typeof md.getUserMedia !== 'function' || !window.isSecureContext) {
+    lessonDev.micState = 'error';
+    lessonDev.micError = 'This browser cannot open a microphone here. Chrome, Edge or Safari over a secure connection can.';
+    lessonDevRenderMic(); return;
+  }
+  // The <select> names a device: exactly that one. Otherwise the default,
+  // leaning towards the remembered one while the list is still unnamed.
+  var id = value || (want && !lessonDev.micMissing ? want.id : '');
+  lessonDev.micState = 'opening'; lessonDev.micError = ''; lessonDevRenderMic();
+  var stream;
+  try { stream = await md.getUserMedia({ audio: lessonMicConstraints(id, !value) }); }
+  catch (e) {
+    if (token !== lessonDev.micToken || !lessonDev.open) return;
+    lessonDev.micState = 'error'; lessonDev.micError = lessonMediaErrorMessage(e, 'microphone');
+    lessonDevRenderMic(); return;
+  }
+  if (token !== lessonDev.micToken || !lessonDev.open) { lessonStopStream(stream); return; }
+  var track = stream.getAudioTracks()[0], settings = track && track.getSettings ? track.getSettings() : {};
+  lessonDev.micStream = stream; lessonDev.micState = 'live';
+  lessonDev.micId = (settings && settings.deviceId) || value || '';
+  lessonDev.heard = false; lessonDev.silentShown = false; lessonDev.micSince = Date.now();
+  if (track) track.onended = function () {
+    if (lessonDev.micStream !== stream) return;
+    lessonDevStopMic();
+    lessonDev.micFor = value;
+    lessonDev.micState = 'error';
+    lessonDev.micError = 'The microphone stopped — it may have been unplugged or taken by another app.';
+    lessonDevRenderMic();
+  };
+  lessonDevMeterStart(stream);
+  lessonDevRenderMic();
+  lessonDevRefresh();
+}
+
+/* ---- the level meter ---- */
+// RMS onto a decibel scale: -60 dBFS reads empty and 0 dBFS full. A linear bar
+// leaves ordinary speech, about -30 dB, as a sliver nobody sees move.
+function lessonMeterLevel(rms) {
+  if (!(rms > 0)) return 0;
+  return Math.max(0, Math.min(1, (20 * Math.log10(rms) + 60) / 60));
+}
+function lessonDevMeterPaint(level) {
+  var pct = Math.round(Math.max(0, Math.min(1, level || 0)) * 100);
+  if (pct === lessonDev.painted) return;
+  lessonDev.painted = pct;
+  var fill = $('lessonMeterFill'), meter = $('lessonMeter');
+  if (fill) { fill.style.width = pct + '%'; fill.classList.toggle('hot', pct >= 92); }
+  if (meter && meter.setAttribute) meter.setAttribute('aria-valuenow', String(pct));
+}
+function lessonDevMeterStart(stream) {
+  var Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;   // the bar stays still; the sound test is still the check
+  var ctx = null, source, analyser;
+  try {
+    ctx = new Ctx();
+    source = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    // Read, never heard: the analyser is pulled by the context on its own and
+    // is deliberately NOT connected to the speakers, which would feed the room
+    // back into the microphone it is measuring.
+    source.connect(analyser);
+  } catch (e) {
+    if (ctx) { try { var failed = ctx.close(); if (failed && failed.catch) failed.catch(function () {}); } catch (x) {} }
+    return;
+  }
+  lessonDev.ctx = ctx; lessonDev.source = source; lessonDev.analyser = analyser;
+  // Float samples where the browser has them: 8-bit ones bottom out at -42 dB,
+  // the very level that has to tell a quiet room from a quiet voice.
+  lessonDev.float = typeof analyser.getFloatTimeDomainData === 'function';
+  lessonDev.buf = lessonDev.float ? new Float32Array(analyser.fftSize) : new Uint8Array(analyser.fftSize);
+  // Safari starts a context suspended unless it is made inside a tap, and this
+  // one is made after an await; the window's own taps resume it.
+  lessonDevResumeMeter();
+  var frame = function () {
+    if (lessonDev.ctx !== ctx) return;
+    lessonDevMeterRead();
+    lessonDev.raf = requestAnimationFrame(frame);
+  };
+  lessonDev.raf = requestAnimationFrame(frame);
+}
+function lessonDevResumeMeter() {
+  var ctx = lessonDev.ctx;
+  if (!ctx || ctx.state !== 'suspended' || typeof ctx.resume !== 'function') return;
+  try {
+    var resumed = ctx.resume();
+    if (resumed && resumed.then) resumed.then(function () { if (lessonDev.ctx === ctx) lessonDevRenderMic(); }, function () {});
+  } catch (e) {}
+}
+// A meter Safari has not let start yet hears nothing — and must not say the
+// MICROPHONE hears nothing, which sends a teacher off checking a mute switch.
+function lessonDevMeterAsleep() { return !!lessonDev.ctx && lessonDev.ctx.state === 'suspended'; }
+function lessonDevMeterRead() {
+  var a = lessonDev.analyser, buf = lessonDev.buf, sum = 0, i;
+  if (!a || !buf) return;
+  if (lessonDevMeterAsleep()) {
+    lessonDev.micSince = Date.now();   // the silence clock only runs while the meter can hear
+    if (!lessonDev.asleepShown) { lessonDev.asleepShown = true; lessonDevRenderMic(); }
+    return;
+  }
+  if (lessonDev.asleepShown) { lessonDev.asleepShown = false; lessonDevRenderMic(); }
+  try {
+    if (lessonDev.float) { a.getFloatTimeDomainData(buf); for (i = 0; i < buf.length; i++) sum += buf[i] * buf[i]; }
+    else { a.getByteTimeDomainData(buf); for (i = 0; i < buf.length; i++) { var x = (buf[i] - 128) / 128; sum += x * x; } }
+  } catch (e) { return; }
+  var now = lessonMeterLevel(Math.sqrt(sum / buf.length));
+  // Up at once, down gently: a bar that drops to nothing between two words
+  // reads as a microphone cutting out.
+  lessonDev.level = Math.max(now, lessonDev.level * 0.86);
+  lessonDevMeterPaint(lessonDev.level);
+  if (!lessonDev.heard && now >= LESSON_HEARD_LEVEL) { lessonDev.heard = true; lessonDevRenderMic(); }
+  else if (!lessonDev.heard && !lessonDev.silentShown && Date.now() - lessonDev.micSince > LESSON_SILENT_MS) {
+    lessonDev.silentShown = true; lessonDevRenderMic();
+  }
+}
+function lessonDevMeterStop() {
+  if (lessonDev.raf) cancelAnimationFrame(lessonDev.raf);
+  lessonDev.raf = 0;
+  if (lessonDev.source) { try { lessonDev.source.disconnect(); } catch (e) {} }
+  var ctx = lessonDev.ctx;
+  lessonDev.ctx = lessonDev.source = lessonDev.analyser = lessonDev.buf = null;
+  if (ctx && ctx.state !== 'closed') {
+    try { var closing = ctx.close(); if (closing && closing.catch) closing.catch(function () {}); } catch (e) {}
+  }
+  lessonDev.level = 0; lessonDevMeterPaint(0);
+}
+
+/* ---- 🔊 the sound test: a few seconds recorded, then played straight back ---- */
+function lessonDevTestToggle() {
+  var t = lessonDev.test;
+  if (t && t.phase === 'recording') { lessonDevTestFinish(t); return; }   // stop early, still play it back
+  if (t) { lessonDevTestStop('Stopped. Test again whenever you like.'); return; }
+  var stream = lessonDev.micStream;
+  if (!stream || lessonDev.micState !== 'live') return;
+  if (!window.MediaRecorder) { lessonDevTestStop('This browser cannot record a test — the level bar is the check.', 'warn'); return; }
+  var mime = recPickMime(false), rec = null;
+  try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: LESSON_AUDIO_BPS } : { audioBitsPerSecond: LESSON_AUDIO_BPS }); }
+  catch (e) { try { rec = new MediaRecorder(stream); } catch (e2) { rec = null; } }
+  if (!rec) { lessonDevTestStop('This browser would not record a test — the level bar is the check.', 'warn'); return; }
+  t = lessonDev.test = { phase: 'recording', rec: rec, chunks: [], left: LESSON_TEST_SECONDS, timer: 0, guard: 0, url: '' };
+  lessonDev.testNote = '';
+  rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) t.chunks.push(ev.data); };
+  rec.onstop = function () { lessonDevTestPlay(t); };
+  try { rec.start(); }
+  catch (e) { lessonDev.test = null; lessonDevTestStop('The test could not start: ' + ((e && e.message) || e), 'bad'); return; }
+  t.timer = setInterval(function () {
+    if (lessonDev.test !== t || t.phase !== 'recording') return;
+    t.left--;
+    if (t.left <= 0) lessonDevTestFinish(t); else lessonDevRenderMic();
+  }, 1000);
+  lessonDevRenderMic();
+}
+function lessonDevTestFinish(t) {
+  if (lessonDev.test !== t || t.phase !== 'recording') return;
+  clearInterval(t.timer); t.timer = 0;
+  t.phase = 'finishing';
+  if (t.rec.state === 'inactive') lessonDevTestPlay(t);
+  else { try { t.rec.stop(); } catch (e) { lessonDevTestPlay(t); } }
+  lessonDevRenderMic();
+}
+function lessonDevTestPlay(t) {
+  if (lessonDev.test !== t || t.phase === 'playing') return;
+  if (!t.chunks.length) { lessonDevTestStop('Nothing was recorded. Check the microphone, then test again.', 'warn'); return; }
+  var audio = $('lessonTestAudio');
+  t.url = URL.createObjectURL(new Blob(t.chunks, { type: t.rec.mimeType || 'audio/webm' }));
+  t.phase = 'playing';
+  audio.onended = function () {
+    if (lessonDev.test === t) lessonDevTestStop('That is how you will sound in the recording. Test again, or start recording.', 'ok');
+  };
+  audio.src = t.url;
+  // A player that never says it has ended must not hold the button for ever.
+  t.guard = setTimeout(function () {
+    if (lessonDev.test === t && t.phase === 'playing') lessonDevTestStop('That is how you will sound in the recording. Test again, or start recording.', 'ok');
+  }, (LESSON_TEST_SECONDS + 4) * 1000);
+  var played = audio.play();
+  if (played && played.catch) played.catch(function () {
+    if (lessonDev.test === t) lessonDevTestStop('The test could not play back here. Press Test sound again.', 'warn');
+  });
+  lessonDevRenderMic();
+}
+function lessonDevTestStop(note, tone) {
+  var t = lessonDev.test;
+  lessonDev.test = null;
+  if (t) {
+    clearInterval(t.timer); clearTimeout(t.guard);
+    t.rec.ondataavailable = null; t.rec.onstop = null;
+    if (t.rec.state !== 'inactive') { try { t.rec.stop(); } catch (e) {} }
+    var audio = $('lessonTestAudio');
+    if (audio) {
+      audio.onended = null;
+      try { audio.pause(); } catch (e) {}
+      audio.removeAttribute('src');
+      try { audio.load(); } catch (e) {}
+    }
+    if (t.url) { try { URL.revokeObjectURL(t.url); } catch (e) {} }
+  }
+  if (note !== undefined) { lessonDev.testNote = note || ''; lessonDev.testTone = tone || ''; }
+  lessonDevRenderMic();
+}
+
+/* ---- what the window shows ---- */
+function lessonDevFill(select, options, value, key) {
+  if (!select) return;
+  // Rebuilt only when the list really changed: a device appearing while the
+  // teacher has the dropdown open must not snap it shut under their finger.
+  var sig = JSON.stringify(options.map(function (o) { return [o.value, o.label]; }));
+  if (lessonDev.fillKeys[key] !== sig) {
+    select.replaceChildren();
+    options.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o.value; opt.textContent = o.label;
+      select.appendChild(opt);
+    });
+    lessonDev.fillKeys[key] = sig;
+  }
+  select.value = value;
+}
+function lessonDevRenderCam() {
+  var s = lessonDev, live = s.camState === 'live' && !!s.camStream;
+  var v = $('lessonCamPreview');
+  if (v) {
+    if (live && v.srcObject !== s.camStream) {
+      v.srcObject = s.camStream;
+      var p = v.play && v.play(); if (p && p.catch) p.catch(function () {});
+    }
+    if (!live && v.srcObject) v.srcObject = null;
+    v.hidden = !live;
+    v.classList.toggle('mirror', lessonMirrorOn());
+  }
+  var text = '';
+  if (!s.camValue) {
+    text = s.camMissing ? s.camMissing + ' is not connected. Plug it in, choose another camera, or record without one.'
+      : s.noCams ? 'No camera was found on this device — your voice and writing still record.'
+      : 'Camera off. Choose a camera above to appear in the recording too.';
+  } else if (s.camState === 'opening') text = 'Opening the camera…';
+  else if (s.camState === 'error') text = s.camError;
+  var off = $('lessonCamOff'); if (off) off.hidden = live;
+  var line = $('lessonCamOffText'); if (line) line.textContent = text;
+  var retry = $('lessonCamRetry'); if (retry) retry.hidden = !(s.camValue && s.camState === 'error');
+  var row = $('lessonMirrorRow'); if (row) row.hidden = !s.camValue;
+  var box = $('lessonMirror'); if (box) box.checked = lessonMirrorOn();
+}
+function lessonDevRenderMic() {
+  var s = lessonDev, t = s.test, text = '', tone = '';
+  if (t && t.phase === 'recording') text = 'Recording a short test — say a sentence the way you would to the class.';
+  else if (t) text = 'Playing it back — this is how you will sound in the recording.';
+  else if (s.micState === 'opening') text = 'Opening the microphone…';
+  else if (s.micState === 'error') { text = s.micError; tone = 'bad'; }
+  else if (s.micState === 'live') {
+    if (s.testNote) { text = s.testNote; tone = s.testTone; }
+    else if (s.micMissing) { text = s.micMissing + ' is not connected, so the default microphone is being used.'; tone = 'warn'; }
+    else if (s.heard) { text = '✓ The microphone can hear you. Test sound records a few seconds and plays them back.'; tone = 'ok'; }
+    else if (lessonDevMeterAsleep()) text = 'Tap anywhere in this window to wake the level bar — the browser waits for a tap before it shows sound.';
+    else if (s.silentShown) { text = 'Nothing is coming through yet. Check the microphone is not muted, or choose another one.'; tone = 'warn'; }
+    else text = 'Say something — the bar moves as you speak.';
+  }
+  var hint = $('lessonMicHint');
+  if (hint) { hint.textContent = text; hint.className = 'lessonDevHint' + (tone ? ' ' + tone : ''); }
+  var retry = $('lessonMicRetry'); if (retry) retry.hidden = s.micState !== 'error';
+  var btn = $('lessonTestBtn');
+  if (btn) {
+    btn.disabled = s.micState !== 'live';
+    btn.textContent = !t ? 'Test sound' : t.phase === 'recording' ? 'Listening… ' + Math.max(1, t.left)
+      : t.phase === 'playing' ? '■ Stop' : 'One moment…';
+    btn.title = !t ? 'Record ' + LESSON_TEST_SECONDS + ' seconds and play them straight back'
+      : t.phase === 'recording' ? 'Stop now and play back what was recorded' : 'Stop the playback';
+  }
+}
+function lessonDevRenderSize() {
+  var line = $('lessonSizeHint');
+  if (line) line.textContent = lessonSizeHint(!!lessonDev.camValue);
+}
+
+/* ---- keeping the window in step ---- */
+// Both <select>s and both previews brought in line with what is WANTED and
+// what is PLUGGED IN. Run after every device list and every choice; opening a
+// preview only when what it was opened for differs from the choice is what
+// keeps a failing device from being retried in a loop.
+function lessonDevSync() {
+  var cams = lessonDevOptions(lessonDev.devices, 'videoinput');
+  var mics = lessonDevOptions(lessonDev.devices, 'audioinput');
+  var cam = lessonDevResolve(cams, lessonDev.wantCam), mic = lessonDevResolve(mics, lessonDev.wantMic);
+  // Found under a new id: remembered under it.
+  if (cam.value && cam.value !== LESSON_CAM_ANY && (!lessonDev.wantCam || lessonDev.wantCam.id !== cam.value)) {
+    lessonDev.wantCam = cam.want; lessonPrefSet(LESSON_CAM_PREF, cam.want);
+  }
+  if (mic.value && lessonDev.wantMic && lessonDev.wantMic.id !== mic.value) {
+    lessonDev.wantMic = mic.want; lessonPrefSet(LESSON_MIC_PREF, mic.want);
+  }
+  lessonDev.camOptions = cams; lessonDev.micOptions = mics;
+  lessonDev.camValue = cam.value; lessonDev.camMissing = cam.missing;
+  lessonDev.micValue = mic.value; lessonDev.micMissing = mic.missing;
+  lessonDev.noCams = cams.named && cams.length === 1;
+  lessonDevFill($('lessonCamSelect'), cams, cam.value, 'cam');
+  lessonDevFill($('lessonMicSelect'), mics, mic.value, 'mic');
+  if (lessonDev.open && !lessonDev.paused) {
+    if (!cam.value) {
+      if (lessonDev.camFor !== null) lessonDevStopCam();
+      lessonDev.camState = 'off';
+    } else if (cam.value !== lessonDev.camFor && cam.value !== lessonDev.camId) lessonDevStartCam();
+    // The microphone runs whenever the window is up: it IS the meter.
+    if (mic.value !== lessonDev.micFor && !(mic.value && mic.value === lessonDev.micId)) lessonDevStartMic();
+  }
+  lessonDevRenderCam(); lessonDevRenderMic(); lessonDevRenderSize();
+}
+async function lessonDevRefresh() {
+  var n = ++lessonDev.listToken, md = navigator.mediaDevices, list = [];
+  if (md && typeof md.enumerateDevices === 'function') {
+    try { list = await md.enumerateDevices(); } catch (e) { list = []; }
+  }
+  if (n !== lessonDev.listToken || !lessonDev.open) return;
+  lessonDev.devices = Array.from(list || []);
+  lessonDevSync();
+}
+async function lessonDevOpen() {
+  lessonDevClose();
+  lessonDev.open = true;
+  lessonDev.wantCam = lessonDevWant(lessonPrefGet(LESSON_CAM_PREF));
+  lessonDev.wantMic = lessonDevWant(lessonPrefGet(LESSON_MIC_PREF));
+  lessonDev.testNote = '';
+  await lessonDevRefresh();
+}
+// Every stream the window holds is let go, at once and whatever it was doing.
+function lessonDevClose() {
+  lessonDev.open = false; lessonDev.paused = false;
+  lessonDev.listToken++;
+  clearTimeout(lessonDev.changeTimer);
+  lessonDevStopCam(); lessonDevStopMic();
+  lessonDev.camState = lessonDev.micState = 'off';
+}
+function lessonDevChanged() {
+  if (!lessonDev.open) return;
+  // A USB hub announces a device several times over; one look is enough.
+  clearTimeout(lessonDev.changeTimer);
+  lessonDev.changeTimer = setTimeout(lessonDevRefresh, 250);
+}
+function lessonDevChooseCam(value) {
+  if (!value) lessonDev.wantCam = null;
+  else if (value === LESSON_CAM_ANY) lessonDev.wantCam = { any: true };
+  else {
+    var opt = lessonDev.camOptions.filter(function (o) { return o.value === value; })[0];
+    lessonDev.wantCam = { id: value, label: opt ? opt.label : '' };
+  }
+  if (!lessonDev.wantCam || !lessonDev.wantCam.any) lessonPrefSet(LESSON_CAM_PREF, lessonDev.wantCam);
+  lessonDevSync();
+}
+function lessonDevChooseMic(value) {
+  var opt = lessonDev.micOptions.filter(function (o) { return o.value === value; })[0];
+  lessonDev.wantMic = value ? { id: value, label: opt ? opt.label : '' } : null;
+  lessonPrefSet(LESSON_MIC_PREF, lessonDev.wantMic);
+  lessonDevSync();
+}
+// A device that failed is not retried on its own; these are the teacher's
+// "try again", and clearing what it was opened for is what lets sync reopen it.
+function lessonDevRetryCam() { lessonDevStopCam(); lessonDevSync(); }
+function lessonDevRetryMic() { lessonDevStopMic(); lessonDevSync(); }
+function lessonDevMirrorChanged() {
+  lessonPrefSet(LESSON_MIRROR_PREF, !!$('lessonMirror').checked);
+  lessonDevRenderCam();
+}
+// An iPad suspends capture in the background, so the previews are let go when
+// the app is hidden and reopened when it comes back with the window still up.
+function lessonDevVisibility() {
+  if (!lessonDev.open) return;
+  if (document.hidden) {
+    lessonDev.paused = true;
+    lessonDevStopCam(); lessonDevStopMic();
+    lessonDev.camState = lessonDev.micState = 'off';
+  } else if (lessonDev.paused) {
+    lessonDev.paused = false;
+    lessonDevRefresh();
+  }
+}
+function lessonOpenModal() {
+  $('lessonModal').classList.add('open');
+  lessonDevOpen();
+  // The focus goes INTO the window, and onto nothing that Enter would press:
+  // a stray key must neither start a recording nor reach a tool behind it.
+  var card = $('lessonCard');
+  if (card && typeof card.focus === 'function') { try { card.focus({ preventScroll: true }); } catch (e) {} }
+}
+function lessonCloseModal() {
+  $('lessonModal').classList.remove('open');
+  lessonDevClose();
+}
+$('lessonCamSelect').addEventListener('change', function () { lessonDevChooseCam($('lessonCamSelect').value); });
+$('lessonMicSelect').addEventListener('change', function () { lessonDevChooseMic($('lessonMicSelect').value); });
+$('lessonMirror').addEventListener('change', lessonDevMirrorChanged);
+$('lessonTestBtn').addEventListener('click', lessonDevTestToggle);
+$('lessonCamRetry').addEventListener('click', lessonDevRetryCam);
+$('lessonMicRetry').addEventListener('click', lessonDevRetryMic);
+$('lessonCloseBtn').addEventListener('click', lessonCloseModal);
+$('lessonModal').addEventListener('pointerdown', lessonDevResumeMeter);
+if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
+  navigator.mediaDevices.addEventListener('devicechange', lessonDevChanged);
+}
+document.addEventListener('visibilitychange', lessonDevVisibility);
+// Closed with the page, not merely stopped: a page restored from the back/forward
+// cache must not come back showing a window whose previews are dead.
+window.addEventListener('pagehide', lessonCloseModal);
+/* ================= End lesson camera and microphone ================= */
+
 /* ================= Synchronized lesson recording ================= */
 var lessonCapture = null, lessonPending = null, lessonPlayback = null, lessonOpening = null;
 var LESSON_AUDIO_LIMIT = 64 * 1024 * 1024;
+// A lesson recorded with the CAMERA. LessonAudioFinalize repeats this number as
+// its MAX_VIDEO_BYTES, and tools/recording-core-tests.mjs holds the two
+// literals together — about two hours at the bitrates in lessonSizeHint.
+var LESSON_VIDEO_LIMIT = 512 * 1024 * 1024;
+// The recorder stops this far SHORT of its ceiling. The tick that sees the file
+// full can be a tick late, and MediaRecorder hands over one last chunk after
+// stop(); a file that lands over the finalizer's bound is refused at SAVE time,
+// which costs the teacher the whole lesson at the one moment it cannot be redone.
+var LESSON_BYTES_SLACK = 2 * 1024 * 1024;
 var LESSON_TYPES = ['pen', 'highlight', 'text', 'rect', 'ellipse', 'line', 'arrow', 'brace'];
 
 function lessonTeacher() { return isAdmin(currentUser) && !actingStudent && !practiceMode && !isSharedVisitor(); }
@@ -10717,7 +11577,7 @@ function lessonCaptureTick() {
     c.hadTransient = !!(drawing || editingId);
     c.lastMs = ms;
     $('lessonClock').textContent = recFmtTime(ms);
-    if (ms >= LessonReplayCore.limits.duration || c.bytes >= LESSON_AUDIO_LIMIT) lessonStop('The recording reached its size limit. The captured portion will be saved.');
+    if (ms >= LessonReplayCore.limits.duration || c.bytes >= (c.limit || LESSON_AUDIO_LIMIT) - LESSON_BYTES_SLACK) lessonStop('The recording reached its size limit. The captured portion will be saved.');
   } catch (e) { lessonStop('The recording is full. The captured portion will be saved.'); }
 }
 function lessonGuardChange() {
@@ -10732,7 +11592,9 @@ function lessonGuardChange() {
 function lessonRoleChanged() {
   $('lessonRecordBtn').style.display = lessonTeacher() ? '' : 'none';
   if (!lessonTeacher()) {
-    $('lessonModal').classList.remove('open');
+    // The window's camera and microphone go with it: a preview must never
+    // carry across to whoever picks the iPad up next.
+    lessonCloseModal();
     if (lessonCapture) lessonStop('Recording stopped after the account changed.');
     lessonBar(false);
   } else if (lessonPending) lessonPendingUI();
@@ -10767,7 +11629,7 @@ async function lessonOpen() {
     if (saved) { saved.epoch = epoch; lessonPending = saved; lessonPendingUI(); return; }
   } catch (e) { /* Recording can still be downloaded if local storage is unavailable. */ }
   if (id !== currentDocId || epoch !== wsEpoch || !lessonTeacher() || uid !== currentUser.uid) return;
-  $('lessonModal').classList.add('open');
+  lessonOpenModal();
 }
 async function lessonStart() {
   if (lessonBusy() || !lessonTeacher() || !currentDocId || !pages.length || recBusy()) return;
@@ -10776,6 +11638,8 @@ async function lessonStart() {
     toast('Recording needs microphone support and a secure browser connection.', 5000); return;
   }
   if (drawing || editingId) { toast('Finish the current stroke or text box, then start recording.'); return; }
+  // What the window chose, read BEFORE the window lets go of its previews.
+  var choice = lessonDevChoice();
   // The helper's replies cannot reach the file — they are never wired into the
   // recorder — but a speaker in the room reaches the microphone, and a teacher
   // who finds that out on playback has lost the lesson.
@@ -10783,8 +11647,12 @@ async function lessonStart() {
   var spot = recDropSpot();
   var c = lessonCapture = { phase: 'starting', epoch: wsEpoch, uid: currentUser.uid, docId: currentDocId,
     user: currentUser, id: newAnnId(), controller: new AbortController(), chunks: [], bytes: 0, lastMs: 0,
-    spot: { page: spot.page.num, x: spot.x, y: spot.y }, pageCount: pages.length };
-  $('lessonModal').classList.remove('open'); lessonBar(true);
+    spot: { page: spot.page.num, x: spot.x, y: spot.y }, pageCount: pages.length,
+    camera: choice.camera, mirror: choice.mirror, limit: choice.camera ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT };
+  // The window's previews are let go FIRST: Safari on an iPad gives a device to
+  // one capture at a time and silences the older one, and the one silenced
+  // must never be this recording's.
+  lessonCloseModal(); lessonBar(true);
   $('lessonStopBtn').hidden = false; $('lessonStopBtn').textContent = 'Cancel';
   $('lessonRetryBtn').hidden = $('lessonDownloadBtn').hidden = $('lessonDismissBtn').hidden = true;
   $('lessonClock').textContent = '0:00'; lessonStatus('Opening the microphone…');
@@ -10793,19 +11661,49 @@ async function lessonStart() {
     c.audioCtx = new AudioCtx(); await c.audioCtx.resume();
     if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
     c.destination = c.audioCtx.createMediaStreamDestination();
-    var stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    // The microphone the window chose, exactly — with the same processing the
+    // window's sound test was heard through.
+    var stream;
+    try { stream = await lessonGetMedia({ audio: lessonMicConstraints(choice.micId, false) }); }
+    catch (e) { throw new Error(lessonMediaErrorMessage(e, 'microphone') + ' The recording did not start.'); }
     if (lessonCapture !== c || !lessonContextOK(c)) { stream.getTracks().forEach(function (t) { t.stop(); }); throw new Error('Recording cancelled.'); }
     c.stream = stream;
     c.micSource = c.audioCtx.createMediaStreamSource(stream); c.micSource.connect(c.destination);
     stream.getAudioTracks().forEach(function (t) { t.onended = function () { if (lessonCapture === c) lessonStop('The microphone disconnected.'); }; });
+    if (c.camera) {
+      // A camera that will not open stops the start LOUDLY. Quietly falling back
+      // to voice only is a lesson the teacher believes has them in it.
+      lessonStatus('Opening the camera…');
+      var cam;
+      try { cam = await lessonGetMedia({ video: lessonCamConstraints(choice.camId, false) }); }
+      catch (e) { throw new Error(lessonMediaErrorMessage(e, 'camera') + ' The recording did not start — choose “No camera” in Record lesson to record your voice and writing only.'); }
+      if (lessonCapture !== c || !lessonContextOK(c)) { lessonStopStream(cam); throw new Error('Recording cancelled.'); }
+      if (!cam.getVideoTracks().length) { lessonStopStream(cam); throw new Error('The camera gave no picture, so the recording did not start.'); }
+      c.camStream = cam;
+      cam.getVideoTracks().forEach(function (t) { t.onended = function () { if (lessonCapture === c) lessonStop('The camera disconnected. The captured portion will be saved.'); }; });
+      lessonLiveCam(c);
+    }
     c.pdfHash = await lessonPdfHash();
     if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
     lessonStatus('Preparing the page pictures…'); c.cardState = lessonCardState();
     c.backgrounds = await lessonCaptureBackgrounds(annotations, pages, c.controller.signal);
     if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
-    var mime = recPickMime(false), options = { audioBitsPerSecond: 96000 };
+    var mime = recPickMime(c.camera), options = { audioBitsPerSecond: LESSON_AUDIO_BPS };
+    if (c.camera) options.videoBitsPerSecond = LESSON_VIDEO_BPS;
     if (mime) options.mimeType = mime;
-    c.recorder = new MediaRecorder(c.destination.stream, options);
+    // ONE file, so the picture and the voice can never drift apart: the
+    // camera's own track beside the mixed microphone — the very audio an
+    // audio-only lesson carries. Nothing else is ever added to either.
+    var recorded = c.camStream
+      ? new MediaStream(c.camStream.getVideoTracks().concat(c.destination.stream.getAudioTracks()))
+      : c.destination.stream;
+    try { c.recorder = new MediaRecorder(recorded, options); }
+    catch (e) {
+      if (!c.camStream) throw e;
+      // A browser that refuses the codec it just claimed still records in its own.
+      delete options.mimeType;
+      c.recorder = new MediaRecorder(recorded, options);
+    }
     c.recorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) { c.chunks.push(ev.data); c.bytes += ev.data.size; } };
     c.recorder.onerror = function () { if (lessonCapture === c) lessonStop('The browser stopped recording. Saving the captured portion.'); };
     c.recorder.onstop = function () { lessonFinish(c); };
@@ -10822,7 +11720,7 @@ async function lessonStart() {
       $('lessonStopBtn').textContent = 'Stop & save';
       var settings = stream.getAudioTracks()[0].getSettings();
       c.micStatus = settings.noiseSuppression === true ? 'Noise reduction on' : 'Noise reduction requested';
-      lessonStatus('Recording your explanation · ' + c.micStatus);
+      lessonStatus((c.camStream ? 'Recording you and your explanation · ' : 'Recording your explanation · ') + c.micStatus);
     };
     c.recorder.start(1000);
   } catch (e) {
@@ -10830,9 +11728,24 @@ async function lessonStart() {
     if (lessonCapture === c) { lessonCapture = null; lessonBar(false); toast(e.message || 'Could not start recording.', 5000); }
   }
 }
+// The camera, live, in the recording bar. Mirrored like every preview, and
+// only ever a preview: what is recorded is the camera's own track.
+function lessonLiveCam(c) {
+  var v = $('lessonLiveCam');
+  if (!v) return;
+  if (c && c.camStream) {
+    v.srcObject = c.camStream; v.hidden = false;
+    v.classList.toggle('mirror', !!c.mirror);
+    var p = v.play && v.play(); if (p && p.catch) p.catch(function () {});
+  } else { v.srcObject = null; v.hidden = true; }
+}
 function lessonRelease(c) {
   clearInterval(c.timer); c.controller.abort();
   if (c.stream) c.stream.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
+  if (c.camStream) {
+    c.camStream.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
+    if ($('lessonLiveCam').srcObject === c.camStream) lessonLiveCam(null);
+  }
   if (c.destination) c.destination.stream.getTracks().forEach(function (t) { t.stop(); });
   if (c.audioCtx && c.audioCtx.state !== 'closed') c.audioCtx.close().catch(function () {});
 }
@@ -10856,17 +11769,37 @@ function lessonStop(message) {
 async function lessonFinish(c) {
   lessonRelease(c);
   if (lessonCapture === c) lessonCapture = null;
-  if (!c.core || !c.chunks.length) { lessonBar(false); toast('No audio was captured. Try recording again.'); return; }
+  if (!c.core || !c.chunks.length) { lessonBar(false); toast(c.camStream ? 'Nothing was captured. Try recording again.' : 'No audio was captured. Try recording again.'); return; }
   var timeline;
   try { timeline = c.core.finish(c.duration || c.lastMs); }
   catch (e) { lessonBar(false); toast('Could not finish the recording: ' + e.message, 6000); return; }
   var job = lessonPending = { id: c.id, uid: c.uid, docId: c.docId, epoch: c.epoch, spot: c.spot,
-    blob: new Blob(c.chunks, { type: c.recorder.mimeType || 'audio/webm' }),
+    blob: new Blob(c.chunks, { type: c.recorder.mimeType || (c.camStream ? 'video/webm' : 'audio/webm') }),
     manifest: { version: 1, worksheetId: c.docId, pdfHash: c.pdfHash, pageCount: c.pageCount, timeline: timeline, backgrounds: c.backgrounds || [] },
     duration: timeline.duration };
+  // Carried on the job, so a backup restored from this device next week still
+  // knows it is a video — and is attached, played and labelled as one.
+  if (c.camStream) job.video = true;
   try { await lessonRecovery('put', job.uid + '/' + job.docId, job); job.backedUp = true; }
   catch (e) { job.backedUp = false; }
   if (lessonContextOK(job)) await lessonSavePending(); else lessonPendingUI();
+}
+// Wide enough for its own words: a pill sized for "Play lesson · 9:59" cut the
+// end off a video lesson's label, or any lesson past an hour.
+function lessonPillWidth(label) { return Math.max(180, Math.round(String(label).length * 7.4 + 36)); }
+// A lesson with the camera runs to hundreds of megabytes, and "Uploading…" with
+// no number on it for ten minutes reads as a hang. The storage task reports
+// its progress; a promise without one simply uploads as before.
+function lessonUpload(ref, blob, meta, job) {
+  var task = ref.put(blob, meta);
+  if (task && typeof task.on === 'function') {
+    task.on('state_changed', function (snap) {
+      if (lessonPending !== job || !snap || !snap.totalBytes) return;
+      lessonStatus((job.video ? 'Uploading the lesson video… ' : 'Uploading the lesson… ') +
+        Math.min(100, Math.floor(100 * snap.bytesTransferred / snap.totalBytes)) + '%');
+    }, function () { /* the awaited task reports the failure */ });
+  }
+  return task;
 }
 function lessonPendingUI() {
   if (!lessonPending || !lessonTeacher() || currentUser.uid !== lessonPending.uid) { lessonBar(false); return; }
@@ -10881,7 +11814,7 @@ async function lessonSavePending() {
   if (!job || job.saving) return;
   if (lessonTeacher() && currentUser.uid === job.uid && currentDocId === job.docId) job.epoch = wsEpoch;
   if (!lessonContextOK(job)) { lessonPendingUI(); lessonStatus('Return to the original worksheet as the teacher to save this recording.'); return; }
-  job.saving = true; lessonPendingUI(); lessonStatus('Uploading the lesson…');
+  job.saving = true; lessonPendingUI(); lessonStatus(job.video ? 'Uploading the lesson video…' : 'Uploading the lesson…');
   try {
     if (!job.audioFinalized) { job.blob = await LessonAudioFinalize.finalize(job.blob, job.duration); job.audioFinalized = true; }
     if (await lessonPdfHash() !== job.manifest.pdfHash) throw new Error('The PDF changed. Download this recording before recording a new lesson.');
@@ -10889,7 +11822,7 @@ async function lessonSavePending() {
     var prefix = STORAGE_DIR + '/lesson-' + job.docId + '-' + job.id;
     if (!job.audioUrl) {
       var audioRef = storage.ref(prefix + '.' + recExt(job.blob.type));
-      await audioRef.put(job.blob, { contentType: job.blob.type, cacheControl: 'private,max-age=3600' });
+      await lessonUpload(audioRef, job.blob, { contentType: job.blob.type, cacheControl: 'private,max-age=3600' }, job);
       job.audioUrl = await audioRef.getDownloadURL(); job.audioPath = audioRef.fullPath;
     }
     if (!job.manifestUrl) {
@@ -10904,10 +11837,15 @@ async function lessonSavePending() {
     if (!lessonContextOK(job)) throw new Error('The worksheet changed while saving.');
     autoSaveInFlight = true; clearTimeout(autoSaveTimer);
     try {
+      var label = (job.video ? 'Play video lesson · ' : 'Play lesson · ') + recFmtTime(job.duration);
       var attachment = { id: job.id, type: 'video', page: job.spot.page, x: job.spot.x, y: job.spot.y,
-          w: 180, h: VIDEO_BTN_H, label: 'Play lesson · ' + recFmtTime(job.duration), url: job.audioUrl, ts: Date.now(),
+          w: lessonPillWidth(label), h: VIDEO_BTN_H, label: label, url: job.audioUrl, ts: Date.now(),
           lessonRecording: { version: 1, manifestUrl: job.manifestUrl, manifestPath: job.manifestPath,
             audioPath: job.audioPath, duration: job.duration, pdfHash: job.manifest.pdfHash } };
+      // Set only on a video, so an audio lesson's attachment is byte for byte
+      // what it always was. `audioPath` keeps its name for the same reason: it
+      // is the media file, and readers of it already exist.
+      if (job.video) attachment.lessonRecording.video = true;
       var staged = annotations.some(function (a) { return a.id === job.id; }) ? annotations : annotations.concat([attachment]);
       var json = JSON.stringify(staged);
       await writeAnnotations(job.docId, json, pageStarFields());
@@ -10918,7 +11856,8 @@ async function lessonSavePending() {
     } finally { autoSaveInFlight = false; if (dirty || autoSaveQueued) { autoSaveQueued = false; scheduleAutoSave(); } }
     await lessonRecovery('delete', job.uid + '/' + job.docId).catch(function () {});
     if (lessonPending === job) lessonPending = null;
-    lessonBar(false); toast('Lesson saved. Tap “Play lesson” on the page to replay it.', 5000);
+    lessonBar(false);
+    toast(job.video ? 'Video lesson saved. Tap “Play video lesson” on the page to replay it.' : 'Lesson saved. Tap “Play lesson” on the page to replay it.', 5000);
   } catch (e) {
     job.error = 'Recording not attached yet. ' + (e.message || 'Check your connection and retry.');
     job.saving = false; lessonPendingUI();
@@ -10968,6 +11907,7 @@ async function lessonPlay(a) {
   if (lessonOpening) lessonOpening.abort();
   var controller = lessonOpening = new AbortController(), epoch = wsEpoch, id = currentDocId;
   var savedView = lessonView(), savedFitted = fittedWidth;
+  var video = !!(a.lessonRecording && a.lessonRecording.video);
   $('lessonPlayer').hidden = false; $('lessonPlayerTitle').textContent = 'Loading lesson…';
   try {
     var audioUrl = lessonAssetUrl(a.url);
@@ -10984,26 +11924,37 @@ async function lessonPlay(a) {
         drawings.some(function (n) { return n.page > pages.length; })) throw new Error('The lesson contains an invalid page view.');
     var player = LessonReplayCore.createPlayer(timeline);
     var pb = lessonPlayback = { player: player, view: savedView, fitted: savedFitted, epoch: epoch,
-      backgrounds: lessonValidateBackgrounds(manifest.backgrounds, pages), overlays: [], revision: -1, viewKey: '', duration: manifest.timeline.duration };
+      backgrounds: lessonValidateBackgrounds(manifest.backgrounds, pages), overlays: [], revision: -1, viewKey: '', duration: manifest.timeline.duration,
+      video: video };
     pages.forEach(function (p) {
       var svg = el('svg', { viewBox: '0 0 ' + p.baseW + ' ' + p.baseH });
       svg.classList.add('lessonReplayOverlay'); svg.setAttribute('aria-hidden', 'true');
       p.wrap.appendChild(svg); pb.overlays.push(svg);
     });
     document.body.classList.add('lessonPlaying');
-    var audio = $('lessonAudio'); audio.src = audioUrl;
-    $('lessonPlayerTitle').textContent = 'Lesson replay · writing follows the audio';
+    // A video lesson plays in its own window over the page, and its video IS
+    // the clock: the audio bar would be a second copy of the same sound.
+    var media = lessonMedia(); media.src = audioUrl;
+    $('lessonAudio').hidden = video;
+    if (video) lessonCamWinShow();
+    $('lessonPlayerTitle').textContent = video ? 'Lesson replay · the writing follows the video' : 'Lesson replay · writing follows the audio';
     lessonReplayFrame();
-    audio.play().catch(function () { if (lessonPlayback === pb) $('lessonPlayerTitle').textContent = 'Press play to hear the lesson'; });
+    media.play().catch(function () {
+      if (lessonPlayback === pb) $('lessonPlayerTitle').textContent = video ? 'Press play on the video to watch the lesson' : 'Press play to hear the lesson';
+    });
   } catch (e) {
     if (!controller.signal.aborted) { lessonExitPlayback(); toast(e.message || 'Could not play this lesson.', 6000); }
   } finally { if (lessonOpening === controller) lessonOpening = null; }
 }
+// The clock the writing follows: the lesson's own video when it was recorded
+// with the camera, its audio otherwise. Everything that reads the time asks
+// this, so the two can never be followed at once.
+function lessonMedia() { return lessonPlayback && lessonPlayback.video ? $('lessonVideo') : $('lessonAudio'); }
 function lessonReplayFrame() {
   var pb = lessonPlayback;
   if (!pb) return;
   if (pb.epoch !== wsEpoch) { lessonExitPlayback(); return; }
-  var state = pb.player.stateAt(Math.min(pb.duration, $('lessonAudio').currentTime * 1000));
+  var state = pb.player.stateAt(Math.min(pb.duration, lessonMedia().currentTime * 1000));
   if (state.annotationRevision !== pb.revision) {
     pb.overlays.forEach(function (svg) { svg.replaceChildren(); });
     pb.backgrounds.forEach(function (b) { pb.overlays[b.page - 1].appendChild(el('image', { x: b.x, y: b.y, width: b.w, height: b.h, href: b.data })); });
@@ -11024,23 +11975,98 @@ function lessonReplayFrame() {
 function lessonPlaybackLoop() {
   if (!lessonPlayback) return;
   lessonReplayFrame();
-  if (lessonPlayback && !$('lessonAudio').paused) lessonPlayback.raf = requestAnimationFrame(lessonPlaybackLoop);
+  if (lessonPlayback && !lessonMedia().paused) lessonPlayback.raf = requestAnimationFrame(lessonPlaybackLoop);
 }
 function lessonExitPlayback() {
   if (lessonOpening) { lessonOpening.abort(); lessonOpening = null; }
   var pb = lessonPlayback; lessonPlayback = null;
-  var audio = $('lessonAudio'); audio.pause(); audio.removeAttribute('src'); audio.load();
+  ['lessonAudio', 'lessonVideo'].forEach(function (key) { var m = $(key); m.pause(); m.removeAttribute('src'); m.load(); });
+  $('lessonAudio').hidden = false; lessonCamWinHide();
   $('lessonPlayer').hidden = true; document.body.classList.remove('lessonPlaying');
   if (!pb) return;
   cancelAnimationFrame(pb.raf); pb.overlays.forEach(function (n) { n.remove(); });
   if (wsEpoch === pb.epoch) { lessonApplyView(pb.view); fittedWidth = pb.fitted; }
 }
+/* ---- 🎥 the replay's video window ----
+   A window of its own over the page rather than a row in the player bar: the
+   worksheet is what a class is watching, the teacher's face is beside it. It
+   opens in the corner above the bar, is dragged by its own bar, and comes in
+   three sizes remembered on the device. */
+var LESSON_CAMWIN_SIZES = [200, 320, 480];
+function lessonCamWinSizeIndex() {
+  var i = lessonPrefGet(LESSON_CAMWIN_PREF);
+  return i === 0 || i === 1 || i === 2 ? i : 1;
+}
+function lessonCamWinApplySize() {
+  var win = $('lessonCamWin'), i = lessonCamWinSizeIndex(), room = Math.max(160, (window.innerWidth || 1024) - 32);
+  win.style.width = Math.min(LESSON_CAMWIN_SIZES[i], room) + 'px';
+  var btn = $('lessonCamWinSize');
+  if (btn) { btn.title = i < LESSON_CAMWIN_SIZES.length - 1 ? 'Bigger video' : 'Smaller video'; btn.setAttribute('aria-label', btn.title); }
+}
+function lessonCamWinShow() {
+  var win = $('lessonCamWin');
+  win.hidden = false;
+  lessonCamWinApplySize();
+  // Anchored to the corner above whatever bars are up, until it is dragged.
+  win.style.left = win.style.top = '';
+  win.style.right = '16px';
+  win.style.bottom = (18 + ($('barStack').offsetHeight || 0) + 12) + 'px';
+}
+function lessonCamWinHide() {
+  var win = $('lessonCamWin');
+  win.hidden = true; win.classList.remove('dragging');
+}
+function lessonCamWinPlace(x, y) {
+  var win = $('lessonCamWin'), r = win.getBoundingClientRect();
+  var vw = window.innerWidth || r.width + 16, vh = window.innerHeight || r.height + 16;
+  win.style.left = Math.round(Math.max(8, Math.min(Math.max(8, vw - r.width - 8), x))) + 'px';
+  win.style.top = Math.round(Math.max(8, Math.min(Math.max(8, vh - r.height - 8), y))) + 'px';
+  win.style.right = win.style.bottom = 'auto';
+}
+// Kept on the screen when the window or the video changes size — but only once
+// it has been dragged; in its corner it already follows the edges by itself.
+function lessonCamWinClamp() {
+  var win = $('lessonCamWin');
+  if (win.hidden || !win.style.left) return;
+  var r = win.getBoundingClientRect();
+  lessonCamWinPlace(r.left, r.top);
+}
+function lessonCamWinCycle() {
+  lessonPrefSet(LESSON_CAMWIN_PREF, (lessonCamWinSizeIndex() + 1) % LESSON_CAMWIN_SIZES.length);
+  lessonCamWinApplySize();
+  lessonCamWinClamp();
+}
+(function () {
+  var bar = $('lessonCamWinBar'), drag = null;
+  bar.addEventListener('pointerdown', function (e) {
+    if (e.button > 0 || (e.target && e.target.closest && e.target.closest('button'))) return;
+    var win = $('lessonCamWin'), r = win.getBoundingClientRect();
+    drag = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top };
+    win.classList.add('dragging');
+    lessonCamWinPlace(r.left, r.top);
+    try { bar.setPointerCapture(e.pointerId); } catch (x) {}
+    e.preventDefault();
+  });
+  bar.addEventListener('pointermove', function (e) {
+    if (drag && e.pointerId === drag.id) lessonCamWinPlace(e.clientX - drag.dx, e.clientY - drag.dy);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (name) {
+    bar.addEventListener(name, function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag = null; $('lessonCamWin').classList.remove('dragging');
+    });
+  });
+})();
+$('lessonCamWinSize').addEventListener('click', lessonCamWinCycle);
+$('lessonVideo').addEventListener('loadedmetadata', lessonCamWinClamp);
+window.addEventListener('resize', function () { if (!$('lessonCamWin').hidden) { lessonCamWinApplySize(); lessonCamWinClamp(); } });
 // Playback is an inert view. All worksheet gesture and shortcut handlers stay
 // blocked, including two-finger undo, paste, and drag/drop, while it is open.
+// The player bar and the video window are the two things that stay live.
 ['pointerdown', 'pointermove', 'pointerup', 'click', 'dblclick', 'wheel', 'touchstart', 'touchmove', 'touchend', 'paste', 'drop', 'keydown'].forEach(function (name) {
   document.addEventListener(name, function (e) {
     if (!lessonPlayback && !lessonOpening) return;
-    if (e.target.closest && e.target.closest('#lessonPlayer')) {
+    if (e.target.closest && e.target.closest('#lessonPlayer, #lessonCamWin')) {
       if (name === 'keydown') e.stopPropagation();
       return;
     }
@@ -11050,15 +12076,24 @@ function lessonExitPlayback() {
 });
 $('lessonRecordBtn').addEventListener('click', lessonOpen);
 $('lessonStartBtn').addEventListener('click', lessonStart);
-$('lessonCancelBtn').addEventListener('click', function () { $('lessonModal').classList.remove('open'); });
+$('lessonCancelBtn').addEventListener('click', lessonCloseModal);
 $('lessonStopBtn').addEventListener('click', function () { lessonStop(); });
 $('lessonRetryBtn').addEventListener('click', lessonSavePending);
 $('lessonDownloadBtn').addEventListener('click', lessonDownloadPending);
 $('lessonDismissBtn').addEventListener('click', lessonDismissPending);
 $('lessonPlayerClose').addEventListener('click', lessonExitPlayback);
-['timeupdate', 'seeked', 'seeking', 'ratechange', 'loadedmetadata'].forEach(function (name) { $('lessonAudio').addEventListener(name, lessonReplayFrame); });
-$('lessonAudio').addEventListener('play', function () { if (lessonPlayback) { cancelAnimationFrame(lessonPlayback.raf); lessonPlaybackLoop(); } });
-$('lessonAudio').addEventListener('error', function () { if (lessonPlayback) { $('lessonPlayerTitle').textContent = 'Audio unavailable. Close and try the lesson again.'; } });
+['lessonAudio', 'lessonVideo'].forEach(function (key) {
+  var media = $(key);
+  ['timeupdate', 'seeked', 'seeking', 'ratechange', 'loadedmetadata'].forEach(function (name) { media.addEventListener(name, lessonReplayFrame); });
+  media.addEventListener('play', function () {
+    if (lessonPlayback && lessonMedia() === media) { cancelAnimationFrame(lessonPlayback.raf); lessonPlaybackLoop(); }
+  });
+  media.addEventListener('error', function () {
+    if (lessonPlayback && lessonMedia() === media) {
+      $('lessonPlayerTitle').textContent = lessonPlayback.video ? 'Video unavailable. Close and try the lesson again.' : 'Audio unavailable. Close and try the lesson again.';
+    }
+  });
+});
 document.addEventListener('visibilitychange', function () { if (document.hidden && lessonCapture) lessonStop('Recording stopped when the app moved to the background.'); });
 window.addEventListener('pagehide', function () { if (lessonCapture) lessonStop(); lessonExitPlayback(); });
 window.addEventListener('beforeunload', function (e) { if (lessonBusy()) { e.preventDefault(); e.returnValue = ''; } });
@@ -30380,6 +31415,13 @@ document.addEventListener('keydown', function (e) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDoc();
+    return;
+  }
+  // The lesson window holds a live camera and microphone: Escape closes it and
+  // lets go of both, and nothing typed while it is up — a letter on the Test
+  // sound button, say — may reach the one-letter tools behind it.
+  if ($('lessonModal').classList.contains('open')) {
+    if (e.key === 'Escape') { e.preventDefault(); lessonCloseModal(); }
     return;
   }
   if (editingText) {

@@ -2,9 +2,11 @@
 
 Recorded lessons use `pdf-annotator/lesson-{worksheetId}-{recordingId}.m4a`
 (or `.webm`) and a `.json` replay file in the existing
-`mathgen--app.firebasestorage.app` bucket. Only the signed-in, verified Google
-teacher account can create, replace or delete these objects. Students and
-share-link visitors retain public playback access.
+`mathgen--app.firebasestorage.app` bucket. A lesson recorded with the camera
+(v1.103.0) is a video under the same name — `.mp4` or `.webm` — so the same
+`lesson-` prefix rule already protects it and needs no new deployment. Only
+the signed-in, verified Google teacher account can create, replace or delete
+these objects. Students and share-link visitors retain public playback access.
 
 The shared bucket previously allowed every client to write every object. The
 lesson rule narrows that existing permission for the new `lesson-` prefix only.
