@@ -2,6 +2,87 @@
 
 Guidance for Claude when working in this repo.
 
+## 🎥 A lesson can carry the camera, and the teacher chooses the devices (v1.103.0)
+
+`LESSON_CAM_PREF` / `LESSON_MIC_PREF` / `LESSON_MIRROR_PREF` / `LESSON_CAMWIN_PREF` /
+`LESSON_CAM_ANY` / `LESSON_AUDIO_BPS` / `LESSON_VIDEO_BPS` / `lessonDev` / `lessonDevOptions` /
+**`lessonDevResolve`** / **`lessonDevSync`** / `lessonDevChoice` / `lessonDevStartCam` /
+`lessonDevStartMic` / `lessonDevMeter*` / `lessonDevTest*` / `lessonGetMedia` /
+`lessonMicConstraints` / `lessonCamConstraints` / **`lessonOpenModal`** / **`lessonCloseModal`** /
+`lessonSizeHint` (search `Lesson camera and microphone`), plus `LESSON_VIDEO_LIMIT` /
+`LESSON_BYTES_SLACK` / `lessonLiveCam` / `lessonPillWidth` / `lessonUpload` / **`lessonMedia`** /
+`lessonCamWin*` in the recording section, `MAX_VIDEO_BYTES` / `WINDOW` / `reader` in
+`LessonAudioFinalize`, the `#lessonModal` window, `#lessonLiveCam`, `#lessonCamWin`, the camera
+icon on a video lesson's pill, and the `.lessonDev*` / `.lessonCam*` / `.lessonMeter*` CSS.
+
+Record lesson captured the voice and the writing. It can carry the CAMERA now: one file holding
+the camera's track beside the recorder's own mixed microphone, replayed in a floating window
+whose video is the clock the writing follows. The window picks the camera and the microphone
+from lists, previews the one, and meters and plays back the other.
+
+- **THE WINDOW'S PREVIEW LETS GO BEFORE THE RECORDING OPENS ITS OWN.** `lessonStart` reads
+  `lessonDevChoice()` and then calls `lessonCloseModal()` before its first `getUserMedia`. Safari
+  on an iPad gives a device to one capture at a time and silences the older one — and the older
+  one would be the recording's. Every route out of the window goes through `lessonCloseModal` /
+  `lessonDevClose` — Start, Cancel, ✕, Escape, `lessonRoleChanged`, `pagehide` — and
+  `visibilitychange` pauses it: a preview that outlives its window is a camera light left on over
+  a classroom.
+- **NOTHING IS OPENED THAT WAS NOT ASKED FOR.** With no camera remembered the window opens the
+  microphone (it IS the meter) and never the camera.
+- **WANTED IS KEPT APART FROM PLUGGED IN.** `wantCam` / `wantMic` hold the choice, and
+  `lessonDevResolve` (pure) lands it on each device list by id, then by NAME — a USB camera in
+  another port comes back under a new id, and the new id is what is remembered. A remembered
+  camera that is not connected turns the camera OFF and names it, never quietly swaps in the
+  laptop's own lens, and comes back by itself when it is plugged in. Nothing is "missing" from a
+  list the browser has not NAMED yet (`options.named`): before access is allowed a camera is
+  offered as `LESSON_CAM_ANY`, opened loosely (`ideal`) towards the remembered id, and then
+  remembered by the id and label its track reports.
+- **`lessonDevSync` OPENS A PREVIEW ONLY WHEN WHAT IT WAS OPENED FOR DIFFERS** (`camFor` /
+  `micFor`, beside the device it really opened, `camId` / `micId`). That is what stops a failing
+  device being reopened on every device-list event; Try again clears `camFor` and is the only
+  retry.
+- **THE RECORDING IS EXACT, AND A CAMERA THAT WILL NOT OPEN REFUSES THE START.** The chosen
+  devices go in as `{ exact }` — the teacher has just looked at them. Falling back to voice only
+  would be a lesson the teacher believes has them in it, so the start is refused loudly and names
+  "No camera" as the way out. `lessonGetMedia` retries ONCE, for a BUSY device only
+  (`NotReadableError` — a driver slow to hand back what the preview just released), never for a
+  refusal.
+- **ONE FILE.** `new MediaStream(camera video track + c.destination's audio track)`: the audio is
+  the same mixed track an audio-only lesson carries, so v1.98.0's "the recorder mixes the
+  microphone and nothing else" covers a video lesson unchanged. An audio lesson still hands the
+  recorder `c.destination.stream` itself.
+- **THE PREVIEW IS MIRRORED AND THE RECORDING NEVER IS** — `video.mirror` is a preview-only
+  class, on `#lessonCamPreview` and `#lessonLiveCam`, and a document camera can switch it off.
+- **THE SOUND TEST records the preview microphone** through the lesson's own processing, plays
+  it through `#lessonTestAudio` — never an AudioContext destination — and cannot outlive its
+  microphone (`lessonDevStopMic` ends it). The meter's analyser is deliberately NOT connected to
+  the speakers. A meter Safari has not let start (`lessonDevMeterAsleep`) asks for a tap and does
+  not run the silence warning, which would send a teacher checking a mute switch for nothing.
+- **A VIDEO LESSON IS FLAGGED, NOT RENAMED.** `lessonRecording.video: true` is written only on a
+  video, so an audio lesson's attachment is byte for byte what it was; `audioPath` keeps its name
+  because it is the media file and readers of it exist. `job.video` rides the IndexedDB backup,
+  so a restored backup is still saved, played and labelled as a video.
+- **`lessonMedia()` IS THE CLOCK.** The replay reads the time from the video for a video lesson
+  and from the audio otherwise — never both — and the audio bar is hidden rather than handed a
+  second copy of the same sound. `#lessonCamWin` lives OUTSIDE `.barStack` (the stack is
+  translated, and a fixed child of a transformed parent is placed against the parent), and the
+  playback event blocker lets `#lessonCamWin` through beside `#lessonPlayer`.
+- **THE BYTE CEILINGS MOVE TOGETHER.** `LessonAudioFinalize` repeats `LESSON_VIDEO_LIMIT` as
+  `MAX_VIDEO_BYTES` (and `LESSON_AUDIO_LIMIT` as `MAX_BYTES`), and the recorder stops
+  `LESSON_BYTES_SLACK` short of them: the tick that sees a full file can be late, and
+  MediaRecorder hands over one last chunk after `stop()`. A finalizer stricter than the recorder
+  throws a lesson away at SAVE time; `tools/recording-core-tests.mjs` pins all three literals.
+- **THE FINALIZER READS A WINDOW AT A TIME** (`WINDOW`, `reader`). Only element headers are
+  read, and an hour of video is hundreds of megabytes. Its work bound grows with the file
+  (`size / 32`): the old flat 100,000 steps refused every WebM video past about forty minutes,
+  at save time. It still refuses a file made of nothing but tiny elements.
+- Run **`node --test tools/recording-camera-tests.mjs tools/recording-audio-tests.mjs`**,
+  **`node tools/recording-core-tests.mjs`** and **`node tools/recording-ui-tests.mjs`** after
+  touching any of it — **and `node tools/camera-check.mjs`**, which drives Chromium's own fake
+  camera and microphone through the real window, a real recording, the real finalizer and the
+  replay. Nothing that reads the source can say whether a browser shows the camera or plays the
+  file back.
+
 ## 🧠 Chung GPT learns from every app, and says whether it is helping (v1.100.0)
 
 `CER_STYLE_COLL` / `CER_STYLE_DOC` / `cerStyle` / `cerStyleUnsub` / `cerStyleDocRef` /
@@ -1690,6 +1771,23 @@ the pen, and nothing on any screen says what changed.
 - Run **`node --test tools/writing-tests.mjs`** after touching any of it.
 
 ## House rules
+- After touching **🎥 the lesson camera and microphone** (`lessonDev*`, `lessonOpenModal`,
+  `lessonCloseModal`, `lessonGetMedia`, the camera branch of `lessonStart`, `lessonLiveCam`,
+  `lessonMedia`, `lessonCamWin*`, `LESSON_VIDEO_LIMIT`, `LESSON_BYTES_SLACK`, `MAX_VIDEO_BYTES`,
+  or the finalizer's `reader`), run `node --test tools/recording-camera-tests.mjs
+  tools/recording-audio-tests.mjs`, `node tools/recording-core-tests.mjs`,
+  `node tools/recording-ui-tests.mjs` **and** `node tools/camera-check.mjs`. Every failure is
+  silent. Open the recording's devices before the window has let go of its preview and an iPad
+  silences the recording's own microphone. Let any route out of the window skip `lessonDevClose`
+  and the camera light stays on over the class. Resolve a remembered camera by anything but
+  id-then-name and a lesson is filmed from the wrong lens; call a device missing from a list the
+  browser has not named yet and the teacher's camera turns itself off on every first visit. Drop
+  the `camFor` / `micFor` check and a failing camera is reopened on every device event. Fall back
+  to voice only when the camera will not open and a teacher records an hour believing they are in
+  it. Put the raw microphone into the recorded stream beside the mixed one and "nothing else" is
+  gone. Read the replay's time from both media elements and the writing follows the wrong one.
+  And let `MAX_VIDEO_BYTES` drift below `LESSON_VIDEO_LIMIT`, drop the slack, or put back the
+  flat step bound, and a long video lesson is refused at the moment it is being saved.
 - After touching **✍️ the stylus guards** (`DRAG_SLOP_PX`, `dragStarted`,
   `selectToolForEdit`, the `isDrawTool` test on the `dblclick` fallback, the
   `e.button > 0` line in `pointerdown`, the `cx`/`cy` on any grab, or the
