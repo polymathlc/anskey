@@ -3497,7 +3497,68 @@ video.mirror { transform:scaleX(-1); }
 .lessonCamWinBtn:hover { background:rgba(255,255,255,0.2); }
 .lessonCamWinBtn svg { width:15px; height:15px; }
 .lessonCamWin video { display:block; width:100%; height:auto; max-height:70vh; background:#000; }
-@media print { .barStack,.lessonBar,.lessonPlayer,#lessonModal,.lessonCamWin { display:none!important; } }
+/* 🏷 Which question the lesson is for — one optional line, above the devices. */
+.lessonTitleRow { margin:18px 0 4px; display:flex; flex-direction:column; gap:8px; }
+.lessonTitleRow label { font-size:0.84rem; font-weight:bold; color:var(--ink); }
+.lessonTitleRow label em { font-style:normal; font-weight:normal; color:var(--ink-faint); }
+.lessonTitleRow input { width:100%; max-width:240px; font-family:var(--font); font-size:0.9rem; color:var(--ink); padding:9px 12px; border:1px solid var(--line); border-radius:var(--radius-sm); background:#fff; outline:none; transition:border-color .2s ease, box-shadow .2s ease; }
+.lessonTitleRow input:focus { border-color:var(--accent-strong); box-shadow:0 0 0 3px rgba(255,224,178,0.5); }
+/* ⬇ 1080p on the replay bar — the teacher's own. */
+#lessonExportBtn { background:#1f2a36; color:#fff; border-color:#1f2a36; font-weight:600; }
+#lessonExportBtn[hidden] { display:none; }
+/* 🎞 The export window: the frame itself as the preview, the two choices under
+   it, and a progress bar that says how far through the lesson it is. */
+.modalCard.lessonExportCard { max-width:780px; max-height:92vh; max-height:min(92dvh, calc(var(--vvh, 100vh) - 32px)); }
+.modalCard.lessonExportCard:focus { outline:none; }
+.lxStage { position:relative; aspect-ratio:16/9; border-radius:14px; overflow:hidden; background:#20262C; box-shadow:0 2px 10px rgba(0,0,0,0.12); }
+.lxStage canvas { display:block; width:100%; height:100%; }
+/* The export's own media: in the page, so every browser decodes it, and too
+   small and too clear to see. */
+.lxStage video { position:absolute; left:0; top:0; width:2px; height:2px; opacity:0; pointer-events:none; }
+.lxOptions { margin-top:20px; display:flex; flex-direction:column; gap:14px; }
+.lxRow { display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; }
+.lxRow[hidden] { display:none; }
+.lxLabel { min-width:70px; font-size:0.84rem; font-weight:bold; color:var(--ink); }
+.lxSeg { display:inline-flex; flex-wrap:wrap; gap:8px; }
+.lxSegBtn { padding:8px 16px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); font-family:var(--font); font-size:0.82rem; cursor:pointer; transition:background .2s ease, border-color .2s ease; }
+.lxSegBtn:hover:not(:disabled) { background:#F8F7F5; }
+.lxSegBtn.on { background:var(--accent); border-color:var(--accent-strong); font-weight:bold; }
+.lxSegBtn:disabled { opacity:0.55; cursor:default; }
+.lxProgress { margin-top:18px; }
+.lxProgress[hidden] { display:none; }
+.lxBar { height:10px; border-radius:999px; background:#E6E8EA; overflow:hidden; }
+.lxFill { width:0; height:100%; border-radius:999px; background:linear-gradient(90deg,#42A5F5,#7E57C2); transition:width .25s linear; }
+.lxProgText { margin-top:8px; font-size:0.8rem; color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+#lessonExportModal .btn[hidden] { display:none; }
+.lxInfo { margin-top:16px; font-size:0.8rem; line-height:1.65; color:var(--ink-soft); }
+.lxInfo.bad { color:var(--danger); }
+@media (prefers-reduced-motion: reduce) { .lxFill { transition:none; } }
+/* 🎬 The playlist: a count on the toolbar, a list in a card, a bar while it plays. */
+#playlistBtn { position:relative; }
+#playlistBtn .plCount { position:absolute; right:-3px; top:-3px; min-width:15px; height:15px; padding:0 3px; border-radius:999px; background:#7E57C2; color:#fff; font-size:9.5px; font-weight:bold; line-height:15px; text-align:center; pointer-events:none; }
+#playlistBtn .plCount:empty { display:none; }
+.playlistPanel { position:fixed; z-index:1095; top:112px; right:16px; width:min(390px, calc(100vw - 32px)); max-height:min(72vh, 600px); display:flex; flex-direction:column; padding:20px 20px 18px; background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow-modal); }
+.playlistPanel[hidden] { display:none; }
+.plHead { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.plHead h2 { font-size:1.02rem; }
+.plSub { margin:8px 0 16px; font-size:0.8rem; line-height:1.6; color:var(--ink-soft); }
+.plAll { align-self:flex-start; margin-bottom:14px; }
+.plList { list-style:none; margin:0; padding:0 2px 2px 0; overflow-y:auto; min-height:0; display:flex; flex-direction:column; gap:8px; }
+.plRow { display:flex; align-items:stretch; gap:8px; }
+.plItem { flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:#FBFBFA; color:var(--ink); font-family:var(--font); text-align:left; cursor:pointer; transition:background .2s ease; }
+.plItem:hover { background:#F4F2EE; }
+.plNum { flex:0 0 auto; width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#42A5F5,#7E57C2); color:#fff; font-size:0.8rem; font-weight:bold; }
+.plText { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.plText b { font-size:0.86rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.plText small { font-size:0.74rem; color:var(--ink-faint); }
+.plExport { flex:0 0 auto; padding:0 12px; border:1px solid var(--line); border-radius:12px; background:#fff; color:var(--ink); font-family:var(--font); font-size:0.78rem; white-space:nowrap; cursor:pointer; }
+.plExport:hover { background:var(--accent); border-color:var(--accent-strong); }
+#playlistBar { border-color:#d9cdef; }
+#playlistBar .plIcon { font-size:18px; flex:0 0 auto; }
+#playlistBar #playlistStop { background:#5e35b1; color:#fff; border-color:#5e35b1; }
+#playlistBar button:disabled { opacity:0.45; cursor:default; }
+#playlistBar button[hidden] { display:none; }
+@media print { .barStack,.lessonBar,.lessonPlayer,#lessonModal,.lessonCamWin,#lessonExportModal,.playlistPanel { display:none!important; } }
 </style>
 </head>
 <body>
@@ -3739,6 +3800,10 @@ video.mirror { transform:scaleX(-1); }
       data-ai-title="Voice AI — talk to {ai} out loud while you teach. It is never mixed into a lesson recording."
       title="Voice AI — talk to Chung GPT out loud while you teach. It is never mixed into a lesson recording.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="6" height="10.5" rx="3"/><path d="M3 11a6.5 6.5 0 0 0 13 0"/><line x1="9.5" y1="17.5" x2="9.5" y2="21"/><path d="M18.5 2.5l1.1 2.4 2.4 1.1-2.4 1.1-1.1 2.4-1.1-2.4-2.4-1.1 2.4-1.1z" fill="currentColor" stroke-width="1"/></svg>
+    </button>
+    <button class="toolBtn" id="playlistBtn" style="display:none" aria-haspopup="dialog" aria-expanded="false" title="Play every video on this worksheet, one after another">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="6" x2="13.5" y2="6"/><line x1="3.5" y1="11" x2="13.5" y2="11"/><line x1="3.5" y1="16" x2="9.5" y2="16"/><path d="M14.5 13.2v7l5.5-3.5z" fill="currentColor"/></svg>
+      <span class="plCount"></span>
     </button>
     <button class="toolBtn" id="codeWinBtn" data-key="J" title="Code window — paste HTML and it runs in a window you can show the class">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8.5 8 4.5 12 8.5 16"/><polyline points="15.5 8 19.5 12 15.5 16"/><line x1="13.5" y1="5.5" x2="10.5" y2="18.5"/></svg>
@@ -4127,6 +4192,11 @@ video.mirror { transform:scaleX(-1); }
     <div class="modalBody">
       <p class="lessonHelp">Explain while you write. Your voice, pencil strokes, typed text, zoom and page position play back together — and you on camera too, if you switch one on. A play button will be attached to this page.</p>
 
+      <div class="lessonTitleRow">
+        <label for="lessonTitleInput">Which question is it for? <em>— optional, and it names the button and the video</em></label>
+        <input type="text" id="lessonTitleInput" maxlength="40" autocomplete="off" spellcheck="false" placeholder="e.g. Q5">
+      </div>
+
       <section class="lessonDev" aria-labelledby="lessonCamLabel">
         <div class="lessonDevHead">
           <label class="lessonDevLabel" id="lessonCamLabel" for="lessonCamSelect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5 21.5 7v10l-6-3.5z"/></svg>Camera</label>
@@ -4178,8 +4248,15 @@ video.mirror { transform:scaleX(-1); }
   <button id="lessonStopBtn">Stop &amp; save</button><button id="lessonRetryBtn" hidden>Retry save</button>
   <button id="lessonDownloadBtn" hidden>Download backup</button><button id="lessonDismissBtn" hidden>Discard</button>
 </div>
+<div class="lessonBar" id="playlistBar" hidden role="region" aria-label="Video playlist">
+  <span class="plIcon" aria-hidden="true">🎬</span><div class="lessonInfo" id="playlistStatus" role="status" aria-live="polite"></div>
+  <button id="playlistPrev" title="The video before this one" aria-label="Previous video">⏮</button>
+  <button id="playlistNow" hidden>Play it now</button>
+  <button id="playlistNext" title="The next video" aria-label="Next video">⏭</button>
+  <button id="playlistStop">Stop playlist</button>
+</div>
 <div class="lessonPlayer" id="lessonPlayer" hidden role="region" aria-label="Lesson replay">
-  <span id="lessonPlayerTitle" role="status"></span><button id="lessonPlayerClose">Close replay</button>
+  <span id="lessonPlayerTitle" role="status"></span><button id="lessonExportBtn" hidden title="Make this lesson into a 1920 × 1080 video file — the page, your writing, your camera and your voice">⬇ 1080p video</button><button id="lessonPlayerClose">Close replay</button>
   <audio id="lessonAudio" controls preload="metadata" aria-label="Lesson audio and timeline"></audio>
 </div>
 </div>
@@ -4190,6 +4267,55 @@ video.mirror { transform:scaleX(-1); }
     <button type="button" class="lessonCamWinBtn" id="lessonCamWinSize" title="Bigger video" aria-label="Bigger video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
   </div>
   <video id="lessonVideo" controls playsinline preload="metadata" aria-label="Lesson video and timeline"></video>
+</div>
+
+<div class="playlistPanel" id="playlistPanel" hidden role="dialog" aria-labelledby="playlistHeading">
+  <div class="plHead">
+    <h2 id="playlistHeading">🎬 Videos on this worksheet</h2>
+    <button class="modalClose" id="playlistClose" title="Close" aria-label="Close">✕</button>
+  </div>
+  <p class="plSub" id="playlistSub"></p>
+  <button class="btn btnPrimary plAll" id="playlistAll">▶ Play all</button>
+  <ol class="plList" id="playlistList"></ol>
+</div>
+
+<div class="modalBack" id="lessonExportModal" role="dialog" aria-modal="true" aria-labelledby="lessonExportHeading">
+  <div class="modalCard lessonExportCard" id="lessonExportCard" tabindex="-1">
+    <div class="modalHead">
+      <h2 id="lessonExportHeading">⬇ Export as a 1080p video</h2>
+      <button class="modalClose" id="lessonExportClose" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="lxStage" id="lessonExportStage"><canvas id="lessonExportCanvas" width="1920" height="1080" aria-label="What the video will look like"></canvas></div>
+      <div class="lxProgress" id="lessonExportProgress" hidden>
+        <div class="lxBar"><div class="lxFill" id="lessonExportFill"></div></div>
+        <div class="lxProgText" id="lessonExportProgText" role="status" aria-live="polite"></div>
+      </div>
+      <div class="lxOptions">
+        <div class="lxRow" id="lessonExportLayoutRow">
+          <span class="lxLabel">Camera</span>
+          <div class="lxSeg" role="radiogroup" aria-label="Where the camera goes">
+            <button type="button" class="lxSegBtn" data-lx-layout="side" role="radio" aria-checked="false">Beside the page</button>
+            <button type="button" class="lxSegBtn" data-lx-layout="corner" role="radio" aria-checked="false">In the corner</button>
+            <button type="button" class="lxSegBtn" data-lx-layout="page" role="radio" aria-checked="false">Page only</button>
+          </div>
+        </div>
+        <div class="lxRow">
+          <span class="lxLabel">Page</span>
+          <div class="lxSeg" role="radiogroup" aria-label="How the page is framed">
+            <button type="button" class="lxSegBtn" data-lx-mode="follow" role="radio" aria-checked="false">Follow my scrolling</button>
+            <button type="button" class="lxSegBtn" data-lx-mode="page" role="radio" aria-checked="false">The whole page</button>
+          </div>
+        </div>
+      </div>
+      <p class="lxInfo" id="lessonExportInfo" role="status" aria-live="polite"></p>
+      <div class="modalActions">
+        <button class="btn" id="lessonExportCancel">Cancel</button>
+        <button class="btn" id="lessonExportShare" hidden>Share…</button>
+        <button class="btn btnPrimary" id="lessonExportGo" disabled>⬇ Export video</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modalBack floatWin" id="aiNoteModal">
@@ -4993,7 +5119,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.104.0';
+var APP_VERSION = 'v1.105.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6885,6 +7011,9 @@ function closeFloatingPanels() {
 function renderAllOverlays() {
   pages.forEach(renderOverlay);
   if (typeof syncLineStyleCtl === 'function') syncLineStyleCtl();
+  // 🎬 The playlist button says how many videos there are — a pill added,
+  // erased, undone or pasted all come through here.
+  if (typeof lessonPlaylistSync === 'function') lessonPlaylistSync();
 }
 
 /* Coalesced variant for controls that fire continuously while dragged (the
@@ -8613,11 +8742,14 @@ function watchVideoBtnFromModal() {
 var videoPopDocClose = null; // tap-outside-to-close listener while a pop is open
 
 function closeVideoPops() {
-  document.querySelectorAll('.videoPop').forEach(function (n) { n.remove(); });
+  var had = false;
+  document.querySelectorAll('.videoPop').forEach(function (n) { n.remove(); had = true; });
   if (videoPopDocClose) {
     document.removeEventListener('pointerdown', videoPopDocClose, true);
     videoPopDocClose = null;
   }
+  // 🎬 A video closed by the person watching ends the playlist it was part of.
+  if (had && typeof lessonPlaylistExited === 'function') lessonPlaylistExited();
 }
 
 /* Expand the player just under the pill, clamped fully inside the page so
@@ -10427,6 +10559,8 @@ function lessonDevVisibility() {
 function lessonOpenModal() {
   $('lessonModal').classList.add('open');
   lessonDevOpen();
+  // 🏷 A guess at which question is on screen, offered in the title box.
+  if (typeof lessonTitlePrefill === 'function') lessonTitlePrefill();
   // The focus goes INTO the window, and onto nothing that Enter would press:
   // a stray key must neither start a recording nor reach a tool behind it.
   var card = $('lessonCard');
@@ -10554,6 +10688,9 @@ function lessonGuardChange() {
 function lessonRoleChanged() {
   $('lessonRecordBtn').style.display = lessonTeacher() ? '' : 'none';
   if (!lessonTeacher()) {
+    // 🎞 An export is the teacher's, and never carries across to whoever
+    // picks the device up next.
+    if (typeof lessonExportDrop === 'function') lessonExportDrop();
     // The window's camera and microphone go with it: a preview must never
     // carry across to whoever picks the iPad up next.
     lessonCloseModal();
@@ -10616,6 +10753,12 @@ async function lessonStart() {
     user: currentUser, id: newAnnId(), controller: new AbortController(), chunks: [], bytes: 0, lastMs: 0,
     spot: { page: spot.page.num, x: spot.x, y: spot.y }, pageCount: pages.length,
     camera: choice.camera, mirror: choice.mirror, limit: choice.camera ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT };
+  // 🏷 Which question it is for, read before the window closes — and 🎞 the
+  // size of the viewer it is taught in, which the 1080p export needs to show
+  // the same region of the page the teacher was looking at.
+  c.title = String(($('lessonTitleInput') || {}).value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  var viewer = $('viewerArea');
+  if (viewer && viewer.clientWidth > 0 && viewer.clientHeight > 0) c.viewport = { w: Math.round(viewer.clientWidth), h: Math.round(viewer.clientHeight) };
   // The window's previews are let go FIRST: Safari on an iPad gives a device to
   // one capture at a time and silences the older one, and the one silenced
   // must never be this recording's.
@@ -10747,6 +10890,10 @@ async function lessonFinish(c) {
   // Carried on the job, so a backup restored from this device next week still
   // knows it is a video — and is attached, played and labelled as one.
   if (c.camStream) job.video = true;
+  // Both only when there is one, so an untitled lesson's job and manifest are
+  // byte for byte what they always were.
+  if (c.title) job.title = c.title;
+  if (c.viewport) job.manifest.viewport = c.viewport;
   try { await lessonRecovery('put', job.uid + '/' + job.docId, job); job.backedUp = true; }
   catch (e) { job.backedUp = false; }
   if (lessonContextOK(job)) await lessonSavePending(); else lessonPendingUI();
@@ -10804,7 +10951,10 @@ async function lessonSavePending() {
     if (!lessonContextOK(job)) throw new Error('The worksheet changed while saving.');
     autoSaveInFlight = true; clearTimeout(autoSaveTimer);
     try {
-      var label = (job.video ? 'Play video lesson · ' : 'Play lesson · ') + recFmtTime(job.duration);
+      // 🏷 A lesson named for its question says so on its button: "Q5 · video
+      // lesson · 3:12". Untitled, the label is exactly what it always was.
+      var label = (job.title ? job.title + (job.video ? ' · video lesson · ' : ' · lesson · ')
+        : (job.video ? 'Play video lesson · ' : 'Play lesson · ')) + recFmtTime(job.duration);
       var attachment = { id: job.id, type: 'video', page: job.spot.page, x: job.spot.x, y: job.spot.y,
           w: lessonPillWidth(label), h: VIDEO_BTN_H, label: label, url: job.audioUrl, ts: Date.now(),
           lessonRecording: { version: 1, manifestUrl: job.manifestUrl, manifestPath: job.manifestPath,
@@ -10813,6 +10963,7 @@ async function lessonSavePending() {
       // what it always was. `audioPath` keeps its name for the same reason: it
       // is the media file, and readers of it already exist.
       if (job.video) attachment.lessonRecording.video = true;
+      if (job.title) attachment.lessonRecording.title = job.title;
       var staged = annotations.some(function (a) { return a.id === job.id; }) ? annotations : annotations.concat([attachment]);
       var json = JSON.stringify(staged);
       await writeAnnotations(job.docId, json, pageStarFields());
@@ -10824,7 +10975,8 @@ async function lessonSavePending() {
     await lessonRecovery('delete', job.uid + '/' + job.docId).catch(function () {});
     if (lessonPending === job) lessonPending = null;
     lessonBar(false);
-    toast(job.video ? 'Video lesson saved. Tap “Play video lesson” on the page to replay it.' : 'Lesson saved. Tap “Play lesson” on the page to replay it.', 5000);
+    toast(job.title ? (job.video ? 'Video lesson' : 'Lesson') + ' saved for ' + job.title + '. Tap its button on the page to replay it.'
+      : job.video ? 'Video lesson saved. Tap “Play video lesson” on the page to replay it.' : 'Lesson saved. Tap “Play lesson” on the page to replay it.', 5000);
   } catch (e) {
     job.error = 'Recording not attached yet. ' + (e.message || 'Check your connection and retry.');
     job.saving = false; lessonPendingUI();
@@ -10893,6 +11045,9 @@ async function lessonPlay(a) {
     var pb = lessonPlayback = { player: player, view: savedView, fitted: savedFitted, epoch: epoch,
       backgrounds: lessonValidateBackgrounds(manifest.backgrounds, pages), overlays: [], revision: -1, viewKey: '', duration: manifest.timeline.duration,
       video: video };
+    // Which lesson this is, for ⬇ 1080p — the teacher's, and nobody else's.
+    pb.ann = a;
+    $('lessonExportBtn').hidden = !lessonTeacher();
     pages.forEach(function (p) {
       var svg = el('svg', { viewBox: '0 0 ' + p.baseW + ' ' + p.baseH });
       svg.classList.add('lessonReplayOverlay'); svg.setAttribute('aria-hidden', 'true');
@@ -10950,6 +11105,9 @@ function lessonExitPlayback() {
   ['lessonAudio', 'lessonVideo'].forEach(function (key) { var m = $(key); m.pause(); m.removeAttribute('src'); m.load(); });
   $('lessonAudio').hidden = false; lessonCamWinHide();
   $('lessonPlayer').hidden = true; document.body.classList.remove('lessonPlaying');
+  $('lessonExportBtn').hidden = true;
+  // 🎬 A replay closed by the person watching ends the playlist it was part of.
+  if (typeof lessonPlaylistExited === 'function') lessonPlaylistExited();
   if (!pb) return;
   cancelAnimationFrame(pb.raf); pb.overlays.forEach(function (n) { n.remove(); });
   if (wsEpoch === pb.epoch) { lessonApplyView(pb.view); fittedWidth = pb.fitted; }
@@ -11033,7 +11191,7 @@ window.addEventListener('resize', function () { if (!$('lessonCamWin').hidden) {
 ['pointerdown', 'pointermove', 'pointerup', 'click', 'dblclick', 'wheel', 'touchstart', 'touchmove', 'touchend', 'paste', 'drop', 'keydown'].forEach(function (name) {
   document.addEventListener(name, function (e) {
     if (!lessonPlayback && !lessonOpening) return;
-    if (e.target.closest && e.target.closest('#lessonPlayer, #lessonCamWin')) {
+    if (e.target.closest && e.target.closest('#lessonPlayer, #lessonCamWin, #playlistBar')) {
       if (name === 'keydown') e.stopPropagation();
       return;
     }
@@ -11065,6 +11223,1299 @@ document.addEventListener('visibilitychange', function () { if (document.hidden 
 window.addEventListener('pagehide', function () { if (lessonCapture) lessonStop(); lessonExitPlayback(); });
 window.addEventListener('beforeunload', function (e) { if (lessonBusy()) { e.preventDefault(); e.returnValue = ''; } });
 /* ================= End synchronized lesson recording ================= */
+
+/* ================= 🏷 Which question a lesson is for ================= */
+/* A LESSON SAYS WHICH QUESTION IT IS ABOUT, so the pill, the playlist and the
+   exported file all say "Q5" rather than "Play lesson" three times over. The
+   Record window asks — optionally — and offers a GUESS read off the PDF's own
+   text: the first question number printed down the left margin of what is on
+   screen, or failing that the nearest one above it. It is only ever a guess in
+   an input the teacher can see and change before Start; a scanned page with no
+   text simply offers nothing.
+
+   `lessonQuestionGuess` is pure, so the harness pins it. Two rules matter:
+     · ONLY THE LEFT MARGIN (`LESSON_QNUM_MARGIN` of the page's width). A
+       question number sits at the margin; the (1) (2) (3) (4) of a multiple
+       choice sit indented under it, and a guess of "Q3" read off an option
+       would name the wrong question on every pill.
+     · "1.5 kg" and "2021" are not question numbers. The number has to stand
+       alone or be followed by a full stop or a bracket and then a space. */
+var LESSON_TITLE_MAX = 40;
+var LESSON_QNUM_MARGIN = 0.2;
+var LESSON_QNUM_RE = /^(?:Q(?:uestion)?\s*)?(\d{1,2})\s*[.)]?(?=\s|$)/i;
+
+function lessonTitleClean(s) {
+  return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, LESSON_TITLE_MAX);
+}
+
+// items: [{ str, x, y }] in page units, y measured down the page.
+function lessonQuestionGuess(items, top, bottom, pageW) {
+  var inView = null, above = null;
+  (items || []).forEach(function (it) {
+    if (!it) return;
+    var m = String(it.str || '').trim().match(LESSON_QNUM_RE);
+    if (!m || !(it.x >= 0) || it.x > pageW * LESSON_QNUM_MARGIN || !Number.isFinite(it.y)) return;
+    var n = Number(m[1]);
+    if (!(n >= 1 && n <= 99)) return;
+    if (it.y >= top && it.y <= bottom) { if (!inView || it.y < inView.y) inView = { n: n, y: it.y }; }
+    else if (it.y < top) { if (!above || it.y > above.y) above = { n: n, y: it.y }; }
+  });
+  var hit = inView || above;
+  return hit ? 'Q' + hit.n : '';
+}
+
+// What is on screen of the page in view, in page units.
+function lessonTitleSpot() {
+  var p = pages[Math.max(0, currentPageNum() - 1)];
+  if (!p) return null;
+  var area = $('viewerArea'), k = p.baseH / (p.wrap.clientHeight || p.baseH);
+  var top = Math.max(0, (area.scrollTop - p.wrap.offsetTop) * k);
+  return { page: p, top: top, bottom: Math.min(p.baseH, top + area.clientHeight * k) };
+}
+
+async function lessonTitlePrefill() {
+  var input = $('lessonTitleInput');
+  if (!input) return;
+  input.value = '';
+  var spot = lessonTitleSpot(), epoch = wsEpoch;
+  if (!spot || !spot.page.page || typeof spot.page.page.getTextContent !== 'function' || !spot.page.viewport1) return;
+  try {
+    var content = await spot.page.page.getTextContent();
+    // Too late, or the teacher has already typed: their words stand.
+    if (epoch !== wsEpoch || !$('lessonModal').classList.contains('open') || input.value) return;
+    var vp = spot.page.viewport1;
+    var items = (content.items || []).map(function (it) {
+      var pt = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+      return { str: it.str, x: pt[0], y: pt[1] };
+    });
+    var guess = lessonQuestionGuess(items, spot.top, spot.bottom, spot.page.baseW);
+    if (guess) input.value = guess;
+  } catch (e) { /* no text layer: no guess */ }
+}
+$('lessonTitleInput').addEventListener('keydown', function (e) {
+  // Enter in the one text box of the window is not "start recording".
+  if (e.key === 'Enter') e.preventDefault();
+});
+/* ================= End which question a lesson is for ================= */
+
+/* ================= 🎞 Lesson export — the replay as a 1080p video ================= */
+/* ⬇ A LESSON IS ONE CLICK AWAY FROM A FILE A CLASS CAN BE SENT.
+   The replay above is a page, some ink and one media file played together
+   INSIDE this app — none of which can be posted to a class chat, uploaded to
+   YouTube or kept on a phone. The export plays the lesson once more, its own
+   copy, and paints every frame onto a 1920 × 1080 canvas: the worksheet page
+   rendered sharp from the PDF itself, the recorded ink exactly as it was
+   written, the teacher's camera beside it, and the lesson's own sound.
+   MediaRecorder writes that canvas and that sound into ONE file.
+
+   IT IS THE TEACHER'S, AND ONLY THE TEACHER'S. `lessonTeacher()` — the admin
+   account, not handed to a student, not practising, not a share link — draws
+   the button AND is asked again in every handler. A hidden button has never
+   been the lock in this app.
+
+   IT RUNS IN REAL TIME, deliberately. Faster than real time needs WebCodecs,
+   a demuxer for whichever container the recording browser chose and a muxer
+   library; every one of those is a way for the export to work on one browser
+   and not the next. Real time works wherever MediaRecorder does — Chrome, Edge
+   and Safari on an iPad — and a lesson is minutes, not hours. Two rules keep
+   real time honest:
+     · A HIDDEN TAB GETS NO FRAMES, so the export PAUSES itself — the media and
+       the recorder together — and carries on when the tab comes back.
+       Recording on would be one frozen picture with the voice running under it.
+     · A SCREEN WAKE LOCK is held, so an iPad does not lock half way through.
+
+   THE CLOCK IS THE MEDIA, exactly as in the replay (`lessonMedia`): every
+   frame reads the time off the export's own media element and asks the replay
+   core for the page at that moment, so the ink can never drift from the voice.
+
+   THE CAMERA IS NEVER MIRRORED. The recording never was (v1.103.0); the mirror
+   is a preview-only courtesy, and a mirrored export would put every word the
+   teacher holds up to the camera backwards.
+
+   THE FRAME FOLLOWS THE TEACHER. The recorded view says which page, where on
+   it and at what zoom the teacher was looking, and `lessonExportTarget` turns
+   that into at least the same region on a 16:9 frame — eased
+   (`lessonExportEase`) so a scroll is a pan and never a cut. A recording made
+   since v1.105.0 carries the size of the teacher's viewer (`manifest.viewport`),
+   so a zoom into a diagram is a zoom in the video too; an older one is framed
+   at the page's width. "Whole page" shows the page the teacher was on, entire.
+
+   PURE WHERE IT CAN BE. The layout, the page stack, the framing, the easing,
+   the raster budget, the size estimate and the file name touch no DOM, so the
+   harness (`tools/export-tests.mjs`) pins them. `tools/export-check.mjs`
+   records a real lesson with Chromium's fake camera, exports it and measures
+   the file — the one thing reading the source cannot say is whether a browser
+   writes a 1920 × 1080 video with sound in it. */
+var LESSON_EXPORT_W = 1920;
+var LESSON_EXPORT_H = 1080;
+var LESSON_EXPORT_FPS = 30;
+// A page and a face at 1080p30. Mostly still, so 3 Mb/s is crisp — and it is
+// ~23 MB a minute, which an iPad can hold for a lesson.
+var LESSON_EXPORT_VBPS = 3000000;
+var LESSON_EXPORT_ABPS = 128000;
+var LESSON_EXPORT_SIDE = 480;        // the camera column beside the page, in pixels
+var LESSON_EXPORT_GAP = 28;          // page units between two stacked pages
+var LESSON_EXPORT_RASTER_MAX = 3;    // pixels per page unit a page is ever rasterised at
+// Every page raster together. Three A4 pages at the full 3 px/unit fit; a long
+// worksheet is rasterised softer rather than running an iPad out of canvas.
+var LESSON_EXPORT_PX_BUDGET = 36000000;
+var LESSON_EXPORT_TAU = 180;         // ms — how quickly the frame catches up with a scroll
+var LESSON_EXPORT_PREF = 'polymath.lessonExport';
+var LESSON_EXPORT_DESK = '#20262C';
+var LESSON_EXPORT_FONT = "'Century Gothic', CenturyGothic, AppleGothic, 'Segoe UI', sans-serif";
+// The Polymath mark, the same path the header's own logo is drawn with.
+var LESSON_EXPORT_MARK = 'M22 16h14a11 11 0 0 1 0 22h-7v10h-7Z M29 23h7a4 4 0 0 1 0 8h-7Z';
+var LESSON_EXPORT_LAYOUTS = ['side', 'corner', 'page'];
+var LESSON_EXPORT_MODES = ['follow', 'page'];
+var lessonExportJob = null;
+
+/* What the file is written as. MP4 with H.264 and AAC first: it plays on every
+   phone, in QuickTime, on Windows and on YouTube. WebM is the fallback for a
+   browser that will not write MP4 — Chrome before 126, Firefox. */
+function lessonExportMime() {
+  var list = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.4d0028,mp4a.40.2',
+    'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4',
+    'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  for (var i = 0; i < list.length; i++) {
+    try { if (window.MediaRecorder && MediaRecorder.isTypeSupported(list[i])) return list[i]; } catch (e) {}
+  }
+  return '';
+}
+
+/* Where everything goes on the 1920 × 1080 frame. `side` gives the page the
+   left 1440 pixels and the camera a column of its own, so nothing the teacher
+   wrote is ever under their face; `corner` puts the camera over the bottom
+   right of a full-width page; `page` is the page alone. The camera keeps the
+   shape it was recorded in — portrait from an iPad held upright included. */
+function lessonExportLayout(kind, camW, camH) {
+  var W = LESSON_EXPORT_W, H = LESSON_EXPORT_H;
+  var ratio = camW > 0 && camH > 0 ? camW / camH : 16 / 9;
+  if (kind === 'side') {
+    var side = LESSON_EXPORT_SIDE, pad = 28;
+    var cw = side - pad * 2, ch = Math.round(cw / ratio), tallest = Math.round(H * 0.56);
+    if (ch > tallest) { ch = tallest; cw = Math.round(ch * ratio); }
+    return { kind: 'side', page: { x: 0, y: 0, w: W - side, h: H },
+      cam: { x: W - side + Math.round((side - cw) / 2), y: pad, w: cw, h: ch },
+      panel: { x: W - side, y: 0, w: side, h: H } };
+  }
+  if (kind === 'corner') {
+    var pw = 512, ph = Math.round(pw / ratio);
+    if (ph > 420) { ph = 420; pw = Math.round(ph * ratio); }
+    return { kind: 'corner', page: { x: 0, y: 0, w: W, h: H },
+      cam: { x: W - pw - 36, y: H - ph - 36, w: pw, h: ph }, panel: null };
+  }
+  return { kind: 'page', page: { x: 0, y: 0, w: W, h: H }, cam: null, panel: null };
+}
+
+/* The pages one under another, the way the viewer stacks them, in page units:
+   centred on one axis so a scroll from the foot of page 1 to the top of page 2
+   is one continuous pan across the gap rather than a jump between two pages. */
+function lessonExportStack(infos) {
+  var widest = 0, top = 0, rows = {};
+  (infos || []).forEach(function (p) { widest = Math.max(widest, p.baseW); });
+  (infos || []).forEach(function (p) {
+    rows[p.num] = { x: (widest - p.baseW) / 2, y: top, w: p.baseW, h: p.baseH };
+    top += p.baseH + LESSON_EXPORT_GAP;
+  });
+  return { rows: rows, w: widest, h: Math.max(0, top - LESSON_EXPORT_GAP) };
+}
+
+/* The size of the teacher's viewer, as the manifest remembers it. Anything
+   that is not a sensible pair of numbers is no size at all. */
+function lessonExportViewport(value) {
+  if (!value || typeof value !== 'object') return null;
+  var w = value.w, h = value.h;
+  if (typeof w !== 'number' || typeof h !== 'number' || !isFinite(w) || !isFinite(h) ||
+      w < 120 || h < 120 || w > 20000 || h > 20000) return null;
+  return { w: w, h: h };
+}
+
+/* Where the frame wants to be for one recorded view: a centre in page-stack
+   units and a scale in frame pixels per page unit. It shows AT LEAST what the
+   teacher saw — the region their viewer held, fitted into the frame's page
+   area — so the video is never tighter than the lesson was. */
+function lessonExportTarget(view, stack, area, mode, viewport) {
+  var row = stack.rows[view.page];
+  if (!row) {
+    var first = Object.keys(stack.rows).map(Number).sort(function (a, b) { return a - b; })[0];
+    row = stack.rows[first] || { x: 0, y: 0, w: area.w, h: area.h };
+  }
+  var fitPage = Math.min(area.w / (row.w + 48), area.h / (row.h + 48));
+  if (mode === 'page') return { x: row.x + row.w / 2, y: row.y + row.h / 2, s: fitPage };
+  var zoom = view.zoom > 0 ? view.zoom : 1;
+  // A recording from before the viewer's size was kept: the page at its full
+  // width, which is what almost every lesson is taught at.
+  var vw = viewport ? viewport.w : row.w * zoom + 48;
+  var vh = viewport ? viewport.h : vw * area.h / area.w;
+  // The desk either side of the page carries nothing, so a viewer wider than
+  // the page is framed at the page's own width: the height the teacher saw,
+  // with the paper as large as the frame allows.
+  var rw = Math.min(vw / zoom, row.w + 48), rh = vh / zoom;
+  var s = Math.min(area.w / rw, area.h / rh);
+  // Never so far out that the page is a stamp, never so far in that one
+  // word fills the frame.
+  s = Math.max(fitPage * 0.8, Math.min(s, 6));
+  return { x: row.x + view.x, y: row.y + view.y, s: s };
+}
+
+/* Keep the frame on the paper: a margin of desk round the stack, never a
+   screen of it. A stack narrower than the frame is simply centred. */
+function lessonExportClamp(t, stack, area) {
+  var hw = area.w / (2 * t.s), hh = area.h / (2 * t.s), m = 36;
+  var x = stack.w + 2 * m <= 2 * hw ? stack.w / 2 : Math.max(hw - m, Math.min(stack.w + m - hw, t.x));
+  var y = stack.h + 2 * m <= 2 * hh ? stack.h / 2 : Math.max(hh - m, Math.min(stack.h + m - hh, t.y));
+  return { x: x, y: y, s: t.s };
+}
+
+/* A scroll becomes a pan. Exponential, in MEDIA time, so the same lesson
+   exported twice frames itself the same way. The scale eases in log space, or
+   a zoom out would rush and a zoom in would crawl. A first frame, or a jump of
+   more than two seconds (a seek), snaps. */
+function lessonExportEase(cur, target, dt) {
+  if (!cur || !(dt >= 0) || dt > 2000) return { x: target.x, y: target.y, s: target.s };
+  var k = 1 - Math.exp(-dt / LESSON_EXPORT_TAU);
+  return { x: cur.x + (target.x - cur.x) * k, y: cur.y + (target.y - cur.y) * k,
+    s: Math.exp(Math.log(cur.s) + (Math.log(target.s) - Math.log(cur.s)) * k) };
+}
+
+/* How sharp the pages are rasterised: as sharp as the closest frame needs, but
+   never past LESSON_EXPORT_RASTER_MAX, and never past a shared pixel budget. */
+function lessonExportRasterScale(sNeed, area) {
+  var budget = Math.sqrt(LESSON_EXPORT_PX_BUDGET / Math.max(1, area));
+  return Math.max(0.5, Math.min(LESSON_EXPORT_RASTER_MAX, sNeed > 0 ? sNeed : 1, budget));
+}
+
+function lessonExportBytes(ms) {
+  return Math.round((LESSON_EXPORT_VBPS + LESSON_EXPORT_ABPS) / 8 * Math.max(0, ms || 0) / 1000);
+}
+function lessonExportSizeText(bytes) {
+  var mb = Math.max(0, bytes || 0) / 1048576;
+  if (mb >= 1024) return (mb / 1024).toFixed(1) + ' GB';
+  return (mb < 10 ? mb.toFixed(1) : String(Math.round(mb))) + ' MB';
+}
+function lessonExportFileName(worksheet, label, mime) {
+  var base = (String(worksheet || 'Lesson').trim() + ' — ' + String(label || 'lesson').trim())
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return base + ' (1080p).' + recExt(mime || 'video/webm');
+}
+function lessonExportPrefs() {
+  var p = lessonPrefGet(LESSON_EXPORT_PREF) || {};
+  return { layout: LESSON_EXPORT_LAYOUTS.indexOf(p.layout) >= 0 ? p.layout : 'side',
+    mode: LESSON_EXPORT_MODES.indexOf(p.mode) >= 0 ? p.mode : 'follow' };
+}
+
+/* ---- Painting one frame ---- */
+function lessonExportRound(ctx, x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function lessonExportWrap(ctx, text, maxW, maxLines) {
+  var words = String(text || '').split(/\s+/).filter(Boolean), lines = [], line = '';
+  words.forEach(function (w) {
+    var t = line ? line + ' ' + w : w;
+    if (line && ctx.measureText(t).width > maxW) { lines.push(line); line = w; } else line = t;
+  });
+  if (line) lines.push(line);
+  if (lines.length > maxLines) {
+    lines = lines.slice(0, maxLines);
+    var last = lines[maxLines - 1];
+    while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1);
+    lines[maxLines - 1] = last + '…';
+  }
+  return lines;
+}
+function lessonExportBrand(ctx, x, y, size, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 64, size / 64);
+  lessonExportRound(ctx, 2, 2, 60, 60, 16);
+  ctx.fillStyle = '#C2185B';
+  ctx.fill();
+  if (typeof Path2D === 'function') {
+    try { ctx.fillStyle = '#FFFFFF'; ctx.fill(new Path2D(LESSON_EXPORT_MARK), 'evenodd'); } catch (e) {}
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.font = 'bold ' + Math.round(size * 0.44) + 'px ' + LESSON_EXPORT_FONT;
+  ctx.fillStyle = color || '#D5DEE5';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Polymath Learning Centre', x + size + 14, y + size / 2);
+  ctx.restore();
+}
+function lessonExportCamera(ctx, job, R) {
+  var v = job.media, vw = v.videoWidth || 0, vh = v.videoHeight || 0;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
+  lessonExportRound(ctx, R.x, R.y, R.w, R.h, 18);
+  ctx.fillStyle = '#0B0E11';
+  ctx.fill();
+  ctx.restore();
+  if (vw && vh) {
+    ctx.save();
+    lessonExportRound(ctx, R.x, R.y, R.w, R.h, 18);
+    ctx.clip();
+    var k = Math.max(R.w / vw, R.h / vh), dw = vw * k, dh = vh * k;
+    try { ctx.drawImage(v, R.x + (R.w - dw) / 2, R.y + (R.h - dh) / 2, dw, dh); } catch (e) { /* no frame yet */ }
+    ctx.restore();
+  }
+  ctx.save();
+  lessonExportRound(ctx, R.x, R.y, R.w, R.h, 18);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255,255,255,0.88)';
+  ctx.stroke();
+  ctx.restore();
+}
+function lessonExportPanel(ctx, job, state) {
+  var L = job.layout, P = L.panel, pad = 28, x = P.x + pad, w = P.w - pad * 2;
+  ctx.save();
+  ctx.fillStyle = '#171C21';
+  ctx.fillRect(P.x, P.y, P.w, P.h);
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.fillRect(P.x, P.y, 2, P.h);
+  ctx.restore();
+  if (L.cam) lessonExportCamera(ctx, job, L.cam);
+  var y = L.cam ? L.cam.y + L.cam.h + 30 : 40;
+  ctx.save();
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 34px ' + LESSON_EXPORT_FONT;
+  lessonExportWrap(ctx, job.title, w, 3).forEach(function (line) { y += 42; ctx.fillText(line, x, y); });
+  if (job.subtitle) {
+    ctx.fillStyle = '#A9BCCB';
+    ctx.font = '24px ' + LESSON_EXPORT_FONT;
+    y += 10;
+    lessonExportWrap(ctx, job.subtitle, w, 2).forEach(function (line) { y += 32; ctx.fillText(line, x, y); });
+  }
+  var chip = 'Page ' + state.view.page + ' of ' + job.infos.length;
+  ctx.font = 'bold 20px ' + LESSON_EXPORT_FONT;
+  var tw = ctx.measureText(chip).width;
+  y += 26;
+  lessonExportRound(ctx, x, y, tw + 30, 40, 20);
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.fill();
+  ctx.fillStyle = '#E3EBF1';
+  ctx.fillText(chip, x + 15, y + 27);
+  ctx.restore();
+  lessonExportBrand(ctx, x, P.h - 40 - 48, 48);
+}
+// With no side panel the title is said once, at the start, and then gets out
+// of the way of the page.
+function lessonExportCaption(ctx, job, t) {
+  if (t > 5000) return;
+  var alpha = t < 4000 ? 1 : Math.max(0, 1 - (t - 4000) / 1000);
+  if (!(alpha > 0)) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = 'bold 30px ' + LESSON_EXPORT_FONT;
+  var lines = lessonExportWrap(ctx, job.title, 760, 2);
+  var sub = job.subtitle ? lessonExportWrap(ctx, job.subtitle, 760, 1) : [];
+  var h = 36 + lines.length * 40 + sub.length * 34 + 70;
+  var x = 36, y = LESSON_EXPORT_H - 36 - h;
+  lessonExportRound(ctx, x, y, 820, h, 20);
+  ctx.fillStyle = 'rgba(16,20,24,0.84)';
+  ctx.fill();
+  var ty = y + 22;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textBaseline = 'alphabetic';
+  lines.forEach(function (line) { ty += 40; ctx.fillText(line, x + 28, ty); });
+  ctx.font = '24px ' + LESSON_EXPORT_FONT;
+  ctx.fillStyle = '#A9BCCB';
+  sub.forEach(function (line) { ty += 34; ctx.fillText(line, x + 28, ty); });
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  lessonExportBrand(ctx, x + 28, y + h - 58, 40);
+  ctx.restore();
+}
+function lessonExportDraw(job, t, dt) {
+  var ctx = job.ctx, L = job.layout, A = L.page;
+  var state = job.player.stateAt(Math.max(0, Math.min(job.duration, t)));
+  var target = lessonExportClamp(lessonExportTarget(state.view, job.stack, A, job.mode, job.viewport), job.stack, A);
+  job.view = lessonExportEase(job.view, target, dt);
+  var s = job.view.s;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = LESSON_EXPORT_DESK;
+  ctx.fillRect(0, 0, LESSON_EXPORT_W, LESSON_EXPORT_H);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(A.x, A.y, A.w, A.h);
+  ctx.clip();
+  var ox = A.x + A.w / 2 - job.view.x * s, oy = A.y + A.h / 2 - job.view.y * s;
+  job.infos.forEach(function (p) {
+    var row = job.stack.rows[p.num];
+    var px = ox + row.x * s, py = oy + row.y * s, pw = row.w * s, ph = row.h * s;
+    if (px > A.x + A.w || py > A.y + A.h || px + pw < A.x || py + ph < A.y) return;
+    // A soft edge under the paper — two cheap offsets rather than a blur, which
+    // on a page-sized rectangle is the most expensive thing in the frame.
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(px + 2, py + 5, pw, ph);
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fillRect(px + 4, py + 10, pw, ph);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(px, py, pw, ph);
+    var raster = job.rasters[p.num];
+    if (raster) ctx.drawImage(raster, px, py, pw, ph);
+    var card = job.cards[p.num];
+    if (card) ctx.drawImage(card, px, py, pw, ph);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(px, py, pw, ph);
+    ctx.clip();
+    ctx.translate(px, py);
+    drawAnnsOnCtx(ctx, s, s, state.annotations, p.num);
+    ctx.restore();
+  });
+  ctx.restore();
+  if (L.panel) lessonExportPanel(ctx, job, state);
+  else {
+    if (L.cam) lessonExportCamera(ctx, job, L.cam);
+    lessonExportCaption(ctx, job, t);
+  }
+}
+
+/* ---- Getting a lesson ready ---- */
+function lessonExportAlive(job) {
+  if (lessonExportJob !== job || job.controller.signal.aborted) {
+    var e = new Error('Export cancelled.'); e.name = 'AbortError'; throw e;
+  }
+  // The pages are rasterised off THIS worksheet's PDF, for THIS teacher.
+  if (!lessonTeacher() || currentUser.uid !== job.uid || wsEpoch !== job.epoch) {
+    throw new Error('The worksheet or the account changed. Open the lesson again to export it.');
+  }
+}
+function lessonExportUi(job) {
+  if (lessonExportJob !== job) return;
+  var phase = job.phase, busy = phase === 'loading' || phase === 'starting' || phase === 'exporting' || phase === 'finishing';
+  $('lessonExportGo').disabled = !job.needsTap && phase !== 'ready' && phase !== 'done' && phase !== 'failed';
+  $('lessonExportGo').textContent = job.needsTap ? '▶ Continue' : phase === 'done' ? '⬇ Download again' :
+    phase === 'failed' ? '↻ Try again' : '⬇ Export video';
+  $('lessonExportCancel').textContent = busy && phase !== 'loading' ? 'Stop' : phase === 'done' ? 'Close' : 'Cancel';
+  $('lessonExportShare').hidden = !(phase === 'done' && job.file && navigator.canShare && lessonExportCanShare(job.file));
+  $('lessonExportProgress').hidden = !(phase === 'exporting' || phase === 'finishing' || phase === 'starting' || phase === 'done');
+  document.querySelectorAll('#lessonExportModal [data-lx-layout], #lessonExportModal [data-lx-mode]').forEach(function (b) {
+    var on = b.hasAttribute('data-lx-layout') ? b.getAttribute('data-lx-layout') === job.layoutKind : b.getAttribute('data-lx-mode') === job.mode;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.disabled = busy || phase === 'done';
+  });
+  $('lessonExportLayoutRow').hidden = !job.video;
+}
+function lessonExportCanShare(file) {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { return false; }
+}
+function lessonExportInfo(text, bad) {
+  var n = $('lessonExportInfo');
+  n.textContent = text;
+  n.classList.toggle('bad', !!bad);
+}
+function lessonExportProgress(done, total, words) {
+  var pct = total > 0 ? Math.max(0, Math.min(100, 100 * done / total)) : 0;
+  $('lessonExportFill').style.width = pct.toFixed(1) + '%';
+  $('lessonExportProgText').textContent = words;
+}
+function lessonExportAbout(job) {
+  var mins = recFmtTime(job.duration);
+  return '1920 × 1080 · ' + mins + ' long · about ' + lessonExportSizeText(lessonExportBytes(job.duration)) +
+    '. It records in real time — ' + mins + ' — so keep this tab open and in front until it finishes.';
+}
+
+async function lessonExportOpen(a) {
+  if (!lessonTeacher()) { toast('Only the teacher can export a lesson as a video.', 4000); return; }
+  if (!a || !a.lessonRecording) { toast('That button has no lesson recording to export.'); return; }
+  if (lessonBusy()) { toast('Finish saving the recording first.'); return; }
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    toast('This browser cannot write a video file. Try Chrome, Edge or Safari.', 5000); return;
+  }
+  var running = lessonExportJob;
+  if (running && ['starting', 'exporting', 'finishing'].indexOf(running.phase) >= 0) {
+    $('lessonExportModal').classList.add('open'); return;
+  }
+  if (running) lessonExportClose(true);
+  if (typeof lessonPlaylistStop === 'function') lessonPlaylistStop();
+  // The export plays a copy of its own; a replay left open underneath would
+  // be a second copy of the same voice.
+  lessonExitPlayback();
+  var prefs = lessonExportPrefs(), video = !!a.lessonRecording.video;
+  var job = lessonExportJob = { ann: a, phase: 'loading', epoch: wsEpoch, docId: currentDocId, uid: currentUser.uid,
+    controller: new AbortController(), video: video, layoutKind: video ? prefs.layout : 'page', mode: prefs.mode,
+    rasters: {}, cards: {}, view: null, chunks: [], title: docName || 'Worksheet',
+    subtitle: videoPillLabel(a).replace(/^Play /, ''), canvas: $('lessonExportCanvas'), media: lessonExportMediaNode() };
+  job.subtitle = job.subtitle.charAt(0).toUpperCase() + job.subtitle.slice(1);
+  job.ctx = job.canvas.getContext('2d');
+  $('lessonExportModal').classList.add('open');
+  try { $('lessonExportCard').focus({ preventScroll: true }); } catch (e) {}
+  lessonExportUi(job);
+  lessonExportProgress(0, 1, '');
+  job.ctx.fillStyle = LESSON_EXPORT_DESK;
+  job.ctx.fillRect(0, 0, LESSON_EXPORT_W, LESSON_EXPORT_H);
+  lessonExportInfo('Getting the lesson ready…');
+  try {
+    await lessonExportPrepare(job);
+    lessonExportAlive(job);
+    job.phase = 'ready';
+    lessonExportRelayout(job);
+    lessonExportInfo(lessonExportAbout(job));
+  } catch (e) {
+    if (lessonExportJob !== job || (e && e.name === 'AbortError')) return;
+    job.phase = 'failed';
+    lessonExportInfo((e && e.message) || 'This lesson could not be prepared for export.', true);
+  }
+  lessonExportUi(job);
+}
+
+async function lessonExportPrepare(job) {
+  var a = job.ann, signal = job.controller.signal;
+  var mediaUrl = lessonAssetUrl(a.url);
+  var result = await Promise.all([lessonReadManifest(a.lessonRecording.manifestUrl, signal), lessonPdfHash()]);
+  lessonExportAlive(job);
+  var manifest = result[0];
+  if (!manifest || manifest.version !== 1 || manifest.worksheetId !== job.docId || manifest.pdfHash !== result[1] ||
+      manifest.pageCount !== pages.length) {
+    throw new Error('This recording belongs to an earlier version of the PDF. Open the original worksheet to export it.');
+  }
+  var timeline = LessonReplayCore.parse(manifest.timeline);
+  var views = [timeline.initial.view].concat(timeline.events.filter(function (e) { return e.type === 'view'; }).map(function (e) { return e.view; }));
+  var drawings = timeline.initial.annotations.concat(timeline.events.filter(function (e) { return e.type === 'upsert'; }).map(function (e) { return e.annotation; }));
+  if (views.some(function (v) { return v.page > pages.length || v.zoom < 0.25 || v.zoom > 4; }) ||
+      drawings.some(function (n) { return n.page > pages.length; })) throw new Error('The lesson contains an invalid page view.');
+  job.player = LessonReplayCore.createPlayer(timeline);
+  job.duration = timeline.duration;
+  job.viewport = lessonExportViewport(manifest.viewport);
+  job.infos = pages.map(function (p) { return { num: p.num, baseW: p.baseW, baseH: p.baseH }; });
+  job.stack = lessonExportStack(job.infos);
+  // The note cards and pictures, painted once, exactly as the replay shows them.
+  var backgrounds = lessonValidateBackgrounds(manifest.backgrounds, pages);
+  for (var b of backgrounds) job.cards[b.page] = await lessonBackgroundImage(b.data, signal);
+  lessonExportAlive(job);
+  // Only the pages the lesson ever shows, writes on or pans across.
+  var wanted = new Set();
+  views.forEach(function (v) { [v.page - 1, v.page, v.page + 1].forEach(function (n) { if (n >= 1 && n <= pages.length) wanted.add(n); }); });
+  drawings.forEach(function (n) { wanted.add(n.page); });
+  var full = { x: 0, y: 0, w: LESSON_EXPORT_W, h: LESSON_EXPORT_H };
+  var need = 0, area = 0;
+  views.forEach(function (v) {
+    need = Math.max(need, lessonExportTarget(v, job.stack, full, 'follow', job.viewport).s,
+      lessonExportTarget(v, job.stack, full, 'page', job.viewport).s);
+  });
+  wanted.forEach(function (n) { var p = pages[n - 1]; area += p.baseW * p.baseH; });
+  var sr = lessonExportRasterScale(need, area), done = 0;
+  for (var n of Array.from(wanted).sort(function (x, y) { return x - y; })) {
+    lessonExportAlive(job);
+    lessonExportInfo('Getting the pages ready… ' + (++done) + ' of ' + wanted.size);
+    job.rasters[n] = await lessonExportRaster(pages[n - 1], sr);
+  }
+  lessonExportAlive(job);
+  lessonExportInfo('Getting the lesson video ready…');
+  await lessonExportLoadMedia(job, mediaUrl);
+  lessonExportAlive(job);
+  job.mediaDuration = Number.isFinite(job.media.duration) ? job.media.duration * 1000 : 0;
+}
+
+async function lessonExportRaster(p, s) {
+  if (!p || !p.page) return null;
+  var viewport = p.page.getViewport({ scale: s });
+  var cnv = document.createElement('canvas');
+  cnv.width = Math.max(1, Math.floor(viewport.width));
+  cnv.height = Math.max(1, Math.floor(viewport.height));
+  var ctx = cnv.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, cnv.width, cnv.height);
+  await p.page.render({ canvasContext: ctx, viewport: viewport }).promise;
+  return cnv;
+}
+
+/* A FRESH <video> FOR EVERY EXPORT, never one kept in the markup. A media
+   element can be wired into Web Audio exactly once in its life — a second
+   `createMediaElementSource` on it throws — and once its AudioContext is
+   closed it plays SILENCE. A shared element would export the first lesson
+   with sound and every one after it without, or not at all. */
+function lessonExportMediaNode() {
+  var old = $('lessonExportVideo');
+  if (old) old.remove();
+  var v = document.createElement('video');
+  v.id = 'lessonExportVideo';
+  v.setAttribute('playsinline', '');
+  v.setAttribute('aria-hidden', 'true');
+  v.preload = 'auto';
+  $('lessonExportStage').appendChild(v);
+  return v;
+}
+
+/* The media goes into a <video> of the export's own. It is asked for with
+   CORS so its frames and its sound can be written into a new file — the
+   bucket allows it (cors.json) — and if that load is refused the file is
+   fetched whole instead, which is same-origin once it is a blob. */
+function lessonExportLoadMedia(job, url) {
+  var media = job.media;
+  function attempt(src, cors) {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { finish(new Error('The lesson video took too long to load.')); }, 45000);
+      function finish(error) {
+        clearTimeout(timer);
+        media.removeEventListener('loadeddata', ok);
+        media.removeEventListener('error', bad);
+        job.controller.signal.removeEventListener('abort', gone);
+        if (error) reject(error); else resolve();
+      }
+      function ok() { finish(); }
+      function bad() { finish(new Error('The lesson video could not be loaded.')); }
+      function gone() { finish(Object.assign(new Error('Export cancelled.'), { name: 'AbortError' })); }
+      media.addEventListener('loadeddata', ok);
+      media.addEventListener('error', bad);
+      job.controller.signal.addEventListener('abort', gone, { once: true });
+      if (cors) media.crossOrigin = 'anonymous'; else media.removeAttribute('crossorigin');
+      media.preload = 'auto';
+      media.playsInline = true;
+      media.src = src;
+      try { media.load(); } catch (e) {}
+    });
+  }
+  return attempt(url, /^https?:/i.test(url)).catch(async function (e) {
+    if (e && e.name === 'AbortError') throw e;
+    lessonExportAlive(job);
+    var response = await fetch(url, { signal: job.controller.signal });
+    if (!response.ok) throw new Error('The lesson video could not be downloaded for export.');
+    var blob = await response.blob();
+    lessonExportAlive(job);
+    job.objectUrl = URL.createObjectURL(blob);
+    await attempt(job.objectUrl, false);
+  });
+}
+
+// The layout needs the camera's own shape, which the media only knows once it
+// has loaded; the preview is redrawn whenever a choice changes.
+function lessonExportRelayout(job) {
+  var kind = job.video ? job.layoutKind : 'page';
+  job.layout = lessonExportLayout(kind, job.media.videoWidth, job.media.videoHeight);
+  job.view = null;
+  if (job.player) lessonExportDraw(job, 0, 0);
+}
+function lessonExportChoose(kind, value) {
+  var job = lessonExportJob;
+  if (!job || !lessonTeacher() || job.phase !== 'ready') return;
+  if (kind === 'layout' && LESSON_EXPORT_LAYOUTS.indexOf(value) >= 0) job.layoutKind = value;
+  if (kind === 'mode' && LESSON_EXPORT_MODES.indexOf(value) >= 0) job.mode = value;
+  lessonPrefSet(LESSON_EXPORT_PREF, { layout: job.layoutKind, mode: job.mode });
+  lessonExportRelayout(job);
+  lessonExportUi(job);
+}
+
+/* ---- Recording the frames ---- */
+function lessonExportGo() {
+  var job = lessonExportJob;
+  if (!job || !lessonTeacher()) return;
+  if (job.needsTap) { lessonExportResume(job); return; }
+  if (job.phase === 'done') { lessonExportDownload(job); return; }
+  if (job.phase === 'failed') {
+    // A fresh start from the lesson itself: whatever failed held a recorder,
+    // a sound graph or a media element that is no longer any use.
+    var again = job.ann;
+    lessonExportClose(true);
+    lessonExportOpen(again);
+    return;
+  }
+  if (job.phase !== 'ready') return;
+  var mime = lessonExportMime();
+  if (!mime && !window.MediaRecorder) { lessonExportInfo('This browser cannot write a video file.', true); return; }
+  job.phase = 'starting';
+  job.mime = mime;
+  // Everything a browser only allows inside a tap happens HERE, before the
+  // first await: the sound's AudioContext, and the media's first play().
+  try {
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    job.audioCtx = new AudioCtx();
+    var resumed = job.audioCtx.resume();
+    if (resumed && resumed.catch) resumed.catch(function () {});
+    var bless = job.media.play();
+    if (bless && bless.catch) bless.catch(function () {});
+    job.media.pause();
+  } catch (e) { /* reported by the start below */ }
+  lessonExportUi(job);
+  lessonExportRun(job).catch(function (e) { lessonExportFail(job, e); });
+}
+
+async function lessonExportRun(job) {
+  var media = job.media;
+  try { media.currentTime = 0; } catch (e) {}
+  if (!job.audioCtx) throw new Error('This browser cannot mix the lesson sound into a video.');
+  // The lesson's sound goes into the file and NOT into the speakers: the
+  // export is silent in the room, and a teacher can carry on while it runs.
+  job.source = job.audioCtx.createMediaElementSource(media);
+  job.dest = job.audioCtx.createMediaStreamDestination();
+  job.source.connect(job.dest);
+  job.frames = job.canvas.captureStream(LESSON_EXPORT_FPS);
+  // The frame is painted BEFORE the recorder is asked for anything: a canvas
+  // track that has never been drawn on has no frame to give, and a recorder
+  // waiting on one starts late.
+  job.view = null;
+  job.lastT = 0;
+  lessonExportDraw(job, 0, 0);
+  var tracks = job.frames.getVideoTracks().concat(job.dest.stream.getAudioTracks());
+  var options = { videoBitsPerSecond: LESSON_EXPORT_VBPS, audioBitsPerSecond: LESSON_EXPORT_ABPS };
+  if (job.mime) options.mimeType = job.mime;
+  try { job.recorder = new MediaRecorder(new MediaStream(tracks), options); }
+  catch (e) { delete options.mimeType; job.recorder = new MediaRecorder(new MediaStream(tracks), options); }
+  job.recorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) job.chunks.push(ev.data); };
+  job.recorder.onerror = function () { lessonExportFail(job, new Error('The browser stopped writing the video.')); };
+  job.recorder.onstop = function () { lessonExportFinish(job); };
+  /* THE RECORDER FOLLOWS THE MEDIA. It starts paused and runs only while the
+     lesson is really playing — so the file has no frozen second at its front
+     while the media spins up, none where the network stalled it, and none for
+     the time the tab was hidden. The media's own events drive it, which also
+     catches a pause nobody here asked for (an iPad taking the audio for a
+     phone call). `pause` fires just before `ended` with `ended` already true,
+     and that one must not pause the recorder under the final frame. */
+  job.onPlaying = function () { if (job.recorder && job.recorder.state === 'paused') job.recorder.resume(); };
+  job.onHalt = function () { if (!media.ended && job.recorder && job.recorder.state === 'recording') job.recorder.pause(); };
+  media.addEventListener('playing', job.onPlaying);
+  media.addEventListener('pause', job.onHalt);
+  media.addEventListener('waiting', job.onHalt);
+  media.addEventListener('ended', job.onEnded = function () { lessonExportEnded(job); });
+  job.recorder.start(1000);
+  if (job.recorder.state === 'recording') job.recorder.pause();
+  lessonExportAlive(job);
+  job.phase = 'exporting';
+  lessonExportUi(job);
+  lessonExportWake(job);
+  job.raf = requestAnimationFrame(function () { lessonExportTick(job); });
+  try { await media.play(); }
+  catch (e) {
+    if (lessonExportJob !== job || job.phase !== 'exporting') return;
+    // A browser that let the tap go: one more tap starts it.
+    lessonExportNeedsTap(job, 'Press ▶ Continue — this browser wants one more tap to play the lesson.');
+  }
+}
+function lessonExportNeedsTap(job, words) {
+  job.needsTap = true;
+  lessonExportInfo(words, true);
+  lessonExportUi(job);
+}
+function lessonExportResume(job) {
+  if (!job || !job.needsTap) return;
+  job.needsTap = false;
+  lessonExportUi(job);
+  var go = job.media.play();
+  if (go && go.then) go.then(function () {
+    if (lessonExportJob === job) lessonExportInfo(lessonExportAbout(job));
+  }, function (x) { lessonExportFail(job, x); });
+}
+
+function lessonExportTick(job) {
+  if (lessonExportJob !== job || job.phase !== 'exporting') return;
+  // The device changed hands mid-export: the teacher's lesson is not left
+  // playing into a file on somebody else's screen.
+  if (!lessonTeacher() || !currentUser || currentUser.uid !== job.uid) { lessonExportClose(true); return; }
+  var media = job.media, t = Math.max(0, (media.currentTime || 0) * 1000);
+  // ~30 frames a second of MEDIA time: a still page is not repainted for
+  // nothing, and the recorder is fed at the rate it records.
+  if (!job.lastDraw || t - job.lastT >= 1000 / LESSON_EXPORT_FPS - 2 || t < job.lastT) {
+    lessonExportDraw(job, t, t - job.lastT);
+    job.lastT = t;
+    job.lastDraw = true;
+  }
+  var total = Math.max(job.duration, job.mediaDuration || 0);
+  lessonExportProgress(t, total, (job.paused ? 'Paused — come back to this tab to carry on · ' : 'Exporting… ') +
+    recFmtTime(t) + ' of ' + recFmtTime(total));
+  job.raf = requestAnimationFrame(function () { lessonExportTick(job); });
+}
+
+function lessonExportEnded(job) {
+  if (lessonExportJob !== job || job.phase !== 'exporting') return;
+  job.phase = 'finishing';
+  cancelAnimationFrame(job.raf);
+  var end = Math.max(job.duration, (job.media.currentTime || 0) * 1000);
+  lessonExportDraw(job, end, end - job.lastT);
+  lessonExportProgress(1, 1, 'Finishing the file…');
+  lessonExportUi(job);
+  // The last frame and the last of the sound have to reach the encoder before
+  // it is told to stop, or the video ends a beat early.
+  setTimeout(function () {
+    if (lessonExportJob === job && job.recorder && job.recorder.state !== 'inactive') job.recorder.stop();
+  }, 250);
+}
+
+async function lessonExportFinish(job) {
+  lessonExportRelease(job, false);
+  if (lessonExportJob !== job || job.cancelled) return;
+  var type = (job.recorder && job.recorder.mimeType) || job.mime || 'video/webm';
+  var blob = new Blob(job.chunks, { type: type });
+  job.chunks = [];
+  if (!blob.size) { lessonExportFail(job, new Error('Nothing was written. Try the export again.')); return; }
+  // A WebM straight out of MediaRecorder has no duration, and many players
+  // then cannot seek it. The finalizer writes it in; a file it refuses (one
+  // past its ceiling) is still a perfectly playable video, so it goes as is.
+  if (/webm/i.test(type)) {
+    try { blob = await LessonAudioFinalize.finalize(blob, Math.max(1, Math.round(job.duration))); } catch (e) { /* kept as recorded */ }
+  }
+  if (lessonExportJob !== job) return;
+  job.blob = blob;
+  job.name = lessonExportFileName(job.title, job.subtitle.replace(/\s*·\s*[\d:]+$/, ''), type);
+  try { job.file = new File([blob], job.name, { type: blob.type }); } catch (e) { job.file = null; }
+  job.phase = 'done';
+  lessonExportProgress(1, 1, 'Done · ' + lessonExportSizeText(blob.size));
+  lessonExportInfo('Your 1080p video is ready: “' + job.name + '”. It has been downloaded — press the button again for another copy.');
+  lessonExportUi(job);
+  lessonExportDownload(job);
+}
+
+function lessonExportDownload(job) {
+  if (!job || !job.blob || !lessonTeacher()) return;
+  if (job.url) URL.revokeObjectURL(job.url);
+  job.url = URL.createObjectURL(job.blob);
+  var link = document.createElement('a');
+  link.href = job.url;
+  link.download = job.name || 'lesson (1080p).' + recExt(job.blob.type);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+function lessonExportShare() {
+  var job = lessonExportJob;
+  if (!job || !job.file || !lessonTeacher()) return;
+  navigator.share({ files: [job.file], title: job.name }).catch(function () { /* the share sheet was dismissed */ });
+}
+
+function lessonExportFail(job, e) {
+  if (lessonExportJob !== job || job.cancelled) return;
+  lessonExportRelease(job, true);
+  job.phase = 'failed';
+  lessonExportInfo('The export stopped: ' + ((e && e.message) || 'the browser could not write the video.'), true);
+  lessonExportUi(job);
+}
+
+// Let go of everything a job holds: the frame loop, the recorder, the sound,
+// the wake lock — and, once the job is closed, the page pictures and the media.
+function lessonExportRelease(job, stopRecorder) {
+  cancelAnimationFrame(job.raf);
+  if (job.onEnded) { job.media.removeEventListener('ended', job.onEnded); job.onEnded = null; }
+  if (job.onPlaying) { job.media.removeEventListener('playing', job.onPlaying); job.onPlaying = null; }
+  if (job.onHalt) { job.media.removeEventListener('pause', job.onHalt); job.media.removeEventListener('waiting', job.onHalt); job.onHalt = null; }
+  try { job.media.pause(); } catch (e) {}
+  if (stopRecorder && job.recorder && job.recorder.state !== 'inactive') {
+    job.recorder.onstop = null;
+    try { job.recorder.stop(); } catch (e) {}
+  }
+  if (job.frames) { job.frames.getTracks().forEach(function (t) { t.stop(); }); job.frames = null; }
+  if (job.dest) { job.dest.stream.getTracks().forEach(function (t) { t.stop(); }); }
+  if (job.source) { try { job.source.disconnect(); } catch (e) {} }
+  if (job.audioCtx && job.audioCtx.state !== 'closed') { job.audioCtx.close().catch(function () {}); }
+  job.audioCtx = null;
+  if (job.wake) { job.wake.release().catch(function () {}); job.wake = null; }
+}
+function lessonExportWake(job) {
+  if (!navigator.wakeLock || !navigator.wakeLock.request) return;
+  navigator.wakeLock.request('screen').then(function (lock) {
+    if (lessonExportJob === job && job.phase === 'exporting') job.wake = lock; else lock.release().catch(function () {});
+  }).catch(function () { /* not allowed here — the export runs without it */ });
+}
+
+/* Closing the window ends the job. A finished or failed one simply goes; one
+   still recording is asked about first, because the time spent is lost. */
+function lessonExportClose(force) {
+  var job = lessonExportJob;
+  if (!job) { $('lessonExportModal').classList.remove('open'); return; }
+  var running = ['starting', 'exporting', 'finishing'].indexOf(job.phase) >= 0;
+  if (running && !force && !confirm('Stop the export? The video made so far is thrown away.')) return;
+  job.cancelled = true;
+  job.controller.abort();
+  lessonExportRelease(job, true);
+  var media = job.media;
+  try { media.removeAttribute('src'); media.load(); } catch (e) {}
+  if (media.parentNode) media.parentNode.removeChild(media);
+  if (job.objectUrl) URL.revokeObjectURL(job.objectUrl);
+  if (job.url) { var url = job.url; setTimeout(function () { URL.revokeObjectURL(url); }, 60000); }
+  Object.keys(job.rasters).forEach(function (k) { var c = job.rasters[k]; if (c) { c.width = c.height = 0; } });
+  job.rasters = {}; job.cards = {}; job.chunks = []; job.blob = null; job.file = null;
+  lessonExportJob = null;
+  $('lessonExportModal').classList.remove('open');
+}
+
+// The account or the role changed: the teacher's export goes with them.
+function lessonExportDrop() {
+  if (lessonExportJob) lessonExportClose(true);
+  else $('lessonExportModal').classList.remove('open');
+}
+
+// A hidden tab gets no frames: the media and the recorder pause together and
+// carry on together when the tab is in front again.
+document.addEventListener('visibilitychange', function () {
+  var job = lessonExportJob;
+  if (!job || job.phase !== 'exporting' || job.needsTap) return;
+  // Pausing the media pauses the recorder with it (see `onHalt`), and its
+  // playing again resumes it.
+  if (document.hidden) {
+    job.paused = true;
+    try { job.media.pause(); } catch (e) {}
+  } else if (job.paused) {
+    job.paused = false;
+    var go = job.media.play();
+    if (go && go.catch) go.catch(function () {
+      if (lessonExportJob === job && job.phase === 'exporting') lessonExportNeedsTap(job, 'Press ▶ Continue to carry on with the export.');
+    });
+    lessonExportWake(job);
+  }
+});
+window.addEventListener('pagehide', function () { if (lessonExportJob) lessonExportClose(true); });
+
+$('lessonExportGo').addEventListener('click', lessonExportGo);
+$('lessonExportCancel').addEventListener('click', function () { lessonExportClose(false); });
+$('lessonExportClose').addEventListener('click', function () { lessonExportClose(false); });
+$('lessonExportShare').addEventListener('click', lessonExportShare);
+$('lessonExportModal').addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('[data-lx-layout], [data-lx-mode]') : null;
+  if (b) lessonExportChoose(b.hasAttribute('data-lx-layout') ? 'layout' : 'mode', b.getAttribute(b.hasAttribute('data-lx-layout') ? 'data-lx-layout' : 'data-lx-mode'));
+});
+// Every keystroke in the window stops there: a letter typed with it open
+// must not reach the one-letter tools behind it.
+$('lessonExportModal').addEventListener('keydown', function (e) {
+  e.stopPropagation();
+  if (e.key === 'Escape') { e.preventDefault(); lessonExportClose(false); }
+});
+$('lessonExportBtn').addEventListener('click', function () {
+  var pb = lessonPlayback;
+  if (!lessonTeacher()) return;
+  if (pb && pb.ann) lessonExportOpen(pb.ann);
+});
+/* ================= End lesson export ================= */
+
+/* ================= 🎬 The worksheet's videos, one after another ================= */
+/* 🎬 EVERY VIDEO ON THE WORKSHEET, IN QUESTION ORDER, PLAYED END TO END.
+   A worksheet with a lesson recorded for question 2, question 5 and question 7
+   was three pills a class had to find and tap one at a time. The playlist
+   plays them in the order the paper asks the questions — page, then down the
+   page, then across — and when one finishes it says what is next, scrolls to
+   that question and plays it.
+
+   `lessonPlaylistItems` IS THE ONE PLACE THE ORDER IS DECIDED, and it is pure,
+   so the list on the panel, the count on the button and the order they play in
+   can never disagree. Pills are ordered by ROW (`PLAYLIST_ROW` page units) and
+   then left to right, never by a tolerance comparison: "within 12 units" is not
+   transitive, and a sort handed an intransitive comparator returns whatever
+   order its engine happens to produce.
+
+   WHAT IS IN IT: every lesson recording, and every older video-solution pill
+   whose link this app can play on the page. A lesson and a direct video file
+   say when they have finished, so the next one follows by itself; a YouTube or
+   Drive player embedded on the page says nothing, so the bar asks for ⏭. A
+   bare link that only opens a new tab is left out — it is not something that
+   can be played after something else.
+
+   IT FOLLOWS THE REPLAY'S OWN RULES rather than having any of its own: a lesson
+   is played through `lessonPlay` and an older pill through `openVideoPop`, so
+   nothing here can play a lesson differently from a tap on its pill.
+
+   IT STOPS WHEN THE PERSON WATCHING STOPS IT. Closing the replay, pressing
+   Escape, closing a video, changing worksheet or changing account all end the
+   playlist (`lessonPlaylistExited`, from `lessonExitPlayback` and
+   `closeVideoPops`) — except while the playlist itself is changing videos,
+   which is what `switching` is for. A playlist that carried on after the replay
+   was closed would start the next lesson under somebody who had just said stop.
+
+   EVERYONE GETS IT. A student watching the lesson Mr Chung recorded for each
+   question is exactly who it is for. The ⬇ 1080p button on a row is the
+   teacher's, and `lessonExportOpen` refuses anybody else in any case. */
+var PLAYLIST_ROW = 24;          // page units: pills this close vertically are one row
+var PLAYLIST_NEXT_MS = 3000;    // "up next" before the next video starts
+var lessonPlaylist = null;
+
+function lessonPlaylistItems(list) {
+  var rows = [];
+  (list || []).forEach(function (a) {
+    if (!a || a.type !== 'video' || !a.url || !Number.isFinite(a.page)) return;
+    var kind = a.lessonRecording ? 'lesson' : videoEmbedInfo(a.url).kind;
+    if (kind === 'link') return;
+    rows.push({ id: a.id, page: a.page, x: Number(a.x) || 0, y: Number(a.y) || 0, kind: kind,
+      video: !!(a.lessonRecording && a.lessonRecording.video), label: videoPillLabel(a) });
+  });
+  return rows.sort(function (p, q) {
+    if (p.page !== q.page) return p.page - q.page;
+    var rp = Math.round(p.y / PLAYLIST_ROW), rq = Math.round(q.y / PLAYLIST_ROW);
+    if (rp !== rq) return rp - rq;
+    return p.x - q.x;
+  });
+}
+
+// The toolbar button is there only when there is something to play, and it
+// says how many. Re-asked from `renderAllOverlays`, the one function every
+// change to the page goes through — a pill added, erased, undone or pasted.
+function lessonPlaylistSync() {
+  var btn = $('playlistBtn');
+  if (!btn) return;
+  var n = pages.length ? lessonPlaylistItems(annotations).length : 0;
+  btn.style.display = n ? '' : 'none';
+  var words = n === 1 ? 'The video on this worksheet' : 'All ' + n + ' videos on this worksheet, one after another';
+  if (btn.getAttribute('data-count') !== String(n)) {
+    btn.setAttribute('data-count', String(n));
+    btn.title = words;
+    btn.setAttribute('aria-label', words);
+    var badge = btn.querySelector('.plCount');
+    if (badge) badge.textContent = n > 1 ? String(n) : '';
+  }
+  if (!n && !$('playlistPanel').hidden) lessonPlaylistClosePanel();
+}
+
+/* ---- The list ---- */
+function lessonPlaylistRenderPanel() {
+  var items = lessonPlaylistItems(annotations), list = $('playlistList');
+  list.replaceChildren();
+  $('playlistSub').textContent = items.length === 1
+    ? 'One video, on page ' + items[0].page + '.'
+    : items.length + ' videos, in question order. Each one starts when the one before it finishes.';
+  items.forEach(function (it, i) {
+    var li = document.createElement('li');
+    li.className = 'plRow';
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'plItem';
+    b.setAttribute('data-pl-play', String(i));
+    var num = document.createElement('span');
+    num.className = 'plNum';
+    num.textContent = String(i + 1);
+    var txt = document.createElement('span');
+    txt.className = 'plText';
+    var t1 = document.createElement('b');
+    t1.textContent = it.label;
+    var t2 = document.createElement('small');
+    t2.textContent = 'Page ' + it.page + (it.kind === 'iframe' ? ' · plays in its own player — press ⏭ after it'
+      : it.video ? ' · with the camera' : it.kind === 'lesson' ? ' · voice and writing' : ' · video');
+    txt.appendChild(t1);
+    txt.appendChild(t2);
+    b.appendChild(num);
+    b.appendChild(txt);
+    li.appendChild(b);
+    if (it.kind === 'lesson' && lessonTeacher()) {
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'plExport';
+      x.setAttribute('data-pl-export', it.id);
+      x.title = 'Export this lesson as a 1080p video';
+      x.setAttribute('aria-label', x.title);
+      x.textContent = '⬇ 1080p';
+      li.appendChild(x);
+    }
+    list.appendChild(li);
+  });
+}
+function lessonPlaylistOutside(e) {
+  var panel = $('playlistPanel');
+  if (panel.hidden) return;
+  if (panel.contains(e.target) || (e.target.closest && e.target.closest('#playlistBtn'))) return;
+  lessonPlaylistClosePanel();
+}
+function lessonPlaylistOpenPanel() {
+  var items = lessonPlaylistItems(annotations);
+  if (!items.length) { toast('There are no videos on this worksheet yet.'); return; }
+  lessonPlaylistRenderPanel();
+  $('playlistPanel').hidden = false;
+  $('playlistBtn').setAttribute('aria-expanded', 'true');
+  document.addEventListener('pointerdown', lessonPlaylistOutside, true);
+  try { $('playlistAll').focus({ preventScroll: true }); } catch (e) {}
+}
+function lessonPlaylistClosePanel() {
+  $('playlistPanel').hidden = true;
+  var btn = $('playlistBtn');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  document.removeEventListener('pointerdown', lessonPlaylistOutside, true);
+}
+function lessonPlaylistTogglePanel() {
+  if ($('playlistPanel').hidden) lessonPlaylistOpenPanel(); else lessonPlaylistClosePanel();
+}
+
+/* A tap is what lets a browser play sound, and a playlist plays several things
+   long after the tap that started it. Every media element the playlist may use
+   is played and paused INSIDE that tap, which is what Safari needs to allow
+   the later ones. An element already holding a lesson is left alone. */
+function lessonBlessMedia() {
+  ['lessonAudio', 'lessonVideo'].forEach(function (key) {
+    var m = $(key);
+    if (!m || m.getAttribute('src')) return;
+    try { var go = m.play(); if (go && go.catch) go.catch(function () {}); m.pause(); } catch (e) {}
+  });
+}
+
+/* ---- Playing ---- */
+function lessonPlaylistStart(from) {
+  var items = lessonPlaylistItems(annotations);
+  lessonPlaylistClosePanel();
+  if (!items.length) { toast('There are no videos on this worksheet yet.'); return; }
+  if (lessonBusy()) { toast('Finish saving the recording first.'); return; }
+  lessonBlessMedia();
+  lessonPlaylistStop();
+  var pl = lessonPlaylist = { items: items, index: -1, epoch: wsEpoch, docId: currentDocId,
+    phase: 'starting', timer: null, switching: false, seq: 0, manual: false };
+  $('playlistBar').hidden = false;
+  lessonPlaylistPlay(pl, Math.max(0, Math.min(items.length - 1, Number(from) || 0)));
+}
+
+// Scroll the next question into view, a third of the way down the screen: the
+// class sees where the lesson is going before it starts.
+function lessonPlaylistReveal(p, a) {
+  var area = $('viewerArea');
+  if (!area || !p || !p.wrap) return;
+  var top = Math.max(0, p.wrap.offsetTop + (a.y / p.baseH) * p.wrap.clientHeight - area.clientHeight * 0.3);
+  try { area.scrollTo({ top: top, behavior: 'smooth' }); } catch (e) { area.scrollTop = top; }
+}
+
+async function lessonPlaylistPlay(pl, i) {
+  if (lessonPlaylist !== pl) return;
+  clearTimeout(pl.timer);
+  pl.timer = null;
+  if (pl.epoch !== wsEpoch || pl.docId !== currentDocId) { lessonPlaylistStop(); return; }
+  if (i >= pl.items.length) { lessonPlaylistDone(pl); return; }
+  pl.index = Math.max(0, i);
+  pl.phase = 'playing';
+  pl.manual = false;
+  var seq = ++pl.seq, item = pl.items[pl.index];
+  var a = annotations.find(function (x) { return x.id === item.id; });
+  var p = a && pages[a.page - 1];
+  lessonPlaylistRender(pl);
+  if (!a || !p) { lessonPlaylistSkip(pl, 'That video is no longer on the worksheet.'); return; }
+  pl.switching = true;
+  try {
+    closeVideoPops();
+    lessonExitPlayback();
+    lessonPlaylistReveal(p, a);
+    if (a.lessonRecording) await lessonPlay(a);
+    else lessonPlaylistPop(pl, p, a);
+  } catch (e) {
+    console.warn('playlist', e);
+  } finally { pl.switching = false; }
+  if (lessonPlaylist !== pl || pl.seq !== seq) return;
+  if (a.lessonRecording && !lessonPlayback) lessonPlaylistSkip(pl, 'That lesson could not be played.');
+  else lessonPlaylistRender(pl);
+}
+
+// An older pill plays in the page's own pop-up player. A file says when it
+// has ended; an embedded YouTube or Drive player says nothing, so it waits
+// for ⏭.
+function lessonPlaylistPop(pl, p, a) {
+  openVideoPop(p, a);
+  var pop = p.wrap.querySelector('.videoPop');
+  var vid = pop && pop.querySelector('video');
+  if (vid) {
+    vid.addEventListener('ended', function () {
+      var cur = pl.items[pl.index];
+      if (lessonPlaylist === pl && pl.phase === 'playing' && cur && cur.id === a.id) lessonPlaylistUpNext(pl);
+    });
+  } else pl.manual = true;
+}
+
+function lessonPlaylistSkip(pl, why) {
+  if (lessonPlaylist !== pl) return;
+  pl.phase = 'skip';
+  lessonPlaylistStatus(why + (pl.index < pl.items.length - 1 ? ' Moving on…' : ''));
+  pl.timer = setTimeout(function () { lessonPlaylistPlay(pl, pl.index + 1); }, 1600);
+}
+
+function lessonPlaylistUpNext(pl) {
+  if (lessonPlaylist !== pl) return;
+  if (pl.index >= pl.items.length - 1) { lessonPlaylistDone(pl); return; }
+  pl.phase = 'next';
+  pl.nextAt = Date.now() + PLAYLIST_NEXT_MS;
+  lessonPlaylistRender(pl);
+  var tick = function () {
+    if (lessonPlaylist !== pl || pl.phase !== 'next') return;
+    var left = pl.nextAt - Date.now();
+    if (left <= 0) { lessonPlaylistPlay(pl, pl.index + 1); return; }
+    lessonPlaylistRender(pl);
+    pl.timer = setTimeout(tick, Math.min(250, left));
+  };
+  pl.timer = setTimeout(tick, 250);
+}
+
+function lessonPlaylistDone(pl) {
+  if (lessonPlaylist !== pl) return;
+  var n = pl.items.length;
+  lessonPlaylistStop();
+  toast(n === 1 ? '🎬 That was the only video on this worksheet.' : '🎬 All ' + n + ' videos played.', 4000);
+}
+
+function lessonPlaylistStop() {
+  var pl = lessonPlaylist;
+  if (!pl) return;
+  clearTimeout(pl.timer);
+  lessonPlaylist = null;
+  $('playlistBar').hidden = true;
+}
+
+// The person watching pressed ✕, Escape or Close replay — or the worksheet or
+// the account changed under them. Not while the playlist itself is switching.
+function lessonPlaylistExited() {
+  var pl = lessonPlaylist;
+  if (!pl || pl.switching) return;
+  lessonPlaylistStop();
+}
+
+// Stop from the bar ends what is playing too: "stop" means stop.
+function lessonPlaylistStopAll() {
+  lessonPlaylistStop();
+  closeVideoPops();
+  lessonExitPlayback();
+}
+function lessonPlaylistStep(delta) {
+  var pl = lessonPlaylist;
+  if (!pl) return;
+  var to = pl.index + delta;
+  if (to >= pl.items.length) { lessonPlaylistDone(pl); return; }
+  lessonPlaylistPlay(pl, Math.max(0, to));
+}
+
+/* ---- The bar ---- */
+function lessonPlaylistStatus(text) { $('playlistStatus').textContent = text; }
+function lessonPlaylistRender(pl) {
+  if (lessonPlaylist !== pl) return;
+  var n = pl.items.length, it = pl.items[pl.index] || pl.items[0], nx = pl.items[pl.index + 1];
+  var where = function (x, i) { return (i + 1) + ' of ' + n + ' · ' + x.label + ' · page ' + x.page; };
+  if (pl.phase === 'next' && nx) {
+    var secs = Math.max(1, Math.ceil((pl.nextAt - Date.now()) / 1000));
+    lessonPlaylistStatus('Up next in ' + secs + ' — ' + where(nx, pl.index + 1));
+  } else if (pl.manual) {
+    lessonPlaylistStatus('Video ' + where(it, pl.index) + ' — press ⏭ when it has finished.');
+  } else if (pl.phase === 'playing' || pl.phase === 'starting') {
+    lessonPlaylistStatus('Video ' + where(it, pl.index));
+  }
+  $('playlistPrev').disabled = pl.index <= 0;
+  $('playlistNext').disabled = pl.index >= n - 1;
+  $('playlistNow').hidden = pl.phase !== 'next';
+}
+
+$('playlistBtn').addEventListener('click', lessonPlaylistTogglePanel);
+$('playlistClose').addEventListener('click', lessonPlaylistClosePanel);
+$('playlistAll').addEventListener('click', function () { lessonPlaylistStart(0); });
+$('playlistList').addEventListener('click', function (e) {
+  var ex = e.target.closest ? e.target.closest('[data-pl-export]') : null;
+  if (ex) {
+    var a = annotations.find(function (x) { return x.id === ex.getAttribute('data-pl-export'); });
+    lessonPlaylistClosePanel();
+    if (a) lessonExportOpen(a);
+    return;
+  }
+  var go = e.target.closest ? e.target.closest('[data-pl-play]') : null;
+  if (go) lessonPlaylistStart(Number(go.getAttribute('data-pl-play')));
+});
+$('playlistPanel').addEventListener('keydown', function (e) {
+  e.stopPropagation();
+  if (e.key === 'Escape') { e.preventDefault(); lessonPlaylistClosePanel(); try { $('playlistBtn').focus(); } catch (x) {} }
+});
+$('playlistPrev').addEventListener('click', function () { lessonPlaylistStep(-1); });
+$('playlistNext').addEventListener('click', function () { lessonPlaylistStep(1); });
+$('playlistNow').addEventListener('click', function () { lessonPlaylistStep(1); });
+$('playlistStop').addEventListener('click', lessonPlaylistStopAll);
+// A lesson that has played to its end is the playlist's cue.
+['lessonAudio', 'lessonVideo'].forEach(function (key) {
+  $(key).addEventListener('ended', function () {
+    var pl = lessonPlaylist;
+    if (pl && pl.phase === 'playing' && lessonPlayback && lessonMedia() === $(key)) lessonPlaylistUpNext(pl);
+  });
+});
+/* ================= End worksheet playlist ================= */
 
 /* ================= Chung GPT Voice AI — the live helping mode ================= */
 /* A LESSON RECORDING IS A RECORDING. It captures the teacher's voice and the
@@ -24933,7 +26384,6 @@ function applyRoleUI() {
     if (videoToolBtn) videoToolBtn.style.display = 'none';
     if (noteToolBtn) noteToolBtn.style.display = 'none';
     if (codeBtn) codeBtn.style.display = 'none';
-    if (recBtn) recBtn.style.display = 'none';
     closeCodeWin();
   }
   $('printCard').style.display = sharedVisitor ? 'none' : '';
@@ -30348,6 +31798,12 @@ document.addEventListener('keydown', function (e) {
   // sound button, say — may reach the one-letter tools behind it.
   if ($('lessonModal').classList.contains('open')) {
     if (e.key === 'Escape') { e.preventDefault(); lessonCloseModal(); }
+    return;
+  }
+  // 🎞 The export window is writing a lesson into a file: nothing typed while
+  // it is up may reach a tool, and Escape asks before it throws a video away.
+  if ($('lessonExportModal').classList.contains('open')) {
+    if (e.key === 'Escape') { e.preventDefault(); lessonExportClose(false); }
     return;
   }
   if (editingText) {

@@ -2,6 +2,109 @@
 
 Guidance for Claude when working in this repo.
 
+## ⬇ A lesson as a 1080p video, 🎬 a worksheet's videos in order, 🏷 a lesson named for its question (v1.105.0)
+
+`LESSON_EXPORT_*` / `lessonExportMime` / `lessonExportLayout` / `lessonExportStack` /
+**`lessonExportViewport`** / **`lessonExportTarget`** / `lessonExportClamp` / **`lessonExportEase`** /
+`lessonExportRasterScale` / `lessonExportBytes` / `lessonExportSizeText` / `lessonExportFileName` /
+`lessonExportPrefs` / `lessonExportDraw` / `lessonExportCamera` / `lessonExportPanel` /
+`lessonExportCaption` / **`lessonExportOpen`** / `lessonExportPrepare` / **`lessonExportMediaNode`** /
+`lessonExportGo` / **`lessonExportRun`** / `lessonExportTick` / `lessonExportFinish` /
+`lessonExportClose` / **`lessonExportDrop`** (search `Lesson export — the replay as a 1080p video`),
+`PLAYLIST_ROW` / `PLAYLIST_NEXT_MS` / **`lessonPlaylistItems`** / `lessonPlaylistSync` /
+`lessonBlessMedia` / `lessonPlaylistStart` / `lessonPlaylistPlay` / `lessonPlaylistUpNext` /
+**`lessonPlaylistExited`** / `lessonPlaylistStop` (search `The worksheet's videos, one after
+another`), `LESSON_TITLE_MAX` / `LESSON_QNUM_RE` / `lessonTitleClean` / **`lessonQuestionGuess`** /
+`lessonTitleSpot` / `lessonTitlePrefill` (search `Which question a lesson is for`), plus
+`#lessonExportBtn` on the replay bar, `#lessonExportModal`, `#playlistBtn`, `#playlistPanel`,
+`#playlistBar`, `#lessonTitleInput`, the `title` / `viewport` a new recording carries, and the
+`.lx*` / `.pl*` CSS. **`polymathlc/tutor` (v1.55.0) carries the export, the playlist and the title
+under the same names — ship a change to both.** Its `tools/lesson-tests.mjs` compares the pure
+functions byte for byte whenever both repositories are checked out side by side.
+
+A lesson recording could only be played INSIDE this app — a page, some ink and one media file,
+none of which can be posted to a class chat or kept on a phone. **⬇ 1080p** plays the lesson once
+more, its own copy, and paints every frame onto a 1920 × 1080 canvas: the page rendered sharp
+from the PDF, the recorded ink, the camera and the voice, written by MediaRecorder into ONE file.
+
+- **IT IS THE TEACHER'S AND ASKED IN EVERY HANDLER.** `lessonTeacher()` draws the button AND is
+  asked again in `lessonExportOpen`, `lessonExportGo`, `lessonExportChoose`,
+  `lessonExportDownload`, `lessonExportShare` and the replay bar's own click handler. An account
+  change drops a running export (`lessonExportDrop`, from `lessonRoleChanged`).
+- **IT RUNS IN REAL TIME, ON PURPOSE.** Faster than real time needs WebCodecs, a demuxer for
+  whichever container the recording browser chose and a muxer library — each a way to work on one
+  browser and not the next. Real time works wherever MediaRecorder does. So **a hidden tab
+  PAUSES the export** (media and recorder together; recording on would be one frozen frame under
+  the voice) and **a screen wake lock is held**.
+- **A FRESH `<video>` FOR EVERY EXPORT** (`lessonExportMediaNode`). An element can be wired into
+  Web Audio once in its life and plays SILENCE once its AudioContext is closed, so a shared
+  element exports the first lesson with sound and every one after it without.
+- **THE SOUND GOES INTO THE FILE, NEVER INTO THE ROOM.** The media element's source feeds a
+  `MediaStreamDestination` and nothing else — no `audioCtx.destination` — so the teacher can
+  carry on while it runs. **The LESSON RECORDER is untouched by any of this**: it still mixes the
+  microphone and nothing else (the harness asserts `createMediaElementSource` never enters it).
+- **THE RECORDER WAITS, PAUSED, FOR THE LESSON TO REALLY PLAY**, a frame is painted before the
+  recorder asks for one, and the pause just before the end (`onHalt`) does not pause the recorder
+  under the last frame — or the file opens on a black frame, or loses its last second.
+- **THE CAMERA IS NEVER MIRRORED.** The recording never was; a mirrored export would put every
+  word held up to the camera backwards.
+- **THE FRAME SHOWS AT LEAST WHAT THE TEACHER SAW, NEVER TIGHTER** (`lessonExportTarget`). A
+  recording made since v1.105.0 carries the size of the teacher's viewer (`manifest.viewport`,
+  validated by `lessonExportViewport`), so a zoom into a diagram is a zoom in the video; an older
+  one is framed at the page's width. **The easing is in MEDIA time, the scale in LOG space, and a
+  jump of seconds (a seek) snaps** — so the same lesson exports the same frames every time.
+- **PAGES ARE RASTERISED ONCE, AS SHARP AS NEEDED AND WITHIN A BUDGET**
+  (`lessonExportRasterScale`, `LESSON_EXPORT_PX_BUDGET`): only the pages the lesson shows, writes
+  on or pans across, and a forty-page worksheet shares the same pixel budget as a two-page one.
+- **THE FILE IS NAMED FOR THE WORKSHEET AND THE QUESTION**, with the pill's running time taken
+  off and nothing a file system refuses (`lessonExportFileName`). MP4 first — Safari writes plain
+  `video/mp4` and nothing else — then WebM.
+
+### 🎬 The playlist
+
+- **`lessonPlaylistItems` IS THE ONE PLACE THE ORDER IS DECIDED** — page, then ROW
+  (`PLAYLIST_ROW` units, rounded), then left to right. Never a tolerance comparison: "within 12
+  units" is not transitive, and a sort handed an intransitive comparator returns whatever its
+  engine happens to produce.
+- **WHAT IS IN IT:** every lesson recording and every older pill this app can play on the page. A
+  lesson and a direct video file say when they end, so the next follows by itself; an embedded
+  YouTube / Drive player says nothing, so the bar waits for ⏭. A bare link that only opens a tab
+  is left out.
+- **IT PLAYS THROUGH THE REPLAY'S OWN DOORS** (`lessonPlay`, `openVideoPop`), so nothing here can
+  play a lesson differently from a tap on its pill.
+- **IT STOPS WHEN THE PERSON WATCHING STOPS IT** — closing the replay, Escape, closing a video,
+  changing worksheet or account all end it through `lessonPlaylistExited` (from
+  `lessonExitPlayback` and `closeVideoPops`) — **except while the playlist itself is switching
+  videos**, which is what `switching` is for.
+- **EVERY MEDIA ELEMENT IS BLESSED INSIDE THE TAP** (`lessonBlessMedia`): a playlist plays sound
+  long after the tap that started it, and Safari allows that only for an element played inside
+  one. The playback blocker lets `#playlistBar` through beside `#lessonPlayer` and `#lessonCamWin`.
+- **THE COUNT FOLLOWS EVERY CHANGE** — `renderAllOverlays` calls `lessonPlaylistSync`, so a pill
+  added, erased, undone or pasted is counted. Everyone gets the playlist; ⬇ 1080p on a row is the
+  teacher's.
+
+### 🏷 Which question a lesson is for
+
+- **A GUESS IN A BOX THE TEACHER CAN SEE**, never a fact: `lessonQuestionGuess` reads the PDF's
+  own text for the first question number down the LEFT MARGIN (`LESSON_QNUM_MARGIN`) of what is
+  on screen, or the nearest above. The (1) (2) (3) (4) of a multiple choice sit indented under
+  the number, and "1.5 kg" and "2021" are not question numbers. A guess that arrives after the
+  teacher typed, or after the window closed, is dropped.
+- **AN UNTITLED LESSON IS BYTE FOR BYTE WHAT IT WAS.** `title` goes on the job, the attachment and
+  the label only when there is one, and `viewport` on the manifest only when the viewer measured
+  something.
+
+### 🐛 `recBtn`
+
+`applyRoleUI` still hid `recBtn`, the old recorder's button — declared nowhere after v1.104.0, so
+a share-link visitor's role setup threw a ReferenceError. The line is gone and the harness pins it.
+
+- Run **`node --test tools/export-tests.mjs`**, **`node tools/recording-ui-tests.mjs`** and
+  **`node tools/export-check.mjs`** after touching any of it — the last one records a real lesson
+  with Chromium's fake camera, exports it, measures the file (1920 × 1080, the lesson's duration,
+  sound in it) and plays a playlist through to the next question. Nothing that reads the source
+  can say whether a browser writes a 1080p video with sound.
+
 ## ⏺ One record button, and the video-answer recorder is gone (v1.104.0)
 
 `#lessonRecordBtn` / `.recGlyphDot` / `#voiceAiBtn`, the `.active` toggle in **`lessonBar`**, the
@@ -1815,6 +1918,28 @@ the pen, and nothing on any screen says what changed.
 - Run **`node --test tools/writing-tests.mjs`** after touching any of it.
 
 ## House rules
+- After touching **⬇ the 1080p export, 🎬 the playlist or 🏷 the lesson title** (`LESSON_EXPORT_*`,
+  `lessonExport*`, `PLAYLIST_ROW`, `lessonPlaylist*`, `lessonBlessMedia`, `lessonQuestionGuess`,
+  `lessonTitle*`, the `title` / `viewport` in `lessonStart` / `lessonFinish` / `lessonSavePending`,
+  `#lessonExportBtn`, `#playlistBtn`, `#playlistBar` or the `.lx*` / `.pl*` CSS), run
+  `node --test tools/export-tests.mjs`, `node tools/recording-ui-tests.mjs` **and**
+  `node tools/export-check.mjs` — and the same change in `polymathlc/tutor`, whose
+  `tools/lesson-tests.mjs` compares the two copies. Every failure here is silent and a file still
+  comes out. Let a handler stop asking `lessonTeacher()` and a student can export the lesson — a
+  hidden button has never been the lock. Share one `<video>` between exports and the second file
+  has no sound; route the export's sound to `audioCtx.destination` and the room hears it; let
+  `createMediaElementSource` into the RECORDER and a lesson carries more than the microphone.
+  Start the recorder before the media plays and the file opens on a black frame; let `onHalt`
+  pause it at the end and the last second is lost; keep recording while the tab is hidden and the
+  video is one frozen frame under the voice. Frame TIGHTER than the teacher's viewer and the video
+  crops what they were pointing at; ease in wall-clock time instead of media time and the same
+  lesson exports different frames every time. Mirror the camera and every word held up to it reads
+  backwards. In the playlist: compare rows with a tolerance and the order depends on the sort
+  engine; let `lessonPlaylistExited` fire while `switching` and the playlist stops itself between
+  two videos; drop `lessonBlessMedia` and Safari plays the first video and silences the rest; drop
+  `#playlistBar` from the playback blocker's exceptions and ⏭ cannot be pressed during a replay.
+  And write a `title` or a `viewport` when there is none, and an untitled lesson's attachment is
+  no longer what every older one is.
 - After touching **🎥 the lesson camera and microphone** (`lessonDev*`, `lessonOpenModal`,
   `lessonCloseModal`, `lessonGetMedia`, the camera branch of `lessonStart`, `lessonLiveCam`,
   `lessonMedia`, `lessonCamWin*`, `LESSON_VIDEO_LIMIT`, `LESSON_BYTES_SLACK`, `MAX_VIDEO_BYTES`,
