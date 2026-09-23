@@ -4,6 +4,58 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.105.0 — ⬇ A lesson as a 1080p video, 🎬 every video on a worksheet in order, and 🏷 lessons named for their question
+
+- **⬇ Turn any lesson recording into a 1080p video file — your account
+  only.** Play a lesson and press **⬇ 1080p video** on the replay bar, or
+  **⬇ 1080p** beside it in the playlist (below). The lesson plays once more and
+  is written into one 1920 × 1080 file:
+  - **the worksheet page, sharp** — rendered from the PDF itself, never a
+    screenshot of your screen;
+  - **your writing**, stroke by stroke, exactly as you wrote it;
+  - **you on camera**, beside the page, in the corner, or left out
+    (**Page only**) — never mirrored, so anything you hold up reads the right
+    way round;
+  - **your voice**.
+- **The page follows what you were looking at.** **Follow my scrolling** pans
+  and zooms the way you did while teaching — a zoom into a diagram is a zoom in
+  the video, eased so a scroll is a smooth pan and never a jump. **The whole
+  page** shows the page you were on, entire.
+- **MP4 where the browser writes it** (Chrome, Edge, Safari), WebM otherwise.
+  The window says how long it will take and roughly how big the file will be
+  before you start.
+- **It records in real time** — a five-minute lesson takes five minutes — so
+  keep the tab open and in front. The screen is kept awake; if you switch away
+  the export **pauses** itself and carries on when you come back, rather than
+  recording a frozen picture. When it is done: **Download**, or **Share…** on an
+  iPad.
+- **🎬 Play every video on a worksheet, one after another.** A 🎬 button
+  appears in the toolbar when a worksheet has video buttons on it, with a count.
+  It lists them **in question order** — page, then down the page, then left to
+  right. **▶ Play all**, or start from any one. When a video finishes the bar
+  says **“Up next in 3 — Q6 · …”**, scrolls to that question and plays it;
+  **⏮ ⏭** and **Stop playlist** are on the bar. Lesson recordings and direct
+  video files move on by themselves; an embedded YouTube or Drive player cannot
+  say when it has ended, so the bar waits for ⏭. Everyone who opens the
+  worksheet can use it; ⬇ 1080p is yours alone.
+- **🏷 Name a lesson for its question.** The Record window now asks which
+  question the lesson is for — optional — and fills in a **guess** read off the
+  page ("Q5", from the question numbers down the left margin of what is on
+  screen). The button on the page then reads **“Q5 · video lesson · 3:12”**, and
+  the playlist and the exported file use the same name. Leave it empty and the
+  button says “Play lesson” exactly as before.
+- **🐛 Fixed:** opening a worksheet from a share link ran a line left over from
+  the old recorder removed in v1.104.0, which threw an error.
+- **Study Buddy (`polymathlc/tutor` v1.55.0) now records the same lessons** —
+  camera, voice and writing — with the same export and the same playlist, for
+  every student in a class to watch.
+- **Checks:** `node --test tools/export-tests.mjs` runs in CI.
+  `node tools/export-check.mjs` records a real lesson with a fake camera in a
+  real browser, exports it, checks the file is 1920 × 1080 with sound in it, and
+  plays a playlist through to the next question.
+
+---
+
 ## v1.104.0 — ⏺ One record button, and the old video recorder is gone
 
 - **Recording is one icon on the toolbar**: a red ⏺ record button (or
