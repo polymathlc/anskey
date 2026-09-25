@@ -5119,7 +5119,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.105.0';
+var APP_VERSION = 'v1.106.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -11219,7 +11219,19 @@ $('lessonPlayerClose').addEventListener('click', lessonExitPlayback);
     }
   });
 });
-document.addEventListener('visibilitychange', function () { if (document.hidden && lessonCapture) lessonStop('Recording stopped when the app moved to the background.'); });
+/* A RECORDING SURVIVES LEAVING THE SCREEN (v1.106.0). Switching tab or app
+   used to STOP the lesson; now the camera and microphone keep recording and the
+   writing simply stays at its last state until the teacher comes back. Only
+   closing the page (pagehide, below) or pressing Stop ends it. */
+document.addEventListener('visibilitychange', function () {
+  if (!lessonCapture) return;
+  if (document.hidden) lessonCapture.hiddenAt = Date.now();
+  else if (lessonCapture.hiddenAt) {
+    var away = Math.round((Date.now() - lessonCapture.hiddenAt) / 1000);
+    lessonCapture.hiddenAt = 0;
+    try { toast('⏺ Still recording — kept going for ' + away + 's while you were away.'); } catch (e) {}
+  }
+});
 window.addEventListener('pagehide', function () { if (lessonCapture) lessonStop(); lessonExitPlayback(); });
 window.addEventListener('beforeunload', function (e) { if (lessonBusy()) { e.preventDefault(); e.returnValue = ''; } });
 /* ================= End synchronized lesson recording ================= */
