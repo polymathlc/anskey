@@ -4,6 +4,11 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+
+## v1.106.0 — A recording keeps going when you leave the screen
+
+Switching tab or app no longer stops a lesson recording. The camera and microphone keep recording, the page stays as you left it, and a toast says how long it ran while you were away. Only Stop or closing the page ends it.
+
 ## v1.105.0 — ⬇ A lesson as a 1080p video, 🎬 every video on a worksheet in order, and 🏷 lessons named for their question
 
 - **⬇ Turn any lesson recording into a 1080p video file — your account
