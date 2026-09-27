@@ -4,7 +4,7 @@ const { createHash } = require('node:crypto');
 const { APP_ID, TEACHER_EMAIL, allowedOrigin } = require('./live-service');
 
 const JEV_LIMITS = Object.freeze({ objects: 100, transcript: 4000, bodyBytes: 180000, perMinute: 90, perDay: 1800 });
-const INTENTS = Object.freeze(['add', 'move', 'resize', 'delete', 'undo', 'redo', 'navigate', 'answer', 'unsupported']);
+const INTENTS = Object.freeze(['add', 'move', 'resize', 'delete', 'undo', 'redo', 'navigate', 'write_answer', 'answer', 'unsupported']);
 const TARGET_INTENTS = new Set(['move', 'resize', 'delete']);
 const MIN_CONFIDENCE = 0.6;
 
@@ -54,7 +54,15 @@ function validateCommand(body) {
   });
   const selectedId = context.selectedId == null ? null : context.selectedId;
   if (selectedId !== null && !ids.has(selectedId)) invalid();
-  return { worksheetId: body.worksheetId, transcript: body.transcript.trim(), context: { page, selectedId, objects } };
+  const cleanContext = { page, selectedId, objects };
+  if (context.cursor !== undefined) {
+    const cursor = context.cursor;
+    if (cursor !== null && (!cursor || typeof cursor !== 'object' || Array.isArray(cursor) || cursor.page !== page ||
+        typeof cursor.x !== 'number' || !Number.isFinite(cursor.x) || cursor.x < 0 || cursor.x > 1000000 ||
+        typeof cursor.y !== 'number' || !Number.isFinite(cursor.y) || cursor.y < 0 || cursor.y > 1000000)) invalid();
+    cleanContext.cursor = cursor === null ? null : { page, x: cursor.x, y: cursor.y };
+  }
+  return { worksheetId: body.worksheetId, transcript: body.transcript.trim(), context: cleanContext };
 }
 
 // Keep only counters. Transcripts and worksheet contents are never persisted.
