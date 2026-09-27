@@ -232,6 +232,7 @@ ok('…and the local rescue copy carries the new page too', /scheduleDraftSave\(
    across the same awaits as the application. */
 function insertionHarness(options = {}) {
   return new Function('options', `
+    'use strict';
     var events = [], messages = [], uploads = 0, writes = 0, builds = 0;
     var time = 0, Date = { now: function () { return options.stalled ? (time += 15000) : globalThis.Date.now(); } };
     var encode = function (v) { return new TextEncoder().encode(JSON.stringify(v)); };
@@ -250,7 +251,7 @@ function insertionHarness(options = {}) {
     var practiceMode = !!options.practice, aiBusy = !!options.aiBusy, autoRunning = false, notesBusy = false;
     var autoSaveTimer = null, autoSaveInFlight = !!options.saving, autoSaveQueued = false;
     var askTarget = { kind: 'page', page: 3 }, askThreads = { 'page:3': ['old'] }, askCredits = { 'page:3': 20 };
-    var aiNoteEdit = { page: 3 }, videoBtnEdit = { page: 3 }, recTarget = { page: 3 };
+    var aiNoteEdit = { page: 3 }, videoBtnEdit = { page: 3 };
     var elements = { blankPageBtn: { disabled: false }, saveBtn: { disabled: false }, deletePageBtn: { disabled: false } };
     var document = { body: { inert: false } }, listeners = new Set();
     var window = { addEventListener: function (name) { listeners.add(name); }, removeEventListener: function (name) { listeners.delete(name); } };
@@ -383,6 +384,33 @@ ok('selecting the last page still adds the blank at the end', atEnd.state().pdf[
 const empty = insertionHarness({ empty: true });
 await empty.run();
 ok('an empty screen creates one A4 page and re-enables the button', empty.state().pageCount === 1 && empty.state().pdf[0].w === 595.28 && !empty.state().disabled && !empty.state().locked);
+
+// Match the app's strict mode and current globals: a stub for the removed
+// recorder used to hide the ReferenceError that rolled back every insertion.
+const blankOptions = { empty: true, current: 1 };
+const multipleBlank = insertionHarness(blankOptions);
+for (let count = 1; count <= 4; count++) {
+  blankOptions.current = Math.max(1, count - 1);
+  await multipleBlank.run();
+  const s = multipleBlank.state();
+  ok('starting empty can grow to ' + count + ' blank pages', s.pageCount === count && s.pdf.length === count);
+  ok('blank page ' + count + ' keeps A4 dimensions', s.pdf.every(p => p.w === 595.28 && p.h === 841.89));
+  ok('blank page ' + count + ' succeeds and leaves the next click available',
+    !s.messages.some(m => m.includes('could not be added')) && !s.inert && !s.disabled && !s.locked && s.listeners === 0);
+}
+const repeatedSaved = insertionHarness({ current: 2 });
+for (let insertedCount = 1; insertedCount <= 3; insertedCount++) {
+  await repeatedSaved.run();
+  const s = repeatedSaved.state(), count = 3 + insertedCount;
+  ok('saved insertion ' + insertedCount + ' persists every new page',
+    s.pageCount === count && s.remote.count === count && s.remote.pdf.length === count && s.uploads === insertedCount && s.writes === insertedCount);
+  ok('saved insertion ' + insertedCount + ' keeps later work and stars on the original page',
+    s.pdf[count - 1].id === 'last' && s.annotations[2].page === count && s.remote.anns[2].page === count &&
+    s.stars.join(',') === '1,2,' + count && s.remote.stars.join(',') === '1,2,' + count &&
+    JSON.parse(s.undo[0])[2].page === count && JSON.parse(s.redo[0])[0].page === count);
+  ok('saved insertion ' + insertedCount + ' finishes without rollback',
+    !s.messages.some(m => m.includes('could not be added')) && !s.inert && !s.disabled && !s.locked);
+}
 for (const gate of ['practice', 'student', 'visitor', 'aiBusy']) {
   const denied = insertionHarness({ [gate]: true });
   await denied.run();

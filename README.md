@@ -5,6 +5,14 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## v1.106.1 — Add several blank pages
+
+The **Blank page** button works repeatedly, including after starting a blank
+worksheet. Removed a stale reference to the old recorder that caused
+`recTarget is not defined` and rolled back every additional page. Regression
+checks now run page insertion in strict mode and cover repeated additions,
+saved page counts, and annotation, star and undo/redo numbering.
+
 ## v1.106.0 — A recording keeps going when you leave the screen
 
 Switching tab or app no longer stops a lesson recording. The camera and microphone keep recording, the page stays as you left it, and a toast says how long it ran while you were away. Only Stop or closing the page ends it.
