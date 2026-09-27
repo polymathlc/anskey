@@ -7,6 +7,19 @@ const { APP_ID, TEACHER_EMAIL } = require('../live-service');
 
 const body = { worksheetId: 'worksheet-1', transcript: 'Move the selected circle right.', context: { page: 1, selectedId: 'circle-1', objects: [{ id: 'circle-1', type: 'ellipse', x: 10, y: 20, w: 40, h: 40 }] } };
 const decision = { intent: 'move', targetId: 'circle-1', confidence: 0.9, needsClarification: false };
+
+test('cursor coordinates stay on the referenced worksheet page and are sanitized', () => {
+  const input = structuredClone(body);
+  input.context.cursor = { page: 1, x: 123.5, y: 400, extra: 'ignored' };
+  assert.deepEqual(validateCommand(input).context.cursor, { page: 1, x: 123.5, y: 400 });
+  input.context.cursor = null;
+  assert.equal(validateCommand(input).context.cursor, null);
+  for (const cursor of [{ page: 2, x: 1, y: 1 }, { page: 1, x: -1, y: 1 },
+    { page: 1, x: '1', y: 1 }, { page: 1, x: NaN, y: 1 }, { page: 1, x: 1, y: Infinity }, [], 'cursor']) {
+    input.context.cursor = cursor;
+    assert.throws(() => validateCommand(input), /not valid/);
+  }
+});
 function harness(overrides = {}) {
   const calls = [];
   const deps = {

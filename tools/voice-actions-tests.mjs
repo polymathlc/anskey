@@ -9,7 +9,7 @@ function section(start, end) {
   assert.ok(a >= 0 && b > a, `Missing shipped code: ${start}`);
   return html.slice(a, b);
 }
-const shipped = section('function voiceActionFingerprint()', '/* ================= End validated voice worksheet actions') +
+const shipped = section('var voicePointer = null;', '/* ================= End validated voice worksheet actions') +
   section('function translateAnn(a, dx, dy)', '/* The .annText padding') +
   section('function scaleAnnFrom(orig, a, f, o)', 'function startLassoResize(') +
   section('function annFrame(a)', 'function normWord(') +
@@ -92,13 +92,47 @@ test('added primitives use only validated fields and share one undo step', async
   h.c.undo(); assert.equal(h.c.annotations.length, 0);
 });
 
+test('a small blue triangle keeps its geometry and color through save, replay, move, resize and undo', async () => {
+  const h = harness([]); h.c.selectedId = null;
+  h.request.command = 'Add a small blue triangle.';
+  h.setPlan({ objects: [{ type: 'triangle', x: 120, y: 180, w: 48, h: 48, color: '#0000FF', width: 2 }] });
+  assert.equal(await h.run('add'), 'Added 1 object.');
+  const triangle = plain(h.c.annotations[0]);
+  assert.equal(triangle.type, 'pen'); assert.equal(triangle.title, 'Triangle');
+  assert.equal(triangle.color, '#0000FF'); assert.equal(triangle.width, 2);
+  assert.equal(new Set(triangle.points.slice(0, -1).map(p => `${p.x},${p.y}`)).size, 3);
+  assert.deepEqual(triangle.points[0], triangle.points.at(-1));
+  assert.deepEqual(plain(h.c.annBounds(triangle)), { x: 120, y: 180, x2: 168, y2: 228 });
+  assert.equal(triangle.x, undefined); assert.equal(triangle.w, undefined);
+  assert.deepEqual(JSON.parse(h.c.snapshot()), [triangle]);
+  assert.deepEqual(plain(h.c.lessonSnapshot()), [triangle]);
+  assert.match(h.calls.requests[0].prompt, /triangle/);
+  assert.match(h.calls.requests[0].prompt, /small shape is about 48 by 48/);
+  h.c.undo(); assert.equal(h.c.annotations.length, 0);
+  h.c.redo(); assert.deepEqual(plain(h.c.annotations), [triangle]);
+
+  h.c.selectedId = triangle.id; h.setPlan({ dx: 15, dy: -10 });
+  assert.equal(await h.run('move', { targetId: triangle.id }), 'Moved the object.');
+  assert.deepEqual(plain(h.c.annBounds(h.c.annotations[0])), { x: 135, y: 170, x2: 183, y2: 218 });
+  h.c.undo(); assert.deepEqual(plain(h.c.annotations), [triangle]);
+  h.setPlan({ scale: 0.5 });
+  assert.equal(await h.run('resize', { targetId: triangle.id }), 'Resized the object.');
+  assert.deepEqual(plain(h.c.annBounds(h.c.annotations[0])), { x: 120, y: 180, x2: 144, y2: 204 });
+  assert.equal(h.c.annotations[0].color, '#0000FF');
+  h.c.undo(); assert.deepEqual(plain(h.c.annotations), [triangle]);
+});
+
 test('a malformed object anywhere in a batch leaves every annotation and history untouched', async () => {
   for (const bad of [
     { type: 'text', x: 10, y: 10, w: 80, h: 30, text: 'safe', html: '<script>bad()</script>' },
     { type: 'iframe', x: 10, y: 10, w: 80, h: 30 },
     { type: 'rect', x: 590, y: 10, w: 80, h: 30 },
     { type: 'rect', x: '10', y: 10, w: 80, h: 30 },
-    { type: 'rect', x: 10, y: 10, w: 80, h: 30, color: 'url(https://example.invalid)' }
+    { type: 'rect', x: 10, y: 10, w: 80, h: 30, color: 'url(https://example.invalid)' },
+    { type: 'triangle', x: 580, y: 10, w: 48, h: 48 },
+    { type: 'triangle', x: 10, y: 10, w: 48, h: 48, text: 'injected' },
+    { type: 'triangle', x: 10, y: 10, w: 2, h: 48 },
+    { type: 'triangle', x: 10, y: 10, w: 48, h: 48, points: [{ x: -100, y: -100 }] }
   ]) {
     const h = harness(), before = plain(h.c.annotations);
     h.setPlan({ objects: [{ type: 'rect', x: 100, y: 100, w: 50, h: 50 }, bad] });

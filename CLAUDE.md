@@ -2,6 +2,23 @@
 
 Guidance for Claude when working in this repo.
 
+## Jev cursor placement (v1.108.0)
+
+`voicePointerRecord` observes mouse/pen coordinates without stealing events.
+`voiceCursorPoint` maps the real visible SVG rectangle to page units, rejecting
+off-page, occluded, iframe, touch and stale-account/worksheet positions.
+`voiceActionContext` uses the cursor page and separately captures `viewPageNum`
+for stale-view checks. Freeze cursor coordinates with the command; never retarget
+an asynchronous edit from the latest mouse position.
+
+“There/here/at the cursor” additions are centered by `voiceActionPlaceAtCursor`
+(single text starts at the point). Triangles use existing closed pen points.
+`write_answer` routes to `voiceAnswerAtCursor` and grounded `voiceDelegate` using
+the captured page. Strict answer/clarification JSON, measured text layout and
+normal undo/save hooks protect the page. Explanations stay spoken. The question
+understanding prompt must never guess an ambiguous subpart or answer other parts.
+Run cursor, voice action, answer placement, routing and backend tests.
+
 ## Jev voice worksheet actions (v1.107.0)
 
 `voiceJevDelegate` routes fresh spoken commands through `ansKeyJevCommand`, then

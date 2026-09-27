@@ -3,6 +3,26 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.108.0 — Point, then ask Jev to put it there
+
+Start **🎙 Voice AI** or press **Shift+V**, then move your mouse or hovering pen
+onto the worksheet. No click is needed at the destination.
+
+- **“Jev, add a small blue triangle there.”** Adds a blue triangle outline,
+  about 48 × 48 page units, centered at your cursor. Other supported shapes and
+  text also understand “here”, “there” and “at the cursor”.
+- **“Jev, answer question A.”** With the cursor on the worksheet, writes the
+  answer to that question starting at the cursor. It reads that page, the typed
+  work, answer key and teaching notes. If the question is unclear, it asks before
+  writing. “Write the answer to question A here” works too.
+- **“Jev, explain question A.”** Keeps the answer spoken.
+
+The page under your cursor is used even when a different page fills most of the
+screen. Zoom and scrolling are accounted for. The position is captured when the
+command is received; moving the mouse while Jev is thinking does not move the
+destination. If the cursor is outside the worksheet or there is not enough room,
+Jev asks you to point again. Changes retain normal undo and automatic saving.
+
 ## v1.107.0 — Talk to Jev to edit the worksheet
 
 Open one of your saved worksheets and press **🎙 Voice AI** or **Shift+V**.

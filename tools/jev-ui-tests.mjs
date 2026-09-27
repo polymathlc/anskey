@@ -26,7 +26,7 @@ function harness(options = {}) {
   const controller = new AbortController();
   const v = { uid: 'teacher', user: { getIdToken: async () => options.token ? await options.token.promise : 'id-token' } };
   const page = { num: 2, baseW: 600, baseH: 800 };
-  const calls = [], plans = [], answers = [], statuses = [];
+  const calls = [], plans = [], answers = [], statuses = [], written = [];
   const box = {
     AbortController, clearTimeout,
     annotations: [{ id: 'box_1', type: 'text', page: 2, x: 20, y: 30, w: 160, h: 40,
@@ -38,6 +38,7 @@ function harness(options = {}) {
     annBounds: a => ({ x: a.x, y: a.y, x2: a.x + a.w, y2: a.y + a.h }),
     annLocked: a => !!a.locked,
     voiceLive: v, voiceContextOK: () => box.currentUser?.uid === v.uid,
+    voiceCursorPoint: () => options.cursor || null,
     voiceStatus: message => statuses.push(message),
     aiWithDeadline: (run, timeout, signal) => run(signal),
     voiceDelegate: () => async request => {
@@ -46,6 +47,7 @@ function harness(options = {}) {
       return 'Grounded worksheet answer.';
     },
     voicePlanAndApply: async (...args) => { plans.push(args); return 'Moved the object.'; },
+    voiceAnswerAtCursor: async (...args) => { written.push(args); return 'Wrote the answer at your pointer. You can undo that.'; },
     window: { liveAppCheckToken: async () => 'app-check-token' },
     fetch: async (url, init) => {
       calls.push({ url, init, body: JSON.parse(init.body) });
@@ -60,8 +62,21 @@ function harness(options = {}) {
   const request = { id: 'command_1', signal: controller.signal, isCurrent: () => !controller.signal.aborted,
     transcript: [{ role: 'user', text: 'An older question.' }, { role: 'assistant', text: 'An earlier reply.' },
       { role: 'user', text: ' Move this box to the right. ' }] };
-  return { box, v, page, controller, request, calls, plans, answers, statuses, delegate: box.voiceJevDelegate(v) };
+  return { box, v, page, controller, request, calls, plans, answers, written, statuses, delegate: box.voiceJevDelegate(v) };
 }
+
+test('answer-question intent reaches written answers with the captured cursor and fresh command', async () => {
+  const cursor = { page: 2, x: 150, y: 220 };
+  const h = harness({ cursor, route: { intent: 'write_answer', targetId: null, confidence: 0.99, needsClarification: false } });
+  h.request.command = 'Jev, answer question a.';
+  assert.match(await h.delegate(h.request), /Wrote the answer/);
+  assert.equal(h.written.length, 1);
+  assert.deepEqual(plain(h.written[0][2].cursor), cursor);
+  assert.equal(h.written[0][1].command, h.request.command);
+  assert.equal(h.written[0][3], h.controller.signal);
+  assert.equal(h.plans.length, 0); assert.equal(h.answers.length, 0);
+  assert.deepEqual(plain(validateCommand(h.calls[0].body).context.cursor), cursor);
+});
 
 test('the actual context sent by the browser passes server validation and carries current text and selection', async () => {
   const h = harness();

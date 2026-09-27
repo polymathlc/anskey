@@ -7,6 +7,11 @@ selects an existing target; the app validates and applies supported edits. The
 existing worksheet tutor supplies answers and explanations. OpenAI Live handles
 the speech conversation. Jev itself returns typed decisions, not audio or prose.
 
+Cursor context includes the hovered page and page-unit coordinates;
+`write_answer` asks the grounded worksheet tutor to place the requested answer
+at that captured spot. “Answer question A” with a worksheet cursor uses this
+route; “explain question A” remains spoken. Triangles are supported additions.
+
 **Voice AI** and **Record lesson** are separate controls. A lesson recording
 captures the teacher's microphone, optional camera, and worksheet changes.
 Assistant audio plays through the Voice AI player and is not mixed into that
@@ -58,6 +63,7 @@ and Live cleanup. Browser regression checks include:
 node tools/check-syntax.mjs
 node tools/recording-live-tests.mjs
 node tools/voice-context-tests.mjs
+node --test tools/voice-cursor-tests.mjs tools/voice-answer-placement-tests.mjs tools/voice-actions-tests.mjs tools/jev-ui-tests.mjs
 node tools/recording-ui-tests.mjs
 node tools/recording-audio-tests.mjs
 ```
