@@ -12,9 +12,22 @@ const WebSocket = require('ws');
 const { createLiveService } = require('./live-service');
 const { createRepository } = require('./live-repository');
 const { createProvider } = require('./live-provider');
+const { createJevProvider } = require('./jev-provider');
+const { createJevService, createJevRepository } = require('./jev-service');
 
 initializeApp();
 const openaiKey = defineSecret('OPENAI_API_KEY');
+const jevKey = defineSecret('JEV_API_KEY');
+const jevService = createJevService({
+  auth: getAuth(), appCheck: getAppCheck(), repository: createJevRepository(getFirestore()),
+  provider: createJevProvider({ apiKey: () => jevKey.value() }),
+  report: code => logger.warn(code)
+});
+
+exports.ansKeyJevCommand = onRequest({
+  region: 'us-central1', secrets: [jevKey], timeoutSeconds: 30,
+  maxInstances: 3, concurrency: 20, memory: '256MiB', invoker: 'public'
+}, jevService.handler);
 const service = createLiveService({
   auth: getAuth(), appCheck: getAppCheck(), repository: createRepository(getFirestore()),
   provider: createProvider({ apiKey: () => openaiKey.value(), connect: (url, options) => new WebSocket(url, options) }),

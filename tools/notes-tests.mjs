@@ -250,6 +250,7 @@ console.log('\nThe fair-share rule itself');
 console.log('\nEvery AI call site is grounded, or exempt on purpose');
 {
   const UNGROUNDED_BY_DESIGN = {
+    voicePlanAndApply: 'parses requested object coordinates and literal text into a validated edit; academic questions still go through grounded voiceDelegate',
     aiRequest: 'transport — the system prompt arrives already grounded from aiAnswer / aiImprove',
     askGemini: 'the door every call goes through',
     askGeminiRoutes: 'transport failover — forwards the caller’s already grounded system prompt unchanged',
