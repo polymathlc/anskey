@@ -2,6 +2,22 @@
 
 Guidance for Claude when working in this repo.
 
+## Jev voice worksheet actions (v1.107.0)
+
+`voiceJevDelegate` routes fresh spoken commands through `ansKeyJevCommand`, then
+uses `voicePlanAndApply` for validated edits or `voiceDelegate` for grounded
+answers. Jev is a typed decision API, not the audio or answer generator.
+`JEV_API_KEY` stays in Firebase Secret Manager and is bound only to the command
+function. Never place it in the public page or a committed file.
+
+Every edit checks the worksheet identity, epoch, current page, annotation/DOM
+snapshot, account and request cancellation before committing. The transport
+passes only fresh speech in `request.command`; conversation history must never
+replay an earlier edit. Use normal undo, rendering and dirty/save hooks. Locked
+objects and recording card backgrounds remain protected. Run all `tools/*-tests.mjs`
+and `functions` tests after changes; the action, routing and transport suites
+cover runtime behavior, authentication, cancellation and stale results.
+
 ## ⬇ A lesson as a 1080p video, 🎬 a worksheet's videos in order, 🏷 a lesson named for its question (v1.105.0)
 
 `LESSON_EXPORT_*` / `lessonExportMime` / `lessonExportLayout` / `lessonExportStack` /

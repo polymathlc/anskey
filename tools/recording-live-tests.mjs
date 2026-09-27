@@ -13,6 +13,49 @@ const bridge = source.slice(start, end + endMarker.length);
 function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('a spoken correction revokes in-flight action permission before the next delegation', async () => {
+  const wait = deferred(), requests = [];
+  const h = harness({ delegate: request => { requests.push(request); return wait.promise; } });
+  const session = await h.live();
+  h.emit({ type: 'session.input_transcript.delta', delta: 'Move the box right.' });
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'edit1' } });
+  assert.equal(requests[0].isCurrent(), true);
+  h.emit({ type: 'session.input_transcript.delta', delta: 'Actually stop.' });
+  assert.equal(requests[0].isCurrent(), false);
+  assert.equal(requests[0].signal.aborted, true);
+  wait.resolve('Moved.'); await tick();
+  assert.equal(h.peers[0].channel.messages.some(row => row.content === 'Moved.'), false);
+  await session.close();
+});
+
+test('a newer delegation cancels the old action and receives a fresh signal', async () => {
+  const wait = deferred(), requests = [];
+  const h = harness({ delegate: request => { requests.push(request); return requests.length === 1 ? wait.promise : Promise.resolve('New request.'); } });
+  const session = await h.live();
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'edit1' } });
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'edit2' } });
+  assert.equal(requests[0].signal.aborted, true);
+  wait.resolve('Old request.'); await tick();
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].isCurrent(), true);
+  assert.equal(requests[1].signal.aborted, false);
+  await session.close();
+  assert.equal(requests[1].isCurrent(), false);
+});
+
+test('adjacent user turns carry only the new command and a repeated delegation cannot replay an edit', async () => {
+  const requests = [], h = harness({ delegate: async request => { requests.push(request); return 'Done.'; } });
+  const session = await h.live();
+  h.emit({ type: 'session.input_transcript.delta', delta: 'Move the box right.' });
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'edit1' } }); await tick();
+  h.emit({ type: 'session.input_transcript.delta', delta: 'Undo that.' });
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'edit2' } }); await tick();
+  h.emit({ type: 'session.delegation.created', delegation: { target: 'client', id: 'edit3' } }); await tick();
+  assert.deepEqual(requests.map(row => row.command), ['Move the box right.', 'Undo that.', '']);
+  assert.match(requests[1].transcript[0].text, /Move the box right.*Undo that/);
+  await session.close();
+});
+
 function harness(overrides = {}) {
   const calls = [], peers = [], timers = new Map(), statuses = [], transcripts = [], remote = [];
   let timerId = 0;

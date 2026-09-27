@@ -3,6 +3,35 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.107.0 — Talk to Jev to edit the worksheet
+
+Open one of your saved worksheets and press **🎙 Voice AI** or **Shift+V**.
+Allow the microphone, then address **Jev**:
+
+- “Jev, add a blue rectangle near the top of the page.”
+- “Jev, move the selected object to the right.”
+- “Jev, make that box bigger.”
+- “Jev, delete the selected object.” / “Jev, undo that.” / “Jev, redo.”
+- “Jev, go to page two.”
+- “Jev, explain question three.”
+
+Jev chooses the requested action and object. Ans Key's existing live audio
+connection handles speech, and its worksheet AI interprets edit details and
+answers questions using the current page, typed work and teaching notes.
+Jev itself is a decision API; it does not generate speech or explanations.
+
+Supported additions are text, rectangles, ellipses, lines and arrows. Other
+requests receive an explanation or clarification. Edits use the normal undo and
+save flow. Locked objects stay locked; uncertain targets require clarification.
+An in-progress edit is cancelled if you interrupt, change the page or worksheet,
+change its contents, or stop voice mode. Voice AI remains teacher-only and its
+audio remains separate from lesson recordings.
+
+The Jev key is a Firebase Secret Manager secret, **JEV_API_KEY**, bound only to
+`ansKeyJevCommand`. It is never included in this public page or sent to the browser.
+Deploy the functions as described in [functions/README.md](functions/README.md)
+when installing this version. Press the microphone button again to stop.
+
 
 
 ## v1.106.1 — Add several blank pages
