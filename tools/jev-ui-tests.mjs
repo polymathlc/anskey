@@ -58,7 +58,7 @@ function harness(options = {}) {
     }
   };
   vm.createContext(box);
-  vm.runInContext(contextCode + routingCode, box);
+  vm.runInContext(contextCode + section('function voiceLocalCommand(', 'async function voicePlanAndApply(') + routingCode, box);
   const request = { id: 'command_1', signal: controller.signal, isCurrent: () => !controller.signal.aborted,
     transcript: [{ role: 'user', text: 'An older question.' }, { role: 'assistant', text: 'An earlier reply.' },
       { role: 'user', text: ' Move this box to the right. ' }] };
@@ -191,4 +191,65 @@ test('a request too large for the server produces no paid classifier call', asyn
   const h = harness(); h.request.transcript = [{ role: 'user', text: 'x'.repeat(4001) }];
   assert.match(await h.delegate(h.request), /try again/i);
   assert.equal(h.calls.length, 0);
+});
+
+function draftHarness(options = {}) {
+  const h = harness(options);
+  h.v.controller = new AbortController();
+  let timer;
+  h.box.setTimeout = fn => { timer = fn; return 1; };
+  h.box.clearTimeout = () => { timer = null; };
+  h.flushDraft = () => { const fn = timer; timer = null; if (fn) fn(); };
+  return h;
+}
+
+test('routing starts on addressed draft and the final identical command reuses one call', async () => {
+  const h = draftHarness(); h.request.command = 'Jev, move this box to the right.';
+  h.box.voicePrepareRoute(h.v, h.request.command); h.flushDraft(); await tick();
+  assert.equal(h.calls.length, 1); assert.equal(h.plans.length, 0);
+  await h.delegate(h.request);
+  assert.equal(h.calls.length, 1); assert.equal(h.plans.length, 1);
+});
+
+test('changed speech cancels speculative routing and never applies the partial command', async () => {
+  const fetch = deferred(), h = draftHarness({ fetch });
+  h.box.voicePrepareRoute(h.v, 'Jev, move this box'); h.flushDraft(); await tick();
+  const partialSignal = h.calls[0].init.signal;
+  h.box.voicePrepareRoute(h.v, 'Jev, move this box left');
+  assert.equal(partialSignal.aborted, true);
+  fetch.resolve();
+  h.request.command = 'Jev, move this box left';
+  await h.delegate(h.request);
+  assert.equal(h.calls.length, 2); assert.equal(h.plans.length, 1);
+  assert.equal(h.calls[1].body.transcript, h.request.command);
+});
+
+test('worksheet or cursor changes invalidate speculative routes', async () => {
+  for (const mutate of [h => { h.box.annotations[0].text = 'new text'; },
+    h => { h.box.voiceCursorPoint = () => ({ page: 2, x: 80, y: 90 }); }]) {
+    const h = draftHarness(); h.request.command = 'Jev, move this box to the right.';
+    h.box.voicePrepareRoute(h.v, h.request.command); h.flushDraft(); await tick();
+    mutate(h); await h.delegate(h.request);
+    assert.equal(h.calls.length, 2); assert.equal(h.plans.length, 1);
+  }
+});
+
+test('narration never prefetches, repeated drafts are bounded and stopping cancels pending work', async () => {
+  const h = draftHarness();
+  h.box.voicePrepareRoute(h.v, 'Now we move this box right'); h.flushDraft(); await tick();
+  assert.equal(h.calls.length, 0);
+  for (let i = 0; i < 5; i++) {
+    h.box.voicePrepareRoute(h.v, 'Jev, move this box ' + i); h.flushDraft(); await tick();
+  }
+  assert.equal(h.calls.length, 2); assert.equal(h.plans.length, 0);
+  h.box.voiceDraftClear(h.v);
+  assert.equal(h.calls[1].init.signal.aborted, true);
+  assert.equal(h.v.draftRoute, null);
+});
+
+test('explicit formatting uses local validated routing without tokens or a provider request', async () => {
+  const h = harness(); h.request.command = 'Jev, make this bold and font size 24';
+  await h.delegate(h.request);
+  assert.equal(h.calls.length, 0); assert.equal(h.plans.length, 1);
+  assert.equal(h.plans[0][2].intent, 'format'); assert.equal(h.plans[0][2].plan.fontSize, 24);
 });

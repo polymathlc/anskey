@@ -3797,8 +3797,8 @@ video.mirror { transform:scaleX(-1); }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle class="recGlyphDot" cx="12" cy="12" r="4.2" stroke="none"/></svg>
     </button>
     <button class="toolBtn" id="voiceAiBtn" data-key="Shift+V" style="display:none"
-      data-ai-title="Talk to Jev — point at the worksheet, add shapes there, write an answer there, or ask {ai} a question."
-      title="Talk to Jev — point at the worksheet, add shapes there, write an answer there, or ask a question.">
+      data-ai-title="Talk to Jev — format or duplicate selected objects, point to add shapes or answers, or ask {ai} a question."
+      title="Talk to Jev — format or duplicate selected objects, point to add shapes or answers, or ask a question.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="6" height="10.5" rx="3"/><path d="M3 11a6.5 6.5 0 0 0 13 0"/><line x1="9.5" y1="17.5" x2="9.5" y2="21"/><path d="M18.5 2.5l1.1 2.4 2.4 1.1-2.4 1.1-1.1 2.4-1.1-2.4-2.4-1.1 2.4-1.1z" fill="currentColor" stroke-width="1"/></svg>
     </button>
     <button class="toolBtn" id="playlistBtn" style="display:none" aria-haspopup="dialog" aria-expanded="false" title="Play every video on this worksheet, one after another">
@@ -4240,6 +4240,7 @@ video.mirror { transform:scaleX(-1); }
 <div class="barStack" id="barStack">
 <div class="lessonBar" id="voiceBar" hidden role="region" aria-label="Voice AI helper">
   <span id="voiceDot" aria-hidden="true"></span><div class="lessonInfo" id="voiceStatus" role="status" aria-live="polite"></div>
+  <button id="voiceHelpBtn" title="Examples of voice commands">Commands</button>
   <button id="voiceStopBtn">Stop Voice AI</button>
 </div>
 <div class="lessonBar" id="lessonBar" hidden role="region" aria-label="Lesson recording">
@@ -5119,7 +5120,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.108.0';
+var APP_VERSION = 'v1.109.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -7916,6 +7917,11 @@ function annNode(a) {
     if (a.hand) div.classList.add('handFont');
     div.style.fontSize = a.fontSize + 'px';
     div.style.color = a.color;
+    div.style.fontWeight = a.bold ? 'bold' : 'normal';
+    div.style.fontStyle = a.italic ? 'italic' : 'normal';
+    div.style.textDecoration = a.underline ? 'underline' : 'none';
+    div.style.textAlign = ['left','center','right'].indexOf(a.align) !== -1 ? a.align : 'left';
+    if (!a.hand && ['arial','times new roman','courier new'].indexOf(a.fontFamily) !== -1) div.style.fontFamily = a.fontFamily;
     if (editingId === a.id) {
       div.textContent = a.text || '';
     } else {
@@ -7959,6 +7965,12 @@ function annNode(a) {
     vbtn.appendChild(vlabel);
     vfo.appendChild(vbtn);
     g.appendChild(vfo);
+  }
+  if (['pen','highlight','rect','ellipse'].indexOf(a.type) !== -1) {
+    var strokePattern = annDashPattern(a);
+    if (strokePattern) Array.prototype.forEach.call(g.childNodes, function (node) {
+      if (node.getAttribute('stroke') && node.getAttribute('stroke') !== 'none' && node.getAttribute('stroke') !== 'transparent') node.setAttribute('stroke-dasharray', strokePattern.join(' '));
+    });
   }
   // Rotation lives on the child shapes (not the g), so g.getBBox() — used by
   // the selection chrome and timestamp labels — reflects the rotated shape.
@@ -8920,8 +8932,8 @@ var LessonReplayCore = (function () {
     events: 18000, annotations: 12000, points: 100000, text: 65536 });
   var TYPES = ['pen', 'highlight', 'rect', 'ellipse', 'line', 'arrow', 'brace', 'text', 'ainote', 'video'];
   var NUMBERS = ['x', 'y', 'w', 'h', 'x1', 'y1', 'x2', 'y2', 'width', 'fontSize', 'rot', 'ts'];
-  var WORDS = ['color', 'text', 'title', 'kind', 'dash', 'heads', 'grp', 'label'];
-  var FLAGS = ['hand', 'min'];
+  var WORDS = ['color', 'text', 'title', 'kind', 'dash', 'heads', 'grp', 'label', 'fontFamily', 'align'];
+  var FLAGS = ['hand', 'min', 'bold', 'italic', 'underline'];
   var ANN_KEYS = ['id', 'type', 'page', 'points', 'kw'].concat(NUMBERS, WORDS, FLAGS);
   function bad(message) { throw new Error('Lesson recording: ' + message); }
   function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
@@ -9362,6 +9374,12 @@ var AnsKeyLive = (function () {
       fragments.push({ role: role, text: delta, start: start, end: end, order: sequence++ }); chars += delta.length;
       fragments.sort(function (a, b) { return a.start - b.start || a.order - b.order; });
       while (fragments.length > 1000 || chars > 24000) chars -= fragments.shift().text.length;
+      // Prefetch decisions only. The delegate remains the sole edit boundary.
+      if (role === 'user' && typeof opts.onCommandDraft === 'function') {
+        var draft = fragments.filter(function (part) { return part.role === 'user' && part.order >= lastRequestOrder; })
+          .map(function (part) { return part.text; }).join('').trim();
+        try { opts.onCommandDraft(draft); } catch (_) {}
+      }
       var rows = conversation(), row = rows[rows.length - 1];
       try { if (typeof opts.onTranscript === 'function') opts.onTranscript({ role: role,
         text: row && row.role === role ? row.text : delta, delta: delta, start: start, end: end }); } catch (error) {}
@@ -11616,12 +11634,12 @@ function lessonExportPanel(ctx, job, state) {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 34px ' + LESSON_EXPORT_FONT;
-  lessonExportWrap(ctx, job.title, w, 3).forEach(function (line) { y += 42; ctx.fillText(line, x, y); });
+  lessonExportWrap(ctx, job.title, w, 3).forEach(function (line) { y += 42; drawStyledLine(line); });
   if (job.subtitle) {
     ctx.fillStyle = '#A9BCCB';
     ctx.font = '24px ' + LESSON_EXPORT_FONT;
     y += 10;
-    lessonExportWrap(ctx, job.subtitle, w, 2).forEach(function (line) { y += 32; ctx.fillText(line, x, y); });
+    lessonExportWrap(ctx, job.subtitle, w, 2).forEach(function (line) { y += 32; drawStyledLine(line); });
   }
   var chip = 'Page ' + state.view.page + ' of ' + job.infos.length;
   ctx.font = 'bold 20px ' + LESSON_EXPORT_FONT;
@@ -12810,20 +12828,139 @@ function voiceActionEndEdit() {
 function voiceActionCards(list) {
   return JSON.stringify(list.filter(function (a) { return a.type === 'ainote'; }));
 }
+// Exact grammar only: Jev still decides intent and target. Ambiguous language
+// goes to the normal planner, and all plans pass the same bounds/undo guards.
+function voiceFastPlan(command, intent, context) {
+  if (typeof command !== 'string') return null;
+  var text = command.trim().toLowerCase().replace(/^(?:hey\s+)?(?:jev|chung gpt|ai)[, :]+/, '')
+    .replace(/[.!?]+$/, '').trim(), match;
+  if (intent === 'navigate') {
+    if (/^(?:go to |open |turn to )?(?:the )?next page$/.test(text)) return { page: context.page + 1 };
+    if (/^(?:go to |open |turn to )?(?:the )?(?:previous|back one) page$/.test(text)) return { page: context.page - 1 };
+    match = /^(?:go to|open|turn to) page (\d{1,4})$/.exec(text);
+    if (match) return { page: Number(match[1]) };
+  }
+  if (intent === 'move') {
+    match = /^move (?:this|it|this object|the selected object|the selected box) (left|right|up|down) (?:by )?(\d{1,4}(?:\.\d{1,2})?)(?: (?:units|page units))?$/.exec(text);
+    if (match) {
+      var amount = Number(match[2]), direction = match[1];
+      return { dx: direction === 'left' ? -amount : direction === 'right' ? amount : 0,
+        dy: direction === 'up' ? -amount : direction === 'down' ? amount : 0 };
+    }
+  }
+  if (intent === 'resize') {
+    match = /^resize (?:this|it|this object|the selected object|the selected box) to (\d{1,3}(?:\.\d{1,2})?) ?(?:%|per cent|percent)$/.exec(text);
+    if (match) return { scale: Number(match[1]) / 100 };
+  }
+  return null;
+}
+// These explicit commands use the selected object and need no network route.
+// Only a complete supported grammar is accepted; prose and mixed actions fall back.
+function voiceLocalCommand(command, context) {
+  if (typeof command !== 'string') return null;
+  var text = command.trim().replace(/^(?:hey\s+)?(?:jev|chung gpt|ai)[, :]+/i, '').replace(/[.!?]+$/, '').trim();
+  var lower = text.toLowerCase(), match, plan, intent;
+  var target = '(?:this|it|this text|this object|this box|the selected (?:text|object|box|shape)|all text(?: on (?:this|the current) page)?)';
+  var allText = /\ball text(?: on (?:this|the current) page)?\b/i.test(text);
+  match = new RegExp('^(?:duplicate|copy) ' + target + '(?: (\\d{1,2})(?: times| copies)?)?$', 'i').exec(text);
+  if (match) { intent = 'duplicate'; plan = { count: Number(match[1] || 1) }; }
+  match = new RegExp('^(?:bring|send) ' + target + ' (?:to (?:the )?)?(front|back)$', 'i').exec(text);
+  if (match) { intent = 'arrange'; plan = { layer: match[1].toLowerCase() }; }
+  match = new RegExp('^(?:replace|change) (?:the text in |the text of )?' + target + ' (?:with|to) "([\\s\\S]{1,4000})"$', 'i').exec(text);
+  if (match) { intent = 'format'; plan = { text: match[1] }; }
+  if (!plan) {
+    var rest = null;
+    match = new RegExp('^(?:make|set|format|change) ' + target + '(?: to)? (.+)$', 'i').exec(text);
+    if (match) rest = match[1].toLowerCase();
+    match = new RegExp('^(?:set|change) (?:the )?(font size|text size|font|colour|color|line width|stroke width|alignment|rotation|width|height)(?: of| for)? ' + target + ' to (.+)$', 'i').exec(text);
+    if (match) rest = match[1].toLowerCase() + ' ' + match[2].toLowerCase();
+    if (!rest) {
+      match = /^(?:set|change) (?:the )?(font size|text size|font|colour|color|line width|stroke width|alignment|rotation|width|height) to (.+)$/i.exec(text);
+      if (match) rest = match[1].toLowerCase() + ' ' + match[2].toLowerCase();
+    }
+    if (rest) {
+      rest = rest.replace(/^(font size|text size|font|colour|color|line width|stroke width|alignment|rotation|width|height) to /, '$1 ');
+      var patch = {}, valid = true;
+      var colours = { red:'#E53935', blue:'#1E88E5', green:'#43A047', black:'#1A1A1A', white:'#FFFFFF', yellow:'#FFEB3B', orange:'#FB8C00', purple:'#8E24AA', grey:'#808080', gray:'#808080' };
+      rest.split(/\s+and\s+|\s*,\s*/).forEach(function (part) {
+        var m;
+        if (/^(?:not |non-)?bold$/.test(part)) patch.bold = part === 'bold';
+        else if (/^(?:not |non-)?italic$/.test(part)) patch.italic = part === 'italic';
+        else if (/^(?:not |no )?underlined?$/.test(part)) patch.underline = !/^(?:not |no )/.test(part);
+        else if (part === 'normal' || part === 'plain') { patch.bold = false; patch.italic = false; patch.underline = false; }
+        else if ((m = /^(?:(?:font|text) size |size )(\d{1,3})(?: ?(?:px|points))?$/.exec(part))) patch.fontSize = Number(m[1]);
+        else if ((m = /^(?:font |font family )?(arial|times new roman|courier new|handwriting)$/.exec(part))) { patch.fontFamily = m[1]; patch.hand = m[1] === 'handwriting'; }
+        else if ((m = /^(?:(?:text )?colou?r )?(red|blue|green|black|white|yellow|orange|purple|grey|gray|#[0-9a-f]{6})$/.exec(part))) patch.color = colours[m[1]] || m[1];
+        else if ((m = /^(?:alignment |align )?(left|centre|center|right)(?: aligned)?$/.exec(part))) patch.align = m[1] === 'centre' ? 'center' : m[1];
+        else if ((m = /^(?:line |stroke )?(solid|dashed|dotted)$/.exec(part))) patch.dash = m[1];
+        else if ((m = /^(?:line width |stroke width )(\d{1,2}(?:\.\d{1,2})?)(?: ?(?:px|units))?$/.exec(part))) patch.width = Number(m[1]);
+        else if ((m = /^(?:arrowheads? )(none|start|end|both)$/.exec(part))) patch.heads = m[1];
+        else if ((m = /^(?:rotation |rotate )(\d{1,3})(?: degrees)?$/.exec(part))) patch.rot = Number(m[1]);
+        else if ((m = /^(width|height) (\d{1,4}(?:\.\d{1,2})?)(?: units)?$/.exec(part))) patch[m[1] === 'width' ? 'w' : 'h'] = Number(m[2]);
+        else valid = false;
+      });
+      if (valid && Object.keys(patch).length) { intent = 'format'; plan = patch; }
+    }
+  }
+  if (!plan) return null;
+  if (allText && intent !== 'format') return null;
+  var targetId = allText ? '__all_text__' : context.selectedId || null;
+  return { intent: intent, plan: plan, targetId: targetId,
+    confidence: 1, needsClarification: allText ? !context.annotations.some(function (a) { return a.page === context.page && a.type === 'text'; }) : !targetId };
+}
+function voiceFormatObject(a, patch, context) {
+  voiceActionKeys(patch, ['fontSize','fontFamily','bold','italic','underline','align','hand','text','color','width','dash','heads','rot','w','h']);
+  if (!Object.keys(patch).length) throw new Error('Empty formatting.');
+  Object.keys(patch).forEach(function (key) {
+    var value = patch[key];
+    if (['fontSize','fontFamily','bold','italic','underline','align','hand','text'].indexOf(key) !== -1 && a.type !== 'text') throw new Error('Select text.');
+    if (key === 'color') { if (typeof value !== 'string' || !/^#[0-9a-f]{6}$/i.test(value)) throw new Error('Invalid colour.'); }
+    else if (key === 'fontSize') voiceActionNumber(value, 8, 144);
+    else if (key === 'fontFamily') { if (['arial','times new roman','courier new','handwriting'].indexOf(value) === -1) throw new Error('Invalid font.'); }
+    else if (['bold','italic','underline','hand'].indexOf(key) !== -1) { if (typeof value !== 'boolean') throw new Error('Invalid text style.'); }
+    else if (key === 'align') { if (['left','center','right'].indexOf(value) === -1) throw new Error('Invalid alignment.'); }
+    else if (key === 'text') { if (typeof value !== 'string' || !value.trim() || value.length > 4000) throw new Error('Invalid text.'); delete a.kw; }
+    else if (key === 'width' || key === 'dash') {
+      if (['pen','highlight','rect','ellipse','line','arrow','brace'].indexOf(a.type) === -1) throw new Error('Select a stroke.');
+      if (key === 'width') voiceActionNumber(value, 0.5, 24);
+      else if (['solid','dashed','dotted'].indexOf(value) === -1) throw new Error('Invalid line style.');
+    } else if (key === 'heads') { if (['line','arrow'].indexOf(a.type) === -1 || ['none','start','end','both'].indexOf(value) === -1) throw new Error('Invalid arrowhead.'); }
+    else if (key === 'rot') { if (['rect','ellipse','text'].indexOf(a.type) === -1) throw new Error('Select a box or ellipse.'); voiceActionNumber(value, 0, 359); }
+    else { if (a[key] === undefined) throw new Error('Unsupported dimensions.'); voiceActionNumber(value, 3, key === 'w' ? context.width : context.height); }
+    a[key] = value;
+  });
+  if (a.type === 'text') {
+    var probe = document.createElement('div');
+    probe.className = 'annText' + (a.hand ? ' handFont' : '');
+    probe.style.cssText = 'position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none;box-sizing:border-box;height:auto;';
+    probe.style.width = a.w + 'px'; probe.style.fontSize = a.fontSize + 'px';
+    probe.style.fontWeight = a.bold ? 'bold' : 'normal'; probe.style.fontStyle = a.italic ? 'italic' : 'normal';
+    if (!a.hand && ['arial','times new roman','courier new'].indexOf(a.fontFamily) !== -1) probe.style.fontFamily = a.fontFamily;
+    probe.textContent = a.text || ''; document.body.appendChild(probe);
+    try {
+      a.h = Math.max(a.h, a.fontSize * 1.8, Math.ceil(probe.scrollHeight));
+      if (probe.scrollWidth > a.w + 1) throw new Error('Text too wide.');
+    } finally { probe.remove(); }
+  }
+  voiceActionBounds(a, context);
+}
 async function voicePlanAndApply(v, request, route, context, signal) {
   var stale = 'The worksheet changed while I was listening. Please ask again.';
   if (!voiceActionCurrent(v, request, context, signal)) return stale;
   if (!route || route.needsClarification || !Number.isFinite(route.confidence) || route.confidence < 0.6 || route.confidence > 1) return 'Please name the object or select it, then ask again.';
   var intent = route.intent;
-  if (['add', 'move', 'resize', 'delete', 'undo', 'redo', 'navigate'].indexOf(intent) === -1) return 'I can add text and shapes, move or resize objects, delete, undo, redo, and turn pages.';
+  if (['add', 'move', 'resize', 'delete', 'undo', 'redo', 'navigate', 'format', 'duplicate', 'arrange'].indexOf(intent) === -1) return 'I can add text and shapes, move or resize objects, delete, undo, redo, and turn pages.';
   if (voiceActionBusy()) return 'Finish the current drawing, revision or replay, then ask again.';
   var atCursor = intent === 'add' && voiceCursorRequested(request);
   if (atCursor && !context.cursor) return 'Move your cursor onto the worksheet where you want the object, then ask again.';
-  var targeted = ['move', 'resize', 'delete'].indexOf(intent) !== -1;
-  var original = targeted && context.annotations.find(function (a) { return a.id === route.targetId && a.page === context.page; });
-  if (targeted && (!original || !context.wire.objects.some(function (a) { return a.id === route.targetId; }))) return 'Please select the object you want to change, then ask again.';
+  var targeted = ['move', 'resize', 'delete', 'format', 'duplicate', 'arrange'].indexOf(intent) !== -1;
+  var targets = targeted ? context.annotations.filter(function (a) {
+    return a.page === context.page && (intent === 'format' && route.targetId === '__all_text__' ? a.type === 'text' : a.id === route.targetId);
+  }) : [];
+  var original = targets[0];
+  if (targeted && (!original || targets.some(function (a) { return !context.wire.objects.some(function (row) { return row.id === a.id; }); }))) return 'Please select the object you want to change, then ask again.';
   if (!targeted && route.targetId != null) return 'Please ask for one worksheet action at a time.';
-  if (original && annLocked(original)) return 'That object is locked. Unlock it first, then ask again.';
+  if (targets.some(function (a) { return annLocked(a); })) return 'That object is locked. Unlock it first, then ask again.';
   if (original && ['pen', 'highlight', 'text', 'rect', 'ellipse', 'line', 'arrow', 'brace', 'ainote', 'video'].indexOf(original.type) === -1) return 'That object cannot be changed by voice yet.';
   if (lessonCapture && original && original.type === 'ainote') return 'Finish the lesson recording before changing a picture or card.';
   if (intent === 'undo' || intent === 'redo') {
@@ -12837,8 +12974,8 @@ async function voicePlanAndApply(v, request, route, context, signal) {
     if (intent === 'undo') undo(); else redo();
     return intent === 'undo' ? 'Undid the last edit.' : 'Redid the last edit.';
   }
-  var plan = {};
-  if (intent !== 'delete') {
+  var plan = route.plan || voiceFastPlan(request.command, intent, context);
+  if (intent !== 'delete' && !plan) {
     var formats = {
       add: '{"objects":[{"type":"text|rect|ellipse|triangle|line|arrow","x":20,"y":20,"w":160,"h":40,"text":"text only","fontSize":16,"color":"#1A1A1A","width":2}]} (1 to 12 objects; line and arrow use x1,y1,x2,y2 instead of x,y,w,h; text uses fontSize, no width; shapes use width, no text or fontSize; triangle is an upright outlined triangle inside x,y,w,h; a small shape is about 48 by 48 page units unless a size is specified)',
       move: '{"dx":20,"dy":0} (relative page units for the exact target)',
@@ -12903,6 +13040,22 @@ async function voicePlanAndApply(v, request, route, context, signal) {
         if (a.type === 'text' && (a.fontSize < 8 || a.fontSize > 144)) throw new Error('Invalid text size.');
         if (a.w !== undefined && (a.w < 3 || a.h < 3)) throw new Error('Object too small.');
         voiceActionBounds(a, context);
+      } else if (intent === 'format') {
+        targets.forEach(function (target) { voiceFormatObject(next.find(function (row) { return row.id === target.id; }), plan, context); });
+      } else if (intent === 'duplicate') {
+        voiceActionKeys(plan, ['count']);
+        if (!Number.isInteger(plan.count) || plan.count < 1 || plan.count > 12 || ['ainote','video'].indexOf(a.type) !== -1) throw new Error('Unsupported duplicate.');
+        for (var copyIndex = 1; copyIndex <= plan.count; copyIndex++) {
+          var copy = JSON.parse(JSON.stringify(original));
+          copy.id = newAnnId(); delete copy.grp; delete copy._ai;
+          translateAnn(copy, 16 * copyIndex, 16 * copyIndex); voiceActionBounds(copy, context);
+          next.push(copy);
+        }
+      } else if (intent === 'arrange') {
+        voiceActionKeys(plan, ['layer']);
+        if (['front','back'].indexOf(plan.layer) === -1) throw new Error('Invalid layer.');
+        next = next.filter(function (row) { return row.id !== original.id; });
+        if (plan.layer === 'front') next.push(a); else next.unshift(a);
       } else {
         next = next.filter(function (row) { return row.id !== original.id; });
       }
@@ -12918,7 +13071,9 @@ async function voicePlanAndApply(v, request, route, context, signal) {
   if (selectedId && !annotations.some(function (a) { return a.id === selectedId; })) selectedId = null;
   renderAllOverlays(); setDirty(true);
   return intent === 'add' ? 'Added ' + count + (count === 1 ? ' object.' : ' objects.') :
-    intent === 'move' ? 'Moved the object.' : intent === 'resize' ? 'Resized the object.' : 'Deleted the object. You can undo that.';
+    intent === 'move' ? 'Moved the object.' : intent === 'resize' ? 'Resized the object.' :
+    intent === 'format' ? 'Updated the formatting. You can undo that.' : intent === 'duplicate' ? 'Duplicated the object. You can undo that.' :
+    intent === 'arrange' ? 'Changed the layer order. You can undo that.' : 'Deleted the object. You can undo that.';
 }
 /* ================= End validated voice worksheet actions ================= */
 
@@ -13035,6 +13190,8 @@ async function voiceAnswerAtCursor(v, request, context, signal) {
 // teacher identity and App Check protection as the live audio bridge.
 async function voiceRouteCommand(v, request, context, signal) {
   var transcript = typeof request.command === 'string' ? request.command.trim() : request.transcript.filter(function (row) { return row.role === 'user'; }).slice(-1).map(function (row) { return row.text; }).join('').trim();
+  var local = typeof voiceLocalCommand === 'function' ? voiceLocalCommand(transcript, context) : null;
+  if (local) return local;
   if (!transcript) return { intent: 'unsupported', targetId: null, confidence: 0, needsClarification: true };
   if (transcript.length > 4000) throw new Error('Please give Jev one shorter request at a time.');
   var tokens = await Promise.all([v.user.getIdToken(), window.liveAppCheckToken()]);
@@ -13052,6 +13209,35 @@ async function voiceRouteCommand(v, request, context, signal) {
   }
   return response.json();
 }
+function voiceDraftClear(v) {
+  clearTimeout(v.draftTimer); v.draftTimer = null;
+  if (v.draftRoute) v.draftRoute.controller.abort();
+  v.draftRoute = null;
+}
+function voiceRouteKey(command, context) {
+  return JSON.stringify([command.trim(), context.docId, context.epoch, context.page,
+    context.viewPageNum, context.fingerprint, context.cursor]);
+}
+function voicePrepareRoute(v, command) {
+  voiceDraftClear(v);
+  // Do not spend calls on classroom narration. At most two bounded prefetches
+  // per delegated turn; the final command can always use the ordinary route.
+  if (typeof command !== 'string' || !/^(?:hey\s+)?(?:jev|chung gpt|ai)[, :]+\S/i.test(command) ||
+      command.length > 4000 || (v.draftAttempts || 0) >= 2) return;
+  v.draftTimer = setTimeout(function () {
+    v.draftTimer = null;
+    if (voiceLive !== v || !voiceContextOK(v) || v.controller.signal.aborted) return;
+    var context = voiceActionContext();
+    if (!context) return;
+    var controller = new AbortController();
+    var draft = { key: voiceRouteKey(command, context), controller: controller };
+    v.draftAttempts = (v.draftAttempts || 0) + 1;
+    v.draftRoute = draft;
+    // Swallow speculative failures; the final request gets the normal error path.
+    draft.promise = voiceRouteCommand(v, { command: command }, context, controller.signal)
+      .catch(function () { return null; });
+  }, 200);
+}
 function voiceJevDelegate(v) {
   var answerQuestion = voiceDelegate(v);
   return function (request) {
@@ -13061,7 +13247,19 @@ function voiceJevDelegate(v) {
       if (!context) return 'Open a worksheet first.';
       voiceStatus('Jev is checking your request…');
       try {
-        var route = await voiceRouteCommand(v, request, context, signal);
+        clearTimeout(v.draftTimer); v.draftTimer = null;
+        var draft = v.draftRoute;
+        var reuse = draft && typeof request.command === 'string' &&
+          draft.key === voiceRouteKey(request.command, context) && !draft.controller.signal.aborted;
+        if (!reuse) voiceDraftClear(v);
+        function cancelDraft() { if (draft) draft.controller.abort(); }
+        signal.addEventListener('abort', cancelDraft, { once: true });
+        var route;
+        try {
+          route = reuse ? await draft.promise : null;
+          if (!route) route = await voiceRouteCommand(v, request, context, signal);
+        } finally { signal.removeEventListener('abort', cancelDraft); }
+        voiceDraftClear(v); v.draftAttempts = 0;
         if (signal.aborted || (request.isCurrent && !request.isCurrent())) throw new Error('Voice request cancelled.');
         if (!voiceActionCurrent(v, request, context, signal)) return 'The worksheet changed while I was checking. Please ask again.';
         if (route.intent === 'answer' && !route.needsClarification) {
@@ -13125,6 +13323,7 @@ async function voiceStart() {
         var playing = v.audio.play();
         if (playing && playing.catch) playing.catch(function () {});
       },
+      onCommandDraft: function (command) { voicePrepareRoute(v, command); },
       delegate: voiceJevDelegate(v)
     });
     if (voiceLive !== v) { await session.close(); return; }
@@ -13143,6 +13342,7 @@ async function voiceStart() {
 function voiceRelease(v) {
   if (v.released) return;
   v.released = true;
+  voiceDraftClear(v);
   v.controller.abort();
   if (v.stream) v.stream.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
   if (v.audio) { try { v.audio.pause(); } catch (e) {} v.audio.srcObject = null; v.audio = null; }
@@ -13160,6 +13360,9 @@ function voiceToggle() { if (voiceLive) voiceStop(); else voiceStart(); }
 
 $('voiceAiBtn').addEventListener('click', voiceToggle);
 $('voiceStopBtn').addEventListener('click', function () { voiceStop(); });
+$('voiceHelpBtn').addEventListener('click', function () {
+  toast('Select an object, then say: “Jev, make this bold and blue”; “set font size to 24”; “make this font Times New Roman”; “make this centre aligned”; “make this dotted and line width 3”; “duplicate this 3 times”; “bring this to the front”. For the page: “make all text on this page font size 20”. Every change can be undone.', 20000);
+});
 // A closing tab takes the microphone and the paid live session with it.
 window.addEventListener('pagehide', function () { voiceStop(); });
 // Observe without stealing drawing gestures or focus. Re-read layout when the
@@ -25419,6 +25622,10 @@ function drawAnnsOnCtx(ctx, kx, ky, anns, pageNum) {
     ctx.lineWidth = Math.max(1, (a.width || 2) * kx);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    if (['pen','highlight','rect','ellipse'].indexOf(a.type) !== -1) {
+      var shapePattern = annDashPattern(a);
+      ctx.setLineDash(shapePattern ? shapePattern.map(function (n) { return n * kx; }) : []);
+    }
     // Rotated frame shapes spin about their own centre, matching the SVG view.
     if (a.rot && (a.type === 'rect' || a.type === 'ellipse' || a.type === 'text')) {
       var rfr = annFrame(a);
@@ -25472,24 +25679,31 @@ function drawAnnsOnCtx(ctx, kx, ky, anns, pageNum) {
       ctx.setLineDash([]);
     } else if (a.type === 'text') {
       var fs = Math.max(6, (a.fontSize || 16) * ky);
-      ctx.font = fs + 'px sans-serif';
+      ctx.font = (a.italic ? 'italic ' : '') + (a.bold ? 'bold ' : '') + fs + 'px ' +
+        (['arial','times new roman','courier new'].indexOf(a.fontFamily) !== -1 ? '"' + a.fontFamily + '"' : 'sans-serif');
       var maxW = Math.max(40, (a.w || 200) * kx);
       var x = a.x * kx;
       var y = a.y * ky + fs;
+      function drawStyledLine(line) {
+        var lineW = ctx.measureText(line).width;
+        var offset = a.align === 'center' ? (maxW - lineW) / 2 : a.align === 'right' ? maxW - lineW : 0;
+        ctx.fillText(line, x + offset, y);
+        if (a.underline && line) { ctx.beginPath(); ctx.lineWidth = Math.max(1, fs / 16); ctx.moveTo(x + offset, y + fs * 0.12); ctx.lineTo(x + offset + lineW, y + fs * 0.12); ctx.stroke(); }
+      }
       String(a.text || '').split('\n').forEach(function (para) {
         var line = '';
         para.split(/\s+/).forEach(function (w) {
           if (!w) return;
           var t = line ? line + ' ' + w : w;
           if (ctx.measureText(t).width > maxW && line) {
-            ctx.fillText(line, x, y);
+            drawStyledLine(line);
             line = w;
             y += fs * 1.35;
           } else {
             line = t;
           }
         });
-        ctx.fillText(line, x, y);
+        drawStyledLine(line);
         y += fs * 1.35;
       });
     }
@@ -30947,6 +31161,13 @@ async function buildAnnotatedPdf(includeTs, opts) {
   var outDoc = await PDFDocument.load(pdfBytes);
   var font = await outDoc.embedFont(StandardFonts.Helvetica);
   var fontBold = await outDoc.embedFont(StandardFonts.HelveticaBold);
+  var styledFonts = Object.create(null);
+  var families = { arial: ['Helvetica','HelveticaBold','HelveticaOblique','HelveticaBoldOblique'],
+    'times new roman': ['TimesRoman','TimesRomanBold','TimesRomanItalic','TimesRomanBoldItalic'],
+    'courier new': ['Courier','CourierBold','CourierOblique','CourierBoldOblique'] };
+  for (var familyName of Object.keys(families)) {
+    styledFonts[familyName] = await Promise.all(families[familyName].map(function (name) { return outDoc.embedFont(StandardFonts[name]); }));
+  }
   // Pictures on AI note cards have to be embedded before the drawing pass —
   // that pass is synchronous, and embedding is not.
   var noteImages = await embedAiNoteImages(outDoc, anns);
@@ -30989,13 +31210,13 @@ async function buildAnnotatedPdf(includeTs, opts) {
       }
 
       if (a.type === 'pen') {
-        strokePath(a.points, 1);
+        strokePath(dashPolyline(a.points, annDashPattern(a)), 1);
       } else if (a.type === 'highlight') {
-        strokePath(a.points, 0.4);
+        strokePath(dashPolyline(a.points, annDashPattern(a)), 0.4);
       } else if (a.type === 'rect') {
-        if (a.rot) {
+        if (a.rot || annDashPattern(a)) {
           var rc = annFrameCorners(a);
-          strokePath([rc[0], rc[1], rc[2], rc[3], rc[0]], 1);
+          strokePath(dashPolyline([rc[0], rc[1], rc[2], rc[3], rc[0]], annDashPattern(a)), 1);
         } else {
           var p1 = cv(a.x, a.y), p2 = cv(a.x + a.w, a.y + a.h);
           page.drawRectangle({
@@ -31005,7 +31226,7 @@ async function buildAnnotatedPdf(includeTs, opts) {
           });
         }
       } else if (a.type === 'ellipse') {
-        if (a.rot) {
+        if (a.rot || annDashPattern(a)) {
           // Sampled outline rotated about the centre — drawEllipse can't spin.
           var eC = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
           var ePts = [];
@@ -31013,7 +31234,7 @@ async function buildAnnotatedPdf(includeTs, opts) {
             var eth = et / 64 * Math.PI * 2;
             ePts.push(rotPt({ x: eC.x + a.w / 2 * Math.cos(eth), y: eC.y + a.h / 2 * Math.sin(eth) }, eC, a.rot));
           }
-          strokePath(ePts, 1);
+          strokePath(dashPolyline(ePts, annDashPattern(a)), 1);
         } else {
           var ctr = cv(a.x + a.w / 2, a.y + a.h / 2);
           var edge = cv(a.x + a.w, a.y + a.h);
@@ -31044,6 +31265,7 @@ async function buildAnnotatedPdf(includeTs, opts) {
         strokePath(dashPolyline(bracePoints(a), annDashPattern(a)), 1);
       } else if (a.type === 'text' && a.text) {
         // Wrap words to the box width, matching what the screen shows.
+        var textFont = (styledFonts[a.fontFamily] || styledFonts.arial)[(a.bold ? 1 : 0) + (a.italic ? 2 : 0)];
         var lh = a.fontSize * 1.35;
         var maxW = Math.max(30, (a.w || 220) - 10);
         var outLines = [];
@@ -31054,7 +31276,7 @@ async function buildAnnotatedPdf(includeTs, opts) {
           var cur = '';
           words.forEach(function (wd) {
             var trial = cur ? cur + ' ' + wd : wd;
-            if (cur && font.widthOfTextAtSize(trial, a.fontSize) > maxW) {
+            if (cur && textFont.widthOfTextAtSize(trial, a.fontSize) > maxW) {
               outLines.push(cur);
               cur = wd;
             } else {
@@ -31067,14 +31289,22 @@ async function buildAnnotatedPdf(includeTs, opts) {
         var tC = { x: tFr.x + tFr.w / 2, y: tFr.y + tFr.h / 2 };
         outLines.forEach(function (line, i) {
           if (!line) return;
-          var basePt = { x: a.x + 5, y: a.y + 3 + a.fontSize * 0.95 + i * lh };
+          var lineWidth = textFont.widthOfTextAtSize(line, a.fontSize);
+          var offset = a.align === 'center' ? (maxW - lineWidth) / 2 : a.align === 'right' ? maxW - lineWidth : 0;
+          var basePt = { x: a.x + 5 + offset, y: a.y + 3 + a.fontSize * 0.95 + i * lh };
           if (a.rot) basePt = rotPt(basePt, tC, a.rot);
           var anchor = cv(basePt.x, basePt.y);
-          var tOpts = { x: anchor.x, y: anchor.y, size: a.fontSize, font: font, color: col };
+          var tOpts = { x: anchor.x, y: anchor.y, size: a.fontSize, font: textFont, color: col };
           // Screen rotation is clockwise (y down); PDF's positive is
           // counter-clockwise (y up), so the angle flips sign.
           if (a.rot) tOpts.rotate = PDFLib.degrees(-a.rot);
           page.drawText(line, tOpts);
+          if (a.underline) {
+            var u1 = { x: a.x + 5 + offset, y: a.y + 3 + a.fontSize * 1.07 + i * lh };
+            var u2 = { x: u1.x + lineWidth, y: u1.y };
+            if (a.rot) { u1 = rotPt(u1, tC, a.rot); u2 = rotPt(u2, tC, a.rot); }
+            page.drawLine({ start: cv(u1.x, u1.y), end: cv(u2.x, u2.y), color: col, thickness: Math.max(0.5, a.fontSize / 16) });
+          }
         });
       } else if (a.type === 'ainote') {
         drawAiNoteOnPdf({

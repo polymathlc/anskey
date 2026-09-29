@@ -17,6 +17,42 @@ captures the teacher's microphone, optional camera, and worksheet changes.
 Assistant audio plays through the Voice AI player and is not mixed into that
 recording. Recordings work without these server functions.
 
+## Fast formatting commands (v1.109.0)
+
+Select an editable object, then address Jev with an explicit command. These
+commands run locally after the Live delegation, without another routing or
+planning API call and without a new backend deployment:
+
+- “Make this bold and blue and font size 24.”
+- “Set font size to 20.” / “Make this font Times New Roman.”
+- “Make this italic and underlined and centre aligned.”
+- “Make this normal.” (clears bold, italic and underline)
+- “Make all text on this page font size 20 and black.”
+- “Make this dashed and line width 3.” / “Make this arrowheads both.”
+- “Make this width 180 and height 80 and rotation 90.”
+- “Duplicate this 3 times.” (1–12 copies, offset on the same page)
+- “Bring this to the front.” / “Send this to the back.”
+- ‘Change the text in this to "New answer".’ (literal replacement)
+- “Next page.” / “Move this right by 20 units.” / “Resize this to 150 percent.”
+
+Supported fonts are Arial, Times New Roman, Courier New and the existing
+handwriting style. Text size is 8–144; stroke width is 0.5–24. Rotation applies
+to text, rectangles and ellipses. Bulk text formatting is limited to the current
+page; every target must be unlocked and present in the bounded inventory. Cards
+and videos cannot be duplicated. An invalid operation rolls back the whole edit.
+Styles persist in normal saves, undo/redo and lesson timelines; SVG, canvas and
+PDF output preserve font emphasis, alignment, underline and line dashes.
+Standard PDF fonts approximate the screen fonts; handwriting retains the existing
+standard-font fallback in PDF/canvas output.
+
+For other commands, addressed transcript drafts prefetch Jev's decision after a
+200 ms pause. No draft performs an edit or generates an answer. Only an exact
+command/context match is reused at delegation; newer speech cancels earlier
+work. At most two prefetches run per delegated turn. These can consume existing
+Jev allowances even when cancelled. The existing grounded tutor still handles
+academic explanations and answers. No live microphone latency claim is made by
+mocked tests.
+
 ## Functions and secrets
 
 All three functions use the existing `mathgen--app` Firebase project:

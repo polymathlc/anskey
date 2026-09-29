@@ -27,6 +27,7 @@ function harness(list = [rect()]) {
   const v = { uid: 'teacher' };
   let plan = { dx: 15, dy: 10 }, current = true;
   const c = {
+    document: { createElement: () => ({ style: {}, scrollHeight: 45, scrollWidth: 0, remove() {} }), body: { appendChild() {} } },
     annotations: plain(list), pages: [
       { num: 1, baseW: 600, baseH: 800, wrap: { offsetTop: 10 } },
       { num: 2, baseW: 600, baseH: 800, wrap: { offsetTop: 900 } }
@@ -245,4 +246,105 @@ test('only the fresh command is sent to the planner, and an empty fresh command 
   assert.doesNotMatch(h.calls.requests[0].prompt, /Add a red circle/);
   const empty = harness(); empty.request.command = '';
   assert.match(await empty.run(), /tell me the change/); assert.equal(empty.calls.requests.length, 0); assert.equal(empty.calls.dirty, 0);
+});
+
+test('precise move skips model planning and retains validation and undo', async () => {
+  const h = harness(); h.request.command = 'Jev, move this right by 20 units.';
+  assert.match(await h.run(), /Moved/);
+  assert.equal(h.calls.requests.length, 0);
+  assert.equal(h.c.annotations[0].x, 40);
+  assert.equal(h.c.undoStack.length, 1);
+  h.c.undo(); assert.equal(h.c.annotations[0].x, 20);
+});
+
+test('precise navigation and resize skip planning, but invalid bounds never commit', async () => {
+  const h = harness(); h.request.command = 'Jev, next page';
+  assert.equal(await h.run('navigate'), 'Opened page 2.');
+  assert.equal(h.calls.requests.length, 0);
+  h.request.command = 'resize this to 150 percent';
+  await h.run('resize'); assert.equal(h.c.annotations[0].w, 120);
+  assert.equal(h.calls.requests.length, 0);
+  const before = plain(h.c.annotations);
+  h.request.command = 'move this left by 9999';
+  await h.run(); assert.deepEqual(plain(h.c.annotations), before);
+});
+
+test('questions, compound commands and vague directions never use the exact grammar', () => {
+  const h = harness(), context = h.c.voiceActionContext();
+  for (const command of ['What does move this right by 20 mean?', 'move this right by 20 and delete it',
+    'move this a little to the right', '"move this right by 20"']) {
+    assert.equal(h.c.voiceFastPlan(command, 'move', context), null);
+  }
+  assert.equal(h.c.voiceFastPlan('next page', 'answer', context), null);
+});
+
+async function localRun(h, command) {
+  h.request.command = command;
+  const context = h.c.voiceActionContext();
+  const route = h.c.voiceLocalCommand(command, context);
+  assert.ok(route, command);
+  return h.c.voicePlanAndApply(h.v, h.request, route, context, h.controller.signal);
+}
+
+test('voice formats text with size, font, colour, emphasis and alignment in one undo step', async () => {
+  const h = harness([rect('box', { type: 'text', text: 'Example text', fontSize: 16 })]);
+  assert.match(await localRun(h, 'Jev, make this font size 24 and font Times New Roman and blue and bold and italic and underlined and centre aligned.'), /formatting/);
+  const a = h.c.annotations[0];
+  assert.equal(a.fontSize, 24); assert.equal(a.fontFamily, 'times new roman'); assert.equal(a.color, '#1E88E5');
+  assert.equal(a.bold, true); assert.equal(a.italic, true); assert.equal(a.underline, true); assert.equal(a.align, 'center');
+  assert.equal(h.calls.requests.length, 0); assert.equal(h.c.undoStack.length, 1);
+  h.c.undo(); assert.equal(h.c.annotations[0].fontSize, 16);
+  await localRun(h, 'Set font size to 32'); assert.equal(h.c.annotations[0].fontSize, 32);
+});
+
+test('bulk text formatting affects only current page and fails atomically on locked objects', async () => {
+  const h = harness([rect('box', { type: 'text', text: 'A', fontSize: 16 }),
+    rect('b', { type: 'text', text: 'B', fontSize: 16 }), rect('c', { type: 'text', page: 2, text: 'C', fontSize: 16 }), rect('shape')]);
+  await localRun(h, 'Make all text on this page bold and font size 24');
+  assert.equal(h.c.annotations[0].bold, true); assert.equal(h.c.annotations[1].fontSize, 24);
+  assert.equal(h.c.annotations[2].fontSize, 16); assert.equal(h.c.annotations[3].bold, undefined);
+  h.c.annotations[1].locked = true;
+  const before = plain(h.c.annotations);
+  assert.match(await localRun(h, 'Make all text red'), /locked/);
+  assert.deepEqual(plain(h.c.annotations), before);
+});
+
+test('voice changes stroke styles, arrowheads, dimensions and rotation without a planner', async () => {
+  const h = harness();
+  await localRun(h, 'Make this dotted and line width 4 and red and width 100 and height 70 and rotation 90');
+  const a = h.c.annotations[0];
+  assert.equal(a.dash, 'dotted'); assert.equal(a.width, 4); assert.equal(a.w, 100); assert.equal(a.h, 70); assert.equal(a.rot, 90);
+  const arrow = harness([{ id:'box', type:'arrow', page:1, x1:20,y1:20,x2:80,y2:80,width:2,color:'#111111' }]);
+  await localRun(arrow, 'Make this arrowheads both and dashed');
+  assert.equal(arrow.c.annotations[0].heads, 'both'); assert.equal(arrow.calls.requests.length, 0);
+});
+
+test('duplicate copies live text and styles with unique ids, normal history and bounded offsets', async () => {
+  const h = harness([rect('box', { type:'text', text:'Hello', fontSize:16, bold:true })]);
+  await localRun(h, 'Duplicate this 3 times');
+  assert.equal(h.c.annotations.length, 4); assert.equal(new Set(h.c.annotations.map(a => a.id)).size, 4);
+  assert.equal(h.c.annotations[3].x, 68); assert.equal(h.c.annotations[3].bold, true);
+  assert.equal(h.c.undoStack.length, 1); assert.equal(h.calls.requests.length, 0);
+  h.c.undo(); assert.equal(h.c.annotations.length, 1);
+  const before = plain(h.c.annotations);
+  await localRun(h, 'Duplicate this 99 times'); assert.deepEqual(plain(h.c.annotations), before);
+});
+
+test('layer ordering and literal text replacement are reversible and retain existing text until requested', async () => {
+  const h = harness([rect('box', { type:'text', text:'Old answer', fontSize:16 }), rect('other')]);
+  await localRun(h, 'Bring this to the front'); assert.equal(h.c.annotations[1].id, 'box');
+  await localRun(h, 'Send this to the back'); assert.equal(h.c.annotations[0].id, 'box');
+  await localRun(h, 'Change the text in this to "New answer"'); assert.equal(h.c.annotations[0].text, 'New answer');
+  h.c.undo(); assert.equal(h.c.annotations[0].text, 'Old answer');
+});
+
+test('invalid or incompatible formatting never partially commits; unrelated commands never route locally', async () => {
+  const h = harness(), before = plain(h.c.annotations);
+  await localRun(h, 'Make this red and bold'); assert.deepEqual(plain(h.c.annotations), before);
+  assert.equal(h.c.undoStack.length, 0);
+  for (const command of ['Why would I duplicate this?', 'duplicate this and delete it', 'make this red and run code', 'make this evilfont']) {
+    assert.equal(h.c.voiceLocalCommand(command, h.c.voiceActionContext()), null);
+  }
+  h.c.selectedId = null;
+  assert.match(await localRun(h, 'Make this red'), /select/i);
 });
