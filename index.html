@@ -3431,6 +3431,17 @@
 @keyframes recGlyphPulse { 0%, 100% { opacity:1; } 50% { opacity:0.3; } }
 @media (prefers-reduced-motion: reduce) { #lessonRecordBtn.active .recGlyphDot { animation:none; } }
 #lessonClock { font-variant-numeric:tabular-nums; font-weight:700; }
+/* ⏺ The reminder to record. It is a bar in the same column as the others, so it
+   can never sit on top of the recording bar, and it takes no pointer from the
+   page: it is only ever as big as its own buttons. */
+#recRemindBar { border-color:#f1c4c4; background:#fffafa; }
+#recRemindDot { width:10px; height:10px; border-radius:50%; background:#E53935; flex:0 0 auto; box-shadow:0 0 0 0 #E5393580; animation:recRemindPulse 1.8s ease-out infinite; }
+@keyframes recRemindPulse { 70% { box-shadow:0 0 0 9px #E5393500; } 100% { box-shadow:0 0 0 0 #E5393500; } }
+#recRemindBar #recRemindGo { background:#a62639; color:#fff; border-color:#a62639; }
+#recRemindBar .recRemindQuiet { background:none; border-color:transparent; color:var(--ink-faint); font-size:12px; text-decoration:underline; padding:9px 6px; }
+#lessonRecordBtn.nudge { border-radius:8px; outline:2px solid #E53935; outline-offset:1px; animation:recNudgeRing 1.6s ease-in-out infinite; }
+@keyframes recNudgeRing { 0%, 100% { outline-color:#E53935; } 50% { outline-color:#E5393533; } }
+@media (prefers-reduced-motion: reduce) { #recRemindDot, #lessonRecordBtn.nudge { animation:none; } }
 .lessonPlayer audio { width:100%; height:40px; }
 #lessonPlayerTitle { flex:1; font-size:13px; font-weight:600; }
 .lessonReplayOverlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:25; }
@@ -4230,6 +4241,10 @@ video.mirror { transform:scaleX(-1); }
         <audio id="lessonTestAudio" preload="auto" hidden></audio>
       </section>
 
+      <label class="lessonCheck" id="lessonRemindRow">
+        <input type="checkbox" id="lessonRemind" checked>
+        <span>Remind me to record <em>— when I have been writing on a worksheet for a while without recording</em></span>
+      </label>
       <p class="lessonHelp lessonSmall" id="lessonSizeHint">Voice and writing only: under 1 MB a minute.</p>
       <p class="lessonHelp lessonSmall"><strong>A recording is you and your writing, and nothing else.</strong> The AI never answers into it. 🎙 <span class="aiName">Chung GPT</span> Voice AI is a separate button on the toolbar — its replies are never mixed into a recording, so use headphones if you want it while you record.</p>
       <p class="lessonHelp lessonSmall">Arrange pictures and cards first. Changing them ends the recording so the replay stays aligned. Noise reduction depends on your browser and device. Record for as long as you need — it stops when the file is full. Keep this app in front.</p>
@@ -4238,6 +4253,12 @@ video.mirror { transform:scaleX(-1); }
   </div>
 </div>
 <div class="barStack" id="barStack">
+<div class="lessonBar" id="recRemindBar" hidden role="region" aria-label="Reminder to record">
+  <span id="recRemindDot" aria-hidden="true"></span><div class="lessonInfo" id="recRemindText" role="status" aria-live="polite">You are writing on this worksheet but not recording. Record your video and workings?</div>
+  <button id="recRemindGo">⏺ Record now</button><button id="recRemindLater" title="Ask me again after a bit more writing">Later</button>
+  <button id="recRemindSkip" title="No more reminders on this worksheet">Not this worksheet</button>
+  <button class="recRemindQuiet" id="recRemindOff" title="Turn the reminder off. You can turn it back on in the Record window.">Stop reminding me</button>
+</div>
 <div class="lessonBar" id="voiceBar" hidden role="region" aria-label="Voice AI helper">
   <span id="voiceDot" aria-hidden="true"></span><div class="lessonInfo" id="voiceStatus" role="status" aria-live="polite"></div>
   <button id="voiceStopBtn">Stop Voice AI</button>
@@ -5119,7 +5140,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.108.0';
+var APP_VERSION = 'v1.109.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -5834,6 +5855,8 @@ function toast(msg, ms) {
 
 function setDirty(v) {
   if (v && lessonCapture) lessonCapture.annotationsChanged = true;
+  // ⏺ A reminder may never cost an edit.
+  if (v) { try { if (typeof recRemindNote === 'function') recRemindNote(); } catch (e) { /* the edit stands */ } }
   dirty = v;
   if (v) liveLastEditAt = Date.now(); // keeps the LIVE marker alive while working
   var b = $('saveBtn');
@@ -5903,6 +5926,7 @@ async function loadPdf(bytes, name, contextCheck) {
   unsubscribeOpenDoc();
   autoLearnReset(false);   // …but the page just flushed still has to be read
   wsEpoch++;              // cards still being made belong to the old worksheet
+  if (typeof recRemindHide === 'function') recRemindHide();
   pdfBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   docName = name || 'Untitled';
   currentDocId = null;
@@ -10577,6 +10601,10 @@ function lessonDevVisibility() {
 }
 function lessonOpenModal() {
   $('lessonModal').classList.add('open');
+  // The reminder has done its job once the window is open, and the window is
+  // where it can be switched back on.
+  if (typeof recRemindHide === 'function') recRemindHide();
+  if ($('lessonRemind') && typeof recRemindOn === 'function') $('lessonRemind').checked = recRemindOn();
   lessonDevOpen();
   // 🏷 A guess at which question is on screen, offered in the title box.
   if (typeof lessonTitlePrefill === 'function') lessonTitlePrefill();
@@ -10644,6 +10672,8 @@ function lessonBar(show) {
   // The toolbar's red dot pulses while a lesson is going down, so the one
   // record button says whether it is recording without a word on it.
   $('lessonRecordBtn').classList.toggle('active', !!lessonCapture);
+  // Recording (or saving one) answers the reminder.
+  if (show && typeof recRemindHide === 'function') recRemindHide();
   if (typeof syncFavActive === 'function') syncFavActive();
 }
 function lessonView() {
@@ -10706,6 +10736,7 @@ function lessonGuardChange() {
 }
 function lessonRoleChanged() {
   $('lessonRecordBtn').style.display = lessonTeacher() ? '' : 'none';
+  if (typeof recRemindHide === 'function') recRemindHide();
   if (!lessonTeacher()) {
     // 🎞 An export is the teacher's, and never carries across to whoever
     // picks the device up next.
@@ -10717,6 +10748,81 @@ function lessonRoleChanged() {
     lessonBar(false);
   } else if (lessonPending) lessonPendingUI();
 }
+
+/* ================= Reminder to record ================= */
+// Recording is the easiest thing in a lesson to forget: the teacher opens a
+// worksheet, starts working the answers, and is ten questions in before they
+// remember there is nothing on video. So the app notices — a run of working
+// marks on a worksheet with no lesson on it, and nothing being recorded — and
+// says so ONCE, in a bar that takes no pointer from the page.
+//
+//  * It is driven by setDirty, never by a timer: nothing here can outlive the
+//    worksheet, and a teacher who is reading and not writing is never nagged.
+//  * "Working" means the marks a lesson replays (LESSON_TYPES) plus cards.
+//  * A worksheet that already has a lesson recording on it is left alone.
+//  * "Later" asks again after more writing; "Not this worksheet" is for this
+//    open worksheet only; "Stop reminding me" is the device preference, which
+//    the Record window shows and can turn back on.
+//  * It may NEVER cost an edit: the hook in setDirty swallows any failure.
+var REC_REMIND_PREF = 'polymath.lessonRemind';
+var REC_REMIND_MARKS = 5;          // new working marks before the first reminder
+var REC_REMIND_LATER = 12;         // ...and after pressing Later
+var recRemind = { epoch: -1, doc: null, base: 0, next: REC_REMIND_MARKS, off: false, shown: false };
+function recRemindOn() { return lessonPrefGet(REC_REMIND_PREF) !== false; }
+function recRemindMarks() {
+  return annotations.filter(function (a) { return LESSON_TYPES.indexOf(a.type) !== -1 || a.type === 'ainote'; }).length;
+}
+function recRemindHasLesson() {
+  return annotations.some(function (a) { return !!a.lessonRecording; });
+}
+function recRemindWanted() {
+  return lessonTeacher() && !lessonBusy() && recRemindOn() && !!currentDocId && !!pages.length;
+}
+function recRemindHide() {
+  recRemind.shown = false;
+  var bar = $('recRemindBar'); if (bar) bar.hidden = true;
+  var btn = $('lessonRecordBtn'); if (btn) btn.classList.remove('nudge');
+}
+function recRemindShow() {
+  recRemind.shown = true;
+  $('recRemindBar').hidden = false;
+  $('lessonRecordBtn').classList.add('nudge');
+}
+// Called from setDirty(true). Decides whether the bar should be up.
+function recRemindNote() {
+  var r = recRemind;
+  if (!recRemindWanted()) { if (r.shown) recRemindHide(); return; }
+  if (r.epoch !== wsEpoch || r.doc !== currentDocId) {
+    // A different worksheet: start counting from what is already on it. The
+    // edit that got us here is the first one, so it is not part of the base.
+    r.epoch = wsEpoch; r.doc = currentDocId;
+    r.base = Math.max(0, recRemindMarks() - 1);
+    r.next = REC_REMIND_MARKS; r.off = false;
+    recRemindHide();
+  }
+  if (r.off) return;
+  if (recRemindHasLesson()) { if (r.shown) recRemindHide(); return; }
+  if (!r.shown && recRemindMarks() - r.base >= r.next) recRemindShow();
+}
+function recRemindLater() {
+  recRemind.next = Math.max(0, recRemindMarks() - recRemind.base) + REC_REMIND_LATER;
+  recRemindHide();
+}
+function recRemindSkip() { recRemind.off = true; recRemindHide(); }
+function recRemindOff() {
+  lessonPrefSet(REC_REMIND_PREF, false);
+  recRemindHide();
+  toast('Recording reminders are off. Turn them back on in the Record window.', 5000);
+}
+function recRemindGo() { recRemindHide(); lessonOpen(); }
+$('recRemindGo').addEventListener('click', recRemindGo);
+$('recRemindLater').addEventListener('click', recRemindLater);
+$('recRemindSkip').addEventListener('click', recRemindSkip);
+$('recRemindOff').addEventListener('click', recRemindOff);
+$('lessonRemind').addEventListener('change', function () {
+  lessonPrefSet(REC_REMIND_PREF, !!$('lessonRemind').checked);
+});
+/* ================= End reminder to record ================= */
 
 // Finished recordings are retained locally until both assets AND the worksheet
 // attachment are saved. IndexedDB stores the Blob without expanding it to base64.

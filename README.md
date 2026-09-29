@@ -3,6 +3,25 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.109.0 — A reminder to record
+
+Forgot to press ⏺ Record until ten questions in? Ans Key now notices. When you
+have been writing on one of your worksheets (five or more marks, or cards) and
+nothing is being recorded, a bar appears above the toolbar-side controls and the
+⏺ button pulses:
+
+- **⏺ Record now** opens the Record window.
+- **Later** asks again after about a dozen more marks.
+- **Not this worksheet** stops reminders on the worksheet you have open.
+- **Stop reminding me** turns it off on this device. The Record window has a
+  **Remind me to record** tick to turn it back on.
+
+It only appears for you (never for students, share links or practice mode), never
+while a recording is running or being saved, never on a worksheet that already
+has a lesson recording on it, and never on a worksheet that has not been saved
+yet. It watches your edits and does not use a timer, so reading a worksheet
+without writing on it is never interrupted.
+
 ## v1.108.0 — Point, then ask Jev to put it there
 
 Start **🎙 Voice AI** or press **Shift+V**, then move your mouse or hovering pen

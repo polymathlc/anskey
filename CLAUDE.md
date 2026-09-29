@@ -35,6 +35,34 @@ objects and recording card backgrounds remain protected. Run all `tools/*-tests.
 and `functions` tests after changes; the action, routing and transport suites
 cover runtime behavior, authentication, cancellation and stale results.
 
+## ⏺ The reminder to record (v1.109.0)
+
+`REC_REMIND_*` / `recRemind` / `recRemindOn` / `recRemindMarks` / `recRemindHasLesson` /
+`recRemindWanted` / **`recRemindNote`** / `recRemindShow` / `recRemindHide` / `recRemindLater` /
+`recRemindSkip` / `recRemindOff` / `recRemindGo` (search `Reminder to record`, inside the
+synchronized-recording section), plus `#recRemindBar` in `#barStack`, the `.nudge` state on
+`#lessonRecordBtn`, the `#lessonRemind` tick in the Record window and the hooks in `setDirty`,
+`loadPdf`, `lessonBar`, `lessonOpenModal` and `lessonRoleChanged`.
+
+The teacher forgets to record. The app says so once, after a run of working marks with nothing on
+video.
+
+- **IT IS DRIVEN BY `setDirty`, NEVER BY A TIMER.** Nothing can outlive the worksheet, and reading
+  without writing is never interrupted. **The hook swallows every failure** — a reminder may never
+  cost an edit.
+- **"WORKING" IS WHAT A LESSON REPLAYS** (`LESSON_TYPES`) plus cards. The count starts from what is
+  already on the worksheet when it is first seen, so forty old marks are not a run of new ones.
+- **IT STANDS DOWN** for a non-teacher, practice mode, a recording running or being saved
+  (`lessonBusy`), a worksheet with no id (it cannot be recorded), the device preference being off,
+  and a worksheet that already carries a `lessonRecording`.
+- **THREE WAYS TO ANSWER IT**: Later (asks again after `REC_REMIND_LATER` more marks), Not this
+  worksheet (`off` for this open worksheet only, reset on the next), Stop reminding me (the device
+  preference, `polymath.lessonRemind`, switched back on from the Record window). Starting a
+  recording, opening the window, changing worksheet or role all hide it.
+- **THE BAR IS IN THE SAME COLUMN AS THE OTHERS**, so it can never sit on top of the recording bar.
+- Run **`node --test tools/recording-remind-tests.mjs`** and **`node tools/recording-ui-tests.mjs`**
+  after touching any of it.
+
 ## ⬇ A lesson as a 1080p video, 🎬 a worksheet's videos in order, 🏷 a lesson named for its question (v1.105.0)
 
 `LESSON_EXPORT_*` / `lessonExportMime` / `lessonExportLayout` / `lessonExportStack` /
