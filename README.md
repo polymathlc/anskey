@@ -3,6 +3,29 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.111.0 — A complete manual model suite
+
+Click **Model suite** in the toolbar. All its tools work without AI, speech or an
+API key. Open an existing worksheet, or choose **Start a blank worksheet** inside
+the suite. Use the **Build**, **Cut**, **Arrange** and **Templates** shortcuts to
+move between controls.
+
+- Draw or add rounded pastel bars, change their quantities and dimensions, and
+  add total or unknown braces above and below.
+- Cut at a point, into equal parts, by a ratio such as `2:3:1`, or at a percentage.
+  Join neighbouring pieces. A cut keeps the original known quantity as a total.
+- Align edges, match widths or heights, arrange rows and stacks with a chosen
+  gap, or move by an exact number of points.
+- Group bars with their labels and braces; select, duplicate or delete whole
+  models. Ungroup to edit a single piece. Undo and redo are always at hand.
+- Create part–whole, comparison, ratio, before-and-after, equal-group and fraction
+  models. Name both rows and set their totals separately; choose how many
+  fraction parts are shaded, including zero or the whole.
+
+Templates move as complete groups. Double-click an outside label to edit its
+text. Models retain their rounded corners, pastel fills and labels when saved,
+replayed or exported as PDF. Edits respect locked objects and page boundaries.
+
 ## v1.110.0 — Shared AI vision and Singapore maths models
 
 Worksheet AI now receives sharp close-ups of the visible page, your current

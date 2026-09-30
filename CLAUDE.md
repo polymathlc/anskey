@@ -2,6 +2,19 @@
 
 Guidance for Claude when working in this repo.
 
+## Manual model suite (v1.111.0)
+
+`bar-models.js` owns rendering, the panel, core cuts and `bmCommit`.
+`model-suite.js` owns manual selection, ratio/percentage cuts and arrangement;
+`model-templates.js` owns deterministic template layouts. These tools make no AI
+requests. The suite can start an ordinary blank worksheet via `addBlankPage`.
+All writes use the normal edit guards and one undo step. Replacements keep their
+layer order. Group operations include labels/braces and reject a locked member
+before writing. `modelObject` identifies related text/braces after ungrouping and
+is preserved by replay. Template unit lengths must match the supplied ratios;
+unknown quantities remain `?`. Run all model tests plus
+`tools/manual-suite-browser-check.mjs` for real UI and PDF export verification.
+
 ## Jev cursor placement (v1.108.0)
 
 ### Shared vision and maths models (v1.110.0)

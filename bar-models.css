@@ -20,5 +20,21 @@
 .barModelStatus { font-size: 12px; min-height: 18px; }
 .barModelPanel .bmWide { width: 100%; }
 .barModelPanel .bmHint { margin: 9px 0 0; font-size: 11px; }
+.barModelPanel { width: 340px; scroll-padding-top: 166px; }
+.barModelPanel [hidden] { display: none !important; }
+.bmPanelTop { position: sticky; top: -18px; z-index: 2; margin: -18px -18px 0; padding: 16px 18px 5px; background: #fffefa; border-bottom: 1px solid #e7e8e3; }
+.barModelPanel .bmManualBadge { color: #426b58; font-size: 12px; margin: 0 0 10px; }
+.bmSections { display: flex; gap: 5px; }
+.bmSections button { flex: 1; font: inherit; padding: 6px 3px; border: 1px solid #dce1e3; border-radius: 7px; background: #f4f7f4; color: #334155; cursor: pointer; }
+.barModelPanel .barModelStatus { margin: 8px 0 4px; }
+.barModelPanel button:disabled { opacity: .5; cursor: default; }
+.barModelPanel .bmWide { margin-bottom: 10px; }
+.barModelPanel label { margin-top: 10px; }
+.barModelPanel .bmHint + label { margin-top: 12px; }
+.barModelPanel .bmHint + .barModelGrid { margin-top: 10px; }
+.barModelPanel .bmDanger { color: #a23b43; }
+.bmTemplateDivider { margin: 12px 0 3px; font-weight: 700; color: #475569; }
+.bmHistory { position: sticky; bottom: -18px; z-index: 1; margin: 12px -18px -18px; padding: 10px 18px; background: #fffefa; border-top: 1px solid #e7e8e3; }
+#bmEmpty { padding-top: 18px; }
 @media (pointer: coarse) { .barModelPanel input, .barModelPanel select { font-size: 16px; } .barModelPanel button.bmAction { min-height: 40px; } }
-@media (max-width: 650px) { .barModelPanel { right: 8px; bottom: 8px; width: 280px; max-height: 64dvh; padding: 14px; } }
+@media (max-width: 650px) { .barModelPanel { right: 8px; bottom: 8px; width: 280px; max-height: 64dvh; padding: 14px; } .bmPanelTop { top: -14px; margin: -14px -14px 0; padding: 12px 14px 5px; } .bmHistory { bottom: -14px; margin: 12px -14px -14px; padding: 10px 14px; } }

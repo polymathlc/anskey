@@ -108,6 +108,7 @@ function bmEditableSelection() {
   var bars = bmSelected();
   if (!bars.length) throw new Error('Select a model bar first.');
   if (bars.some(annLocked)) throw new Error('Unlock the selected bars before changing them.');
+  if (typeof bmSuiteEditable === 'function') bmSuiteEditable(bmSuiteSelection());
   return bars;
 }
 function bmValue(id) { return document.getElementById(id).value; }
@@ -142,8 +143,20 @@ function bmValidatePlacement(additions) {
 }
 function bmCommit(removeIds, additions, selectAll) {
   bmValidatePlacement(additions);
+  // Keep replacements at their original layer. New cut/join pieces occupy
+  // the first removed object's position; unrelated objects keep their order.
+  var removed = new Set(removeIds), oldIds = new Set(annotations.map(function (a) { return a.id; }));
+  var replacements = new Map(additions.filter(function (a) { return removed.has(a.id); }).map(function (a) { return [a.id, a]; }));
+  var fresh = additions.filter(function (a) { return !oldIds.has(a.id); }), inserted = false, next = [];
+  if (additions.some(function (a) { return oldIds.has(a.id) && !removed.has(a.id); })) throw new Error('The model changed. Select it again before editing.');
+  annotations.forEach(function (a) {
+    if (!removed.has(a.id)) { next.push(a); return; }
+    if (!inserted) { next = next.concat(fresh); inserted = true; }
+    if (replacements.has(a.id)) next.push(replacements.get(a.id));
+  });
+  if (!inserted) next = next.concat(fresh);
   pushUndo();
-  annotations = annotations.filter(function (a) { return removeIds.indexOf(a.id) < 0; }).concat(additions);
+  annotations = next;
   clearLassoSel(false); editingId = null; editModeId = null;
   selectedId = additions.length ? additions[0].id : null;
   if (selectAll && additions.length > 1) {
@@ -168,11 +181,14 @@ function bmBracket(page, x, y, w, label, below) {
   var depth = braceDepth(a);
   var t = { id: newAnnId(), page: page, type: 'text', x: x, y: below ? y + depth + 5 : y - depth - labelH - 6,
     w: w, h: labelH, text: String(label || '?').slice(0, 80), fontSize: 14, color: '#26384C', align: 'center', kw: [], ts: Date.now() };
+  t.fontSize = Math.max(1, Math.min(14, Math.max(1, w - 8) / Math.max(1, t.text.length * 0.64)));
   var group = 'model-label-' + newAnnId(); a.grp = group; t.grp = group;
+  a.modelObject = true; t.modelObject = true;
   return [a, t];
 }
 function bmSplit(a, fractions) {
   if (annLocked(a)) throw new Error('Unlock this bar before cutting it.');
+  if (a.grp && annotations.some(function (item) { return item.page === a.page && item.grp === a.grp && annLocked(item); })) throw new Error('Unlock every group member before cutting this model.');
   var boxes = bmSplitGeometry(a, fractions);
   var additions = boxes.map(function (box, i) { return bmNewBar(a.page, box.x, box.y, box.w, box.h, '?', i % 2 ? BM_PALETTE[(BM_PALETTE.indexOf(bmColour(a)) + 1) % BM_PALETTE.length] : bmColour(a)); });
   // Cutting a quantity never silently copies that quantity to every part.
@@ -182,6 +198,7 @@ function bmSplit(a, fractions) {
     var below = a.y < 76;
     additions = additions.concat(bmBracket(a.page, a.x, below ? a.y + a.h + 8 : a.y - 8, a.w, bmLabel(a), below));
   }
+  if (a.grp) additions.forEach(function (item) { item.grp = a.grp; });
   bmCommit([a.id], additions, false);
   toast(total ? 'Bar cut. Label each part; the original quantity is kept as the whole.' : 'Bar cut. Label each new part.');
 }
@@ -234,9 +251,13 @@ function bmTemplate(kind) {
     row(n, y, function (i) { return BM_PALETTE[i % BM_PALETTE.length]; }, function () { return '?'; });
     additions = additions.concat(bmBracket(at.page, at.x, y - 8, dims.w, label, false));
   }
+  var group = 'model-' + newAnnId();
+  additions.forEach(function (item) { item.grp = group; });
   setTool('select'); bmCommit([], additions, true);
 }
 function bmRun(action) {
+  if (action === 'blank') { bmStartBlank(); return; }
+  if (typeof bmSuiteRun === 'function' && bmSuiteRun(action)) return;
   bmSafe(function () {
     var bars, dims, a;
     if (action === 'undo') { undo(); bmSync(true); return; }
@@ -248,6 +269,7 @@ function bmRun(action) {
       dims = bmDimensions(); var at = bmAnchor(dims.w, dims.h);
       setTool('select'); bmCommit([], [bmNewBar(at.page, at.x, at.y, dims.w, dims.h, bmValue('bmLabel'), bmFill)], false); return;
     }
+    if (typeof bmManualTemplate === 'function' && ['ratio', 'beforeafter', 'equalgroups', 'fraction'].indexOf(action) !== -1) { bmManualTemplate(action); return; }
     if (action === 'partwhole' || action === 'comparison' || action === 'fraction') { bmTemplate(action); return; }
     bars = bmEditableSelection(); a = bars[0];
     if (action === 'apply') {
@@ -264,6 +286,7 @@ function bmRun(action) {
       var combined = box.ordered.map(bmLabel).filter(Boolean).join(' + ');
       if (combined.length > 80) throw new Error('Shorten the piece labels before joining them; their combined label must fit 80 characters.');
       var joined = bmNewBar(a.page, box.x, box.y, box.w, box.h, combined, bmColour(a));
+      if (a.grp && bars.every(function (item) { return item.grp === a.grp; })) joined.grp = a.grp;
       bmCommit(bars.map(function (item) { return item.id; }), [joined], false);
     } else if (action === 'duplicate') {
       var copies = bars.map(function (item) { var copy = JSON.parse(JSON.stringify(item)); copy.id = newAnnId(); delete copy.grp; copy.y += copy.h + 12; copy.ts = Date.now(); return copy; });
@@ -274,12 +297,22 @@ function bmRun(action) {
       var right = Math.max.apply(null, bars.map(function (item) { return item.x + item.w; }));
       var below = action === 'below';
       var y = below ? Math.max.apply(null, bars.map(function (item) { return item.y + item.h; })) + 8 : Math.min.apply(null, bars.map(function (item) { return item.y; })) - 8;
-      bmCommit([], bmBracket(a.page, x, y, right - x, bmValue('bmLabel') || '?', below), true);
+      var bracket = bmBracket(a.page, x, y, right - x, bmValue('bmLabel') || '?', below);
+      var members = typeof bmSuiteSelection === 'function' ? bmSuiteSelection() : bars;
+      var modelGroup = a.grp && members.every(function (item) { return item.grp === a.grp; }) ? a.grp : 'model-' + newAnnId();
+      var grouped = members.map(function (item) { return Object.assign({}, item, { grp: modelGroup }); });
+      bracket.forEach(function (item) { item.grp = modelGroup; });
+      bmCommit(members.map(function (item) { return item.id; }), grouped.concat(bracket), true);
     }
   });
 }
 function bmSync(force) {
   var panel = bmPanel(); if (!panel || panel.hidden) return;
+  var empty = document.getElementById('bmEmpty'), workspace = document.getElementById('bmWorkspaceTools');
+  if (empty) empty.hidden = pages.length > 0;
+  if (workspace) workspace.hidden = !pages.length;
+  panel.querySelectorAll('[data-bm-section]').forEach(function (btn) { btn.disabled = !pages.length; });
+  if (!pages.length) { document.getElementById('bmStatus').textContent = 'Start with a blank page or your own PDF.'; return; }
   if (!bmCanEdit()) { panel.hidden = true; document.getElementById('barModelBtn').setAttribute('aria-expanded', 'false'); return; }
   var bars = bmSelected(), one = bars.length === 1 ? bars[0] : null;
   var key = JSON.stringify(bars.map(function (a) { return [a.id, a.w, a.h, a.fill, a.modelLabel]; }));
@@ -292,19 +325,32 @@ function bmSync(force) {
     }
     bmLastSelection = key;
   }
-  document.getElementById('bmStatus').textContent = tool === 'modelcut' ? 'Tap a bar at the cut point.' : tool === 'modelbar' ? 'Drag on the worksheet to draw a bar.' : bars.length ? bars.length + (bars.length === 1 ? ' bar selected · drag to move or resize.' : ' bars selected.') : 'Select a bar, or add a new model.';
+  var selected = typeof bmSuiteSelection === 'function' ? bmSuiteSelection() : bars;
+  document.getElementById('bmStatus').textContent = tool === 'modelcut' ? 'Tap a bar at the cut point.' : tool === 'modelbar' ? 'Drag on the worksheet to draw a bar.' : selected.length ? bars.length + ' bars · ' + selected.length + ' objects selected.' : 'Select a bar, or add a new model.';
   panel.querySelectorAll('[data-bm-fill]').forEach(function (btn) { btn.setAttribute('aria-pressed', String(btn.getAttribute('data-bm-fill') === bmFill)); });
   panel.querySelectorAll('[data-bm-mode]').forEach(function (btn) { btn.setAttribute('aria-pressed', String(btn.getAttribute('data-bm-mode') === tool)); });
 }
 function bmToggle() {
-  if (!bmCanEdit()) { toast('Open an editable worksheet to build a model.'); return; }
+  if (pages.length && !bmCanEdit()) { toast('Open an editable worksheet to build a model.'); return; }
   var panel = bmPanel(); panel.hidden = !panel.hidden;
   document.getElementById('barModelBtn').setAttribute('aria-expanded', String(!panel.hidden));
   if (!panel.hidden) bmSync(true);
 }
+async function bmStartBlank() {
+  try { await addBlankPage(); bmSync(true); }
+  catch (err) { toast(err.message || 'The blank worksheet could not be opened.', 4500); }
+}
+function bmClosePanel() {
+  bmPanel().hidden = true;
+  document.getElementById('barModelBtn').setAttribute('aria-expanded', 'false');
+  document.getElementById('barModelBtn').focus();
+}
 document.getElementById('barModelBtn').addEventListener('click', bmToggle);
-document.getElementById('bmClose').addEventListener('click', function () { bmPanel().hidden = true; document.getElementById('barModelBtn').setAttribute('aria-expanded', 'false'); });
+document.getElementById('bmClose').addEventListener('click', bmClosePanel);
+bmPanel().addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); bmClosePanel(); } });
 bmPanel().addEventListener('click', function (e) {
+  var section = e.target.closest('[data-bm-section]');
+  if (section) { document.getElementById(section.getAttribute('data-bm-section')).scrollIntoView({ block: 'start' }); return; }
   var action = e.target.closest('[data-bm-action]');
   if (action) { bmRun(action.getAttribute('data-bm-action')); return; }
   var swatch = e.target.closest('[data-bm-fill]');
