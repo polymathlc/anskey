@@ -1,0 +1,24 @@
+/* Singapore maths model builder. The worksheet remains usable beside it. */
+.barModelPanel { position: fixed; z-index: 165; right: 18px; bottom: 18px; width: 320px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 130px); overflow: auto; padding: 18px; background: #fffefa; color: #334155; border: 1px solid #dedfdc; border-radius: 18px; box-shadow: 0 12px 44px #24364a24; font: 13px/1.4 var(--font, sans-serif); }
+.barModelPanel[hidden] { display: none; }
+.barModelHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.barModelHeading h2 { margin: 0; font-size: 18px; letter-spacing: -.3px; }
+.barModelHeading button { border: 0; background: transparent; font-size: 24px; color: #64748b; cursor: pointer; }
+.barModelPanel p { margin: 4px 0 12px; color: #64748b; }
+.barModelPanel fieldset { border: 0; border-top: 1px solid #e7e8e3; margin: 14px 0 0; padding: 12px 0 0; }
+.barModelPanel legend { padding: 0 7px 0 0; font-weight: 700; color: #475569; }
+.barModelGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.barModelPanel button.bmAction { min-height: 35px; border: 1px solid #dce1e3; border-radius: 9px; background: #fff; color: #334155; padding: 7px 9px; cursor: pointer; font: inherit; }
+.barModelPanel button.bmAction:hover { background: #eff6fa; border-color: #94b8d2; }
+.barModelPanel button.bmAction[aria-pressed="true"], .barModelPanel button.bmPrimary { background: #e0edf9; border-color: #a6bed5; }
+.barModelPanel button:focus-visible, .barModelPanel input:focus-visible, .barModelPanel select:focus-visible { outline: 3px solid #8cb5d8; outline-offset: 2px; }
+.barModelPanel label { display: grid; gap: 4px; margin-bottom: 9px; color: #526176; }
+.barModelPanel input, .barModelPanel select { min-width: 0; width: 100%; box-sizing: border-box; border: 1px solid #d6dee3; border-radius: 8px; padding: 7px 8px; background: #fff; color: #26384c; font: inherit; }
+.barModelPanel .bmPalette { display: flex; gap: 8px; margin: 2px 0 11px; }
+.bmPalette button { width: 30px; height: 30px; border: 2px solid transparent; border-radius: 9px; cursor: pointer; box-shadow: inset 0 0 0 1px #33415518; }
+.bmPalette button[aria-pressed="true"] { border-color: #526b84; outline: 2px solid #fff; outline-offset: -4px; }
+.barModelStatus { font-size: 12px; min-height: 18px; }
+.barModelPanel .bmWide { width: 100%; }
+.barModelPanel .bmHint { margin: 9px 0 0; font-size: 11px; }
+@media (pointer: coarse) { .barModelPanel input, .barModelPanel select { font-size: 16px; } .barModelPanel button.bmAction { min-height: 40px; } }
+@media (max-width: 650px) { .barModelPanel { right: 8px; bottom: 8px; width: 280px; max-height: 64dvh; padding: 14px; } }

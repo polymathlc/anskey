@@ -232,3 +232,55 @@ test('answers that cannot fit at the exact cursor do not shift elsewhere or clip
   assert.match(await tall.write(), /will not fit/);
   assert.equal(tall.c.annotations.length, 0); assert.equal(tall.c.undoStack.length, 0); assert.equal(tall.calls.probes[0].removed, true);
 });
+
+test('written and spoken answers receive frozen shared question focus and visual images', async () => {
+  const h = harness(); h.record();
+  const focus = { page: 2, x: 20, y: 30, w: 200, h: 100 };
+  const frozen = { focus, questionPage: 2, screen: 'frozen-screen', annotations: [] };
+  h.c.answerKeyPageContext = p => '\nKey for page ' + p.num;
+  h.c.aiViewSnapshot = options => { assert.equal(options.cursor.page, 1); return frozen; };
+  h.c.aiViewImages = async view => {
+    assert.equal(view, frozen);
+    return { images: [{ mimeType: 'image/jpeg', data: 'focused-question', label: 'AI focus page 2' },
+      { mimeType: 'image/jpeg', data: 'frozen-screen', label: 'Actual view' }], prompt: 'Explicit question focus on page 2.' };
+  };
+  const captured = h.capture();
+  assert.match(await h.write(captured), /Wrote the answer at your pointer/);
+  assert.equal(h.calls.images.length, 0, 'does not also re-capture the legacy full page');
+  assert.deepEqual(h.calls.plans[0].options.images.map(im => im.data), ['focused-question', 'frozen-screen']);
+  assert.match(h.calls.plans[0].prompt, /Explicit question focus on page 2/);
+  assert.match(h.calls.plans[0].prompt, /Image 1: AI focus page 2/);
+  assert.match(h.calls.plans[0].prompt, /Key for page 2/); assert.doesNotMatch(h.calls.plans[0].prompt, /Key for page 1/);
+  assert.equal(h.c.annotations[0].page, 1, 'question focus does not move the answer destination');
+  assert.equal(h.c.annotations[0].x, 300);
+  h.setAnswer(() => 'Question 2a: 42.');
+  const spoken = await h.c.voiceDelegate(h.v)(h.request, h.capture());
+  assert.equal(spoken, 'Question 2a: 42.');
+  assert.match(h.calls.plans.at(-1).prompt, /Resolve references/);
+});
+
+test('changing the question focus cancels an in-flight voice answer before insertion', async () => {
+  const h = harness(); h.record(); let focus = { page: 1, x: 10, y: 20, w: 100, h: 100 };
+  h.c.aiQuestionFocusCurrent = () => focus;
+  const context = h.capture();
+  h.setAnswer(() => { focus = { ...focus, y: 200 }; return JSON.stringify({ answer: '42' }); });
+  assert.match(await h.write(context), /changed/);
+  assert.equal(h.c.annotations.length, 0); assert.equal(h.c.undoStack.length, 0);
+});
+
+test('Jev can distinguish model bars by their visible pastel fill and quantity label', () => {
+  const h = harness(); h.record();
+  h.c.annotations = [{ id: 'bar', type: 'rect', modelBar: true, page: 1, x: 50, y: 50, w: 200, h: 40,
+    color: '#526B84', fill: '#CBE8D5', modelLabel: '12 marbles' }];
+  const object = h.capture().wire.objects[0];
+  assert.equal(object.text, '12 marbles'); assert.equal(object.color, '#CBE8D5'); assert.equal(object.title, 'Maths model bar');
+  h.c.selectedId = 'bar';
+  const context = h.capture(), bar = h.c.annotations[0];
+  const recolour = h.c.voiceLocalCommand('Jev, make this bar blue', context);
+  h.c.voiceFormatObject(bar, recolour.plan, context);
+  assert.equal(bar.fill, '#C8DDF2'); assert.equal(bar.color, '#526B84');
+  const relabel = h.c.voiceLocalCommand('Jev, label this bar as 24 marbles', context);
+  h.c.voiceFormatObject(bar, relabel.plan, context);
+  assert.equal(bar.modelLabel, '24 marbles'); assert.equal(bar.text, undefined);
+  assert.throws(() => h.c.voiceFormatObject(bar, { text: 'x'.repeat(81) }, context), /at most 80/);
+});

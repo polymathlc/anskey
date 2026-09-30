@@ -3,6 +3,41 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.110.0 — Shared AI vision and Singapore maths models
+
+Worksheet AI now receives sharp close-ups of the visible page, your current
+writing (including text still being edited), pictures and models. The same
+captured view reaches Gemini, ChatGPT and Kimi, including Voice AI, Ask AI,
+answer boxes, mindmaps and generated notes. Whole-page marking keeps the page
+being marked as its target.
+
+**Choose the exact question:** click **◎ AI focus**, then drag around the complete
+question. A purple outline shows the selection. You can then move your pointer
+to an empty answer space and say **“Jev, answer part a here.”** The focus identifies
+the question; the cursor sets where the answer is written. **Clear focus** returns
+to the current view and pointer. Changing the focus cancels an unfinished voice
+answer so it cannot answer the old question at the new target.
+
+**Include live widgets:** click **▣ Share view** and choose this app tab in the
+browser's sharing dialog. Each AI request includes a frame of the actual shared
+view, including floating windows and live widget state. Stop with the same button
+or the browser's sharing control. No audio is requested, and frames are captured
+for requests rather than continuously uploaded or saved in the worksheet.
+Sharing stops on worksheet, account or role changes. Browsers without tab sharing
+still use automatic worksheet vision; interactive widget internals require sharing.
+
+**Build a Singapore maths model:** open **Models** for rounded pastel bars,
+labels, drawing, cutting at a chosen point, equal parts, joining and duplicating.
+Part-whole, comparison and fraction templates give you a starting point. Move
+and resize bars with the ordinary selection tools; use brackets for totals and
+unknown quantities. Models use normal undo and worksheet saving, and their fills,
+rounded corners and labels appear in AI snapshots, lesson replay and PDF export.
+Select a bar to use voice commands such as **“Jev, label this bar as 24”** or
+**“Jev, make this bar blue”**; named model colours use the pastel palette.
+
+The browser controls whether screen sharing is available and always asks you to
+choose a surface ([Screen Capture API](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia)).
+
 ## v1.108.0 — Point, then ask Jev to put it there
 
 Start **🎙 Voice AI** or press **Shift+V**, then move your mouse or hovering pen
