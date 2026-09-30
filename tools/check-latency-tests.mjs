@@ -177,6 +177,7 @@ if (!tutor) {
     Object.assign(h.c, { annotations: [answer], teacherAnswers: [], pages: [page], wsMeta: {},
       lastAnswerKey: { items: [{ page: 1, number: '3', answer: '48', explanation: 'Find one item, then multiply.' }] },
       annBounds: () => ({ y: 300, y2: 330 }), bandJpeg: () => '', compositeJpeg: () => '', pageJpeg: () => '',
+      aiViewSnapshot: options => ({ page: options.pageRef.num, includeFocus: options.includeFocus, includeScreen: options.includeScreen }),
       AI_MARK_SYS: 'Mark the answer.', aiGrounding: () => '', _parseAIJson: JSON.parse });
     h.c.window.askGemini = async (prompt, opts) => { request = { prompt, opts }; return '{"verdict":"correct"}'; };
     vm.runInContext(cut('function answerKeyPageContext(', 'function voiceTypedContext('), h.c);
@@ -185,6 +186,7 @@ if (!tutor) {
     assert.match(request.prompt, /Question 3: 48 Working: Find one item/);
     assert.match(request.opts.system, /working FIRST/);
     assert.match(request.opts.system, /unitary method/);
+    assert.deepEqual(request.opts.viewContext, { page: 1, includeFocus: false, includeScreen: false });
   });
 }
 

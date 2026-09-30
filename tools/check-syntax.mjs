@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -13,6 +14,7 @@ try {
     fs.writeFileSync(file, script[2]);
     execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
   }
+  execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../bar-models.js', import.meta.url))], { stdio: 'inherit' });
   console.log(`${scripts.length} inline scripts passed syntax checks.`);
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });

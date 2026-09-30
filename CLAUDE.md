@@ -4,6 +4,27 @@ Guidance for Claude when working in this repo.
 
 ## Jev cursor placement (v1.108.0)
 
+### Shared vision and maths models (v1.110.0)
+
+`aiViewSnapshot` freezes worksheet identity, live text, viewport, cursor and
+`aiQuestionFocus` before asynchronous work. `aiViewImages` renders the frozen PDF
+page plus annotations/cards at readable resolution. Interactive calls opt in via
+`viewContext`; the engine bridge adds the same context before provider routing.
+Bulk marking keeps an explicit page target. Background style learning never
+captures the screen. Explicit AI focus is question identity, separate from the
+cursor used to place a voice answer. Never replace a frozen target after an await.
+
+`aiScreenStart` uses the browser's display chooser; `aiScreenFrame` takes a frame
+only when a request starts. Never add audio, recording, automatic capture without
+a user click, or persistence of the frames. Stop tracks on identity/role changes,
+including a late chooser result. A widget's saved explanation is not its current
+interactive state; only the shared frame can supply that state.
+
+Model bars extend existing rectangle annotations and must keep their rounded
+pastel fill and label in SVG, canvas snapshots/replay, PDF export and storage.
+Run the AI view/focus/screen, model and voice suites plus the browser vision/model
+checks after changing these paths.
+
 `voicePointerRecord` observes mouse/pen coordinates without stealing events.
 `voiceCursorPoint` maps the real visible SVG rectangle to page units, rejecting
 off-page, occluded, iframe, touch and stale-account/worksheet positions.
