@@ -4613,9 +4613,9 @@ video.mirror { transform:scaleX(-1); }
       <div class="profileIntro">
         Choose which AI powers every AI feature on this worksheet — <strong>Answer</strong> and <strong>Improve</strong> on text boxes,
         the <strong>Answer key</strong>, <strong>AI notes</strong>, marking, keyword extraction and Ask AI.
-        The app starts on <strong>ChatGPT gpt-6-astra</strong>; paste your key below once and it is used everywhere.
-        Gemini needs no key and is what runs until a key is saved — and whenever ChatGPT fails, the app falls back to it
-        by itself, so the AI never simply stops working.
+        The app starts on <strong>ChatGPT gpt-6.1-sol</strong> for text, worksheet vision and thinking; paste your key below once.
+        Gemini is the first backup and Kimi is the next backup when its key is saved.
+        Each backup receives the same question, worksheet images and teaching instructions.
       </div>
 
       <div class="fieldRow">
@@ -4646,7 +4646,8 @@ video.mirror { transform:scaleX(-1); }
       <div class="fieldRow">
         <label for="aiEngineModelSel">ChatGPT model</label>
         <select id="aiEngineModelSel">
-          <option value="gpt-6-astra">gpt-6-astra — newest (recommended)</option>
+          <option value="gpt-6.1-sol">gpt-6.1-sol — text, vision and thinking (recommended)</option>
+          <option value="gpt-6-astra">gpt-6-astra — previous flagship</option>
           <option value="gpt-6-astra-fast">gpt-6-astra-fast — same model, quicker, less thinking</option>
           <option value="gpt-5.6-sol">gpt-5.6-sol — the previous flagship</option>
           <option value="gpt-4o-mini">gpt-4o-mini — fast &amp; cheap</option>
@@ -5201,7 +5202,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.111.0';
+var APP_VERSION = 'v1.112.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -15546,9 +15547,9 @@ function deleteSelected() {
    a new device, a cleared browser or a fresh install all come back with the key
    already in place. That doc is admin-only by Firestore rule (see README) —
    nothing about it is student-readable. */
-var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', imageModel: 'ak_openai_image_model', kimiKey: 'ak_kimi_key', kimiModel: 'ak_kimi_model', modelGen: 'ak_openai_model_gen', imageEngine: 'ak_ai_image_engine', imageGen: 'ak_openai_image_gen' };
+var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', modelExplicit: 'ak_openai_model_explicit', imageModel: 'ak_openai_image_model', kimiKey: 'ak_kimi_key', kimiModel: 'ak_kimi_model', modelGen: 'ak_openai_model_gen', imageEngine: 'ak_ai_image_engine', imageGen: 'ak_openai_image_gen' };
 var AI_ENGINE_COLLECTION = 'adminSettings';   // one doc per admin uid
-var OPENAI_DEFAULT_MODEL = 'gpt-6-astra';
+var OPENAI_DEFAULT_MODEL = 'gpt-6.1-sol';
 /* =====================================================================
    🖼 THE IMAGE ENGINE — ChatGPT Images 2.5 for EVERY picture (v1.90.0)
    ---------------------------------------------------------------------
@@ -15798,8 +15799,8 @@ var OPENAI_REASONING_RE = /^(gpt-[5-9]|o[1-9])/;
    that was only ever a default is lifted to the new one ONCE, per device, and
    the flag is what makes a DELIBERATE pick of the old model stick: it is still
    in the dropdown, and choosing it there has to mean something. */
-var OPENAI_SUPERSEDED_MODELS = ['gpt-5.6-sol'];
-var OPENAI_MODEL_GEN = 'astra';
+var OPENAI_SUPERSEDED_MODELS = ['gpt-5.6-sol', 'gpt-6-astra'];
+var OPENAI_MODEL_GEN = 'sol-6.1';
 var _openAiLiftOpen = false;   // this device has not done the one-shot lift yet
 (function _openAiLiftDefaultOnce() {
   try {
@@ -15807,19 +15808,20 @@ var _openAiLiftOpen = false;   // this device has not done the one-shot lift yet
     if (!_openAiLiftOpen) return;
     localStorage.setItem(AI_ENGINE_STORE.modelGen, OPENAI_MODEL_GEN);
     var m = (localStorage.getItem(AI_ENGINE_STORE.model) || '').trim();
-    if (m && OPENAI_SUPERSEDED_MODELS.indexOf(m) >= 0) localStorage.setItem(AI_ENGINE_STORE.model, OPENAI_DEFAULT_MODEL);
+    if (localStorage.getItem(AI_ENGINE_STORE.modelExplicit) !== '1' && m && OPENAI_SUPERSEDED_MODELS.indexOf(m) >= 0) localStorage.setItem(AI_ENGINE_STORE.model, OPENAI_DEFAULT_MODEL);
   } catch (e) { /* private browsing: nothing is stored, so there is nothing to lift */ }
 })();
-function openAiLiftModel(m) {
+function openAiLiftModel(m, explicit, generation) {
   m = String(m || '').trim();
-  return (_openAiLiftOpen && OPENAI_SUPERSEDED_MODELS.indexOf(m) >= 0) ? OPENAI_DEFAULT_MODEL : m;
+  var due = generation === undefined ? _openAiLiftOpen : generation !== OPENAI_MODEL_GEN;
+  return (due && !explicit && OPENAI_SUPERSEDED_MODELS.indexOf(m) >= 0) ? OPENAI_DEFAULT_MODEL : m;
 }
 /* Hard ceiling for one OpenAI answer. A "Pro build" widget is allowed to run
    right up to it, and past it the answer is carried on in a second request
    rather than being cut short. */
 var OPENAI_MAX_OUTPUT = 120000;
 
-/* ChatGPT gpt-6-astra is what the app starts on now. The key is the one thing
+/* ChatGPT gpt-6.1-sol is what the app starts on now. The key is the one thing
    that can never live in this file: the app is served from a public address,
    so a key written here would be in the page source of every student's browser
    and in the repository's history for good. It is pasted once into the AI
@@ -15830,8 +15832,10 @@ var OPENAI_MAX_OUTPUT = 120000;
 function getAiEngine() { try { return localStorage.getItem(AI_ENGINE_STORE.engine) || 'openai'; } catch (e) { return 'openai'; } }
 function getOpenAiKey() { try { return (localStorage.getItem(AI_ENGINE_STORE.key) || '').trim(); } catch (e) { return ''; } }
 function getOpenAiModel() { try { return localStorage.getItem(AI_ENGINE_STORE.model) || OPENAI_DEFAULT_MODEL; } catch (e) { return OPENAI_DEFAULT_MODEL; } }
+function openAiModelExplicit() { try { return localStorage.getItem(AI_ENGINE_STORE.modelExplicit) === '1'; } catch (e) { return false; } }
 function openAiActive() { return getAiEngine() === 'openai' && !!getOpenAiKey(); }
 window.openAiActive = openAiActive;
+window.openAiConfigured = function () { return !!getOpenAiKey(); };
 
 /* ── 🌙 KIMI (Moonshot AI) — THE THIRD ENGINE ─────────────────────────
    Gemini and ChatGPT are two suppliers on two bills, so "the other one" has
@@ -15858,6 +15862,15 @@ function getKimiKey() { try { return (localStorage.getItem(AI_ENGINE_STORE.kimiK
 function getKimiModel() { try { return (localStorage.getItem(AI_ENGINE_STORE.kimiModel) || '').trim() || KIMI_DEFAULT_MODEL; } catch (e) { return KIMI_DEFAULT_MODEL; } }
 function kimiActive() { return getAiEngine() === 'kimi' && !!getKimiKey(); }
 window.kimiActive = kimiActive;
+window.kimiConfigured = function () { return !!getKimiKey(); };
+// Manual engine choices remain first. The default is OpenAI -> Gemini -> Kimi.
+// Keys are checked independently of the selected engine so Kimi can be a backup.
+window.aiTextEngineOrder = function () {
+  return [getAiEngine(), 'openai', 'gemini', 'kimi'].filter(function (engine, index, all) {
+    return all.indexOf(engine) === index &&
+      (engine === 'gemini' || engine === 'openai' && !!getOpenAiKey() || engine === 'kimi' && !!getKimiKey());
+  });
+};
 
 window.askKimi = async function askKimi(prompt, opts) {
   var o = opts || {};
@@ -15875,11 +15888,21 @@ window.askKimi = async function askKimi(prompt, opts) {
   messages.push({ role: 'user', content: content });
   var body = {
     model: model,
-    messages: messages,
-    max_tokens: Math.min(KIMI_MAX_OUTPUT, Math.max(1024, o.maxOutputTokens || 512))
+    messages: messages
   };
+  var budget = Math.min(KIMI_MAX_OUTPUT, Math.max(1024, o.maxOutputTokens || 512));
+  // K3 always reasons. Its scale is low/high/max and its token field differs
+  // from legacy Kimi models; unsupported sampling fields reject the request.
+  if (/^kimi-k3(?:-|$)/i.test(model)) {
+    var effort = String(o.effort || o.thinkingLevel || 'low').toLowerCase();
+    body.max_completion_tokens = budget;
+    body.reasoning_effort = effort === 'max' || effort === 'xhigh' ? 'max' :
+      effort === 'medium' || effort === 'high' ? 'high' : 'low';
+  } else {
+    body.max_tokens = budget;
+    if (o.temperature !== undefined) body.temperature = o.temperature;
+  }
   if (o.json) body.response_format = { type: 'json_object' };
-  if (o.temperature !== undefined) body.temperature = o.temperature;
   aiThrowIfAborted(o.signal);
   var res = await fetch(KIMI_API_BASE + '/chat/completions', {
     signal: o.signal,
@@ -15986,7 +16009,11 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
   // Build quality: a reasoning model thinks harder when asked to. The budget
   // above has to cover those reasoning tokens as well as the answer, which is
   // why the higher quality levels raise both together.
-  if (o.effort && OPENAI_REASONING_RE.test(model)) body.reasoning_effort = o.effort;
+  if (OPENAI_REASONING_RE.test(model)) {
+    var effort = o.effort || o.thinkingLevel || 'low';
+    if (/^gpt-6\.1-sol(?:-|$)/.test(model) && (effort === 'none' || effort === 'minimal')) effort = 'low';
+    body.reasoning_effort = effort;
+  }
   // A reasoning model only runs at its default temperature; sending one is a 400
   if (o.temperature !== undefined && !OPENAI_REASONING_RE.test(model)) body.temperature = o.temperature;
 
@@ -16191,6 +16218,8 @@ function saveAiEngineToCloud(user) {
   var payload = {
     engine: getAiEngine(),
     model: getOpenAiModel(),
+    modelGen: OPENAI_MODEL_GEN,
+    modelExplicit: openAiModelExplicit(),
     imageModel: getOpenAiImageModel(),
     imageEngine: aiImageEngineSetting(),
     openAiKey: key || firebase.firestore.FieldValue.delete(),
@@ -16245,8 +16274,9 @@ async function loadAiEngineFromCloud(user) {
     localStorage.setItem(AI_ENGINE_STORE.key, String(d.openAiKey).trim());
     if (d.engine) localStorage.setItem(AI_ENGINE_STORE.engine, d.engine);
     if (d.model) {
-      var model = openAiLiftModel(d.model);
+      var model = openAiLiftModel(d.model, d.modelExplicit === true, d.modelGen || '');
       localStorage.setItem(AI_ENGINE_STORE.model, model);
+      localStorage.setItem(AI_ENGINE_STORE.modelExplicit, d.modelExplicit === true ? '1' : '0');
       liftedModel = model !== String(d.model).trim();
     }
     if (d.imageModel) {
@@ -16840,6 +16870,7 @@ function openAiEngineModal() {
   var radios = document.querySelectorAll('input[name="aiEngineChoice"]');
   for (var i = 0; i < radios.length; i++) radios[i].checked = radios[i].value === eng;
   var modelSel = $('aiEngineModelSel');
+  modelSel._aiModelChanged = false;
   modelSel.value = getOpenAiModel();
   if (!modelSel.value) modelSel.value = OPENAI_DEFAULT_MODEL;   // stored model no longer offered
   var imgSel = $('aiEngineImageModelSel');
@@ -16870,6 +16901,7 @@ function saveAiEngineSettings() {
   try {
     localStorage.setItem(AI_ENGINE_STORE.engine, eng);
     localStorage.setItem(AI_ENGINE_STORE.model, model);
+    if ($('aiEngineModelSel')._aiModelChanged) localStorage.setItem(AI_ENGINE_STORE.modelExplicit, '1');
     localStorage.setItem(AI_ENGINE_STORE.imageModel, imageModel);
     localStorage.setItem(AI_ENGINE_STORE.imageEngine, imgEng);
     if (key) localStorage.setItem(AI_ENGINE_STORE.key, key);
@@ -16899,6 +16931,7 @@ function saveAiEngineSettings() {
 $('aiEngineCloseBtn').addEventListener('click', closeAiEngineModal);
 $('aiEngineCancelBtn').addEventListener('click', closeAiEngineModal);
 $('aiEngineSaveBtn').addEventListener('click', saveAiEngineSettings);
+$('aiEngineModelSel').addEventListener('change', function () { this._aiModelChanged = true; });
 /* The account's own model list, in one call — because a list of ids typed
    into this file goes stale on Moonshot's schedule rather than ours, and a
    stale id is a 404 on every call with nothing on screen to say why. */
@@ -21846,7 +21879,7 @@ async function buildAiNotePayload(kind, instr, frame, imgs, quality, spot, viewC
     // looking like a cheap one, so say so instead of leaving it a mystery.
     if (q.unrestricted && window.aiLastCall && window.aiLastCall.fellBack) {
       toast('ChatGPT could not finish this one (' + (window.aiLastCall.error || 'no reason given') +
-            ') — Gemini built it instead.', 8000);
+            ') — ' + ({ openai: 'ChatGPT', gemini: 'Gemini', kimi: 'Kimi' }[window.aiLastCall.engine] || 'a backup') + ' built it instead.', 8000);
     }
     html = stripCodeFence(html);
     if (!/[<]/.test(html)) throw new Error('the widget came back empty — try describing it again');
@@ -26863,6 +26896,7 @@ function keyEngineLabel() {
   var names = [];
   if (keyEngines.openai) names.push('ChatGPT ' + getOpenAiModel());
   if (keyEngines.gemini) names.push('Gemini ' + (window.AI_GEMINI_MODEL || ''));
+  if (keyEngines.kimi) names.push('Kimi ' + getKimiModel());
   return names.join(' + ');
 }
 
@@ -27004,7 +27038,7 @@ async function runAnswerKey(keyAnns, detailed) {
   };
   updateAnswerKeyCard();
   if (keyFellBack) {
-    toast('ChatGPT could not be reached for part of this key — Gemini worked those pages out instead.', 7000);
+    toast('A backup answered part of this key. Models used: ' + keyEngineLabel() + '.', 7000);
   } else if (keyEngines.gemini && !keyEngines.openai && getAiEngine() === 'openai') {
     // The commonest surprise of all: the engine says ChatGPT, but with no key
     // saved every call has quietly been going to Gemini all along.
@@ -27730,7 +27764,7 @@ function renderAuthArea() {
     engBtn.className = 'btn';
     // The label doubles as the status: it names ChatGPT while that engine is on.
     engBtn.textContent = openAiActive() ? 'AI · ChatGPT' : kimiActive() ? 'AI · Kimi' : 'AI Engine';
-    engBtn.title = 'Choose which AI powers the app — ChatGPT gpt-6-astra (default, needs your OpenAI key) or Gemini, which needs none and catches anything ChatGPT drops.';
+    engBtn.title = 'Text, vision and thinking: ChatGPT gpt-6.1-sol by default, then Gemini and configured Kimi as backups.';
     engBtn.addEventListener('click', openAiEngineModal);
     area.appendChild(engBtn);
   }
@@ -33499,7 +33533,8 @@ try {
 // Firebase AI failed to start — and vice versa.
 const openAiOn = () => !!(window.openAiActive && window.openAiActive());
 const kimiOn = () => !!(window.kimiActive && window.kimiActive());
-window.aiReady = () => !!geminiModel || openAiOn() || kimiOn();
+window.aiReady = () => !!geminiModel || (window.openAiConfigured ? window.openAiConfigured() : openAiOn()) ||
+  (window.kimiConfigured ? window.kimiConfigured() : kimiOn());
 
 // AI_THINK_MIN keeps Gemini "thinking" to a minimum so the token budget goes
 // to the answer (faster + cheaper for short tasks). Gemini 3.x rejects the
@@ -33533,35 +33568,30 @@ function askTextRoute(work, opts) {
   }, opts.routeTimeoutMs || opts.timeoutMs, opts.signal);
 }
 async function askGeminiRoutes(prompt, opts) {
-  if (openAiOn()) {
+  const preferred = openAiOn() ? "openai" : kimiOn() ? "kimi" : "gemini";
+  const order = window.aiTextEngineOrder ? window.aiTextEngineOrder() :
+    preferred === "gemini" ? ["gemini"] : [preferred, "gemini"];
+  let firstError = null;
+  const attempted = [];
+  for (const engine of order) {
+    aiThrowIfAborted(opts.signal);
+    attempted.push(engine);
     try {
-      const out = await askTextRoute(routeOpts => window.askOpenAI(prompt, routeOpts), opts);
+      const out = await askTextRoute(routeOpts => engine === "openai" ? window.askOpenAI(prompt, routeOpts) :
+        engine === "kimi" ? window.askKimi(prompt, routeOpts) : askGeminiDirect(prompt, routeOpts), opts);
       aiThrowIfAborted(opts.signal);
-      window.aiLastCall = { engine: "openai", fellBack: false, error: "" };
+      if (typeof out !== "string" || !out.trim()) throw new Error(engine + " returned no answer");
+      window.aiLastCall = { engine, fellBack: attempted.length > 1, error: firstError ? String(firstError.message || firstError) : "", attempted: attempted.slice() };
       return out;
     } catch (e) {
       aiThrowIfAborted(opts.signal);
-      if (opts.onProgress) opts.onProgress("Still checking — trying a backup…");
-      console.warn("ChatGPT engine failed, falling back to Gemini:", e);
-      window.aiLastCall = { engine: "gemini", fellBack: true, error: (e && e.message) || String(e) };
+      if (!firstError) firstError = e;
+      if (attempted.length < order.length && opts.onProgress) opts.onProgress("Still checking — trying a backup…");
+      console.warn(engine + " engine failed:", e);
     }
-  } else if (kimiOn()) {
-    try {
-      const out = await askTextRoute(routeOpts => window.askKimi(prompt, routeOpts), opts);
-      aiThrowIfAborted(opts.signal);
-      window.aiLastCall = { engine: "kimi", fellBack: false, error: "" };
-      return out;
-    } catch (e) {
-      aiThrowIfAborted(opts.signal);
-      if (opts.onProgress) opts.onProgress("Still checking — trying a backup…");
-      console.warn("Kimi engine failed, falling back to Gemini:", e);
-      window.aiLastCall = { engine: "gemini", fellBack: true, error: (e && e.message) || String(e) };
-    }
-  } else {
-    window.aiLastCall = { engine: "gemini", fellBack: false, error: "" };
   }
-  aiThrowIfAborted(opts.signal);
-  return askTextRoute(routeOpts => askGeminiDirect(prompt, routeOpts), opts);
+  window.aiLastCall = { engine: "", fellBack: attempted.length > 1, error: firstError ? String(firstError.message || firstError) : "No AI provider is configured", attempted };
+  throw firstError || new Error("No AI provider is configured");
 };
 
 // Gemini's ceiling is far below what a Pro-build widget is allowed to ask

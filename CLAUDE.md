@@ -2,6 +2,27 @@
 
 Guidance for Claude when working in this repo.
 
+## Default text, vision and reasoning (v1.112.0)
+
+`OPENAI_DEFAULT_MODEL` is `gpt-6.1-sol`. `window.aiTextEngineOrder` keeps the
+default chain OpenAI -> Gemini -> configured Kimi; explicit provider picks stay
+first. `askGeminiRoutes` carries the same frozen request across attempts and
+must check cancellation before fallback. Empty provider responses are failures.
+The selected model serves both plain text and worksheet image input. Sol 6.1
+uses `reasoning_effort` (`low` by default); map `none` and `minimal` to `low` and
+omit sampling parameters. Live, audio and picture models remain separate.
+Kimi K3 always reasons: send `max_completion_tokens`, omit `thinking`,
+`temperature` and `top_p`, and map the shared quality scale to its supported
+`low` / `high` / `max` efforts (`medium` -> `high`, `xhigh` -> `max`). Keep
+explicit legacy Kimi model selections on their existing request schema.
+
+`modelExplicit` records an actual model-picker change, independently of saving
+other settings. Persist it and `modelGen` in the admin record. Lift old automatic
+defaults using the record's generation as well as the local generation, so a
+later sign-in cannot undo migration. Preserve an explicit model choice. Run
+`node --test tools/ai-routing-tests.mjs` and the existing deadline, shared vision,
+voice and note suites after changing the engine bridge.
+
 ## Manual model suite (v1.111.0)
 
 `bar-models.js` owns rendering, the panel, core cuts and `bmCommit`.
