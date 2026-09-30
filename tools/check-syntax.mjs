@@ -14,7 +14,9 @@ try {
     fs.writeFileSync(file, script[2]);
     execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
   }
-  execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../bar-models.js', import.meta.url))], { stdio: 'inherit' });
+  for (const name of ['bar-models.js', 'model-suite.js', 'model-templates.js']) {
+    execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../' + name, import.meta.url))], { stdio: 'inherit' });
+  }
   console.log(`${scripts.length} inline scripts passed syntax checks.`);
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });

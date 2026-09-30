@@ -3657,9 +3657,9 @@ video.mirror { transform:scaleX(-1); }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M7.5 9h5"/><path d="M7.5 12.5h9"/><path d="M7.5 16h6.5"/><path d="M16.6 5.6l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor" stroke="none"/></svg>
     </button>
   <div class="toolbarMenu" id="shapeTools">
-    <button class="btn" type="button" id="barModelBtn" aria-controls="barModelPanel" aria-expanded="false" title="Singapore maths models — draw, cut, label and compare pastel bars">
+    <button class="btn" type="button" id="barModelBtn" aria-controls="barModelPanel" aria-expanded="false" title="Manual Singapore maths model suite — draw, cut, arrange and label without AI">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="6" rx="2" fill="#C8DDF2"/><rect x="2" y="14" width="9" height="6" rx="2" fill="#CBE8D5"/><rect x="13" y="14" width="9" height="6" rx="2" fill="#F8D6BB"/></svg>
-      <span class="btnLabel">Models</span>
+      <span class="btnLabel">Model suite</span>
     </button>
     <button class="btn toolbarMenuBtn" id="shapeMenuBtn" type="button" data-toolbar-menu="shapeMenu" aria-expanded="false" aria-controls="shapeMenu" title="Shapes">
       <span class="toolbarMenuIcon" id="shapeMenuIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/></svg></span>
@@ -5067,16 +5067,24 @@ video.mirror { transform:scaleX(-1); }
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
 
 <section class="barModelPanel" id="barModelPanel" aria-labelledby="bmHeading" hidden>
-  <div class="barModelHeading"><h2 id="bmHeading">Maths models</h2><button type="button" id="bmClose" aria-label="Close maths models">×</button></div>
-  <p>Build and label Singapore maths bar models.</p>
+  <div class="bmPanelTop">
+    <div class="barModelHeading"><h2 id="bmHeading">Model suite</h2><button type="button" id="bmClose" aria-label="Close model suite">×</button></div>
+    <p class="bmManualBadge">Manual tools · no AI needed</p>
+    <nav class="bmSections" aria-label="Model suite sections">
+      <button type="button" data-bm-section="bmBuild">Build</button><button type="button" data-bm-section="bmCut">Cut</button><button type="button" data-bm-section="bmArrange">Arrange</button><button type="button" data-bm-section="bmTemplates">Templates</button>
+    </nav>
+    <p class="barModelStatus" id="bmStatus" role="status">Select a bar, or add a new model.</p>
+  </div>
+  <div id="bmEmpty" hidden><p>Build a Singapore maths model on a blank worksheet, or open a PDF.</p><button type="button" class="bmAction bmPrimary bmWide" data-bm-action="blank">Start a blank worksheet</button></div>
+  <div id="bmWorkspaceTools">
+  <fieldset id="bmBuild"><legend>Build &amp; label</legend>
   <div class="barModelGrid">
     <button type="button" class="bmAction bmPrimary" data-bm-action="draw" data-bm-mode="modelbar" aria-pressed="false">Draw a bar</button>
     <button type="button" class="bmAction" data-bm-action="cut" data-bm-mode="modelcut" aria-pressed="false">✂ Cut at a point</button>
     <button type="button" class="bmAction" data-bm-action="select" data-bm-mode="select" aria-pressed="false">Select / move</button>
     <button type="button" class="bmAction" data-bm-action="lasso" data-bm-mode="lasso" aria-pressed="false">Lasso pieces</button>
   </div>
-  <p class="barModelStatus" id="bmStatus" role="status">Select a bar, or add a new model.</p>
-  <fieldset><legend>Bar &amp; label</legend>
+    <p class="bmHint">Draw directly on the page, or use Add bar to place one in view. Drag selected bars to move; drag a corner to resize.</p>
     <label for="bmLabel">Quantity, name or unknown<input id="bmLabel" type="text" maxlength="80" value="?" placeholder="e.g. 24, Ali, 3 units or ?"></label>
     <div class="barModelGrid"><label for="bmWidth">Width (points)<input id="bmWidth" type="number" min="12" max="2000" step="1" value="300"></label><label for="bmHeight">Height (points)<input id="bmHeight" type="number" min="12" max="500" step="1" value="42"></label></div>
     <div class="bmPalette" role="group" aria-label="Pastel bar colour">
@@ -5089,17 +5097,46 @@ video.mirror { transform:scaleX(-1); }
     </div>
     <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="add">Add bar</button><button type="button" class="bmAction" data-bm-action="apply">Apply label &amp; size</button><button type="button" class="bmAction" data-bm-action="above">Brace above</button><button type="button" class="bmAction" data-bm-action="below">Brace below</button></div>
   </fieldset>
-  <fieldset><legend>Cut &amp; combine</legend>
+  <fieldset id="bmCut"><legend>Cut &amp; combine</legend>
     <label for="bmParts">Equal parts / top-row units<input id="bmParts" type="number" min="2" max="20" step="1" value="3"></label>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="split">Split equally</button><button type="button" class="bmAction" data-bm-action="join">Join selected</button><button type="button" class="bmAction" data-bm-action="duplicate">Duplicate below</button><button type="button" class="bmAction" data-bm-action="undo">Undo</button></div>
+    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="split">Split equally</button><button type="button" class="bmAction" data-bm-action="join">Join selected</button></div>
+    <label for="bmRatio">Ratio of piece widths<input id="bmRatio" type="text" value="2:3:1" maxlength="150" placeholder="e.g. 2:3:1"></label>
+    <button type="button" class="bmAction bmWide" data-bm-action="ratio-split">Split by ratio</button>
+    <label for="bmCutPercent">Cut position from the left (%)<input id="bmCutPercent" type="number" min="1" max="99" step="1" value="50"></label>
+    <button type="button" class="bmAction bmWide" data-bm-action="percent-cut">Cut at percentage</button>
+    <p class="bmHint">Select one bar to split. Its known quantity stays on a total brace; new pieces start as ?. Ungroup a template to select individual pieces.</p>
   </fieldset>
-  <fieldset><legend>Ready-made models</legend>
+  <fieldset id="bmArrange"><legend>Select &amp; arrange</legend>
+    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="select-model">Select whole model</button><button type="button" class="bmAction" data-bm-action="select-page-models">Select page models</button><button type="button" class="bmAction" data-bm-action="group">Group selection</button><button type="button" class="bmAction" data-bm-action="ungroup">Ungroup</button></div>
+    <p class="bmHint">Groups keep bars, braces and labels together. Ungroup to edit individual pieces. Double-click an outside label to edit its text.</p>
+    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="align-left">Align left</button><button type="button" class="bmAction" data-bm-action="align-right">Align right</button><button type="button" class="bmAction" data-bm-action="align-top">Align top</button><button type="button" class="bmAction" data-bm-action="align-bottom">Align bottom</button><button type="button" class="bmAction" data-bm-action="equal-width">Equal width</button><button type="button" class="bmAction" data-bm-action="equal-height">Equal height</button></div>
+    <label for="bmGap">Gap between bars or groups (points)<input id="bmGap" type="number" min="0" max="500" step="1" value="12"></label>
+    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="row">Arrange in a row</button><button type="button" class="bmAction" data-bm-action="stack">Stack vertically</button></div>
+    <label for="bmStep">Move by (points)<input id="bmStep" type="number" min="1" max="500" step="1" value="10"></label>
+    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="nudge-left">← Move left</button><button type="button" class="bmAction" data-bm-action="nudge-right">Move right →</button><button type="button" class="bmAction" data-bm-action="nudge-up">↑ Move up</button><button type="button" class="bmAction" data-bm-action="nudge-down">Move down ↓</button><button type="button" class="bmAction" data-bm-action="duplicate-model">Duplicate model</button><button type="button" class="bmAction" data-bm-action="duplicate">Duplicate bars</button><button type="button" class="bmAction bmDanger" data-bm-action="delete">Delete selection</button></div>
+  </fieldset>
+  <fieldset id="bmTemplates"><legend>Ready-made models</legend>
+    <p class="bmHint">Templates use the width, height and pastel colour in Build. Parts and top-row units use the number in Cut. Each new model is grouped and editable.</p>
     <label for="bmCompareUnits">Comparison: shorter-row units<input id="bmCompareUnits" type="number" min="1" max="19" step="1" value="2"></label>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="partwhole">Part–whole</button><button type="button" class="bmAction" data-bm-action="comparison">Comparison</button><button type="button" class="bmAction" data-bm-action="fraction">Fractions</button></div>
+    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="partwhole">Part–whole</button><button type="button" class="bmAction" data-bm-action="comparison">Comparison</button></div>
+    <label for="bmNumerator">Fraction: shaded parts<input id="bmNumerator" type="number" min="0" max="20" step="1" value="1"></label>
+    <button type="button" class="bmAction bmWide" data-bm-action="fraction">Create fraction model</button>
+    <div class="bmTemplateDivider">Two-row models</div>
+    <div class="barModelGrid"><label for="bmRowNameA">First row name<input id="bmRowNameA" type="text" maxlength="40" placeholder="A / Before"></label><label for="bmRowNameB">Second row name<input id="bmRowNameB" type="text" maxlength="40" placeholder="B / After"></label><label for="bmRowTotalA">First row total<input id="bmRowTotalA" type="text" maxlength="40" value="?"></label><label for="bmRowTotalB">Second row total<input id="bmRowTotalB" type="text" maxlength="40" value="?"></label><label for="bmRatioTemplateA">First ratio units<input id="bmRatioTemplateA" type="number" min="1" max="12" step="1" value="2"></label><label for="bmRatioTemplateB">Second ratio units<input id="bmRatioTemplateB" type="number" min="1" max="12" step="1" value="3"></label></div>
+    <button type="button" class="bmAction bmWide" data-bm-action="ratio">Create ratio model</button>
+    <div class="barModelGrid"><label for="bmBeforeParts">Before units<input id="bmBeforeParts" type="number" min="1" max="12" step="1" value="3"></label><label for="bmAfterParts">After units<input id="bmAfterParts" type="number" min="1" max="12" step="1" value="5"></label></div>
+    <button type="button" class="bmAction bmWide" data-bm-action="beforeafter">Create before &amp; after</button>
+    <div class="bmTemplateDivider">Equal groups</div>
+    <div class="barModelGrid"><label for="bmGroupCount">Number of groups<input id="bmGroupCount" type="number" min="1" max="12" step="1" value="3"></label><label for="bmGroupQuantity">Quantity per group<input id="bmGroupQuantity" type="text" maxlength="40" value="?"></label></div>
+    <button type="button" class="bmAction bmWide" data-bm-action="equalgroups">Create equal groups</button>
   </fieldset>
-  <p class="bmHint">Drag selected bars to move; drag a corner to resize. Lasso several pieces to move them together. Cutting keeps the original label as the whole above the pieces. Saved and printed with your worksheet.</p>
+  <p class="bmHint">Your models use normal worksheet saving and PDF export. Rounded corners, pastel fills and labels are kept.</p>
+  <div class="bmHistory barModelGrid"><button type="button" class="bmAction" data-bm-action="undo">Undo</button><button type="button" class="bmAction" data-bm-action="redo">Redo</button></div>
+  </div>
 </section>
 <script src="bar-models.js"></script>
+<script src="model-suite.js"></script>
+<script src="model-templates.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -5164,7 +5201,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.110.0';
+var APP_VERSION = 'v1.111.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -8984,7 +9021,7 @@ var LessonReplayCore = (function () {
   var TYPES = ['pen', 'highlight', 'rect', 'ellipse', 'line', 'arrow', 'brace', 'text', 'ainote', 'video'];
   var NUMBERS = ['x', 'y', 'w', 'h', 'x1', 'y1', 'x2', 'y2', 'width', 'fontSize', 'rot', 'ts'];
   var WORDS = ['color', 'text', 'title', 'kind', 'dash', 'heads', 'grp', 'label', 'fontFamily', 'align', 'fill', 'modelLabel'];
-  var FLAGS = ['hand', 'min', 'bold', 'italic', 'underline', 'modelBar'];
+  var FLAGS = ['hand', 'min', 'bold', 'italic', 'underline', 'modelBar', 'modelObject'];
   var ANN_KEYS = ['id', 'type', 'page', 'points', 'kw'].concat(NUMBERS, WORDS, FLAGS);
   function bad(message) { throw new Error('Lesson recording: ' + message); }
   function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
