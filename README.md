@@ -3,6 +3,31 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.112.0 — GPT 6.1 Sol with two backup providers
+
+ChatGPT `gpt-6.1-sol` is the default for text, worksheet vision and reasoning.
+Previous automatic Astra and Sol 5.6 defaults upgrade once in local and synced
+settings. Changing the model picker records an explicit preference, which later
+default migrations preserve.
+
+The default request order is OpenAI, Gemini, then Kimi when its existing API key
+is configured. Backups receive the same frozen worksheet images, question,
+teaching instructions, JSON mode and output budget. Failed or empty replies try
+the next provider; cancellation ends the request without starting another.
+The answer key names Kimi when it supplied an answer. Manual provider choices
+remain available. Live voice, transcription and picture generation keep their
+specialised models.
+Kimi K3 receives its supported reasoning and token fields, with shared quality
+levels mapped to `low`, `high` or `max` and unsupported sampling fields omitted.
+
+This update is a static page release. No new server deployment is required.
+OpenAI and Kimi use the admin's existing saved keys; no key is added to public
+source. Without an OpenAI key the available backup handles the request.
+
+Validation: `node tools/check-syntax.mjs`,
+`node --test tools/ai-routing-tests.mjs`, and the existing worksheet vision,
+voice, deadline, image and note suites.
+
 ## v1.111.0 — A complete manual model suite
 
 Click **Model suite** in the toolbar. All its tools work without AI, speech or an
