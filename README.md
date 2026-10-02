@@ -3,6 +3,14 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.115.0 — Pixel classroom adventure
+
+The battle now stages original pixel avatars in columns of four, facing enemies on the right. Choose **Attack**, learned **Skills**, or collected **Items** in the command box, then mark the student's answer. The teacher stops a moving black/orange/red power meter for enemy attacks and charged skills.
+
+Warrior, Ranger, Mage and Cleric each have three branching paths with 12 skills. Heroes earn XP, spend skill points, manage MP and equip relics in their journals. Six pixel encounters range from weak goblins to a dragon and a lich. An animated treasure chest awards every hero a random personal reward, including resting students, across six rarities through Mythical. All effects work in combat and progress survives new encounters and reloads.
+
+Classroom progression is now independent of CER. Existing battles migrate safely; the 20 earlier bosses remain available to finish saved encounters. See [the battle guide](docs/classroom-battle.md) and [original art prompts](assets/battle-pixel/provenance.json).
+
 ## v1.114.0 — Classroom boss battle
 
 Teachers open **Classroom battle**, select a class, and call students with the existing wheel. CER heroes retain their equipped avatars and choose Warrior, Ranger, Mage or Healer in **CER → Your Hero**. Correct answers trigger animated abilities; teacher-triggered boss attacks and charged ultimates challenge the team.

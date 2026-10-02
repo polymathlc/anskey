@@ -360,4 +360,23 @@
     "ultimateName": "Northern Lights",
     "chargeMax": 4
   }
-]; });
+].map(b => Object.assign({},b,{legacy:true})).concat([
+  {id:'goblin',name:'Mossfang Goblin',description:'A weak forest raider. A friendly first encounter for a new party.',
+    tier:'Skirmish',playstyle:'balanced',hpMultiplier:.45,attackMultiplier:.45,defence:0,chargeMax:3,rewardXp:45,
+    attackName:'Rusty Dagger',ultimateName:'Goblin Rush',color:'#85bc78',image:'assets/battle-pixel/goblin.png',legacy:false},
+  {id:'slime',name:'Sapphire Slime',description:'A gentle starter enemy that slowly reforms after each attack.',
+    tier:'Skirmish',playstyle:'regenerate',hpMultiplier:.6,attackMultiplier:.5,defence:.03,chargeMax:4,rewardXp:55,
+    attackName:'Jelly Bump',ultimateName:'Slime Shower',color:'#67cce1',image:'assets/battle-pixel/slime.png',legacy:false},
+  {id:'goblin-shaman',name:'Bramblehex Shaman',description:'This goblin spellcaster curses the next hero attack. Cleanse or shield your allies.',
+    tier:'Elite',playstyle:'weaken',hpMultiplier:.85,attackMultiplier:.85,defence:.06,chargeMax:3,rewardXp:80,
+    attackName:'Hex Spark',ultimateName:'Bramble Curse',color:'#b9a0db',image:'assets/battle-pixel/goblin-shaman.png',legacy:false},
+  {id:'golem',name:'Obsidian Sentinel',description:'An armoured elite with crushing blows. Armour-piercing skills help break its shell.',
+    tier:'Elite',playstyle:'guard',hpMultiplier:1.35,attackMultiplier:1.05,defence:.28,chargeMax:4,rewardXp:115,
+    attackName:'Stone Hammer',ultimateName:'Mountain Collapse',color:'#bf9c71',image:'assets/battle-pixel/golem.png',legacy:false},
+  {id:'dragon',name:'Cinderwing Ancient',description:'A mighty dragon whose flame breath hits the whole party. Bring healing and protective wards.',
+    tier:'Boss',playstyle:'splash',hpMultiplier:2.15,attackMultiplier:1.45,defence:.16,chargeMax:3,rewardXp:180,
+    attackName:'Flame Breath',ultimateName:'Crimson Cataclysm',color:'#f3a36f',image:'assets/battle-pixel/dragon.png',legacy:false},
+  {id:'lich',name:'The Astral Lich',description:'An endgame sorcerer with armour-piercing magic and a devastating cosmic ultimate.',
+    tier:'Mythic boss',playstyle:'pierce',hpMultiplier:2.75,attackMultiplier:1.65,defence:.22,chargeMax:3,rewardXp:230,
+    attackName:'Soulfire Bolt',ultimateName:'Eclipse of Eternity',color:'#b995f1',image:'assets/battle-pixel/lich.png',legacy:false}
+]); });

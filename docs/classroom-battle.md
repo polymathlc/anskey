@@ -1,45 +1,49 @@
-# Classroom boss battle
+# Pixel classroom adventure
 
-Teachers sign in to [anskey](https://polymathlc.github.io/anskey/), open **Classroom battle** in the toolbar (or **Battle** in the name wheel), choose a class, and press **Start encounter**. The existing wheel calls a student. **Correct** uses their role ability; **Incorrect** and **Skip** finish the turn without damage. Each selected answer resolves once. Teachers choose when to press the named boss attack or charged ultimate. A new boss is selected only when the teacher starts an encounter; refresh and reopening restore the same one. Starting another active encounter asks before replacing it.
+Open **Classroom battle** from the teacher toolbar or name wheel, choose a class, then start an encounter. Pixel heroes stand four per column on the left, facing an enemy on the right. Large rosters scroll horizontally within the party formation. The original classroom wheel still calls each student once per round.
 
-Students choose Warrior, Ranger, Mage or Healer in **CER → Your Hero → Classroom boss battle role**. Opening CER once publishes existing characters to the shared `scienceGameLeaderboard/{uid}.battleHero` snapshot. Later equipment, role and stat changes stream into anskey. The `students` register's account UID is the only avatar link. Same-name students retain distinct register IDs. Unlinked students, unavailable profiles and failed images show a labelled starter hero; saved battle stats survive a temporarily unavailable profile.
+## Commands and progression
 
-## Abilities and balancing
+After the wheel chooses a hero, select **Attack**, **Skills** or **Items**, then choose **Correct / execute**, **Incorrect** or **Skip**. Only a correct answer executes the command and spends MP or an item. Normal attacks restore 10 MP. Resting heroes rally at 25% health when they answer correctly. Healing can revive other resting teammates.
 
-The current CER `rpgPlayerStats()` output already incorporates level, equipment, upgrades, sets, skill passives, pets and rebirths. Battle stats use bounded square-root scaling so a new student can contribute beside an advanced character. Changes preserve damage already taken and never refill a resting hero merely because equipment changed.
+Click any hero to open their journal. Choose Warrior, Ranger, Mage or Cleric; each has **12 skills**, arranged in three paths and four prerequisite tiers. Skill nodes explain the effect, level requirement, point cost, MP and cooldown. Gain 12 XP per correct answer and encounter XP on victory. Level gains award two skill points. Cooldowns count that hero's subsequent correct commands. Skills stay learned when switching classes, but only the current class's skills and passives apply. Equipment and XP carry across class changes.
 
-| Role | Ability | Bonuses |
-| --- | --- | --- |
-| Warrior | One melee strike | 1.15× damage, 1.35× HP, 1.25× defence |
-| Ranger | Two quick arrows, combined damage | +15 percentage points critical chance |
-| Mage | Spell projectile | 1.35× damage plus CER spell power; ignores half boss armour; 0.95× HP, 0.9× defence |
-| Healer | Light attack plus team healing | 0.55× damage, 1.1× HP; healing uses CER attack, spell and leech stats |
+Class changes, learning and equipment changes wait until the selected answer is resolved. Choose one relic from the treasure bag to equip; consumables are used from the Items command and can target a teammate. Classroom heroes, skills, statistics and treasure are independent of CER. CER equipment and avatars no longer stream into this game. Stable register UID/ID keeps namesakes distinct.
 
-Base damage is `16 + 2√attack`, base HP `95 + 2.5√CER maximum HP`, and base defence `3 + 1.2√defence`, before role multipliers. Critical chance uses CER's percentage units and is capped at 45%; multiplier is bounded to 1.25–2×. Healing is `(12 + 1.5√attack) × (1 + leech + spell bonus)` with each bonus capped at 50%. Rounded stats are capped again at the state boundary. The interface shows each hero's damage, defence, healing, critical chance and maximum health, with role explanations.
+## Enemies and power meter
 
-Correct answers can rally a resting hero at 25% health, so an individual is never excluded from answering. Healers restore resting allies too. If the whole team falls, the encounter ends and the teacher can start another. Incorrect answers do not automatically punish a student with an attack. Victory and defeat both persist.
+Choose a random encounter or a specific enemy. The six original pixel enemies are a goblin, slime, goblin shaman, stone golem, dragon and lich, ranging from easy introductory encounters to strong bosses. Enemy health scales with party attack. Existing encounters with the earlier 20 bosses remain playable.
 
-## Twenty bosses
+The teacher triggers the enemy's normal attack or fully charged skill. Both start a moving power meter. Press **Stop meter** or activate the focused button with the keyboard to commit the attack. Black covers 0–55%, orange 55–85%, and red 85–100%; damage scales continuously from 0.55× to 2× as the needle approaches the right edge. Cancel, closing the battle, or switching class cancels an uncommitted meter. A meter cannot apply after another screen changes the encounter revision. No background timer attacks students.
 
-`battle-bosses.js` is the catalogue; `assets/classroom-bosses/` contains original full-body transparent PNG artwork and its generation manifest. Each boss has a different name, normal move, ultimate, appearance and gameplay parameter combination. Armour, HP, hit strength and charge counts vary. Special styles include two-hit attacks, team splash, partial defence bypass, regeneration, reflection, a weakening effect and guarding. All ultimates hit every standing hero. Boss targets rotate deterministically through standing heroes, and the charge meter shows when the next ultimate is due. Normal attacks are disabled at full charge until the teacher triggers the ultimate.
+## Treasure
 
-Boss HP scales with the starting team's damage. Correct-answer critical rolls are deterministic for each encounter/turn, so a transaction retry cannot reroll an attack. No timer triggers attacks in the background.
+Victory opens an animated four-frame pixel chest and gives **every hero**, including resting heroes, an independently rolled personal item and encounter XP. Rewards are saved in the victory transaction, so reloads, retries and duplicate clicks cannot reroll or duplicate them. Begin a new encounter to restore the party's health and MP while retaining inventory, XP and learned skills.
 
-## Firebase and concurrent sessions
+| Rarity | Chance | Examples |
+| --- | ---: | --- |
+| Common | 45% | Red Potion, Blue Ether, Iron Charm, Bronze Blade |
+| Uncommon | 27% | Fire Flask, Party Tonic, Oak Amulet, Hunter's Band |
+| Rare | 16% | Phoenix Feather, Mana Prism, Crimson Edge, Silver Aegis |
+| Epic | 8% | Astral Elixir, Starbomb, Storm Quiver, Moon Codex |
+| Legendary | 3.3% | Dawnbringer heals the team on damaging actions; Worldroot improves durability and MP recovery |
+| Mythical | 0.7% | Phoenix Crown revives a fallen ally, Chronicle echoes every third damaging action, Void Edge bypasses armour/guard, Sovereign Star restores team HP/MP |
 
-The existing authentication and `mathgen--app` Firestore instance are reused. An encounter lives at `classroomBattles/{teacherUid}/classes/{classKey}`, where `classKey` encodes every UTF-16 unit of the full class name without collisions. Class labels are the existing reward register's identifiers; renaming a class creates a separate encounter scope.
+Rewards are selected deterministically from an encounter ID and hero ID, with independent rarity and item rolls. Different heroes can receive the same item by chance. The catalogue contains 22 items. Duplicate items stack to 999; each hero equips one relic at a time. Up to 100 active and 100 temporarily removed heroes retain progress in the class document. Removing older archived heroes beyond that cap retires the oldest entries.
 
-Each resolved action reads the current encounter and an immutable `actions/{actionId}` receipt in one Firestore transaction, then saves both. Answer actions also require the pending turn ID and encounter ID; boss/select/restart actions require the observed revision. Duplicate requests return current state, competing answer outcomes cannot both apply, and stale controls cannot duplicate a boss turn. The state stores health, roles, derived stats, pending selection, charge, outcome and revision. Large avatar SVGs remain in existing CER profile documents, avoiding Firestore's encounter document size limit. Listeners restore state after reload and update another open session. Offline writes fail visibly rather than claiming progress was saved.
+## Saving and migration
 
-`tools/battle-rules.mjs` narrowly extends the **current deployed shared rules**, excluding only the battle namespace from the existing catch-all. It verifies the signed-in Google teacher and matching owner UID, validates state revisions, and makes action receipts immutable. It preserves and tests unrelated permissions; it refuses ambiguous rules or a concurrent rules release. Do not deploy a standalone Firestore rules file over the shared project's rules.
+The existing shared Firebase instance and teacher-only authorization remain in use. State lives at `classroomBattles/{teacherUid}/classes/{classKey}`. Every action reads an immutable receipt and state in one transaction. Answers require the encounter and pending-turn ID; start, selection, boss turns and journal commands also enforce revisions. Failure is displayed instead of claiming the action saved.
+
+The state keeps schemaVersion 1 for deployed-rule compatibility. Hero progressionVersion 1 marks the independent character model. An older saved encounter retains its enemy, pending turn and proportional hero health during migration; Healer becomes Cleric. It receives no retroactive loot for an already completed encounter. Roster synchronization can update names and membership but cannot overwrite saved stats, skills or inventory. New encounters never trust roster-supplied progression.
+
+`battle-content.js` owns class skills and items; `battle-core.js` applies deterministic mechanics; `battle-store.js` owns transactions; `classroom-battle.js` and its CSS present the arena. Original generated assets and complete built-in ImageGen prompts are in `assets/battle-pixel/`. The chest sheet has four 543×724 frames, displayed with a 3:4 aspect ratio. Skill glyphs are crisp-edged inline pixel SVGs.
+
+No Firestore rules deployment is required: journal operations use the already allowed `sync` action type. Do not replace the shared project's rules with an app-local rules file.
 
 ## Validation
 
-- `node --test tools/*-tests.mjs` — core abilities, all boss behaviours, deduplication/retries, class isolation, wheel identity, existing worksheet/recording behaviour and rules migration.
-- `node tools/check-syntax.mjs` and `npm --prefix functions test` — application scripts and existing server behaviour.
-- `PW=/path/to/playwright/index.mjs node tools/classroom-battle-browser-check.mjs` — real wheel/controller/store integration, roles, correct/incorrect/skip, boss/ultimate, defeat, delayed profile restoration, all 20 images, desktop/tablet layouts. Firebase uses synthetic fixtures.
-- `node tools/wheel-check.mjs` — existing wheel regression. Set `PLAYWRIGHT_BROWSER_CHANNEL=chrome` to use installed Chrome locally.
-- `node tools/battle-rules.mjs --firebase-tools /path/to/firebase-tools` — test the migration through Google's Rules API; `--apply` validates, narrowly deploys, and verifies it.
-- `node tools/battle-firestore-check.cjs /path/to/firebase-tools` — optional live transaction smoke test using existing CLI administrator authentication and uniquely scoped synthetic data. It checks real concurrent transactions and restoration, then removes its own fixture. Browser permissions are tested separately by the Rules API suite.
-
-CI runs the unit/server and real-browser suites and retains layout screenshots. This update also repairs the existing server lockfile's `uuid` override mismatch so `npm ci` succeeds.
+- `node tools/check-syntax.mjs` and `node --test tools/*-tests.mjs` validate application scripts, core mechanics, deduplication/retries, loot, migration, class isolation, artwork, and existing worksheet features.
+- `npm --prefix functions ci --ignore-scripts --no-audit --no-fund` and `npm --prefix functions test` validate the existing server.
+- `PW=/path/to/playwright/index.mjs node tools/classroom-battle-browser-check.mjs` runs the real UI/core/store/wheel with synthetic Firebase transactions. It checks commands, skill trees, the meter, inventories, victory/reload, class isolation and desktop/tablet/phone layouts.
+- `PW=/path/to/playwright/index.mjs node tools/wheel-check.mjs` checks the original wheel. Set `PLAYWRIGHT_BROWSER_CHANNEL=chrome` to use local Chrome. CI installs Chromium and saves screenshots.
