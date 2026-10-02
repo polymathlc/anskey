@@ -84,7 +84,7 @@
   }
   function graphMarkup(hero, selectedId, mode) {
     var graph = model(hero, mode), role = graph.job || Core.ROLES[graph.role];
-    var actor = typeof window !== 'undefined' && window.ClassroomBattleAnimation ? window.ClassroomBattleAnimation.heroMarkup(graph.role, { job: graph.job && graph.job.id, className: 'hstHero', alt: role.name + ' pixel hero' }) : '<img src="assets/battle-pixel/' + graph.role + '.png" alt="" loading="lazy"/>';
+    var actor = typeof window !== 'undefined' && window.ClassroomBattleAnimation ? window.ClassroomBattleAnimation.heroMarkup(graph.role, { job: graph.job && graph.job.id, gender: hero.gender, className: 'hstHero', alt: role.name + ' pixel hero' }) : '<img src="assets/battle-pixel/' + graph.role + '.png" alt="" loading="lazy"/>';
     var connectors = graph.links.map(function (link) {
       var middle = link.from === 'hero' ? 180 : link.y1 + (link.y2 - link.y1) * .52;
       var d = 'M ' + link.x1 + ' ' + link.y1 + ' L ' + link.x1 + ' ' + middle + ' L ' + link.x2 + ' ' + middle + ' L ' + link.x2 + ' ' + link.y2;

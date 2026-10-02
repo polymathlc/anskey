@@ -14,7 +14,9 @@ const specs = [
     [role, 2, 2, 'effects-provenance.json', index]),
   ...['paladin','berserker','sharpshooter','beastmaster','archmage','chronomancer','hierophant','oracle'].map((job,index)=>[job,4,2,'advancement-provenance.json',index]),
   ...['warrior','ranger','mage','cleric'].map((role,index)=>[role+'-advanced',4,4,'advancement-provenance.json',index+8]),
-  ['beastmaster-effects',4,4,'beastmaster-effects-source.json',0]
+  ['beastmaster-effects',4,4,'beastmaster-effects-source.json',0],
+  ...['warrior','ranger','paladin','berserker','sharpshooter','beastmaster'].map((hero,index)=>[hero+'-genders',4,4,'gender-physical-provenance.json',index]),
+  ...['mage','cleric','archmage','chronomancer','hierophant','oracle'].map((hero,index)=>[hero+'-genders',4,4,'gender-magic-provenance.json',index])
 ];
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const crcTable = Array.from({ length: 256 }, (_, value) => {
@@ -127,10 +129,10 @@ if (process.argv.includes('--write-manifest')) {
 }
 const manifest = JSON.parse(fs.readFileSync(manifestUrl, 'utf8'));
 
-test('all twenty-three generated animation sheets have intact PNG data and a matching asset manifest', () => {
+test('all thirty-five generated animation sheets have intact PNG data and a matching asset manifest', () => {
   assert.equal(manifest.schemaVersion, 1);
-  assert.equal(manifest.assets.length, 23);
-  assert.equal(new Set(manifest.assets.map(asset => asset.file)).size, 23);
+  assert.equal(manifest.assets.length, 35);
+  assert.equal(new Set(manifest.assets.map(asset => asset.file)).size, 35);
   for (const actual of inspected) {
     const { frameDetails, ...expected } = actual;
     assert.deepEqual(manifest.assets.find(asset => asset.file === actual.file), expected, actual.file + ' manifest matches bytes');
@@ -142,7 +144,7 @@ test('all twenty-three generated animation sheets have intact PNG data and a mat
     assert.equal(source.file || source.name, actual.file, 'prompt belongs to this sheet');
     assert.ok(source.prompt.length > 100 && /pixel/i.test(source.prompt), 'full generation prompt retained');
   }
-  assert.ok(inspected.reduce((sum, asset) => sum + asset.bytes, 0) < 24 * 1024 * 1024, 'entire animation library below 24 MiB');
+  assert.ok(inspected.reduce((sum, asset) => sum + asset.bytes, 0) < 48 * 1024 * 1024, 'entire animation library below 48 MiB');
 });
 for (const actual of inspected) {
   test(actual.file + ' contains real transparency and nonempty, distinct animation frames', () => {

@@ -14,7 +14,8 @@
   var images = new Map(), players = new WeakMap();
   function allSkills() { var c=window.ClassroomBattleContent; return c ? Object.values(c.SKILLS).flat().concat(Object.values(c.JOB_SKILLS || {}).flat()) : []; }
   function skillById(id) { return window.ClassroomBattleCore && ClassroomBattleCore.skillById(id); }
-  function sheetName(role,job) { return jobs.includes(job) ? job : roleName(role); }
+  function sheetName(role,job) { return (jobs.includes(job) ? job : roleName(role)) + '-genders'; }
+  function genderName(gender) { return gender === 'female' ? 'female' : 'male'; }
   function recipeFor(hero, value) {
     var skill=typeof value==='string'?skillById(value):value, role=roleName(hero && hero.role), id=skill && skill.id || role+'-attack';
     var effect=skill && skill.effect || {}, family=role==='warrior'?'slash':role==='ranger'?'arrow':role==='mage'?'fire':'lightning';
@@ -75,8 +76,9 @@
     return images.get(name);
   }
   function heroMarkup(role, options) {
-    options = options || {}; role = roleName(role); var sheet=sheetName(role,options.job);
-    return '<span class="cbaHero ' + esc(options.className || 'cbAvatar') + (options.dormant ? ' cbaDormant' : '') + '" data-cba-role="' + role + '" data-cba-sheet="' + sheet + '"' + (jobs.includes(options.job)?' data-cba-job="'+options.job+'"':'') + ' role="img" aria-label="' + esc(options.alt || role.charAt(0).toUpperCase() + role.slice(1) + ' pixel hero') + '"><img class="cbaFallback" src="' + root + role + '.png" alt="" aria-hidden="true"><span class="cbaFrames" aria-hidden="true"></span></span>';
+    options = options || {}; role = roleName(role); var sheet=sheetName(role,options.job), gender=genderName(options.gender);
+    var title=gender.charAt(0).toUpperCase()+gender.slice(1)+' '+(options.alt || (jobs.includes(options.job)?options.job:role)+' pixel hero');
+    return '<span class="cbaHero ' + esc(options.className || 'cbAvatar') + (options.dormant ? ' cbaDormant' : '') + '" data-cba-role="' + role + '" data-cba-sheet="' + sheet + '" data-cba-gender="'+gender+'"' + (jobs.includes(options.job)?' data-cba-job="'+options.job+'"':'') + ' role="img" aria-label="' + esc(title) + '"><span class="cbaFallback" aria-hidden="true">'+(gender==='female'?'♀':'♂')+'</span><span class="cbaFrames" aria-hidden="true"></span></span>';
   }
   function mount(container) {
     if (!container) return;
@@ -94,7 +96,7 @@
     });
   }
   function prepare(hero) {
-    var names=hero?[sheetName(hero.role,hero.job)]:roles.concat(effects);
+    var names=hero?[sheetName(hero.role,hero.job)]:roles.map(function(role){return sheetName(role);}).concat(effects);
     (hero && hero.learnedSkills || []).forEach(function(id){var recipe=recipeFor(hero,id),atlas=atlases[recipe.family];names.push(atlas?atlas[0]:recipe.family);});
     return Promise.all(Array.from(new Set(names)).map(load));
   }
@@ -246,7 +248,7 @@
   }
   function playArena(container,options) { return playDuel(container,Object.assign({},options,{arena:true})); }
   function skillPreviewMarkup(skill,hero) {
-    return '<div class="cbaPreviewStage cbQuickDuel" aria-label="'+esc(skill.name)+' animation preview"><div class="cbaPreviewActor" data-cba-actor="hero" data-cba-hero-id="'+esc(hero.id || 'preview')+'">'+heroMarkup(hero.role,{job:hero.job})+'</div><div class="cbaPreviewActor cbaPreviewTarget" data-cba-actor="enemy"><img src="assets/battle-pixel/goblin.png" alt="Practice target"></div></div>';
+    return '<div class="cbaPreviewStage cbQuickDuel" aria-label="'+esc(skill.name)+' animation preview"><div class="cbaPreviewActor" data-cba-actor="hero" data-cba-hero-id="'+esc(hero.id || 'preview')+'">'+heroMarkup(hero.role,{job:hero.job,gender:hero.gender})+'</div><div class="cbaPreviewActor cbaPreviewTarget" data-cba-actor="enemy"><img src="assets/battle-pixel/goblin.png" alt="Practice target"></div></div>';
   }
   function previewSkill(container,hero,skill) {
     unmount(container); if(!container || !hero || !skill) return {finished:Promise.resolve({cancelled:true}),cancel:function(){}};

@@ -98,7 +98,7 @@
   }
   function avatar(hero, small) {
     var role = hero.role === 'healer' ? 'cleric' : hero.role;
-    return window.ClassroomBattleAnimation ? ClassroomBattleAnimation.heroMarkup(role, { job:hero.job, className: 'cbAvatar', alt: Core.ROLES[role].name + ' pixel hero', dormant: hero.hp <= 0 && !q.playing }) : '<img class="cbAvatar" src="assets/battle-pixel/' + esc(role) + '.png" alt="' + esc(Core.ROLES[role].name) + ' pixel hero">';
+    return window.ClassroomBattleAnimation ? ClassroomBattleAnimation.heroMarkup(role, { job:hero.job, gender:hero.gender, className: 'cbAvatar', alt: Core.ROLES[role].name + ' pixel hero', dormant: hero.hp <= 0 && !q.playing }) : '<img class="cbAvatar" src="assets/battle-pixel/' + esc(role) + '.png" alt="' + esc(Core.ROLES[role].name) + ' pixel hero">';
   }
   function controls(s) {
     el('wheelQuickToggle').disabled = q.busy || !!q.request || !!window.wheelSpinning;

@@ -140,14 +140,42 @@ function createHeroRepository(db, { now = Date.now } = {}) {
       if (body.type === 'configure') {
         if (!actor.isTeacher && (!profile?.claim || profile.claim.uid !== actor.uid || profile.claim.status !== 'approved' || account?.status !== 'approved')) deny('approval_required','Your teacher needs to approve this claim first.',403);
         if (!profile) profile = migrateHero(student,docs(await tx.get(classes)));
-        if (profile.activeEncounter) deny('encounter_active','Finish or end the active encounter before changing your hero.');
-        if (!['class','advance','learn','equip'].includes(body.command)) deny('invalid_command','Choose a hero class, job advancement, skill or equipment.',400);
+        const appearance=body.command==='appearance';
+        if (profile.activeEncounter && !appearance) deny('encounter_active','Finish or end the active encounter before changing your hero.');
+        if (!['class','advance','learn','equip','appearance'].includes(body.command)) deny('invalid_command','Choose a hero class, job advancement, skill, equipment or appearance.',400);
+        let appearanceRef=null,appearanceReceipt=null,activeRef=null,activeState=null;
+        if (appearance) {
+          if (body.gender!=='male' && body.gender!=='female') deny('invalid_command','Choose a male or female hero appearance.',400);
+          if (body.id!==undefined) {
+            if (typeof body.id!=='string' || !/^[A-Za-z0-9_-]{8,100}$/.test(body.id)) deny('invalid_action','Invalid appearance action.',400);
+            appearanceRef=profileRef.collection('appearances').doc(body.id);
+            appearanceReceipt=docData(await tx.get(appearanceRef));
+            if (appearanceReceipt && (appearanceReceipt.gender!==body.gender || appearanceReceipt.uid!==actor.uid)) deny('appearance_changed','That appearance action was already saved with different details. Refresh your hero.');
+          }
+          // Cosmetics may change during a selected answer. Update only the
+          // matching live snapshot, so later combat cannot restore old artwork.
+          if (profile.activeEncounter) {
+            const lock=profile.activeEncounter;
+            activeRef=classes.doc(key(lock.classId));
+            const saved=docData(await tx.get(activeRef));
+            if (saved?.status==='active' && saved.encounterId===lock.encounterId) activeState=saved;
+          }
+          if (appearanceReceipt) return {...view(profile,student),hero:cleanHero(profile.hero,student,profile),revision:profile.revision || 0,duplicate:true,...(actor.isTeacher ? {state:activeState} : {})};
+        }
         if (body.expectedRevision !== undefined && body.expectedRevision !== (profile.revision || 0)) deny('hero_changed','Your hero changed on another screen. Refresh and try again.');
         try { profile.hero = Core.configureHero(cleanHero(profile.hero,student,profile),body); }
         catch (e) { deny('invalid_command',e.message,400); }
         if (body.command === 'class') profile.hero.classChosen = true;
         profile.revision = (profile.revision||0)+1; profile.updatedAt=clock;
-        tx.set(profileRef,profile); return {...view(profile,student),hero:profile.hero,revision:profile.revision};
+        if (activeState) {
+          const matches=h=>h.studentId===id || h.id===profile.hero.id;
+          activeState.heroes=activeState.heroes.map(h=>matches(h)?{...h,gender:body.gender}:h);
+          activeState.heroArchive=Object.fromEntries(Object.entries(activeState.heroArchive || {}).map(([key,h])=>[key,matches(h)?{...h,gender:body.gender}:h]));
+          activeState.revision=(activeState.revision || 0)+1;activeState.updatedAt=clock;
+          tx.set(activeRef,activeState);
+        }
+        if (appearanceRef) tx.set(appearanceRef,{uid:actor.uid,gender:body.gender,createdAt:clock});
+        tx.set(profileRef,profile); return {...view(profile,student),hero:profile.hero,revision:profile.revision,...(appearance && actor.isTeacher ? {state:activeState} : {})};
       }
       deny('invalid_request','Choose a valid hero action.',400);
     });

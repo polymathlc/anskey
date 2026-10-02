@@ -31,7 +31,20 @@ test('animation recipe inspection never changes hero progress or skill mechanics
 test('every advanced job selects its own generated sprite and keeps an accessible fallback',()=>{
   for(const job of Object.values(Core.JOBS)){
     const html=Animation.heroMarkup(job.role,{job:job.id,alt:job.name+' hero'});
-    assert.ok(html.includes('data-cba-sheet="'+job.id+'"'));assert.ok(html.includes('data-cba-job="'+job.id+'"'));
-    assert.ok(html.includes('aria-label="'+job.name+' hero"'));assert.ok(html.includes('assets/battle-pixel/'+job.role+'.png'));
+    assert.ok(html.includes('data-cba-sheet="'+job.id+'-genders"'));assert.ok(html.includes('data-cba-job="'+job.id+'"'));
+    assert.ok(html.includes('aria-label="Male '+job.name+' hero"'));assert.ok(html.includes('class="cbaFallback"'));assert.ok(html.includes('data-cba-gender="male"'));
   }
+});
+
+
+test('all base and advanced heroes select female artwork without changing their skill choreography',()=>{
+  const forms=Object.keys(Core.ROLES).map(role=>({role})).concat(Object.values(Core.JOBS).map(job=>({role:job.role,job:job.id})));
+  for(const hero of forms){
+    const male=Animation.heroMarkup(hero.role,{job:hero.job,gender:'male'}),female=Animation.heroMarkup(hero.role,{job:hero.job,gender:'female'});
+    assert.ok(male.includes('data-cba-gender="male"'));assert.ok(female.includes('data-cba-gender="female"'));
+    assert.ok(female.includes('data-cba-sheet="'+(hero.job||hero.role)+'-genders"'));
+    assert.notEqual(male,female);assert.deepEqual(Animation.recipeFor({...hero,gender:'male'}),Animation.recipeFor({...hero,gender:'female'}));
+  }
+  assert.equal(forms.length,12);
+  assert.ok(Animation.heroMarkup('warrior',{gender:'<script>'}).includes('data-cba-gender="male"'));
 });

@@ -20,6 +20,7 @@ async function reset(role='warrior',options={}){
   await page.evaluate(({role,options})=>{
     QuickBattle.close(); sessionStorage.clear(); window.__fail=false;window.__delay=25;window.__awardError='';
     window.__state=ClassroomBattleCore.reduce(null,{type:'start',id:'animation-start-'+Math.random().toString(36).slice(2),heroes:rwStudents.map((student,index)=>ClassroomBattleCore.configureHero(ClassroomBattleCore.heroFromStudent(student,null,index),{command:'class',role:index===0?role:'warrior'})),bossId:ClassroomBattleCore.BOSSES.find(b=>!b.legacy).id});
+    if(options.gender)__state.heroes[0].gender=options.gender;
     if(options.wounded)__state.heroes.forEach(h=>h.hp=15);
     if(options.knockout)__state.heroes[0].hp=1;
     if(options.victory)__state.bossHp=1;
@@ -48,7 +49,7 @@ try{
     document.getElementById('samples').innerHTML=['warrior','ranger','mage','cleric'].map(role=>ClassroomBattleAnimation.heroMarkup(role)).join('');ClassroomBattleAnimation.mount(document.getElementById('samples'));
   });
   await page.waitForFunction(()=>document.querySelectorAll('#samples .cbaReady').length===4,{},{timeout:20000});
-  check('all four generated hero sheets load while original images remain accessible fallbacks',await page.evaluate(()=>Array.from(document.querySelectorAll('#samples .cbaHero')).every(node=>node.getAttribute('role')==='img'&&node.getAttribute('aria-label')&&node.querySelector('img').naturalWidth>0)));
+  check('all four paired hero sheets load with accessible appearance labels',await page.evaluate(()=>Array.from(document.querySelectorAll('#samples .cbaHero')).every(node=>node.getAttribute('role')==='img'&&node.getAttribute('aria-label')&&node.dataset.cbaGender==='male'&&node.querySelector('.cbaFallback'))));
   check('all six generated attack and healing sheets load as square four-frame atlases',await page.evaluate(async()=>{const loaded=await Promise.all(['slash','fire','ice','lightning','arrow','heal'].map(name=>new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(image.naturalWidth>0&&image.naturalWidth===image.naturalHeight);image.onerror=()=>resolve(false);image.src='assets/battle-pixel/animations/'+name+'-sheet.png';})));return loaded.every(Boolean);}));
   const frame=await page.locator('#samples .cbaFrames').first().evaluate(node=>getComputedStyle(node).backgroundPosition);
   await page.waitForTimeout(340);
@@ -123,6 +124,27 @@ try{
   });
   await page.waitForFunction(()=>document.querySelectorAll('#samples .cbaReady').length===8);
   check('all eight jobs load their distinct idle/action sprite atlases',await page.evaluate(()=>new Set(Array.from(document.querySelectorAll('#samples .cbaFrames')).map(node=>node.style.backgroundImage)).size===8));
+  await page.evaluate(()=>{
+    const forms=Object.keys(ClassroomBattleCore.ROLES).map(role=>({role,name:role})).concat(Object.values(ClassroomBattleContent.JOBS).map(job=>({role:job.role,job:job.id,name:job.name})));
+    const gallery=document.getElementById('samples');gallery.innerHTML=forms.map(form=>['male','female'].map(gender=>'<div style="text-align:center">'+ClassroomBattleAnimation.heroMarkup(form.role,{job:form.job,gender,alt:form.name})+'<p>'+gender+' '+form.name+'</p></div>').join('')).join('');ClassroomBattleAnimation.mount(gallery);
+  });
+  await page.waitForFunction(()=>document.querySelectorAll('#samples .cbaReady').length===24);
+  check('all 24 male and female appearances load across the twelve hero classes',await page.evaluate(()=>document.querySelectorAll('#samples [data-cba-gender="male"]').length===12&&document.querySelectorAll('#samples [data-cba-gender="female"]').length===12));
+  check('female idle frames use their own third atlas row',await page.evaluate(()=>Array.from(document.querySelectorAll('#samples [data-cba-gender="female"] .cbaFrames')).every(n=>Math.abs(parseFloat(getComputedStyle(n).backgroundPositionY)-66.666667)<.01)));
+  const femaleFrame=await page.locator('#samples [data-cba-gender="female"] .cbaFrames').first().evaluate(n=>getComputedStyle(n).backgroundPosition);
+  await page.waitForTimeout(340);
+  check('female heroes breathe through distinct idle frames',femaleFrame!==await page.locator('#samples [data-cba-gender="female"] .cbaFrames').first().evaluate(n=>getComputedStyle(n).backgroundPosition));
+  const idlePortraitTransforms=await page.locator('#samples .cbaFrames').evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).transform));
+  await page.evaluate(()=>document.querySelectorAll('#samples .cbaHero').forEach(n=>n.classList.add('cbaActing')));
+  check('all attack rows match the selected gender',await page.evaluate(()=>Array.from(document.querySelectorAll('#samples .cbaHero')).every(n=>Math.abs(parseFloat(getComputedStyle(n.querySelector('.cbaFrames')).backgroundPositionY)-(n.dataset.cbaGender==='female'?100:33.333333))<.01)));
+  await page.emulateMedia({reducedMotion:'reduce'});
+  check('reduced motion retains the chosen female portrait during an attack',await page.evaluate(()=>Array.from(document.querySelectorAll('#samples [data-cba-gender="female"] .cbaFrames')).every(n=>getComputedStyle(n).animationName==='none'&&Math.abs(parseFloat(getComputedStyle(n).backgroundPositionY)-66.666667)<.01)));
+  check('reduced motion keeps every attacking portrait aligned to its idle ground line',await page.locator('#samples .cbaFrames').evaluateAll((nodes,before)=>nodes.every((node,index)=>getComputedStyle(node).transform===before[index]),idlePortraitTransforms));
+  await page.evaluate(()=>document.querySelectorAll('#samples .cbaHero').forEach(n=>{n.classList.remove('cbaActing');n.classList.add('cbaDormant');}));
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  check('knocked-out female avatars remain on the female idle row',await page.evaluate(()=>Array.from(document.querySelectorAll('#samples [data-cba-gender="female"] .cbaFrames')).every(n=>getComputedStyle(n).animationName==='none'&&Math.abs(parseFloat(getComputedStyle(n).backgroundPositionY)-66.666667)<.01)));
+  await page.screenshot({path:path.join(output,'all-gender-appearances.png'),fullPage:true});
+  await page.evaluate(()=>document.querySelectorAll('#samples .cbaHero').forEach(n=>n.classList.remove('cbaDormant')));
   for(const [skillId,family] of [['berserker-scarlet-cyclone','fury'],['beastmaster-wolf-pounce','spirit-wolf'],['beastmaster-hawk-dive','spirit-hawk'],['beastmaster-phoenix-flight','spirit-phoenix'],['archmage-frost-nova','blizzard']]){
     await page.evaluate(skillId=>{const skill=ClassroomBattleCore.skillById(skillId);window.__preview=ClassroomBattleAnimation.previewSkill(document.getElementById('advancedPreview'),{id:'preview',name:'Preview hero',role:skill.role,job:skill.job},skill);},skillId);
     await page.waitForFunction(family=>!!document.querySelector('#advancedPreview .cbaFx-'+family),family);
@@ -157,9 +179,9 @@ try{
   check('cancelling while a generated sheet loads prevents late playback',await slow.locator('.cbaPlaying,.cbaEffect').count()===0);
   await slow.close();
   const fallback=await context.newPage();await fallback.goto(pathToFileURL(fixture).href);
-  await fallback.evaluate(()=>{const NativeImage=Image;window.Image=class extends NativeImage{set src(value){if(value.endsWith('warrior-sheet.png'))queueMicrotask(()=>this.onerror());else super.src=value;}};const samples=document.getElementById('samples');samples.innerHTML=ClassroomBattleAnimation.heroMarkup('warrior');ClassroomBattleAnimation.mount(samples);});
-  await fallback.waitForFunction(()=>document.querySelector('#samples img').naturalWidth>0);
-  check('failed generated sheet leaves the original avatar visibly available',await fallback.evaluate(()=>!document.querySelector('#samples .cbaReady')&&getComputedStyle(document.querySelector('#samples img')).visibility==='visible'));await fallback.close();
+  await fallback.evaluate(()=>{const NativeImage=Image;window.Image=class extends NativeImage{set src(value){if(value.endsWith('warrior-genders-sheet.png'))queueMicrotask(()=>this.onerror());else super.src=value;}};const samples=document.getElementById('samples');samples.innerHTML=ClassroomBattleAnimation.heroMarkup('warrior',{gender:'female'});ClassroomBattleAnimation.mount(samples);});
+  await fallback.waitForTimeout(100);
+  check('failed generated sheet preserves an accessible female fallback instead of showing a male sprite',await fallback.evaluate(()=>!document.querySelector('#samples .cbaReady')&&getComputedStyle(document.querySelector('#samples .cbaFallback')).visibility==='visible'&&document.querySelector('#samples .cbaHero').getAttribute('aria-label').startsWith('Female ')&&!document.querySelector('#samples img')));await fallback.close();
   check('animation browser run has no application errors',errors.length===0);
   console.log('\n'+checks+' animation browser checks passed.');
 }finally{await browser.close();fs.unlinkSync(fixture);}

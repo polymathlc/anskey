@@ -70,12 +70,13 @@ try {
   await page.screenshot({ path: path.join(output, 'hero-skill-constellation-desktop.png'), fullPage: true });
   for (const role of ['warrior', 'ranger', 'cleric']) {
     await setup(role, { level: 4, xp: 450, skillPoints: 12 });
-    check(role + ' changes its original sprite, skill names and branch effects', await page.evaluate(role => document.querySelector('.hstOrigin img').getAttribute('src').endsWith(role + '.png') && [...document.querySelectorAll('[data-hst-node]')].every(n => n.dataset.hstNode.startsWith(role + '-')), role));
+    check(role + ' changes its original sprite, skill names and branch effects', await page.evaluate(role => document.querySelector('.hstOrigin [data-cba-sheet]').dataset.cbaSheet===role + '-genders' && [...document.querySelectorAll('[data-hst-node]')].every(n => n.dataset.hstNode.startsWith(role + '-')), role));
   }
   for (const job of ['paladin','berserker','sharpshooter','beastmaster','archmage','chronomancer','hierophant','oracle']) {
     const role=await page.evaluate(id=>ClassroomBattleCore.JOBS[id].role,job);
-    await setup(role,{job,level:15,xp:7500,skillPoints:30});
+    await setup(role,{job,gender:'female',level:15,xp:7500,skillPoints:30});
     check(job+' opens its advanced tree with distinct connected skills',await page.evaluate(id=>document.querySelectorAll('[data-hst-node]').length===12&&[...document.querySelectorAll('[data-hst-node]')].every(n=>ClassroomBattleCore.skillById(n.dataset.hstNode).job===id)&&document.querySelector('[data-hst-tree="job"]').getAttribute('aria-pressed')==='true',job));
+    check(job+' uses female appearance in the advanced map and skill preview',await page.evaluate(id=>document.querySelector('.hstOrigin [data-cba-sheet]').dataset.cbaSheet===id+'-genders'&&document.querySelector('.hstOrigin [data-cba-gender]').dataset.cbaGender==='female'&&document.querySelector('.cbaSkillPreview [data-cba-gender]').dataset.cbaGender==='female',job));
     await page.click('[data-hst-tree="base"]');
     check(job+' foundation toggle keeps original class training accessible',await page.evaluate(role=>[...document.querySelectorAll('[data-hst-node]')].every(n=>n.dataset.hstNode.startsWith(role+'-'))&&document.querySelector('[data-hst-tree="base"]').getAttribute('aria-pressed')==='true',role));
     await page.click('[data-hst-tree="job"]');
