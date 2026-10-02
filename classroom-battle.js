@@ -128,6 +128,7 @@
   }
   function close() {
     if (!opened) return;
+    if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(el('classroomBattle'));
     opened = false; detach(); closeWheel();
     if (wheelParent) wheelParent.insertBefore(el('wheelModal'), wheelNext && wheelNext.parentNode === wheelParent ? wheelNext : null);
     el('classroomBattle').hidden = true; document.body.classList.remove('cbOpen');
@@ -254,9 +255,11 @@
   }
   function avatar(h, extra) {
     var role = roleOf(h);
+    if (window.ClassroomBattleAnimation) return ClassroomBattleAnimation.heroMarkup(role, { className: 'cbAvatar ' + (extra || ''), alt: roleText[role].name + ' pixel avatar facing right', dormant: h.hp <= 0 });
     return '<img class="cbAvatar ' + (extra || '') + '" src="assets/battle-pixel/' + esc(role) + '.png" alt="' + esc(roleText[role].name) + ' pixel avatar facing right" draggable="false">';
   }
   function bindAvatarFailures(container) {
+    if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(container);
     container.querySelectorAll('img.cbAvatar').forEach(function (img) { img.onerror = function () { img.alt = 'Hero sprite unavailable'; }; });
   }
   async function journalAction(values) {
@@ -296,6 +299,7 @@
       (locked ? '<p class="cbJournalNotice">' + (!state ? 'Start an encounter to begin character progression.' : 'Finish the current turn before changing skills or equipment.') + '</p>' : '') +
       '<h4>Skill tree <span>3 paths · 4 tiers</span></h4><div id="cbSkillGraph"></div><h4>Treasure bag <span>Equip one relic</span></h4><div class="cbInventory">' + inventory.map(function (entry) { var item = itemInfo(entry), equipped = h.equipped === entry.id; return '<article class="cbLootItem cbRarity-' + esc(item.rarity) + '"><span class="cbPixelIcon">◆</span><div><small>' + esc(item.rarity).toUpperCase() + '</small><strong>' + esc(item.name) + (entry.quantity > 1 ? ' ×' + entry.quantity : '') + '</strong><p>' + esc(item.description) + '</p>' + (item.type === 'consumable' ? '<small>Use from the Items command on a correct answer.</small>' : button(equipped ? '✓ Equipped / remove' : 'Equip relic', 'data-equip="' + (equipped ? '' : esc(entry.id)) + '"', locked)) + '</div></article>'; }).join('') + '</div>';
     if (window.ClassroomSkillTree) window.ClassroomSkillTree.render(el('cbSkillGraph'), { hero: h, locked: locked, onLearn: function (skillId) { return journalAction({ command: 'learn', skillId: skillId }); } });
+    bindAvatarFailures(el('cbJournalBody'));
   }
   function renderLoot() {
     var show = state && state.status === 'victory'; el('cbLoot').hidden = !show; if (!show) return;

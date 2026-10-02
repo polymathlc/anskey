@@ -93,3 +93,5 @@
   .hst .hstDetailAction p { margin:0; font-size:10px; }
 }
 @media (prefers-reduced-motion:reduce) { .hst *, .hst *::before, .hst *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+
+.hstOriginFrame .hstHero { width:116px; height:116px; }

@@ -2,6 +2,12 @@
 
 Guidance for Claude when working in this repo.
 
+## Generated battle animation (v1.117.0)
+
+`battle-animation.js/css` renders generated hero sheets (4 columns × 2 rows: idle above action) and effect sheets (2 × 2). Load it before the skill graph, classroom controller, Quick fight and student heroes. `heroMarkup` keeps an accessible wrapper and static PNG fallback; call `mount` after inserting it. Role-specific CSS scale/baseline settings account for transparent sprite padding. Generated PNGs are unchanged; prompts, dimensions, alpha checks and SHA-256 are in `assets/battle-pixel/animations`.
+
+Quick fight animates only an acknowledged, saved auto event. During playback keep incoming snapshots queued, block extra spins, show the pre-turn health, and reveal final health/loot after settling. Spin IDs prevent replays; reloads show current state without replaying history. Close, lesson changes, manual battle and account changes cancel presentation, not already saved combat. Never invoke the reducer or write XP/damage from animation callbacks. Respect reduced-motion changes and missing assets. Run the animation browser suite plus existing wheel/battle/student checks after changes.
+
 ## Student heroes and classroom battle (v1.116.0)
 
 Load battle-bosses.js and battle-content.js before battle-core.js, then hero-api.js, battle-store.js, hero-skill-tree.js, classroom-battle.js, quick-battle.js and student-heroes.js. The overlay temporarily hosts the existing wheel and restores it on close. Pixel heroes use their own saved progression; never read CER battleHero profiles. The roster document ID is the canonical character identity, independent of the claimed account UID or lesson slot.

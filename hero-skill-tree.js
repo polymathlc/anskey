@@ -74,13 +74,14 @@
   }
   function graphMarkup(hero, selectedId) {
     var graph = model(hero), role = Core.ROLES[graph.role];
+    var actor = typeof window !== 'undefined' && window.ClassroomBattleAnimation ? window.ClassroomBattleAnimation.heroMarkup(graph.role, { className: 'hstHero', alt: role.name + ' pixel hero' }) : '<img src="assets/battle-pixel/' + graph.role + '.png" alt="" loading="lazy"/>';
     var connectors = graph.links.map(function (link) {
       var middle = link.from === 'hero' ? 180 : link.y1 + (link.y2 - link.y1) * .52;
       var d = 'M ' + link.x1 + ' ' + link.y1 + ' L ' + link.x1 + ' ' + middle + ' L ' + link.x2 + ' ' + middle + ' L ' + link.x2 + ' ' + link.y2;
       return '<g class="hstLink hstLink-' + link.state + '" data-from="' + esc(link.from) + '" data-to="' + esc(link.to) + '" style="--hst-branch:' + palettes[link.branch % 3] + '"><path class="hstLinkShadow" d="' + d + '"/><path class="hstLinkStroke" d="' + d + '"/><rect x="' + (link.x2 - 3) + '" y="' + (middle - 3) + '" width="6" height="6"/></g>';
     }).join('');
     return '<div class="hstMap" style="width:' + WIDTH + 'px;height:' + HEIGHT + 'px"><svg class="hstConnections" viewBox="0 0 ' + WIDTH + ' ' + HEIGHT + '" aria-hidden="true"><path class="hstRune" d="M420 0L825 400L420 800L15 400Z M420 48L777 400L420 752L63 400Z M420 0V810"/>' + connectors + '</svg>' +
-      '<div class="hstOrigin"><div class="hstOriginFrame"><img src="assets/battle-pixel/' + graph.role + '.png" alt="" loading="lazy"/></div><strong>' + esc(role.name) + '</strong><span>CHOOSE YOUR PATH</span></div>' +
+      '<div class="hstOrigin"><div class="hstOriginFrame">' + actor + '</div><strong>' + esc(role.name) + '</strong><span>CHOOSE YOUR PATH</span></div>' +
       graph.branches.map(function (branch, index) { return '<div class="hstBranch" style="left:' + (190 + index * 230) + 'px;--hst-branch:' + palettes[index % 3] + '"><strong>' + esc(branch) + '</strong><span>' + esc(paths[branch] || 'Explore this path') + '</span></div>'; }).join('') +
       graph.nodes.map(function (node) {
         var s = node.skill;
@@ -125,6 +126,7 @@
       tree.querySelector('.hstPoints').innerHTML = '<strong>' + (Number(h.skillPoints) || 0) + '</strong><span>SKILL POINTS</span>';
       var focused = tree.ownerDocument.activeElement, focusId = focused && focused.dataset && focused.dataset.hstNode;
       space.innerHTML = graphMarkup(h, selected); drawnRole = role;
+      if (typeof window !== 'undefined' && window.ClassroomBattleAnimation) window.ClassroomBattleAnimation.mount(space);
       if (!hasZoomed && fresh) zoom = Math.max(.78, Math.min(1, (viewport.clientWidth - 16) / WIDTH));
       applyZoom(fresh); showDetail();
       if (focusId) { var focus = Array.from(tree.querySelectorAll('[data-hst-node]')).find(function (node) { return node.dataset.hstNode === focusId; }); if (focus) focus.focus({ preventScroll: true }); }

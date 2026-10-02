@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "created": "2026-10-03",
+  "mode": "built-in image_gen",
+  "intent": "generate sprite animation sheets from character identity references; revise warrior cell padding",
+  "rasterPostProcessing": "none; generated PNG files copied unchanged",
+  "assets": [
+    {
+      "file": "warrior-sheet.png",
+      "sourceReference": "../warrior.png",
+      "sourceGeneratedPath": "exec-ea6e1b0d-b855-4f35-a20c-42a9eb572306.png",
+      "grid": {
+        "columns": 4,
+        "rows": 2,
+        "row0": "breathing idle",
+        "row1": "sword slash"
+      },
+      "prompt": "Use case: stylized-concept. Asset type: production pixel-art RPG character animation sprite atlas. Input image 1 is the warrior character identity and palette reference. Create a NEW sprite sheet with the SAME red-haired warrior, silver armor, blue tabard, red cape, sword and round shield, facing RIGHT. Real transparent alpha background, no backdrop or floor shadow. Canvas exactly 2048 x 1024 (2:1), split into precisely FOUR equal square columns and TWO equal square rows, EIGHT individual complete character frames total; NO drawn gridlines. Each 512x512 cell has character center at x=256, fixed feet baseline at y=450 relative to cell, and the same body scale/head size in all eight cells. Keep all pixels including sword/cape within the cell with at least 8% edge padding. Row TOP left-to-right is a 4-frame looping breathing idle: ready stance, shoulders rise slightly/cape flexes, breathe out/cape trails, return toward ready. Row BOTTOM left-to-right is a 4-frame rightward sword slash: crouched windup with sword raised, forceful horizontal slash toward right, low follow-through with cape flaring, recovery toward ready. Clear DIFFERENT ARM AND SWORD POSES for action frames, actual anatomical movement. Feet stay planted near same baseline. Crisp detailed 16-bit pixel art with hard square pixel clusters matching reference, no antialias blur, no text, no labels, no borders, no extra characters, no external attack effects. Each cell must contain exactly ONE full-body warrior with no clipping or cell overlap. Production uniform atlas suitable for CSS steps(4) playback, all cells equally spaced.",
+      "revisionPrompt": "Use case: precise-object-edit. Edit this eight-frame transparent pixel warrior sprite atlas for exact game playback. Preserve character identity, pixel style, palette, poses, 4 columns and 2 rows, and transparent alpha. Canvas must be exactly 2048x1024. The ONLY change: scale each entire individual frame DOWN to 70% of its current size and center it independently inside its own 512x512 cell, anchored at a common local foot baseline y=410. This must leave very generous transparent padding between all characters, especially sword tips in the lower-row second and third cells: each whole sprite including sword/cape fits inside x=76..436 and y=65..415 OF ITS OWN CELL. Do not crop swords. Do not overlap neighboring cells. Do not add any frame, text, outlines, background or grid. Top-row 4 breathing idle frames and bottom-row 4 slash frames remain in same order. Uniform body scale in all eight cells. Correct exact 4-by-2 equal-square grid: absolute center positions x=256,768,1280,1792; first-row foot baseline410; second-row foot baseline922. Real transparent background.",
+      "revisionSourcePath": "exec-0698bc5e-e692-48d5-8815-14f42ab3f84f.png",
+      "notes": "Initial atlas had action sword cell overlap. Revised sheet increases padding. Built-in emitted 1774x887 despite request for2048x1024.",
+      "validation": {
+        "actionBaselineAdjustment": 0.0890642616,
+        "width": 1774,
+        "cornerAlpha": 0,
+        "height": 887,
+        "feetBaselines": [
+          406,
+          810
+        ],
+        "grid": [
+          4,
+          2
+        ],
+        "format": "RGBA PNG",
+        "allFramesWithinCells": true
+      }
+    },
+    {
+      "file": "ranger-sheet.png",
+      "sourceReference": "../ranger.png",
+      "sourceGeneratedPath": "exec-68831b2a-9761-49c5-b49b-1131bc46e245.png",
+      "grid": {
+        "columns": 4,
+        "rows": 2,
+        "row0": "breathing idle",
+        "row1": "bow draw and arrow release"
+      },
+      "prompt": "Use case: stylized-concept. Asset type: production pixel-art RPG character animation sprite atlas. Input image 1 is the ranger character identity and palette reference. Create a NEW sprite sheet with the SAME dark-skinned ranger, green hood and cape, brown leather armor, boots and recurved bow and quiver, facing RIGHT. Real transparent alpha background, no backdrop or floor shadow. Canvas exactly 2048 x 1024 (2:1), split into precisely FOUR equal square columns and TWO equal square rows, EIGHT individual complete character frames total; NO drawn gridlines. Each 512x512 cell has the exact same character center at x=256 and foot baseline at y=420 relative to its cell; same body scale/head size in all eight cells. Absolute centers x=256,768,1280,1792. First-row feet y420, second-row feet y932. Keep all pixels including bow, arrow and cape INSIDE its own cell with generous transparent padding of at least15% all sides; sprites should occupy only70% cell width and70% cell height. Row TOP left-to-right is a 4-frame looping breathing idle: bow held relaxed downward toward right, shoulders rise slightly and cape flexes, breathe out cape trails, return toward ready. Row BOTTOM left-to-right is a 4-frame bow attack: raise bow and nock arrow, draw bowstring back to cheek aiming RIGHT, release arrow toward RIGHT with slight bow flex and shooting arm outstretched, lower bow back toward rest. Distinct anatomically correct arm, arrow and bowstring positions for these phases. NO traveling projectile outside cell; separate projectile created elsewhere. Feet stay planted at same baseline. Crisp detailed 16-bit pixel art with hard square pixel clusters matching reference, no antialias blur, no text, no labels, no borders, no extra characters, no external attack effects. Each cell exactly ONE full-body ranger, no clipping or cell overlap. Uniform atlas for CSS steps(4) playback; equal spacing and consistent frame alignment are critical.",
+      "validation": {
+        "actionBaselineAdjustment": 0.0439684329,
+        "width": 1774,
+        "cornerAlpha": 0,
+        "height": 887,
+        "feetBaselines": [
+          430,
+          854
+        ],
+        "grid": [
+          4,
+          2
+        ],
+        "format": "RGBA PNG",
+        "allFramesWithinCells": true
+      }
+    }
+  ]
+}

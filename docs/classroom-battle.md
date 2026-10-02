@@ -16,6 +16,14 @@ The ordinary **Wheel** starts with **Quick fight** enabled. Choose a Lesson slot
 
 Quick turns award combat XP, but never award answer marks or record a correct answer. Manual mark buttons remain available separately. Turn off Quick fight to use the ordinary name wheel. Open Battle for answer-driven commands and the boss timing meter. An unresolved manual answer must be finished there before Quick fight continues. Closing the wheel or switching lesson cancels an action that has not yet been dispatched; an already committed action remains saved and cannot execute twice.
 
+## Generated animation
+
+All four hero classes have four generated breathing idle frames and four action frames. Idle loops appear in the quick duel, party formation, journal, My Hero, class picker and skill-tree centre. Resting party heroes remain still. Warrior action frames show a sword windup, slash and recovery; Ranger frames draw and release the bow; Mage and Cleric frames raise their staffs and cast.
+
+After the server saves a quick turn, the hero animates, a generated effect appears, then the enemy responds. Warrior slashes strike the enemy, Ranger arrows travel across the duel, and Mage effects follow the selected skill path: Pyromancy uses fire, Frostcraft ice, and Arcanist lightning. Healing sparkles appear on heroes who actually received healing; affected teammates appear below the duel when needed. Damage numbers reflect the saved event. Health and victory treasure settle after the sequence, which takes about two seconds with an enemy response.
+
+The ten unchanged transparent PNG sheets in `assets/battle-pixel/animations/` were made with built-in ImageGen. Their 56 distinct frames, full generation/revision prompts, source filenames, and integrity manifest ship with the app. Sprite sheets preload for Quick fight; missing sheets retain the original static avatar. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. No server or rule change is needed for this animation release.
+
 ## Commands and progression
 
 After the wheel chooses a hero, select **Attack**, **Skills** or **Items**, then choose **Correct / execute**, **Incorrect** or **Skip**. Only a correct answer executes the command and spends MP or an item. Normal attacks restore 10 MP. Resting heroes rally at 25% health when they answer correctly. Healing can revive other resting teammates.
@@ -62,3 +70,4 @@ This release requires `ansKeyHeroes` deployment and the narrow shared-rules upgr
 - `PW=/path/to/playwright/index.mjs node tools/classroom-battle-browser-check.mjs` runs the real UI/core/store/wheel with synthetic Firebase transactions. It checks commands, skill trees, the meter, inventories, victory/reload, class isolation and desktop/tablet/phone layouts.
 - `PW=/path/to/playwright/index.mjs node tools/wheel-check.mjs` checks the original wheel. Set `PLAYWRIGHT_BROWSER_CHANNEL=chrome` to use local Chrome. CI installs Chromium and saves screenshots.
 - `tools/quick-wheel-browser-check.mjs`, `tools/student-heroes-browser-check.mjs` and `tools/hero-skill-tree-browser-check.mjs` exercise automatic fights, claim/picker/teacher flows, account races, pixel graphs and mobile layouts with synthetic service fixtures. Production credentials are never embedded in the tests.
+- `tools/battle-animation-art-tests.mjs` verifies all generated sheet hashes, alpha, grid boundaries and distinct frame content. `tools/battle-animation-browser-check.mjs` verifies idle motion, each class effect, playback ordering, cancellation, duplicate callbacks, missing assets and reduced motion.
