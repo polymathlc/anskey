@@ -62,7 +62,7 @@
       '<div id="cbError" class="cbError" role="alert" hidden></div>' +
       '<main class="cbMain"><aside class="cbWheelPane"><div class="cbSectionTitle"><span>01 / CALL A HERO</span><span class="cbLiveDot">LIVE WHEEL</span></div><div id="cbWheelMount" class="cbWheelSlot"></div><details class="cbHelp"><summary>How your CER hero helps</summary><p>Your existing CER avatar, equipped items and stats update here automatically. Choose your role in CER. Each class has its own saved encounter.</p><div id="cbRoleGuide"></div><p>Attack powers damage; health and defence keep heroes standing. CER stats use bounded square-root scaling so every student can contribute. Critical chance is shown as a percentage. A resting hero returns at 25% health on a correct answer; healers can also revive teammates.</p><a href="https://polymathlc.github.io/cer/" target="_blank" rel="noopener">Open CER to choose your role ↗</a></details></aside>' +
       '<section class="cbArena" id="cbArena" aria-label="Battlefield"><div class="cbArenaTop"><div class="cbSectionTitle">02 / WORK AS A TEAM</div><span id="cbEncounterStatus" class="cbEncounterStatus">Ready when you are</span></div><div class="cbBattlefield"><section class="cbTeam"><div class="cbTeamTitle"><h3>Your heroes</h3><span id="cbTeamCount"></span></div><div id="cbHeroes" class="cbHeroes"></div></section>' +
-      '<section class="cbBoss" id="cbBoss"><span class="cbBossTag" id="cbBossTag">MYSTERY ENCOUNTER</span><div class="cbBossArt" id="cbBossArt"><span class="cbMystery">?</span></div><h3 id="cbBossName">A new challenger awaits</h3><p id="cbBossStyle">Start an encounter to meet one of 20 original bosses.</p><div class="cbHpLine"><span>Boss health</span><strong id="cbBossHp">—</strong></div><div class="cbHp cbBossHp"><span id="cbBossBar"></span></div><div class="cbChargeLabel"><span id="cbUltimateName">Ultimate charge</span><strong id="cbChargeText">—</strong></div><div id="cbCharge" class="cbCharge"></div><p class="cbBossIntent" id="cbBossIntent">The teacher chooses when the boss attacks.</p></section></div><div id="cbEffects" class="cbEffects" aria-hidden="true"></div>' +
+      '<section class="cbBoss" id="cbBoss"><span class="cbBossTag" id="cbBossTag">MYSTERY ENCOUNTER</span><div class="cbBossArt" id="cbBossArt"><span class="cbMystery">?</span></div><h3 id="cbBossName">A new challenger awaits</h3><p id="cbBossStyle">Start an encounter to meet one of 20 original bosses.</p><p id="cbBossGuard" class="cbCondition" hidden>Shield raised · next hero attack deals 40% less damage</p><div class="cbHpLine"><span>Boss health</span><strong id="cbBossHp">—</strong></div><div class="cbHp cbBossHp"><span id="cbBossBar"></span></div><div class="cbChargeLabel"><span id="cbUltimateName">Ultimate charge</span><strong id="cbChargeText">—</strong></div><div id="cbCharge" class="cbCharge"></div><p class="cbBossIntent" id="cbBossIntent">The teacher chooses when the boss attacks.</p></section></div><div id="cbEffects" class="cbEffects" aria-hidden="true"></div>' +
       '<div id="cbFeedback" class="cbFeedback" role="status" aria-live="polite">Choose a class and start an encounter. Your progress saves after every action.</div></section></main>' +
       '<footer class="cbControls"><div class="cbAnswerControls"><div class="cbTurnLabel"><span class="cbEyebrow">03 / RESOLVE THE ANSWER</span><strong id="cbTurnName">Spin the wheel to call a hero</strong></div><div class="cbAnswerButtons"><button id="cbCorrect" class="cbCorrect">✓ Correct <small>Use hero ability</small></button><button id="cbIncorrect">↻ Incorrect <small>Keep learning</small></button><button id="cbSkip">→ Skip <small>Next student</small></button></div></div><div class="cbTeacherControls"><button id="cbAttack">Boss attack</button><button id="cbUltimate" class="cbUltimate">Ultimate</button><button id="cbStart" class="cbStart">Start encounter</button></div></footer></section>';
     document.body.appendChild(node);
@@ -261,9 +261,9 @@
     if (event && event.type === 'answer') {
       if (event.outcome !== 'correct') return (hero ? hero.name : 'Hero') + (event.outcome === 'skip' ? ' passed this turn. Spin for the next student.' : ' is still learning. No hero attack this turn — try the next question!');
       var healed = (event.healed || []).reduce(function (sum, h) { return sum + (h.amount || 0); }, 0);
-      return (hero ? hero.name : 'Your hero') + ' dealt ' + (event.damage || 0) + ' damage' + (event.critical ? ' — critical hit!' : '!') + (healed ? ' Team healing: +' + healed + ' HP.' : '') + ' Spin to call the next hero.';
+      return (hero ? hero.name : 'Your hero') + ' dealt ' + (event.damage || 0) + ' damage' + (event.critical ? ' — critical hit!' : '!') + (healed ? ' Team healing: +' + healed + ' HP.' : '') + (event.effect === 'reflect' ? ' The boss reflected ' + (event.targets[0] && event.targets[0].damage || 0) + ' damage.' : '') + ' Spin to call the next hero.';
     }
-    if (event && event.type === 'boss') return (event.move || (event.ultimate ? 'Ultimate attack' : 'Boss attack')) + ' hit ' + (event.targets || []).length + ' hero' + ((event.targets || []).length === 1 ? '' : 'es') + '. The teacher decides when the next boss turn happens.';
+    if (event && event.type === 'boss') return (event.move || (event.ultimate ? 'Ultimate attack' : 'Boss attack')) + ' hit ' + (event.targets || []).length + ' hero' + ((event.targets || []).length === 1 ? '' : 'es') + '.' + (event.bossHealed ? ' The boss restored ' + event.bossHealed + ' HP.' : '') + ' The teacher decides when the next boss turn happens.';
     if (state.pending) return 'Ask your question, then choose Correct, Incorrect or Skip. This answer can resolve only once.';
     return 'Spin the wheel for the next hero. Boss attacks only happen when the teacher triggers them.';
   }
@@ -271,6 +271,8 @@
     if (!opened || !el('classroomBattle')) return;
     var heroes = state ? state.heroes : roster(), b = boss(), pending = state && state.pending;
     var active = state && state.status === 'active', selected = pending && heroes.find(function (h) { return h.id === pending.heroId; });
+    var living = heroes.filter(function (h) { return h.hp > 0; }), nextTarget = state && living[state.bossTurns % living.length];
+    var targetsAll = b && (b.playstyle === 'splash' || state.charge >= b.chargeMax);
     var locked = busy || loading || pendingProfiles > 0 || selectionInFlight || !!window.wheelSpinning || !classReady || !allowed();
     el('cbClassLabel').textContent = classId || 'Choose a class on the wheel';
     el('cbError').hidden = !error; el('cbError').textContent = error;
@@ -286,6 +288,8 @@
         '<span class="cbHeroRole" title="' + esc(role.text) + '">' + role.icon + '</span>' + avatar(h) + '<strong class="cbHeroName">' + esc(h.name) + '</strong><span class="cbRoleName">' + role.name + '</span>' +
         '<div class="cbHp"><span style="width:' + ratio + '%"></span></div><span class="cbHeroHp">' + hp + ' / ' + maxHp + ' HP' + (hp <= 0 ? ' · resting' : '') + '</span>' +
         '<span class="cbHeroStats" title="Damage · Defence · Healing · Critical chance">⚔ ' + (stats.damage || 0) + ' · 🛡 ' + (stats.defence || 0) + (stats.healing ? ' · ✚ ' + stats.healing : '') + ' · ' + Math.round((stats.critChance || 0) * 100) + '% crit</span>' +
+        (h.weakened ? '<span class="cbCondition">Weakened · next hit −30%</span>' : '') +
+        (active && !targetsAll && nextTarget && nextTarget.id === h.id ? '<span class="cbNextTarget">Next boss target</span>' : '') +
         '<span class="cbAvatarNote">' + (failedAvatars[view.avatarUrl] ? 'Avatar unavailable — stats are synced' : view.avatarUrl ? 'CER synced' + (equipped ? ' · ' + equipped + ' items' : '') : esc(view.fallbackReason || 'Starter hero · CER avatar unavailable')) + '</span></article>';
     }).join('') : '<p class="cbEmpty">Choose a class to gather your heroes. Names without a linked CER account receive a starter hero.</p>';
     // A malformed avatar must never hide the student or break the battle.
@@ -304,7 +308,7 @@
       el('cbUltimateName').textContent = b.ultimateName;
       el('cbChargeText').textContent = state.charge + ' / ' + b.chargeMax;
       el('cbCharge').innerHTML = Array.from({ length: b.chargeMax }, function (_, i) { return '<span class="' + (i < state.charge ? 'charged' : '') + '"></span>'; }).join('');
-      el('cbBossIntent').textContent = state.charge >= b.chargeMax ? 'Ultimate ready! Hits the whole team when triggered.' : 'Next attack: ' + b.attackName + ' · +1 ultimate charge';
+      el('cbBossIntent').textContent = state.charge >= b.chargeMax ? 'Ultimate ready! Hits every standing hero when triggered.' : 'Next: ' + b.attackName + ' → ' + (targetsAll ? 'every standing hero' : nextTarget ? nextTarget.name : 'team') + ' · +1 charge';
       el('cbAttack').textContent = b.attackName;
       el('cbUltimate').textContent = state.charge >= b.chargeMax ? '✦ ' + b.ultimateName : 'Ultimate · ' + state.charge + '/' + b.chargeMax;
     } else {
@@ -315,11 +319,12 @@
       el('cbChargeText').textContent = '—'; el('cbUltimateName').textContent = 'Ultimate charge';
       el('cbBossIntent').textContent = 'The teacher chooses when the boss attacks.';
     }
+    el('cbBossGuard').hidden = !(state && state.guard);
     el('cbBoss').classList.toggle('cbDefeated', !!state && state.status === 'victory');
     el('cbFeedback').textContent = feedback();
     el('cbTurnName').textContent = window.wheelSpinning ? 'The wheel is choosing…' : selected ? selected.name + ' · ' + (roleText[selected.role] || roleText.warrior).name : 'Spin the wheel to call a hero';
     ['cbCorrect', 'cbIncorrect', 'cbSkip'].forEach(function (id) { el(id).disabled = locked || !active || !pending; });
-    el('cbAttack').disabled = locked || !active || !!pending;
+    el('cbAttack').disabled = locked || !active || !!pending || !!b && state.charge >= b.chargeMax;
     el('cbUltimate').disabled = locked || !active || !!pending || !b || state.charge < b.chargeMax;
     el('cbStart').disabled = locked || !classId || !heroes.length;
     el('cbStart').textContent = state ? 'New encounter' : 'Start encounter';
@@ -357,12 +362,14 @@
       particle('−' + (event.damage || 0), destination, { x: destination.x, y: destination.y - 60 }, 'cbDamage', 550);
       impact(el('cbBossArt'), false);
       (event.healed || []).forEach(function (h) { var node = heroNode(h.heroId), at = center(node); if (at) { particle('+' + h.amount + ' ✚', at, { x: at.x, y: at.y - 55 }, 'cbHealing', 200); impact(node, true); } });
+      (event.targets || []).forEach(function (h) { var node = heroNode(h.heroId), at = center(node); if (at) { particle('◆', destination, at, 'cbBossProjectile', 400); particle('−' + h.damage, at, { x: at.x, y: at.y - 45 }, 'cbDamage', 750); impact(node, false); } });
     } else if (event.type === 'boss') {
       if (event.ultimate) {
         var area = document.createElement('div'); area.className = 'cbAreaAttack'; el('cbEffects').appendChild(area);
         var wave = area.animate([{ transform: 'scale(.2)', opacity: 0 }, { opacity: .75, offset: .25 }, { transform: 'scale(2)', opacity: 0 }], { duration: 950 }); wave.onfinish = function () { area.remove(); };
       }
       (event.targets || []).forEach(function (h, i) { var node = heroNode(h.heroId), at = center(node); if (at) { particle(event.ultimate ? '✹' : '◆', destination, at, 'cbBossProjectile', i * 65); particle('−' + h.damage, at, { x: at.x, y: at.y - 45 }, 'cbDamage', 550 + i * 65); impact(node, false); } });
+      if (event.bossHealed) particle('+' + event.bossHealed + ' ✚', destination, { x: destination.x, y: destination.y - 60 }, 'cbHealing', 350);
     }
   }
   window.ClassroomBattle = { open: open, close: close, isOpen: function () { return opened; }, classChanged: classChanged, beforeSpin: beforeSpin, spinning: spinning, landed: landed, wheelClosed: wheelClosed };

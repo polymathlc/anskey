@@ -16,6 +16,12 @@ page.on('pageerror', e => errors.push(e.message));
 await page.addInitScript(() => {
   const chain = () => new Proxy(function () { return chain(); }, { get: (_, k) => k === 'then' ? undefined : chain(), apply: () => chain(), construct: () => chain(), set: () => true });
   window.pdfjsLib = chain(); window.firebase = chain(); window.grecaptcha = chain();
+  window.__battleAnimations = [];
+  const animate = Element.prototype.animate;
+  Element.prototype.animate = function (frames, options) {
+    window.__battleAnimations.push({ className: String(this.className), options });
+    return animate.call(this, frames, options);
+  };
 });
 const file = pathToFileURL(path.resolve('index.html')).href;
 const output = path.resolve(process.env.BATTLE_SCREENSHOTS || '../battle-validation');
@@ -80,6 +86,7 @@ try {
   check('random encounter is persisted for this teacher and class', await page.evaluate(() => __battleState().bossId && __battleState().heroes.length === 5));
   // Hurt teammates and charge an ultimate before the healer takes a turn.
   await page.click('#cbAttack'); await settle();
+  check('boss turns launch an animated projectile and impact', await page.evaluate(() => __battleAnimations.some(a => a.className.includes('cbBossProjectile')) && __battleAnimations.some(a => a.className.includes('cbDamage'))));
   await page.click('#cbAttack'); await settle();
   await page.click('#cbAttack'); await settle();
   const chargeMax = await page.evaluate(() => ClassroomBattleCore.bossById(__battleState().bossId).chargeMax);
@@ -87,16 +94,23 @@ try {
   check('boss attack displays predictable charge', await page.evaluate(() => !document.querySelector('#cbUltimate').disabled));
   await page.click('#cbUltimate'); await settle();
   check('ultimate damages every hero and resets charge', await page.evaluate(() => __battleState().lastEvent.targets.length === 5 && __battleState().charge === 0));
+  check('ultimate displays an animated area attack', await page.evaluate(() => __battleAnimations.some(a => a.className.includes('cbAreaAttack'))));
   const rolesSeen = [];
   for (let i = 0; i < 4; i++) {
     await spin();
     const before = await page.evaluate(() => ({ hp: __battleState().bossHp, count: __battleState().correctCount, hero: __battleState().heroes.find(h => h.id === __battleState().pending.heroId) }));
     rolesSeen.push(before.hero.role);
     check(before.hero.role + ' is highlighted from the wheel’s stable student ID', await page.locator('.cbHero.cbSelected').getAttribute('data-hero-id') === before.hero.id);
+    await page.evaluate(() => { __battleAnimations = []; });
     await page.evaluate(() => { document.getElementById('cbCorrect').click(); document.getElementById('cbCorrect').click(); document.getElementById('cbCorrect').click(); });
     await settle();
     check(before.hero.role + ' correct answer damages boss exactly once', await page.evaluate(({ hp, count }) => __battleState().bossHp < hp && __battleState().correctCount === count + 1 && !__battleState().pending, before));
+    check(before.hero.role + ' plays its role-specific animated attack', await page.evaluate(role => {
+      const expected = { warrior: 'cbwarrior', ranger: 'cbArrow', mage: 'cbmage', healer: 'cbhealer' }[role];
+      return __battleAnimations.filter(a => a.className.includes(expected)).length >= (role === 'ranger' ? 2 : 1);
+    }, before.hero.role));
     if (before.hero.role === 'healer') check('healer restores teammates’ health', await page.evaluate(() => __battleState().lastEvent.healed.some(h => h.amount > 0)));
+    if (before.hero.role === 'healer') check('healer animates healing on teammates', await page.evaluate(() => __battleAnimations.some(a => a.className.includes('cbHealing'))));
   }
   check('all four hero roles were exercised', new Set(rolesSeen).size === 4);
   for (const [button, outcome] of [['cbIncorrect', 'incorrect'], ['cbSkip', 'skip']]) {
