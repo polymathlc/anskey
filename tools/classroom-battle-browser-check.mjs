@@ -69,7 +69,10 @@ async function setup(delayProfiles = 0) {
         return result;
       }); queue = next.catch(() => {}); return next;
     } };
-    window.ClassroomHeroAPI.request = async ({type, classId, action}) => {
+    window.__appearanceHold=false;window.__appearanceRelease=null;window.__appearanceCancelled=0;
+    window.ClassroomHeroAPI.request = async ({type, classId, action}, lifecycle={}) => {
+      if(action?.command==='appearance' && __appearanceHold)await new Promise(resolve=>__appearanceRelease=resolve);
+      if(lifecycle.canSend && !lifecycle.canSend()){__appearanceCancelled++;throw new Error('The lesson or signed-in account changed.');}
       if (type !== 'battle') throw new Error('Unexpected request in battle fixture.');
       const ref = db.collection('classroomBattles').doc(currentUser.uid).collection('classes').doc(ClassroomBattleStore.classKey(classId));
       return db.runTransaction(async tx => {
@@ -99,7 +102,7 @@ async function spin() {
 }
 try {
   await setup();
-  check('teacher opens the battle with original wheel and independent pixel avatars', await page.evaluate(() => document.querySelectorAll('#cbHeroes .cbHero').length === 16 && document.querySelectorAll('#cbHeroes img[src^="assets/battle-pixel/"]').length === 16 && !!document.querySelector('#cbWheelMount #wheelCanvas')));
+  check('teacher opens the battle with original wheel and independent pixel avatars', await page.evaluate(() => document.querySelectorAll('#cbHeroes .cbHero').length === 16 && document.querySelectorAll('#cbHeroes [data-cba-sheet][data-cba-gender]').length === 16 && !!document.querySelector('#cbWheelMount #wheelCanvas')));
   check('animated avatars leave room for every hero name and HP label', await page.evaluate(() => [...document.querySelectorAll('#cbHeroes .cbHero')].every(node => node.querySelector('.cbHeroHp').getBoundingClientRect().bottom <= node.getBoundingClientRect().bottom + 1)));
   await page.selectOption('#cbEncounterChoice', await page.evaluate(() => ClassroomBattleCore.BOSSES.find(b => !b.legacy && b.id.includes('goblin')).id));
   await page.click('#cbStart'); await settle();
@@ -126,6 +129,14 @@ try {
   await page.click('#cbStop'); await settle();
   check('stopping applies exactly one timed boss turn and closes meter', await page.evaluate(turns => __battleState().bossTurns === turns+1 && document.getElementById('cbTiming').hidden && __battleState().lastEvent.targets.length > 0, beforeMeter));
   await spin();
+  const genderBefore=await page.evaluate(()=>{const s=__battleState();return {pending:JSON.stringify(s.pending),hero:JSON.stringify({...s.heroes[0],gender:undefined}),hp:s.bossHp,mp:s.bossMp,event:JSON.stringify(s.lastEvent),turns:s.bossTurns,count:s.correctCount};});
+  await page.locator('.cbHero').first().click();
+  check('teacher can change character gender while an answer is pending',await page.locator('[data-cb-gender="female"]').isEnabled()&&await page.locator('#cbRoleChoice').isDisabled());
+  await page.click('[data-cb-gender="female"]');await settle();
+  check('teacher appearance save preserves the selected question and all battle progress',await page.evaluate(old=>{const s=__battleState();return s.heroes[0].gender==='female'&&JSON.stringify({...s.heroes[0],gender:undefined})===old.hero&&JSON.stringify(s.pending)===old.pending&&s.bossHp===old.hp&&s.bossMp===old.mp&&JSON.stringify(s.lastEvent)===old.event&&s.bossTurns===old.turns&&s.correctCount===old.count;},genderBefore));
+  check('teacher journal, formation and skill tree render the chosen female character',await page.locator('.cbJournalSummary [data-cba-gender="female"]').count()===1&&await page.locator('#cbHeroes .cbHero').first().locator('[data-cba-gender="female"]').count()===1&&await page.locator('.hstOrigin [data-cba-gender="female"]').count()===1);
+  await page.screenshot({path:path.join(output,'teacher-character-gender.png'),fullPage:true});
+  await page.click('#cbJournalClose');
   const turn = await page.evaluate(() => ({hp:__battleState().bossHp, count:__battleState().correctCount, hero:__battleState().heroes.find(h=>h.id===__battleState().pending.heroId)}));
   await page.click('#cbSkills');
   const usable = page.locator('#cbCommandOptions [data-command]:not([disabled])').first();
@@ -154,6 +165,7 @@ try {
   await page.setViewportSize({width:1440,height:1000});
   const pending = await page.evaluate(()=>__battleState().pending.id); await setup();
   check('reload restores unresolved turn and disables another spin',await page.evaluate(id=>__battleState().pending.id===id&&document.getElementById('wheelSpinBtn').disabled,pending));
+  check('teacher appearance persists after reopening the battle',await page.evaluate(()=>__battleState().heroes[0].gender==='female')&&await page.locator('#cbHeroes .cbHero').first().locator('[data-cba-gender="female"]').count()===1);
   await page.click('#cbSkip'); await settle();
   await page.evaluate(()=>{__battleState().bossHp=1;__battleState().heroes[4].hp=0;__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
   await spin(); await page.click('#cbCorrect'); await settle();
@@ -214,6 +226,18 @@ try {
   await page.click('#cbClose'); await page.evaluate(()=>ClassroomBattle.open()); await page.selectOption('#wheelClassSelect','P6 Science');
   await page.waitForFunction(()=>__battleState('P6 Science').heroes.every(h=>h.progressionVersion===1));
   check('old CER healer encounters render and migrate without a crash',await page.evaluate(()=>__battleState('P6 Science').heroes.every(h=>h.role==='cleric'&&h.hp>0&&h.hp<h.stats.maxHp)));
+  const pendingAppearanceBefore=await page.evaluate(()=>JSON.stringify(__battleState('P6 Science')));
+  await page.locator('.cbHero').first().click();await page.evaluate(()=>{__appearanceHold=true;__appearanceRelease=null;});
+  await page.locator('[data-cb-gender]:not([disabled])').click();await page.waitForFunction(()=>!!__appearanceRelease);
+  await page.evaluate(()=>{ClassroomBattle.close();__appearanceHold=false;__appearanceRelease();});
+  await page.waitForFunction(()=>__appearanceCancelled===1);
+  check('closing while appearance verification is loading cancels the old save',await page.evaluate(before=>JSON.stringify(__battleState('P6 Science'))===before,pendingAppearanceBefore));
+  await page.evaluate(()=>ClassroomBattle.open());await page.waitForFunction(()=>!document.getElementById('cbStart').disabled);
+  await page.locator('.cbHero').first().click();await page.evaluate(()=>{__appearanceHold=true;__appearanceRelease=null;});
+  await page.locator('[data-cb-gender]:not([disabled])').click();await page.waitForFunction(()=>!!__appearanceRelease);
+  await page.evaluate(()=>{ClassroomBattle.classChanged('P5 Science');__appearanceHold=false;__appearanceRelease();});
+  await page.waitForFunction(()=>__appearanceCancelled===2);
+  check('changing lesson while appearance verification is loading cannot update the old lesson',await page.evaluate(before=>JSON.stringify(__battleState('P6 Science'))===before,pendingAppearanceBefore));
   await page.click('#cbClose');
   check('closing restores original wheel',await page.evaluate(()=>document.getElementById('wheelModal').parentNode===document.body&&!document.body.classList.contains('cbOpen')));
   await page.evaluate(()=>{isAdmin=()=>false;applyRewardVisibility();});

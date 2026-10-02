@@ -415,6 +415,222 @@
         "visiblePixels": 338579,
         "nearOpaquePixels": 304391
       }
+    },
+    {
+      "file": "warrior-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 791356,
+      "sha256": "e01e78ed651eca9f0375cfd2a2bd16a45e5c9d0eb65e372f0004be84c020628b",
+      "promptManifest": "gender-physical-provenance.json#/assets/0",
+      "alpha": {
+        "transparentPixels": 1283959,
+        "partialPixels": 287918,
+        "opaquePixels": 639,
+        "visiblePixels": 223552,
+        "nearOpaquePixels": 209877
+      }
+    },
+    {
+      "file": "ranger-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 1684480,
+      "sha256": "19d691b63ba1c42be49ca1187f7e5cd679c3bb73d5d8b70a02c00105781be267",
+      "promptManifest": "gender-physical-provenance.json#/assets/1",
+      "alpha": {
+        "transparentPixels": 904502,
+        "partialPixels": 665649,
+        "opaquePixels": 2365,
+        "visiblePixels": 545784,
+        "nearOpaquePixels": 513105
+      }
+    },
+    {
+      "file": "paladin-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 884184,
+      "sha256": "53c982a17e0613b371ba698949bf4d4161232e1ae60e5c9ac8a62b21698c4d75",
+      "promptManifest": "gender-physical-provenance.json#/assets/2",
+      "alpha": {
+        "transparentPixels": 1242732,
+        "partialPixels": 329168,
+        "opaquePixels": 616,
+        "visiblePixels": 238059,
+        "nearOpaquePixels": 222437
+      }
+    },
+    {
+      "file": "berserker-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 1044279,
+      "sha256": "ce88ec04e9d335a248ce16be6fe20136623ce3098edd93176639f6b76ee00cd7",
+      "promptManifest": "gender-physical-provenance.json#/assets/3",
+      "alpha": {
+        "transparentPixels": 1179294,
+        "partialPixels": 392128,
+        "opaquePixels": 1094,
+        "visiblePixels": 293996,
+        "nearOpaquePixels": 274513
+      }
+    },
+    {
+      "file": "sharpshooter-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 1378447,
+      "sha256": "ce9557a88da2b495fa2882c674ffb7c5950b33fac7caae4b03e133200ac52d2b",
+      "promptManifest": "gender-physical-provenance.json#/assets/4",
+      "alpha": {
+        "transparentPixels": 1065125,
+        "partialPixels": 506727,
+        "opaquePixels": 664,
+        "visiblePixels": 366783,
+        "nearOpaquePixels": 339660
+      }
+    },
+    {
+      "file": "beastmaster-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 1207789,
+      "sha256": "2d448cf84b091281c59cf325eeee340d08242ffb1befb8bf6c1c05ba664e333a",
+      "promptManifest": "gender-physical-provenance.json#/assets/5",
+      "alpha": {
+        "transparentPixels": 1109364,
+        "partialPixels": 462649,
+        "opaquePixels": 503,
+        "visiblePixels": 349051,
+        "nearOpaquePixels": 322320
+      }
+    },
+    {
+      "file": "mage-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 1374979,
+      "sha256": "6f7efb8657c043e8876357301d023a8976cd9b95c83dc2ec93b0eafeb1af7401",
+      "promptManifest": "gender-magic-provenance.json#/assets/0",
+      "alpha": {
+        "transparentPixels": 1038367,
+        "partialPixels": 533115,
+        "opaquePixels": 1034,
+        "visiblePixels": 415466,
+        "nearOpaquePixels": 389447
+      }
+    },
+    {
+      "file": "cleric-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 1207615,
+      "sha256": "99b7c0ffa700b345d64a1219624d1d88bf4866c2f726771d78bd9e64b7fec4a4",
+      "promptManifest": "gender-magic-provenance.json#/assets/1",
+      "alpha": {
+        "transparentPixels": 1111757,
+        "partialPixels": 460391,
+        "opaquePixels": 368,
+        "visiblePixels": 342430,
+        "nearOpaquePixels": 316197
+      }
+    },
+    {
+      "file": "archmage-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 849751,
+      "sha256": "d6db6d911d102fa7ae9b75ea83ed32f460bdb10abf3526e4b93eee214c318a2d",
+      "promptManifest": "gender-magic-provenance.json#/assets/2",
+      "alpha": {
+        "transparentPixels": 1264561,
+        "partialPixels": 307022,
+        "opaquePixels": 933,
+        "visiblePixels": 235353,
+        "nearOpaquePixels": 218879
+      }
+    },
+    {
+      "file": "chronomancer-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 918417,
+      "sha256": "0aaac3c185f43491e0e9744cc9fdf8f72b42a68483f725fcaf7a5f39dfa38bdd",
+      "promptManifest": "gender-magic-provenance.json#/assets/3",
+      "alpha": {
+        "transparentPixels": 1232282,
+        "partialPixels": 339389,
+        "opaquePixels": 845,
+        "visiblePixels": 234725,
+        "nearOpaquePixels": 207551
+      }
+    },
+    {
+      "file": "hierophant-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 967604,
+      "sha256": "8586763dbdd9826a2d5ce6f756d36839dfde2c916a086380f5a10d4704b1ec40",
+      "promptManifest": "gender-magic-provenance.json#/assets/4",
+      "alpha": {
+        "transparentPixels": 1206962,
+        "partialPixels": 365221,
+        "opaquePixels": 333,
+        "visiblePixels": 259271,
+        "nearOpaquePixels": 231370
+      }
+    },
+    {
+      "file": "oracle-genders-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 914124,
+      "sha256": "a9698a9c547a41dd2b927a01304b436e6955a1d50eb08baced9187ef6994501e",
+      "promptManifest": "gender-magic-provenance.json#/assets/5",
+      "alpha": {
+        "transparentPixels": 1232872,
+        "partialPixels": 338639,
+        "opaquePixels": 1005,
+        "visiblePixels": 248639,
+        "nearOpaquePixels": 229898
+      }
     }
   ]
 }

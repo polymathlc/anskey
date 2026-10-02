@@ -269,3 +269,73 @@ test('level-15 advancement uses the approved canonical profile and stays blocked
   await assert.rejects(call(pupil('two'),{type:'configure',studentId:'alex',command:'advance',jobId:'berserker'}),/another account/);
   await begin(call);await assert.rejects(call(pupil('one'),{type:'configure',command:'advance',jobId:'berserker'}),/active encounter/);
 });
+
+test('appearance requires an approved owner or teacher and ignores forged progression',async()=>{
+  const {call,db}=setup();await call(pupil('one'),{type:'claim',studentId:'alex',lessonSlot:'Saturday'});
+  await assert.rejects(call(pupil('one'),{type:'configure',command:'appearance',gender:'female'}),/approve/);
+  await call(teacher,{type:'approve',studentId:'alex'});await claim(call,'two','sam');
+  await assert.rejects(call(pupil('two'),{type:'configure',studentId:'alex',command:'appearance',gender:'female'}),/another account/);
+  const before=structuredClone(db.data.get(profilePath('alex')).hero);
+  const result=await call(pupil('one'),{type:'configure',command:'appearance',gender:'female',xp:999999,skillPoints:150,hp:99999});
+  assert.deepEqual(result.hero,{...before,gender:'female'});assert.equal(result.state,undefined);
+  const invalidBefore=structuredClone([...db.data]);
+  for(const gender of ['Female',null,'',{},undefined])await assert.rejects(call(teacher,{type:'configure',studentId:'alex',command:'appearance',gender}),/male or female/);
+  assert.deepEqual([...db.data],invalidBefore);
+  db.seed('students/lee',{name:'Lee',slot:'Saturday'});
+  const unclaimed=await call(teacher,{type:'configure',studentId:'lee',command:'appearance',gender:'female'});
+  assert.equal(unclaimed.hero.gender,'female');
+});
+
+test('student cosmetic changes update the active lesson atomically, preserving pending combat and movement locks',async()=>{
+  const {call,db}=setup();await claim(call);let s=await begin(call);
+  s=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',encounterId:s.encounterId,expectedRevision:s.revision})).state;
+  const before=structuredClone(s),profileBefore=structuredClone(db.data.get(profilePath('alex')));
+  // Roster moves must not redirect the update away from the already active fight.
+  db.seed('students/alex',{name:'Alex',slots:['Sunday']});
+  const changed=await call(pupil('one'),{type:'configure',id:aid(),command:'appearance',gender:'female'});
+  assert.equal(changed.hero.gender,'female');assert.equal(changed.state,undefined,'students cannot read classmates through configure');
+  const saved=db.data.get(classPath('Saturday')),expected=structuredClone(before);expected.revision++;expected.heroes[0].gender='female';
+  assert.deepEqual(saved,expected);assert.deepEqual(changed.hero,{...profileBefore.hero,gender:'female'});
+  assert.deepEqual(db.data.get(profilePath('alex')).activeEncounter,profileBefore.activeEncounter);
+  await assert.rejects(begin(call,'Sunday',[heroes[0]]),/active encounter/);
+  const answered=await battle(call,'Saturday',{id:aid(),type:'answer',encounterId:saved.encounterId,turnId:saved.pending.id,outcome:'correct',command:'attack'});
+  assert.equal(answered.state.heroes[0].gender,'female');assert.equal(answered.state.pending,null);
+});
+
+test('teacher battle appearance saves while an answer is pending and retries never replay or reverse it',async()=>{
+  const {call,db}=setup();let s=await begin(call);
+  s=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',encounterId:s.encounterId,expectedRevision:s.revision})).state;
+  const request={id:aid(),type:'sync',heroId:'student:alex',command:'appearance',gender:'female',encounterId:s.encounterId,expectedRevision:s.revision};
+  const before=structuredClone(s),result=await battle(call,'Saturday',request),expected=structuredClone(before);
+  expected.revision++;expected.heroes[0].gender='female';assert.deepEqual(result.state,expected);
+  assert.equal(db.data.get(profilePath('alex')).hero.gender,'female');
+  const changed=await battle(call,'Saturday',{...request,id:aid(),gender:'male',expectedRevision:result.state.revision});
+  const repeated=await battle(call,'Saturday',request);assert.deepEqual(repeated.state,changed.state);assert.equal(repeated.state.heroes[0].gender,'male');
+  await assert.rejects(battle(call,'Saturday',{...request,id:aid()}),/changed on another screen/);
+});
+
+test('appearance receipts protect delayed retries and failed transactions leave both copies unchanged',async()=>{
+  const {call,db}=setup();await claim(call);await begin(call);
+  const request={type:'configure',id:aid(),command:'appearance',gender:'female'};
+  const before=structuredClone([...db.data]);db.failNextCommit=true;
+  await assert.rejects(call(pupil('one'),request),/commit failed/);assert.deepEqual([...db.data],before);
+  const [first,parallelRetry]=await Promise.all([call(pupil('one'),request),call(pupil('one'),request)]);
+  assert.equal(first.hero.gender,'female');assert.equal(parallelRetry.hero.gender,'female');
+  assert.equal([first,parallelRetry].filter(r=>r.duplicate).length,1);
+  assert.equal(db.data.get(classPath('Saturday')).revision,before.find(([path])=>path===classPath('Saturday'))[1].revision+1);
+  const teacherChange=await call(teacher,{type:'configure',studentId:'alex',id:aid(),command:'appearance',gender:'male'});
+  assert.equal(teacherChange.state.heroes[0].gender,'male');
+  const saved=structuredClone([...db.data]),retry=await call(pupil('one'),request);
+  assert.equal(retry.duplicate,true);assert.equal(retry.hero.gender,'male');assert.deepEqual([...db.data],saved);
+  await assert.rejects(call(pupil('one'),{...request,gender:'male'}),/different details/);
+});
+
+test('stale lesson snapshots and client roster appearances never override canonical gender',async()=>{
+  const {call}=setup();let s=await begin(call);
+  s=(await battle(call,'Saturday',{id:aid(),type:'end',encounterId:s.encounterId,expectedRevision:s.revision})).state;
+  await call(teacher,{type:'configure',studentId:'alex',command:'appearance',gender:'female'});
+  const Sunday=await begin(call,'Sunday',[{...heroes[0],gender:'male'}]);
+  assert.equal(Sunday.heroes[0].gender,'female');
+  const synced=await battle(call,'Sunday',{id:aid(),type:'sync',encounterId:Sunday.encounterId,expectedRevision:Sunday.revision,heroes:[{...heroes[0],gender:'male'}]});
+  assert.equal(synced.state.heroes[0].gender,'female');
+});

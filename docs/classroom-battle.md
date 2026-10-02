@@ -8,7 +8,13 @@ The teacher adds student names and Lesson slots using the existing rewards roste
 
 The account links to the existing roster character without replacing XP, equipment, learned skills or rewards. Moving that same roster document to another Lesson slot keeps the character. **Unlink account** corrects a mistaken claim without deleting character progress. The teacher can **End encounter** from Hero claims even if its old lesson has disappeared from the roster; ending releases the party but does not grant victory rewards.
 
-My Hero shows level, XP, skill points, a connected pixel skill tree and the treasure bag. It refreshes while open, and future logins return to the saved hero. Student build changes wait until the active encounter is finished or ended.
+My Hero shows level, XP, skill points, a connected pixel skill tree and the treasure bag. It refreshes while open, and future logins return to the saved hero. Student build changes wait until the active encounter is finished or ended; appearance changes remain available during an encounter.
+
+## Character gender
+
+All four base classes and eight advanced jobs offer **Male** and **Female** character versions, each with four idle and four attack frames. Students choose **My Hero → Character gender**. Teachers click a hero in the battle formation and use **Character gender** in the hero journal (start the first encounter to create a saved character).
+
+This is the character’s appearance, independent of the student’s account profile. It can change during a pending answer and preserves the hero’s class/job, XP, skill points, learned skills, inventory, equipment, HP/MP and the current turn. The saved choice carries through lesson moves and class/job upgrades, and appears in the wheel, party, class picker, skill tree and skill previews. Existing heroes default to Male until changed.
 
 ## Quick wheel fights
 
@@ -41,11 +47,11 @@ At level 15, choose a job in **My Hero** or the teacher’s hero journal between
 
 ## Generated animation
 
-All four base hero classes and eight advanced jobs have four generated breathing idle frames and four action frames. Idle loops appear in the quick duel, party formation, journal, My Hero, class picker and skill-tree centre. Resting party heroes remain still. Warrior action frames show a sword windup, slash and recovery; Ranger frames draw and release the bow; Mage and Cleric frames raise their staffs and cast.
+Both male and female versions of all four base hero classes and eight advanced jobs have four generated breathing idle frames and four action frames. Idle loops appear in the quick duel, party formation, journal, My Hero, class picker and skill-tree centre. Resting party heroes remain still. Warrior action frames show a sword windup, slash and recovery; Ranger frames draw and release the bow; Mage and Cleric frames raise their staffs and cast.
 
 After the server saves a quick or manual turn, the hero animates and a generated effect appears. Quick fight then plays the saved enemy reply; manual enemy turns remain teacher controlled. Warrior slashes strike the enemy, Ranger arrows travel across the duel, and Mage effects follow the selected skill path: Pyromancy uses fire, Frostcraft ice, and Arcanist lightning. Healing sparkles appear on heroes who actually received healing; affected teammates appear below the duel when needed. Damage numbers reflect the saved event. In Quick fight, health and victory treasure settle after the sequence, which takes about two seconds with an enemy response.
 
-The 23 transparent PNG sheets in `assets/battle-pixel/animations/` were made with built-in ImageGen and copied unchanged. Their 200 distinct frames, full generation/revision prompts, source filenames, and integrity manifest ship with the app. This release adds 13 sheets with 144 new frames: eight advanced heroes, four role effect atlases and a Beastmaster creature atlas. All 144 skills have their own deterministic effect choreography; generated effects include shields, revival, cleansing, time magic, wolves, hawks, phoenixes and healing roots. Both wheel and manual casts use these effects, and each skill has a replayable preview. Sprite sheets preload for Quick fight; missing sheets retain the original static avatar. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. Job advancement and Assist require the updated `ansKeyHeroes` service; no new rules migration is needed.
+The 35 transparent PNG sheets in `assets/battle-pixel/animations/` were made with built-in ImageGen and copied unchanged. Their 392 distinct frames, full generation/revision prompts, source filenames, and integrity manifest ship with the app. Version 1.120 adds twelve paired appearance sheets with 192 new frames. Each sheet has four columns and four rows: male idle, male attack, female idle, female attack. The earlier character and effect sheets remain available for compatibility. All 144 skills have their own deterministic effect choreography; generated effects include shields, revival, cleansing, time magic, wolves, hawks, phoenixes and healing roots. Both wheel and manual casts use these effects, and each skill has a replayable preview. Sprite sheets preload for Quick fight; missing sheets show an accessible gender badge without displaying the wrong character version. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. Job advancement, Assist and saved appearance changes require the updated `ansKeyHeroes` service; no new rules migration is needed.
 
 ## Commands and progression
 
@@ -53,7 +59,7 @@ After the wheel chooses a hero, select **Attack**, **Skills** or **Items**, then
 
 Click any hero to open their journal. Choose Warrior, Ranger, Mage or Cleric; each has **12 skills**, arranged in three paths and four prerequisite tiers. Skill nodes explain the effect, level requirement, point cost, MP and cooldown. Gain 12 XP per correct answer and encounter XP on victory. Level gains award two skill points. Cooldowns count that hero's subsequent correct commands. Skills stay learned when switching classes, but only the current class's skills and passives apply. Equipment and XP carry across class changes.
 
-Teacher journal changes wait until the selected answer is resolved; students change builds between encounters. Choose one relic from the treasure bag to equip; consumables are used from the Items command and can target a teammate. Classroom heroes, skills, statistics and treasure are independent of CER. CER equipment and avatars no longer stream into this game. Stable roster document IDs keep namesakes distinct even when account ownership changes.
+Teacher journal build changes wait until the selected answer is resolved; students change builds between encounters. Character gender is cosmetic and can be changed while an answer is pending. Choose one relic from the treasure bag to equip; consumables are used from the Items command and can target a teammate. Classroom heroes, skills, statistics and treasure are independent of CER. CER equipment and avatars no longer stream into this game. Stable roster document IDs keep namesakes distinct even when account ownership changes.
 
 ## Enemies and power meter
 

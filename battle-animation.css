@@ -1,17 +1,39 @@
-/* Each sheet is four idle frames above four action frames. Pixel art stays crisp. */
+/* Paired hero sheets: male idle/action then female idle/action, four frames per row. */
 .cbaHero { display:inline-block; position:relative; width:90px; height:90px; flex-shrink:0; vertical-align:middle; overflow:visible; }
 .cbaHero .cbaFallback,.cbaHero .cbaFrames { position:absolute; inset:0; width:100%; height:100%; max-width:none; object-fit:contain; image-rendering:pixelated; pointer-events:none; }
-.cbaHero .cbaFrames { display:none; background-size:400% 200%; background-repeat:no-repeat; background-position:0 0; transform-origin:50% 90%; transform:translateY(var(--cba-idle-y,0%)) scale(var(--cba-scale,1)); }
-.cbaHero[data-cba-role="warrior"] { --cba-scale:1.25; --cba-idle-y:-1.9%; --cba-action-y:9.2%; }
-.cbaHero[data-cba-role="ranger"] { --cba-idle-y:-7%; --cba-action-y:-2.6%; }
-.cbaHero[data-cba-role="mage"] { --cba-scale:1.5; --cba-idle-y:8.6%; --cba-action-y:9.6%; }
-.cbaHero[data-cba-role="cleric"] { --cba-scale:1.5; --cba-idle-y:4.5%; --cba-action-y:4.5%; }
-.cbaHero[data-cba-job] { --cba-scale:1.3; --cba-idle-y:0%; --cba-action-y:3%; }
-.cbaHero[data-cba-job="sharpshooter"] { --cba-scale:1; --cba-idle-y:-5%; --cba-action-y:-5%; }
+.cbaHero .cbaFrames { display:none; background-size:400% 400%; background-repeat:no-repeat; background-position:0 0; transform-origin:50% 90%; transform:translateY(var(--cba-idle-y,0%)) scale(var(--cba-scale,1)); }
+.cbaHero[data-cba-gender] { --cba-scale:1.3; --cba-idle-y:0%; --cba-action-y:0%; --cba-idle-row:0%; --cba-action-row:33.333333%; }
+.cbaHero[data-cba-gender="female"] { --cba-idle-row:66.666667%; --cba-action-row:100%; }
+/* Normalize each generated sheet to a shared portrait size and ground line. */
+.cbaHero[data-cba-sheet="warrior-genders"] { --cba-scale:1.5; --cba-idle-y:5.3%; --cba-action-y:16.8%; }
+.cbaHero[data-cba-sheet="warrior-genders"][data-cba-gender="female"] { --cba-idle-y:9.2%; --cba-action-y:31.9%; }
+.cbaHero[data-cba-sheet="ranger-genders"] { --cba-scale:0.9; --cba-idle-y:-8.4%; --cba-action-y:-8%; }
+.cbaHero[data-cba-sheet="ranger-genders"][data-cba-gender="female"] { --cba-idle-y:-8.3%; --cba-action-y:-1%; }
+.cbaHero[data-cba-sheet="mage-genders"] { --cba-scale:1.05; --cba-idle-y:-8.7%; --cba-action-y:-8.7%; }
+.cbaHero[data-cba-sheet="mage-genders"][data-cba-gender="female"] { --cba-idle-y:-3.3%; --cba-action-y:5.4%; }
+.cbaHero[data-cba-sheet="cleric-genders"] { --cba-scale:1.15; --cba-idle-y:-6.5%; --cba-action-y:-5.6%; }
+.cbaHero[data-cba-sheet="cleric-genders"][data-cba-gender="female"] { --cba-idle-y:-4.7%; --cba-action-y:4.1%; }
+.cbaHero[data-cba-sheet="paladin-genders"] { --cba-scale:1.4; --cba-idle-y:3.6%; --cba-action-y:9.9%; }
+.cbaHero[data-cba-sheet="paladin-genders"][data-cba-gender="female"] { --cba-idle-y:14.5%; --cba-action-y:26.7%; }
+.cbaHero[data-cba-sheet="berserker-genders"] { --cba-scale:1.3; --cba-idle-y:0.9%; --cba-action-y:6.2%; }
+.cbaHero[data-cba-sheet="berserker-genders"][data-cba-gender="female"] { --cba-idle-y:5.1%; --cba-action-y:19.6%; }
+.cbaHero[data-cba-sheet="sharpshooter-genders"] { --cba-scale:1.1; --cba-idle-y:-4.5%; --cba-action-y:0.4%; }
+.cbaHero[data-cba-sheet="sharpshooter-genders"][data-cba-gender="female"] { --cba-idle-y:2.2%; --cba-action-y:12.3%; }
+.cbaHero[data-cba-sheet="beastmaster-genders"] { --cba-scale:1.2; --cba-idle-y:1.2%; --cba-action-y:4.3%; }
+.cbaHero[data-cba-sheet="beastmaster-genders"][data-cba-gender="female"] { --cba-idle-y:7.3%; --cba-action-y:16.6%; }
+.cbaHero[data-cba-sheet="archmage-genders"] { --cba-scale:1.35; --cba-idle-y:-2.1%; --cba-action-y:0.1%; }
+.cbaHero[data-cba-sheet="archmage-genders"][data-cba-gender="female"] { --cba-idle-y:9.1%; --cba-action-y:23.5%; }
+.cbaHero[data-cba-sheet="chronomancer-genders"] { --cba-scale:1.3; --cba-idle-y:3%; --cba-action-y:3.8%; }
+.cbaHero[data-cba-sheet="chronomancer-genders"][data-cba-gender="female"] { --cba-idle-y:10.8%; --cba-action-y:14.6%; }
+.cbaHero[data-cba-sheet="hierophant-genders"] { --cba-scale:1.2; --cba-idle-y:-4.5%; --cba-action-y:-3.1%; }
+.cbaHero[data-cba-sheet="hierophant-genders"][data-cba-gender="female"] { --cba-idle-y:0.2%; --cba-action-y:11.2%; }
+.cbaHero[data-cba-sheet="oracle-genders"] { --cba-scale:1.3; --cba-idle-y:-9.9%; --cba-action-y:-12.3%; }
+.cbaHero[data-cba-sheet="oracle-genders"][data-cba-gender="female"] { --cba-idle-y:-9.8%; --cba-action-y:5.9%; }
+.cbaHero .cbaFallback { display:grid; place-items:center; border:1px solid #7e8d9c; border-radius:8px; color:#e8d28c; font:700 32px/1 ui-monospace,monospace; background:#172537; box-sizing:border-box; }
 .cbaHero.cbaReady .cbaFallback { visibility:hidden; }
 .cbaHero.cbaReady .cbaFrames { display:block; animation:cbaIdleFrames 1.25s steps(1,end) infinite; animation-delay:var(--cba-phase,0s); }
 .cbaHero.cbaActing .cbaFrames { animation:cbaActionFrames .78s steps(1,end) forwards; animation-delay:0s; transform:translateY(var(--cba-action-y,0%)) scale(var(--cba-scale,1)); }
-.cbaHero.cbaDormant:not(.cbaActing) .cbaFrames { animation:none; background-position:0 0; }
+.cbaHero.cbaDormant:not(.cbaActing) .cbaFrames { animation:none; background-position:0 var(--cba-idle-row); }
 .cbHero .cbaHero { width:68px; height:58px; animation:none; }
 .cbQuickDuel { position:relative; isolation:isolate; }
 .cbQuickHero,.cbQuickEnemy,.cbaRecipient { position:relative; }
@@ -37,11 +59,11 @@
 .cbQuickDuel .cbaRecipient .cbaEffect { width:64px; height:64px; left:calc(50% - 32px); top:-5px; }
 .cbaRecipient .cbaNumber { font-size:15px; top:15px; }
 .cbQuickStatus { min-height:1.5em; }
-@keyframes cbaIdleFrames { 0%,100% { background-position:0 0; } 25% { background-position:33.333333% 0; } 50% { background-position:66.666667% 0; } 75% { background-position:100% 0; } }
-@keyframes cbaActionFrames { 0% { background-position:0 100%; } 25% { background-position:33.333333% 100%; } 50% { background-position:66.666667% 100%; } 75%,100% { background-position:100% 100%; } }
+@keyframes cbaIdleFrames { 0%,100% { background-position:0 var(--cba-idle-row); } 25% { background-position:33.333333% var(--cba-idle-row); } 50% { background-position:66.666667% var(--cba-idle-row); } 75% { background-position:100% var(--cba-idle-row); } }
+@keyframes cbaActionFrames { 0% { background-position:0 var(--cba-action-row); } 25% { background-position:33.333333% var(--cba-action-row); } 50% { background-position:66.666667% var(--cba-action-row); } 75%,100% { background-position:100% var(--cba-action-row); } }
 @keyframes cbaEffectFrames { 0% { background-position:0 0; } 25% { background-position:100% 0; } 50% { background-position:0 100%; } 75%,100% { background-position:100% 100%; } }
 @keyframes cbaAtlasFrames { 0% { background-position:0 var(--cba-row); } 25% { background-position:33.333333% var(--cba-row); } 50% { background-position:66.666667% var(--cba-row); } 75%,100% { background-position:100% var(--cba-row); } }
 @keyframes cbaNumberRise { 0% { opacity:1; transform:translate(-50%,0); } 65% { opacity:1; } 100% { opacity:0; transform:translate(-50%,-35px); } }
 @media(min-width:1700px) { .cbHero .cbaHero { width:92px; height:78px; } }
 @media(max-width:480px) { .cbQuickDuel .cbaHero { width:86px; height:86px; } .cbQuickDuel .cbaEffect { width:94px; height:94px; left:calc(50% - 47px); } }
-@media(prefers-reduced-motion:reduce) { .cbaHero.cbaReady .cbaFrames,.cbaHero.cbaActing .cbaFrames { animation:none!important; background-position:0 0; } .cbaEffect,.cbaNumber { display:none!important; } }
+@media(prefers-reduced-motion:reduce) { .cbaHero.cbaReady .cbaFrames,.cbaHero.cbaActing .cbaFrames { animation:none!important; background-position:0 var(--cba-idle-row); transform:translateY(var(--cba-idle-y,0%)) scale(var(--cba-scale,1)); } .cbaEffect,.cbaNumber { display:none!important; } }

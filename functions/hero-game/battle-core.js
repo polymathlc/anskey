@@ -59,7 +59,7 @@
     hero.mp=mp===undefined ? hero.stats.maxMp : int(mp,0,hero.stats.maxMp);
   }
   function freshHero(identity, role) {
-    const hero={...identity,role:roleKey(role),progressionVersion:1,level:1,xp:0,skillPoints:2,
+    const hero={...identity,role:roleKey(role),gender:'male',progressionVersion:1,level:1,xp:0,skillPoints:2,
       learnedSkills:[SKILLS[roleKey(role)][0].id],inventory:[{id:'bag:red-potion',itemId:'red-potion',quantity:2},{id:'bag:blue-ether',itemId:'blue-ether',quantity:1}],
       equipped:null,cooldowns:{},shield:0,weakened:false,correctActions:0,mythicalUsed:false};
     refreshStats(hero); return hero;
@@ -75,7 +75,7 @@
     const identity={id:input.id,uid:input.uid || null,studentId:String(input.studentId || ''),name:String(input.name || 'Student').slice(0,100)};
     // New roster data never supplies progression, stats, equipment or avatars.
     if (!prior || prior.progressionVersion!==1) return freshHero(identity,prior?roleKey(prior.role):roleKey(input.role));
-    const hero={...copy(prior),...identity,role:roleKey(prior.role)};
+    const hero={...copy(prior),...identity,role:roleKey(prior.role),gender:prior.gender==='female'?'female':'male'};
     delete hero.avatarUrl; delete hero.equipment; delete hero.fallbackReason;
     hero.xp=int(hero.xp,0,xpForLevel(50)); hero.level=levelForXp(hero.xp);
     if (!activeJob(hero)) delete hero.job;
@@ -88,7 +88,11 @@
   }
   function configureHero(input, action) {
     const hero=cleanHero(input,input), hpBefore=hero.hp;
-    if (action.command==='learn') {
+    if (action.command==='appearance') {
+      if (action.gender!=='male' && action.gender!=='female') fail('Choose a male or female hero appearance.');
+      hero.gender=action.gender;
+      return hero;
+    } else if (action.command==='learn') {
       const result=canLearn(hero,action.skillId); if (!result.ok) fail(result.reason);
       hero.learnedSkills.push(action.skillId); hero.skillPoints-=skillById(action.skillId).cost;
     } else if (action.command==='class') {
@@ -217,6 +221,7 @@
     const state=copy(previous), migrated=new Map();
     function migrate(hero) {
       if (hero.studentId) { const id='student:'+hero.studentId; migrated.set(hero.id,id); hero.id=id; }
+      hero.gender=hero.gender==='female'?'female':'male';
       return hero;
     }
     state.heroes=state.heroes.map(migrate);
@@ -314,7 +319,7 @@
       if (action.expectedRevision!==state.revision) fail('The class changed on another screen. Try again.');
       if (action.command) {
         if (action.command==='advance' && state.status==='active') fail('End the active encounter before changing advanced jobs.');
-        if (state.pending) fail('Resolve the selected answer before changing a hero.');
+        if (state.pending && action.command!=='appearance') fail('Resolve the selected answer before changing a hero.');
         const hero=state.heroes.find(h=>h.id===action.heroId);
         if (!hero) fail('This student is no longer in the class.');
         state.heroes[state.heroes.indexOf(hero)]=configureHero(hero,action);
@@ -325,8 +330,8 @@
         if (state.pending && !state.heroes.some(h=>h.id===state.pending.heroId)) state.pending=null;
         if (JSON.stringify(state.heroes)===JSON.stringify(previous.heroes) && JSON.stringify(state.pending)===JSON.stringify(previous.pending)) return previous;
       }
-      if (state.status==='active' && state.heroes.every(h=>h.hp<=0)) {state.status='defeat';state.pending=null;}
-      state.revision++; state.lastEvent=event; return state;
+      if (action.command!=='appearance' && state.status==='active' && state.heroes.every(h=>h.hp<=0)) {state.status='defeat';state.pending=null;}
+      state.revision++; if (action.command!=='appearance') state.lastEvent=event; return state;
     }
     if (action.type==='end') {
       if (action.expectedRevision!==state.revision) fail('The encounter changed. Try again.');

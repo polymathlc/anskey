@@ -29,8 +29,8 @@ try{
     const Core=ClassroomBattleCore;
     let hero=Core.heroFromStudent({id:'ari',name:'Ari'});hero={...hero,level:4,xp:450,skillPoints:8,classChosen:false};
     hero.inventory.push({id:'bag:iron-band',itemId:Object.values(Core.ITEMS).find(i=>i.type==='equipment').id,quantity:1});
-    hero.inventory[2].id='bag:'+hero.inventory[2].itemId;
-    const data=window.__heroFixture={claim:null,hero,slot:'Science Saturday 11am',active:null,delay:false,calls:[],release:null};
+    hero.inventory[2].id='bag:'+hero.inventory[2].itemId;hero=Core.cleanHero(hero,hero);
+    const data=window.__heroFixture={claim:null,hero,slot:'Science Saturday 11am',active:null,delay:false,calls:[],release:null,appearanceDelay:false,appearanceRelease:null,appearanceFail:false};
     window.ClassroomHeroAPI={request:async action=>{
       data.calls.push(structuredClone(action));
       const uid=currentUser.uid;
@@ -44,7 +44,9 @@ try{
       if(action.type==='approve'){data.claim.status='approved';return {};}
       if(action.type==='unlink'||action.type==='reject'){data.claim=null;return {};}
       if(action.type==='configure'){
-        if(data.active)throw new Error('Finish the encounter first.');
+        if(data.active && action.command!=='appearance')throw new Error('Finish the encounter first.');
+        if(action.command==='appearance' && data.appearanceDelay)await new Promise(resolve=>data.appearanceRelease=resolve);
+        if(action.command==='appearance' && data.appearanceFail)throw new Error('Appearance save failed. Try again.');
         data.hero=Core.configureHero(data.hero,action);if(action.command==='class')data.hero.classChosen=true;
         return {hero:data.hero};
       }
@@ -65,7 +67,15 @@ try{
   check('teacher sees the account email with its pending roster name',await page.locator('.shClaimRow').textContent().then(t=>t.includes('ari@example.test')&&t.includes('Ari')));
   await page.click('[data-sh-manage="approve"]');await idle();await page.evaluate(()=>__account('student-a'));
   await page.waitForSelector('[data-sh-role="mage"]');
-  check('approved first-time hero gets all four pixel classes',await page.locator('.shClass').count()===4&&await page.locator('.shClass img').evaluateAll(imgs=>imgs.every(img=>img.complete&&img.naturalWidth>0)));
+  check('approved first-time hero gets all four pixel classes',await page.locator('.shClass').count()===4&&await page.locator('.shClass [data-cba-sheet]').count()===4);
+  check('approved students see male and female previews before choosing their class',await page.locator('[data-sh-gender]').count()===2&&await page.locator('[data-sh-gender="male"]').getAttribute('aria-pressed')==='true'&&await page.locator('[data-sh-gender="female"] [data-cba-gender="female"]').count()===1);
+  const appearanceBefore=await page.evaluate(()=>JSON.stringify({...__heroFixture.hero,gender:undefined}));
+  await page.evaluate(()=>{__heroFixture.appearanceDelay=true;});await page.click('[data-sh-gender="female"]');
+  await page.waitForFunction(()=>!!__heroFixture.appearanceRelease);
+  check('appearance changes show saving status and prevent duplicate clicks',await page.locator('[data-sh-gender]').evaluateAll(nodes=>nodes.every(n=>n.disabled))&&await page.locator('[data-sh-appearance-status]').textContent().then(t=>t.includes('Saving')));
+  await page.evaluate(()=>{__heroFixture.appearanceDelay=false;__heroFixture.appearanceRelease();});await idle();
+  check('student appearance saves an ID without choosing a class or altering progression',await page.evaluate(before=>__heroFixture.hero.gender==='female'&&JSON.stringify({...__heroFixture.hero,gender:undefined})===before&&__heroFixture.calls.some(c=>c.type==='configure'&&c.command==='appearance'&&c.gender==='female'&&c.id&&!c.studentId),appearanceBefore));
+  check('saved gender is used by the portrait and all base class choices',await page.locator('.shHeroTop [data-cba-gender="female"]').count()===1&&await page.locator('.shClass [data-cba-gender="female"]').count()===4);
   await page.screenshot({path:path.join(output,'student-class-picker.png'),fullPage:true});
   await page.click('[data-sh-role="mage"]');await idle();await page.waitForSelector('#shTree');
   check('choosing a class preserves XP, inventory and roster identity',await page.evaluate(()=>__heroFixture.hero.role==='mage'&&__heroFixture.hero.xp===450&&__heroFixture.hero.inventory.length===3&&__heroFixture.hero.studentId==='ari'));
@@ -80,6 +90,12 @@ try{
   await page.evaluate(()=>{__heroFixture.active={classId:'Science Saturday 11am',encounterId:'battle-one'};});
   await page.click('#shRefresh');await page.waitForSelector('.shLock');
   check('live encounter blocks student build changes',await page.locator('[data-sh-role]').evaluateAll(nodes=>nodes.every(n=>n.disabled))&&await page.locator('[data-sh-equip]').evaluateAll(nodes=>nodes.every(n=>n.disabled)));
+  const activeAppearanceBefore=await page.evaluate(()=>JSON.stringify({...__heroFixture.hero,gender:undefined}));
+  await page.click('[data-sh-gender="male"]');await idle();
+  check('students can change appearance during a battle while build edits remain locked',await page.evaluate(before=>__heroFixture.hero.gender==='male'&&JSON.stringify({...__heroFixture.hero,gender:undefined})===before,activeAppearanceBefore)&&await page.locator('[data-sh-role]').evaluateAll(nodes=>nodes.every(n=>n.disabled)));
+  await page.evaluate(()=>{__heroFixture.appearanceFail=true;});await page.click('[data-sh-gender="female"]');await idle();
+  check('failed appearance saves retain the saved portrait and allow retry',await page.locator('#shError').textContent().then(t=>t.includes('Appearance save failed'))&&await page.locator('.shHeroTop [data-cba-gender="male"]').count()===1&&await page.locator('[data-sh-gender="female"]').isEnabled());
+  await page.evaluate(()=>{__heroFixture.appearanceFail=false;});await page.click('[data-sh-gender="female"]');await idle();
   await page.evaluate(()=>__account('teacher'));await page.click('#heroClaimsBtn');await page.waitForSelector('[data-sh-manage="endEncounter"]');
   await page.click('[data-sh-manage="endEncounter"]');await idle();
   check('teacher can release an encounter without changing character progress',await page.evaluate(()=>!__heroFixture.active&&__heroFixture.hero.xp===450));
@@ -103,13 +119,17 @@ try{
   const jobSkill=await page.evaluate(()=>ClassroomBattleCore.JOB_SKILLS.archmage.find(s=>ClassroomBattleCore.canLearn(__heroFixture.hero,s.id).ok).id);
   await page.click('[data-hst-node="'+jobSkill+'"]');await page.click('[data-hst-learn="'+jobSkill+'"]');await idle();
   check('advanced skill learning saves through the same verified API',await page.evaluate(id=>__heroFixture.hero.learnedSkills.includes(id)&&__heroFixture.calls.some(call=>call.command==='advance'&&call.jobId==='archmage'),jobSkill));
+  check('advanced portraits, skill-map origin and animation preview retain saved gender',await page.locator('.shHeroTop [data-cba-sheet="archmage-genders"][data-cba-gender="female"]').count()===1&&await page.locator('.hstOrigin [data-cba-gender="female"]').count()===1&&await page.locator('.cbaSkillPreview [data-cba-gender="female"]').count()===1);
+  await page.click('#shRefresh');await page.waitForSelector('[data-sh-gender="female"][aria-pressed="true"]');
+  check('refresh restores the saved gender and job from the verified service',await page.locator('.shHeroTop [data-cba-sheet="archmage-genders"][data-cba-gender="female"]').count()===1);
   await page.screenshot({path:path.join(output,'student-advanced-archmage.png'),fullPage:true});
-  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'student-my-hero-mobile.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});await page.locator('.shAppearance').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'student-character-gender-mobile.png'),fullPage:true});
+  await page.screenshot({path:path.join(output,'student-my-hero-mobile.png'),fullPage:true});
   check('mobile dialog fits its viewport',await page.locator('#shDialog').evaluate(d=>d.getBoundingClientRect().width<=window.innerWidth&&d.scrollWidth<=d.clientWidth+2));
   await page.click('#shClose');await page.evaluate(()=>{__heroFixture.delay=true;StudentHeroes.open('student');});
   await page.waitForFunction(()=>!!__heroFixture.release);await page.evaluate(()=>{__account('student-b');__heroFixture.delay=false;__heroFixture.release();});
   await page.waitForSelector('#shSlot');
-  check('late account responses cannot expose the previous student hero',await page.locator('#shTree').count()===0);
+  check('late account responses cannot expose the previous student hero',await page.locator('#shTree').count()===0&&await page.locator('[data-sh-gender]').count()===0);
   await page.evaluate(()=>__account('teacher'));await page.click('#heroClaimsBtn');await page.waitForSelector('[data-sh-manage="unlink"]');await page.click('[data-sh-manage="unlink"]');await idle();
   check('correcting ownership preserves the character progress',await page.evaluate(()=>!__heroFixture.claim&&__heroFixture.hero.xp===ClassroomBattleCore.xpForLevel(15)&&__heroFixture.hero.learnedSkills.includes('mage-ice-lance')));
   check('student flows have no unhandled browser errors',errors.length===0);
