@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "created": "2026-10-03",
+  "mode": "built-in image_gen",
+  "rasterPostProcessing": "none; generated PNG files copied unchanged",
+  "assets": [
+    {
+      "file": "paladin-sheet.png",
+      "sourceGeneratedPath": "exec-05781bee-f323-4a77-a628-8186676d6ce6.png",
+      "prompt": "Use case: stylized-concept. Asset type: production original 16-bit pixel-art RPG character animation atlas. Real transparent alpha background. Canvas 2048x1024, exactly FOUR equal square columns and TWO equal square rows. EIGHT complete full-body frames, no grid lines. All face RIGHT, identical identity and body scale in every cell. Each frame centered in its cell with fixed feet baseline at local y420, head at y105, and ALL weapon/cape pixels confined within local x80..432 y64..440 so nothing overlaps. Top row is FOUR visibly different breathing idle frames (subtle body breathing and cloth motion). Bottom row is FOUR distinctly different combat poses: windup, action extension, follow-through, recover. Clean hard square pixels, richly shaded but crisp 16-bit game style, no blur. No text, no labels, no ground, no background, no extra objects outside characters, no shadows crossing cells. Keep generous transparent margins, don't fill cells. A noble paladin hero in ivory plate armor, royal-blue cloth, gold trim, small golden halo crest on silver helmet, longsword and kite shield embossed with a sun. Bottom action is sword raised, holy rightward sword slash, follow-through, recover.",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      },
+      "revisionSourcePath": "exec-0f152815-4d34-4c71-9603-a448f631f108.png",
+      "revisionPrompt": "Use case: precise-object-edit. Correct padding of this original transparent pixel-art hero atlas. Keep SAME identity, outfit, colors, weapons and ALL eight animation poses. Maintain EXACT4columns by2rows, 2048x1024 canvas. ONLY change each individual complete frame: make it 65% of existing width/height, CENTER it inside its OWN square cell and keep consistent fixed local feet baseline y400. This means plenty of empty transparent space ABOVE EACH head, belowfeet, beside weapons. Each entire figure/cape/weapon/spell confined to local x90..420 and y80..405 inside own512cell. Absolutely no artwork touches cell boundary. Top row four breathing idle, bottom row four original action frames. Do not scale whole sheet; shrinkeach individualhero atsame grid location separately. Keep fullbody and weapons uncropped, alpha transparent. No other changes."
+    },
+    {
+      "file": "berserker-sheet.png",
+      "sourceGeneratedPath": "exec-fb8930a6-9c11-485f-a7e6-de2c3696e18c.png",
+      "prompt": "Use case: stylized-concept. Asset type: production original 16-bit pixel-art RPG character animation atlas. Real transparent alpha background. Canvas 2048x1024, exactly FOUR equal square columns and TWO equal square rows. EIGHT complete full-body frames, no grid lines. All face RIGHT, identical identity and body scale in every cell. Each frame centered in its cell with fixed feet baseline at local y420, head at y105, and ALL weapon/cape pixels confined within local x80..432 y64..440 so nothing overlaps. Top row is FOUR visibly different breathing idle frames (subtle body breathing and cloth motion). Bottom row is FOUR distinctly different combat poses: windup, action extension, follow-through, recover. Clean hard square pixels, richly shaded but crisp 16-bit game style, no blur. No text, no labels, no ground, no background, no extra objects outside characters, no shadows crossing cells. Keep generous transparent margins, don't fill cells. A fierce but kid-friendly berserker hero with copper hair, dark iron shoulder armor, burgundy cloth, fur mantle, huge double-headed battleaxe held in both hands. Bottom action is overhead axe windup, heavy axe chop to RIGHT, low follow-through, recovery.",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      },
+      "revisionSourcePath": "exec-b0727675-71fa-4913-a6c7-ef72e415e683.png",
+      "revisionPrompt": "Use case: precise-object-edit. Correct padding of this original transparent pixel-art hero atlas. Keep SAME identity, outfit, colors, weapons and ALL eight animation poses. Maintain EXACT4columns by2rows, 2048x1024 canvas. ONLY change each individual complete frame: make it 65% of existing width/height, CENTER it inside its OWN square cell and keep consistent fixed local feet baseline y400. This means plenty of empty transparent space ABOVE EACH head, belowfeet, beside weapons. Each entire figure/cape/weapon/spell confined to local x90..420 and y80..405 inside own512cell. Absolutely no artwork touches cell boundary. Top row four breathing idle, bottom row four original action frames. Do not scale whole sheet; shrinkeach individualhero atsame grid location separately. Keep fullbody and weapons uncropped, alpha transparent. No other changes."
+    },
+    {
+      "file": "sharpshooter-sheet.png",
+      "sourceGeneratedPath": "exec-d2d5f5e7-2d14-4495-8ba8-d497a2a3d6de.png",
+      "prompt": "Use case: stylized-concept. Asset type: production original 16-bit pixel-art RPG character animation atlas. Real transparent alpha background. Canvas 2048x1024, exactly FOUR equal square columns and TWO equal square rows. EIGHT complete full-body frames, no grid lines. All face RIGHT, identical identity and body scale in every cell. Each frame centered in its cell with fixed feet baseline at local y420, head at y105, and ALL weapon/cape pixels confined within local x80..432 y64..440 so nothing overlaps. Top row is FOUR visibly different breathing idle frames (subtle body breathing and cloth motion). Bottom row is FOUR distinctly different combat poses: windup, action extension, follow-through, recover. Clean hard square pixels, richly shaded but crisp 16-bit game style, no blur. No text, no labels, no ground, no background, no extra objects outside characters, no shadows crossing cells. Keep generous transparent margins, don't fill cells. An elite dark-skinned sharpshooter hero with teal hood, silver leaf armor, white cloak, elegant large silver longbow. Bottom action is nock arrow, draw longbow to cheek aiming RIGHT, release toward RIGHT, lower bow.",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      }
+    },
+    {
+      "file": "beastmaster-sheet.png",
+      "sourceGeneratedPath": "exec-2e7c6351-5a9f-46e8-87b2-303068b80934.png",
+      "prompt": "Use case: stylized-concept. Asset type: production original 16-bit pixel-art RPG character animation atlas. Real transparent alpha background. Canvas 2048x1024, exactly FOUR equal square columns and TWO equal square rows. EIGHT complete full-body frames, no grid lines. All face RIGHT, identical identity and body scale in every cell. Each frame centered in its cell with fixed feet baseline at local y420, head at y105, and ALL weapon/cape pixels confined within local x80..432 y64..440 so nothing overlaps. Top row is FOUR visibly different breathing idle frames (subtle body breathing and cloth motion). Bottom row is FOUR distinctly different combat poses: windup, action extension, follow-through, recover. Clean hard square pixels, richly shaded but crisp 16-bit game style, no blur. No text, no labels, no ground, no background, no extra objects outside characters, no shadows crossing cells. Keep generous transparent margins, don't fill cells. A wilderness beastmaster hero with warm brown skin, green leather armor, tan fur hood, green cloak, wooden shortbow and falcon feather adornment. One small spectral emerald wolf silhouette curls beside their boots, fully inside each cell. Bottom action is hand up and bow nock, commanding gesture and draw toward RIGHT, release arrow, recover.",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      },
+      "revisionSourcePath": "exec-c4988715-58c5-45d1-8c34-075b28ca7b69.png",
+      "revisionPrompt": "Use case: precise-object-edit. Correct padding of this original transparent pixel-art hero atlas. Keep SAME identity, outfit, colors, weapons and ALL eight animation poses. Maintain EXACT4columns by2rows, 2048x1024 canvas. ONLY change each individual complete frame: make it 65% of existing width/height, CENTER it inside its OWN square cell and keep consistent fixed local feet baseline y400. This means plenty of empty transparent space ABOVE EACH head, belowfeet, beside weapons. Each entire figure/cape/weapon/spell confined to local x90..420 and y80..405 inside own512cell. Absolutely no artwork touches cell boundary. Top row four breathing idle, bottom row four original action frames. Do not scale whole sheet; shrinkeach individualhero atsame grid location separately. Keep fullbody and weapons uncropped, alpha transparent. No other changes."
+    },
+    {
+      "file": "archmage-sheet.png",
+      "sourceGeneratedPath": "exec-265d174f-0eea-48c6-8d5d-19dd9f179524.png",
+      "prompt": "Use case: stylized-concept. Asset type: production original 16-bit pixel-art RPG character animation atlas. Real transparent alpha background. Canvas 2048x1024, exactly FOUR equal square columns and TWO equal square rows. EIGHT complete full-body frames, no grid lines. All face RIGHT, identical identity and body scale in every cell. Each frame centered in its cell with fixed feet baseline at local y420, head at y105, and ALL weapon/cape pixels confined within local x80..432 y64..440 so nothing overlaps. Top row is FOUR visibly different breathing idle frames (subtle body breathing and cloth motion). Bottom row is FOUR distinctly different combat poses: windup, action extension, follow-through, recover. Clean hard square pixels, richly shaded but crisp 16-bit game style, no blur. No text, no labels, no ground, no background, no extra objects outside characters, no shadows crossing cells. Keep generous transparent margins, don't fill cells. An archmage hero with dark indigo broad hat, elaborate violet and gold robe, sapphire gem belt, rune-carved staff with luminous blue crystal. Bottom action is staff windup, staff pointed RIGHT with small fire energy held at tip, two-handed casting follow-through, recovery. CRITICAL: characters are SMALL inside each cell, only 60 percent of cell width and height; each full sprite including spells is surrounded by wide transparent margins on ALL sides. Do not enlarge them.",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      },
+      "revisionSourcePath": "exec-b4c7dd81-bec1-4081-ad79-2dc52b8a55f4.png",
+      "revisionPrompt": "Use case: precise-object-edit. Correct padding of this original transparent pixel-art hero atlas. Keep SAME identity, outfit, colors, weapons and ALL eight animation poses. Maintain EXACT4columns by2rows, 2048x1024 canvas. ONLY change each individual complete frame: make it 65% of existing width/height, CENTER it inside its OWN square cell and keep consistent fixed local feet baseline y400. This means plenty of empty transparent space ABOVE EACH head, belowfeet, beside weapons. Each entire figure/cape/weapon/spell confined to local x90..420 and y80..405 inside own512cell. Absolutely no artwork touches cell boundary. Top row four breathing idle, bottom row four original action frames. Do not scale whole sheet; shrinkeach individualhero atsame grid location separately. Keep fullbody and weapons uncropped, alpha transparent. No other changes."
+    },
+    {
+      "file": "chronomancer-sheet.png",
+      "sourceGeneratedPath": "exec-38fe3b11-3316-41d8-9a3b-863aec76ccda.png",
+      "prompt": "Use case: stylized-concept. Asset type: production original 16-bit pixel-art RPG character animation atlas. Real transparent alpha background. Canvas 2048x1024, exactly FOUR equal square columns and TWO equal square rows. EIGHT complete full-body frames, no grid lines. All face RIGHT, identical identity and body scale in every cell. Each frame centered in its cell with fixed feet baseline at local y420, head at y105, and ALL weapon/cape pixels confined within local x80..432 y64..440 so nothing overlaps. Top row is FOUR visibly different breathing idle frames (subtle body breathing and cloth motion). Bottom row is FOUR distinctly different combat poses: windup, action extension, follow-through, recover. Clean hard square pixels, richly shaded but crisp 16-bit game style, no blur. No text, no labels, no ground, no background, no extra objects outside characters, no shadows crossing cells. Keep generous transparent margins, don't fill cells. A chronomancer hero in deep teal and bronze robes with short white hair, floating bronze clockwork ring behind shoulders, hourglass staff, tiny aqua time motes. Bottom action is lift hourglass staff, rightward time casting gesture, outstretched follow-through, recover. CRITICAL: characters are SMALL inside each cell, only 60 percent of cell width and height; each full sprite including spells is surrounded by wide transparent margins on ALL sides. Do not enlarge them.",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      }
+    },
+    {
+      "file": "hierophant-sheet.png",
+      "sourceGeneratedPath": "exec-0122bf3c-79c5-4c10-aab3-1ec7e3df00ac.png",
+      "prompt": "Use case: stylized-concept. Asset type: production original 16-bit pixel-art RPG character animation atlas. Real transparent alpha background. Canvas 2048x1024, exactly FOUR equal square columns and TWO equal square rows. EIGHT complete full-body frames, no grid lines. All face RIGHT, identical identity and body scale in every cell. Each frame centered in its cell with fixed feet baseline at local y420, head at y105, and ALL weapon/cape pixels confined within local x80..432 y64..440 so nothing overlaps. Top row is FOUR visibly different breathing idle frames (subtle body breathing and cloth motion). Bottom row is FOUR distinctly different combat poses: windup, action extension, follow-through, recover. Clean hard square pixels, richly shaded but crisp 16-bit game style, no blur. No text, no labels, no ground, no background, no extra objects outside characters, no shadows crossing cells. Keep generous transparent margins, don't fill cells. A hierophant healer hero in pearl-white and golden vestments, warm brown skin, shining gold bishop-like sun crest, tall golden staff with radiant sun symbol, blue waist ribbon. Bottom action is lift staff, extend RIGHT with blessing hand, both hands raised in healing gesture, recovery. CRITICAL: characters are SMALL inside each cell, only 60 percent of cell width and height; each full sprite including spells is surrounded by wide transparent margins on ALL sides. Do not enlarge them.",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      }
+    },
+    {
+      "file": "oracle-sheet.png",
+      "sourceGeneratedPath": "exec-545f242c-cecd-444f-b04c-5b49fe2ae537.png",
+      "prompt": "Use case: stylized-concept. Asset type: production original 16-bit pixel-art RPG character animation atlas. Real transparent alpha background. Canvas 2048x1024, exactly FOUR equal square columns and TWO equal square rows. EIGHT complete full-body frames, no grid lines. All face RIGHT, identical identity and body scale in every cell. Each frame centered in its cell with fixed feet baseline at local y420, head at y105, and ALL weapon/cape pixels confined within local x80..432 y64..440 so nothing overlaps. Top row is FOUR visibly different breathing idle frames (subtle body breathing and cloth motion). Bottom row is FOUR distinctly different combat poses: windup, action extension, follow-through, recover. Clean hard square pixels, richly shaded but crisp 16-bit game style, no blur. No text, no labels, no ground, no background, no extra objects outside characters, no shadows crossing cells. Keep generous transparent margins, don't fill cells. An oracle hero in midnight-purple and pale silver flowing robes, dusky skin, crescent headpiece, silver crescent staff, small lavender star pendant. Bottom action is staff lift, casting constellation toward RIGHT with free hand, flowing follow-through, recover. CRITICAL: characters are SMALL inside each cell, only 60 percent of cell width and height; each full sprite including spells is surrounded by wide transparent margins on ALL sides. Do not enlarge them.",
+      "grid": {
+        "columns": 4,
+        "rows": 2
+      }
+    },
+    {
+      "file": "warrior-advanced-sheet.png",
+      "sourceGeneratedPath": "exec-8643ce79-eed5-4e5b-8e66-5495a354d792.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent 16-bit pixel-art RPG spell animation atlas. Canvas 2048x2048 square, FOUR columns by FOUR rows, SIXTEEN equal square cells. Exactly 4 frames of one effect per ROW, four different effects total; no characters. Top-to-bottom rows specified below; left-to-right each effect grows then bursts then dissipates. EVERY effect is centered within its OWN 512-square cell and confined within central 330x330 region; fully transparent gutters of at least 90 pixels all four sides, nothing crosses cells. Transparent actual alpha background, no background/floor/grid/text or labels. Distinct crisp square pixel clusters, no antialias blur, polished detailed retro RPG battle effects. Effects differ in silhouettes and colors. Row1: golden ground-shockwave impact with rising rock fragments, 4 progression frames. Row2: glowing blue shield/guard barrier dome forming, shining, dissolving. Row3: crimson berserker energy crescent with red sparks, non-gory. Row4: gold-and-white rally sun aura radiating outward.",
+      "revisionSourcePath": "exec-321c82da-9cd7-4e40-b45f-af12ff4a35ed.png",
+      "revisionPrompt": "Use case: precise-object-edit. This input is an original transparent pixel-art spell atlas, 4 columns by4rows. Fix its animation cell padding. Preserve exactly ALL16 existing effects, same colors/designs/sequence and true transparent background. Scale EACH INDIVIDUAL effect down to precisely HALF current width and HALF current height, and center each in its own equal square cell. Not the whole sheet together: each of16frames separately smaller at unchanged grid center. Canvas exactly2048square: cell centers x256,768,1280,1792 and y256,768,1280,1792. Each effect fully within central256x256 of its512cell. This leaves128px transparent margins on every cell edge, no artwork whatsoever within these wide gutters. No enlarged burst, no overlapping adjacent effects, no extra art. Output a correct4x4 equal-cell transparent sprite sheet with SMALL effects. Keep crisp pixel-art.",
+      "grid": {
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "file": "ranger-advanced-sheet.png",
+      "sourceGeneratedPath": "exec-600a77f8-b041-4496-9663-6375d3860eb3.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent 16-bit pixel-art RPG spell animation atlas. Canvas 2048x2048 square, FOUR columns by FOUR rows, SIXTEEN equal square cells. Exactly 4 frames of one effect per ROW, four different effects total; no characters. Top-to-bottom rows specified below; left-to-right each effect grows then bursts then dissipates. EVERY effect is centered within its OWN 512-square cell and confined within central 330x330 region; fully transparent gutters of at least 90 pixels all four sides, nothing crosses cells. Transparent actual alpha background, no background/floor/grid/text or labels. Distinct crisp square pixel clusters, no antialias blur, polished detailed retro RPG battle effects. Effects differ in silhouettes and colors. Row1: green poison impact orb and bubbling wisps, 4 progression frames. Row2: THREE silver arrow projectile volley facing RIGHT with wind trails. Row3: curling emerald thorn vine snare, forming and shattering. Row4: spectral teal wolf silhouette lunging RIGHT, then dissolving into forest motes.",
+      "revisionSourcePath": "exec-f2e86284-3601-4e33-bd15-8dc642d83ce3.png",
+      "revisionPrompt": "Use case: precise-object-edit. This input is an original transparent pixel-art spell atlas, 4 columns by4rows. Fix its animation cell padding. Preserve exactly ALL16 existing effects, same colors/designs/sequence and true transparent background. Scale EACH INDIVIDUAL effect down to precisely HALF current width and HALF current height, and center each in its own equal square cell. Not the whole sheet together: each of16frames separately smaller at unchanged grid center. Canvas exactly2048square: cell centers x256,768,1280,1792 and y256,768,1280,1792. Each effect fully within central256x256 of its512cell. This leaves128px transparent margins on every cell edge, no artwork whatsoever within these wide gutters. No enlarged burst, no overlapping adjacent effects, no extra art. Output a correct4x4 equal-cell transparent sprite sheet with SMALL effects. Keep crisp pixel-art.",
+      "grid": {
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "file": "mage-advanced-sheet.png",
+      "sourceGeneratedPath": "exec-b2e151dd-a0a9-4ae0-80de-0468f9285e94.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent 16-bit pixel-art RPG spell animation atlas. Canvas 2048x2048 square, FOUR columns by FOUR rows, SIXTEEN equal square cells. Exactly 4 frames of one effect per ROW, four different effects total; no characters. Top-to-bottom rows specified below; left-to-right each effect grows then bursts then dissipates. EVERY effect is centered within its OWN 512-square cell and confined within central 330x330 region; fully transparent gutters of at least 90 pixels all four sides, nothing crosses cells. Transparent actual alpha background, no background/floor/grid/text or labels. Distinct crisp square pixel clusters, no antialias blur, polished detailed retro RPG battle effects. Effects differ in silhouettes and colors. Row1: orange flaming meteor descending diagonally down-right and exploding, 4 progression frames. Row2: cyan icy blizzard crystal burst and snow flakes. Row3: violet arcane rune star pulse expanding and shattering. Row4: turquoise circular clock/time vortex winding then unwinding, no readable numbers.",
+      "revisionSourcePath": "exec-7bf1dfd3-b0d2-4493-938c-0746c24ea958.png",
+      "revisionPrompt": "Use case: precise-object-edit. This input is an original transparent pixel-art spell atlas, 4 columns by4rows. Fix its animation cell padding. Preserve exactly ALL16 existing effects, same colors/designs/sequence and true transparent background. Scale EACH INDIVIDUAL effect down to precisely HALF current width and HALF current height, and center each in its own equal square cell. Not the whole sheet together: each of16frames separately smaller at unchanged grid center. Canvas exactly2048square: cell centers x256,768,1280,1792 and y256,768,1280,1792. Each effect fully within central256x256 of its512cell. This leaves128px transparent margins on every cell edge, no artwork whatsoever within these wide gutters. No enlarged burst, no overlapping adjacent effects, no extra art. Output a correct4x4 equal-cell transparent sprite sheet with SMALL effects. Keep crisp pixel-art.",
+      "grid": {
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "file": "cleric-advanced-sheet.png",
+      "sourceGeneratedPath": "exec-ecc5a49c-cf37-41a0-92c3-868a67bf75a3.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent 16-bit pixel-art RPG spell animation atlas. Canvas 2048x2048 square, FOUR columns by FOUR rows, SIXTEEN equal square cells. Exactly 4 frames of one effect per ROW, four different effects total; no characters. Top-to-bottom rows specified below; left-to-right each effect grows then bursts then dissipates. EVERY effect is centered within its OWN 512-square cell and confined within central 330x330 region; fully transparent gutters of at least 90 pixels all four sides, nothing crosses cells. Transparent actual alpha background, no background/floor/grid/text or labels. Distinct crisp square pixel clusters, no antialias blur, polished detailed retro RPG battle effects. Effects differ in silhouettes and colors. Row1: luminous gold radiant sun beam and star impact, 4 progression frames. Row2: pearl white and pale blue sacred ward shield bubble forming, pulsing, dissolving. Row3: golden-green phoenix wing healing/revival aura rising. Row4: violet and silver purification constellation sparkle sweep, forming and clearing.",
+      "revisionSourcePath": "exec-afdbb2d9-e5d7-4824-9133-3fd7028f58bd.png",
+      "revisionPrompt": "Use case: precise-object-edit. This input is an original transparent pixel-art spell atlas, 4 columns by4rows. Fix its animation cell padding. Preserve exactly ALL16 existing effects, same colors/designs/sequence and true transparent background. Scale EACH INDIVIDUAL effect down to precisely HALF current width and HALF current height, and center each in its own equal square cell. Not the whole sheet together: each of16frames separately smaller at unchanged grid center. Canvas exactly2048square: cell centers x256,768,1280,1792 and y256,768,1280,1792. Each effect fully within central256x256 of its512cell. This leaves128px transparent margins on every cell edge, no artwork whatsoever within these wide gutters. No enlarged burst, no overlapping adjacent effects, no extra art. Output a correct4x4 equal-cell transparent sprite sheet with SMALL effects. Keep crisp pixel-art.",
+      "grid": {
+        "columns": 4,
+        "rows": 4
+      }
+    }
+  ]
+}

@@ -20,13 +20,32 @@ Points, the award history, school-wide boss damage and hero combat progress save
 
 Turn off Quick fight to use the ordinary name wheel and marks buttons. Open Battle for manual answer-driven commands and the boss timing meter. An unresolved manual answer must be finished there before Quick fight continues. Closing the wheel or switching context cancels presentation; an already committed award remains saved.
 
+## Teamwork and visible resources
+
+The wheel shows labelled HP and MP bars for the called hero and the enemy. Enemy skills spend 30 of 60 MP; normal attacks recover 15 MP. Bars retain the pre-turn values during animation and settle to the saved result afterward.
+
+After a student is called, select **Assist · reward a helper**, choose another student in the same Lesson slot, and click **Give 6 assist XP**. The helper gains 6 XP once per called question. Assists do not award marks, spend MP, attack, or trigger an enemy reply. Their saved receipt prevents duplicate XP after retries or concurrent clicks. An interrupted save offers **Retry assist** and keeps the original helper/question through reopening the wheel.
+
+## Level-15 job upgrades
+
+Each base Hero class has two advanced jobs:
+
+| Hero class | Job choices |
+|---|---|
+| Warrior | Paladin · Berserker |
+| Ranger | Sharpshooter · Beastmaster |
+| Mage | Archmage · Chronomancer |
+| Cleric | Hierophant · Oracle |
+
+At level 15, choose a job in **My Hero** or the teacher’s hero journal between encounters. Each job has a new 12-skill tree across three branches; its tiers unlock at levels 15, 18, 22 and 26. Later skills require the previous skill in their branch and cost skill points. The first skill is available upon advancement. The **foundation** tab keeps the original class tree available; learned foundation skills still work. Job changes retain XP, equipment and previously learned skills, while skills from inactive jobs remain dormant. The eight jobs add 96 skills, bringing the catalogue to 144 skills. Select a skill to inspect its effect and replay its animation preview; passive skills show their aura.
+
 ## Generated animation
 
-All four hero classes have four generated breathing idle frames and four action frames. Idle loops appear in the quick duel, party formation, journal, My Hero, class picker and skill-tree centre. Resting party heroes remain still. Warrior action frames show a sword windup, slash and recovery; Ranger frames draw and release the bow; Mage and Cleric frames raise their staffs and cast.
+All four base hero classes and eight advanced jobs have four generated breathing idle frames and four action frames. Idle loops appear in the quick duel, party formation, journal, My Hero, class picker and skill-tree centre. Resting party heroes remain still. Warrior action frames show a sword windup, slash and recovery; Ranger frames draw and release the bow; Mage and Cleric frames raise their staffs and cast.
 
-After the server saves a quick turn, the hero animates, a generated effect appears, then the enemy responds. Warrior slashes strike the enemy, Ranger arrows travel across the duel, and Mage effects follow the selected skill path: Pyromancy uses fire, Frostcraft ice, and Arcanist lightning. Healing sparkles appear on heroes who actually received healing; affected teammates appear below the duel when needed. Damage numbers reflect the saved event. Health and victory treasure settle after the sequence, which takes about two seconds with an enemy response.
+After the server saves a quick or manual turn, the hero animates and a generated effect appears. Quick fight then plays the saved enemy reply; manual enemy turns remain teacher controlled. Warrior slashes strike the enemy, Ranger arrows travel across the duel, and Mage effects follow the selected skill path: Pyromancy uses fire, Frostcraft ice, and Arcanist lightning. Healing sparkles appear on heroes who actually received healing; affected teammates appear below the duel when needed. Damage numbers reflect the saved event. In Quick fight, health and victory treasure settle after the sequence, which takes about two seconds with an enemy response.
 
-The ten unchanged transparent PNG sheets in `assets/battle-pixel/animations/` were made with built-in ImageGen. Their 56 distinct frames, full generation/revision prompts, source filenames, and integrity manifest ship with the app. Sprite sheets preload for Quick fight; missing sheets retain the original static avatar. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. The points-driven Quick fight release requires the updated `ansKeyHeroes` service; no new rules migration is needed.
+The 23 transparent PNG sheets in `assets/battle-pixel/animations/` were made with built-in ImageGen and copied unchanged. Their 200 distinct frames, full generation/revision prompts, source filenames, and integrity manifest ship with the app. This release adds 13 sheets with 144 new frames: eight advanced heroes, four role effect atlases and a Beastmaster creature atlas. All 144 skills have their own deterministic effect choreography; generated effects include shields, revival, cleansing, time magic, wolves, hawks, phoenixes and healing roots. Both wheel and manual casts use these effects, and each skill has a replayable preview. Sprite sheets preload for Quick fight; missing sheets retain the original static avatar. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. Job advancement and Assist require the updated `ansKeyHeroes` service; no new rules migration is needed.
 
 ## Commands and progression
 
@@ -55,7 +74,7 @@ Victory opens an animated four-frame pixel chest and gives **every hero**, inclu
 | Legendary | 3.3% | Dawnbringer heals the team on damaging actions; Worldroot improves durability and MP recovery |
 | Mythical | 0.7% | Phoenix Crown revives a fallen ally, Chronicle echoes every third damaging action, Void Edge bypasses armour/guard, Sovereign Star restores team HP/MP |
 
-Rewards are selected deterministically from an encounter ID and hero ID, with independent rarity and item rolls. Different heroes can receive the same item by chance. The catalogue contains 22 items. Duplicate items stack to 999; each hero equips one relic at a time. An encounter supports 100 heroes. Canonical roster profiles retain their progression independently of lesson snapshots and their bounded archives.
+Rewards are selected deterministically from an encounter ID and hero ID, with independent rarity and item rolls. Different heroes can receive the same item by chance. The catalogue contains 22 items. Duplicate items stack to 999; each hero equips one relic at a time. After every treasure drop, the hero automatically equips the highest-rarity equipment in their bag; consumables are excluded and equal-rarity ties keep the current relic. Auto-equipping never restores HP or MP by itself. The treasure result names any newly auto-equipped item. An encounter supports 100 heroes. Canonical roster profiles retain their progression independently of lesson snapshots and their bounded archives.
 
 ## Saving and migration
 
@@ -65,7 +84,7 @@ The state keeps schemaVersion 1 for deployed-rule compatibility. Hero progressio
 
 `battle-content.js` owns class skills and items; `battle-core.js` applies deterministic mechanics; `battle-store.js` subscribes to saved state and dispatches authenticated API requests; `functions/hero-repository.js` owns transactions. `classroom-battle.js` presents the arena, `quick-battle.js` the compact duel, `student-heroes.js` the claim/hero screens, and `hero-skill-tree.js` the reusable graph. Original generated assets and complete built-in ImageGen prompts are in `assets/battle-pixel/`. The chest sheet has four 543×724 frames, displayed with a 3:4 aspect ratio. Skill icons are crisp-edged inline pixel SVGs with distinct effect motifs.
 
-This release requires `ansKeyHeroes` deployment and the narrow shared-rules upgrade in `tools/hero-rules.mjs`. All browser access to canonical profiles and direct battle writes is denied; verified teachers retain encounter reads. Existing progress migrates from one prior snapshot (highest XP, then latest update/revision) without summing duplicated inventories. Unfinished legacy encounters still hold their locks. Do not replace the shared project's rules with an app-local rules file. After changing game rules, synchronize the Functions bundle with `node tools/sync-hero-game.mjs`.
+This release requires the updated `ansKeyHeroes` deployment. Existing installations with the authoritative hero rules need no additional rules migration; fresh installations use the narrow shared-rules upgrade in `tools/hero-rules.mjs`. All browser access to canonical profiles and direct battle writes is denied; verified teachers retain encounter reads. Existing progress migrates from one prior snapshot (highest XP, then latest update/revision) without summing duplicated inventories. Unfinished legacy encounters still hold their locks. Do not replace the shared project's rules with an app-local rules file. After changing game rules, synchronize the Functions bundle with `node tools/sync-hero-game.mjs`.
 
 ## Validation
 

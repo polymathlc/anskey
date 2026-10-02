@@ -66,3 +66,31 @@ test('render data never mutates the hero or skill definitions', () => {
   assert.equal(JSON.stringify(h), before);
   assert.equal(JSON.stringify(Core.SKILL_TREES), skills);
 });
+
+
+test('advanced jobs open a distinct twelve-node tree while foundation skills remain available', () => {
+  for (const job of Object.values(Core.JOBS)) {
+    const h = { ...hero(job.role), level: 15, xp: Core.xpForLevel(15), skillPoints: 40, job: job.id };
+    const graph = Tree.model(h);
+    assert.equal(graph.job.id, job.id);
+    assert.equal(graph.nodes.length, 12);
+    assert.equal(graph.branches.length, 3);
+    assert.equal(graph.links.filter(link => link.from === 'hero').length, 3);
+    assert.ok(graph.nodes.every(node => node.skill.job === job.id));
+    assert.deepEqual([...new Set(graph.nodes.map(node => node.skill.level))], [15, 18, 22, 26]);
+    assert.equal(graph.nodes.filter(node => node.state === 'available').length, 3);
+    assert.equal(Tree.model(h, 'base').job, null);
+    assert.deepEqual(Tree.model(h, 'base').nodes.map(node => node.skill.id), Core.SKILL_TREES[job.role].map(skill => skill.id));
+    assert.match(Tree.graphMarkup(h), new RegExp(job.name));
+    assert.ok(Tree.graphMarkup(h, '', 'base').includes('<strong>' + Core.ROLES[job.role].name + '</strong><span>CHOOSE YOUR PATH</span>'));
+  }
+});
+
+test('advanced tree progression requires its own connected prerequisites', () => {
+  const job = Core.JOBS.archmage, first = Core.JOB_SKILLS.archmage[0], next = Core.JOB_SKILLS.archmage[1];
+  const h = { ...hero(job.role), level: 18, xp: Core.xpForLevel(18), skillPoints: 40, job: job.id };
+  assert.equal(Tree.model(h).nodes.find(node => node.skill.id === next.id).state, 'locked');
+  h.learnedSkills = [...h.learnedSkills, first.id];
+  assert.equal(Tree.model(h).nodes.find(node => node.skill.id === next.id).state, 'available');
+  assert.equal(Tree.model(h).nodes.find(node => node.skill.id === first.id).state, 'learned');
+});

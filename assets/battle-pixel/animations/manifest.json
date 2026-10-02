@@ -181,6 +181,240 @@
         "visiblePixels": 109106,
         "nearOpaquePixels": 75427
       }
+    },
+    {
+      "file": "paladin-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 884581,
+      "sha256": "ed144941b28ef8d44d6dc0374fed98bacdd886690415d8008802ee0c77ee64bd",
+      "promptManifest": "advancement-provenance.json#/assets/0",
+      "alpha": {
+        "transparentPixels": 1254031,
+        "partialPixels": 318780,
+        "opaquePixels": 727,
+        "visiblePixels": 268418,
+        "nearOpaquePixels": 256234
+      }
+    },
+    {
+      "file": "berserker-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 980340,
+      "sha256": "a2bd2e2fe5ed7de981e8bfd26ddd994dd8a8cf7d23b67e3843f94f0973b75ab8",
+      "promptManifest": "advancement-provenance.json#/assets/1",
+      "alpha": {
+        "transparentPixels": 1196313,
+        "partialPixels": 375620,
+        "opaquePixels": 1605,
+        "visiblePixels": 319927,
+        "nearOpaquePixels": 303648
+      }
+    },
+    {
+      "file": "sharpshooter-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 1607916,
+      "sha256": "0914397670e2287d475695da29e16e1b13554339fb45981beff835173519ca60",
+      "promptManifest": "advancement-provenance.json#/assets/2",
+      "alpha": {
+        "transparentPixels": 944682,
+        "partialPixels": 628425,
+        "opaquePixels": 431,
+        "visiblePixels": 468565,
+        "nearOpaquePixels": 431668
+      }
+    },
+    {
+      "file": "beastmaster-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 1067423,
+      "sha256": "c54911d0e0d9d3d6c5b8153d396bfa7a349c06abe1a1be27a6ee030c5b3d0416",
+      "promptManifest": "advancement-provenance.json#/assets/3",
+      "alpha": {
+        "transparentPixels": 1165160,
+        "partialPixels": 407560,
+        "opaquePixels": 818,
+        "visiblePixels": 309413,
+        "nearOpaquePixels": 283304
+      }
+    },
+    {
+      "file": "archmage-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 773826,
+      "sha256": "46ae64e609d6daa2682107b9da0f2affe1802e85dd6853f92385d95f835fb9fb",
+      "promptManifest": "advancement-provenance.json#/assets/4",
+      "alpha": {
+        "transparentPixels": 1280547,
+        "partialPixels": 292398,
+        "opaquePixels": 593,
+        "visiblePixels": 239774,
+        "nearOpaquePixels": 221332
+      }
+    },
+    {
+      "file": "chronomancer-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 970019,
+      "sha256": "5abe21fd097bb6eca8e7ef415d278e7f15f3c3c021f00537493e4867cf48314d",
+      "promptManifest": "advancement-provenance.json#/assets/5",
+      "alpha": {
+        "transparentPixels": 1186576,
+        "partialPixels": 386878,
+        "opaquePixels": 84,
+        "visiblePixels": 220523,
+        "nearOpaquePixels": 173676
+      }
+    },
+    {
+      "file": "hierophant-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 993876,
+      "sha256": "350afbcddcfacff40128a3035f19eb755235d29c43c2fb34dab0dd76bdddb045",
+      "promptManifest": "advancement-provenance.json#/assets/6",
+      "alpha": {
+        "transparentPixels": 1184341,
+        "partialPixels": 389099,
+        "opaquePixels": 98,
+        "visiblePixels": 226112,
+        "nearOpaquePixels": 185259
+      }
+    },
+    {
+      "file": "oracle-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 1110132,
+      "sha256": "fee3fdcfb54e60380ede8c9e93830291ce2ec9485f0536b2ab43cfb66acc556d",
+      "promptManifest": "advancement-provenance.json#/assets/7",
+      "alpha": {
+        "transparentPixels": 1130242,
+        "partialPixels": 443069,
+        "opaquePixels": 227,
+        "visiblePixels": 326076,
+        "nearOpaquePixels": 295575
+      }
+    },
+    {
+      "file": "warrior-advanced-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 786672,
+      "sha256": "d068260256749b8887e0675dbe7e4ebdaa49f1712d2e9e985e785c5c63b43093",
+      "promptManifest": "advancement-provenance.json#/assets/8",
+      "alpha": {
+        "transparentPixels": 1245512,
+        "partialPixels": 326828,
+        "opaquePixels": 176,
+        "visiblePixels": 214004,
+        "nearOpaquePixels": 166562
+      }
+    },
+    {
+      "file": "ranger-advanced-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 736595,
+      "sha256": "d7d1a3ace33da279b70fed8ac9122d3dfb8ecd7b1b5b6824da0e9ddf4d6b22a6",
+      "promptManifest": "advancement-provenance.json#/assets/9",
+      "alpha": {
+        "transparentPixels": 1252893,
+        "partialPixels": 319565,
+        "opaquePixels": 58,
+        "visiblePixels": 177283,
+        "nearOpaquePixels": 141176
+      }
+    },
+    {
+      "file": "mage-advanced-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 680731,
+      "sha256": "89074d13b9072c10272d40836f24db47be1e25804696e2c5827d61d0efd4ce34",
+      "promptManifest": "advancement-provenance.json#/assets/10",
+      "alpha": {
+        "transparentPixels": 1290192,
+        "partialPixels": 282287,
+        "opaquePixels": 37,
+        "visiblePixels": 181089,
+        "nearOpaquePixels": 141331
+      }
+    },
+    {
+      "file": "cleric-advanced-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 813612,
+      "sha256": "54d3512cce2dffd603cc33498f6ab9836ecf4cddbac5c27c51ad3a4ce71953d7",
+      "promptManifest": "advancement-provenance.json#/assets/11",
+      "alpha": {
+        "transparentPixels": 1217754,
+        "partialPixels": 354661,
+        "opaquePixels": 101,
+        "visiblePixels": 238659,
+        "nearOpaquePixels": 214292
+      }
+    },
+    {
+      "file": "beastmaster-effects-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 4,
+      "cols": 4,
+      "frames": 16,
+      "bytes": 1126026,
+      "sha256": "63d8c58fec99c0f9eed93140bcb85de8481f3325da4019ee643febb1e8a9b2ad",
+      "promptManifest": "beastmaster-effects-source.json#/assets/0",
+      "alpha": {
+        "transparentPixels": 1110105,
+        "partialPixels": 462203,
+        "opaquePixels": 208,
+        "visiblePixels": 338579,
+        "nearOpaquePixels": 304391
+      }
     }
   ]
 }

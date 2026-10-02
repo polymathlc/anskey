@@ -95,6 +95,7 @@
 .cbCharge .charged { background: #e3ae65; border-color: #fbd5a4; }
 .cbBoss .cbBossIntent { font-size: 9px; color: #dabf9e; }
 .cbBoss.cbDefeated .cbBossArt { opacity: .25; }
+.cbArena.cbaPlaying .cbBoss.cbDefeated .cbBossArt { opacity: 1; }
 .cbFeedback { position: relative; background: #0b192dcc; border: 1px solid #426084; padding: 11px 13px; font-size: 11px; line-height: 1.6; min-height: 42px; margin: 12px 0; color: #cedbee; }
 .cbCommandBox { position: relative; border: 3px solid #b3c4e1; outline: 2px solid #172238; background: linear-gradient(115deg,#1a315d,#162540); padding: 14px; box-shadow: inset 0 0 0 2px #506995, 3px 5px #07132466; }
 .cbCommandHeading { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
@@ -157,7 +158,7 @@
 .cbSkillNode.cbLocked { opacity: .64; }
 .cbSkillBranch { font-size: 7px; letter-spacing: 1px; color: #afc2df; }
 .cbPixelIcon { font-size: 23px; color: #ead096; text-shadow: 2px 2px #070e20; image-rendering: pixelated; }
-.cbSkillGlyph { width: 32px; height: 32px; display: block; image-rendering: pixelated; }
+.cbSkillGlyph,.cbPixelIcon .hstPixelIcon { width: 32px; height: 32px; display: block; image-rendering: pixelated; }
 .cbSkillNode > .cbPixelIcon { display: grid; place-items: center; width: 42px; height: 42px; border: 2px solid #637ca5; margin: 5px auto; background: #101c34; box-shadow: 3px 3px #091322; }
 .cbSkillNode strong { font-size: 11px; color: #e6edfa; }
 .cbSkillNode p { color: #b5c8df; font-size: 9px; line-height: 1.6; flex: 1; margin: 3px 0; }
@@ -243,3 +244,20 @@
 #wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whTools { order:7; }
 .cbQuick:has(#wheelQuickToggle:not(:checked)) { padding:0 8px; margin:0; }
 .cbQuick:has(#wheelQuickToggle:not(:checked)) .cbQuickToggle small { display:none; }
+.cbHp.cbBossMp>span{background:linear-gradient(90deg,#5471cc,#b3c5ff)}
+.cbAdvancement{padding:15px 0 22px;border-bottom:1px solid #54647c;margin:12px 0 20px}.cbJobChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cbJobChoice{display:flex;align-items:center;flex-direction:column;gap:8px;padding:14px!important;background:#202e46!important;color:#edf1ff!important;border:1px solid #a68b60!important;border-radius:5px;text-align:center}.cbJobChoice .cbJobAvatar{width:100px!important;height:100px!important}.cbJobChoice strong{font-size:17px}.cbJobChoice span:not(.cbAvatar,.cbaFrames,.cbaHero){font-size:12px;line-height:1.5}.cbJobChoice b{color:#edd093;font-size:12px}.cbJobChoice:disabled{opacity:.6}@media(max-width:560px){.cbJobChoices{grid-template-columns:1fr}.cbJobChoice{display:grid;grid-template-columns:85px 1fr;text-align:left}.cbJobChoice .cbJobAvatar{grid-row:1/4;width:85px!important;height:85px!important}}
+
+/* Wheel resources and teacher-awarded teamwork XP. */
+.cbQuickResource { width:100%; max-width:180px; text-align:left; margin-top:4px; }
+.cbQuickResource>span { display:block; font-variant-numeric:tabular-nums; font-size:10px; }
+.cbQuickBar { height:8px; border:1px solid #8091b4; background:#080f21; padding:1px; border-radius:3px; overflow:hidden; }
+.cbQuickBar>i { height:100%; display:block; background:#79dbaa; box-shadow:inset 0 2px #b3f5cb; transition:width .25s ease; }
+.cbQuickResource-mp .cbQuickBar>i { background:#70a7f5; box-shadow:inset 0 2px #a8d6ff; }
+.cbAssistToggle { width:100%; margin-top:10px; min-height:34px; border:1px solid #7663a5; border-radius:5px; background:#322943; color:#e6dbff; font:600 11px system-ui,sans-serif; cursor:pointer; }
+.cbAssistPanel { display:grid; gap:6px; margin-top:6px; padding:8px; background:#0e1729; border:1px solid #405c89; border-radius:5px; }
+.cbAssistPanel label { font-size:11px; color:#e9efff; }
+.cbAssistPanel select,.cbAssistPanel button { min-width:0; max-width:100%; min-height:36px; background:#fff; color:#18243c; border:1px solid #8998b7; border-radius:4px; padding:5px; }
+.cbAssistPanel button { background:#dfd0ff; font-weight:700; cursor:pointer; }
+.cbAssistPanel small { color:#b9c9e7; font-size:10px; }
+.cbAssistToggle:disabled,.cbAssistPanel button:disabled { opacity:.5; cursor:default; }
+@media(prefers-reduced-motion:reduce) { .cbQuickBar>i { transition:none; } }

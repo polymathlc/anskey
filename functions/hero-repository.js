@@ -62,7 +62,7 @@ function createHeroRepository(db, { now = Date.now } = {}) {
   async function execute(actor, body) {
     const { root, classes } = realm(actor), profiles = root.collection('profiles'), accounts = root.collection('accounts');
     const accountRef = accounts.doc(actor.uid), clock = now();
-    if (['claims','approve','reject','unlink','battle','wheelAward','endEncounter'].includes(body.type)) requireTeacher(actor);
+    if (['claims','approve','reject','unlink','battle','wheelAward','assist','endEncounter'].includes(body.type)) requireTeacher(actor);
     if (body.type === 'catalog' || body.type === 'claims') {
       const [rosterSnap, profileSnap] = await Promise.all([db.collection('students').get(), profiles.get()]);
       const roster = docs(rosterSnap).map(s => ({...s.data(),id:s.id})), byId = new Map(docs(profileSnap).map(s => [s.id,s.data()]));
@@ -76,6 +76,7 @@ function createHeroRepository(db, { now = Date.now } = {}) {
         return {id:s.id,name:String(s.name || 'Student').slice(0,100),lessonSlots:slots(s),status:claim?.status === 'approved' ? 'claimed' : claim ? 'pending' : 'available'};
       }).sort((a,b) => a.name.localeCompare(b.name)) };
     }
+    if (body.type === 'assist') return assist(actor, body, {root,classes,profiles}, clock);
     if (body.type === 'endEncounter') {
       const studentId=studentKey(body.studentId), profile=docData(await profiles.doc(studentId).get());
       if (!profile?.activeEncounter) return {status:'ended'};
@@ -140,7 +141,7 @@ function createHeroRepository(db, { now = Date.now } = {}) {
         if (!actor.isTeacher && (!profile?.claim || profile.claim.uid !== actor.uid || profile.claim.status !== 'approved' || account?.status !== 'approved')) deny('approval_required','Your teacher needs to approve this claim first.',403);
         if (!profile) profile = migrateHero(student,docs(await tx.get(classes)));
         if (profile.activeEncounter) deny('encounter_active','Finish or end the active encounter before changing your hero.');
-        if (!['class','learn','equip'].includes(body.command)) deny('invalid_command','Choose a hero class, skill or equipment.',400);
+        if (!['class','advance','learn','equip'].includes(body.command)) deny('invalid_command','Choose a hero class, job advancement, skill or equipment.',400);
         if (body.expectedRevision !== undefined && body.expectedRevision !== (profile.revision || 0)) deny('hero_changed','Your hero changed on another screen. Refresh and try again.');
         try { profile.hero = Core.configureHero(cleanHero(profile.hero,student,profile),body); }
         catch (e) { deny('invalid_command',e.message,400); }
@@ -149,6 +150,41 @@ function createHeroRepository(db, { now = Date.now } = {}) {
         tx.set(profileRef,profile); return {...view(profile,student),hero:profile.hero,revision:profile.revision};
       }
       deny('invalid_request','Choose a valid hero action.',400);
+    });
+  }
+  async function assist(actor, body, refs, clock) {
+    const {classes,profiles}=refs, classId=body.classId, classRef=classes.doc(key(classId));
+    const studentId=studentKey(body.studentId), helpedStudentId=studentKey(body.helpedStudentId), action=body.action || {};
+    if (!/^[A-Za-z0-9_-]{8,100}$/.test(action.id || '') || !/^[A-Za-z0-9_-]{8,100}$/.test(action.spinId || '')) deny('invalid_assist','Spin to call a student before recording an assist.',400);
+    if (studentId===helpedStudentId) deny('invalid_assist','Choose another student who helped with this question.',400);
+    // One helper may earn this bonus once per called question, even if a client
+    // retries with a new action ID or a second teacher tab clicks Assist.
+    const receiptId=createHash('sha256').update(action.spinId+'\0'+studentId).digest('hex');
+    const receiptRef=classRef.collection('assists').doc(receiptId), profileRef=profiles.doc(studentId);
+    return db.runTransaction(async tx=>{
+      const [receiptSnap,stateSnap,profileSnap,helperSnap,helpedSnap]=await Promise.all([
+        tx.get(receiptRef),tx.get(classRef),tx.get(profileRef),tx.get(db.collection('students').doc(studentId)),tx.get(db.collection('students').doc(helpedStudentId))]);
+      let state=docData(stateSnap),profile=docData(profileSnap);
+      if (receiptSnap.exists) {
+        const receipt=receiptSnap.data();
+        if (receipt.helpedStudentId!==helpedStudentId) deny('assist_changed','This helper already received XP for this called question.');
+        return {hero:profile?.hero || null,state,assist:receipt,duplicate:true};
+      }
+      if (!helperSnap.exists || !helpedSnap.exists || !slots(helperSnap.data()).includes(classId) || !slots(helpedSnap.data()).includes(classId)) deny('roster_changed','Both students must belong to this Lesson slot. Refresh the wheel.');
+      const helper={...helperSnap.data(),id:studentId};
+      if (!profile) profile=migrateHero(helper,docs(await tx.get(classes)));
+      if (profile.activeEncounter && (profile.activeEncounter.classId!==classId || !state || profile.activeEncounter.encounterId!==state.encounterId)) deny('encounter_active','Finish this helper’s other active encounter before recording an assist.');
+      profile.hero=Core.grantAssistXp(cleanHero(profile.hero,helper,profile),6);
+      profile.revision=(profile.revision || 0)+1;profile.updatedAt=clock;
+      const receipt={id:action.id,spinId:action.spinId,studentId,helpedStudentId,xp:6,createdAt:clock};
+      if (state) {
+        state=clone(state);
+        state.heroes=state.heroes.map(h=>h.studentId===studentId ? profile.hero : h);
+        if (state.heroArchive?.[profile.hero.id]) state.heroArchive[profile.hero.id]=profile.hero;
+        state.revision=(state.revision || 0)+1;state.updatedAt=clock;state.lastAssist=receipt;
+      }
+      tx.set(profileRef,profile);tx.set(receiptRef,receipt);if(state)tx.set(classRef,state);
+      return {hero:profile.hero,state,assist:receipt};
     });
   }
   async function battle(actor, body, refs, clock) {

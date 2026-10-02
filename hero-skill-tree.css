@@ -95,3 +95,11 @@
 @media (prefers-reduced-motion:reduce) { .hst *, .hst *::before, .hst *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
 
 .hstOriginFrame .hstHero { width:116px; height:116px; }
+.hst .hstTreeChoice { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:14px 18px; border-bottom:1px solid #544837; background:#1c202a; }
+.hst .hstTreeChoice[hidden] { display:none; }
+.hst .hstTreeChoice button,.hst .hstPreview button { min-height:44px; padding:9px 13px; border:1px solid #8b7452; background:#252d3b; color:#dfd5c2; border-radius:3px; font:600 12px/1.4 ui-sans-serif,system-ui,sans-serif; cursor:pointer; }
+.hst .hstTreeChoice button[aria-pressed="true"] { background:#6c522f; border-color:#ebc888; color:#fff1d2; }
+.hst .hstTreeChoice p { margin:0; flex:1 1 250px; color:#bdc7db; font:11px/1.5 ui-sans-serif,system-ui,sans-serif; }
+.hst .hstPreview { grid-column:1/-1; width:100%; border-top:1px solid #4c4a50; padding-top:14px; }
+.hst .hstPreview>div:first-child { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.hst .hstPreview .cbaSkillPreview { min-height:150px; overflow:hidden; }

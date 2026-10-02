@@ -70,6 +70,7 @@ try{
   await page.click('[data-sh-role="mage"]');await idle();await page.waitForSelector('#shTree');
   check('choosing a class preserves XP, inventory and roster identity',await page.evaluate(()=>__heroFixture.hero.role==='mage'&&__heroFixture.hero.xp===450&&__heroFixture.hero.inventory.length===3&&__heroFixture.hero.studentId==='ari'));
   check('approved hero renders the connected twelve-node skill tree',await page.locator('#shTree [data-hst-node]').count()===12);
+  check('advanced jobs are visible but locked until level 15',await page.locator('[data-sh-job]').count()===2&&await page.locator('[data-sh-job]').evaluateAll(nodes=>nodes.every(n=>n.disabled))&&await page.locator('.shAdvanceLock').textContent().then(t=>t.includes('Reach level 15')));
   await page.click('[data-hst-node="mage-ice-lance"]');
   await page.locator('[data-hst-learn]').click();await idle();
   check('learning through the graph persists progression at the API boundary',await page.evaluate(()=>__heroFixture.hero.learnedSkills.includes('mage-ice-lance')&&__heroFixture.hero.skillPoints===7));
@@ -87,6 +88,22 @@ try{
   await page.evaluate(()=>{__heroFixture.active=null;__heroFixture.claim.lessonSlots=['Science Sunday 1pm'];});
   await page.click('#shRefresh');await page.waitForFunction(()=>document.querySelector('.shHeroTop').textContent.includes('Sunday'));
   check('a changed lesson slot keeps the existing character',await page.evaluate(()=>__heroFixture.hero.xp===450&&__heroFixture.hero.role==='mage'));
+  await page.evaluate(()=>{Object.assign(__heroFixture.hero,{level:15,xp:ClassroomBattleCore.xpForLevel(15),skillPoints:28});__heroFixture.active={classId:'Science Sunday 1pm',encounterId:'upgrade-lock'};});
+  await page.click('#shRefresh');await page.waitForSelector('.shLock');
+  check('level 15 job upgrades remain locked for an active encounter',await page.locator('[data-sh-job]').evaluateAll(nodes=>nodes.every(n=>n.disabled))&&await page.locator('.shAdvanceLock').textContent().then(t=>t.includes('Finish or end')));
+  await page.evaluate(()=>{__heroFixture.active=null;});await page.click('#shRefresh');await page.waitForSelector('[data-sh-job="archmage"]:not([disabled])');
+  const upgradeBefore=await page.evaluate(()=>({xp:__heroFixture.hero.xp,items:JSON.stringify(__heroFixture.hero.inventory),known:[...__heroFixture.hero.learnedSkills]}));
+  await page.click('[data-sh-job="archmage"]');await idle();
+  check('level 15 hero can choose an advanced job without losing XP, treasure or foundation skills',await page.evaluate(before=>__heroFixture.hero.job==='archmage'&&__heroFixture.hero.xp===before.xp&&JSON.stringify(__heroFixture.hero.inventory)===before.items&&before.known.every(id=>__heroFixture.hero.learnedSkills.includes(id)),upgradeBefore));
+  check('advanced hero opens its new twelve-skill tree by default',await page.locator('#shTree [data-hst-node]').count()===12&&await page.locator('#shTree .hstOrigin strong').textContent()==='Archmage'&&await page.locator('[data-hst-tree="job"]').getAttribute('aria-pressed')==='true');
+  await page.locator('#shDialog').evaluate(node=>node.scrollTop=0);await page.screenshot({path:path.join(output,'student-job-upgrade-picker.png'),fullPage:true});
+  await page.click('[data-hst-tree="base"]');
+  check('foundation tree remains accessible with previously learned skills',await page.locator('[data-hst-node="mage-ice-lance"]').getAttribute('data-state')==='learned');
+  await page.click('[data-hst-tree="job"]');
+  const jobSkill=await page.evaluate(()=>ClassroomBattleCore.JOB_SKILLS.archmage.find(s=>ClassroomBattleCore.canLearn(__heroFixture.hero,s.id).ok).id);
+  await page.click('[data-hst-node="'+jobSkill+'"]');await page.click('[data-hst-learn="'+jobSkill+'"]');await idle();
+  check('advanced skill learning saves through the same verified API',await page.evaluate(id=>__heroFixture.hero.learnedSkills.includes(id)&&__heroFixture.calls.some(call=>call.command==='advance'&&call.jobId==='archmage'),jobSkill));
+  await page.screenshot({path:path.join(output,'student-advanced-archmage.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'student-my-hero-mobile.png'),fullPage:true});
   check('mobile dialog fits its viewport',await page.locator('#shDialog').evaluate(d=>d.getBoundingClientRect().width<=window.innerWidth&&d.scrollWidth<=d.clientWidth+2));
   await page.click('#shClose');await page.evaluate(()=>{__heroFixture.delay=true;StudentHeroes.open('student');});
@@ -94,7 +111,7 @@ try{
   await page.waitForSelector('#shSlot');
   check('late account responses cannot expose the previous student hero',await page.locator('#shTree').count()===0);
   await page.evaluate(()=>__account('teacher'));await page.click('#heroClaimsBtn');await page.waitForSelector('[data-sh-manage="unlink"]');await page.click('[data-sh-manage="unlink"]');await idle();
-  check('correcting ownership preserves the character progress',await page.evaluate(()=>!__heroFixture.claim&&__heroFixture.hero.xp===450&&__heroFixture.hero.learnedSkills.includes('mage-ice-lance')));
+  check('correcting ownership preserves the character progress',await page.evaluate(()=>!__heroFixture.claim&&__heroFixture.hero.xp===ClassroomBattleCore.xpForLevel(15)&&__heroFixture.hero.learnedSkills.includes('mage-ice-lance')));
   check('student flows have no unhandled browser errors',errors.length===0);
   console.log(`${checks} student hero browser checks passed.`);
 }finally{await browser.close();}

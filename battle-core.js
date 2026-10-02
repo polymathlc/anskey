@@ -4,8 +4,9 @@
   else root.ClassroomBattleCore = factory(root.ClassroomBosses, root.ClassroomBattleContent);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(BOSSES, CONTENT) {
   'use strict';
-  const { ROLES, SKILLS, ITEMS, RARITIES } = CONTENT;
-  const ROLE_KEYS = Object.keys(ROLES), ALL_SKILLS = Object.values(SKILLS).flat();
+  const { ROLES, SKILLS, JOBS, JOB_SKILLS, ITEMS, RARITIES } = CONTENT;
+  const ROLE_KEYS = Object.keys(ROLES), ALL_SKILLS = [...Object.values(SKILLS).flat(),...Object.values(JOB_SKILLS).flat()];
+  const BOSS_MAX_MP=60, BOSS_SKILL_MP=30, BOSS_ATTACK_MP=15;
   const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, Number(n) || 0));
   const int = (n, lo, hi) => Math.round(clamp(n, lo, hi));
   const roleKey = key => key === 'healer' ? 'cleric' : Object.prototype.hasOwnProperty.call(ROLES,key) ? key : 'warrior';
@@ -14,6 +15,18 @@
   function bossById(id) { return BOSSES.find(b => b.id === id) || fail('Unknown enemy. Reload the app.'); }
   function skillById(id) { return ALL_SKILLS.find(s => s.id === id) || null; }
   function itemById(id) { return ITEMS[id] || null; }
+  function activeJob(hero) { const job=JOBS[hero.job]; return job && job.role===hero.role && hero.level>=15 ? job : null; }
+  function jobsFor(hero) { return Object.values(JOBS).filter(j=>j.role===roleKey(hero.role)); }
+  function skillsFor(hero) { const job=activeJob(hero); return [...(SKILLS[roleKey(hero.role)] || []),...(job?JOB_SKILLS[job.id]:[])]; }
+  function treeSkills(hero,mode='job') { const job=activeJob(hero); return mode==='base' || !job ? SKILLS[roleKey(hero.role)] : JOB_SKILLS[job.id]; }
+  function activeSkill(hero,skill) { return skill && skill.role===hero.role && (!skill.job || (activeJob(hero)?.id===skill.job && hero.level>=skill.level)); }
+  function canAdvance(hero,jobId) {
+    const job=JOBS[jobId];
+    if (!job || job.role!==hero.role) return {ok:false,reason:'Choose an advanced job for this hero’s base class.'};
+    if (levelForXp(hero.xp || 0)<15) return {ok:false,reason:'Requires level 15.'};
+    if (hero.job===jobId) return {ok:false,reason:'This advanced job is already selected.'};
+    return {ok:true,reason:''};
+  }
   function randomUnit(seed) {
     let hash = 2166136261;
     for (const ch of String(seed)) hash = Math.imul(hash ^ ch.charCodeAt(0),16777619);
@@ -34,7 +47,7 @@
     const stats = { maxHp:role.hp+(level-1)*9, damage:role.power+(level-1)*3, defence:role.defence+(level-1),
       healing:role.healing+(hero.role==='cleric'?(level-1)*2:0), maxMp:role.mp+(level-1)*3,
       critChance:role.crit, critMultiplier:1.6, attacks:role.attacks };
-    const bonuses = [equipmentEffect(hero), ...(hero.learnedSkills || []).map(skillById).filter(s=>s && s.role===hero.role && s.passive).map(s=>s.effect.passive)];
+    const bonuses = [equipmentEffect(hero),activeJob(hero)?.bonuses || {}, ...(hero.learnedSkills || []).map(skillById).filter(s=>activeSkill(hero,s) && s.passive).map(s=>s.effect.passive)];
     bonuses.forEach(b => Object.keys(stats).forEach(k => { if (Number.isFinite(b[k])) stats[k]+=b[k]; }));
     stats.critChance = clamp(stats.critChance,0,.85); stats.critMultiplier=clamp(stats.critMultiplier,1,3);
     return stats;
@@ -65,6 +78,7 @@
     const hero={...copy(prior),...identity,role:roleKey(prior.role)};
     delete hero.avatarUrl; delete hero.equipment; delete hero.fallbackReason;
     hero.xp=int(hero.xp,0,xpForLevel(50)); hero.level=levelForXp(hero.xp);
+    if (!activeJob(hero)) delete hero.job;
     hero.skillPoints=int(hero.skillPoints,0,150);
     hero.learnedSkills=[...new Set((hero.learnedSkills || []).filter(id=>!!skillById(id)))];
     if (!hero.learnedSkills.includes(SKILLS[hero.role][0].id)) hero.learnedSkills.push(SKILLS[hero.role][0].id);
@@ -80,7 +94,12 @@
     } else if (action.command==='class') {
       if (!ROLES[action.role] && action.role!=='healer') fail('Choose Warrior, Ranger, Mage or Cleric.');
       hero.role=roleKey(action.role);
+      if (!activeJob(hero)) delete hero.job;
       const starter=SKILLS[hero.role][0].id; if (!hero.learnedSkills.includes(starter)) hero.learnedSkills.push(starter);
+    } else if (action.command==='advance') {
+      const result=canAdvance(hero,action.jobId); if (!result.ok) fail(result.reason);
+      hero.job=action.jobId;
+      const starter=JOB_SKILLS[hero.job][0].id; if (!hero.learnedSkills.includes(starter)) hero.learnedSkills.push(starter);
     } else if (action.command==='equip') {
       if (action.itemId===null || action.itemId==='') hero.equipped=null;
       else {
@@ -90,7 +109,7 @@
       }
     } else fail('Unknown hero command.');
     refreshStats(hero);
-    if (action.command==='class' || action.command==='equip') hero.hp=Math.min(hpBefore,hero.stats.maxHp);
+    if (action.command==='class' || action.command==='equip' || action.command==='advance') hero.hp=Math.min(hpBefore,hero.stats.maxHp);
     return hero;
   }
   function roster(heroes, priorState) {
@@ -112,10 +131,26 @@
     hero.xp=int(hero.xp+amount,0,xpForLevel(50)); hero.level=levelForXp(hero.xp);
     hero.skillPoints+=Math.max(0,hero.level-level)*2; refreshStats(hero);
   }
-  function availableSkills(hero) { return (SKILLS[roleKey(hero.role)] || []).filter(s=>!s.passive && (hero.learnedSkills || []).includes(s.id)); }
+  function grantAssistXp(input,amount) {
+    if (!Number.isSafeInteger(amount) || amount<1 || amount>1000) fail('Invalid assist experience.');
+    const hero=cleanHero(input,input); addXp(hero,amount); return hero;
+  }
+  function autoEquip(hero) {
+    const ranks=Object.keys(RARITIES), rank=entry=>{const item=itemById(entry.itemId);return item?.type==='equipment'?ranks.indexOf(item.rarity):-1;};
+    const equipment=(hero.inventory || []).filter(e=>e.quantity>0 && rank(e)>=0);
+    const current=equipment.find(e=>e.id===hero.equipped);
+    let best=current || null;
+    // Inventory order is stable; ties keep the current item and never consume loot.
+    equipment.forEach(entry=>{if (!best || rank(entry)>rank(best)) best=entry;});
+    if (!best || best.id===hero.equipped) return null;
+    const hp=hero.hp,mp=hero.mp;hero.equipped=best.id;refreshStats(hero);
+    hero.hp=Math.min(hp,hero.stats.maxHp);hero.mp=Math.min(mp,hero.stats.maxMp);
+    return best.itemId;
+  }
+  function availableSkills(hero) { return skillsFor(hero).filter(s=>activeSkill(hero,s) && !s.passive && (hero.learnedSkills || []).includes(s.id)); }
   function canLearn(hero, id) {
     const skill=skillById(id);
-    if (!skill || skill.role!==hero.role) return {ok:false,reason:'Choose a skill from this hero’s class.'};
+    if (!skill || skill.role!==hero.role || (skill.job && activeJob(hero)?.id!==skill.job)) return {ok:false,reason:'Choose a skill from this hero’s active class or advanced job.'};
     if ((hero.learnedSkills || []).includes(id)) return {ok:false,reason:'Already learned.'};
     if (hero.level<skill.level) return {ok:false,reason:'Requires level '+skill.level+'.'};
     if (!skill.requires.every(required=>(hero.learnedSkills || []).includes(required))) return {ok:false,reason:'Learn the preceding branch skill first.'};
@@ -138,7 +173,9 @@
       const entry=hero.inventory.find(i=>i.itemId===reward.itemId);
       if (entry) entry.quantity=Math.min(999,entry.quantity+1);
       else hero.inventory.push({id:'bag:'+reward.itemId,itemId:reward.itemId,quantity:1});
-      addXp(hero,reward.xp); return reward;
+      addXp(hero,reward.xp);
+      const equipped=autoEquip(hero); if (equipped) {reward.autoEquipped=equipped;reward.autoEquippedName=itemById(equipped).name;}
+      return reward;
     });
     event.rewards=state.rewards;
   }
@@ -158,20 +195,23 @@
     const actual=Math.min(hero.stats.maxHp-hero.hp,Math.max(0,Math.round(amount)));
     hero.hp+=actual; if (actual) event.healed.push({heroId:hero.id,amount:actual});
   }
-  function restoreMana(hero,amount) { hero.mp=int(hero.mp+amount,0,hero.stats.maxMp); }
+  function restoreMana(hero,amount) { const before=hero.mp; hero.mp=int(hero.mp+amount,0,hero.stats.maxMp); return hero.mp-before; }
   function support(state,hero,effect,event,target,points=1) {
     const scaled=amount=>Math.round(amount)*points;
-    const boost=hero.role==='cleric'?1+hero.stats.healing/200:1;
+    const boost=1+hero.stats.healing/200;
+    const supported=(h,type,amount)=>{if(amount>0)(event.supported || (event.supported=[])).push({heroId:h.id,effect:type,amount});};
+    const afflicted=(type,amount)=>{if(amount>0)(event.afflicted || (event.afflicted=[])).push({effect:type,amount});};
+    const shield=(h,amount)=>{const before=h.shield;h.shield=Math.min(h.stats.maxHp,h.shield+amount);supported(h,'shield',h.shield-before);};
     if (effect.heal) heal(target,scaled(target.stats.maxHp*effect.heal),event);
     if (effect.healAll) state.heroes.forEach(h=>heal(h,scaled(h.stats.maxHp*effect.healAll*boost),event));
-    if (effect.mana) restoreMana(target,scaled(effect.mana));
-    if (effect.manaAll) state.heroes.forEach(h=>restoreMana(h,scaled(effect.manaAll)));
-    if (effect.shield) state.heroes.forEach(h=>{h.shield=Math.min(h.stats.maxHp,h.shield+scaled(h.stats.maxHp*effect.shield));});
-    if (effect.shieldSelf) hero.shield=Math.min(hero.stats.maxHp,hero.shield+scaled(hero.stats.maxHp*effect.shieldSelf));
-    if (effect.cleanse) (effect.healAll?state.heroes:[target]).forEach(h=>{h.weakened=false;});
-    if (effect.weakenBoss) state.bossWeakness=Math.max(state.bossWeakness || 0,effect.weakenBoss);
-    if (effect.poison) state.poison={turns:effect.poison,damage:scaled(hero.stats.damage*.35),heroId:hero.id};
-    if (effect.haste) state.heroes.forEach(h=>Object.keys(h.cooldowns).forEach(id=>{if (h.id!==hero.id || id!==event.skillId) h.cooldowns[id]=Math.max(0,h.cooldowns[id]-effect.haste);}));
+    if (effect.mana) supported(target,'mana',restoreMana(target,scaled(effect.mana)));
+    if (effect.manaAll) state.heroes.forEach(h=>supported(h,'mana',restoreMana(h,scaled(effect.manaAll))));
+    if (effect.shield) state.heroes.forEach(h=>shield(h,scaled(h.stats.maxHp*effect.shield)));
+    if (effect.shieldSelf) shield(hero,scaled(hero.stats.maxHp*effect.shieldSelf));
+    if (effect.cleanse) (effect.healAll?state.heroes:[target]).forEach(h=>{if(h.weakened)supported(h,'cleanse',1);h.weakened=false;});
+    if (effect.weakenBoss) {const before=state.bossWeakness || 0;state.bossWeakness=Math.max(before,effect.weakenBoss);afflicted('weaken',state.bossWeakness-before);}
+    if (effect.poison) {state.poison={turns:effect.poison,damage:scaled(hero.stats.damage*.35),heroId:hero.id};afflicted('poison',state.poison.damage);}
+    if (effect.haste) state.heroes.forEach(h=>{let turns=0;Object.keys(h.cooldowns).forEach(id=>{if(h.id!==hero.id || id!==event.skillId){const before=h.cooldowns[id];h.cooldowns[id]=Math.max(0,before-effect.haste);turns+=before-h.cooldowns[id];}});supported(h,'haste',turns);});
   }
   function normalizeState(previous) {
     const state=copy(previous), migrated=new Map();
@@ -187,7 +227,7 @@
     (state.rewards || []).forEach(r=>{r.heroId=identity(r.heroId);});
     if (state.lastEvent) {
       if (state.lastEvent.heroId) state.lastEvent.heroId=identity(state.lastEvent.heroId);
-      ['targets','healed','rewards'].forEach(key=>(state.lastEvent[key] || []).forEach(e=>{e.heroId=identity(e.heroId);}));
+      ['targets','healed','supported','rewards'].forEach(key=>(state.lastEvent[key] || []).forEach(e=>{e.heroId=identity(e.heroId);}));
     }
     if (!state.heroes.every(h=>h.progressionVersion===1)) {
       state.heroes=state.heroes.map(h=>{
@@ -197,6 +237,7 @@
     state.heroArchive=state.heroArchive || {}; state.rewards=state.rewards || [];
     if (state.lootAwarded===undefined) state.lootAwarded=state.status!=='active';
     state.bossWeakness=state.bossWeakness || 0; state.poison=state.poison || null;
+    state.bossMaxMp=BOSS_MAX_MP;state.bossMp=state.bossMp===undefined?BOSS_MAX_MP:int(state.bossMp,0,BOSS_MAX_MP);
     return state;
   }
   // Pick only learned, affordable, ready skills. Support becomes valuable when
@@ -241,7 +282,7 @@
     if (state.status==='active') {
       const boss=bossById(state.bossId);
       state=reduce(state,{type:'boss',id:action.id,encounterId:state.encounterId,expectedRevision:state.revision,
-        ultimate:state.charge>=boss.chargeMax,timing:randomUnit(state.encounterId+':'+action.spinId+':boss')*.75});
+        ultimate:state.charge>=boss.chargeMax && state.bossMp>=BOSS_SKILL_MP,timing:randomUnit(state.encounterId+':'+action.spinId+':boss')*.75});
       enemyEvent=state.lastEvent;
     }
     state.revision=(previous && previous.revision || 0)+1;
@@ -264,7 +305,7 @@
       heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=h.stats.maxMp;h.cooldowns={};h.shield=0;h.weakened=false;h.mythicalUsed=false;h.correctActions=0;});
       const bossMaxHp=Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier);
       return {schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
-        bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
+        bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
         bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,rewards:[],lootAwarded:false,lastEvent:event};
     }
     if (!previous || action.encounterId!==previous.encounterId) fail('This encounter has changed. Reload its latest progress.');
@@ -272,6 +313,7 @@
     if (action.type==='sync') {
       if (action.expectedRevision!==state.revision) fail('The class changed on another screen. Try again.');
       if (action.command) {
+        if (action.command==='advance' && state.status==='active') fail('End the active encounter before changing advanced jobs.');
         if (state.pending) fail('Resolve the selected answer before changing a hero.');
         const hero=state.heroes.find(h=>h.id===action.heroId);
         if (!hero) fail('This student is no longer in the class.');
@@ -301,14 +343,14 @@
       if (!state.pending || action.turnId!==state.pending.id) fail('This answer was already resolved or belongs to an older turn.');
       if (!['correct','incorrect','skip'].includes(action.outcome)) fail('Choose Correct, Incorrect or Skip.');
       const hero=state.heroes.find(h=>h.id===state.pending.heroId);
-      Object.assign(event,{heroId:hero.id,role:hero.role,outcome:action.outcome,damage:0,critical:false,command:action.command || 'attack'});
+      Object.assign(event,{heroId:hero.id,role:hero.role,job:hero.job || null,outcome:action.outcome,damage:0,critical:false,command:action.command || 'attack'});
       if (action.outcome==='correct') {
         let effect={power:1}, skill=null, itemEntry=null;
         const gear=equipmentEffect(hero), target=action.targetId?state.heroes.find(h=>h.id===action.targetId):hero;
         if (!target) fail('Choose a teammate in this encounter.');
         if (event.command==='skill') {
           skill=skillById(action.skillId);
-          if (!skill || skill.role!==hero.role || skill.passive || !hero.learnedSkills.includes(skill.id)) fail('Learn that active skill first.');
+          if (!activeSkill(hero,skill) || skill.passive || !hero.learnedSkills.includes(skill.id)) fail('Learn that active skill first.');
           if ((hero.cooldowns[skill.id] || 0)>0) fail('That skill is cooling down. Use another command.');
           if (hero.mp<skill.mpCost) fail('Not enough MP. Attack to recover MP or use an Ether.');
           effect=skill.effect; event.skillId=skill.id; event.move=skill.name;
@@ -350,11 +392,13 @@
       if (state.pending) fail('Resolve the selected answer before the boss turn.');
       const ultimate=!!action.ultimate;
       if (ultimate && state.charge<boss.chargeMax) fail('The ultimate is not charged yet.');
-      if (!ultimate && state.charge>=boss.chargeMax) fail('Ultimate is ready. Trigger it before another normal attack.');
+      if (ultimate && state.bossMp<BOSS_SKILL_MP) fail('Not enough enemy MP. Use a normal attack to recover MP.');
+      if (!ultimate && state.charge>=boss.chargeMax && state.bossMp>=BOSS_SKILL_MP) fail('Ultimate is ready. Trigger it before another normal attack.');
       if (action.timing!==undefined && (!Number.isFinite(action.timing) || action.timing<0 || action.timing>1)) fail('Stop the timing meter inside the bar.');
       const timing=action.timing===undefined?.5:action.timing, multiplier=timingMultiplier(timing);
+      const manaBefore=state.bossMp;state.bossMp=ultimate?state.bossMp-BOSS_SKILL_MP:Math.min(BOSS_MAX_MP,state.bossMp+BOSS_ATTACK_MP);
       const living=state.heroes.filter(h=>h.hp>0),focus=living[state.bossTurns%living.length],targets=ultimate || boss.playstyle==='splash'?living:[focus];
-      Object.assign(event,{ultimate,move:ultimate?boss.ultimateName:boss.attackName,effect:boss.playstyle,timing,multiplier,zone:timing>=.85?'red':timing>=.55?'orange':'black'});
+      Object.assign(event,{ultimate,manaBefore,manaAfter:state.bossMp,manaCost:ultimate?BOSS_SKILL_MP:0,manaRestored:ultimate?0:state.bossMp-manaBefore,move:ultimate?boss.ultimateName:boss.attackName,effect:boss.playstyle,timing,multiplier,zone:timing>=.85?'red':timing>=.55?'orange':'black'});
       targets.forEach(h=>{
         const scale=ultimate?1.4:boss.playstyle==='splash'?.6:1;
         const raw=(18+h.stats.maxHp*.07)*boss.attackMultiplier*scale;
@@ -377,6 +421,6 @@
   }
   // The multiplier is private: manual answer payloads cannot amplify combat.
   function reduce(previous,action) { return apply(previous,action); }
-  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,ITEMS,RARITIES,bossById,skillById,itemById,heroFromStudent,
-    reduce,cleanHero,configureHero,normalizeState,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,xpForLevel,timingMultiplier,equipmentEffect,statsFor,rollReward};
+  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,bossById,skillById,itemById,heroFromStudent,
+    reduce,cleanHero,configureHero,normalizeState,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,statsFor,rollReward};
 });

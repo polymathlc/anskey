@@ -214,3 +214,58 @@ test('server and browser game artifacts are byte-for-byte identical',()=>{
   const fs=require('node:fs'),path=require('node:path');
   for(const name of ['battle-core.js','battle-content.js','battle-bosses.js'])assert.deepEqual(fs.readFileSync(path.resolve(__dirname,'../hero-game',name)),fs.readFileSync(path.resolve(__dirname,'../../',name)));
 });
+
+
+function assistRequest({studentId='sam',helpedStudentId='alex',spinId=aid(),id=aid(),classId='Saturday'}={}) {
+  return {type:'assist',classId,studentId,helpedStudentId,action:{id,spinId}};
+}
+test('assist awards exactly 6 canonical XP without starting combat or changing marks',async()=>{
+  const {call,db}=setup(),request=assistRequest();
+  const result=await call(teacher,{...request,xp:99999});
+  assert.equal(result.hero.xp,6);assert.equal(result.assist.xp,6);assert.equal(result.state,null);
+  assert.equal(db.data.get(profilePath('sam')).hero.xp,6);assert.equal(db.data.has(classPath('Saturday')),false);
+  assert.equal(db.data.get('students/sam').marks,undefined);assert.equal([...db.data.keys()].some(p=>p.startsWith('awards/')),false);
+});
+test('assist is teacher-only, requires two current roster students and a valid spin',async()=>{
+  const {call,db}=setup(),before=JSON.stringify([...db.data]);
+  await assert.rejects(call(pupil('sam'),assistRequest()),/teacher/);
+  await assert.rejects(call(teacher,assistRequest({studentId:'alex'})),/another student/);
+  await assert.rejects(call(teacher,assistRequest({classId:'Sunday'})),/Both students/);
+  await assert.rejects(call(teacher,assistRequest({studentId:'gone'})),/Both students/);
+  await assert.rejects(call(teacher,assistRequest({spinId:'bad'})),/Spin/);
+  assert.equal(JSON.stringify([...db.data]),before);
+});
+test('same helper and question deduplicates even with distinct action IDs and concurrent requests',async()=>{
+  const {call,db}=setup(),request=assistRequest();
+  const results=await Promise.all([call(teacher,request),call(teacher,{...request,action:{...request.action,id:aid()}}),call(teacher,request)]);
+  assert.equal(results.filter(x=>x.duplicate).length,2);assert.equal(db.data.get(profilePath('sam')).hero.xp,6);
+  assert.equal([...db.data.keys()].filter(p=>p.includes('/assists/')).length,1);
+  const next=await call(teacher,assistRequest());assert.equal(next.hero.xp,12);
+});
+test('assist in an encounter changes only helper progression, without another action or enemy reply',async()=>{
+  const {call,db}=setup(),state=await begin(call),beforeSam=state.heroes.find(h=>h.studentId==='sam');
+  const result=await call(teacher,assistRequest());
+  assert.equal(result.state.bossHp,state.bossHp);assert.equal(result.state.bossMp,state.bossMp);assert.equal(result.state.charge,state.charge);
+  assert.equal(result.state.bossTurns,state.bossTurns);assert.equal(result.state.correctCount,state.correctCount);assert.equal(result.state.actionCount,state.actionCount);
+  assert.deepEqual(result.state.lastEvent,state.lastEvent);assert.equal(result.hero.hp,beforeSam.hp);assert.equal(result.hero.mp,beforeSam.mp);
+  assert.equal(result.state.heroes.find(h=>h.studentId==='sam').xp,6);assert.equal(result.state.revision,state.revision+1);
+  assert.deepEqual(db.data.get(profilePath('sam')).activeEncounter,{classId:'Saturday',encounterId:state.encounterId});
+});
+test('assist rejects a helper locked in another encounter and never drops progression on failed save',async()=>{
+  const other=setup();await begin(other.call,'Sunday',[heroes[0]]);
+  await assert.rejects(other.call(teacher,assistRequest({studentId:'alex',helpedStudentId:'sam'})),/other active encounter/);
+  const {call,db}=setup(),request=assistRequest(),before=JSON.stringify([...db.data]);db.failNextCommit=true;
+  await assert.rejects(call(teacher,request),/commit failed/);assert.equal(JSON.stringify([...db.data]),before);
+  assert.equal((await call(teacher,request)).hero.xp,6);assert.equal((await call(teacher,request)).hero.xp,6);
+});
+test('level-15 advancement uses the approved canonical profile and stays blocked in active encounters',async()=>{
+  const {call,db}=setup();await claim(call,'one','alex');
+  const profile=db.data.get(profilePath('alex'));profile.hero=C.configureHero(profile.hero,{command:'class',role:'warrior'});
+  profile.hero.xp=C.xpForLevel(14);db.seed(profilePath('alex'),profile);
+  await assert.rejects(call(pupil('one'),{type:'configure',command:'advance',jobId:'paladin'}),/15/);
+  profile.hero.xp=C.xpForLevel(15);db.seed(profilePath('alex'),profile);
+  const advanced=await call(pupil('one'),{type:'configure',command:'advance',jobId:'paladin'});
+  assert.equal(advanced.hero.job,'paladin');assert.equal(advanced.hero.xp,C.xpForLevel(15));
+  await assert.rejects(call(pupil('two'),{type:'configure',studentId:'alex',command:'advance',jobId:'berserker'}),/another account/);
+  await begin(call);await assert.rejects(call(pupil('one'),{type:'configure',command:'advance',jobId:'berserker'}),/active encounter/);
+});

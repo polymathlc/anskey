@@ -114,6 +114,48 @@ try{
   check('reduced-motion turns bypass the animation timeline',Date.now()-started<1000);
   await page.emulateMedia({reducedMotion:'no-preference'});await page.evaluate(()=>document.getElementById('samples').style.display='none');await page.setViewportSize({width:375,height:760});await reset('ranger');await land();await phase('hero-impact');
   check('mobile fight remains within the viewport',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(output,'animated-mobile-arrow.png')});await settle();
+  await page.setViewportSize({width:1100,height:820});
+  await page.evaluate(()=>{
+    QuickBattle.close();document.getElementById('wheelModal').style.display='none';
+    const gallery=document.getElementById('samples');gallery.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);height:auto;gap:16px';
+    gallery.innerHTML=Object.values(ClassroomBattleContent.JOBS).map(job=>'<div style="text-align:center">'+ClassroomBattleAnimation.heroMarkup(job.role,{job:job.id,alt:job.name})+'<p>'+job.name+'</p></div>').join('');ClassroomBattleAnimation.mount(gallery);
+    const preview=document.createElement('div');preview.id='advancedPreview';preview.style.cssText='margin:24px auto;width:400px';document.body.appendChild(preview);
+  });
+  await page.waitForFunction(()=>document.querySelectorAll('#samples .cbaReady').length===8);
+  check('all eight jobs load their distinct idle/action sprite atlases',await page.evaluate(()=>new Set(Array.from(document.querySelectorAll('#samples .cbaFrames')).map(node=>node.style.backgroundImage)).size===8));
+  for(const [skillId,family] of [['berserker-scarlet-cyclone','fury'],['beastmaster-wolf-pounce','spirit-wolf'],['beastmaster-hawk-dive','spirit-hawk'],['beastmaster-phoenix-flight','spirit-phoenix'],['archmage-frost-nova','blizzard']]){
+    await page.evaluate(skillId=>{const skill=ClassroomBattleCore.skillById(skillId);window.__preview=ClassroomBattleAnimation.previewSkill(document.getElementById('advancedPreview'),{id:'preview',name:'Preview hero',role:skill.role,job:skill.job},skill);},skillId);
+    await page.waitForFunction(family=>!!document.querySelector('#advancedPreview .cbaFx-'+family),family);
+    check(skillId+' previews its matching generated effect',await page.locator('#advancedPreview').getAttribute('data-skill-animation')===skillId);
+    await page.evaluate(()=>__preview.cancel());
+  }
+  await page.evaluate(()=>{const skill=ClassroomBattleCore.skillById('paladin-oath-shield');window.__preview=ClassroomBattleAnimation.previewSkill(document.getElementById('advancedPreview'),{id:'preview',name:'Preview hero',role:skill.role,job:skill.job},skill);});
+  await page.waitForFunction(()=>!!document.querySelector('#advancedPreview .cbaFx-ward'));
+  check('zero-damage utility preview shows a shield and no invented numeric gain',await page.locator('#advancedPreview').textContent().then(text=>text.includes('Shield')&&!text.includes('+0')));
+  await page.evaluate(()=>__preview.cancel());
+  await page.evaluate(()=>{
+    const preview=document.getElementById('advancedPreview'),hero={id:'preview',name:'Ari',role:'mage',job:'chronomancer'};
+    preview.innerHTML=ClassroomBattleAnimation.skillPreviewMarkup(ClassroomBattleCore.skillById('chronomancer-time-surge'),hero);ClassroomBattleAnimation.mount(preview);
+    window.__utilityEvent={type:'auto',skillId:'chronomancer-time-surge',move:'Time Surge',damage:0,healed:[],supported:[{heroId:'preview',effect:'mana',amount:15},{heroId:'preview',effect:'shield',amount:23},{heroId:'preview',effect:'cleanse',amount:1},{heroId:'preview',effect:'haste',amount:2}],afflicted:[{effect:'weaken',amount:.2}]};window.__utilityBefore=JSON.stringify(__utilityEvent);
+    window.__preview=ClassroomBattleAnimation.playDuel(preview,{hero,event:__utilityEvent});
+  });
+  await page.waitForFunction(()=>document.querySelector('#advancedPreview')?.dataset.cbaPhase==='hero-impact');
+  check('saved mana shield cleanse haste and weakness records animate despite zero damage',await page.evaluate(()=>{const area=document.getElementById('advancedPreview');return ['ward','arcane','purify','time'].every(f=>area.querySelector('.cbaFx-'+f))&&area.textContent.includes('+15 MP')&&area.textContent.includes('Shield +23')&&JSON.stringify(__utilityEvent)===__utilityBefore;}));
+  await page.screenshot({path:path.join(output,'advanced-jobs-and-support.png')});await page.evaluate(()=>__preview.cancel());
+  check('cancel removes utility effects and their pending motion',await page.locator('#advancedPreview .cbaEffect').count()===0);
+  const slow=await context.newPage();await slow.goto(pathToFileURL(fixture).href);
+  await slow.evaluate(()=>{
+    const NativeImage=Image;window.Image=class extends NativeImage{set src(value){if(value.endsWith('-advanced-sheet.png')){const ready=this.onload;this.onload=()=>setTimeout(()=>ready(),500);}super.src=value;}};
+    const area=document.getElementById('samples'),skill=ClassroomBattleCore.skillById('archmage-frost-nova');window.__slowPreview=ClassroomBattleAnimation.previewSkill(area,{id:'preview',name:'Ari',role:'mage',job:'archmage'},skill);
+  });
+  await slow.waitForTimeout(150);
+  check('a first cast waits for its generated effect pixels before the animation clock starts',await slow.locator('.cbaPlaying').count()===0);
+  await slow.waitForFunction(()=>!!document.querySelector('.cbaFx-blizzard'));
+  check('delayed generated pixels still receive a visible impact frame',await slow.locator('.cbaEffect').count()>0);
+  await slow.evaluate(()=>{__slowPreview.cancel();const skill=ClassroomBattleCore.skillById('berserker-scarlet-cyclone');window.__cancelledLoad=ClassroomBattleAnimation.previewSkill(document.getElementById('samples'),{id:'preview',name:'Ari',role:'warrior',job:'berserker'},skill);__cancelledLoad.cancel();});
+  await slow.waitForTimeout(700);
+  check('cancelling while a generated sheet loads prevents late playback',await slow.locator('.cbaPlaying,.cbaEffect').count()===0);
+  await slow.close();
   const fallback=await context.newPage();await fallback.goto(pathToFileURL(fixture).href);
   await fallback.evaluate(()=>{const NativeImage=Image;window.Image=class extends NativeImage{set src(value){if(value.endsWith('warrior-sheet.png'))queueMicrotask(()=>this.onerror());else super.src=value;}};const samples=document.getElementById('samples');samples.innerHTML=ClassroomBattleAnimation.heroMarkup('warrior');ClassroomBattleAnimation.mount(samples);});
   await fallback.waitForFunction(()=>document.querySelector('#samples img').naturalWidth>0);

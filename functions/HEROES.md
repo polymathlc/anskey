@@ -20,9 +20,10 @@ All routes use POST JSON `{type, ...fields}` and the `Authorization: Bearer ...`
 | `catalog` | Optional `lessonSlot` | `{slots:[{id,name}],students:[{id,name,lessonSlots,status}]}` |
 | `claim` | `studentId`, `lessonSlot` | Pending self view |
 | `cancelClaim` | None | Unclaimed self view |
-| `configure` | `command: class/learn/equip`; `role`/`skillId`/`itemId` | Updated owned hero; blocked during active encounter |
+| `configure` | `command: class/advance/learn/equip`; `role`/`jobId`/`skillId`/`itemId` | Updated owned hero; blocked during active encounter |
 | `claims` | Teacher only | `{claims,activeEncounters}` including locks on unclaimed profiles |
 | `approve`, `reject`, `unlink` | Teacher only, `studentId` | Updated claim status |
+| `assist` | Teacher only, `classId`, helper `studentId`, `helpedStudentId`, `action:{id,spinId}` | `{hero,state,assist,duplicate?}` |
 | `endEncounter` | Teacher only, `studentId` | `{state}` or idempotent `{status:'ended'}` |
 | `battle` | Teacher only, `classId`, manual `action` (direct `auto` is rejected) | `{state}` |
 | `wheelAward` | Teacher only, `classId`, `studentId`, positive whole `delta` (1–10000), optional `reason`, `action:{type:'auto',id,spinId,heroId,heroes,bossId,encounterId?,expectedRevision?}` | `{state,award:{id,studentId,delta,marks},duplicate?}` |
@@ -30,6 +31,10 @@ All routes use POST JSON `{type, ...fields}` and the `Authorization: Bearer ...`
 `configure` may include `studentId` only for the teacher or the student's own approved binding. Optional `expectedRevision` checks the canonical profile version. Class changes preserve skills learned in other classes and current inventory; they do not grant new XP or skill points.
 
 Quick wheel spins only select a student. `wheelAward` derives combat power from `delta` and commits marks, the standard `awards` history (Firestore timestamp), active school-wide boss point damage, battle state, all canonical profiles and the receipt atomically. Its unique award ID is separate from the saved spin ID. Reusing a receipt with different student/points/spin/reason is rejected; an identical retry returns the latest battle and current marks without repeating the award. A failed or stale transaction writes nothing. The client keeps uncertain requests in session storage and offers Retry. Deploy the updated endpoint before the v1.118 frontend; no additional shared-rules migration is required for this change.
+
+`assist` is teacher-only: `{classId,studentId,helpedStudentId,action:{id,spinId}}`. It returns `{hero,state,assist,duplicate?}` and always grants 6 XP, ignoring client XP amounts. Both students must belong to the Lesson slot and must differ. A hash of spin ID and helper ID identifies the immutable receipt under the class’s `assists` collection, so a fresh action ID cannot repeat the same helper/question bonus. The canonical profile and an existing encounter’s helper snapshot update atomically without a battle action, marks, enemy response or resource costs. An absent encounter stays absent. Cross-lesson active locks still apply.
+
+Advanced jobs live in `hero.job` while `hero.role` retains the base class. `configure` with `command:'advance',jobId` checks earned level 15, the matching base class, ownership and encounter locks. The eight job trees and their bonuses are canonical game content. Inactive job skills cannot be cast or provide passive bonuses. Loot equips the highest-rarity equipment deterministically after granting rewards; ties retain current equipment, and equipping alone cannot heal or refill mana. Enemy state gains `bossMp`/`bossMaxMp`; legacy states normalize to 60 MP, ultimate skills spend 30, normal attacks restore 15. Saved support effects include actual recipient IDs and amounts for shields, mana, cleanse and haste, plus poison/weaken records; animations never infer or mutate combat rewards.
 
 ## Build and deployment
 

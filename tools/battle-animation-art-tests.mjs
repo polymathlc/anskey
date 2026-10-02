@@ -11,7 +11,10 @@ const specs = [
   ['mage', 4, 2, 'mage-cleric-provenance.json', 0],
   ['cleric', 4, 2, 'mage-cleric-provenance.json', 1],
   ...['slash', 'fire', 'ice', 'lightning', 'arrow', 'heal'].map((role, index) =>
-    [role, 2, 2, 'effects-provenance.json', index])
+    [role, 2, 2, 'effects-provenance.json', index]),
+  ...['paladin','berserker','sharpshooter','beastmaster','archmage','chronomancer','hierophant','oracle'].map((job,index)=>[job,4,2,'advancement-provenance.json',index]),
+  ...['warrior','ranger','mage','cleric'].map((role,index)=>[role+'-advanced',4,4,'advancement-provenance.json',index+8]),
+  ['beastmaster-effects',4,4,'beastmaster-effects-source.json',0]
 ];
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const crcTable = Array.from({ length: 256 }, (_, value) => {
@@ -124,10 +127,10 @@ if (process.argv.includes('--write-manifest')) {
 }
 const manifest = JSON.parse(fs.readFileSync(manifestUrl, 'utf8'));
 
-test('all ten generated animation sheets have intact PNG data and a matching asset manifest', () => {
+test('all twenty-three generated animation sheets have intact PNG data and a matching asset manifest', () => {
   assert.equal(manifest.schemaVersion, 1);
-  assert.equal(manifest.assets.length, 10);
-  assert.equal(new Set(manifest.assets.map(asset => asset.file)).size, 10);
+  assert.equal(manifest.assets.length, 23);
+  assert.equal(new Set(manifest.assets.map(asset => asset.file)).size, 23);
   for (const actual of inspected) {
     const { frameDetails, ...expected } = actual;
     assert.deepEqual(manifest.assets.find(asset => asset.file === actual.file), expected, actual.file + ' manifest matches bytes');
@@ -135,11 +138,11 @@ test('all ten generated animation sheets have intact PNG data and a matching ass
     assert.ok(Math.abs(actual.width / actual.cols - actual.height / actual.rows) <= 1, actual.file + ' has square animation cells');
     const [file, pointer] = actual.promptManifest.split('#');
     const provenance = JSON.parse(fs.readFileSync(new URL(file, directory), 'utf8'));
-    const source = provenance.assets[Number(pointer.split('/').pop())];
+    const source = provenance.assets ? provenance.assets[Number(pointer.split('/').pop())] : provenance;
     assert.equal(source.file || source.name, actual.file, 'prompt belongs to this sheet');
     assert.ok(source.prompt.length > 100 && /pixel/i.test(source.prompt), 'full generation prompt retained');
   }
-  assert.ok(inspected.reduce((sum, asset) => sum + asset.bytes, 0) < 8 * 1024 * 1024, 'entire animation library below 8 MiB');
+  assert.ok(inspected.reduce((sum, asset) => sum + asset.bytes, 0) < 24 * 1024 * 1024, 'entire animation library below 24 MiB');
 });
 for (const actual of inspected) {
   test(actual.file + ' contains real transparency and nonempty, distinct animation frames', () => {

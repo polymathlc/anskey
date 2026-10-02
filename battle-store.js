@@ -23,6 +23,17 @@
           onState(snap.exists ? snap.data() : null);
         }, onError);
       },
+      async assist(request) {
+        authorize();
+        const frozen = JSON.parse(JSON.stringify(request));
+        if (!/^[a-zA-Z0-9_-]{8,100}$/.test(frozen.action?.id || '')) throw new Error('Invalid assist ID.');
+        const api = transport || (typeof window !== 'undefined' && window.ClassroomHeroAPI && window.ClassroomHeroAPI.request);
+        if (!api) throw new Error('Hero saving is loading. Refresh Ans Key and try again.');
+        const result = await api({...frozen,type:'assist',classId},{canSend:canWrite});
+        authorize();
+        if (!result?.assist || !result.hero) throw new Error('The assist could not be confirmed. Retry the same assist.');
+        return result;
+      },
       async award(request) {
         authorize();
         const frozen = JSON.parse(JSON.stringify(request));
