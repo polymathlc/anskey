@@ -2,7 +2,8 @@
 
 const Core = require('./hero-game/battle-core');
 const { HeroError } = require('./hero-service');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
+const { Timestamp } = require('firebase-admin/firestore');
 const clone = value => JSON.parse(JSON.stringify(value));
 const docData = snap => snap.exists ? snap.data() : null;
 const docs = snap => snap.docs || [];
@@ -61,7 +62,7 @@ function createHeroRepository(db, { now = Date.now } = {}) {
   async function execute(actor, body) {
     const { root, classes } = realm(actor), profiles = root.collection('profiles'), accounts = root.collection('accounts');
     const accountRef = accounts.doc(actor.uid), clock = now();
-    if (['claims','approve','reject','unlink','battle','endEncounter'].includes(body.type)) requireTeacher(actor);
+    if (['claims','approve','reject','unlink','battle','wheelAward','endEncounter'].includes(body.type)) requireTeacher(actor);
     if (body.type === 'catalog' || body.type === 'claims') {
       const [rosterSnap, profileSnap] = await Promise.all([db.collection('students').get(), profiles.get()]);
       const roster = docs(rosterSnap).map(s => ({...s.data(),id:s.id})), byId = new Map(docs(profileSnap).map(s => [s.id,s.data()]));
@@ -88,7 +89,8 @@ function createHeroRepository(db, { now = Date.now } = {}) {
       }
       return battle(actor,{type:'battle',classId:lock.classId,action:{type:'end',id:randomUUID(),encounterId:lock.encounterId,expectedRevision:state.revision}},{root,classes,profiles},clock);
     }
-    if (body.type === 'battle') return battle(actor, body, {root,classes,profiles}, clock);
+    if (body.type === 'battle' && body.action?.type === 'auto') deny('points_required','Refresh the wheel and award points for a correct answer to start the fight.',400);
+    if (body.type === 'battle' || body.type === 'wheelAward') return battle(actor, body, {root,classes,profiles}, clock);
     return db.runTransaction(async tx => {
       const account = docData(await tx.get(accountRef));
       if (body.type === 'me' && !account?.studentId) return { status:'unclaimed' };
@@ -152,12 +154,38 @@ function createHeroRepository(db, { now = Date.now } = {}) {
   async function battle(actor, body, refs, clock) {
     const {classes,profiles} = refs, classId=body.classId, classRef=classes.doc(key(classId)), action=clone(body.action || {});
     if (!/^[A-Za-z0-9_-]{8,100}$/.test(action.id || '')) deny('invalid_action','Invalid battle action.',400);
+    let awardRequest=null;
+    if (body.type === 'wheelAward') {
+      const studentId=studentKey(body.studentId);
+      if (!Number.isSafeInteger(body.delta) || body.delta < 1 || body.delta > 10000) deny('invalid_points','Award 1 to 10,000 whole points for a correct answer.',400);
+      if (action.type !== 'auto' || action.heroId !== 'student:'+studentId || !/^[A-Za-z0-9_-]{8,100}$/.test(action.spinId || '')) deny('invalid_award','Select a roster student on the wheel before awarding points.',400);
+      if (body.reason !== undefined && (typeof body.reason !== 'string' || body.reason.length > 1000)) deny('invalid_reason','Use an award reason of at most 1,000 characters.',400);
+      awardRequest={studentId,delta:body.delta,spinId:action.spinId,reason:body.reason || 'Correct answer on the name wheel'};
+      // The browser can select a skill automatically, but only this atomic
+      // marks award is allowed to determine its battle power.
+      action.points=body.delta;
+    }
     const receiptRef=classRef.collection('actions').doc(action.id);
     return db.runTransaction(async tx => {
       const [oldReceipt,oldSnap,rosterSnap] = await Promise.all([tx.get(receiptRef),tx.get(classRef),tx.get(db.collection('students'))]);
       let old=docData(oldSnap);
-      if (oldReceipt.exists) return {state:old};
       const roster=docs(rosterSnap).map(s=>({...s.data(),id:s.id})), rosterById=new Map(roster.map(s=>[s.id,s]));
+      if (oldReceipt.exists) {
+        if (!awardRequest) return {state:old};
+        const receipt=oldReceipt.data();
+        if (JSON.stringify(receipt.awardRequest) !== JSON.stringify(awardRequest) || !receipt.award) deny('award_changed','This award was already saved with different details. Refresh the wheel.');
+        const currentStudent=rosterById.get(awardRequest.studentId);
+        return {state:old,award:{...receipt.award,...(currentStudent ? {marks:currentStudent.marks || 0} : {})},duplicate:true};
+      }
+      let awardedStudent=null,award=null,schoolBosses=[];
+      if (awardRequest) {
+        awardedStudent=rosterById.get(awardRequest.studentId);
+        if (!awardedStudent || !slots(awardedStudent).includes(classId)) deny('roster_changed','That student is no longer in this lesson slot. Refresh the wheel.',409);
+        const marks=awardedStudent.marks || 0;
+        if (!Number.isSafeInteger(marks) || !Number.isSafeInteger(marks+awardRequest.delta)) deny('invalid_balance','This marks balance needs to be corrected before awarding points.',409);
+        award={id:action.id,studentId:awardRequest.studentId,delta:awardRequest.delta,marks:marks+awardRequest.delta};
+        schoolBosses=docs(await tx.get(db.collection('bosses').where('active','==',true)));
+      }
       const starting=action.type==='start' || (action.type==='auto' && (!old || old.status!=='active'));
       const syncing=action.type==='sync' && !action.command;
       const incoming=(starting || syncing || (action.type==='auto' && Array.isArray(action.heroes))) ? action.heroes : old?.heroes;
@@ -167,7 +195,7 @@ function createHeroRepository(db, { now = Date.now } = {}) {
         if (student) {
           // A departing student can finish/end their existing encounter; new
           // encounters and roster updates must use the current lesson slot.
-          if ((starting || syncing) && !slots(student).includes(classId)) deny('roster_changed','The lesson roster changed. Refresh the wheel.',409);
+          if ((starting || syncing || action.type==='auto') && !slots(student).includes(classId)) deny('roster_changed','The lesson roster changed. Refresh the wheel.',409);
           return student;
         }
         if (!/^wheel-[a-z0-9]+$/.test(id)) {
@@ -235,6 +263,7 @@ function createHeroRepository(db, { now = Date.now } = {}) {
         next=Core.reduce(seeded,action);
       } catch(e) { deny('battle_changed',e.message,409); }
       if (next===prior) {
+        if (award) deny('award_changed','This battle action was already resolved. Refresh the wheel before awarding points.');
         if (!missing.length && JSON.stringify(prior)===JSON.stringify(docData(oldSnap))) return {state:old};
         next={...prior,revision:prior.revision+1,lastEvent:{id:action.id,type:'sync',targets:[],healed:[]}};
       }
@@ -249,8 +278,21 @@ function createHeroRepository(db, { now = Date.now } = {}) {
         } else if (!activeIds.has(id) && profile.activeEncounter?.classId===classId) profile.activeEncounter=null;
         tx.set(profiles.doc(id),profile);
       }
-      tx.set(classRef,next); tx.set(receiptRef,{encounterId:next.encounterId,revision:next.revision,type:action.type});
-      return {state:next};
+      if (award) {
+        const studentId=awardedStudent.id,studentData=docs(rosterSnap).find(s=>s.id===studentId).data();
+        tx.set(db.collection('students').doc(studentId),{...studentData,marks:award.marks});
+        const ledgerId='wheel-'+createHash('sha256').update(actor.teacherId+'\0'+classId+'\0'+action.id).digest('hex');
+        const timestamp=Timestamp.fromMillis(clock);
+        tx.set(db.collection('awards').doc(ledgerId),{studentId,studentName:awardedStudent.name || '',delta:award.delta,reason:awardRequest.reason,source:'annotator',by:actor.email,undone:false,createdAt:timestamp});
+        for (const snap of schoolBosses) {
+          const boss=snap.data();
+          if (boss.defeated || !Number.isFinite(boss.hp) || boss.hp<=0) continue;
+          const hp=Math.max(0,boss.hp-award.delta);
+          tx.set(db.collection('bosses').doc(snap.id),{...boss,hp,...(hp===0 ? {defeated:true,defeatedAt:timestamp} : {})});
+        }
+      }
+      tx.set(classRef,next); tx.set(receiptRef,{encounterId:next.encounterId,revision:next.revision,type:action.type,...(award ? {awardRequest,award} : {})});
+      return {state:next,...(award ? {award} : {})};
     });
   }
   return {execute};

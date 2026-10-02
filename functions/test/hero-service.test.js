@@ -26,6 +26,11 @@ test('only matched teacher UID and verified teacher email grant teacher privileg
     const h=harness({auth:{async verifyIdToken(){return {...validUser,uid,email:TEACHER_EMAIL};}}});await h.request();assert.equal(h.calls.find(x=>x[0]==='execute')[1].isTeacher,uid==='teacher');
   }
 });
+test('wheel awards use the same authenticated, AppCheck protected repository route',async()=>{
+  const h=harness({auth:{async verifyIdToken(){return {...validUser,uid:'teacher',email:TEACHER_EMAIL};}}});
+  const body={type:'wheelAward',classId:'Saturday',studentId:'alex',delta:2,action:{id:'award-12345678',spinId:'spin-12345678',type:'auto'}};
+  assert.equal((await h.request(body)).statusCode,200);const execute=h.calls.find(x=>x[0]==='execute');assert.equal(execute[1].isTeacher,true);assert.deepEqual(execute[2],body);assert.ok(h.calls.some(x=>x[0]==='appCheck'));
+});
 test('origin, HTTP method, JSON type and body bound fail before auth',async()=>{
   const h=harness();for(const opts of [{headers:{origin:'https://evil.example'}},{method:'GET'},{headers:{'content-type':'text/plain'}},{rawBody:Buffer.alloc(240001)}])assert.ok((await h.request(undefined,opts)).statusCode>=400);
   assert.deepEqual(h.calls,[]);assert.equal((await h.request(undefined,{method:'OPTIONS'})).statusCode,204);

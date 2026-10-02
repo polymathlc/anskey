@@ -23,6 +23,17 @@
           onState(snap.exists ? snap.data() : null);
         }, onError);
       },
+      async award(request) {
+        authorize();
+        const frozen = JSON.parse(JSON.stringify(request));
+        if (!/^[a-zA-Z0-9_-]{8,100}$/.test(frozen.action?.id || '')) throw new Error('Invalid points award ID.');
+        const api = transport || (typeof window !== 'undefined' && window.ClassroomHeroAPI && window.ClassroomHeroAPI.request);
+        if (!api) throw new Error('Hero saving is loading. Refresh Ans Key and try again.');
+        const result = await api({...frozen,type:'wheelAward',classId},{canSend:canWrite});
+        authorize();
+        if (!result?.award || !result.state) throw new Error('The points award could not be confirmed. Retry the same award.');
+        return result;
+      },
       async act(action) {
         authorize();
         const frozen = JSON.parse(JSON.stringify(action));

@@ -12,9 +12,13 @@ My Hero shows level, XP, skill points, a connected pixel skill tree and the trea
 
 ## Quick wheel fights
 
-The ordinary **Wheel** starts with **Quick fight** enabled. Choose a Lesson slot and spin: the called student's avatar faces the enemy, uses an appropriate available learned skill (or a normal attack), then the enemy responds automatically. It uses charged enemy skills when ready. The next spin after victory or defeat starts another random encounter and restores party HP/MP. The victory chest gives every hero their own reward.
+The ordinary **Wheel** starts with **Quick fight** enabled. Choose a Lesson slot and spin to select a student. Their avatar idles opposite the enemy; spinning does not spend MP, deal damage, grant XP, trigger an enemy reply or open treasure.
 
-Quick turns award combat XP, but never award answer marks or record a correct answer. Manual mark buttons remain available separately. Turn off Quick fight to use the ordinary name wheel. Open Battle for answer-driven commands and the boss timing meter. An unresolved manual answer must be finished there before Quick fight continues. Closing the wheel or switching lesson cancels an action that has not yet been dispatched; an already committed action remains saved and cannot execute twice.
+Award points with **+1 / +2 / +5 / +10 / Give** after a correct answer. The hero automatically chooses an available learned skill or normal attack, then the enemy replies if it survives. Attack damage is the rounded normal damage multiplied by awarded points, capped at remaining enemy HP: +1 = 1×, +5 = 5×. Healing, shields and poison damage scale too; each award grants one correct-answer turn and 12 XP, and enemy power stays unchanged. More than one award can be given to the same called student. Each award uses its own receipt.
+
+Points, the award history, school-wide boss damage and hero combat progress save in one server transaction. If a connection fails, **Retry +N points** checks the same award without counting it twice, including after reopening or reloading the wheel. Confirmed rejected changes unlock the controls so the roster or encounter can be corrected. The next points award after victory or defeat starts another random encounter and restores party HP/MP. Victory treasure goes to every hero.
+
+Turn off Quick fight to use the ordinary name wheel and marks buttons. Open Battle for manual answer-driven commands and the boss timing meter. An unresolved manual answer must be finished there before Quick fight continues. Closing the wheel or switching context cancels presentation; an already committed award remains saved.
 
 ## Generated animation
 
@@ -22,7 +26,7 @@ All four hero classes have four generated breathing idle frames and four action 
 
 After the server saves a quick turn, the hero animates, a generated effect appears, then the enemy responds. Warrior slashes strike the enemy, Ranger arrows travel across the duel, and Mage effects follow the selected skill path: Pyromancy uses fire, Frostcraft ice, and Arcanist lightning. Healing sparkles appear on heroes who actually received healing; affected teammates appear below the duel when needed. Damage numbers reflect the saved event. Health and victory treasure settle after the sequence, which takes about two seconds with an enemy response.
 
-The ten unchanged transparent PNG sheets in `assets/battle-pixel/animations/` were made with built-in ImageGen. Their 56 distinct frames, full generation/revision prompts, source filenames, and integrity manifest ship with the app. Sprite sheets preload for Quick fight; missing sheets retain the original static avatar. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. No server or rule change is needed for this animation release.
+The ten unchanged transparent PNG sheets in `assets/battle-pixel/animations/` were made with built-in ImageGen. Their 56 distinct frames, full generation/revision prompts, source filenames, and integrity manifest ship with the app. Sprite sheets preload for Quick fight; missing sheets retain the original static avatar. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. The points-driven Quick fight release requires the updated `ansKeyHeroes` service; no new rules migration is needed.
 
 ## Commands and progression
 

@@ -299,17 +299,73 @@ test('concurrent transaction retries consume an item once, learn once and award 
 
 const auto = (s, role = 'warrior', extra = {}) => {
   const spinId=id();
-  return C.reduce(s,{type:'auto',id:spinId,spinId,encounterId:s?.encounterId,expectedRevision:s?.revision,heroId:'student:register-'+role,heroes,bossId:'goblin',...extra});
+  return C.reduce(s,{type:'auto',id:spinId,spinId,points:1,encounterId:s?.encounterId,expectedRevision:s?.revision,heroId:'student:register-'+role,heroes,bossId:'goblin',...extra});
 };
-test('automatic wheel turn starts an encounter and resolves chosen skill and boss reply atomically',()=>{
-  const spinId=id(), action={type:'auto',id:spinId,spinId,heroId:heroes[0].id,heroes,bossId:'goblin'};
+test('an awarded answer starts an encounter and resolves chosen skill and boss reply atomically',()=>{
+  const spinId=id(), action={type:'auto',id:spinId,spinId,points:1,heroId:heroes[0].id,heroes,bossId:'goblin'};
   const s=C.reduce(null,action), repeat=C.reduce(null,action);
-  assert.deepEqual(s,repeat);assert.equal(s.revision,1);assert.equal(s.pending,null);assert.equal(s.correctCount,0);
+  assert.deepEqual(s,repeat);assert.equal(s.revision,1);assert.equal(s.pending,null);assert.equal(s.correctCount,1);
   assert.equal(s.lastEvent.type,'auto');assert.equal(s.lastEvent.skillId,'warrior-power-strike');assert.ok(s.lastEvent.damage>0);
   assert.equal(s.bossTurns,1);assert.ok(s.lastEvent.enemy.targets.length>0);assert.equal(s.heroes[0].xp,12);
   assert.equal(C.reduce(s,action),s);
-  assert.throws(()=>C.reduce(null,{...action,spinId:id()}),/saved wheel spin/);
-  assert.throws(()=>C.reduce(s,{...action,id:id(),spinId:'mismatch'}),/saved wheel spin/);
+  assert.ok(C.reduce(null,{...action,spinId:id()}).lastEvent.damage>0);
+  assert.throws(()=>C.reduce(s,{...action,id:id(),spinId:'bad'}),/saved wheel spin/);
+});
+test('Quick fight rejects missing, fractional, zero, negative and excessive point awards without mutation',()=>{
+  const state=start('goblin'), before=structuredClone(state);
+  for (const points of [undefined,null,'1',0,-1,.5,10001,Infinity,NaN,Number.MAX_SAFE_INTEGER+1]) {
+    assert.throws(()=>auto(state,'warrior',{points}),/Award between 1 and 10000 whole points/);
+    assert.deepEqual(state,before);
+  }
+  assert.equal(auto(state,'warrior',{points:10000}).lastEvent.points,10000);
+});
+test('awarded points multiply the rounded hero hit while enemy power, MP cost and XP remain one turn',()=>{
+  const state=start('goblin'), awardId=id(), spinId=id();state.bossHp=state.bossMaxHp=10000;
+  const one=auto(state,'warrior',{id:awardId,spinId,points:1});
+  const five=auto(state,'warrior',{id:awardId,spinId,points:5});
+  assert.equal(five.lastEvent.damage,one.lastEvent.damage*5);
+  assert.deepEqual(five.lastEvent.enemy,one.lastEvent.enemy);
+  assert.equal(five.heroes[0].mp,one.heroes[0].mp);
+  assert.equal(five.heroes[0].xp,12);assert.equal(one.heroes[0].xp,12);
+  assert.equal(five.correctCount,state.correctCount+1);
+  assert.equal(five.lastEvent.points,5);assert.equal(five.lastEvent.spinId,spinId);
+  assert.equal(five.lastAutoAwardId,awardId);
+});
+test('distinct awards can reward the same spin, but retrying an award never repeats a turn',()=>{
+  const spinId=id(), awardId=id();
+  const first=auto(null,'warrior',{id:awardId,spinId});
+  assert.equal(auto(first,'warrior',{id:awardId,spinId}),first);
+  const second=auto(first,'warrior',{id:id(),spinId,points:2});
+  assert.equal(second.lastAutoSpinId,spinId);assert.notEqual(second.lastAutoAwardId,awardId);
+  assert.equal(second.heroes[0].xp,24);assert.equal(second.correctCount,2);
+  assert.equal(second.bossTurns,2);assert.equal(second.revision,first.revision+1);
+  assert.equal(auto(second,'warrior',{id:second.lastAutoAwardId,spinId,points:2}),second);
+});
+test('point scaling cannot be injected into a manual answer payload or reducer arguments',()=>{
+  const state=apply(start(),'select',{heroId:heroes[0].id});
+  const action={id:id(),type:'answer',encounterId:state.encounterId,turnId:state.pending.id,outcome:'correct'};
+  assert.deepEqual(C.reduce(state,{...action,points:10000,multiplier:10000,powerMultiplier:10000},10000),C.reduce(state,action));
+});
+test('awarded points scale healing and shields with health caps and poison damage without extra duration',()=>{
+  const wounded=start('goblin');wounded.heroes.forEach(h=>h.hp=1);
+  const spinId=id(), awardId=id(), options={id:awardId,spinId};
+  const one=auto(wounded,'cleric',{...options,points:1}), two=auto(wounded,'cleric',{...options,points:2});
+  assert.equal(one.lastEvent.skillId,'cleric-healing-light');
+  for (const healed of one.lastEvent.healed) assert.equal(two.lastEvent.healed.find(h=>h.heroId===healed.heroId).amount,healed.amount*2);
+  const full=auto(wounded,'cleric',{...options,points:10000});
+  assert.ok(full.heroes.every(h=>h.hp<=h.stats.maxHp));
+  const shieldState=unlock(start('goblin'),'cleric','cleric-sanctuary');
+  const shieldOne=auto(shieldState,'cleric',{...options,points:1}),shieldFive=auto(shieldState,'cleric',{...options,points:5});
+  assert.equal(shieldOne.lastEvent.skillId,'cleric-sanctuary');
+  // The enemy targets the first hero, so inspect an untouched teammate's shield.
+  assert.equal(shieldFive.heroes[1].shield,shieldOne.heroes[1].shield*5);
+  const shieldCap=auto(shieldState,'cleric',{...options,points:10000});
+  assert.equal(shieldCap.heroes[1].shield,shieldCap.heroes[1].stats.maxHp);
+  const poisonState=unlock(start('goblin'),'ranger','ranger-venom-arrow');poisonState.heroes[1].cooldowns['ranger-twin-arrow']=1;
+  const poisonOne=auto(poisonState,'ranger',{...options,points:1}),poisonTwo=auto(poisonState,'ranger',{...options,points:2});
+  assert.equal(poisonOne.lastEvent.skillId,'ranger-venom-arrow');
+  assert.equal(poisonTwo.poison.damage,poisonOne.poison.damage*2);assert.equal(poisonTwo.poison.turns,poisonOne.poison.turns);
+  assert.equal(poisonTwo.lastEvent.enemy.poisonDamage,poisonOne.lastEvent.enemy.poisonDamage*2);
 });
 test('automatic decisions heal injured allies, choose damage otherwise, honor MP and cooldowns',()=>{
   let s=start('goblin'); const cleric=s.heroes[3];
@@ -329,12 +385,12 @@ test('quick mode never overwrites a manual pending answer; end encounter clears 
   assert.throws(()=>auto(s),/manual battle answer/);
   const finished=apply(s,'end');assert.equal(finished.status,'defeat');assert.equal(finished.pending,null);assert.equal(finished.rewards.length,0);
   const next=auto(finished);assert.equal(next.status,'active');assert.notEqual(next.encounterId,finished.encounterId);
-  assert.equal(next.correctCount,0);assert.equal(next.revision,finished.revision+1);
+  assert.equal(next.correctCount,1);assert.equal(next.revision,finished.revision+1);
 });
-test('quick victory rewards all heroes once, skips enemy reply, and carries progress to next spin',async()=>{
+test('quick victory rewards all heroes once, skips enemy reply, and carries progress to next awarded answer',async()=>{
   const db=database(), config={db,teacherId:'teacher',classId:'Quick fight',canWrite:()=>true}, a=Store.create(config), b=Store.create(config);
   let s=await a.act({id:id(),type:'start',bossId:'goblin',heroes});s.bossHp=1;s.heroes[1].hp=0;db.data.set(a.ref.path,s);
-  const spinId=id(), action={type:'auto',id:spinId,spinId,encounterId:s.encounterId,expectedRevision:s.revision,heroId:heroes[0].id,heroes,bossId:'goblin'};
+  const spinId=id(), action={type:'auto',id:spinId,spinId,points:1,encounterId:s.encounterId,expectedRevision:s.revision,heroId:heroes[0].id,heroes,bossId:'goblin'};
   const results=await Promise.all([a.act(action),b.act(action)]);
   assert.deepEqual(results[0],results[1]);s=results[0];assert.equal(s.status,'victory');assert.equal(s.lastEvent.enemy,null);
   assert.equal(s.rewards.length,4);assert.ok(s.heroes[1].xp>0);assert.equal(s.bossTurns,0);

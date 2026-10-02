@@ -28,7 +28,7 @@ const output = path.resolve(process.env.BATTLE_SCREENSHOTS || '../battle-validat
 fs.mkdirSync(output, { recursive: true });
 let checks = 0;
 function check(name, condition) { assert.ok(condition, name); checks++; console.log('✓ ' + name); }
-async function setup(delayProfiles = 0) {
+async function setup(delayProfiles = 0, pendingAward = false) {
   await page.goto(file);
   await page.waitForFunction(() => !!window.ClassroomBattle);
   await page.evaluate(({ delayProfiles }) => {
@@ -41,6 +41,7 @@ async function setup(delayProfiles = 0) {
     roles.forEach((role, i) => {
       documents['scienceGameLeaderboard/account-' + i] ||= { battleHero: { version: 1, uid: 'account-' + i, role, avatarDataUrl: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="110"><circle cx="45" cy="28" r="19" fill="#e9b892"/><rect x="20" y="49" width="50" height="47" rx="12" fill="' + ['#688dc1', '#6aab71', '#a586ca', '#76baa9'][i] + '"/><circle cx="39" cy="26" r="2"/><circle cx="51" cy="26" r="2"/></svg>'), stats: { atk: 40, def: 20, maxHp: 150, crit: 10, critMult: 1.5 }, equipment: { weapon: 'starter-sword', helmet: 'cloth-hat' } } };
     });
+    rwStudents.forEach(student => { documents['students/' + student.id] ||= { marks: student.marks }; student.marks = documents['students/' + student.id].marks; });
     const listeners = new Map();
     function snap(key) { return { exists: key in documents, data: () => structuredClone(documents[key]) }; }
     function notify(key) { for (const cb of listeners.get(key) || []) cb(snap(key)); }
@@ -63,18 +64,39 @@ async function setup(delayProfiles = 0) {
         return result;
       }); queue = next.catch(() => {}); return next;
     } };
-    window.ClassroomHeroAPI.request = async ({type, classId, action}) => {
-      if (type !== 'battle') throw new Error('Unexpected request in battle fixture.');
+    window.__awardCalls = []; window.__failAward = false; window.__loseAwardReply = false; window.__awardErrorCode = null; window.__awardReplyDelay = 0;
+    window.ClassroomHeroAPI.request = async request => {
+      const {type, classId, action, studentId, delta} = request;
+      if (!['battle','wheelAward'].includes(type)) throw new Error('Unexpected request in battle fixture.');
+      if (type === 'battle' && action.type === 'auto') throw new Error('Award points before fighting.');
+      if (type === 'wheelAward') {
+        __awardCalls.push(structuredClone(request));
+        if (__failAward) throw new Error('Award save failed for test');
+        if (__awardErrorCode) throw Object.assign(new Error('Roster changed before this award.'), {code:__awardErrorCode});
+      }
       const ref = db.collection('classroomBattles').doc(currentUser.uid).collection('classes').doc(ClassroomBattleStore.classKey(classId));
-      return db.runTransaction(async tx => {
+      const result = await db.runTransaction(async tx => {
         const receipt = ref.collection('actions').doc(action.id), oldReceipt = await tx.get(receipt), snapshot = await tx.get(ref);
         const old = snapshot.exists ? snapshot.data() : null;
-        if (oldReceipt.exists) return {state:old};
-        const next = ClassroomBattleCore.reduce(old, action);
+        if (oldReceipt.exists) return {state:old,award:oldReceipt.data().award};
+        const trustedAction = type === 'wheelAward' ? {...action, type:'auto', points:delta} : action;
+        const next = ClassroomBattleCore.reduce(old, trustedAction);
         if (next === old) return {state:old};
         const state = {...next,teacherId:currentUser.uid,classId};
-        tx.set(ref,state);tx.set(receipt,{encounterId:state.encounterId,revision:state.revision,type:action.type});return {state};
+        let award;
+        if (type === 'wheelAward') {
+          if (!Number.isInteger(delta) || delta < 1 || delta > 10000 || !rwStudents.some(s => s.id === studentId && s.slots.includes(classId))) throw new Error('Invalid point award.');
+          const studentRef = db.collection('students').doc(studentId), student = await tx.get(studentRef);
+          award = {id:action.id,studentId,delta,marks:student.data().marks + delta};
+          tx.set(studentRef,{marks:award.marks});
+          const base = ClassroomBattleCore.reduce(old, {...trustedAction, points:1});
+          window.__awardPower = {points:trustedAction.points,baseDamage:base.lastEvent.damage,damage:state.lastEvent.damage};
+        }
+        tx.set(ref,state);tx.set(receipt,{encounterId:state.encounterId,revision:state.revision,type:action.type,...(award?{award}:{})});return {state,award};
       });
+      if (type === 'wheelAward' && __awardReplyDelay) await new Promise(resolve => setTimeout(resolve, __awardReplyDelay));
+      if (type === 'wheelAward' && __loseAwardReply) { __loseAwardReply = false; throw new Error('Award saved but reply lost for test'); }
+      return result;
     };
     window.__battleDocuments = documents;
     window.__battleNotify = notify;
@@ -84,42 +106,76 @@ async function setup(delayProfiles = 0) {
     applyRewardVisibility();
   }, { delayProfiles });
   await page.click('#wheelBtn');
-  await page.waitForFunction(() => !!window.QuickBattle && !document.getElementById('wheelSpinBtn').disabled && !document.getElementById('wheelQuickStatus').textContent.includes('Loading'));
+  await page.waitForFunction(pending => !!window.QuickBattle && (pending ? !document.getElementById('wheelQuickRetry').hidden && !document.getElementById('wheelQuickRetry').disabled : !document.getElementById('wheelSpinBtn').disabled) && !document.getElementById('wheelQuickStatus').textContent.includes('Loading'), pendingAward);
 }
 async function settle() { await page.waitForFunction(() => document.getElementById('cbSaveStatus').textContent !== 'Saving…'); }
 async function spin() {
-  const prior = await page.evaluate(() => __battleState()?.revision || 0);
   await page.click('#wheelSpinBtn');
-  try { await page.waitForFunction(revision => (__battleState()?.revision || 0) > revision && !document.getElementById('wheelSpinBtn').disabled, prior,{timeout:8000}); } catch(error) { console.log(await page.evaluate(()=>({state:__battleState(),status:document.getElementById('wheelQuickStatus').textContent,spinning:wheelSpinning,spin:wheelState.lastSpinId})));throw error; }
+  await page.waitForFunction(() => !wheelSpinning && !document.getElementById('wheelSpinBtn').disabled, null, {timeout:8000});
+}
+async function award(points = 1) {
+  await page.evaluate(points => wheelGive(points), points);
+  await page.waitForFunction(() => !document.getElementById('wheelQuickStatus').textContent.includes('Resolving'));
 }
 try {
   await setup();
   check('ordinary Wheel enables Quick fight by default without opening manual battle',await page.evaluate(()=>document.getElementById('wheelQuickToggle').checked&&!ClassroomBattle.isOpen()));
   check('new party preview shows a pixel hero and encounter hint',await page.locator('#wheelQuickDuel .cbAvatar').count()===1);
   await spin();
-  check('one spin starts combat, selects a learned skill and resolves enemy reply with no answer prompt',await page.evaluate(()=>{const s=__battleState();return s.lastEvent.type==='auto'&&s.lastEvent.skillId&&s.lastEvent.enemy&&s.pending===null&&s.bossTurns===1;}));
-  check('wheel displays hero versus enemy avatars with HP and MP',await page.evaluate(()=>document.querySelectorAll('#wheelQuickDuel img').length===2&&document.getElementById('wheelQuickDuel').textContent.includes('MP ')&&document.getElementById('wheelQuickDuel').textContent.includes('HP ')));
-  check('quick combat does not award marks or count a correct answer',await page.evaluate(()=>__battleState().correctCount===0&&rwStudents.every(s=>s.marks===10)));
-  const first=await page.evaluate(()=>JSON.stringify(__battleState()));
+  check('spin selects a hero without creating combat, XP, an enemy turn or rewards',await page.evaluate(()=>!__battleState()&&__awardCalls.length===0&&rwStudents.every(s=>s.marks===10)&&document.querySelector('.cbQuickHero').textContent.includes(wheelState.names[wheelWinnerIdx].n)));
+  const firstSpin=await page.evaluate(()=>wheelState.lastSpinId);
   await page.evaluate(async()=>{const entry=wheelState.names[wheelWinnerIdx];await ClassroomBattle.landed(entry,wheelState.lastSpinId);await ClassroomBattle.landed(entry,wheelState.lastSpinId);});
-  check('duplicate landing callbacks cannot replay the fight',await page.evaluate(first=>JSON.stringify(__battleState())===first,first));
+  check('repeated landing callbacks remain a read-only hero preview',await page.evaluate(()=>!__battleState()&&__awardCalls.length===0));
+  await award();
+  check('awarding one point starts combat, chooses a skill and resolves one enemy reply',await page.evaluate(()=>{const s=__battleState();return s.lastEvent.type==='auto'&&s.lastEvent.skillId&&s.lastEvent.enemy&&s.pending===null&&s.bossTurns===1&&__awardCalls[0].delta===1;}));
+  check('wheel displays hero versus enemy avatars with HP and MP',await page.evaluate(()=>document.querySelectorAll('#wheelQuickDuel img').length===2&&document.getElementById('wheelQuickDuel').textContent.includes('MP ')&&document.getElementById('wheelQuickDuel').textContent.includes('HP ')));
+  check('combat and the awarded point update the same student exactly once',await page.evaluate(()=>{const s=wheelStudent(wheelState.names[wheelWinnerIdx]);return s.marks===11&&__battleDocuments['students/'+s.id].marks===11&&wheelGiven===1;}));
+  await award(5);
+  check('five awarded points increase attack damage and may follow another award on the same spin',await page.evaluate(id=>wheelState.lastSpinId===id&&__awardCalls.length===2&&__awardCalls[1].delta===5&&__awardPower.points===5&&__awardPower.damage>__awardPower.baseDamage&&wheelGiven===6&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===16,firstSpin));
+  const first=await page.evaluate(()=>JSON.stringify(__battleState()));
+  await page.evaluate(()=>ClassroomHeroAPI.request(__awardCalls[0]));
+  check('replaying an award receipt cannot add marks, combat, XP or another enemy turn',await page.evaluate(first=>JSON.stringify(__battleState())===first&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===16&&__battleDocuments['students/'+wheelStudent(wheelState.names[wheelWinnerIdx]).id].marks===16,first));
+  await page.evaluate(async()=>{await wheelGive(0);});
+  check('zero points do not trigger a battle command',await page.evaluate(first=>JSON.stringify(__battleState())===first&&__awardCalls.length===3,first));
   await page.screenshot({path:path.join(output,'quick-wheel-duel.png'),fullPage:true});
   await setup();
-  check('reload restores duel without replaying the last spin',await page.evaluate(first=>JSON.stringify(__battleState())===first,first));
+  check('reload restores duel and marks without replaying the last spin',await page.evaluate(first=>JSON.stringify(__battleState())===first&&__awardCalls.length===0&&rwStudents.some(s=>s.marks===16),first));
+  const called=await page.evaluate(()=>wheelState.names.filter(n=>n.done).length);
   await page.click('#wheelSpinBtn');await page.evaluate(()=>closeWheel());await page.waitForTimeout(650);
-  check('closing mid-spin cancels battle work while retaining the wheel call',await page.evaluate(first=>JSON.stringify(__battleState())===first&&!wheelSpinning&&wheelState.names.filter(n=>n.done).length===2,first));
+  check('closing mid-spin cancels battle work while retaining the wheel call',await page.evaluate(({first,called})=>JSON.stringify(__battleState())===first&&!wheelSpinning&&wheelState.names.filter(n=>n.done).length===called+1,{first,called}));
   await page.evaluate(()=>openWheel());await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   await page.uncheck('#wheelQuickToggle');
   await page.click('#wheelSpinBtn');await page.waitForFunction(()=>!wheelSpinning);
   check('turning Quick fight off leaves an ordinary name wheel',await page.evaluate(first=>JSON.stringify(__battleState())===first&&document.getElementById('wheelQuickDuel').hidden,first));
   await page.check('#wheelQuickToggle');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
-  await page.evaluate(()=>{const s=__battleState();s.bossHp=1;s.heroes.forEach(h=>h.hp=h.stats.maxHp);__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
   await spin();
-  check('victory shows an animated chest and saved personal treasure for every hero',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure details p').length===16));
+  const beforeFailure=await page.evaluate(()=>({state:JSON.stringify(__battleState()),marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks}));
+  await page.evaluate(()=>__failAward=true);await award(2);
+  check('failed point save causes no combat or points and preserves a retryable award',await page.evaluate(prior=>JSON.stringify(__battleState())===prior.state&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===prior.marks&&document.getElementById('wheelSpinBtn').disabled&&document.getElementById('wheelQuickRetry'),beforeFailure));
+  const failedId=await page.evaluate(()=>__awardCalls.at(-1).action.id);
+  await page.evaluate(()=>__failAward=false);await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
+  check('retry reuses the same award identity and credits points once',await page.evaluate(({id,prior})=>__awardCalls.at(-1).action.id===id&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===prior.marks+2&&__battleState().revision===JSON.parse(prior.state).revision+1,{id:failedId,prior:beforeFailure}));
+  const beforeDouble=await page.evaluate(()=>({calls:__awardCalls.length,marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks,revision:__battleState().revision}));
+  await page.evaluate(()=>Promise.all([wheelGive(1),wheelGive(5)]));
+  check('concurrent point clicks save only the first award',await page.evaluate(prior=>__awardCalls.length===prior.calls+1&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===prior.marks+1&&__battleState().revision===prior.revision+1,beforeDouble));
+  const beforeLost=await page.evaluate(()=>({marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks,revision:__battleState().revision}));
+  await page.evaluate(()=>__loseAwardReply=true);await award(3);
+  const lostId=await page.evaluate(()=>__awardCalls.at(-1).action.id);
+  check('a lost server reply keeps the original award available for retry',await page.evaluate(prior=>__battleState().revision===prior.revision+1&&document.getElementById('wheelSpinBtn').disabled&&!document.querySelector('.cbaPlaying'),beforeLost));
+  await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
+  check('retry after a committed award does not repeat damage, XP or points',await page.evaluate(({id,prior})=>__awardCalls.at(-1).action.id===id&&__battleState().revision===prior.revision+1&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===prior.marks+3&&__battleDocuments['students/'+wheelStudent(wheelState.names[wheelWinnerIdx]).id].marks===prior.marks+3,{id:lostId,prior:beforeLost}));
+  await page.evaluate(()=>{const s=__battleState();s.bossHp=1;s.heroes.forEach(h=>h.hp=h.stats.maxHp);__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
+  const waitingVictory=await page.evaluate(()=>JSON.stringify(__battleState()));
+  await spin();
+  check('selecting the next student leaves the existing enemy and party unchanged',await page.evaluate(old=>JSON.stringify(__battleState())===old,waitingVictory));
+  await award();
+  check('awarded final hit shows an animated chest and saved personal treasure for every hero',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure details p').length===16));
   await page.screenshot({path:path.join(output,'quick-wheel-treasure.png'),fullPage:true});
   const victory=await page.evaluate(()=>({id:__battleState().encounterId,xp:__battleState().heroes.reduce((sum,h)=>sum+h.xp,0)}));
   await spin();
-  check('next spin starts a new encounter and carries all XP forward',await page.evaluate(v=>__battleState().encounterId!==v.id&&__battleState().heroes.reduce((sum,h)=>sum+h.xp,0)===v.xp+12,victory));
+  check('spinning after victory does not start another encounter',await page.evaluate(v=>__battleState().encounterId===v.id&&__battleState().status==='victory',victory));
+  await award();
+  check('next awarded answer starts a new encounter and carries all XP forward',await page.evaluate(v=>__battleState().encounterId!==v.id&&__battleState().heroes.reduce((sum,h)=>sum+h.xp,0)===v.xp+12,victory));
   await page.click('#wheelBattleBtn');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   await page.click('#wheelSpinBtn');await page.waitForFunction(()=>!!__battleState().pending);
   const pending=await page.evaluate(()=>__battleState().pending.id);
@@ -134,7 +190,37 @@ try {
   check('changing lesson slot during spin cannot write to either encounter',await page.evaluate(end=>JSON.stringify(__battleState())===end&&!__battleState('P6 Science')&&!wheelSpinning,end));
   await page.evaluate(()=>{isAdmin=()=>false;applyRewardVisibility();});
   check('sign-out or student mode closes the wheel and drops quick subscriptions',await page.evaluate(()=>!wheelIsOpen()&&!ClassroomBattle.isOpen()));
+  await setup();
+  await page.evaluate(()=>{
+    wheelState.names[0].id='';wheelWinnerIdx=0;wheelState.lastSpinId='name-only-wheel-spin-001';
+    ClassroomBattle.landed(wheelState.names[0],wheelState.lastSpinId);wheelRender();
+  });
+  check('a name-only entry that matches the roster previews the canonical student hero',await page.evaluate(()=>document.querySelector('.cbQuickHero').dataset.cbaHeroId==='student:student-0'));
+  await award();
+  check('awarding a name-only linked entry uses its student hero without a duplicate guest',await page.evaluate(()=>__awardCalls.at(-1).studentId==='student-0'&&__awardCalls.at(-1).action.heroId==='student:student-0'&&__battleState().heroes.filter(h=>h.name==='Ari').length===1&&__battleState().heroes.find(h=>h.id==='student:student-0').xp>0));
+  await spin();
+  const beforeRejection=await page.evaluate(()=>({state:JSON.stringify(__battleState()),marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks}));
+  await page.evaluate(()=>__awardErrorCode='roster_changed');await award(2);
+  check('an explicit uncommitted roster rejection clears retry state and unlocks the wheel',await page.evaluate(prior=>JSON.stringify(__battleState())===prior.state&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===prior.marks&&!document.getElementById('wheelSpinBtn').disabled&&!document.getElementById('wheelClassSelect').disabled&&document.getElementById('wheelQuickRetry').hidden&&!sessionStorage.getItem('polymath.wheelAward.teacher-fixture.P5%20Science'),beforeRejection));
+  await page.evaluate(()=>__awardErrorCode=null);await spin();
+  const beforeReload=await page.evaluate(()=>({studentId:wheelStudent(wheelState.names[wheelWinnerIdx]).id,marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks,revision:__battleState().revision}));
+  await page.evaluate(()=>__failAward=true);await award(2);
+  const reloadId=await page.evaluate(()=>__awardCalls.at(-1).action.id);
+  await setup(0,true);
+  check('reloading restores an uncertain award without sending it automatically',await page.evaluate(prior=>__awardCalls.length===0&&__battleState().revision===prior.revision&&document.getElementById('wheelSpinBtn').disabled&&!document.getElementById('wheelQuickRetry').hidden,beforeReload));
+  await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
+  check('the restored award retries its original receipt for the original student',await page.evaluate(({id,prior})=>__awardCalls.at(-1).action.id===id&&__awardCalls.at(-1).studentId===prior.studentId&&__battleState().revision===prior.revision+1&&rwStudents.find(s=>s.id===prior.studentId).marks===prior.marks+2,{id:reloadId,prior:beforeReload}));
+  await spin();
+  const beforeCloseAward=await page.evaluate(()=>({studentId:wheelStudent(wheelState.names[wheelWinnerIdx]).id,marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks,revision:__battleState().revision}));
+  await page.evaluate(()=>{__awardReplyDelay=400;window.__awardInFlight=wheelGive(3);});
+  await page.waitForFunction(revision=>__battleState().revision===revision+1,beforeCloseAward.revision);
+  const closeAwardId=await page.evaluate(()=>__awardCalls.at(-1).action.id);
+  await page.evaluate(()=>closeWheel());await page.evaluate(()=>__awardInFlight);
+  check('closing after a server commit stops presentation while keeping its retry receipt',await page.evaluate(prior=>!wheelIsOpen()&&__battleState().revision===prior.revision+1&&!!sessionStorage.getItem('polymath.wheelAward.teacher-fixture.P5%20Science')&&!document.querySelector('.cbaPlaying'),beforeCloseAward));
+  await page.evaluate(()=>{__awardReplyDelay=0;openWheel();});
+  await page.waitForFunction(()=>!document.getElementById('wheelQuickRetry').hidden&&!document.getElementById('wheelQuickRetry').disabled);
+  await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
+  check('reopening and confirming a committed award cannot award damage or points twice',await page.evaluate(({id,prior})=>__awardCalls.at(-1).action.id===id&&__battleState().revision===prior.revision+1&&rwStudents.find(s=>s.id===prior.studentId).marks===prior.marks+3&&__battleDocuments['students/'+prior.studentId].marks===prior.marks+3,{id:closeAwardId,prior:beforeCloseAward}));
   check('quick wheel raises no application exceptions',errors.length===0);
   console.log('\n'+checks+' quick wheel browser checks passed. Screenshots: '+output);
 } finally { await browser.close(); }
-

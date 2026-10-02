@@ -159,17 +159,18 @@
     hero.hp+=actual; if (actual) event.healed.push({heroId:hero.id,amount:actual});
   }
   function restoreMana(hero,amount) { hero.mp=int(hero.mp+amount,0,hero.stats.maxMp); }
-  function support(state,hero,effect,event,target) {
+  function support(state,hero,effect,event,target,points=1) {
+    const scaled=amount=>Math.round(amount)*points;
     const boost=hero.role==='cleric'?1+hero.stats.healing/200:1;
-    if (effect.heal) heal(target,target.stats.maxHp*effect.heal,event);
-    if (effect.healAll) state.heroes.forEach(h=>heal(h,h.stats.maxHp*effect.healAll*boost,event));
-    if (effect.mana) restoreMana(target,effect.mana);
-    if (effect.manaAll) state.heroes.forEach(h=>restoreMana(h,effect.manaAll));
-    if (effect.shield) state.heroes.forEach(h=>{h.shield=Math.min(h.stats.maxHp,Math.round(h.shield+h.stats.maxHp*effect.shield));});
-    if (effect.shieldSelf) hero.shield=Math.min(hero.stats.maxHp,Math.round(hero.shield+hero.stats.maxHp*effect.shieldSelf));
+    if (effect.heal) heal(target,scaled(target.stats.maxHp*effect.heal),event);
+    if (effect.healAll) state.heroes.forEach(h=>heal(h,scaled(h.stats.maxHp*effect.healAll*boost),event));
+    if (effect.mana) restoreMana(target,scaled(effect.mana));
+    if (effect.manaAll) state.heroes.forEach(h=>restoreMana(h,scaled(effect.manaAll)));
+    if (effect.shield) state.heroes.forEach(h=>{h.shield=Math.min(h.stats.maxHp,h.shield+scaled(h.stats.maxHp*effect.shield));});
+    if (effect.shieldSelf) hero.shield=Math.min(hero.stats.maxHp,hero.shield+scaled(hero.stats.maxHp*effect.shieldSelf));
     if (effect.cleanse) (effect.healAll?state.heroes:[target]).forEach(h=>{h.weakened=false;});
     if (effect.weakenBoss) state.bossWeakness=Math.max(state.bossWeakness || 0,effect.weakenBoss);
-    if (effect.poison) state.poison={turns:effect.poison,damage:Math.round(hero.stats.damage*.35),heroId:hero.id};
+    if (effect.poison) state.poison={turns:effect.poison,damage:scaled(hero.stats.damage*.35),heroId:hero.id};
     if (effect.haste) state.heroes.forEach(h=>Object.keys(h.cooldowns).forEach(id=>{if (h.id!==hero.id || id!==event.skillId) h.cooldowns[id]=Math.max(0,h.cooldowns[id]-effect.haste);}));
   }
   function normalizeState(previous) {
@@ -218,10 +219,11 @@
     return rated.length && rated[0].score>1 ? {command:'skill',skillId:rated[0].skill.id} : {command:'attack'};
   }
   function autoTurn(previous, action) {
-    if (typeof action.spinId!=='string' || action.spinId!==action.id) fail('Quick fights require the saved wheel spin ID.');
-    if (previous && previous.lastAutoSpinId===action.spinId) return previous;
+    if (typeof action.spinId!=='string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(action.spinId)) fail('Quick fights require the saved wheel spin ID.');
+    if (!Number.isSafeInteger(action.points) || action.points<1 || action.points>10000) fail('Award between 1 and 10000 whole points to start a Quick fight.');
+    if (previous && previous.lastAutoAwardId===action.id) return previous;
     if (previous && previous.pending) fail('Finish the manual battle answer before using Quick fight.');
-    if (previous && action.expectedRevision!==previous.revision) fail('The encounter changed on another screen. Spin again.');
+    if (previous && action.expectedRevision!==previous.revision) fail('The encounter changed on another screen. Try awarding points again.');
     let state=previous?normalizeState(previous):null;
     if (!state || state.status!=='active') {
       state=reduce(state,{type:'start',id:action.id,expectedRevision:state && state.revision,heroes:action.heroes,bossId:action.bossId});
@@ -233,7 +235,7 @@
     if (!hero) fail('This student is no longer in the encounter. Open Battle to refresh the party.');
     const command=chooseAutoCommand(state,hero);
     state.pending={id:action.spinId,heroId:hero.id};
-    state=reduce(state,{...command,type:'answer',id:action.id,encounterId:state.encounterId,turnId:action.spinId,outcome:'correct'});
+    state=apply(state,{...command,type:'answer',id:action.id,encounterId:state.encounterId,turnId:action.spinId,outcome:'correct'},action.points);
     const heroEvent=state.lastEvent;
     let enemyEvent=null;
     if (state.status==='active') {
@@ -244,15 +246,15 @@
     }
     state.revision=(previous && previous.revision || 0)+1;
     state.actionCount=(previous && previous.status==='active'?previous.actionCount:0)+1;
-    // Quick spins earn combat XP but are not answers and never award answer marks.
-    state.correctCount=previous && previous.status==='active'?previous.correctCount:0;
+    // One awarded answer earns one turn and one XP grant, regardless of its points.
+    state.lastAutoAwardId=action.id;
     state.lastAutoSpinId=action.spinId;
-    state.lastEvent={...heroEvent,id:action.id,type:'auto',outcome:state.status,spinId:action.spinId,enemy:enemyEvent,
+    state.lastEvent={...heroEvent,id:action.id,type:'auto',outcome:state.status,spinId:action.spinId,points:action.points,enemy:enemyEvent,
       targets:[...(heroEvent.targets || []),...(enemyEvent && enemyEvent.targets || [])],
       healed:[...(heroEvent.healed || []),...(enemyEvent && enemyEvent.healed || [])],rewards:state.status==='victory'?state.rewards:[]};
     return state;
   }
-  function reduce(previous,action) {
+  function apply(previous,action,points=1) {
     if (!action || typeof action.id!=='string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(action.id)) fail('Invalid battle action.');
     const event={id:action.id,type:action.type,healed:[],targets:[]};
     if (action.type==='auto') return autoTurn(previous,action);
@@ -322,18 +324,18 @@
         if (itemEntry) {itemEntry.quantity--;hero.inventory=hero.inventory.filter(i=>i.quantity>0);}
         if (event.command==='attack') restoreMana(hero,10);
         restoreMana(hero,gear.manaRegen || 0);
-        support(state,hero,effect,event,target);
+        support(state,hero,effect,event,target,points);
         if (effect.power || effect.damage) {
           hero.correctActions++;
           event.critical=!!effect.power && (!!effect.guaranteedCrit || randomUnit(state.encounterId+':'+action.turnId)<hero.stats.critChance);
           const armour=boss.defence*(1-Math.max(effect.pierce || 0,gear.pierce || 0));
           const echo=gear.echo && hero.correctActions%3===0?2:1;
           const raw=(effect.damage || hero.stats.damage*effect.power*(event.critical?hero.stats.critMultiplier:1)*(1-armour)*(hero.weakened?.7:1)*(state.guard && !gear.ignoreGuard?.6:1))*echo;
-          event.damage=Math.min(state.bossHp,Math.max(1,Math.round(raw))); event.echo=echo===2;
+          event.damage=Math.min(state.bossHp,Math.max(1,Math.round(raw))*points); event.echo=echo===2;
           state.bossHp-=event.damage; state.guard=false;
           if (effect.leech || gear.leech) heal(hero,event.damage*((effect.leech || 0)+(gear.leech || 0)),event);
-          if (gear.teamLeech) state.heroes.forEach(h=>heal(h,h.stats.maxHp*gear.teamLeech,event));
-          if (gear.teamMana) state.heroes.forEach(h=>restoreMana(h,gear.teamMana));
+          if (gear.teamLeech) state.heroes.forEach(h=>heal(h,Math.round(h.stats.maxHp*gear.teamLeech)*points,event));
+          if (gear.teamMana) state.heroes.forEach(h=>restoreMana(h,gear.teamMana*points));
           if (boss.playstyle==='reflect' && state.bossHp>0) {
             const damage=Math.min(hero.hp,Math.max(1,Math.round(event.damage*.12)));
             hero.hp-=damage;event.targets.push({heroId:hero.id,damage});event.effect='reflect';
@@ -373,6 +375,8 @@
     }
     fail('Unknown battle action.');
   }
+  // The multiplier is private: manual answer payloads cannot amplify combat.
+  function reduce(previous,action) { return apply(previous,action); }
   return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,ITEMS,RARITIES,bossById,skillById,itemById,heroFromStudent,
     reduce,cleanHero,configureHero,normalizeState,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,xpForLevel,timingMultiplier,equipmentEffect,statsFor,rollReward};
 });
