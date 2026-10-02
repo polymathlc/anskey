@@ -333,7 +333,8 @@ test('awarded points multiply the rounded hero hit while enemy power, MP cost an
 });
 test('distinct awards can reward the same spin, but retrying an award never repeats a turn',()=>{
   const spinId=id(), awardId=id();
-  const first=auto(null,'warrior',{id:awardId,spinId});
+  // A boss survives both awards so this isolates receipt/XP behavior from victory loot.
+  const first=auto(null,'warrior',{id:awardId,spinId,bossId:'dragon'});
   assert.equal(auto(first,'warrior',{id:awardId,spinId}),first);
   const second=auto(first,'warrior',{id:id(),spinId,points:2});
   assert.equal(second.lastAutoSpinId,spinId);assert.notEqual(second.lastAutoAwardId,awardId);
@@ -361,7 +362,7 @@ test('awarded points scale healing and shields with health caps and poison damag
   assert.equal(shieldFive.heroes[1].shield,shieldOne.heroes[1].shield*5);
   const shieldCap=auto(shieldState,'cleric',{...options,points:10000});
   assert.equal(shieldCap.heroes[1].shield,shieldCap.heroes[1].stats.maxHp);
-  const poisonState=unlock(start('goblin'),'ranger','ranger-venom-arrow');poisonState.heroes[1].cooldowns['ranger-twin-arrow']=1;
+  const poisonState=unlock(start('lich'),'ranger','ranger-venom-arrow');poisonState.heroes[1].cooldowns['ranger-twin-arrow']=1;
   const poisonOne=auto(poisonState,'ranger',{...options,points:1}),poisonTwo=auto(poisonState,'ranger',{...options,points:2});
   assert.equal(poisonOne.lastEvent.skillId,'ranger-venom-arrow');
   assert.equal(poisonTwo.poison.damage,poisonOne.poison.damage*2);assert.equal(poisonTwo.poison.turns,poisonOne.poison.turns);

@@ -7,6 +7,7 @@
   const { ROLES, SKILLS, JOBS, JOB_SKILLS, ITEMS, RARITIES } = CONTENT;
   const ROLE_KEYS = Object.keys(ROLES), ALL_SKILLS = [...Object.values(SKILLS).flat(),...Object.values(JOB_SKILLS).flat()];
   const BOSS_MAX_MP=60, BOSS_SKILL_MP=30, BOSS_ATTACK_MP=15;
+  const ENEMY_HEALTH_VERSION=1;
   const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, Number(n) || 0));
   const int = (n, lo, hi) => Math.round(clamp(n, lo, hi));
   const roleKey = key => key === 'healer' ? 'cleric' : Object.prototype.hasOwnProperty.call(ROLES,key) ? key : 'warrior';
@@ -217,8 +218,19 @@
     if (effect.poison) {state.poison={turns:effect.poison,damage:scaled(hero.stats.damage*.35),heroId:hero.id};afflicted('poison',state.poison.damage);}
     if (effect.haste) state.heroes.forEach(h=>{let turns=0;Object.keys(h.cooldowns).forEach(id=>{if(h.id!==hero.id || id!==event.skillId){const before=h.cooldowns[id];h.cooldowns[id]=Math.max(0,before-effect.haste);turns+=before-h.cooldowns[id];}});supported(h,'haste',turns);});
   }
+  // Preserve the progress of an existing fight while applying this balance
+  // change once. A living enemy keeps at least 1 HP when halving odd values.
+  function rebalanceEnemyHealth(previous) {
+    if (!previous || previous.status!=='active' || previous.enemyHealthVersion>=ENEMY_HEALTH_VERSION) return previous;
+    if (!Number.isFinite(previous.bossMaxHp) || previous.bossMaxHp<=0) return previous;
+    const state=copy(previous);
+    state.bossMaxHp=Math.max(1,Math.ceil(previous.bossMaxHp/2));
+    state.bossHp=int(Math.ceil(previous.bossHp/2),0,state.bossMaxHp);
+    state.enemyHealthVersion=ENEMY_HEALTH_VERSION;
+    return state;
+  }
   function normalizeState(previous) {
-    const state=copy(previous), migrated=new Map();
+    const state=copy(rebalanceEnemyHealth(previous)), migrated=new Map();
     function migrate(hero) {
       if (hero.studentId) { const id='student:'+hero.studentId; migrated.set(hero.id,id); hero.id=id; }
       hero.gender=hero.gender==='female'?'female':'male';
@@ -308,8 +320,9 @@
       if (previous && action.expectedRevision!==previous.revision) fail('The class changed on another screen. Try again.');
       const heroes=roster(action.heroes,previous && normalizeState(previous)), boss=bossById(action.bossId);
       heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=h.stats.maxMp;h.cooldowns={};h.shield=0;h.weakened=false;h.mythicalUsed=false;h.correctActions=0;});
-      const bossMaxHp=Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier);
+      const bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)/2));
       return {schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
+        enemyHealthVersion:ENEMY_HEALTH_VERSION,
         bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
         bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)};
     }
@@ -328,7 +341,7 @@
         const fresh=roster(action.heroes,state);
         state.heroArchive=archiveFor(state,fresh); state.heroes=fresh;
         if (state.pending && !state.heroes.some(h=>h.id===state.pending.heroId)) state.pending=null;
-        if (JSON.stringify(state.heroes)===JSON.stringify(previous.heroes) && JSON.stringify(state.pending)===JSON.stringify(previous.pending)) return previous;
+        if (state.enemyHealthVersion===previous.enemyHealthVersion && JSON.stringify(state.heroes)===JSON.stringify(previous.heroes) && JSON.stringify(state.pending)===JSON.stringify(previous.pending)) return previous;
       }
       if (action.command!=='appearance' && state.status==='active' && state.heroes.every(h=>h.hp<=0)) {state.status='defeat';state.pending=null;}
       state.revision++; if (action.command!=='appearance') state.lastEvent=event; return state;
@@ -450,5 +463,5 @@
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
   return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,bossById,skillById,itemById,heroFromStudent,
-    reduce,cleanHero,configureHero,normalizeState,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,statsFor,rollReward};
+    reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,statsFor,rollReward};
 });

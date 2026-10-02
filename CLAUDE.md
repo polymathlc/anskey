@@ -2,6 +2,10 @@
 
 Guidance for Claude when working in this repo.
 
+## Enemy health balance (v1.123.0)
+
+All 26 enemies start with half the previous rounded HP (odd values round up). New snapshots carry `enemyHealthVersion:1`. `Core.rebalanceEnemyHealth` is a pure, idempotent migration: active snapshots without that marker receive half current/max HP, keeping at least 1 HP for living enemies; completed encounters remain historical records. Never recalculate an old enemy from current party stats or halve it on every turn. `normalizeState` applies the migration during actions; an otherwise unchanged roster sync must still persist its new marker. The teacher mission/get transaction also applies it on opening either battle view, bumping the encounter revision only for an actual migration. Keep hero stats/progression, pending answers, charges, logs and loot untouched; no treasure is granted by the balance update itself. Browser and Functions core copies must match, and `ansKeyHeroes` must be deployed for this release.
+
 ## Pixel wheel and visible mission machine (v1.122.0)
 
 The ordinary name wheel opens as a large responsive arcade window (up to 1100 × 860). `wheel-pixel.css` gives `.whMain` the large wheel and controls and `.whSide` the always-visible `#wheelMissionDock` above Quick fight. Narrow containers stack missions after the wheel controls and before roster management. Keep the generic minimise behaviour explicit: `.winMin .whBody` must stay hidden despite grid styling. The manual arena still embeds the same DOM in its compact sidebar; wrapper `display:contents` and hidden `.whSide` preserve that layout.

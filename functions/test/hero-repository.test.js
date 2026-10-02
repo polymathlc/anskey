@@ -155,7 +155,7 @@ test('concurrent duplicate awards commit points, history, XP and school boss dam
 });
 
 test('new awards on the same spin resolve separately; retrying an earlier award returns current balance and state',async()=>{
-  const {call,db}=setup();const first=wheelRequest(),one=await call(teacher,first),second=wheelRequest(one.state,{spinId:first.action.spinId,delta:2});
+  const {call,db}=setup();const first=wheelRequest(null,{bossId:'mossback'}),one=await call(teacher,first),second=wheelRequest(one.state,{spinId:first.action.spinId,delta:2});
   const two=await call(teacher,second);assert.equal(two.award.marks,3);assert.equal(two.state.heroes[0].xp,24);assert.equal(two.state.lastEvent.points,2);
   const retried=await call(teacher,first);assert.equal(retried.duplicate,true);assert.equal(retried.award.id,first.action.id);assert.equal(retried.award.delta,1);assert.equal(retried.award.marks,3);assert.deepEqual(retried.state,two.state);assert.equal([...db.data.keys()].filter(p=>p.startsWith('awards/')).length,2);
 });
@@ -347,6 +347,60 @@ test('stale lesson snapshots and client roster appearances never override canoni
   assert.equal(synced.state.heroes[0].gender,'female');
 });
 
+test('opening battle screens halves a legacy active enemy once and preserves the pending turn and all other data',async()=>{
+  const {call,mission,db,time}=missionSetup(.6,.2);
+  let state=await begin(call);
+  state=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  await mission('turn',{expectedRevision:0});state=structuredClone(db.data.get(classPath('Saturday')));
+  delete state.enemyHealthVersion;state.bossMaxHp=1001;state.bossHp=731;
+  state.heroes[0].hp=23;state.heroes[0].mp=7;state.heroes[0].xp=432;
+  state.rewards=[{heroId:'student:alex',itemId:'crimson-edge',xp:45}];
+  state.combatLog=[{id:'prior-turn',type:'auto',damage:270,move:'Attack'}];
+  db.seed(classPath('Saturday'),state);
+  const before=structuredClone([...db.data]);time(2000);
+  const responses=await Promise.all([mission('get'),mission('get'),mission('get')]);
+  const expected={...state,bossMaxHp:501,bossHp:366,enemyHealthVersion:1,revision:state.revision+1,updatedAt:2000};
+  for(const response of responses)assert.deepEqual(response.state,expected);
+  assert.deepEqual(db.data.get(classPath('Saturday')),expected);
+  assert.deepEqual([...db.data].filter(([path])=>path!==classPath('Saturday')),before.filter(([path])=>path!==classPath('Saturday')));
+  const saved=structuredClone([...db.data]);time(3000);
+  assert.deepEqual((await mission('get')).state,expected);assert.deepEqual([...db.data],saved);
+});
+
+test('failed enemy health migration commits leave all data unchanged and retry applies it only once',async()=>{
+  const {call,mission,db}=missionSetup();const state=await begin(call);
+  delete state.enemyHealthVersion;state.bossMaxHp=800;state.bossHp=600;
+  db.seed(classPath('Saturday'),state);const before=structuredClone([...db.data]);
+  db.failNextCommit=true;await assert.rejects(mission('get'),/commit failed/);assert.deepEqual([...db.data],before);
+  const saved=(await mission('get')).state;assert.equal(saved.bossMaxHp,400);assert.equal(saved.bossHp,300);
+  assert.equal(saved.revision,state.revision+1);assert.equal(saved.enemyHealthVersion,1);
+  assert.deepEqual((await mission('get')).state,saved);
+});
+
+test('opening a completed or absent encounter never migrates health or creates progression',async()=>{
+  const {call,mission,db}=missionSetup();const empty=structuredClone([...db.data]);
+  assert.equal((await mission('get')).state,null);assert.deepEqual([...db.data],empty);
+  const state=await begin(call);delete state.enemyHealthVersion;
+  for(const status of ['victory','defeat']){
+    const ended={...state,status,bossMaxHp:800,bossHp:status==='victory'?0:300};db.seed(classPath('Saturday'),ended);
+    const before=structuredClone([...db.data]);assert.deepEqual((await mission('get')).state,ended);assert.deepEqual([...db.data],before);
+  }
+});
+
+test('a direct points award migrates legacy enemy health and commits damage and rewards only once across retries',async()=>{
+  const {call,db}=setup();const legacy=await begin(call);
+  delete legacy.enemyHealthVersion;legacy.bossMaxHp=4000;legacy.bossHp=3000;
+  db.seed(classPath('Saturday'),legacy);
+  const request=wheelRequest(legacy),result=await call(teacher,request);
+  assert.equal(result.state.enemyHealthVersion,1);assert.equal(result.state.bossMaxHp,2000);
+  assert.equal(result.state.bossHp,1500-result.state.lastEvent.damage);
+  assert.equal(result.state.status,'active');assert.equal(result.award.marks,1);
+  assert.equal(result.state.heroes[0].xp,legacy.heroes[0].xp+12);
+  const saved=structuredClone([...db.data]),retries=await Promise.all([call(teacher,request),call(teacher,request)]);
+  for(const retry of retries){assert.equal(retry.duplicate,true);assert.deepEqual(retry.state,result.state);}
+  assert.deepEqual([...db.data],saved);
+});
+
 test('missions are teacher only, private server rolls cannot be forged, and racing turns save one roll',async()=>{
   const {call,mission,db}=missionSetup(.8,0);
   await assert.rejects(call(pupil('one'),{type:'mission',classId:'Saturday',command:'get'}),/teacher/);
@@ -385,6 +439,8 @@ test('assists advance only from newly committed receipts and complete a summon r
 test('manual and awarded answers share the streak; incorrect wheel receipts cannot reset a later streak twice',async()=>{
   const {mission,call,db}=missionSetup(.3,.1);let m=(await mission('turn',{expectedRevision:0})).mission;
   let s=(await call(teacher,wheelRequest())).state;assert.equal((await mission('get')).mission.current.progress,1);
+  // Keep this mission fixture active through every answer and reset below.
+  s.bossHp=s.bossMaxHp=100000;db.seed(classPath('Saturday'),s);
   const incorrect={missionId:m.current.id,spinId:aid(),id:aid()};s=(await mission('incorrect',incorrect)).state;
   assert.equal((await mission('get')).mission.current.progress,0);
   s=(await call(teacher,wheelRequest(s))).state;
@@ -392,8 +448,6 @@ test('manual and awarded answers share the streak; incorrect wheel receipts cann
   s=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',turnId:aid(),encounterId:s.encounterId,expectedRevision:s.revision})).state;
   s=(await battle(call,'Saturday',{id:aid(),type:'answer',outcome:'incorrect',turnId:s.pending.id,encounterId:s.encounterId})).state;
   assert.equal((await mission('get')).mission.current.progress,0);
-  // Keep an enemy alive long enough to complete the streak through seven saved answers.
-  s.bossHp=s.bossMaxHp=100000;db.seed(classPath('Saturday'),s);
   for(let i=0;i<7;i++)s=(await call(teacher,wheelRequest(s))).state;
   m=(await mission('get')).mission;assert.equal(m.current.status,'complete');assert.equal(m.bank.length,1);
 });
