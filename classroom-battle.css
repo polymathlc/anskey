@@ -75,7 +75,7 @@
 .cbBossTag { font-size: 9px; color: #677662; letter-spacing: 1px; font-weight: 800; text-transform: uppercase; background: #ffffff99; padding: 6px 12px; border-radius: 20px; border: 1px solid #d1dfcb; display: inline-block; }
 .cbBossArt { height: clamp(210px,30vh,340px); margin: 13px 0 8px; position: relative; display: grid; place-items: center; }
 .cbBossArt:after { content: ''; position: absolute; width: 75%; height: 25px; background: #72956125; filter: blur(7px); border-radius: 50%; bottom: 3px; z-index: 0; }
-.cbBossArt img { height: 100%; width: 100%; object-fit: contain; position: relative; z-index: 1; filter: drop-shadow(0 10px 12px #42632d20); }
+.cbBossArt img { height: 100%; width: 100%; object-fit: contain; position: absolute; inset: 0; z-index: 1; filter: drop-shadow(0 10px 12px #42632d20); }
 .cbMystery { font-family: Georgia,serif; font-size: 150px; color: #b1c5aa; line-height: 1; text-shadow: 0 10px 0 #aabd9920; }
 .cbBoss h3 { margin: 5px 0; color: #304c3b; font-size: 23px; letter-spacing: -.6px; }
 .cbBoss > p { font-size: 11px; color: #82917d; line-height: 1.6; max-width: 270px; margin: 6px auto 17px; }

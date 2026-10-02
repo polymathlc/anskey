@@ -135,6 +135,7 @@ try {
     await page.setViewportSize({ width, height });
     await page.screenshot({ path: path.join(output, 'battle-' + name + '.png'), fullPage: true });
     check(name + ' controls stay inside viewport and can be tapped', await page.evaluate(() => ['cbCorrect', 'cbIncorrect', 'cbSkip', 'cbStart'].every(id => { const b = document.getElementById(id).getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight && b.height >= 44; })));
+    check(name + ' boss artwork never overlaps the name or health controls', await page.evaluate(() => { const art = document.getElementById('cbBossImage')?.getBoundingClientRect(), title = document.getElementById('cbBossName').getBoundingClientRect(); return !!art && art.bottom <= title.top && art.height > 100; }));
   }
   await page.click('#cbSkip'); await settle();
   const saved = await page.evaluate(() => ({ id: __battleState().encounterId, hp: __battleState().bossHp, health: __battleState().heroes.map(h => h.hp), role: __battleState().heroes[0].role }));
