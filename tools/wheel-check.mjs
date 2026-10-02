@@ -72,7 +72,11 @@ await page.click('#wheelBtn');
 await page.waitForFunction(() => wheelState && wheelState.names.length === 5, null, { timeout: 3000 });
 ok('it opens on the class register', await page.evaluate(() => wheelState.names.map(n => n.n).join() === 'Ann,Ben,Cai,Dee,Eli'));
 const box0 = await page.evaluate(() => { const r = $('wheelCanvas').getBoundingClientRect(); return { w: r.width, h: r.height }; });
-ok('the wheel is drawn square and big enough to read', box0.w > 150 && Math.abs(box0.w - box0.h) < 1, JSON.stringify(box0));
+ok('the wheel opens large enough for the classroom to read', box0.w >= 360 && Math.abs(box0.w - box0.h) < 1, JSON.stringify(box0));
+ok('the enlarged wheel preserves crisp pixel rendering', await page.evaluate(() => {
+  const canvas = $('wheelCanvas');
+  return canvas.dataset.pixelWheel === 'ready' && canvas.getContext('2d').imageSmoothingEnabled === false;
+}));
 
 // A round of five: each name once.
 const called = [];
@@ -120,16 +124,17 @@ ok('the names are stored for this class', stored && stored.names.length === 4, J
 
 // Move and resize.
 const head = await page.locator('#wheelHead').boundingBox();
+const unmoved = await page.evaluate(() => ({ x: wheelWin.x, y: wheelWin.y }));
 await page.mouse.move(head.x + 40, head.y + 10);
 await page.mouse.down(); await page.mouse.move(head.x - 160, head.y + 90, { steps: 6 }); await page.mouse.up();
 const moved = await page.evaluate(() => ({ x: wheelWin.x, y: wheelWin.y }));
-ok('dragging the title bar moves the window', moved.y > 20 && moved.x < 1100 - 340 - 28, JSON.stringify(moved));
-const before = await page.evaluate(() => $('wheelCanvas').getBoundingClientRect().width);
+ok('dragging the title bar moves the window', moved.y !== unmoved.y || moved.x !== unmoved.x, JSON.stringify({ unmoved, moved }));
+const before = await page.evaluate(() => ({ w: wheelWin.w, h: wheelWin.h, c: $('wheelCanvas').getBoundingClientRect().width }));
 const grip = await page.locator('#wheelGrip').boundingBox();
 await page.mouse.move(grip.x + 12, grip.y + 12);
-await page.mouse.down(); await page.mouse.move(grip.x - 60, grip.y - 150, { steps: 6 }); await page.mouse.up();
+await page.mouse.down(); await page.mouse.move(grip.x - 220, grip.y - 150, { steps: 6 }); await page.mouse.up();
 const after = await page.evaluate(() => ({ w: wheelWin.w, h: wheelWin.h, c: $('wheelCanvas').getBoundingClientRect().width }));
-ok('dragging the corner makes the window — and the wheel — smaller', after.w < 340 && after.c <= before && after.c >= 150, JSON.stringify({ before, after }));
+ok('dragging the corner makes the window smaller and keeps the wheel readable', after.w < before.w && after.h < before.h && after.c <= before.c && after.c >= 220, JSON.stringify({ before, after }));
 ok('the window cannot shrink past a usable size', after.w >= 260 && after.h >= 330);
 
 // Minimise keeps the place and names the last pick.

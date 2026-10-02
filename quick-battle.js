@@ -16,8 +16,12 @@
   function mount() {
     if (el('wheelQuickFight')) return;
     var box = document.createElement('section'); box.id = 'wheelQuickFight'; box.className = 'cbQuick';
-    box.innerHTML = '<label class="cbQuickToggle"><input id="wheelQuickToggle" type="checkbox"><span>Quick fight<small>Spin → award points → fight · +1 point = 1× power</small></span></label><div id="wheelQuickDuel" class="cbQuickDuel" aria-label="Quick fight duel"></div><p id="wheelQuickStatus" class="cbQuickStatus" role="status" aria-live="polite"></p><div id="wheelQuickAssist"></div><div id="wheelQuickLog"></div><details class="cbMissionDrawer" id="wheelMissionDrawer"><summary>Mission machine · class quests</summary><div id="wheelMission"></div></details><button id="wheelQuickRetry" type="button" class="rwAmount" hidden></button>';
-    document.querySelector('#wheelModal .whSpinRow').insertAdjacentElement('afterend', box);
+    box.innerHTML = '<label class="cbQuickToggle"><input id="wheelQuickToggle" type="checkbox"><span>Quick fight<small>Spin → award points → fight · +1 point = 1× power</small></span></label><div id="wheelQuickDuel" class="cbQuickDuel" aria-label="Quick fight duel"></div><p id="wheelQuickStatus" class="cbQuickStatus" role="status" aria-live="polite"></p><div id="wheelQuickAssist"></div><div id="wheelQuickLog"></div><button id="wheelQuickRetry" type="button" class="rwAmount" hidden></button>';
+    var side = el('wheelSide');
+    if (side) side.appendChild(box); else document.querySelector('#wheelModal .whSpinRow').insertAdjacentElement('afterend', box);
+    var mission = document.createElement('section'); mission.id='wheelMissionDock'; mission.className='whMissionDock';
+    mission.innerHTML='<div id="wheelMission"></div><p id="wheelMissionHint" class="whMissionHint"></p>';
+    box.insertAdjacentElement('beforebegin', mission);
     el('wheelQuickToggle').checked = q.on;
     el('wheelQuickRetry').addEventListener('click', function () { (q.request && q.request.kind === 'assist' ? assist(null, true) : award(null, 0, '', true)).catch(function (err) { if (window.toast) toast(err.message); }); });
     el('wheelQuickAssist').addEventListener('click', function (event) {
@@ -27,7 +31,8 @@
     el('wheelQuickToggle').addEventListener('change', function () {
       q.on = this.checked;
       try { localStorage.setItem('polymath.wheelQuickFight', q.on ? 'on' : 'off'); } catch (_) {}
-      if (q.on) open(window.wheelClass || ''); else { close(); render(); }
+      if (!q.on) cancelFeedback();
+      open(window.wheelClass || '');
     });
   }
   function close() {
@@ -35,6 +40,7 @@
     q.epoch++; if (q.off) q.off(); q.off = null; q.store = null;
     q.busy = false; q.loading = false; q.state = null; q.heroId = ''; q.selection = null; q.request = null; q.assistOpen = false; q.assistMessage = ''; q.error = '';
     if (el('wheelQuickFight')) el('wheelQuickFight').hidden = true;
+    if (el('wheelMissionDock')) el('wheelMissionDock').hidden = true;
     if (el('wheelClassSelect')) el('wheelClassSelect').disabled = false;
   }
   function open(cls) {
@@ -48,11 +54,11 @@
       if (saved && saved.action && /^[a-zA-Z0-9_-]{8,100}$/.test(saved.action.id || '') && (saved.kind === 'assist' || Number.isSafeInteger(saved.delta) && saved.delta > 0 && saved.delta <= 10000)) q.request = saved;
     } catch (_) {}
     if (q.request) q.heroId = q.request.action.heroId;
-    if (!q.on || !cls) { render(); return; }
-    if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.prepare();
+    if (!cls) { render(); return; }
+    if (q.on && window.ClassroomBattleAnimation) ClassroomBattleAnimation.prepare();
     var stamp = q.epoch; q.loading = true; render();
     try {
-      q.store = Store.create({ onMission:function(result){if(missionPanel)missionPanel.receive(result);}, db: window.db, teacherId: uid, classId: cls, canWrite: function () { return !manual() && q.on && stamp === q.epoch && allowed() && currentUser.uid === uid && window.wheelClass === cls && visible(); } });
+      q.store = Store.create({ onMission:function(result){if(missionPanel)missionPanel.receive(result);}, db: window.db, teacherId: uid, classId: cls, canWrite: function () { return !manual() && stamp === q.epoch && allowed() && currentUser.uid === uid && window.wheelClass === cls && visible(); } });
       mountMission();
       q.off = q.store.subscribe(function (next) {
         if (stamp !== q.epoch) return;
@@ -107,7 +113,7 @@
   function controls(s) {
     el('wheelQuickToggle').disabled = q.busy || missionBusy() || !!q.request || !!window.wheelSpinning;
     if (q.on && q.cls) el('wheelSpinBtn').disabled = q.loading || q.busy || missionBusy() || !!q.request || !!window.wheelSpinning || !!(s && s.pending) || !window.wheelState || !wheelState.names.length;
-    if (!q.on) el('wheelSpinBtn').disabled = !!window.wheelSpinning || !window.wheelState || !wheelState.names.length;
+    if (!q.on) el('wheelSpinBtn').disabled = missionBusy() || !!window.wheelSpinning || !window.wheelState || !wheelState.names.length;
     el('wheelClassSelect').disabled = q.busy || missionBusy() || !!q.request || !!window.wheelSpinning;
     el('wheelQuickRetry').hidden = !q.on || !q.request || q.busy;
     el('wheelQuickRetry').disabled = q.loading || q.busy;
@@ -119,10 +125,13 @@
   function render(force) {
     if (!el('wheelQuickFight')) return;
     el('wheelQuickFight').hidden = manual() || !visible();
+    el('wheelMissionDock').hidden = manual() || !visible();
     if (manual() || !visible()) return;
     controls(q.state);
     el('wheelQuickLog').innerHTML = q.on && window.ClassroomBattleDisplay ? ClassroomBattleDisplay.log(q.state) : '';
-    el('wheelMissionDrawer').hidden = !q.on;
+    el('wheelMissionHint').textContent = !q.cls ? 'Choose a Lesson slot to turn for a class mission.' : !q.on ? 'Turn on Quick fight to use a summon during battle.' : '';
+    el('wheelMissionHint').hidden = !!q.cls && q.on;
+    if (!missionPanel) el('wheelMission').innerHTML = '<section class="mmPanel" aria-label="Class mission machine"><div class="mmHeading"><span class="mmMachine" role="img" aria-label="Pixel mission slot machine"></span><div><span class="mmEyebrow">WHOLE CLASS QUEST</span><h3>Mission machine</h3><p>Turn for a random objective and a class prize.</p></div></div><button type="button" disabled>↻ Turn</button></section>';
     if (missionPanel) missionPanel.render();
     el('wheelQuickStatus').textContent = !q.on ? 'Name wheel only. Turn on Quick fight to battle when points are awarded.' : q.error || (!q.cls ? 'Choose a Lesson slot to enable battles for points.' : q.loading ? 'Loading the saved encounter…' : q.busy ? 'Saving answer…' : window.wheelSpinning ? 'Choosing your champion…' : summary(q.state));
     if (q.playing && !force) return;
@@ -199,7 +208,7 @@
     return pool[Math.floor(Core.randomUnit(spinId + ':enemy') * pool.length)].id;
   }
   function blocksAward() {
-    return q.on && !manual() && (q.loading || q.busy || missionBusy() || !!q.request || !q.store || !!(q.state && q.state.pending));
+    return !manual() && (missionBusy() || q.on && (q.loading || q.busy || !!q.request || !q.store || !!(q.state && q.state.pending)));
   }
   function landed(entry, spinId) {
     if (!entry || manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || !q.cls) return;
@@ -276,7 +285,7 @@
     if (!window.ClassroomMissionMachine || !q.store) return;
     missionPanel=ClassroomMissionMachine.mount(el('wheelMission'), {store:q.store,teacherId:q.uid,classId:q.cls,
       canAct:function () { return !q.loading&&!q.busy&&!q.request&&!window.wheelSpinning&&allowed()&&visible()&&!manual(); },
-      getState:function () {return q.state;},getSpinId:function () {return q.selection&&q.selection.spinId;},
+      getState:function () {return q.on ? q.state : null;},getSpinId:function () {return q.selection&&q.selection.spinId;},
       onChange:function (result) {if(result.state&&(!q.state||result.state.revision>=q.state.revision))q.state=result.state;render();},
       onBusy:function () {controls(q.state);},
       onSummon:function (event,encounterId) {if(event)playFeedback(event,encounterId);}

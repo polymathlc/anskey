@@ -92,7 +92,7 @@ Duplicate items stack to 999; each hero equips one relic at a time. After every 
 
 ## Mission machine and One-Punch Chung
 
-The teacher can open the **Mission machine** in Quick fight or the manual battle and press **Turn**. The server independently chooses one of four equally likely class objectives and one prize. Finish or cancel the current mission before turning again. Missions and the class prize bank belong to the Lesson slot and persist across encounters and reloads.
+In the name wheel, the **Mission machine** is always visible beside the larger pixel-art wheel; press **Turn** directly. It remains available when Quick fight is off. The same window stacks the panels on smaller screens, and remembers subsequent moves and resizes. The manual battle retains its compact mission drawer. The server independently chooses one of four equally likely class objectives and one prize. Finish or cancel the current mission before turning again. Missions and the class prize bank belong to the Lesson slot and persist across encounters and reloads.
 
 | Objective | How it progresses |
 | --- | --- |

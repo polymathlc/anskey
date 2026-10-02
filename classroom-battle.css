@@ -234,14 +234,6 @@
 .cbQuickTreasure small { display:block; }
 .cbQuickTreasure p { margin:5px 0; }
 @media(prefers-reduced-motion:reduce) { .cbQuick * { animation:none!important; } }
-#wheelModal:has(#wheelQuickFight:not([hidden])) .whBody > :not(.whStage) { flex-shrink:0; }
-#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whStage { order:1; flex:0 0 150px; }
-#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .cbQuick { order:2; }
-#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whSpinRow { order:3; }
-#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whResult { order:4; }
-#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whNames { order:5; }
-#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whAddRow { order:6; }
-#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whTools { order:7; }
 .cbQuick:has(#wheelQuickToggle:not(:checked)) { padding:0 8px; margin:0; }
 .cbQuick:has(#wheelQuickToggle:not(:checked)) .cbQuickToggle small { display:none; }
 .cbHp.cbBossMp>span{background:linear-gradient(90deg,#5471cc,#b3c5ff)}

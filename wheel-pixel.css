@@ -1,0 +1,69 @@
+/* A roomy class arcade. The wheel and mission share one responsive window. */
+#wheelCard { container:wheel-window / inline-size; border:3px solid #7582b1; border-radius:4px; background:#10192e; color:#edf1ff; box-shadow:6px 6px 0 #090f22,0 18px 60px #050a1b55; }
+#wheelHead { padding:14px 18px; background:#1b2645; border-bottom:3px solid #44547b; }
+#wheelHead h2 { color:#f3d98e; font-family:ui-monospace,'Cascadia Code',Consolas,monospace; font-size:18px; }
+#wheelHead .modalClose { color:#dbe4ff; border-radius:2px; }
+#wheelCard .whBody { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(300px,1fr); grid-auto-rows:max-content; align-content:start; align-items:start; gap:20px; padding:18px 20px 26px; min-height:0; overflow:auto; background:radial-gradient(ellipse at 25% 30%,#233356 0,transparent 65%),#10192e; }
+.whMain,.whSide { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.whLesson { display:grid; gap:6px; }
+.whLesson>label { color:#b4c8ed; font:700 10px/1.4 ui-monospace,monospace; letter-spacing:.13em; text-transform:uppercase; }
+#wheelCard .whSelect,#wheelCard .whAddRow input { border:2px solid #6578a0; border-radius:2px; background:#17233d; color:#f0f3ff; min-width:0; }
+#wheelCard .whSelect option { background:#17233d; color:#f0f3ff; }
+#wheelCard .whStage { flex:none; width:100%; height:min(500px,calc(100dvh - 400px)); min-height:240px; background:radial-gradient(ellipse,#31446770,transparent 70%); }
+#wheelCanvas { image-rendering:pixelated; }
+#wheelCard .whSpinRow { gap:16px; }
+#wheelCard .whSpinRow .btn { min-width:140px; min-height:48px; padding:10px 26px; font:800 18px/1.3 ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; }
+#wheelCard .btn,#wheelCard .rwAmount { border:2px solid #617398; border-radius:2px; background:#253656; color:#eef3ff; box-shadow:3px 3px 0 #080e20; }
+#wheelCard .btn:hover:not(:disabled),#wheelCard .rwAmount:hover:not(:disabled) { background:#3c5077; border-color:#94b7e1; }
+#wheelCard .btnPrimary,#wheelCard .rwAmount.active { background:#eed18a; color:#192338; border-color:#fff0bd #a77c3c #a77c3c #fff0bd; }
+#wheelCard .btnPrimary:hover:not(:disabled) { background:#ffe9ac; color:#192338; border-color:#fff2c7; }
+#wheelCard button:focus-visible,#wheelCard input:focus-visible,#wheelCard select:focus-visible { outline:3px solid #a4ddff; outline-offset:3px; }
+#wheelCard button:disabled { cursor:default; opacity:.5; }
+#wheelCard .whRound,#wheelCard .whAwardNote { color:#b5c5e3; }
+#wheelCard .whResult { height:max-content; min-height:100px; padding:8px 12px; border:2px solid #53688d; background:#17253e; box-shadow:inset 3px 3px #223756; }
+#wheelCard .whWinner { color:#fff0ba; font-size:24px; }
+#wheelCard .whWinner.idle { color:#b5c5e3; font-size:14px; }
+#wheelCard .whAward input { border:2px solid #6578a0; border-radius:2px; background:#101b30; color:#f0f3ff; }
+.whRoster { display:grid; gap:12px; padding-top:12px; border-top:2px solid #344667; }
+#wheelCard .whChip { border:1px solid #5d7094; border-radius:2px; background:#1d2c49; }
+#wheelCard .whChipName,#wheelCard .whChipX { color:#dce8ff; }
+#wheelCard .whChip.called { background:#152039; opacity:.65; }
+#wheelCard .whChip.called .whChipName { color:#b5c5df; }
+#wheelCard .whNamesEmpty { color:#b5c5df; }
+#wheelCard .whSide .cbQuick { margin:0; border-radius:2px; border-color:#6d86ac; padding:12px; }
+#wheelMissionDock .mmPanel { margin:0; border-radius:2px; border:3px solid #bea16a; box-shadow:inset 3px 3px #443754,3px 3px #080e20; }
+#wheelMissionDock .mmMachine { width:108px; height:108px; }
+#wheelMissionDock .mmHeading h3 { font-family:ui-monospace,monospace; font-size:18px; color:#fff0ba; }
+#wheelMissionDock .mmPanel button { border-radius:2px; min-height:38px; }
+.whMissionHint { margin:8px 2px 0; color:#bbcae5; font-size:12px; line-height:1.5; }
+#wheelCard [hidden] { display:none!important; }
+#wheelModal.winMin .whBody { display:none!important; }
+@container wheel-window (max-width:760px) {
+  #wheelCard .whBody { grid-template-columns:minmax(0,1fr); padding:14px; gap:18px; }
+  #wheelCard .whMain { display:contents; }
+  #wheelCard .whStage { height:clamp(260px,70cqw,480px); min-height:220px; }
+  #wheelCard .whRoster { order:6; }
+  #wheelCard .whSide { order:5; border-top:2px solid #46577a; padding-top:18px; }
+}
+@container wheel-window (max-width:400px) {
+  #wheelCard .whBody { padding:10px; }
+  #wheelHead { padding:12px; }
+  #wheelHead h2 { font-size:15px; }
+  #wheelCard .whSpinRow { gap:10px; }
+  #wheelCard .whSpinRow .btn { min-width:108px; padding:10px 18px; }
+  #wheelMissionDock .mmMachine { width:88px; height:88px; }
+  #wheelMissionDock .mmReels { grid-template-columns:1fr; }
+  #wheelMissionDock .mmSummon { grid-template-columns:1fr; }
+  #wheelMissionDock .mmSummon>span { text-align:left; }
+}
+/* The battle arena embeds the same wheel in its existing compact sidebar. */
+.cbWheelSlot #wheelCard { container-type:normal; }
+.cbWheelSlot #wheelCard .whBody { display:flex; flex-direction:column; background:transparent; }
+.cbWheelSlot .whMain,.cbWheelSlot .whLesson,.cbWheelSlot .whRoster { display:contents; }
+.cbWheelSlot .whLesson>label,.cbWheelSlot .whSide { display:none!important; }
+.cbWheelSlot #wheelCard .whResult { border:0; box-shadow:none; background:transparent; padding:0; min-height:24px; }
+.cbWheelSlot #wheelCard .whWinner { font-size:18px; }
+.cbWheelSlot #wheelCard .whSpinRow .btn { min-width:0; }
+@media(max-width:620px) {
+  .cbWheelSlot #wheelCard .whBody { display:grid; grid-template-columns:1fr 1fr; }
+}

@@ -3607,6 +3607,7 @@ video.mirror { transform:scaleX(-1); }
 <link rel="stylesheet" href="classroom-battle.css">
 <link rel="stylesheet" href="battle-animation.css">
 <link rel="stylesheet" href="mission-machine.css">
+<link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="student-heroes.css">
 </head>
@@ -4982,30 +4983,35 @@ video.mirror { transform:scaleX(-1); }
       </div>
     </div>
     <div class="modalBody whBody">
-      <select id="wheelClassSelect" class="whSelect" title="Which class's names are on the wheel"></select>
-      <div class="whStage" id="wheelStage">
-        <canvas id="wheelCanvas" title="Tap the wheel to spin"></canvas>
+      <div class="whMain">
+        <div class="whLesson"><label for="wheelClassSelect">Lesson slot</label><select id="wheelClassSelect" class="whSelect" title="Choose a Lesson slot"></select></div>
+        <div class="whStage" id="wheelStage">
+          <canvas id="wheelCanvas" title="Tap the wheel to spin" aria-label="Student name wheel. Use Spin to choose a student."></canvas>
+        </div>
+        <div class="whSpinRow">
+          <button class="btn btnPrimary" id="wheelSpinBtn">Spin</button>
+          <span class="whRound" id="wheelRound"></span>
+        </div>
+        <div class="whResult" id="wheelResult">
+          <div id="wheelHeroPreview" class="cbWheelHero" hidden></div>
+          <div class="whWinner" id="wheelWinner"></div>
+          <div class="whAward" id="wheelAward"></div>
+        </div>
+        <div class="whRoster">
+          <div class="whNames" id="wheelNames"></div>
+          <div class="whAddRow">
+            <input type="text" id="wheelNewName" list="wheelRosterList" maxlength="40" placeholder="Add a name" autocomplete="off">
+            <datalist id="wheelRosterList"></datalist>
+            <button class="btn" id="wheelAddBtn">Add</button>
+          </div>
+          <div class="whTools">
+            <button class="btn" id="wheelBattleBtn">⚔️ Boss battle</button>
+            <button class="btn" id="wheelNewRoundBtn" title="Everyone goes back on the wheel">New round</button>
+            <button class="btn" id="wheelReseedBtn" title="Put the class list back on the wheel">Reset names</button>
+          </div>
+        </div>
       </div>
-      <div class="whResult" id="wheelResult">
-        <div id="wheelHeroPreview" class="cbWheelHero" hidden></div>
-        <div class="whWinner" id="wheelWinner"></div>
-        <div class="whAward" id="wheelAward"></div>
-      </div>
-      <div class="whSpinRow">
-        <button class="btn btnPrimary" id="wheelSpinBtn">Spin</button>
-        <span class="whRound" id="wheelRound"></span>
-      </div>
-      <div class="whNames" id="wheelNames"></div>
-      <div class="whAddRow">
-        <input type="text" id="wheelNewName" list="wheelRosterList" maxlength="40" placeholder="Add a name" autocomplete="off">
-        <datalist id="wheelRosterList"></datalist>
-        <button class="btn" id="wheelAddBtn">Add</button>
-      </div>
-      <div class="whTools">
-        <button class="btn" id="wheelBattleBtn">⚔️ Boss battle</button>
-        <button class="btn" id="wheelNewRoundBtn" title="Everyone goes back on the wheel">New round</button>
-        <button class="btn" id="wheelReseedBtn" title="Put the class list back on the wheel">Reset names</button>
-      </div>
+      <aside class="whSide" id="wheelSide" aria-label="Class mission and quick fight"></aside>
     </div>
     <div class="floatWinGrip" id="wheelGrip" title="Drag to resize"></div>
   </div>
@@ -5297,7 +5303,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.121.0';
+var APP_VERSION = 'v1.122.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -29076,8 +29082,8 @@ function wheelSegmentAt(angle, n) {
 
 var WHEEL_STORE = 'polymath.wheel:';
 var WHEEL_CLASS_KEY = 'polymath.wheelClass';
-var WHEEL_WIN_KEY = 'polymath.wheelWin';
-var WHEEL_MIN_W = 260, WHEEL_MIN_H = 330;
+var WHEEL_WIN_KEY = 'polymath.wheelWin.pixel.v1';
+var WHEEL_MIN_W = 300, WHEEL_MIN_H = 380;
 var WHEEL_COLORS = ['#FFD8A8', '#B8E0D2', '#C9D6FF', '#F7C6D9', '#E4D4F4', '#FFF1A8', '#BFE3F2', '#D5E8B0'];
 var WHEEL_AMOUNTS = [1, 2, 5, 10];
 
@@ -29168,6 +29174,10 @@ function wheelClip(ctx, text, max) {
 function wheelDraw() {
   var cv = $('wheelCanvas');
   if (!cv || !wheelState) return;
+  if (window.PixelWheel) {
+    PixelWheel.draw(cv, { names: wheelSegs || wheelRemaining(wheelState).map(function (i) { return wheelState.names[i].n; }), angle: wheelAngle, round: wheelState.round, totalNames: wheelState.names.length });
+    return;
+  }
   var ctx = cv.getContext('2d');
   var W = cv.width, H = cv.height, dpr = W / (parseFloat(cv.style.width) || W);
   var cx = W / 2, cy = H / 2 + 6 * dpr, R = Math.min(W, H) / 2 - 10 * dpr;
@@ -29493,9 +29503,9 @@ function clampWheelWin(b) { return clampWinBox(b, WHEEL_MIN_W, WHEEL_MIN_H, whee
 
 function defaultWheelWin() {
   var vw = window.innerWidth, vh = floatWinViewportH();
-  var w = Math.min(340, Math.max(WHEEL_MIN_W, vw - 32));
-  var h = Math.min(700, Math.max(WHEEL_MIN_H, vh - 90));
-  return { x: Math.max(12, vw - w - 28), y: Math.max(12, Math.round((vh - h) / 2)), w: w, h: h };
+  var w = Math.min(1100, Math.max(WHEEL_MIN_W, vw - 32));
+  var h = Math.min(860, Math.max(WHEEL_MIN_H, vh - 48));
+  return { x: Math.max(12, Math.round((vw - w) / 2)), y: Math.max(12, Math.round((vh - h) / 2)), w: w, h: h };
 }
 
 function loadWheelWinBox() {
@@ -34214,6 +34224,7 @@ loadAiNotePrefs();
 <script src="battle-core.js"></script>
 <script src="hero-api.js"></script>
 <script src="battle-store.js"></script>
+<script src="pixel-wheel.js"></script>
 <script src="battle-animation.js"></script>
 <script src="hero-skill-tree.js"></script>
 <script src="classroom-battle.js"></script>
