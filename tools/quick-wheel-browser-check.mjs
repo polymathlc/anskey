@@ -133,8 +133,33 @@ async function award(points = 1) {
   await page.evaluate(points => wheelGive(points), points);
   await page.waitForFunction(() => !document.getElementById('wheelQuickStatus').textContent.includes('Saving answer'));
 }
+async function scrollWheelToTop() {
+  await page.evaluate(() => document.querySelectorAll('#wheelCard, #wheelCard *').forEach(node => {
+    if (node.scrollHeight > node.clientHeight) node.scrollTop = 0;
+  }));
+}
+async function wheelLayout() {
+  return page.evaluate(() => {
+    const rect = selector => {
+      const { x, y, width, height, right, bottom } = document.querySelector(selector).getBoundingClientRect();
+      return { x, y, width, height, right, bottom };
+    };
+    const wheel = rect('#wheelCanvas'), card = rect('#wheelCard'), mission = rect('#wheelMissionDock');
+    const turn = rect('#wheelMission [data-mm=turn]');
+    const contains = (outer, inner) => inner.x >= outer.x - 1 && inner.right <= outer.right + 1 && inner.y >= outer.y - 1 && inner.bottom <= outer.bottom + 1;
+    const viewport = { x: 0, y: 0, right: innerWidth, bottom: innerHeight };
+    const overflow = [...document.querySelectorAll('#wheelCard, #wheelCard .whBody, #wheelMissionDock, #wheelQuickFight')].filter(node => node.scrollWidth > node.clientWidth + 2).map(node => node.id || node.className);
+    return { wheel, card, mission, turn, overflow, inViewport: contains(viewport, card), wheelVisible: contains(viewport, wheel), turnVisible: contains(viewport, turn) };
+  });
+}
 try {
   await setup();
+  await page.waitForFunction(() => document.querySelector('#wheelMission [data-mm=turn]') && !document.querySelector('#wheelMission [data-mm=turn]').disabled);
+  const desktopLayout = await wheelLayout();
+  check('opening Wheel shows a large wheel and usable mission machine together without a disclosure click', desktopLayout.wheel.width >= 360 && desktopLayout.wheelVisible && desktopLayout.turnVisible && desktopLayout.mission.x >= desktopLayout.wheel.right && desktopLayout.inViewport);
+  await page.locator('#wheelMission [data-mm=turn]').click({ trial: true });
+  check('desktop wheel, mission and fight panels fit without horizontal scrolling', desktopLayout.overflow.length === 0);
+  await page.screenshot({ path: path.join(output, 'quick-wheel-mission-desktop.png'), fullPage: true });
   check('ordinary Wheel enables Quick fight by default without opening manual battle',await page.evaluate(()=>document.getElementById('wheelQuickToggle').checked&&!ClassroomBattle.isOpen()));
   check('new party preview shows a pixel hero and encounter hint',await page.locator('#wheelQuickDuel .cbAvatar').count()===1);
   await spin();
@@ -165,6 +190,10 @@ try {
   await page.uncheck('#wheelQuickToggle');
   await page.click('#wheelSpinBtn');await page.waitForFunction(()=>!wheelSpinning);
   check('turning Quick fight off leaves an ordinary name wheel',await page.evaluate(first=>JSON.stringify(__battleState())===first&&document.getElementById('wheelQuickDuel').hidden,first));
+  await page.waitForFunction(() => document.querySelector('#wheelMission [data-mm=turn]') && !document.querySelector('#wheelMission [data-mm=turn]').disabled);
+  await scrollWheelToTop();
+  check('mission machine remains visible and usable while Quick fight is off', await page.locator('#wheelMissionDock').isVisible() && (await wheelLayout()).turnVisible);
+  await page.locator('#wheelMission [data-mm=turn]').click({ trial: true });
   await page.check('#wheelQuickToggle');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   await spin();
   const beforeFailure=await page.evaluate(()=>({state:JSON.stringify(__battleState()),marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks}));
@@ -188,6 +217,10 @@ try {
   check('selecting the next student leaves the existing enemy and party unchanged',await page.evaluate(old=>JSON.stringify(__battleState())===old,waitingVictory));
   await award();
   check('awarded final hit shows an animated chest and saved personal treasure for every hero',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===16&&document.querySelectorAll('.cbQuickTreasure .cbItemIcon[role=img]').length===16));
+  await scrollWheelToTop();
+  const victoryLayout = await wheelLayout();
+  check('a full class treasure grid leaves the wheel and mission control usable', victoryLayout.wheel.width >= 360 && victoryLayout.wheelVisible && victoryLayout.turnVisible && victoryLayout.overflow.length === 0);
+  await page.locator('#wheelMission [data-mm=turn]').click({ trial: true });
   await page.locator('.cbQuickTreasure').evaluate(node=>node.scrollIntoView({block:'start'}));
   await page.screenshot({path:path.join(output,'quick-wheel-treasure.png'),fullPage:true});
   const victory=await page.evaluate(()=>({id:__battleState().encounterId,xp:__battleState().heroes.reduce((sum,h)=>sum+h.xp,0)}));
@@ -264,7 +297,6 @@ try {
   check('uncertain assist retains a dedicated retry and blocks conflicting awards',await page.evaluate(()=>document.getElementById('wheelQuickRetry').textContent.includes('Retry assist')&&document.getElementById('wheelSpinBtn').disabled&&document.querySelector('#wheelAward button').disabled));
   await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   check('retrying an assist after a lost reply cannot duplicate XP',await page.evaluate(({id,xp})=>__battleState().heroes.find(h=>h.studentId===id).xp===xp+6&&document.getElementById('wheelQuickRetry').hidden,{id:retryHelper,xp:retryXp}));
-  await page.locator('#wheelMissionDrawer > summary').click();
   await page.waitForFunction(()=>!document.querySelector('#wheelMission [data-source=teacher]').disabled);
   const beforeChung=await page.evaluate(()=>__battleState().bossHp);
   await page.click('#wheelMission [data-source=teacher]');await page.waitForFunction(()=>__battleState().status==='victory'&&!document.getElementById('wheelSpinBtn').disabled);
@@ -273,6 +305,32 @@ try {
   await page.evaluate(()=>{const old=__battleState(),ref='classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science');__battleDocuments[ref]=ClassroomBattleCore.reduce(old,{type:'start',id:'race-summon-target',expectedRevision:old.revision,heroes:old.heroes,bossId:old.bossId});__battleNotify(ref);__replaceSummonReply=true;window.__lateChungPlays=0;const original=ClassroomBattleAnimation.playChung;ClassroomBattleAnimation.playChung=function(...args){__lateChungPlays++;return original(...args);};});
   await page.waitForFunction(()=>!document.querySelector('#wheelMission [data-source=teacher]').disabled);await page.click('#wheelMission [data-source=teacher]');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled&&!document.querySelector('.mmRolling'));
   check('late summon acknowledgement cannot punch a newer saved encounter',await page.evaluate(()=>__lateChungPlays===0&&__battleState().encounterId==='new-enemy-before-summon-reply'&&document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__battleState().bossHp+'/')));
+  const savedWindow = await page.evaluate(() => ({ ...wheelWin }));
+  await page.evaluate(() => { wheelWin = clampWheelWin({ ...wheelWin, w: 680, h: 690 }); applyWheelWin(); });
+  await scrollWheelToTop();
+  const resizedLayout = await wheelLayout();
+  check('a manually narrowed wheel window stacks panels without horizontal overflow', resizedLayout.overflow.length === 0 && resizedLayout.inViewport && resizedLayout.wheel.width >= 220);
+  await page.locator('#wheelMission [data-mm=turn]').click({ trial: true });
+  for (const viewport of [{ width: 768, height: 1024 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => { wheelWin = clampWheelWin({ ...wheelWin, x: 12, y: 12, w: innerWidth - 24, h: innerHeight - 40 }); applyWheelWin(); });
+    await scrollWheelToTop();
+    const layout = await wheelLayout();
+    check(viewport.width + 'px viewport keeps a readable wheel and all panels within the window width', layout.inViewport && layout.overflow.length === 0 && layout.wheel.width >= 220);
+    if (viewport.width === 390) check('phone result panel fully contains wrapped point controls and the awarded-points tally', await page.evaluate(() => {
+      const result = document.querySelector('#wheelCard .whResult').getBoundingClientRect();
+      return [...document.querySelectorAll('#wheelAward button, #wheelAward input, #wheelAward .whAwardNote')].every(node => {
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.left >= result.left && rect.right <= result.right && rect.top >= result.top && rect.bottom <= result.bottom;
+      });
+    }));
+    await page.screenshot({ path: path.join(output, 'quick-wheel-top-' + viewport.width + '.png'), fullPage: true });
+    await page.locator('#wheelMission [data-mm=turn]').click({ trial: true });
+    check(viewport.width + 'px viewport allows the mission machine control to scroll fully into view', (await wheelLayout()).turnVisible);
+    await page.screenshot({ path: path.join(output, 'quick-wheel-mission-' + viewport.width + '.png'), fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(saved => { wheelWin = clampWheelWin(saved); applyWheelWin(); }, savedWindow);
   check('quick wheel raises no application exceptions',errors.length===0);
   console.log('\n'+checks+' quick wheel browser checks passed. Screenshots: '+output);
 } finally { await browser.close(); }

@@ -2,6 +2,14 @@
 
 Guidance for Claude when working in this repo.
 
+## Pixel wheel and visible mission machine (v1.122.0)
+
+The ordinary name wheel opens as a large responsive arcade window (up to 1100 × 860). `wheel-pixel.css` gives `.whMain` the large wheel and controls and `.whSide` the always-visible `#wheelMissionDock` above Quick fight. Narrow containers stack missions after the wheel controls and before roster management. Keep the generic minimise behaviour explicit: `.winMin .whBody` must stay hidden despite grid styling. The manual arena still embeds the same DOM in its compact sidebar; wrapper `display:contents` and hidden `.whSide` preserve that layout.
+
+`pixel-wheel.js` renders a native 192-pixel segmented disk with nearest-neighbour scaling, a fixed gold pointer at 12 o'clock and readable dynamic labels at device resolution. `PixelWheel.draw` receives names, angle, round and totalNames; it never selects winners or changes state. Keep the existing spin/landing math. Window geometry uses `polymath.wheelWin.pixel.v1` so legacy narrow saved windows receive the new default once, then retain subsequent resize/move choices. Roster and battle storage keys do not change.
+
+The mission panel stays mounted and usable when Quick fight is off; disabling combat does not discard mission receipts or its store subscription. Summons require Quick fight enabled and an active encounter. Preserve mission/save/class/account guards and instant saved battle results. Run wheel, Quick fight, manual battle and animation browser checks after layout changes; the wheel suite covers 680px window resizing plus tablet/phone layouts.
+
 ## Instant combat, illustrated treasure and class missions (v1.121.0)
 
 Render server-confirmed HP/MP, treasure and damage history immediately after a save. Animations are nonblocking feedback: do not hold pre-turn bars, delay loot, await playback to unlock the wheel, or invoke combat from an animation callback. New spins, newer saved turns, closure and account/Lesson slot changes cancel old effects. Preserve loading, spinning, save/retry and pending-answer guards; combat playback adds no extra lock. `battle-core.js` retains the latest 40 named `combatLog` turns across encounters; combined auto turns include their saved enemy reply once. Log actual damage, HP healing, MP restoration, shield/poison effects and incorrect/skipped answers. `battle-display.js` renders this saved history and the responsive per-student treasure grid.
