@@ -35,7 +35,7 @@ async function setup(delayProfiles = 0) {
     window.isAdmin = () => true;
     window.currentUser = { uid: 'teacher-fixture', email: 'teacher@example.test' };
     window.actingStudent = null;
-    window.rwStudents = ['Ari', 'Bo', 'Cy', 'Dee', 'Guest'].map((name, i) => ({ id: 'student-' + i, name, ...(i < 4 ? { uid: 'account-' + i } : {}), slots: ['P5 Science', 'P6 Science'], marks: 10 }));
+    window.rwStudents = ['Ari', 'Bo', 'Cy', 'Dee', 'Evan', 'Faye', 'Gale', 'Hana', 'Ivan', 'Jade', 'Kai', 'Luna', 'Maya', 'Noah', 'Owen', 'Pia'].map((name, i) => ({ id: 'student-' + i, name, ...(i < 4 ? { uid: 'account-' + i } : {}), slots: ['P5 Science', 'P6 Science'], marks: 10 }));
     const roles = ['warrior', 'ranger', 'mage', 'healer'];
     const documents = JSON.parse(localStorage.getItem('battle-fixture-documents') || '{}');
     roles.forEach((role, i) => {
@@ -80,95 +80,91 @@ async function spin() {
 }
 try {
   await setup();
-  check('teacher opens the battle with the original wheel embedded', await page.locator('#cbWheelMount #wheelCanvas').count() === 1);
-  check('four CER roles and a clear starter fallback load', await page.evaluate(() => document.querySelectorAll('.cbHero').length === 5 && document.querySelectorAll('.cbHero img').length === 4 && document.querySelector('#cbHeroes').textContent.includes('No CER account linked')));
+  check('teacher opens the battle with original wheel and independent pixel avatars', await page.evaluate(() => document.querySelectorAll('#cbHeroes .cbHero').length === 16 && document.querySelectorAll('#cbHeroes img[src^="assets/battle-pixel/"]').length === 16 && !!document.querySelector('#cbWheelMount #wheelCanvas')));
+  await page.selectOption('#cbEncounterChoice', await page.evaluate(() => ClassroomBattleCore.BOSSES.find(b => !b.legacy && b.id.includes('goblin')).id));
   await page.click('#cbStart'); await settle();
-  check('random encounter is persisted for this teacher and class', await page.evaluate(() => __battleState().bossId && __battleState().heroes.length === 5));
-  // Hurt teammates and charge an ultimate before the healer takes a turn.
-  await page.click('#cbAttack'); await settle();
-  check('boss turns launch an animated projectile and impact', await page.evaluate(() => __battleAnimations.some(a => a.className.includes('cbBossProjectile')) && __battleAnimations.some(a => a.className.includes('cbDamage'))));
-  await page.click('#cbAttack'); await settle();
-  await page.click('#cbAttack'); await settle();
-  const chargeMax = await page.evaluate(() => ClassroomBattleCore.bossById(__battleState().bossId).chargeMax);
-  for (let i = 3; i < chargeMax; i++) { await page.click('#cbAttack'); await settle(); }
-  check('boss attack displays predictable charge', await page.evaluate(() => !document.querySelector('#cbUltimate').disabled));
-  await page.click('#cbUltimate'); await settle();
-  check('ultimate damages every hero and resets charge', await page.evaluate(() => __battleState().lastEvent.targets.length === 5 && __battleState().charge === 0));
-  check('ultimate displays an animated area attack', await page.evaluate(() => __battleAnimations.some(a => a.className.includes('cbAreaAttack'))));
-  const rolesSeen = [];
-  for (let i = 0; i < 4; i++) {
-    await spin();
-    const before = await page.evaluate(() => ({ hp: __battleState().bossHp, count: __battleState().correctCount, hero: __battleState().heroes.find(h => h.id === __battleState().pending.heroId) }));
-    rolesSeen.push(before.hero.role);
-    check(before.hero.role + ' is highlighted from the wheel’s stable student ID', await page.locator('.cbHero.cbSelected').getAttribute('data-hero-id') === before.hero.id);
-    await page.evaluate(() => { __battleAnimations = []; });
-    await page.evaluate(() => { document.getElementById('cbCorrect').click(); document.getElementById('cbCorrect').click(); document.getElementById('cbCorrect').click(); });
-    await settle();
-    check(before.hero.role + ' correct answer damages boss exactly once', await page.evaluate(({ hp, count }) => __battleState().bossHp < hp && __battleState().correctCount === count + 1 && !__battleState().pending, before));
-    check(before.hero.role + ' plays its role-specific animated attack', await page.evaluate(role => {
-      const expected = { warrior: 'cbwarrior', ranger: 'cbArrow', mage: 'cbmage', healer: 'cbhealer' }[role];
-      return __battleAnimations.filter(a => a.className.includes(expected)).length >= (role === 'ranger' ? 2 : 1);
-    }, before.hero.role));
-    if (before.hero.role === 'healer') check('healer restores teammates’ health', await page.evaluate(() => __battleState().lastEvent.healed.some(h => h.amount > 0)));
-    if (before.hero.role === 'healer') check('healer animates healing on teammates', await page.evaluate(() => __battleAnimations.some(a => a.className.includes('cbHealing'))));
-  }
-  check('all four hero roles were exercised', new Set(rolesSeen).size === 4);
-  for (const [button, outcome] of [['cbIncorrect', 'incorrect'], ['cbSkip', 'skip']]) {
-    await spin(); const hp = await page.evaluate(() => __battleState().bossHp);
-    await page.click('#' + button); await settle();
-    check(outcome + ' resolves once without hero damage', await page.evaluate(({ hp, outcome }) => __battleState().bossHp === hp && !__battleState().pending && __battleState().lastEvent.outcome === outcome, { hp, outcome }));
-  }
-  await page.evaluate(() => { __battleDocuments['scienceGameLeaderboard/account-0'].battleHero.role = 'mage'; __battleDocuments['scienceGameLeaderboard/account-0'].battleHero.stats.atk = 90; __battleDocuments['scienceGameLeaderboard/account-0'].battleHero.equipment.pet = 'fox'; __battleNotify('scienceGameLeaderboard/account-0'); });
-  await page.waitForFunction(() => __battleState().heroes[0].role === 'mage');
-  check('live CER role/equipment/stat updates synchronize without recreating the encounter', await page.evaluate(() => __battleState().heroes[0].role === 'mage' && document.querySelector('.cbHero').textContent.includes('Mage') && document.querySelector('.cbHero').textContent.includes('3 items')));
-  const source = await page.evaluate(() => structuredClone(__battleDocuments['scienceGameLeaderboard/account-0']));
-  await page.evaluate(() => { __battleDocuments['scienceGameLeaderboard/account-0'].battleHero.avatarDataUrl = 'data:image/svg+xml;charset=utf-8,%3Csvg'; __battleNotify('scienceGameLeaderboard/account-0'); });
-  await page.waitForFunction(() => document.querySelector('.cbHero .cbAvatarNote').textContent.includes('Avatar unavailable'));
-  check('failed avatar decoding displays a clear fallback with synced stats', await page.locator('.cbHero').first().locator('.cbAvatarFallback').count() === 1);
-  await page.evaluate(() => { delete __battleDocuments['scienceGameLeaderboard/account-0']; __battleNotify('scienceGameLeaderboard/account-0'); });
-  await page.waitForTimeout(350);
-  check('an unavailable profile never downgrades an existing saved hero', await page.evaluate(() => __battleState().heroes[0].role === 'mage'));
-  await page.evaluate(source => { __battleDocuments['scienceGameLeaderboard/account-0'] = source; __battleNotify('scienceGameLeaderboard/account-0'); }, source);
+  check('new encounter is persisted for this teacher and class', await page.evaluate(() => __battleState().heroes.length === 16 && __battleState().status === 'active'));
+  check('four heroes form a vertical column facing the enemy on the right', await page.evaluate(() => { const a = [...document.querySelectorAll('#cbHeroes .cbHero')].map(n=>n.getBoundingClientRect()); const boss=document.getElementById('cbBoss').getBoundingClientRect(); return a[0].left === a[3].left && a[3].top > a[0].top && a[4].left > a[0].left && a[4].top === a[0].top && boss.left > a[0].right; }));
+  await page.locator('.cbHero').first().click();
+  await page.selectOption('#cbRoleChoice', 'mage'); await settle();
+  check('class changes are saved locally to the classroom hero', await page.evaluate(() => __battleState().heroes[0].role === 'mage'));
+  check('skill tree has 12 nodes and three visible branching columns', await page.locator('.cbSkillNode').count() === 12);
+  await page.click('[data-learn="mage-ice-lance"]'); await settle();
+  check('learning a skill spends points and persists the prerequisite root', await page.evaluate(() => __battleState().heroes[0].learnedSkills.includes('mage-ice-lance')));
+  await page.screenshot({ path:path.join(output,'pixel-skill-tree.png'),fullPage:true });
+  await page.click('#cbJournalClose');
+  const independent = await page.evaluate(() => JSON.stringify(__battleState().heroes[0]));
+  await page.evaluate(() => { __battleDocuments['scienceGameLeaderboard/account-0'].battleHero.role='cleric'; __battleDocuments['scienceGameLeaderboard/account-0'].battleHero.stats.atk=9999; __battleNotify('scienceGameLeaderboard/account-0'); });
+  await page.waitForTimeout(300);
+  check('CER profile changes cannot overwrite classroom progression', await page.evaluate(old => JSON.stringify(__battleState().heroes[0]) === old, independent));
+  const beforeMeter = await page.evaluate(() => __battleState().bossTurns);
+  await page.click('#cbAttack');
+  check('boss attack opens black/orange/red meter without damage', await page.evaluate(turns => !document.getElementById('cbTiming').hidden && __battleState().bossTurns === turns && document.getElementById('wheelSpinBtn').disabled, beforeMeter));
+  const needle = await page.locator('#cbPowerNeedle').getAttribute('style'); await page.waitForTimeout(100);
+  check('meter needle moves until stopped', needle !== await page.locator('#cbPowerNeedle').getAttribute('style'));
+  await page.screenshot({path:path.join(output,'pixel-boss-meter.png'),fullPage:true});
+  await page.click('#cbStop'); await settle();
+  check('stopping applies exactly one timed boss turn and closes meter', await page.evaluate(turns => __battleState().bossTurns === turns+1 && document.getElementById('cbTiming').hidden && __battleState().lastEvent.targets.length > 0, beforeMeter));
   await spin();
-  await page.screenshot({ path: path.join(output, 'battle-desktop.png'), fullPage: true });
-  for (const [name, width, height] of [['tablet', 820, 1180], ['tablet-portrait', 768, 1024], ['tablet-landscape', 1024, 768]]) {
-    await page.setViewportSize({ width, height });
-    await page.screenshot({ path: path.join(output, 'battle-' + name + '.png'), fullPage: true });
-    check(name + ' controls stay inside viewport and can be tapped', await page.evaluate(() => ['cbCorrect', 'cbIncorrect', 'cbSkip', 'cbStart'].every(id => { const b = document.getElementById(id).getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight && b.height >= 44; })));
-    check(name + ' boss artwork never overlaps the name or health controls', await page.evaluate(() => { const art = document.getElementById('cbBossImage')?.getBoundingClientRect(), title = document.getElementById('cbBossName').getBoundingClientRect(); return !!art && art.bottom <= title.top && art.height > 100; }));
-  }
-  await page.click('#cbSkip'); await settle();
-  const saved = await page.evaluate(() => ({ id: __battleState().encounterId, hp: __battleState().bossHp, health: __battleState().heroes.map(h => h.hp), role: __battleState().heroes[0].role }));
-  await setup(600);
-  check('reload restores boss, damage, hero health and roles despite delayed profiles', await page.evaluate(saved => { const s = __battleState(); return s.encounterId === saved.id && s.bossHp === saved.hp && JSON.stringify(s.heroes.map(h => h.hp)) === JSON.stringify(saved.health) && s.heroes[0].role === saved.role; }, saved));
-  await page.selectOption('#wheelClassSelect', 'P6 Science');
-  await page.waitForFunction(() => !document.getElementById('cbStart').disabled);
-  check('another class has a separate encounter', await page.evaluate(() => !__battleState('P6 Science') && document.getElementById('cbBossName').textContent.includes('awaits')));
-  await page.selectOption('#wheelClassSelect', 'P5 Science');
-  await page.waitForFunction(() => !document.getElementById('cbStart').disabled);
+  const turn = await page.evaluate(() => ({hp:__battleState().bossHp, count:__battleState().correctCount, hero:__battleState().heroes.find(h=>h.id===__battleState().pending.heroId)}));
+  await page.click('#cbSkills');
+  const usable = page.locator('#cbCommandOptions [data-command]:not([disabled])').first();
+  check('learned active skills are available in command box', await usable.count() === 1);
+  await usable.click();
+  await page.evaluate(() => { document.getElementById('cbCorrect').click(); document.getElementById('cbCorrect').click(); }); await settle();
+  check('skill resolves once and spends MP', await page.evaluate(before => __battleState().correctCount === before.count+1 && !__battleState().pending && __battleState().heroes.find(h=>h.id===before.hero.id).mp < before.hero.mp,turn));
+  await spin(); await page.click('#cbItems');
+  const item = page.locator('#cbCommandOptions [data-command]:not([disabled])').first();
+  const itemId = await item.getAttribute('data-command');
+  const itemBefore = await page.evaluate(id => {const s=__battleState(),h=s.heroes.find(h=>h.id===s.pending.heroId); return {id:h.id,qty:h.inventory.find(i=>i.id===id).quantity};},itemId);
+  await item.click(); await page.click('#cbCorrect'); await settle();
+  check('correct item command consumes exactly one inventory charge',await page.evaluate(({id,before}) => {const h=__battleState().heroes.find(h=>h.id===before.id), entry=h.inventory.find(i=>i.id===id);return (entry?.quantity||0)===before.qty-1;},{id:itemId,before:itemBefore}));
+  for (const [id,outcome] of [['cbIncorrect','incorrect'],['cbSkip','skip']]) { await spin(); const hp=await page.evaluate(()=>__battleState().bossHp); await page.click('#'+id); await settle(); check(outcome+' resolves without damage',await page.evaluate(hp=>__battleState().bossHp===hp&&!__battleState().pending,hp)); }
   await spin();
-  const pending = await page.evaluate(() => __battleState().pending.id);
-  await setup();
-  check('an unresolved answer is restored after reload', await page.evaluate(id => __battleState().pending.id === id && !document.getElementById('cbCorrect').disabled && document.getElementById('wheelSpinBtn').disabled, pending));
+  await page.screenshot({path:path.join(output,'pixel-battle-desktop.png'),fullPage:true});
+  for (const [name,width,height] of [['tablet',820,1180],['landscape',1024,768],['phone',390,844]]) {
+    await page.setViewportSize({width,height});
+    await page.locator('#cbCorrect').scrollIntoViewIfNeeded();
+    check(name+' commands remain tappable without page overflow',await page.evaluate(()=>{const b=document.getElementById('cbCorrect').getBoundingClientRect();return b.left>=0&&b.right<=innerWidth&&b.height>=44&&document.querySelector('.cbShell').scrollWidth<=innerWidth;}));
+    check(name+' maintains heroes left and enemy right',await page.evaluate(()=>document.getElementById('cbHeroes').getBoundingClientRect().left<document.getElementById('cbBoss').getBoundingClientRect().left));
+    check(name+' enemy artwork does not overlap its name or health',await page.evaluate(()=>document.getElementById('cbBossImage').getBoundingClientRect().bottom<=document.getElementById('cbBossName').getBoundingClientRect().top));
+    await page.screenshot({path:path.join(output,'pixel-battle-'+name+'.png'),fullPage:true});
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  const pending = await page.evaluate(()=>__battleState().pending.id); await setup();
+  check('reload restores unresolved turn and disables another spin',await page.evaluate(id=>__battleState().pending.id===id&&document.getElementById('wheelSpinBtn').disabled,pending));
   await page.click('#cbSkip'); await settle();
-  await page.evaluate(() => { __battleState().bossHp = 1; __battleNotify('classroomBattles/teacher-fixture/classes/' + ClassroomBattleStore.classKey('P5 Science')); });
+  await page.evaluate(()=>{__battleState().bossHp=1;__battleState().heroes[4].hp=0;__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
   await spin(); await page.click('#cbCorrect'); await settle();
-  check('boss defeat shows saved victory and locks completed encounter controls', await page.evaluate(() => __battleState().status === 'victory' && document.getElementById('cbFeedback').textContent.includes('Victory!') && document.getElementById('wheelSpinBtn').disabled));
+  check('victory awards a personal treasure to every hero including fallen allies',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbReward').length===16&&!document.getElementById('cbLoot').hidden));
+  const rewards=await page.evaluate(()=>JSON.stringify(__battleState().rewards));
+  await page.locator('#cbLoot').scrollIntoViewIfNeeded(); await page.waitForTimeout(200);
+  await page.screenshot({path:path.join(output,'pixel-victory-loot.png'),fullPage:true});
+  await setup(); check('victory reload keeps exactly the same loot',await page.evaluate(r=>JSON.stringify(__battleState().rewards)===r,rewards));
+  const relicHero = await page.evaluate(()=>__battleState().heroes.find(h=>h.inventory.some(i=>ClassroomBattleCore.itemById(i.itemId).type==='equipment'))?.id);
+  assert.ok(relicHero,'victory fixture contains equipment');
+  await page.locator('[data-inspect="'+relicHero+'"]').click();
+  await page.locator('[data-equip]:not([disabled])').first().click(); await settle();
+  check('collected equipment can be equipped from its owner journal',await page.evaluate(id=>!!__battleState().heroes.find(h=>h.id===id).equipped,relicHero));
+  await page.click('#cbJournalClose');
+  const progression=await page.evaluate(()=>__battleState().heroes.map(h=>({id:h.id,xp:h.xp,inventory:h.inventory,learned:h.learnedSkills})));
   await page.click('#cbStart'); await settle();
-  await page.evaluate(() => { __battleState().heroes.forEach(h => { h.hp = 1; }); __battleState().charge = ClassroomBattleCore.bossById(__battleState().bossId).chargeMax; __battleNotify('classroomBattles/teacher-fixture/classes/' + ClassroomBattleStore.classKey('P5 Science')); });
-  await page.click('#cbUltimate'); await settle();
-  check('team defeat is explicit and permits a deliberate fresh encounter', await page.evaluate(() => __battleState().status === 'defeat' && document.getElementById('cbFeedback').textContent.includes('fresh try') && !document.getElementById('cbStart').disabled));
+  check('next encounter preserves every hero inventory, XP and learned skills',await page.evaluate(old=>JSON.stringify(__battleState().heroes.map(h=>({id:h.id,xp:h.xp,inventory:h.inventory,learned:h.learnedSkills})))===JSON.stringify(old),progression));
+  await page.evaluate(()=>{const s=__battleState();s.heroes.forEach(h=>h.hp=1);s.charge=ClassroomBattleCore.bossById(s.bossId).chargeMax;__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
+  await page.click('#cbUltimate'); await page.click('#cbStop'); await settle();
+  check('boss skill uses meter and team defeat allows a fresh encounter',await page.evaluate(()=>__battleState().status==='defeat'&&!document.getElementById('cbStart').disabled));
+  await page.selectOption('#wheelClassSelect','P6 Science'); await page.waitForFunction(()=>!document.getElementById('cbStart').disabled);
+  check('another class has separate encounter and progression',await page.evaluate(()=>!__battleState('P6 Science')));
+  await page.evaluate(()=>{const old=structuredClone(__battleState()); old.classId='P6 Science';old.status='active';old.pending=null;old.bossHp=old.bossMaxHp;old.heroes.forEach(h=>{delete h.progressionVersion;delete h.learnedSkills;delete h.inventory;delete h.mp;h.role='healer';h.hp=Math.round(h.stats.maxHp/2);}); __battleDocuments['classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P6 Science')]=old;localStorage.setItem('battle-fixture-documents',JSON.stringify(__battleDocuments));});
+  await page.click('#cbClose'); await page.evaluate(()=>ClassroomBattle.open()); await page.selectOption('#wheelClassSelect','P6 Science');
+  await page.waitForFunction(()=>__battleState('P6 Science').heroes.every(h=>h.progressionVersion===1));
+  check('old CER healer encounters render and migrate without a crash',await page.evaluate(()=>__battleState('P6 Science').heroes.every(h=>h.role==='cleric'&&h.hp>0&&h.hp<h.stats.maxHp)));
   await page.click('#cbClose');
-  check('closing restores the normal wheel and leaves worksheet controls intact', await page.evaluate(() => document.getElementById('wheelModal').parentNode === document.body && !document.body.classList.contains('cbOpen')));
-  await page.evaluate(async () => { await openWheel(); wheelNewRound(); });
-  await page.click('#wheelSpinBtn');
-  await page.waitForFunction(() => !wheelSpinning && !!document.querySelector('#wheelHeroPreview img'));
-  check('the ordinary selection wheel also shows the existing CER avatar', await page.locator('#wheelHeroPreview').textContent().then(text => text.includes('CER synced')));
-  await page.evaluate(() => { isAdmin = () => false; applyRewardVisibility(); });
-  check('student mode hides and refuses teacher battle controls', await page.evaluate(() => document.getElementById('classroomBattleBtn').style.display === 'none' && !ClassroomBattle.isOpen()));
-  check('no uncaught application errors', errors.length === 0);
-  // Verify the full original-boss catalogue decodes in the browser.
-  const art = await page.evaluate(async () => Promise.all(ClassroomBattleCore.BOSSES.map(b => new Promise(resolve => { const img = new Image(); img.onload = () => resolve({ id: b.id, ok: img.naturalWidth > 50 && img.naturalHeight > 50 }); img.onerror = () => resolve({ id: b.id, ok: false }); img.src = b.image; }))));
-  check('all 20 original boss images decode', art.length === 20 && art.every(a => a.ok));
-  console.log('\n' + checks + ' classroom browser checks passed. Screenshots: ' + output);
+  check('closing restores original wheel',await page.evaluate(()=>document.getElementById('wheelModal').parentNode===document.body&&!document.body.classList.contains('cbOpen')));
+  await page.evaluate(()=>{isAdmin=()=>false;applyRewardVisibility();});
+  check('student mode cannot open teacher controls',await page.evaluate(()=>document.getElementById('classroomBattleBtn').style.display==='none'&&!ClassroomBattle.isOpen()));
+  const art=await page.evaluate(async()=>Promise.all([...Object.keys(ClassroomBattleCore.ROLES).map(role=>'assets/battle-pixel/'+role+'.png'),...ClassroomBattleCore.BOSSES.map(b=>b.image),'assets/battle-pixel/chest-sheet.png'].map(src=>new Promise(resolve=>{const img=new Image();img.onload=()=>resolve({src,ok:img.naturalWidth>32});img.onerror=()=>resolve({src,ok:false});img.src=src;}))));
+  check('every class, enemy and chest image decodes',art.every(a=>a.ok));
+  check('no uncaught application errors',errors.length===0);
+  console.log('\n'+checks+' pixel classroom browser checks passed. Screenshots: '+output);
 } finally { await browser.close(); }

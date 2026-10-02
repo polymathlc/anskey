@@ -2,21 +2,13 @@
 
 Guidance for Claude when working in this repo.
 
-## Classroom battle (v1.114.0)
+## Classroom battle (v1.115.0)
 
-`battle-bosses.js` → `battle-core.js` → `battle-store.js` → `classroom-battle.js`
-load after the main script; `classroom-battle.css` is scoped to the overlay.
-The overlay temporarily hosts the existing wheel and restores it on close.
-Student accounts link only through register UID; the CER `battleHero` SVG is
-an image URL, never raw DOM markup. Registered wheel entries dedupe by ID.
-Every persisted action uses the store transaction and immutable receipt;
-answers require their pending turn and boss turns require the observed revision.
-Keep avatar payloads out of encounter documents. Wait for initial profile reads
-before synchronizing; unavailable profiles must preserve saved role/stats/health.
-Shared Firebase rules are migrated narrowly by `tools/battle-rules.mjs`, never
-replaced by an app-local rules deployment. See `docs/classroom-battle.md`.
-Run all unit/server tests, `tools/wheel-check.mjs` and
-`tools/classroom-battle-browser-check.mjs` after changing these paths.
+Load battle-bosses.js and battle-content.js before battle-core.js, battle-store.js and classroom-battle.js. The overlay temporarily hosts the existing wheel and restores it on close. Pixel heroes use their own saved progression; never read CER battleHero profiles. Register UID/ID provides stable identity, never name matching.
+
+Every persisted action uses a transaction and immutable receipt. Answers require the pending turn; boss turns and hero management require the observed revision. Hero management uses sync commands to retain the deployed rules contract. Keep schemaVersion:1; progressionVersion marks migrated heroes. Keep generated image payloads out of encounter documents. Starting new encounters carries XP, learned skills and treasure; victory rolls are deterministic and awarded once, including KO heroes. Legacy bosses must remain resolvable for saved battles.
+
+Shared Firebase rules are migrated narrowly by tools/battle-rules.mjs, never replaced by an app-local rules deployment. This update does not need a rules migration. Run all unit/server tests, tools/wheel-check.mjs and tools/classroom-battle-browser-check.mjs after changing these paths. See docs/classroom-battle.md.
 
 ## Name wheel (v1.113.0)
 
