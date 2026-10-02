@@ -6,7 +6,7 @@ Guidance for Claude when working in this repo.
 
 `battle-animation.js/css` renders generated hero sheets (4 columns × 2 rows: idle above action) and effect sheets (2 × 2). Load it before the skill graph, classroom controller, Quick fight and student heroes. `heroMarkup` keeps an accessible wrapper and static PNG fallback; call `mount` after inserting it. Role-specific CSS scale/baseline settings account for transparent sprite padding. Generated PNGs are unchanged; prompts, dimensions, alpha checks and SHA-256 are in `assets/battle-pixel/animations`.
 
-Quick fight animates only an acknowledged, saved auto event. During playback keep incoming snapshots queued, block extra spins, show the pre-turn health, and reveal final health/loot after settling. Spin IDs prevent replays; reloads show current state without replaying history. Close, lesson changes, manual battle and account changes cancel presentation, not already saved combat. Never invoke the reducer or write XP/damage from animation callbacks. Respect reduced-motion changes and missing assets. Run the animation browser suite plus existing wheel/battle/student checks after changes.
+Quick fight animates only an acknowledged, saved auto event. During playback keep incoming snapshots queued, block extra spins, show the pre-turn health, and reveal final health/loot after settling. Per-award IDs prevent replays; reloads show current state without replaying history. Close, lesson changes, manual battle and account changes cancel presentation, not already saved combat. Never invoke the reducer or write XP/damage from animation callbacks. Respect reduced-motion changes and missing assets. Run the animation browser suite plus existing wheel/battle/student checks after changes.
 
 ## Student heroes and classroom battle (v1.116.0)
 
@@ -14,7 +14,7 @@ Load battle-bosses.js and battle-content.js before battle-core.js, then hero-api
 
 Every persisted action uses the authenticated ansKeyHeroes endpoint and an immutable receipt. Server transactions update both encounters and canonical profiles under classroomHeroData. Browser writes to both namespaces are denied; teacher battle subscriptions remain readable. Student claims reserve account and roster IDs atomically and need teacher approval. Configure requires ownership and no active encounter. Teacher endEncounter releases the party even after its lesson disappears from the roster. Never trust client-supplied XP, skills, inventory or role authority. See functions/HEROES.md.
 
-Quick fight dispatches one atomic auto action using the persisted wheel spin ID. It chooses usable learned skills, resolves one enemy response and grants combat XP without incrementing answer counts or marks. Preserve pending manual turns, account/class/close cancellation guards, duplicate receipts and canonical cross-lesson locks. Keep schemaVersion:1 and legacy bosses. Victory loot is deterministic and awarded once to all heroes, including KO heroes.
+Quick fight now waits for a positive points award (v1.118.0). Spin only selects/previews a hero. `wheelGive` uses `Store.award` / the teacher-only `wheelAward` API, which atomically updates marks, the normal award ledger, school-wide boss HP and canonical combat. It derives auto power from validated points (1–10000); damage/support scale by points, but enemy power and the one 12-XP/correct-answer grant do not. Use a unique award ID independent of the spin ID so multiple awards per call work. Direct `battle` auto requests are rejected. Keep uncertain requests in the per-account/slot session outbox and retry their same receipt; clear only explicit uncommitted validation failures. Preserve pending manual turns, account/class/close guards, duplicate receipts and canonical cross-lesson locks. Keep schemaVersion:1 and legacy bosses. Victory loot is deterministic and awarded once to all heroes, including KO heroes.
 
 After editing battle-core.js, battle-content.js or battle-bosses.js, run tools/sync-hero-game.mjs; server tests require byte parity with functions/hero-game. Migrate shared rules only with tools/hero-rules.mjs against the current release, never an app-local replacement. Run all application/server tests and wheel, classroom-battle, quick-wheel, student-heroes and hero-skill-tree browser checks. CI saves their screenshots.
 
@@ -33,8 +33,9 @@ mid-spin still counts the student as called, so nobody is called twice. The whee
 turns over the names that were on it, then drops the winner. A spin with nobody left
 opens round N+1. Names are stored per reward-class string in `localStorage`
 (`polymath.wheel:{class}`); a new calendar day keeps the names and clears the calls.
-`seeded` stops a removed name coming back from the register. Marks go through
-`rwAwardMarks(student, delta, reason)`, never a second transaction. Run
+`seeded` stops a removed name coming back from the register. Ordinary marks go through
+`rwAwardMarks(student, delta, reason)`. Quick fight awards use the single atomic
+`wheelAward` server transaction instead; never call both for one award. Run
 `node --test tools/wheel-tests.mjs` and `node tools/wheel-check.mjs`.
 
 ## Default text, vision and reasoning (v1.112.0)

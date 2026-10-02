@@ -5296,7 +5296,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.117.0';
+var APP_VERSION = 'v1.118.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -29381,7 +29381,7 @@ function wheelRenderResult() {
     award.appendChild(note);
     return;
   }
-  var busy = !!rwAwarding[student.id];
+  var busy = !!rwAwarding[student.id] || !!(window.QuickBattle && QuickBattle.blocksAward());
   WHEEL_AMOUNTS.forEach(function (n) {
     var b = document.createElement('button');
     b.className = 'rwAmount';
@@ -29391,7 +29391,7 @@ function wheelRenderResult() {
     award.appendChild(b);
   });
   var inp = document.createElement('input');
-  inp.type = 'number'; inp.min = '1'; inp.placeholder = 'Other';
+  inp.type = 'number'; inp.min = '1'; inp.placeholder = 'Other'; inp.disabled = busy;
   inp.value = wheelCustom;
   inp.addEventListener('input', function () { wheelCustom = inp.value; });
   inp.addEventListener('keydown', function (e) {
@@ -29427,12 +29427,19 @@ async function wheelGive(delta) {
   var entry = wheelState && wheelState.names[wheelWinnerIdx];
   var student = wheelStudent(entry);
   if (!student) return;
-  var before = student.marks || 0;
   var reason = 'Name wheel' + (docName && pdfDoc ? ' — ' + docName : '');
-  await rwAwardMarks(student, delta, reason);
-  // rwAwardMarks reports its own failure and leaves the balance alone.
-  if ((student.marks || 0) !== before) wheelGiven += (student.marks || 0) - before;
+  if (window.QuickBattle && QuickBattle.enabled() && !(window.ClassroomBattle && ClassroomBattle.isOpen())) {
+    if (QuickBattle.blocksAward()) return;
+    try { await QuickBattle.award(entry, delta, reason); }
+    catch (e) { toast(e.message || 'Could not confirm the points award. Use Retry in Quick fight.'); }
+  } else {
+    var before = student.marks || 0;
+    await rwAwardMarks(student, delta, reason);
+    // Ordinary wheel/manual battle awards retain the reward system's behavior.
+    if ((student.marks || 0) !== before) wheelGiven += (student.marks || 0) - before;
+  }
   wheelRender();
+  if (window.QuickBattle) QuickBattle.render();
 }
 
 function wheelAddFromBox() {

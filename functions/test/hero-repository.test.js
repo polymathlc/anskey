@@ -7,15 +7,16 @@ const pupil=uid=>({uid,email:uid+'@example.com',teacherId:'teacher',isTeacher:fa
 function database() {
   const data=new Map(),versions=new Map();let version=0;
   const snapshot=path=>({id:path.split('/').at(-1),exists:data.has(path),data:()=>structuredClone(data.get(path))});
-  function ref(path,isCollection=false) { return {path,isCollection,collection:n=>ref(path+'/'+n,true),doc:id=>ref(path+'/'+id),get:async()=>get({path,isCollection})}; }
-  function get(r) { if (!r.isCollection) return snapshot(r.path); const prefix=r.path+'/';return {docs:[...data.keys()].filter(p=>p.startsWith(prefix)&&!p.slice(prefix.length).includes('/')).map(snapshot)}; }
-  return {data,collection:n=>ref(n,true),seed(path,value){data.set(path,structuredClone(value));versions.set(path,++version);},
+  function ref(path,isCollection=false,filters=[]) { return {path,isCollection,filters,collection:n=>ref(path+'/'+n,true),doc:id=>ref(path+'/'+id),where:(field,op,value)=>{assert.equal(op,'==');return ref(path,true,[...filters,[field,value]]);},get:async()=>get({path,isCollection,filters})}; }
+  function get(r) { if (!r.isCollection) return snapshot(r.path); const prefix=r.path+'/';return {docs:[...data.keys()].filter(p=>p.startsWith(prefix)&&!p.slice(prefix.length).includes('/')&&(r.filters||[]).every(([k,v])=>data.get(p)[k]===v)).map(snapshot)}; }
+  return {data,failNextCommit:false,collection:n=>ref(n,true),seed(path,value){data.set(path,structuredClone(value));versions.set(path,++version);},
     async runTransaction(callback) {
       for(let retry=0;retry<40;retry++){
         const reads=new Map(),writes=new Map();let queryVersion=null,wrote=false;
         const out=await callback({get:async r=>{assert.equal(wrote,false,'Firestore reads must precede all writes');if(r.isCollection)queryVersion=version;else reads.set(r.path,versions.get(r.path)||0);await Promise.resolve();return get(r);},
           set:(r,v)=>{wrote=true;writes.set(r.path,structuredClone(v));},delete:r=>{wrote=true;writes.set(r.path,undefined);}});
         if((queryVersion!==null&&queryVersion!==version)||[...reads].some(([p,v])=>(versions.get(p)||0)!==v))continue;
+        if(this.failNextCommit){this.failNextCommit=false;throw Error('transaction commit failed');}
         for(const [p,v]of writes){if(v===undefined)data.delete(p);else data.set(p,v);versions.set(p,++version);}return out;
       }throw Error('retry limit');
     }};
@@ -29,6 +30,9 @@ const classPath=slot=>'classroomBattles/teacher/classes/'+key(slot);
 const heroes=[C.heroFromStudent({id:'alex',name:'Alex'}),C.heroFromStudent({id:'sam',name:'Sam'})];
 let seq=0;const aid=()=> 'action-'+String(++seq).padStart(8,'0');
 const battle=(call,slot,action)=>call(teacher,{type:'battle',classId:slot,action});
+function wheelRequest(state=null,{id=aid(),spinId=aid(),studentId='alex',delta=1,classId='Saturday',...extra}={}) {
+  return {type:'wheelAward',classId,studentId,delta,reason:'Correct answer on the wheel',action:{type:'auto',id,spinId,heroId:'student:'+studentId,heroes,bossId:'goblin',...(state ? {encounterId:state.encounterId,expectedRevision:state.revision} : {}),...extra}};
+}
 async function begin(call,slot='Saturday',party=heroes) {return (await battle(call,slot,{id:aid(),type:'start',bossId:'goblin',heroes:party})).state;}
 async function claim(call,uid='one',studentId='alex',lessonSlot='Saturday') {await call(pupil(uid),{type:'claim',studentId,lessonSlot});await call(teacher,{type:'approve',studentId});}
 
@@ -102,10 +106,67 @@ test('legacy migration preserves strongest progress but still locks an unfinishe
   await call(teacher,{type:'endEncounter',studentId:'alex'});me=await call(pupil('one'),{type:'me'});assert.equal(me.hero.xp,300);assert.equal(me.activeEncounter,null);
 });
 
-test('automatic wheel turns execute server-side and repeated spin IDs do not repeat XP',async()=>{
-  const {call,db}=setup();const spin=aid(),action={id:spin,spinId:spin,type:'auto',heroes,bossId:'goblin',heroId:'student:alex'};
-  const result=await battle(call,'Saturday',action);assert.equal(result.state.lastEvent.type,'auto');assert.equal(result.state.heroes[0].xp,12);
-  const repeated=await battle(call,'Saturday',action);assert.equal(repeated.state.heroes[0].xp,12);assert.equal(db.data.get(profilePath('alex')).hero.xp,12);
+test('automatic wheel fights require an atomic positive marks award; old spin-only clients cannot attack',async()=>{
+  const {call,db}=setup();const request=wheelRequest();
+  await assert.rejects(battle(call,'Saturday',request.action),/award points/);
+  assert.equal(db.data.size,2);
+  const result=await call(teacher,request);assert.equal(result.state.lastEvent.type,'auto');assert.equal(result.state.heroes[0].xp,12);assert.equal(result.state.lastEvent.points,1);
+  assert.deepEqual(result.award,{id:request.action.id,studentId:'alex',delta:1,marks:1});
+  const repeated=await call(teacher,request);assert.equal(repeated.duplicate,true);assert.equal(repeated.state.heroes[0].xp,12);assert.equal(db.data.get(profilePath('alex')).hero.xp,12);assert.equal(db.data.get('students/alex').marks,1);
+});
+
+test('wheel award atomically preserves roster data, writes normal history and damages active school bosses',async()=>{
+  const {call,db}=setup();const original={...db.data.get('students/alex'),id:'legacy-field',marks:20,notes:{subject:'Science'},otherRewards:['keep']};db.seed('students/alex',original);
+  db.seed('bosses/active',{active:true,hp:8,maxHp:100,title:'School dragon',config:{keep:true}});
+  db.seed('bosses/defeated',{active:true,hp:3,defeated:true});db.seed('bosses/inactive',{active:false,hp:20});db.seed('bosses/final',{active:true,hp:2,maxHp:10});
+  const request=wheelRequest(null,{delta:5,points:999}),result=await call(teacher,request);
+  assert.equal(result.state.lastEvent.points,5);assert.equal(result.award.marks,25);assert.deepEqual(db.data.get('students/alex'),{...original,marks:25});
+  const ledger=[...db.data].filter(([path])=>path.startsWith('awards/'));assert.equal(ledger.length,1);const row=ledger[0][1];
+  assert.deepEqual(Object.keys(row).sort(),['studentId','studentName','delta','reason','source','by','undone','createdAt'].sort());
+  assert.equal(row.studentId,'alex');assert.equal(row.studentName,'Alex');assert.equal(row.delta,5);assert.equal(row.reason,request.reason);assert.equal(row.source,'annotator');assert.equal(row.by,teacher.email);assert.equal(row.undone,false);assert.equal(row.createdAt._seconds,123456);
+  assert.deepEqual(db.data.get('bosses/active'),{active:true,hp:3,maxHp:100,title:'School dragon',config:{keep:true}});
+  assert.equal(db.data.get('bosses/defeated').hp,3);assert.equal(db.data.get('bosses/inactive').hp,20);assert.equal(db.data.get('bosses/final').hp,0);assert.equal(db.data.get('bosses/final').defeated,true);assert.deepEqual(db.data.get('bosses/final').defeatedAt,row.createdAt);
+});
+
+test('wheel award validation refuses students, invalid points, mismatched hero and missing or moved roster names without writes',async()=>{
+  const {call,db}=setup();const before=JSON.stringify([...db.data]);
+  await assert.rejects(call(pupil('one'),wheelRequest()),/teacher/);
+  for(const delta of [0,-1,1.5,'2',undefined,10001,Infinity,NaN]){
+    const request=wheelRequest();request.delta=delta;await assert.rejects(call(teacher,request),/whole points/);
+  }
+  for(const change of [{heroId:'student:sam'},{type:'answer'},{spinId:''}])await assert.rejects(call(teacher,wheelRequest(null,change)),/Select a roster student/);
+  for(const studentId of ['removed','wheel-guest'])await assert.rejects(call(teacher,wheelRequest(null,{studentId})),/no longer in this lesson slot/);
+  await assert.rejects(call(teacher,wheelRequest(null,{classId:'Monday'})),/no longer in this lesson slot/);
+  assert.equal(JSON.stringify([...db.data]),before);
+});
+
+test('concurrent duplicate awards commit points, history, XP and school boss damage exactly once',async()=>{
+  const {call,db}=setup();db.seed('bosses/school',{active:true,hp:100});const request=wheelRequest();
+  const results=await Promise.all([call(teacher,request),call(teacher,request),call(teacher,request)]);
+  assert.equal(results.filter(r=>r.duplicate).length,2);assert.equal(db.data.get('students/alex').marks,1);assert.equal(db.data.get('bosses/school').hp,99);assert.equal(db.data.get(profilePath('alex')).hero.xp,12);
+  assert.equal([...db.data.keys()].filter(p=>p.startsWith('awards/')).length,1);assert.equal([...db.data.keys()].filter(p=>p.includes('/actions/')).length,1);
+});
+
+test('new awards on the same spin resolve separately; retrying an earlier award returns current balance and state',async()=>{
+  const {call,db}=setup();const first=wheelRequest(),one=await call(teacher,first),second=wheelRequest(one.state,{spinId:first.action.spinId,delta:2});
+  const two=await call(teacher,second);assert.equal(two.award.marks,3);assert.equal(two.state.heroes[0].xp,24);assert.equal(two.state.lastEvent.points,2);
+  const retried=await call(teacher,first);assert.equal(retried.duplicate,true);assert.equal(retried.award.id,first.action.id);assert.equal(retried.award.delta,1);assert.equal(retried.award.marks,3);assert.deepEqual(retried.state,two.state);assert.equal([...db.data.keys()].filter(p=>p.startsWith('awards/')).length,2);
+});
+
+test('saved award IDs cannot be reused for changed points, student, spin or reason',async()=>{
+  const {call,db}=setup();const request=wheelRequest();await call(teacher,request);const before=JSON.stringify([...db.data]);
+  for(const change of [{delta:2},{studentId:'sam',action:{...request.action,heroId:'student:sam'}},{reason:'Changed reason'},{action:{...request.action,spinId:aid()}}])await assert.rejects(call(teacher,{...request,...change}),/different details/);
+  assert.equal(JSON.stringify([...db.data]),before);
+});
+
+test('stale or pending battles and commit failures leave marks, history and all progress unchanged',async()=>{
+  const {call,db}=setup();const state=await begin(call),request=wheelRequest(state);request.action.expectedRevision=state.revision+1;let before=JSON.stringify([...db.data]);
+  await assert.rejects(call(teacher,request),/changed/);assert.equal(JSON.stringify([...db.data]),before);
+  const selected=(await battle(call,'Saturday',{type:'select',id:aid(),encounterId:state.encounterId,expectedRevision:state.revision,heroId:'student:alex'})).state;
+  before=JSON.stringify([...db.data]);await assert.rejects(call(teacher,wheelRequest(selected)),/manual battle answer/);assert.equal(JSON.stringify([...db.data]),before);
+  const fresh=setup(),award=wheelRequest();fresh.db.seed('bosses/school',{active:true,hp:50});before=JSON.stringify([...fresh.db.data]);fresh.db.failNextCommit=true;
+  await assert.rejects(fresh.call(teacher,award),/commit failed/);assert.equal(JSON.stringify([...fresh.db.data]),before);
+  const saved=await fresh.call(teacher,award);assert.equal(saved.award.marks,1);assert.equal(fresh.db.data.get('bosses/school').hp,49);
 });
 
 test('adding a progressed hero to an active party preserves canonical XP, skills and equipment in sync and auto',async()=>{
@@ -113,7 +174,7 @@ test('adding a progressed hero to an active party preserves canonical XP, skills
     const {call,db}=setup();const s=await begin(call,'Saturday',[heroes[0]]);
     const hero={...heroes[1],xp:300,level:3,skillPoints:6,equipped:'bag:crimson-edge',learnedSkills:['warrior-slash','warrior-cleave'],inventory:[...heroes[1].inventory,{id:'bag:crimson-edge',itemId:'crimson-edge',quantity:1}]};
     db.seed(profilePath('sam'),{schemaVersion:1,studentId:'sam',hero,claim:null,activeEncounter:null});
-    const id=aid();const result=await battle(call,'Saturday',{type,id,...(type==='auto'?{spinId:id}:{}),encounterId:s.encounterId,expectedRevision:s.revision,heroes,heroId:'student:sam',bossId:'goblin'});
+    const id=aid();const result=type==='auto' ? await call(teacher,wheelRequest(s,{id,studentId:'sam'})) : await battle(call,'Saturday',{type,id,encounterId:s.encounterId,expectedRevision:s.revision,heroes,heroId:'student:sam',bossId:'goblin'});
     const saved=result.state.heroes.find(h=>h.studentId==='sam');assert.ok(saved.xp>=300);assert.ok(saved.learnedSkills.includes('warrior-cleave'));assert.equal(saved.equipped,'bag:crimson-edge');assert.equal(db.data.get(profilePath('sam')).hero.xp,saved.xp);
   }
 });
