@@ -115,10 +115,14 @@ try {
   await page.waitForTimeout(350);
   check('an unavailable profile never downgrades an existing saved hero', await page.evaluate(() => __battleState().heroes[0].role === 'mage'));
   await page.evaluate(source => { __battleDocuments['scienceGameLeaderboard/account-0'] = source; __battleNotify('scienceGameLeaderboard/account-0'); }, source);
+  await spin();
   await page.screenshot({ path: path.join(output, 'battle-desktop.png'), fullPage: true });
-  await page.setViewportSize({ width: 820, height: 1180 });
-  await page.screenshot({ path: path.join(output, 'battle-tablet.png'), fullPage: true });
-  check('tablet controls stay inside viewport and can be tapped', await page.evaluate(() => ['cbCorrect', 'cbIncorrect', 'cbSkip', 'cbStart'].every(id => { const b = document.getElementById(id).getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight && b.height >= 44; })));
+  for (const [name, width, height] of [['tablet', 820, 1180], ['tablet-portrait', 768, 1024], ['tablet-landscape', 1024, 768]]) {
+    await page.setViewportSize({ width, height });
+    await page.screenshot({ path: path.join(output, 'battle-' + name + '.png'), fullPage: true });
+    check(name + ' controls stay inside viewport and can be tapped', await page.evaluate(() => ['cbCorrect', 'cbIncorrect', 'cbSkip', 'cbStart'].every(id => { const b = document.getElementById(id).getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight && b.height >= 44; })));
+  }
+  await page.click('#cbSkip'); await settle();
   const saved = await page.evaluate(() => ({ id: __battleState().encounterId, hp: __battleState().bossHp, health: __battleState().heroes.map(h => h.hp), role: __battleState().heroes[0].role }));
   await setup(600);
   check('reload restores boss, damage, hero health and roles despite delayed profiles', await page.evaluate(saved => { const s = __battleState(); return s.encounterId === saved.id && s.bossHp === saved.hp && JSON.stringify(s.heroes.map(h => h.hp)) === JSON.stringify(saved.health) && s.heroes[0].role === saved.role; }, saved));
