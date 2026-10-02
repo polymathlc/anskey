@@ -16,13 +16,13 @@ async function idle(){await page.waitForFunction(()=>document.getElementById('sh
 try{
   await page.route('https://hero.test/**',async route=>{
     const url=new URL(route.request().url());
-    if(url.pathname==='/') return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif}button,select{font:inherit}</style><base href="https://hero.test/"><link rel="stylesheet" href="student-heroes.css"><link rel="stylesheet" href="hero-skill-tree.css"></head><body><button id="myHeroBtn">My Hero</button><button id="heroClaimsBtn">Hero claims</button><div id="profileModal"></div></body></html>'});
+    if(url.pathname==='/') return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif}button,select{font:inherit}</style><base href="https://hero.test/"><link rel="stylesheet" href="student-heroes.css"><link rel="stylesheet" href="battle-animation.css"><link rel="stylesheet" href="hero-skill-tree.css"></head><body><button id="myHeroBtn">My Hero</button><button id="heroClaimsBtn">Hero claims</button><div id="profileModal"></div></body></html>'});
     const local=path.resolve('.'+url.pathname);
     if(!local.startsWith(process.cwd()+path.sep)||!fs.existsSync(local))return route.abort();
     return route.fulfill({path:local});
   });
   await page.goto('https://hero.test/');
-  for(const script of ['battle-bosses.js','battle-content.js','battle-core.js','hero-skill-tree.js'])await page.addScriptTag({url:'/'+script});
+  for(const script of ['battle-bosses.js','battle-content.js','battle-core.js','battle-animation.js','hero-skill-tree.js'])await page.addScriptTag({url:'/'+script});
   await page.evaluate(()=>{
     window.currentUser={uid:'student-a',email:'ari@example.test'};
     window.isAdmin=u=>u?.uid==='teacher';window.isSharedVisitor=()=>false;window.profileComplete=()=>true;window.studentProfile={level:'P5'};

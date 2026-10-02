@@ -18,12 +18,12 @@
   function user() { return window.currentUser; }
   function teacher() { return !!user() && window.isAdmin(user()) && !window.actingStudent && !window.isSharedVisitor(); }
   function student() { return !!user() && !user().isAnonymous && !window.isAdmin(user()) && !window.actingStudent && !window.isSharedVisitor(); }
-  function sprite(role, cls) { return '<img class="shSprite ' + (cls || '') + '" src="assets/battle-pixel/' + (roles.includes(role) ? role : 'warrior') + '.png" alt="' + esc(Core.ROLES[role] ? Core.ROLES[role].name : 'Warrior') + ' pixel hero">'; }
+  function sprite(role, cls) { if (window.ClassroomBattleAnimation) return ClassroomBattleAnimation.heroMarkup(role, { className:'shSprite ' + (cls || ''), alt:(Core.ROLES[role] ? Core.ROLES[role].name : 'Warrior') + ' pixel hero' }); return '<img class="shSprite ' + (cls || '') + '" src="assets/battle-pixel/' + (roles.includes(role) ? role : 'warrior') + '.png" alt="' + esc(Core.ROLES[role] ? Core.ROLES[role].name : 'Warrior') + ' pixel hero">'; }
   function api(action) { if (!window.ClassroomHeroAPI) return Promise.reject(new Error('The hero service is still loading. Please try again.')); var token = epoch; return window.ClassroomHeroAPI.request(action, { canSend:function () { return alive(token); } }); }
   function alive(token) { return token === epoch && !!mode && (mode === 'teacher' ? teacher() : student()); }
   function error(message) { el('shError').textContent = message; el('shError').hidden = !message; }
   function cleanupTree() { if (tree) tree.destroy(); tree = null; }
-  function content(html) { cleanupTree(); el('shBody').innerHTML = html; }
+  function content(html) { cleanupTree(); if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(el('shBody')); el('shBody').innerHTML = html; if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(el('shBody')); }
   function stopPoll() { if (poll) clearTimeout(poll); poll = null; }
   function schedule() { stopPoll(); if (mode && model) poll = setTimeout(function () { if (busy || document.hidden) schedule(); else refresh(false); }, 15000); }
   function setBusy(value) {
@@ -101,6 +101,7 @@
     } catch (e) { if (alive(token) && requestId === refreshId) { error(e.message || 'Unable to load heroes. Please refresh.'); schedule(); } }
   }
   function close() {
+    if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(el('shBody'));
     epoch++; mode = ''; model = catalog = null; busy = false; stopPoll(); cleanupTree();
     el('shDialog').close(); el('shBody').textContent = ''; error('');
     if (lastFocus && document.contains(lastFocus)) lastFocus.focus();

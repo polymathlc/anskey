@@ -1,0 +1,61 @@
+{
+  "generated": "2026-10-03",
+  "generator": "OpenAI built-in image_gen",
+  "layout": "Every effect sheet is 2 columns by 2 rows. Four animation frames in reading order. Original generated PNGs copied unchanged; alpha retained.",
+  "assets": [
+    {
+      "name": "slash-sheet.png",
+      "source": "exec-23595d4d-f712-4587-a162-349c7f072aca.png",
+      "prompt": "Use case: stylized-concept\nAsset type: production transparent pixel-art animated spell-effect sprite sheet for an original 16-bit classroom JRPG.\nPrimary request: A sword slash impact: a bright ivory and warm gold curved crescent cuts diagonally across the cell from upper left to lower right, with small silver pixel sparks. Four sequential frames: narrow forming arc, full broad crescent slash, separated trailing crescents, fading small sparks. No sword, no character.\nComposition: EXACTLY FOUR sequential frames arranged as a strict 2 COLUMN by 2 ROW grid on a square 1024x1024 transparent canvas. Each cell is 512x512. Reading order top-left, top-right, bottom-left, bottom-right. All effects centered at EXACTLY the same coordinates relative to their own cell, equal scale. Entire effect stays inside its cell with at least 12 percent empty transparent margins. No crossing cell boundaries. No grid lines, no labels, no text. Genuinely transparent RGBA background, preserve alpha, not a checkerboard picture.\nStyle: true crisp 16-bit pixel-art, chunky square pixel clusters, limited palette, dark subtle pixel outlines only if needed, readable at 80x80 pixels, no smooth photographic blur. All four frames should visibly progress as a usable animation. Original art. No UI, no frame, no watermark, no lettering.",
+      "mode": "OpenAI built-in image_gen",
+      "columns": 2,
+      "rows": 2,
+      "frames": 4
+    },
+    {
+      "name": "fire-sheet.png",
+      "source": "exec-db38fd3e-ad05-42a9-a0c7-4bb41e00a4a8.png",
+      "prompt": "Use case: stylized-concept\nAsset type: production transparent pixel-art animated spell-effect sprite sheet for an original 16-bit classroom JRPG.\nPrimary request: A fire spell impact: vivid orange, red and golden flames erupt around the CENTER of a target. Four sequential frames: small glowing ignition, rising flame plume, large round fireburst with sharp flame tongues, fading embers. No character, no caster, no ground.\nComposition: EXACTLY FOUR sequential frames arranged as a strict 2 COLUMN by 2 ROW grid on a square 1024x1024 transparent canvas. Each cell is 512x512. Reading order top-left, top-right, bottom-left, bottom-right. All effects centered at EXACTLY the same coordinates relative to their own cell, equal scale. Entire effect stays inside its cell with at least 12 percent empty transparent margins. No crossing cell boundaries. No grid lines, no labels, no text. Genuinely transparent RGBA background, preserve alpha, not a checkerboard picture.\nStyle: true crisp 16-bit pixel-art, chunky square pixel clusters, limited palette, dark subtle pixel outlines only if needed, readable at 80x80 pixels, no smooth photographic blur. All four frames should visibly progress as a usable animation. Original art. No UI, no frame, no watermark, no lettering.",
+      "mode": "OpenAI built-in image_gen",
+      "columns": 2,
+      "rows": 2,
+      "frames": 4
+    },
+    {
+      "name": "ice-sheet.png",
+      "source": "exec-91df894a-179f-4f64-90cc-8ec0ff1639e1.png",
+      "prompt": "Use case: stylized-concept\nAsset type: production transparent pixel-art animated spell-effect sprite sheet for an original 16-bit classroom JRPG.\nPrimary request: An ice spell impact: luminous cyan, blue and white ice crystals erupt around the CENTER of a target. Four sequential frames: tiny frost sparkles, three rising crystalline spikes, fully spread frozen burst, broken crystal shards fading. No character, no caster, no ground.\nComposition: EXACTLY FOUR sequential frames arranged as a strict 2 COLUMN by 2 ROW grid on a square 1024x1024 transparent canvas. Each cell is 512x512. Reading order top-left, top-right, bottom-left, bottom-right. All effects centered at EXACTLY the same coordinates relative to their own cell, equal scale. Entire effect stays inside its cell with at least 12 percent empty transparent margins. No crossing cell boundaries. No grid lines, no labels, no text. Genuinely transparent RGBA background, preserve alpha, not a checkerboard picture.\nStyle: true crisp 16-bit pixel-art, chunky square pixel clusters, limited palette, dark subtle pixel outlines only if needed, readable at 80x80 pixels, no smooth photographic blur. All four frames should visibly progress as a usable animation. Original art. No UI, no frame, no watermark, no lettering.",
+      "mode": "OpenAI built-in image_gen",
+      "columns": 2,
+      "rows": 2,
+      "frames": 4
+    },
+    {
+      "name": "lightning-sheet.png",
+      "source": "exec-b543707c-8eac-4a7f-8fe4-8c21867f6fdf.png",
+      "prompt": "Use case: stylized-concept\nAsset type: production transparent pixel-art animated spell-effect sprite sheet for an original 16-bit classroom JRPG.\nPrimary request: A lightning spell impact: electric lavender, blue and white zigzag lightning strikes down through the CENTER of a target. Four sequential frames: small gathering top sparks, single bright downward bolt, branching lightning strike filling the cell, fading electric sparks. No character, no caster, no ground.\nComposition: EXACTLY FOUR sequential frames arranged as a strict 2 COLUMN by 2 ROW grid on a square 1024x1024 transparent canvas. Each cell is 512x512. Reading order top-left, top-right, bottom-left, bottom-right. All effects centered at EXACTLY the same coordinates relative to their own cell, equal scale. Entire effect stays inside its cell with at least 12 percent empty transparent margins. No crossing cell boundaries. No grid lines, no labels, no text. Genuinely transparent RGBA background, preserve alpha, not a checkerboard picture.\nStyle: true crisp 16-bit pixel-art, chunky square pixel clusters, limited palette, dark subtle pixel outlines only if needed, readable at 80x80 pixels, no smooth photographic blur. All four frames should visibly progress as a usable animation. Original art. No UI, no frame, no watermark, no lettering.",
+      "mode": "OpenAI built-in image_gen",
+      "columns": 2,
+      "rows": 2,
+      "frames": 4
+    },
+    {
+      "name": "arrow-sheet.png",
+      "source": "exec-8138ffa9-c8f0-4752-813c-7d407a21a956.png",
+      "prompt": "Use case: stylized-concept\nAsset type: production transparent pixel-art animated spell-effect sprite sheet for an original 16-bit classroom JRPG.\nPrimary request: A flying arrow projectile FACING RIGHT: a slim brown arrow shaft, bright silver triangular arrowhead on the right, teal white fletching at left with a short golden pixel wind trail. Four sequential frames: arrow with short trail, slightly longer trail, a shimmering arrowhead spark and long trail, short trailing pixel flecks. The arrow stays horizontally centered at the SAME position and identical length in all cells; game code moves it across the screen. No bow, no character.\nComposition: EXACTLY FOUR sequential frames arranged as a strict 2 COLUMN by 2 ROW grid on a square 1024x1024 transparent canvas. Each cell is 512x512. Reading order top-left, top-right, bottom-left, bottom-right. All effects centered at EXACTLY the same coordinates relative to their own cell, equal scale. Entire effect stays inside its cell with at least 12 percent empty transparent margins. No crossing cell boundaries. No grid lines, no labels, no text. Genuinely transparent RGBA background, preserve alpha, not a checkerboard picture.\nStyle: true crisp 16-bit pixel-art, chunky square pixel clusters, limited palette, dark subtle pixel outlines only if needed, readable at 80x80 pixels, no smooth photographic blur. All four frames should visibly progress as a usable animation. Original art. No UI, no frame, no watermark, no lettering.",
+      "mode": "OpenAI built-in image_gen",
+      "columns": 2,
+      "rows": 2,
+      "frames": 4
+    },
+    {
+      "name": "heal-sheet.png",
+      "source": "exec-8df8fff8-9975-4b91-bf5b-e2b74c7d2bc0.png",
+      "prompt": "Use case: stylized-concept\nAsset type: production transparent pixel-art animated spell-effect sprite sheet for an original 16-bit classroom JRPG.\nPrimary request: A healing spell aura: gentle emerald, mint and golden light with chunky plus-shaped healing sparkles and a small luminous oval ring around the CENTER. Four sequential frames: small mint sparks gather, glowing ring forms with three plus sparkles, full upward shower of green/gold healing plus sparkles, ring fades and sparkles drift up. No character, no caster, no ground.\nComposition: EXACTLY FOUR sequential frames arranged as a strict 2 COLUMN by 2 ROW grid on a square 1024x1024 transparent canvas. Each cell is 512x512. Reading order top-left, top-right, bottom-left, bottom-right. All effects centered at EXACTLY the same coordinates relative to their own cell, equal scale. Entire effect stays inside its cell with at least 12 percent empty transparent margins. No crossing cell boundaries. No grid lines, no labels, no text. Genuinely transparent RGBA background, preserve alpha, not a checkerboard picture.\nStyle: true crisp 16-bit pixel-art, chunky square pixel clusters, limited palette, dark subtle pixel outlines only if needed, readable at 80x80 pixels, no smooth photographic blur. All four frames should visibly progress as a usable animation. Original art. No UI, no frame, no watermark, no lettering.",
+      "mode": "OpenAI built-in image_gen",
+      "columns": 2,
+      "rows": 2,
+      "frames": 4
+    }
+  ]
+}

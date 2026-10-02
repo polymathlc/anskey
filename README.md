@@ -3,6 +3,12 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.117.0 — Animated pixel heroes and battle effects
+
+Heroes now breathe and move through generated idle frames in Quick fight, the classroom party, My Hero and class pickers. Saved quick turns play a short sequence: Warrior sword windup and slash, Ranger bow release and travelling arrow, Mage fire/ice/lightning matched to the skill branch, or Cleric casting and healing over the actual recipients. The enemy responds before final health and treasure appear.
+
+Ten original ImageGen sprite sheets contain 56 frames, with full prompts and an integrity manifest in [`assets/battle-pixel/animations`](assets/battle-pixel/animations). Playback is presentation only: it never applies additional damage or rewards. Reduced-motion users get immediate results; closing the wheel or changing lessons cancels visual playback safely. This release uses the existing hero service and needs no server or rules deployment.
+
 ## v1.116.0 — My Hero, approved claims and automatic wheel combat
 
 Students open **My Hero**, select their **Lesson slot**, and request their roster name. The teacher approves it in **Hero claims**, then the student chooses a **Hero class**: Warrior, Ranger, Mage or Cleric. Future logins open their saved hero. Accounts cannot claim an occupied name, and mistaken claims can be unlinked without deleting the character's XP, skills or treasure. Moving a roster name to another lesson keeps the same character.

@@ -94,6 +94,7 @@ async function spin() {
 try {
   await setup();
   check('teacher opens the battle with original wheel and independent pixel avatars', await page.evaluate(() => document.querySelectorAll('#cbHeroes .cbHero').length === 16 && document.querySelectorAll('#cbHeroes img[src^="assets/battle-pixel/"]').length === 16 && !!document.querySelector('#cbWheelMount #wheelCanvas')));
+  check('animated avatars leave room for every hero name and HP label', await page.evaluate(() => [...document.querySelectorAll('#cbHeroes .cbHero')].every(node => node.querySelector('.cbHeroHp').getBoundingClientRect().bottom <= node.getBoundingClientRect().bottom + 1)));
   await page.selectOption('#cbEncounterChoice', await page.evaluate(() => ClassroomBattleCore.BOSSES.find(b => !b.legacy && b.id.includes('goblin')).id));
   await page.click('#cbStart'); await settle();
   check('new encounter is persisted for this teacher and class', await page.evaluate(() => __battleState().heroes.length === 16 && __battleState().status === 'active'));

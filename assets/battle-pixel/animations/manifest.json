@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-03",
+  "assets": [
+    {
+      "file": "warrior-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 936805,
+      "sha256": "7f470c17b3fa7a65df7598ccf897912312c8722aab3115a66be8c91e6b8bff71",
+      "promptManifest": "warrior-ranger-provenance.json#/assets/0",
+      "alpha": {
+        "transparentPixels": 1194961,
+        "partialPixels": 377502,
+        "opaquePixels": 1075,
+        "visiblePixels": 315545,
+        "nearOpaquePixels": 301672
+      }
+    },
+    {
+      "file": "ranger-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 1314163,
+      "sha256": "dfd1e5dfe2537f78d5fd23e0bbcd96e060c2d51f4b0bce9bac2e54652c0eaf6b",
+      "promptManifest": "warrior-ranger-provenance.json#/assets/1",
+      "alpha": {
+        "transparentPixels": 992233,
+        "partialPixels": 579919,
+        "opaquePixels": 1386,
+        "visiblePixels": 472479,
+        "nearOpaquePixels": 447715
+      }
+    },
+    {
+      "file": "mage-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 713292,
+      "sha256": "779d2e61f459f15f28cdcfff68d93218d3437196d99a96a9b38c1b440cbf8fcb",
+      "promptManifest": "mage-cleric-provenance.json#/assets/0",
+      "alpha": {
+        "transparentPixels": 1301086,
+        "partialPixels": 271849,
+        "opaquePixels": 603,
+        "visiblePixels": 198104,
+        "nearOpaquePixels": 183339
+      }
+    },
+    {
+      "file": "cleric-sheet.png",
+      "width": 1774,
+      "height": 887,
+      "rows": 2,
+      "cols": 4,
+      "frames": 8,
+      "bytes": 807201,
+      "sha256": "be32eb8d09aa2e2f48c2a19de50fcb6d773c7038dcc38712aa818f886177a9b4",
+      "promptManifest": "mage-cleric-provenance.json#/assets/1",
+      "alpha": {
+        "transparentPixels": 1267092,
+        "partialPixels": 306163,
+        "opaquePixels": 283,
+        "visiblePixels": 223834,
+        "nearOpaquePixels": 209173
+      }
+    },
+    {
+      "file": "slash-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 2,
+      "cols": 2,
+      "frames": 4,
+      "bytes": 532812,
+      "sha256": "a92319056e89bdc906abfb77002d9666427fcbf6459f9f939cb4ef5b9ad06250",
+      "promptManifest": "effects-provenance.json#/assets/0",
+      "alpha": {
+        "transparentPixels": 1306012,
+        "partialPixels": 264941,
+        "opaquePixels": 1563,
+        "visiblePixels": 153665,
+        "nearOpaquePixels": 128617
+      }
+    },
+    {
+      "file": "fire-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 2,
+      "cols": 2,
+      "frames": 4,
+      "bytes": 649702,
+      "sha256": "2f3385ec0a4e2132de625427911720e375682eda72463f609bcbd943401f5e7b",
+      "promptManifest": "effects-provenance.json#/assets/1",
+      "alpha": {
+        "transparentPixels": 1215356,
+        "partialPixels": 356140,
+        "opaquePixels": 1020,
+        "visiblePixels": 234249,
+        "nearOpaquePixels": 209896
+      }
+    },
+    {
+      "file": "ice-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 2,
+      "cols": 2,
+      "frames": 4,
+      "bytes": 713497,
+      "sha256": "67ccd3aa039fec2f9049950dbc3d1b25eec0581dd8045e7c49846a5397c6d9d0",
+      "promptManifest": "effects-provenance.json#/assets/2",
+      "alpha": {
+        "transparentPixels": 1173282,
+        "partialPixels": 397697,
+        "opaquePixels": 1537,
+        "visiblePixels": 222863,
+        "nearOpaquePixels": 198439
+      }
+    },
+    {
+      "file": "lightning-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 2,
+      "cols": 2,
+      "frames": 4,
+      "bytes": 645848,
+      "sha256": "b9a4d516f4a0b80ebd61cdcc2d968b74dd649c2d8158960ffb2487487f7837d5",
+      "promptManifest": "effects-provenance.json#/assets/3",
+      "alpha": {
+        "transparentPixels": 1230378,
+        "partialPixels": 341084,
+        "opaquePixels": 1054,
+        "visiblePixels": 178414,
+        "nearOpaquePixels": 146392
+      }
+    },
+    {
+      "file": "arrow-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 2,
+      "cols": 2,
+      "frames": 4,
+      "bytes": 231944,
+      "sha256": "beeb3c925277f449c0296cddf3f46ed21e6cc5114758cfcc38cd89b4c5f79433",
+      "promptManifest": "effects-provenance.json#/assets/4",
+      "alpha": {
+        "transparentPixels": 1466171,
+        "partialPixels": 105221,
+        "opaquePixels": 1124,
+        "visiblePixels": 57539,
+        "nearOpaquePixels": 47867
+      }
+    },
+    {
+      "file": "heal-sheet.png",
+      "width": 1254,
+      "height": 1254,
+      "rows": 2,
+      "cols": 2,
+      "frames": 4,
+      "bytes": 530192,
+      "sha256": "a312a8489ba930a2c85d4dfa910a8296014850cf1130c136dbd115462c6c5dbd",
+      "promptManifest": "effects-provenance.json#/assets/5",
+      "alpha": {
+        "transparentPixels": 1280509,
+        "partialPixels": 291797,
+        "opaquePixels": 210,
+        "visiblePixels": 109106,
+        "nearOpaquePixels": 75427
+      }
+    }
+  ]
+}
