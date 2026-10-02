@@ -2,13 +2,15 @@
 
 Guidance for Claude when working in this repo.
 
-## Classroom battle (v1.115.0)
+## Student heroes and classroom battle (v1.116.0)
 
-Load battle-bosses.js and battle-content.js before battle-core.js, battle-store.js and classroom-battle.js. The overlay temporarily hosts the existing wheel and restores it on close. Pixel heroes use their own saved progression; never read CER battleHero profiles. Register UID/ID provides stable identity, never name matching.
+Load battle-bosses.js and battle-content.js before battle-core.js, then hero-api.js, battle-store.js, hero-skill-tree.js, classroom-battle.js, quick-battle.js and student-heroes.js. The overlay temporarily hosts the existing wheel and restores it on close. Pixel heroes use their own saved progression; never read CER battleHero profiles. The roster document ID is the canonical character identity, independent of the claimed account UID or lesson slot.
 
-Every persisted action uses a transaction and immutable receipt. Answers require the pending turn; boss turns and hero management require the observed revision. Hero management uses sync commands to retain the deployed rules contract. Keep schemaVersion:1; progressionVersion marks migrated heroes. Keep generated image payloads out of encounter documents. Starting new encounters carries XP, learned skills and treasure; victory rolls are deterministic and awarded once, including KO heroes. Legacy bosses must remain resolvable for saved battles.
+Every persisted action uses the authenticated ansKeyHeroes endpoint and an immutable receipt. Server transactions update both encounters and canonical profiles under classroomHeroData. Browser writes to both namespaces are denied; teacher battle subscriptions remain readable. Student claims reserve account and roster IDs atomically and need teacher approval. Configure requires ownership and no active encounter. Teacher endEncounter releases the party even after its lesson disappears from the roster. Never trust client-supplied XP, skills, inventory or role authority. See functions/HEROES.md.
 
-Shared Firebase rules are migrated narrowly by tools/battle-rules.mjs, never replaced by an app-local rules deployment. This update does not need a rules migration. Run all unit/server tests, tools/wheel-check.mjs and tools/classroom-battle-browser-check.mjs after changing these paths. See docs/classroom-battle.md.
+Quick fight dispatches one atomic auto action using the persisted wheel spin ID. It chooses usable learned skills, resolves one enemy response and grants combat XP without incrementing answer counts or marks. Preserve pending manual turns, account/class/close cancellation guards, duplicate receipts and canonical cross-lesson locks. Keep schemaVersion:1 and legacy bosses. Victory loot is deterministic and awarded once to all heroes, including KO heroes.
+
+After editing battle-core.js, battle-content.js or battle-bosses.js, run tools/sync-hero-game.mjs; server tests require byte parity with functions/hero-game. Migrate shared rules only with tools/hero-rules.mjs against the current release, never an app-local replacement. Run all application/server tests and wheel, classroom-battle, quick-wheel, student-heroes and hero-skill-tree browser checks. CI saves their screenshots.
 
 ## Name wheel (v1.113.0)
 

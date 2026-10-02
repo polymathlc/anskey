@@ -3,6 +3,16 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.116.0 — My Hero, approved claims and automatic wheel combat
+
+Students open **My Hero**, select their **Lesson slot**, and request their roster name. The teacher approves it in **Hero claims**, then the student chooses a **Hero class**: Warrior, Ranger, Mage or Cleric. Future logins open their saved hero. Accounts cannot claim an occupied name, and mistaken claims can be unlinked without deleting the character's XP, skills or treasure. Moving a roster name to another lesson keeps the same character.
+
+The shared pixel skill map connects three branches and four prerequisite tiers per class, with inspectable effects, level requirements, skill points, MP and cooldowns. Students change builds between encounters; teachers can end an unfinished encounter from Hero claims to release its heroes.
+
+**Wheel → Quick fight** is on by default. Each spin shows a hero versus the enemy, automatically chooses a learned skill or normal attack, resolves the enemy response, and saves XP and victory treasure. It does not automatically award answer marks. Turn Quick fight off for the ordinary name wheel, or open **Battle** for manual commands and the boss power meter.
+
+The new authenticated `ansKeyHeroes` server owns claims and canonical progression, with transactional action receipts and cross-lesson encounter locks. This release requires that function and the narrow shared-rules migration described in [the hero service guide](functions/HEROES.md). See [battle controls and progression](docs/classroom-battle.md).
+
 ## v1.115.0 — Pixel classroom adventure
 
 The battle now stages original pixel avatars in columns of four, facing enemies on the right. Choose **Attack**, learned **Skills**, or collected **Items** in the command box, then mark the student's answer. The teacher stops a moving black/orange/red power meter for enemy attacks and charged skills.

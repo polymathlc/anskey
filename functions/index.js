@@ -14,8 +14,18 @@ const { createRepository } = require('./live-repository');
 const { createProvider } = require('./live-provider');
 const { createJevProvider } = require('./jev-provider');
 const { createJevService, createJevRepository } = require('./jev-service');
+const { createHeroService } = require('./hero-service');
+const { createHeroRepository } = require('./hero-repository');
 
 initializeApp();
+const heroService = createHeroService({
+  auth: getAuth(), appCheck: getAppCheck(), repository: createHeroRepository(getFirestore()),
+  report: code => logger.warn(code)
+});
+exports.ansKeyHeroes = onRequest({
+  region: 'us-central1', timeoutSeconds: 60, maxInstances: 5,
+  concurrency: 20, memory: '256MiB', invoker: 'public'
+}, heroService.handler);
 const openaiKey = defineSecret('OPENAI_API_KEY');
 const jevKey = defineSecret('JEV_API_KEY');
 const jevService = createJevService({

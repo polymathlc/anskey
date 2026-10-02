@@ -11,19 +11,19 @@ const id = () => 'action-' + String(++seq).padStart(8, '0');
 const start = (bossId = 'mossback', party = heroes) => C.reduce(null, {type:'start',id:id(),bossId,heroes:party});
 const apply = (s,type,values={}) => C.reduce(s,{id:id(),encounterId:s.encounterId,expectedRevision:s.revision,type,...values});
 function answer(s,role,outcome='correct',command={}) {
-  const chosen=apply(s,'select',{heroId:'uid:'+role});
+  const chosen=apply(s,'select',{heroId:'student:register-'+role});
   return apply(chosen,'answer',{turnId:chosen.pending.id,outcome,...command});
 }
-function unlock(s,role,skillId) {const h=s.heroes.find(h=>h.id==='uid:'+role);h.learnedSkills.push(skillId);return s;}
-function grant(s,role,itemId) {const h=s.heroes.find(h=>h.id==='uid:'+role);h.inventory.push({id:'bag:'+itemId,itemId,quantity:1});return s;}
-function equip(s,role,itemId) {return apply(grant(s,role,itemId),'sync',{command:'equip',heroId:'uid:'+role,itemId:'bag:'+itemId});}
+function unlock(s,role,skillId) {const h=s.heroes.find(h=>h.id==='student:register-'+role);h.learnedSkills.push(skillId);return s;}
+function grant(s,role,itemId) {const h=s.heroes.find(h=>h.id==='student:register-'+role);h.inventory.push({id:'bag:'+itemId,itemId,quantity:1});return s;}
+function equip(s,role,itemId) {return apply(grant(s,role,itemId),'sync',{command:'equip',heroId:'student:register-'+role,itemId:'bag:'+itemId});}
 
 test('heroes ignore all CER profiles, including class, stats, avatar, gear and matching uid',()=>{
   const student={id:'one',uid:'one',name:'Alex'};
   const plain=C.heroFromStudent(student);
   const cer=C.heroFromStudent(student,{battleHero:{version:1,uid:'one',role:'mage',stats:{maxHp:100000,atk:10000},avatarDataUrl:'data:image/svg+xml;base64,QQ==',equipment:{weapon:'mythic'}}});
   assert.deepEqual(cer,plain);assert.equal(cer.avatarUrl,undefined);assert.equal(cer.equipment,undefined);
-  assert.equal(cer.id,'uid:one');assert.notEqual(C.heroFromStudent({id:'a',name:'Alex'}).id,C.heroFromStudent({id:'b',name:'Alex'}).id);
+  assert.equal(cer.id,'student:one');assert.notEqual(C.heroFromStudent({id:'a',name:'Alex'}).id,C.heroFromStudent({id:'b',name:'Alex'}).id);
   assert.deepEqual(Array.from({length:8},(_,i)=>C.heroFromStudent({id:String(i)},null,i).role),[...roles,...roles]);
 });
 
@@ -89,20 +89,20 @@ test('skill learning enforces prerequisites, levels, points, passive effects and
 });
 
 test('class changes preserve learned branches and MP without allowing mid-answer mutation',()=>{
-  let s=apply(start(),'sync',{command:'learn',heroId:'uid:warrior',skillId:'warrior-cleave'});
+  let s=apply(start(),'sync',{command:'learn',heroId:'student:register-warrior',skillId:'warrior-cleave'});
   s.heroes[0].mp=9;s.heroes[0].cooldowns['warrior-cleave']=1;
-  s=apply(s,'sync',{command:'class',heroId:'uid:warrior',role:'mage'});
+  s=apply(s,'sync',{command:'class',heroId:'student:register-warrior',role:'mage'});
   assert.equal(s.heroes[0].role,'mage');assert.equal(s.heroes[0].mp,9);assert.ok(s.heroes[0].learnedSkills.includes('warrior-cleave'));
   assert.ok(C.availableSkills(s.heroes[0]).every(k=>k.role==='mage'));
-  s=apply(s,'sync',{command:'class',heroId:'uid:warrior',role:'warrior'});assert.equal(s.heroes[0].cooldowns['warrior-cleave'],1);
-  const chosen=apply(s,'select',{heroId:'uid:warrior'});
-  assert.throws(()=>apply(chosen,'sync',{command:'class',heroId:'uid:warrior',role:'cleric'}),/Resolve/);
-  assert.equal(apply(s,'sync',{command:'class',heroId:'uid:warrior',role:'healer'}).heroes[0].role,'cleric');
+  s=apply(s,'sync',{command:'class',heroId:'student:register-warrior',role:'warrior'});assert.equal(s.heroes[0].cooldowns['warrior-cleave'],1);
+  const chosen=apply(s,'select',{heroId:'student:register-warrior'});
+  assert.throws(()=>apply(chosen,'sync',{command:'class',heroId:'student:register-warrior',role:'cleric'}),/Resolve/);
+  assert.equal(apply(s,'sync',{command:'class',heroId:'student:register-warrior',role:'healer'}).heroes[0].role,'cleric');
 });
 
 test('consumables are used once, target teammates, resurrect and never consume on incorrect answers',()=>{
   const s=start();s.heroes[1].hp=0;
-  const used=answer(s,'warrior','correct',{command:'item',itemId:'bag:red-potion',targetId:'uid:ranger'});
+  const used=answer(s,'warrior','correct',{command:'item',itemId:'bag:red-potion',targetId:'student:register-ranger'});
   assert.ok(used.heroes[1].hp>0);assert.equal(used.heroes[0].inventory.find(i=>i.itemId==='red-potion').quantity,1);assert.equal(used.bossHp,s.bossHp);
   assert.equal(answer(s,'warrior','incorrect',{command:'item',itemId:'bag:red-potion'}).heroes[0].inventory[0].quantity,2);
   assert.throws(()=>answer(s,'warrior','correct',{command:'item',itemId:'bag:fake'}),/consumable/);
@@ -153,7 +153,7 @@ test('legacy special boss styles still apply reflect, swift, regeneration, guard
 
 test('all heroes including KO heroes receive deterministic independent loot exactly once on victory',()=>{
   const s=start('goblin');s.bossHp=1;s.heroes[1].hp=0;
-  const selected=apply(s,'select',{heroId:'uid:warrior'});
+  const selected=apply(s,'select',{heroId:'student:register-warrior'});
   const action={id:id(),encounterId:s.encounterId,type:'answer',turnId:selected.pending.id,outcome:'correct'};
   const won=C.reduce(selected,action);assert.equal(won.status,'victory');assert.equal(won.rewards.length,4);assert.ok(won.lootAwarded);
   assert.deepEqual(won,C.reduce(selected,action));assert.equal(new Set(won.rewards.map(r=>r.instanceId)).size,4);
@@ -165,12 +165,12 @@ test('all heroes including KO heroes receive deterministic independent loot exac
 });
 
 test('XP, learned skills, class, gear and inventory persist across encounters and roster edits',()=>{
-  let s=apply(start(),'sync',{command:'learn',heroId:'uid:warrior',skillId:'warrior-cleave'});
+  let s=apply(start(),'sync',{command:'learn',heroId:'student:register-warrior',skillId:'warrior-cleave'});
   s=equip(s,'warrior','crimson-edge');s.heroes[0].xp=100;s.heroes[0].level=2;s.heroes[0].hp-=30;s.heroes[1].hp=0;
   const rosterFresh=structuredClone(heroes);rosterFresh[0].role='mage';rosterFresh[0].stats.damage=9999;rosterFresh[0].name='Renamed';
   const synced=apply(s,'sync',{heroes:rosterFresh});assert.equal(synced.heroes[0].role,'warrior');assert.equal(synced.heroes[0].name,'Renamed');assert.equal(synced.heroes[1].hp,0);
   assert.equal(synced.heroes[0].xp,100);assert.ok(synced.heroes[0].learnedSkills.includes('warrior-cleave'));assert.equal(synced.heroes[0].equipped,'bag:crimson-edge');
-  const removed=apply(synced,'sync',{heroes:heroes.slice(1)});assert.ok(removed.heroArchive['uid:warrior']);
+  const removed=apply(synced,'sync',{heroes:heroes.slice(1)});assert.ok(removed.heroArchive['student:register-warrior']);
   const restored=apply(removed,'sync',{heroes});assert.equal(restored.heroes[0].xp,100);assert.equal(restored.heroes[0].equipped,'bag:crimson-edge');
   const next=apply(restored,'start',{heroes,bossId:'dragon'});assert.equal(next.heroes[0].xp,100);assert.equal(next.heroes[0].equipped,'bag:crimson-edge');assert.equal(next.heroes[0].hp,next.heroes[0].stats.maxHp);assert.equal(next.rewards.length,0);
 });
@@ -196,10 +196,10 @@ test('mythical equipment implements phoenix rescue, echo damage, armour bypass a
 test('class and HP equipment toggles cannot heal wounded heroes or refill MP',()=>{
   let s=equip(start(),'warrior','worldroot');s.heroes[0].hp=1;s.heroes[0].mp=1;
   for(let i=0;i<5;i++){
-    s=apply(s,'sync',{command:'class',heroId:'uid:warrior',role:'mage'});
-    s=apply(s,'sync',{command:'equip',heroId:'uid:warrior',itemId:null});
-    s=apply(s,'sync',{command:'class',heroId:'uid:warrior',role:'warrior'});
-    s=apply(s,'sync',{command:'equip',heroId:'uid:warrior',itemId:'bag:worldroot'});
+    s=apply(s,'sync',{command:'class',heroId:'student:register-warrior',role:'mage'});
+    s=apply(s,'sync',{command:'equip',heroId:'student:register-warrior',itemId:null});
+    s=apply(s,'sync',{command:'class',heroId:'student:register-warrior',role:'warrior'});
+    s=apply(s,'sync',{command:'equip',heroId:'student:register-warrior',itemId:'bag:worldroot'});
   }
   assert.equal(s.heroes[0].hp,1);assert.equal(s.heroes[0].mp,1);
 });
@@ -278,16 +278,16 @@ test('concurrent transaction retries consume an item once, learn once and award 
   const db=database(),config={db,teacherId:'teacher',classId:'Pixel party',canWrite:()=>true};
   const a=Store.create(config),b=Store.create(config);
   let s=await a.act({id:id(),type:'start',bossId:'goblin',heroes});
-  const learn={type:'sync',command:'learn',heroId:'uid:warrior',skillId:'warrior-cleave',encounterId:s.encounterId,expectedRevision:s.revision};
+  const learn={type:'sync',command:'learn',heroId:'student:register-warrior',skillId:'warrior-cleave',encounterId:s.encounterId,expectedRevision:s.revision};
   const results=await Promise.allSettled([a.act({...learn,id:id()}),b.act({...learn,id:id()})]);
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
   s=db.data.get(a.ref.path);assert.equal(s.heroes[0].skillPoints,1);assert.equal(s.heroes[0].learnedSkills.filter(x=>x==='warrior-cleave').length,1);
-  s=await a.act({id:id(),type:'select',heroId:'uid:warrior',encounterId:s.encounterId,expectedRevision:s.revision});
+  s=await a.act({id:id(),type:'select',heroId:'student:register-warrior',encounterId:s.encounterId,expectedRevision:s.revision});
   const item={id:id(),type:'answer',outcome:'correct',command:'item',itemId:'bag:red-potion',turnId:s.pending.id,encounterId:s.encounterId};
   const consumed=await Promise.all([a.act(item),b.act(item)]);
   assert.deepEqual(consumed[0],consumed[1]);assert.equal(consumed[0].heroes[0].inventory.find(i=>i.itemId==='red-potion').quantity,1);
   s=structuredClone(consumed[0]);s.bossHp=1;s.heroes[1].hp=0;db.data.set(a.ref.path,s);
-  s=await a.act({id:id(),type:'select',heroId:'uid:warrior',encounterId:s.encounterId,expectedRevision:s.revision});
+  s=await a.act({id:id(),type:'select',heroId:'student:register-warrior',encounterId:s.encounterId,expectedRevision:s.revision});
   const kill={id:id(),type:'answer',outcome:'correct',turnId:s.pending.id,encounterId:s.encounterId};
   const victories=await Promise.all([a.act(kill),b.act(kill)]);
   assert.deepEqual(victories[0],victories[1]);assert.equal(victories[0].rewards.length,4);
@@ -295,4 +295,63 @@ test('concurrent transaction retries consume an item once, learn once and award 
   const xp=victories[0].heroes.map(h=>h.xp);
   assert.deepEqual((await a.act(kill)).heroes.map(h=>h.xp),xp);
   assert.equal([...db.data.keys()].filter(path=>path.endsWith('/actions/'+kill.id)).length,1);
+});
+
+const auto = (s, role = 'warrior', extra = {}) => {
+  const spinId=id();
+  return C.reduce(s,{type:'auto',id:spinId,spinId,encounterId:s?.encounterId,expectedRevision:s?.revision,heroId:'student:register-'+role,heroes,bossId:'goblin',...extra});
+};
+test('automatic wheel turn starts an encounter and resolves chosen skill and boss reply atomically',()=>{
+  const spinId=id(), action={type:'auto',id:spinId,spinId,heroId:heroes[0].id,heroes,bossId:'goblin'};
+  const s=C.reduce(null,action), repeat=C.reduce(null,action);
+  assert.deepEqual(s,repeat);assert.equal(s.revision,1);assert.equal(s.pending,null);assert.equal(s.correctCount,0);
+  assert.equal(s.lastEvent.type,'auto');assert.equal(s.lastEvent.skillId,'warrior-power-strike');assert.ok(s.lastEvent.damage>0);
+  assert.equal(s.bossTurns,1);assert.ok(s.lastEvent.enemy.targets.length>0);assert.equal(s.heroes[0].xp,12);
+  assert.equal(C.reduce(s,action),s);
+  assert.throws(()=>C.reduce(null,{...action,spinId:id()}),/saved wheel spin/);
+  assert.throws(()=>C.reduce(s,{...action,id:id(),spinId:'mismatch'}),/saved wheel spin/);
+});
+test('automatic decisions heal injured allies, choose damage otherwise, honor MP and cooldowns',()=>{
+  let s=start('goblin'); const cleric=s.heroes[3];
+  assert.deepEqual(C.chooseAutoCommand(s,cleric),{command:'attack'});
+  s.heroes[1].hp=1;
+  assert.equal(C.chooseAutoCommand(s,cleric).skillId,'cleric-healing-light');
+  let resolved=auto(s,'cleric');assert.ok(resolved.lastEvent.healed.some(h=>h.heroId===s.heroes[1].id));
+  assert.equal(resolved.lastEvent.skillId,'cleric-healing-light');
+  const w=s.heroes[0];w.learnedSkills.push('warrior-rampage','warrior-earthshatter');w.mp=45;
+  assert.equal(C.chooseAutoCommand(s,w).skillId,'warrior-rampage');
+  w.cooldowns['warrior-rampage']=1;assert.equal(C.chooseAutoCommand(s,w).skillId,'warrior-earthshatter');
+  w.mp=0;assert.deepEqual(C.chooseAutoCommand(s,w),{command:'attack'});
+  resolved=auto(s);assert.equal(resolved.lastEvent.command,'attack');assert.equal(resolved.heroes[0].mp,10);assert.equal(resolved.heroes[0].cooldowns['warrior-rampage'],0);
+});
+test('quick mode never overwrites a manual pending answer; end encounter clears it without loot',()=>{
+  const s=apply(start(),'select',{heroId:heroes[0].id});
+  assert.throws(()=>auto(s),/manual battle answer/);
+  const finished=apply(s,'end');assert.equal(finished.status,'defeat');assert.equal(finished.pending,null);assert.equal(finished.rewards.length,0);
+  const next=auto(finished);assert.equal(next.status,'active');assert.notEqual(next.encounterId,finished.encounterId);
+  assert.equal(next.correctCount,0);assert.equal(next.revision,finished.revision+1);
+});
+test('quick victory rewards all heroes once, skips enemy reply, and carries progress to next spin',async()=>{
+  const db=database(), config={db,teacherId:'teacher',classId:'Quick fight',canWrite:()=>true}, a=Store.create(config), b=Store.create(config);
+  let s=await a.act({id:id(),type:'start',bossId:'goblin',heroes});s.bossHp=1;s.heroes[1].hp=0;db.data.set(a.ref.path,s);
+  const spinId=id(), action={type:'auto',id:spinId,spinId,encounterId:s.encounterId,expectedRevision:s.revision,heroId:heroes[0].id,heroes,bossId:'goblin'};
+  const results=await Promise.all([a.act(action),b.act(action)]);
+  assert.deepEqual(results[0],results[1]);s=results[0];assert.equal(s.status,'victory');assert.equal(s.lastEvent.enemy,null);
+  assert.equal(s.rewards.length,4);assert.ok(s.heroes[1].xp>0);assert.equal(s.bossTurns,0);
+  const total=s.heroes.reduce((n,h)=>n+h.inventory.reduce((sum,i)=>sum+i.quantity,0),0);
+  assert.equal(total,16);const xp=s.heroes[0].xp;
+  const next=auto(s);assert.equal(next.heroes[0].xp,xp+12);assert.equal(next.heroes.reduce((n,h)=>n+h.inventory.reduce((sum,i)=>sum+i.quantity,0),0),total);
+  assert.deepEqual(await b.act(action),s);
+});
+test('UID claims and mistaken-claim corrections preserve roster hero progress, pending turns and rewards',()=>{
+  let s=start();s.heroes[0].xp=225;s.heroes[0].level=3;s.heroes[0].skillPoints=5;
+  s.heroes[0].learnedSkills.push('warrior-cleave');s.heroes[0].inventory.push({id:'bag:void-edge',itemId:'void-edge',quantity:1});s.heroes[0].equipped='bag:void-edge';
+  s.heroes[0].id='uid:old-account';s.pending={id:'pending-claim',heroId:'uid:old-account'};s.lastEvent={id:id(),type:'select',heroId:'uid:old-account',healed:[],targets:[]};
+  const roster=heroes.map(h=>({...h}));roster[0].uid='new-account';
+  const synced=apply(s,'sync',{heroes:roster});const h=synced.heroes[0];
+  assert.equal(h.id,'student:register-warrior');assert.equal(h.uid,'new-account');assert.equal(h.xp,225);assert.equal(h.level,3);assert.equal(h.equipped,'bag:void-edge');
+  assert.ok(h.learnedSkills.includes('warrior-cleave'));assert.equal(synced.pending.heroId,h.id);
+  const resolved=apply(synced,'answer',{turnId:'pending-claim',outcome:'correct'});assert.equal(resolved.heroes[0].xp,237);
+  const afterClaim=C.heroFromStudent({id:'register-warrior',uid:'third-account',name:'warrior'});
+  const corrected=apply(resolved,'sync',{heroes:[afterClaim,...heroes.slice(1)]});assert.equal(corrected.heroes[0].xp,237);
 });
