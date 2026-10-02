@@ -63,6 +63,19 @@ async function setup(delayProfiles = 0) {
         return result;
       }); queue = next.catch(() => {}); return next;
     } };
+    window.ClassroomHeroAPI.request = async ({type, classId, action}) => {
+      if (type !== 'battle') throw new Error('Unexpected request in battle fixture.');
+      const ref = db.collection('classroomBattles').doc(currentUser.uid).collection('classes').doc(ClassroomBattleStore.classKey(classId));
+      return db.runTransaction(async tx => {
+        const receipt = ref.collection('actions').doc(action.id), oldReceipt = await tx.get(receipt), snapshot = await tx.get(ref);
+        const old = snapshot.exists ? snapshot.data() : null;
+        if (oldReceipt.exists) return {state:old};
+        const next = ClassroomBattleCore.reduce(old, action);
+        if (next === old) return {state:old};
+        const state = {...next,teacherId:currentUser.uid,classId};
+        tx.set(ref,state);tx.set(receipt,{encounterId:state.encounterId,revision:state.revision,type:action.type});return {state};
+      });
+    };
     window.__battleDocuments = documents;
     window.__battleNotify = notify;
     window.__battleState = (cls = 'P5 Science') => documents['classroomBattles/teacher-fixture/classes/' + ClassroomBattleStore.classKey(cls)];
@@ -88,8 +101,8 @@ try {
   await page.locator('.cbHero').first().click();
   await page.selectOption('#cbRoleChoice', 'mage'); await settle();
   check('class changes are saved locally to the classroom hero', await page.evaluate(() => __battleState().heroes[0].role === 'mage'));
-  check('skill tree has 12 nodes and three visible branching columns', await page.locator('.cbSkillNode').count() === 12);
-  await page.click('[data-learn="mage-ice-lance"]'); await settle();
+  check('skill tree has 12 nodes and three visible branching columns', await page.locator('.hstNode').count() === 12);
+  await page.click('[data-hst-node="mage-ice-lance"]'); await page.click('[data-hst-learn="mage-ice-lance"]'); await settle();
   check('learning a skill spends points and persists the prerequisite root', await page.evaluate(() => __battleState().heroes[0].learnedSkills.includes('mage-ice-lance')));
   await page.screenshot({ path:path.join(output,'pixel-skill-tree.png'),fullPage:true });
   await page.click('#cbJournalClose');

@@ -210,3 +210,36 @@
 @media (max-width:850px) { .cbOverlay { padding: 0; } .cbShell { border-width: 2px; } .cbHeader { padding: 12px 15px; } .cbHeader h2 { font-size: 20px; } .cbMain { grid-template-columns: 180px minmax(0,1fr); } .cbWheelPane { padding: 14px 10px; } .cbBattlefield { grid-template-columns: minmax(0,1fr) minmax(150px,.9fr); gap: 10px; } .cbBossArt { height: 165px; } .cbBoss h3 { font-size: 17px; } .cbSaved { font-size: 8px; } .cbAnswerButtons button { min-width: 0; padding: 8px; flex: 1; font-size: 10px; } .cbCommandTabs button { padding: 7px; font-size: 11px; } .cbEncounterStatus { font-size: 7px; } .cbArenaTop > .cbSectionTitle { font-size: 8px; } }
 @media (max-width:620px) { .cbHeader .cbEyebrow { font-size: 7px; } .cbHeader h2 { font-size: 16px; } .cbSaved { display: none; } .cbHeaderActions { gap: 0; } .cbMain { display: block; overflow-y: auto; } .cbWheelPane { border-right: 0; border-bottom: 2px solid #354970; } .cbWheelSlot { margin-top: 8px; } .cbWheelSlot .whBody { display: grid; grid-template-columns: 1fr 1fr; align-items: center; } .cbWheelSlot #wheelClassSelect { grid-column: 1/-1; } .cbWheelSlot #wheelStage { grid-row: 2/5; height: 145px !important; } .cbWheelSlot .whNames, .cbWheelSlot .whAddRow, .cbWheelSlot .whTools { display: none; } .cbHelp { margin-top: 8px; padding-top: 8px; } .cbArena { overflow: visible; padding: 14px 10px; } .cbHeroes { grid-template-rows: repeat(4,94px); grid-auto-columns: 76px; } .cbShell button.cbHero { min-width: 76px; height: 94px; } .cbBattlefield { grid-template-columns: minmax(0,1fr) minmax(135px,.8fr); min-height: 420px; } .cbBossArt { height: 150px; } .cbBossTag { font-size: 7px; } .cbBoss h3 { font-size: 15px; } .cbBoss > p { font-size: 9px; } .cbCommandBox { padding: 11px; } .cbTeamTitle h3 { font-size: 11px; } .cbFormationHint { font-size: 8px; } .cbTimingHead { flex-direction: column; } .cbSkillTree { gap: 22px 7px; } .cbSkillNode { padding: 8px; } .cbSkillNode strong { font-size: 9px; } .cbSkillNode p { font-size: 8px; } .cbSkillNode button { font-size: 8px; padding: 4px; } #cbJournalBody { padding: 12px; } .cbJournalSummary { gap: 12px; } .cbJournalSummary .cbAvatar { width: 70px; height: 100px; } .cbInventory { grid-template-columns: 1fr; } .cbTreasureBurst h3 { font-size: 14px; } .cbChest { width: 80px; height: 80px; } .cbHeroPanel h4 span { font-size: 8px; } }
 @media (prefers-reduced-motion:reduce) { .cbShell *, .cbShell *:before, .cbShell *:after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* The ordinary wheel owns a compact automatic duel. */
+.cbQuick { color:#e9efff; background:#14213b; border:2px solid #405c89; padding:10px; margin:8px 0; border-radius:8px; font:12px/1.4 system-ui,sans-serif; }
+.cbQuick[hidden],.cbQuick [hidden] { display:none !important; }
+.cbQuickToggle { display:flex; gap:9px; align-items:center; cursor:pointer; font-weight:750; min-height:44px; }
+.cbQuickToggle input { accent-color:#e8bb65; width:20px; height:20px; flex:none; }
+.cbQuickToggle small { display:block; color:#c0cdec; font-size:10px; font-weight:400; }
+.cbQuickDuel { display:grid; grid-template-columns:minmax(0,1fr) 25px minmax(0,1fr); gap:5px; align-items:center; padding-top:7px; }
+.cbQuickHero,.cbQuickEnemy { display:flex; align-items:center; flex-direction:column; gap:2px; text-align:center; min-width:0; }
+.cbQuickDuel img { width:90px; height:85px; max-width:100%; object-fit:contain; image-rendering:pixelated; }
+.cbQuickDuel strong { font-size:11px; overflow-wrap:anywhere; line-height:1.25; }
+.cbQuickDuel small,.cbQuickDuel span { font-size:10px; color:#b9c9e7; }
+.cbQuickVs { color:#f2c974; font-size:12px; align-self:center; }
+.cbQuickDuel .cbQuickMystery { font-size:55px; height:85px; display:flex; align-items:center; }
+.cbQuickStatus { margin:8px 0 0; color:#d2def5; font-size:11px; overflow-wrap:anywhere; }
+.cbQuickError { color:#ffbd9e; }
+.cbQuickTreasure { grid-column:1/-1; display:flex; gap:8px; align-items:start; border-top:1px solid #4f6380; margin-top:8px; padding-top:8px; }
+.cbQuickTreasure .cbChest { width:54px; height:54px; flex:none; }
+.cbQuickTreasure details { min-width:0; font-size:10px; }
+.cbQuickTreasure summary { cursor:pointer; min-height:32px; }
+.cbQuickTreasure small { display:block; }
+.cbQuickTreasure p { margin:5px 0; }
+@media(prefers-reduced-motion:reduce) { .cbQuick * { animation:none!important; } }
+#wheelModal:has(#wheelQuickFight:not([hidden])) .whBody > :not(.whStage) { flex-shrink:0; }
+#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whStage { order:1; flex:0 0 150px; }
+#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .cbQuick { order:2; }
+#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whSpinRow { order:3; }
+#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whResult { order:4; }
+#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whNames { order:5; }
+#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whAddRow { order:6; }
+#wheelModal:has(#wheelQuickFight:not([hidden]) #wheelQuickToggle:checked) .whTools { order:7; }
+.cbQuick:has(#wheelQuickToggle:not(:checked)) { padding:0 8px; margin:0; }
+.cbQuick:has(#wheelQuickToggle:not(:checked)) .cbQuickToggle small { display:none; }

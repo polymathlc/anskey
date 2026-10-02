@@ -33,6 +33,8 @@ const page = await ctx.newPage();
 // The fixture owns Firebase; do not replace its proxy with the network SDK.
 await page.route(/firebase-[a-z]+-compat\.js(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: '' }));
 await page.addInitScript(() => {
+  // This harness covers the plain name wheel; quick combat has its own browser suite.
+  localStorage.setItem('polymath.wheelQuickFight', 'off');
   const chain = () => new Proxy(function () { return chain(); }, {
     get: (t, k) => (k === 'then' ? undefined : chain()),
     apply: () => chain(), construct: () => chain(), set: () => true
@@ -127,7 +129,7 @@ const grip = await page.locator('#wheelGrip').boundingBox();
 await page.mouse.move(grip.x + 12, grip.y + 12);
 await page.mouse.down(); await page.mouse.move(grip.x - 60, grip.y - 150, { steps: 6 }); await page.mouse.up();
 const after = await page.evaluate(() => ({ w: wheelWin.w, h: wheelWin.h, c: $('wheelCanvas').getBoundingClientRect().width }));
-ok('dragging the corner makes the window — and the wheel — smaller', after.w < 340 && after.c < before, JSON.stringify({ before, after }));
+ok('dragging the corner makes the window — and the wheel — smaller', after.w < 340 && after.c <= before && after.c >= 150, JSON.stringify({ before, after }));
 ok('the window cannot shrink past a usable size', after.w >= 260 && after.h >= 330);
 
 // Minimise keeps the place and names the last pick.

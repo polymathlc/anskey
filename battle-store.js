@@ -10,7 +10,7 @@
     if (!key || key.length > 1400) throw new Error('Choose a valid class (up to 350 characters).');
     return key;
   }
-  function create({ db, teacherId, classId, canWrite }) {
+  function create({ db, teacherId, classId, canWrite, transport }) {
     if (!teacherId || /\//.test(teacherId)) throw new Error('Sign in as the teacher to open a battle.');
     const ref = db.collection('classroomBattles').doc(teacherId).collection('classes').doc(classKey(classId));
     function authorize() { if (typeof canWrite !== 'function' || !canWrite()) throw new Error('Only the signed-in teacher can change this battle.'); }
@@ -27,6 +27,15 @@
         authorize();
         const frozen = JSON.parse(JSON.stringify(action));
         if (!/^[a-zA-Z0-9_-]{8,100}$/.test(frozen.id || '')) throw new Error('Invalid battle action ID.');
+        const api = transport || (typeof window !== 'undefined' && window.ClassroomHeroAPI && window.ClassroomHeroAPI.request);
+        if (api) {
+          const result = await api({type:'battle',classId,action:frozen},{canSend:canWrite});
+          authorize();
+          return result.state;
+        }
+        // The in-memory Node transaction harness is deliberately local. Every
+        // browser write must go through the authenticated canonical hero API.
+        if (typeof window !== 'undefined') throw new Error('Hero saving is loading. Refresh Ans Key and try again.');
         const receipt = ref.collection('actions').doc(frozen.id);
         return db.runTransaction(async tx => {
           authorize();

@@ -3605,6 +3605,8 @@ video.mirror { transform:scaleX(-1); }
 @media print { .barStack,.lessonBar,.lessonPlayer,#lessonModal,.lessonCamWin,#lessonExportModal,.playlistPanel { display:none!important; } }
 </style>
 <link rel="stylesheet" href="classroom-battle.css">
+<link rel="stylesheet" href="hero-skill-tree.css">
+<link rel="stylesheet" href="student-heroes.css">
 </head>
 <body>
 
@@ -3917,7 +3919,9 @@ video.mirror { transform:scaleX(-1); }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><circle cx="12" cy="13" r="1.6"/><line x1="12" y1="5" x2="12" y2="11.4"/><line x1="12" y1="14.6" x2="12" y2="21"/><line x1="4" y1="13" x2="10.4" y2="13"/><line x1="13.6" y1="13" x2="20" y2="13"/><path d="M10 2.6h4L12 6z" fill="currentColor"/></svg>
       <span class="btnLabel">Wheel</span>
     </button>
-    <button class="btn" id="classroomBattleBtn" title="Classroom boss battle — play with your class's CER heroes" style="display:none">⚔️ <span class="btnLabel">Battle</span></button>
+    <button class="btn" id="classroomBattleBtn" title="Classroom boss battle — play with your class's pixel heroes" style="display:none">⚔️ <span class="btnLabel">Battle</span></button>
+    <button class="btn" id="myHeroBtn" title="Choose your class, skills and treasure" style="display:none">✦ <span class="btnLabel">My Hero</span></button>
+    <button class="btn" id="heroClaimsBtn" title="Approve student character claims" style="display:none">✦ <span class="btnLabel">Hero claims</span></button>
   <div class="toolbarMenu" id="lessonTools">
     <button class="btn toolbarMenuBtn" id="lessonMenuBtn" type="button" data-toolbar-menu="lessonMenu" aria-expanded="false" aria-controls="lessonMenu" title="Notes &amp; practice">
       <span class="toolbarMenuIcon" id="lessonMenuIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19a1 1 0 0 1 1 1v14.5"/><path d="M6 17h14v4H6a2 2 0 0 1 0-4z"/><line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="8.5" y1="11" x2="13.5" y2="11"/></svg></span>
@@ -5291,7 +5295,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.115.0';
+var APP_VERSION = 'v1.116.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -27698,6 +27702,7 @@ function applyRoleUI() {
   if (typeof placeToolbarToggle === 'function') placeToolbarToggle();
   // Awarding marks is the teacher's own tool, and only the admin's.
   applyRewardVisibility();
+  if (window.StudentHeroes) window.StudentHeroes.roleChanged();
   // The teaching notes the AI writes from are the teacher's own too.
   applyNotesVisibility();
   var h1 = $('emptyState').querySelector('h1');
@@ -27895,6 +27900,7 @@ auth.onAuthStateChanged(function (user) {
   if (user && !isAdmin(user) && !user.isAnonymous) {
     // Students: fetch their profile, and ask for it on their very first login.
     loadStudentProfile(user).then(function () {
+      if (currentUser !== user) return;
       renderAuthArea();
       // Visitors on a share link never get nagged about a student profile.
       // profileComplete, not just "is there a row": a profile saved without
@@ -27904,6 +27910,7 @@ auth.onAuthStateChanged(function (user) {
       if (!profileComplete(studentProfile) && !sharedLink && !shareOpenInProgress && !SHARE_OPEN_ID) openProfileModal(true);
       if ($('qDrawer').classList.contains('open')) loadQuestionsList();
       applyDefaultPanels();   // open for a student, shut for the teacher
+      if (window.StudentHeroes && profileComplete(studentProfile)) window.StudentHeroes.profileReady(user.uid);
     });
   } else {
     // Refresh the questions drawer for the new auth state if it is open
@@ -28142,6 +28149,7 @@ async function saveStudentProfile() {
     renderAuthArea();
     if ($('qDrawer').classList.contains('open')) loadQuestionsList();
     applyDefaultPanels();   // the level is set — now the list can open for them
+    if (window.StudentHeroes) window.StudentHeroes.profileReady(currentUser.uid);
     if (changedLS) {
       toast('Updated to ' + levelLabel(profilePick.level) + ' ' + subjectLabel(profilePick.subject) +
         ' — that was your one change. Ask Mr Chung if you ever need another.', 4500);
@@ -29236,6 +29244,7 @@ function wheelSpin() {
   var onWheel = starting ? wheelState.names.map(function (_, i) { return i; }) : before;
   wheelSegs = onWheel.map(function (i) { return wheelState.names[i].n; });
   var slot = onWheel.indexOf(pick);
+  wheelState.lastSpinId = 'wheel-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
   wheelSave();
   wheelWinnerIdx = pick;
   wheelGiven = 0;
@@ -29269,7 +29278,7 @@ function wheelLanded() {
   wheelDraw();
   wheelRender();
   var w = wheelState && wheelState.names[wheelWinnerIdx];
-  if (window.ClassroomBattle) window.ClassroomBattle.landed(w);
+  if (window.ClassroomBattle) window.ClassroomBattle.landed(w, wheelState && wheelState.lastSpinId);
   if (w) toast('🎡 ' + w.n);
 }
 
@@ -29543,6 +29552,7 @@ async function openWheel() {
   if (!cls) { sel.value = remembered; cls = sel.value === remembered ? remembered : ''; }
   wheelSetClass(cls);
   wheelFit();
+  if (window.ClassroomBattle && window.ClassroomBattle.wheelOpened) window.ClassroomBattle.wheelOpened();
 }
 
 function closeWheel() {
@@ -34193,8 +34203,12 @@ loadAiNotePrefs();
 <script src="battle-bosses.js"></script>
 <script src="battle-content.js"></script>
 <script src="battle-core.js"></script>
+<script src="hero-api.js"></script>
 <script src="battle-store.js"></script>
+<script src="hero-skill-tree.js"></script>
 <script src="classroom-battle.js"></script>
+<script src="quick-battle.js"></script>
+<script src="student-heroes.js"></script>
 <script type="module">
 /* ================= Firebase AI Logic (Gemini) =================
    Gemini access for the AI text-box features. Uses the shared Polymath

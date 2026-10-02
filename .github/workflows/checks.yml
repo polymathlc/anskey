@@ -40,6 +40,9 @@ jobs:
         run: |
           node tools/wheel-check.mjs
           node tools/classroom-battle-browser-check.mjs
+          node tools/hero-skill-tree-browser-check.mjs
+          node tools/student-heroes-browser-check.mjs
+          node tools/quick-wheel-browser-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
