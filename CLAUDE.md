@@ -2,6 +2,22 @@
 
 Guidance for Claude when working in this repo.
 
+## Classroom battle (v1.114.0)
+
+`battle-bosses.js` → `battle-core.js` → `battle-store.js` → `classroom-battle.js`
+load after the main script; `classroom-battle.css` is scoped to the overlay.
+The overlay temporarily hosts the existing wheel and restores it on close.
+Student accounts link only through register UID; the CER `battleHero` SVG is
+an image URL, never raw DOM markup. Registered wheel entries dedupe by ID.
+Every persisted action uses the store transaction and immutable receipt;
+answers require their pending turn and boss turns require the observed revision.
+Keep avatar payloads out of encounter documents. Wait for initial profile reads
+before synchronizing; unavailable profiles must preserve saved role/stats/health.
+Shared Firebase rules are migrated narrowly by `tools/battle-rules.mjs`, never
+replaced by an app-local rules deployment. See `docs/classroom-battle.md`.
+Run all unit/server tests, `tools/wheel-check.mjs` and
+`tools/classroom-battle-browser-check.mjs` after changing these paths.
+
 ## Name wheel (v1.113.0)
 
 `WHEEL_*` / `wheelClean` / `wheelPick` / `wheelAddName` / `wheelLandingAngle` /

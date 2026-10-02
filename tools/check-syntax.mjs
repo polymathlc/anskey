@@ -14,7 +14,7 @@ try {
     fs.writeFileSync(file, script[2]);
     execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
   }
-  for (const name of ['bar-models.js', 'model-suite.js', 'model-templates.js']) {
+  for (const name of ['bar-models.js', 'model-suite.js', 'model-templates.js', 'battle-bosses.js', 'battle-core.js', 'battle-store.js', 'classroom-battle.js']) {
     execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../' + name, import.meta.url))], { stdio: 'inherit' });
   }
   console.log(`${scripts.length} inline scripts passed syntax checks.`);

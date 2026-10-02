@@ -29,3 +29,21 @@ jobs:
         run: npm --prefix functions test
       - name: Load deployment entry point
         run: node -e "console.log(Object.keys(require('./functions/index.js')).join(', '))"
+      - name: Install isolated browser runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/battle-browser" --no-audit --no-fund playwright@1.62.1
+          "$RUNNER_TEMP/battle-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Check wheel, battle, all artwork and desktop/tablet layouts
+        env:
+          PW: ${{ runner.temp }}/battle-browser/node_modules/playwright/index.mjs
+          BATTLE_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots
+        run: |
+          node tools/wheel-check.mjs
+          node tools/classroom-battle-browser-check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: classroom-battle-screenshots
+          path: ${{ runner.temp }}/battle-screenshots
+          if-no-files-found: ignore
+          retention-days: 7
