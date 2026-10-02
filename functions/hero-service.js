@@ -4,7 +4,7 @@ const { APP_ID, TEACHER_EMAIL, allowedOrigin } = require('./live-service');
 class HeroError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
-const TYPES = new Set(['me', 'catalog', 'claim', 'cancelClaim', 'claims', 'approve', 'reject', 'unlink', 'configure', 'battle', 'wheelAward', 'assist', 'endEncounter']);
+const TYPES = new Set(['me', 'catalog', 'claim', 'cancelClaim', 'claims', 'approve', 'reject', 'unlink', 'configure', 'battle', 'wheelAward', 'assist', 'mission', 'endEncounter']);
 function validateHeroRequest(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body) || !TYPES.has(body.type)) throw new HeroError(400, 'invalid_request', 'Choose a valid hero action.');
   return body;

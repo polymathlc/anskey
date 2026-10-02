@@ -44,6 +44,8 @@ jobs:
           node tools/student-heroes-browser-check.mjs
           node tools/quick-wheel-browser-check.mjs
           node tools/battle-animation-browser-check.mjs
+          node tools/mission-machine-browser-check.mjs
+          node tools/mission-animation-browser-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

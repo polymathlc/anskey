@@ -1,0 +1,509 @@
+{
+  "version": 1,
+  "grid": {
+    "columns": 5,
+    "rows": 2
+  },
+  "items": [
+    {
+      "id": "copper-sabre",
+      "name": "Copper Sabre",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "buckler-of-bravery",
+      "name": "Buckler of Bravery",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "crimson-vial-charm",
+      "name": "Crimson Vial Charm",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "azure-vial-charm",
+      "name": "Azure Vial Charm",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "healers-ribbon",
+      "name": "Healer’s Ribbon",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 4,
+        "row": 0
+      }
+    },
+    {
+      "id": "scouts-feather",
+      "name": "Scout’s Feather",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "oak-leaf-pendant",
+      "name": "Oak Leaf Pendant",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "apprentice-grimoire",
+      "name": "Apprentice Grimoire",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "iron-gauntlet",
+      "name": "Iron Gauntlet",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "amber-band",
+      "name": "Amber Band",
+      "rarity": "common",
+      "art": {
+        "sheet": "items-1",
+        "col": 4,
+        "row": 1
+      }
+    },
+    {
+      "id": "ember-sabre",
+      "name": "Ember Sabre",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "mossguard-shield",
+      "name": "Mossguard Shield",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "verdant-flask-charm",
+      "name": "Verdant Flask Charm",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "tideglass-pendant",
+      "name": "Tideglass Pendant",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "moonpetal-brooch",
+      "name": "Moonpetal Brooch",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 4,
+        "row": 0
+      }
+    },
+    {
+      "id": "windfletch-quiver",
+      "name": "Windfletch Quiver",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "foxtrail-boots",
+      "name": "Foxtrail Boots",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "runecarved-wand",
+      "name": "Runecarved Wand",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "thornvine-ring",
+      "name": "Thornvine Ring",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sunwoven-cape",
+      "name": "Sunwoven Cape",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "items-2",
+        "col": 4,
+        "row": 1
+      }
+    },
+    {
+      "id": "ruby-fang",
+      "name": "Ruby Fang",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sapphire-bastion",
+      "name": "Sapphire Bastion",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "phoenix-plume",
+      "name": "Phoenix Plume",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "prismatic-compass",
+      "name": "Prismatic Compass",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "frostbite-bow",
+      "name": "Frostbite Bow",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 4,
+        "row": 0
+      }
+    },
+    {
+      "id": "celestial-censer",
+      "name": "Celestial Censer",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "stormglass-orb",
+      "name": "Stormglass Orb",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "lions-heart-medal",
+      "name": "Lion’s Heart Medal",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "silver-thread-gloves",
+      "name": "Silver Thread Gloves",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "starlit-tiara",
+      "name": "Starlit Tiara",
+      "rarity": "rare",
+      "art": {
+        "sheet": "items-3",
+        "col": 4,
+        "row": 1
+      }
+    },
+    {
+      "id": "voidsteel-katana",
+      "name": "Voidsteel Katana",
+      "rarity": "epic",
+      "art": {
+        "sheet": "items-4",
+        "col": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "dragonheart-aegis",
+      "name": "Dragonheart Aegis",
+      "rarity": "epic",
+      "art": {
+        "sheet": "items-4",
+        "col": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "astral-bottle-relic",
+      "name": "Astral Bottle Relic",
+      "rarity": "epic",
+      "art": {
+        "sheet": "items-4",
+        "col": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "cometburst-relic",
+      "name": "Cometburst Relic",
+      "rarity": "epic",
+      "art": {
+        "sheet": "items-4",
+        "col": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "thunderwing-quiver",
+      "name": "Thunderwing Quiver",
+      "rarity": "epic",
+      "art": {
+        "sheet": "items-4",
+        "col": 4,
+        "row": 0
+      }
+    },
+    {
+      "id": "eclipse-grimoire",
+      "name": "Eclipse Grimoire",
+      "rarity": "epic",
+      "art": {
+        "sheet": "items-4",
+        "col": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "bloodmoon-pendant",
+      "name": "Bloodmoon Pendant",
+      "rarity": "epic",
+      "art": {
+        "sheet": "items-4",
+        "col": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "spiritwood-totem",
+      "name": "Spiritwood Totem",
+      "rarity": "epic",
+      "art": {
+        "sheet": "items-4",
+        "col": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "solar-sovereign-blade",
+      "name": "Solar Sovereign Blade",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "items-4",
+        "col": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "worldtree-seed",
+      "name": "Worldtree Seed",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "items-4",
+        "col": 4,
+        "row": 1
+      }
+    },
+    {
+      "id": "titanforge-hammer",
+      "name": "Titanforge Hammer",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "items-5",
+        "col": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "seraphim-halo",
+      "name": "Seraphim Halo",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "items-5",
+        "col": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "tempest-longbow",
+      "name": "Tempest Longbow",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "items-5",
+        "col": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "infinity-mana-lantern",
+      "name": "Infinity Mana Lantern",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "items-5",
+        "col": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "aegis-of-the-mountain",
+      "name": "Aegis of the Mountain",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "items-5",
+        "col": 4,
+        "row": 0
+      }
+    },
+    {
+      "id": "starweaver-scepter",
+      "name": "Starweaver Scepter",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "items-5",
+        "col": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "eternal-phoenix-diadem",
+      "name": "Eternal Phoenix Diadem",
+      "rarity": "mythical",
+      "art": {
+        "sheet": "items-5",
+        "col": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "hourglass-of-infinity",
+      "name": "Hourglass of Infinity",
+      "rarity": "mythical",
+      "art": {
+        "sheet": "items-5",
+        "col": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "reality-cleaver",
+      "name": "Reality Cleaver",
+      "rarity": "mythical",
+      "art": {
+        "sheet": "items-5",
+        "col": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "heart-of-the-constellation",
+      "name": "Heart of the Constellation",
+      "rarity": "mythical",
+      "art": {
+        "sheet": "items-5",
+        "col": 4,
+        "row": 1
+      }
+    }
+  ]
+}

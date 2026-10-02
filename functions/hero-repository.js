@@ -1,6 +1,7 @@
 'use strict';
 
 const Core = require('./hero-game/battle-core');
+const Missions = require('./hero-game/mission-content');
 const { HeroError } = require('./hero-service');
 const { randomUUID, createHash } = require('node:crypto');
 const { Timestamp } = require('firebase-admin/firestore');
@@ -55,14 +56,14 @@ function view(profile, student) {
   return { status: claim.status, claim, ...(claim.status === 'approved' ? { hero: cleanHero(profile.hero, student || {id:profile.studentId,name:profile.hero.name}, profile), activeEncounter: profile.activeEncounter || null } : {}) };
 }
 function requireTeacher(actor) { if (!actor.isTeacher) deny('teacher_required', 'Only the teacher can approve claims or run a battle.', 403); }
-function createHeroRepository(db, { now = Date.now } = {}) {
+function createHeroRepository(db, { now = Date.now, random = () => require('node:crypto').randomInt(0,0x100000000)/0x100000000 } = {}) {
   function realm(actor) {
     return { root: db.collection('classroomHeroData').doc(actor.teacherId), classes: db.collection('classroomBattles').doc(actor.teacherId).collection('classes') };
   }
   async function execute(actor, body) {
     const { root, classes } = realm(actor), profiles = root.collection('profiles'), accounts = root.collection('accounts');
     const accountRef = accounts.doc(actor.uid), clock = now();
-    if (['claims','approve','reject','unlink','battle','wheelAward','assist','endEncounter'].includes(body.type)) requireTeacher(actor);
+    if (['claims','approve','reject','unlink','battle','wheelAward','assist','mission','endEncounter'].includes(body.type)) requireTeacher(actor);
     if (body.type === 'catalog' || body.type === 'claims') {
       const [rosterSnap, profileSnap] = await Promise.all([db.collection('students').get(), profiles.get()]);
       const roster = docs(rosterSnap).map(s => ({...s.data(),id:s.id})), byId = new Map(docs(profileSnap).map(s => [s.id,s.data()]));
@@ -77,6 +78,7 @@ function createHeroRepository(db, { now = Date.now } = {}) {
       }).sort((a,b) => a.name.localeCompare(b.name)) };
     }
     if (body.type === 'assist') return assist(actor, body, {root,classes,profiles}, clock);
+    if (body.type === 'mission') return missionAction(actor,body,{root,classes,profiles},clock);
     if (body.type === 'endEncounter') {
       const studentId=studentKey(body.studentId), profile=docData(await profiles.doc(studentId).get());
       if (!profile?.activeEncounter) return {status:'ended'};
@@ -180,8 +182,72 @@ function createHeroRepository(db, { now = Date.now } = {}) {
       deny('invalid_request','Choose a valid hero action.',400);
     });
   }
+  function payoutMission(tx,actor,classId,before,after,roster,clock,markOverrides=new Map()) {
+    const payout=after?.lastPayout;
+    if(!payout || payout.kind!=='points' || before?.lastPayout?.id===payout.id)return;
+    const party=roster.map(s=>({...s.data(),id:s.id,original:s.data()})).filter(s=>slots(s).includes(classId));
+    for(const student of party){
+      const marks=markOverrides.has(student.id)?markOverrides.get(student.id):student.marks||0;
+      if(!Number.isSafeInteger(marks)||!Number.isSafeInteger(marks+5))deny('invalid_balance','Correct the class marks balance before completing this mission.');
+    }
+    payout.awards=party.map(student=>{
+      const marks=(markOverrides.has(student.id)?markOverrides.get(student.id):student.marks||0)+5;
+      const id=student.id;
+      tx.set(db.collection('students').doc(id),{...student.original,marks});
+      const ledgerId='mission-'+createHash('sha256').update(actor.teacherId+'\0'+classId+'\0'+payout.id+'\0'+id).digest('hex');
+      tx.set(db.collection('awards').doc(ledgerId),{studentId:id,studentName:student.name||'',delta:5,reason:'Class mission: '+after.current.objectiveName,source:'annotator',by:actor.email,undone:false,createdAt:Timestamp.fromMillis(clock)});
+      return {studentId:id,marks,delta:5};
+    });
+  }
+  async function missionAction(actor,body,refs,clock){
+    const {root,classes}=refs,classId=body.classId,encoded=key(classId),classRef=classes.doc(encoded),missionRef=root.collection('missions').doc(encoded);
+    const command=body.command;
+    if(!['get','turn','cancel','focus','incorrect','redeem'].includes(command))deny('invalid_mission','Choose a mission action.',400);
+    if(command==='get'){
+      const [saved,state]=await Promise.all([missionRef.get(),classRef.get()]);
+      return {mission:Missions.clean(docData(saved)),state:docData(state)};
+    }
+    if(!/^[A-Za-z0-9_-]{8,100}$/.test(body.id||''))deny('invalid_mission','Invalid mission action.',400);
+    if(command==='incorrect'&&!/^[A-Za-z0-9_-]{8,100}$/.test(body.spinId||''))deny('invalid_mission','Spin to call a student before recording an incorrect answer.',400);
+    const receiptId=command==='incorrect'?'incorrect-'+createHash('sha256').update(String(body.missionId)+'\0'+body.spinId).digest('hex'):body.id;
+    const receiptRef=missionRef.collection('actions').doc(receiptId);
+    const request={command,missionId:body.missionId||null,spinId:body.spinId||null,prizeId:body.prizeId||null};
+    // Randomness is private and sampled once, outside Firestore retry callbacks.
+    const objectiveRoll=command==='turn'?random():0,prizeRoll=command==='turn'?random():0;
+    return db.runTransaction(async tx=>{
+      const [receiptSnap,missionSnap,stateSnap,rosterSnap]=await Promise.all([tx.get(receiptRef),tx.get(missionRef),tx.get(classRef),tx.get(db.collection('students'))]);
+      const before=Missions.clean(docData(missionSnap));let next=Missions.clean(before),state=docData(stateSnap);
+      if(receiptSnap.exists){
+        if(JSON.stringify(receiptSnap.data().request)!==JSON.stringify(request))deny('mission_changed','This mission action was already saved with different details.');
+        return {mission:before,state,duplicate:true};
+      }
+      const roster=docs(rosterSnap).map(s=>({...s.data(),id:s.id}));
+      if(!roster.some(s=>slots(s).includes(classId)))deny('roster_changed','Choose a Lesson slot with students.',400);
+      if(command==='turn'){
+        if(body.expectedRevision!==before.revision)deny('mission_changed','The mission changed on another screen. Refresh before turning.');
+        try {next=Missions.start(before,{id:body.id,now:clock,objectiveRoll,prizeRoll,encounterId:state?.status==='active'?state.encounterId:null});}
+        catch(e){deny('mission_active',e.message);}
+      } else if(command==='redeem'){
+        const reward=next.bank.find(p=>p.id===body.prizeId);
+        if(!reward||reward.kind!=='minutes')deny('invalid_mission','Choose a Blooket or Gimkit minute prize.',400);
+        if(reward.status!=='available')deny('mission_changed','This class prize has already been redeemed.');
+        reward.status='redeemed';reward.redeemedAt=clock;next.revision++;
+      } else {
+        if(!next.current||next.current.id!==body.missionId||next.current.status!=='active')deny('mission_changed','This mission is no longer active. Refresh the mission machine.');
+        if(command==='cancel'){next.current.status='cancelled';next.current.cancelledAt=clock;next.revision++;}
+        else if(command==='focus'){
+          if(next.current.objectiveId!=='focus')deny('invalid_mission','The active mission is not a focus challenge.',400);
+          try{next=Missions.progress(next,{kind:'focus',now:clock});}catch(e){deny('focus_not_ready',e.message);}
+        }else next=Missions.progress(next,{kind:'incorrect',now:clock});
+      }
+      payoutMission(tx,actor,classId,before,next,docs(rosterSnap),clock);
+      next.updatedAt=clock;tx.set(missionRef,next);tx.set(receiptRef,{request,revision:next.revision,createdAt:clock});
+      if(state){state={...state,revision:(state.revision||0)+1,missionRevision:next.revision,updatedAt:clock};tx.set(classRef,state);}
+      return {mission:next,state};
+    });
+  }
   async function assist(actor, body, refs, clock) {
-    const {classes,profiles}=refs, classId=body.classId, classRef=classes.doc(key(classId));
+    const {root,classes,profiles}=refs, classId=body.classId, classRef=classes.doc(key(classId)),missionRef=root.collection('missions').doc(key(classId));
     const studentId=studentKey(body.studentId), helpedStudentId=studentKey(body.helpedStudentId), action=body.action || {};
     if (!/^[A-Za-z0-9_-]{8,100}$/.test(action.id || '') || !/^[A-Za-z0-9_-]{8,100}$/.test(action.spinId || '')) deny('invalid_assist','Spin to call a student before recording an assist.',400);
     if (studentId===helpedStudentId) deny('invalid_assist','Choose another student who helped with this question.',400);
@@ -190,13 +256,14 @@ function createHeroRepository(db, { now = Date.now } = {}) {
     const receiptId=createHash('sha256').update(action.spinId+'\0'+studentId).digest('hex');
     const receiptRef=classRef.collection('assists').doc(receiptId), profileRef=profiles.doc(studentId);
     return db.runTransaction(async tx=>{
-      const [receiptSnap,stateSnap,profileSnap,helperSnap,helpedSnap]=await Promise.all([
-        tx.get(receiptRef),tx.get(classRef),tx.get(profileRef),tx.get(db.collection('students').doc(studentId)),tx.get(db.collection('students').doc(helpedStudentId))]);
+      const [receiptSnap,stateSnap,profileSnap,helperSnap,helpedSnap,missionSnap,rosterSnap]=await Promise.all([
+        tx.get(receiptRef),tx.get(classRef),tx.get(profileRef),tx.get(db.collection('students').doc(studentId)),tx.get(db.collection('students').doc(helpedStudentId)),tx.get(missionRef),tx.get(db.collection('students'))]);
       let state=docData(stateSnap),profile=docData(profileSnap);
+      const beforeMission=Missions.clean(docData(missionSnap));
       if (receiptSnap.exists) {
         const receipt=receiptSnap.data();
         if (receipt.helpedStudentId!==helpedStudentId) deny('assist_changed','This helper already received XP for this called question.');
-        return {hero:profile?.hero || null,state,assist:receipt,duplicate:true};
+        return {hero:profile?.hero || null,state,assist:receipt,mission:beforeMission,duplicate:true};
       }
       if (!helperSnap.exists || !helpedSnap.exists || !slots(helperSnap.data()).includes(classId) || !slots(helpedSnap.data()).includes(classId)) deny('roster_changed','Both students must belong to this Lesson slot. Refresh the wheel.');
       const helper={...helperSnap.data(),id:studentId};
@@ -205,18 +272,21 @@ function createHeroRepository(db, { now = Date.now } = {}) {
       profile.hero=Core.grantAssistXp(cleanHero(profile.hero,helper,profile),6);
       profile.revision=(profile.revision || 0)+1;profile.updatedAt=clock;
       const receipt={id:action.id,spinId:action.spinId,studentId,helpedStudentId,xp:6,createdAt:clock};
+      const mission=Missions.progress(beforeMission,{kind:'assist',now:clock});
       if (state) {
         state=clone(state);
         state.heroes=state.heroes.map(h=>h.studentId===studentId ? profile.hero : h);
         if (state.heroArchive?.[profile.hero.id]) state.heroArchive[profile.hero.id]=profile.hero;
         state.revision=(state.revision || 0)+1;state.updatedAt=clock;state.lastAssist=receipt;
       }
+      payoutMission(tx,actor,classId,beforeMission,mission,docs(rosterSnap),clock);
+      if(mission.revision!==beforeMission.revision){mission.updatedAt=clock;tx.set(missionRef,mission);if(state)state.missionRevision=mission.revision;}
       tx.set(profileRef,profile);tx.set(receiptRef,receipt);if(state)tx.set(classRef,state);
-      return {hero:profile.hero,state,assist:receipt};
+      return {hero:profile.hero,state,assist:receipt,mission};
     });
   }
   async function battle(actor, body, refs, clock) {
-    const {classes,profiles} = refs, classId=body.classId, classRef=classes.doc(key(classId)), action=clone(body.action || {});
+    const {root,classes,profiles} = refs, classId=body.classId, classRef=classes.doc(key(classId)),missionRef=root.collection('missions').doc(key(classId)), action=clone(body.action || {});
     if (!/^[A-Za-z0-9_-]{8,100}$/.test(action.id || '')) deny('invalid_action','Invalid battle action.',400);
     let awardRequest=null;
     if (body.type === 'wheelAward') {
@@ -231,15 +301,22 @@ function createHeroRepository(db, { now = Date.now } = {}) {
     }
     const receiptRef=classRef.collection('actions').doc(action.id);
     return db.runTransaction(async tx => {
-      const [oldReceipt,oldSnap,rosterSnap] = await Promise.all([tx.get(receiptRef),tx.get(classRef),tx.get(db.collection('students'))]);
+      const [oldReceipt,oldSnap,rosterSnap,missionSnap] = await Promise.all([tx.get(receiptRef),tx.get(classRef),tx.get(db.collection('students')),tx.get(missionRef)]);
       let old=docData(oldSnap);
+      const beforeMission=Missions.clean(docData(missionSnap));let mission=Missions.clean(beforeMission);
       const roster=docs(rosterSnap).map(s=>({...s.data(),id:s.id})), rosterById=new Map(roster.map(s=>[s.id,s]));
       if (oldReceipt.exists) {
-        if (!awardRequest) return {state:old};
+        if (!awardRequest) return {state:old,mission};
         const receipt=oldReceipt.data();
         if (JSON.stringify(receipt.awardRequest) !== JSON.stringify(awardRequest) || !receipt.award) deny('award_changed','This award was already saved with different details. Refresh the wheel.');
         const currentStudent=rosterById.get(awardRequest.studentId);
-        return {state:old,award:{...receipt.award,...(currentStudent ? {marks:currentStudent.marks || 0} : {})},duplicate:true};
+        return {state:old,mission,award:{...receipt.award,...(currentStudent ? {marks:currentStudent.marks || 0} : {})},duplicate:true};
+      }
+      let answerRef=null,answerAlreadyCounted=false;
+      if(mission.current?.status==='active'&&mission.current.objectiveId==='correct-streak'&&(action.type==='auto'||(action.type==='answer'&&action.outcome==='correct'))){
+        const questionId=action.type==='auto'?action.spinId:action.turnId;
+        const answerKey=createHash('sha256').update(mission.current.id+'\0'+String(questionId)).digest('hex');
+        answerRef=missionRef.collection('answers').doc(answerKey);answerAlreadyCounted=(await tx.get(answerRef)).exists;
       }
       let awardedStudent=null,award=null,schoolBosses=[];
       if (awardRequest) {
@@ -318,6 +395,15 @@ function createHeroRepository(db, { now = Date.now } = {}) {
         if (prior) prior.heroes=canonical;
         else action.heroes=canonical;
       }
+      if(action.type==='summon'){
+        if(!['teacher','reward'].includes(action.source))deny('invalid_summon','Choose teacher help or a class summon reward.',400);
+        if(action.source==='reward'){
+          const token=mission.bank.find(p=>p.kind==='summon'&&p.status==='available');
+          if(!token)deny('summon_unavailable','Earn a Summon One-Punch Chung reward first.');
+          token.status='redeemed';token.redeemedAt=clock;token.encounterId=old?.encounterId||null;
+          mission.summonTokens--;mission.revision++;
+        }
+      }
       let next;
       try {
         // Core deliberately distrusts client-provided progression on first
@@ -328,9 +414,13 @@ function createHeroRepository(db, { now = Date.now } = {}) {
       } catch(e) { deny('battle_changed',e.message,409); }
       if (next===prior) {
         if (award) deny('award_changed','This battle action was already resolved. Refresh the wheel before awarding points.');
-        if (!missing.length && JSON.stringify(prior)===JSON.stringify(docData(oldSnap))) return {state:old};
+        if (!missing.length && JSON.stringify(prior)===JSON.stringify(docData(oldSnap))) return {state:old,mission};
         next={...prior,revision:prior.revision+1,lastEvent:{id:action.id,type:'sync',targets:[],healed:[]}};
       }
+      if(starting)mission=Missions.progress(mission,{kind:'encounter',encounterId:next.encounterId,now:clock});
+      if(!answerAlreadyCounted&&(action.type==='auto'||(action.type==='answer'&&action.outcome==='correct')))mission=Missions.progress(mission,{kind:'correct',encounterId:next.encounterId,now:clock});
+      if(action.type==='answer'&&action.outcome==='incorrect')mission=Missions.progress(mission,{kind:'incorrect',now:clock});
+      if(next.status==='victory'&&(old?.status!=='victory'||old?.encounterId!==next.encounterId))mission=Missions.progress(mission,{kind:'victory',encounterId:next.encounterId,now:clock});
       next={...next,teacherId:actor.teacherId,classId,updatedAt:clock};
       const activeIds=new Set(next.heroes.map(h=>h.studentId));
       for (const [id,profile] of profileMap) {
@@ -355,8 +445,12 @@ function createHeroRepository(db, { now = Date.now } = {}) {
           tx.set(db.collection('bosses').doc(snap.id),{...boss,hp,...(hp===0 ? {defeated:true,defeatedAt:timestamp} : {})});
         }
       }
+      payoutMission(tx,actor,classId,beforeMission,mission,docs(rosterSnap),clock,new Map(award?[[award.studentId,award.marks]]:[]));
+      if(answerRef&&!answerAlreadyCounted)tx.set(answerRef,{actionId:action.id,createdAt:clock});
+      if(award&&mission.lastPayout?.id!==beforeMission.lastPayout?.id){const bonus=mission.lastPayout?.awards.find(row=>row.studentId===award.studentId);if(bonus)award.marks=bonus.marks;}
+      if(mission.revision!==beforeMission.revision){mission.updatedAt=clock;tx.set(missionRef,mission);next.missionRevision=mission.revision;}
       tx.set(classRef,next); tx.set(receiptRef,{encounterId:next.encounterId,revision:next.revision,type:action.type,...(award ? {awardRequest,award} : {})});
-      return {state:next,...(award ? {award} : {})};
+      return {state:next,mission,...(award ? {award} : {})};
     });
   }
   return {execute};

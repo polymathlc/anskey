@@ -30,6 +30,13 @@ const classPath=slot=>'classroomBattles/teacher/classes/'+key(slot);
 const heroes=[C.heroFromStudent({id:'alex',name:'Alex'}),C.heroFromStudent({id:'sam',name:'Sam'})];
 let seq=0;const aid=()=> 'action-'+String(++seq).padStart(8,'0');
 const battle=(call,slot,action)=>call(teacher,{type:'battle',classId:slot,action});
+const missionPath=slot=>'classroomHeroData/teacher/missions/'+key(slot);
+function missionSetup(objectiveRoll=0,prizeRoll=.1){
+  const {db}=setup();let clock=1000,index=0;
+  const repo=createHeroRepository(db,{now:()=>clock,random:()=>[objectiveRoll,prizeRoll][index++%2]});
+  const call=(actor,body)=>repo.execute(actor,body);
+  return {db,call,time:value=>{clock=value;},mission:(command,extra={})=>call(teacher,{type:'mission',classId:'Saturday',command,id:aid(),...extra})};
+}
 function wheelRequest(state=null,{id=aid(),spinId=aid(),studentId='alex',delta=1,classId='Saturday',...extra}={}) {
   return {type:'wheelAward',classId,studentId,delta,reason:'Correct answer on the wheel',action:{type:'auto',id,spinId,heroId:'student:'+studentId,heroes,bossId:'goblin',...(state ? {encounterId:state.encounterId,expectedRevision:state.revision} : {}),...extra}};
 }
@@ -212,7 +219,7 @@ test('student cannot run battle or forge another teacher namespace',async()=>{
 
 test('server and browser game artifacts are byte-for-byte identical',()=>{
   const fs=require('node:fs'),path=require('node:path');
-  for(const name of ['battle-core.js','battle-content.js','battle-bosses.js'])assert.deepEqual(fs.readFileSync(path.resolve(__dirname,'../hero-game',name)),fs.readFileSync(path.resolve(__dirname,'../../',name)));
+  for(const name of ['battle-core.js','battle-content.js','battle-bosses.js','mission-content.js'])assert.deepEqual(fs.readFileSync(path.resolve(__dirname,'../hero-game',name)),fs.readFileSync(path.resolve(__dirname,'../../',name)));
 });
 
 
@@ -338,4 +345,107 @@ test('stale lesson snapshots and client roster appearances never override canoni
   assert.equal(Sunday.heroes[0].gender,'female');
   const synced=await battle(call,'Sunday',{id:aid(),type:'sync',encounterId:Sunday.encounterId,expectedRevision:Sunday.revision,heroes:[{...heroes[0],gender:'male'}]});
   assert.equal(synced.state.heroes[0].gender,'female');
+});
+
+test('missions are teacher only, private server rolls cannot be forged, and racing turns save one roll',async()=>{
+  const {call,mission,db}=missionSetup(.8,0);
+  await assert.rejects(call(pupil('one'),{type:'mission',classId:'Saturday',command:'get'}),/teacher/);
+  const first={type:'mission',classId:'Saturday',command:'turn',id:aid(),expectedRevision:0,objectiveId:'focus',prizeId:'class-points'};
+  const results=await Promise.allSettled([call(teacher,first),mission('turn',{expectedRevision:0})]);
+  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);const saved=results.find(r=>r.status==='fulfilled').value.mission;
+  assert.equal(saved.current.objectiveId,'assists');assert.equal(saved.current.prize.id,'summon-chung');assert.equal(db.data.has(classPath('Saturday')),false);
+  if(saved.current.id===first.id){const retry=await call(teacher,first);assert.equal(retry.duplicate,true);assert.deepEqual(retry.mission,saved);}
+  await assert.rejects(mission('turn',{expectedRevision:saved.revision}),/cancel/);
+  await assert.rejects(mission('cancel',{missionId:'wrong-id'}),/no longer active/);
+  const cancelled=await mission('cancel',{missionId:saved.current.id});assert.equal(cancelled.mission.current.status,'cancelled');
+  const next=await mission('turn',{expectedRevision:cancelled.mission.revision});assert.notEqual(next.mission.current.id,saved.current.id);
+});
+
+test('focus requires the server clock and an explicit confirmation; minute prizes redeem once',async()=>{
+  const {mission,time,db}=missionSetup(.6,.2);const started=await mission('turn',{expectedRevision:0});
+  const request={missionId:started.mission.current.id,id:aid(),now:99999999,focusReadyAt:0};
+  await assert.rejects(mission('focus',request),/timer/);assert.equal(db.data.get(missionPath('Saturday')).bank.length,0);
+  time(1801000);const done=await mission('focus',request);assert.equal(done.mission.current.status,'complete');assert.equal(done.mission.bank.length,1);
+  assert.equal((await mission('focus',request)).duplicate,true);assert.equal((await mission('get')).mission.bank.length,1);
+  const prize=done.mission.bank[0],redemption={prizeId:prize.id,id:aid()};
+  const redeemed=await mission('redeem',redemption);assert.equal(redeemed.mission.bank[0].status,'redeemed');
+  assert.equal((await mission('redeem',redemption)).duplicate,true);await assert.rejects(mission('redeem',{prizeId:prize.id}),/already/);
+});
+
+test('assists advance only from newly committed receipts and complete a summon reward once',async()=>{
+  const {mission,call,db}=missionSetup(.8,0);const started=await mission('turn',{expectedRevision:0});
+  const request={type:'assist',classId:'Saturday',studentId:'sam',helpedStudentId:'alex',action:{id:aid(),spinId:aid()}};
+  await Promise.all([call(teacher,request),call(teacher,{...request,action:{...request.action,id:aid()}})]);
+  assert.equal(db.data.get(missionPath('Saturday')).current.progress,1);
+  for(let i=0;i<2;i++)await call(teacher,{...request,action:{id:aid(),spinId:aid()}});
+  const done=(await mission('get')).mission;assert.equal(done.current.id,started.mission.current.id);assert.equal(done.current.status,'complete');assert.equal(done.summonTokens,1);
+  assert.equal(db.data.get(profilePath('sam')).hero.xp,18);assert.equal(db.data.has(classPath('Saturday')),false);
+});
+
+test('manual and awarded answers share the streak; incorrect wheel receipts cannot reset a later streak twice',async()=>{
+  const {mission,call,db}=missionSetup(.3,.1);let m=(await mission('turn',{expectedRevision:0})).mission;
+  let s=(await call(teacher,wheelRequest())).state;assert.equal((await mission('get')).mission.current.progress,1);
+  const incorrect={missionId:m.current.id,spinId:aid(),id:aid()};s=(await mission('incorrect',incorrect)).state;
+  assert.equal((await mission('get')).mission.current.progress,0);
+  s=(await call(teacher,wheelRequest(s))).state;
+  await mission('incorrect',{...incorrect,id:aid()});assert.equal((await mission('get')).mission.current.progress,1);
+  s=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',turnId:aid(),encounterId:s.encounterId,expectedRevision:s.revision})).state;
+  s=(await battle(call,'Saturday',{id:aid(),type:'answer',outcome:'incorrect',turnId:s.pending.id,encounterId:s.encounterId})).state;
+  assert.equal((await mission('get')).mission.current.progress,0);
+  // Keep an enemy alive long enough to complete the streak through seven saved answers.
+  s.bossHp=s.bossMaxHp=100000;db.seed(classPath('Saturday'),s);
+  for(let i=0;i<7;i++)s=(await call(teacher,wheelRequest(s))).state;
+  m=(await mission('get')).mission;assert.equal(m.current.status,'complete');assert.equal(m.bank.length,1);
+});
+
+test('bonus class points include the completing wheel award, preserve roster fields, and never attack twice',async()=>{
+  const {mission,call,db}=missionSetup(0,.99);
+  db.seed('students/alex',{...db.data.get('students/alex'),id:'legacy-data-id',marks:9,notes:{keep:true}});
+  db.seed('students/sam',{...db.data.get('students/sam'),marks:2});db.seed('students/elsewhere',{name:'Other',slot:'Elsewhere',marks:4});
+  await mission('turn',{expectedRevision:0});const request=wheelRequest(null,{delta:1000});
+  const results=await Promise.all([call(teacher,request),call(teacher,request)]);const result=results[0];
+  assert.equal(result.state.status,'victory');assert.equal(result.state.actionCount,1);assert.equal(result.state.combatLog.length,1);
+  assert.equal(result.mission.current.status,'complete');assert.equal(result.mission.lastPayout.awards.length,2);assert.equal(result.award.marks,1014);
+  assert.equal(db.data.get('students/alex').marks,1014);assert.equal(db.data.get('students/alex').id,'legacy-data-id');assert.deepEqual(db.data.get('students/alex').notes,{keep:true});
+  assert.equal(db.data.get('students/sam').marks,7);assert.equal(db.data.get('students/elsewhere').marks,4);
+  assert.equal([...db.data.keys()].filter(p=>p.startsWith('awards/')).length,3);
+  await call(teacher,request);assert.equal(db.data.get('students/alex').marks,1014);
+});
+
+test('new roster membership at completion controls a class payout and failed commits pay nobody',async()=>{
+  const {mission,time,db}=missionSetup(.6,.99);const started=await mission('turn',{expectedRevision:0});
+  db.seed('students/alex',{name:'Alex',slot:'Elsewhere',marks:10});db.seed('students/newbie',{name:'New',slot:'Saturday',marks:3});time(1801000);
+  db.failNextCommit=true;const completion={missionId:started.mission.current.id,id:aid()};
+  await assert.rejects(mission('focus',completion),/commit failed/);assert.equal(db.data.get('students/newbie').marks,3);assert.equal(db.data.get(missionPath('Saturday')).current.status,'active');
+  const done=await mission('focus',completion);assert.equal(db.data.get('students/newbie').marks,8);assert.equal(db.data.get('students/alex').marks,10);assert.equal(db.data.get('students/sam').marks,5);
+  assert.equal(done.mission.lastPayout.awards.length,2);
+});
+
+test('summon token is atomically consumed once, clears pending answers, and duplicate retries preserve loot',async()=>{
+  const {mission,call,time,db}=missionSetup(.6,0);const started=await mission('turn',{expectedRevision:0});time(1801000);await mission('focus',{missionId:started.mission.current.id});
+  let s=await begin(call);s=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',encounterId:s.encounterId,expectedRevision:s.revision})).state;
+  const action={id:aid(),type:'summon',source:'reward',encounterId:s.encounterId,expectedRevision:s.revision};
+  const outcomes=await Promise.all([battle(call,'Saturday',action),battle(call,'Saturday',action)]);const done=outcomes[0];
+  assert.equal(done.state.status,'victory');assert.equal(done.state.pending,null);assert.equal(done.state.lastEvent.damage,s.bossHp);assert.equal(done.state.rewards.length,2);
+  assert.equal(done.mission.summonTokens,0);assert.equal(db.data.get(profilePath('alex')).activeEncounter,null);assert.equal(done.state.combatLog.length,1);
+  assert.deepEqual(outcomes[1].state,done.state);s=(await battle(call,'Saturday',{id:aid(),type:'start',heroes,bossId:'goblin',expectedRevision:done.state.revision})).state;
+  await assert.rejects(battle(call,'Saturday',{...action,id:aid(),encounterId:s.encounterId,expectedRevision:s.revision}),/reward first/);
+  const free=await battle(call,'Saturday',{id:aid(),type:'summon',source:'teacher',encounterId:s.encounterId,expectedRevision:s.revision});assert.equal(free.state.status,'victory');assert.equal(free.mission.summonTokens,0);
+});
+
+test('summon cannot bypass teacher authority, revision validation, active encounter locks or failed commits',async()=>{
+  const {mission,call,time,db}=missionSetup(.6,0);const started=await mission('turn',{expectedRevision:0});time(1801000);await mission('focus',{missionId:started.mission.current.id});
+  const s=await begin(call),action={id:aid(),type:'summon',source:'reward',encounterId:s.encounterId,expectedRevision:s.revision};
+  await assert.rejects(call(pupil('one'),{type:'battle',classId:'Saturday',action}),/teacher/);
+  await assert.rejects(battle(call,'Saturday',{...action,expectedRevision:0}),/changed/);assert.equal((await mission('get')).mission.summonTokens,1);
+  db.failNextCommit=true;await assert.rejects(battle(call,'Saturday',action),/commit failed/);assert.equal((await mission('get')).mission.summonTokens,1);assert.equal(db.data.get(classPath('Saturday')).status,'active');
+  const profile=db.data.get(profilePath('alex'));profile.activeEncounter={classId:'Sunday',encounterId:'different'};db.seed(profilePath('alex'),profile);
+  await assert.rejects(battle(call,'Saturday',action),/active encounter/);assert.equal((await mission('get')).mission.summonTokens,1);
+});
+
+test('multiple point awards for the same called question count only once toward seven correct answers',async()=>{
+  const {mission,call}=missionSetup(.3,.1);await mission('turn',{expectedRevision:0});const spinId=aid();
+  let result=await call(teacher,wheelRequest(null,{spinId,delta:1}));
+  result=await call(teacher,wheelRequest(result.state,{spinId,delta:2}));
+  assert.equal(result.mission.current.progress,1);assert.equal(result.state.combatLog.length,2);assert.equal(result.award.marks,3);
 });

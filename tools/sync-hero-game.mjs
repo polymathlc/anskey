@@ -5,7 +5,7 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const check=process.argv.includes('--check');
 const destination=resolve(root,'functions','hero-game');
 await mkdir(destination,{recursive:true});
-for (const name of ['battle-core.js','battle-content.js','battle-bosses.js']) {
+for (const name of ['battle-core.js','battle-content.js','battle-bosses.js','mission-content.js']) {
   const source=await readFile(resolve(root,name));
   if (check) {
     const target=await readFile(resolve(destination,name));

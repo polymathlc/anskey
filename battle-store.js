@@ -10,7 +10,7 @@
     if (!key || key.length > 1400) throw new Error('Choose a valid class (up to 350 characters).');
     return key;
   }
-  function create({ db, teacherId, classId, canWrite, transport }) {
+  function create({ db, teacherId, classId, canWrite, transport, onMission }) {
     if (!teacherId || /\//.test(teacherId)) throw new Error('Sign in as the teacher to open a battle.');
     const ref = db.collection('classroomBattles').doc(teacherId).collection('classes').doc(classKey(classId));
     function authorize() { if (typeof canWrite !== 'function' || !canWrite()) throw new Error('Only the signed-in teacher can change this battle.'); }
@@ -23,6 +23,16 @@
           onState(snap.exists ? snap.data() : null);
         }, onError);
       },
+      async mission(request) {
+        authorize();
+        const frozen = JSON.parse(JSON.stringify(request));
+        const api = transport || (typeof window !== 'undefined' && window.ClassroomHeroAPI && window.ClassroomHeroAPI.request);
+        if (!api) throw new Error('Hero saving is loading. Refresh Ans Key and try again.');
+        const result = await api({...frozen,type:'mission',classId},{canSend:canWrite});
+        authorize();
+        if (!result?.mission) throw new Error('The class mission could not be confirmed. Retry the same request.');
+        return result;
+      },
       async assist(request) {
         authorize();
         const frozen = JSON.parse(JSON.stringify(request));
@@ -32,6 +42,7 @@
         const result = await api({...frozen,type:'assist',classId},{canSend:canWrite});
         authorize();
         if (!result?.assist || !result.hero) throw new Error('The assist could not be confirmed. Retry the same assist.');
+        if (result.mission && onMission) onMission(result);
         return result;
       },
       async award(request) {
@@ -43,6 +54,7 @@
         const result = await api({...frozen,type:'wheelAward',classId},{canSend:canWrite});
         authorize();
         if (!result?.award || !result.state) throw new Error('The points award could not be confirmed. Retry the same award.');
+        if (result.mission && onMission) onMission(result);
         return result;
       },
       async act(action) {
@@ -53,6 +65,7 @@
         if (api) {
           const result = await api({type:'battle',classId,action:frozen},{canSend:canWrite});
           authorize();
+          if (result.mission && onMission) onMission(result);
           return result.state;
         }
         // The in-memory Node transaction harness is deliberately local. Every

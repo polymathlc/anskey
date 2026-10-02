@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "file": "mission-machine-sheet.png",
+      "cols": 4,
+      "rows": 2,
+      "frames": 8,
+      "bytes": 1726774,
+      "sha256": "b26aeebd0fad7a532afeda7482c02837253a589e1fc0c84e2d25b9214a31c4ac",
+      "width": 1774,
+      "height": 887,
+      "alpha": {
+        "transparentPixels": 739371,
+        "partialPixels": 833534,
+        "opaquePixels": 633,
+        "visiblePixels": 728341,
+        "nearOpaquePixels": 706528
+      }
+    },
+    {
+      "file": "chung-sheet.png",
+      "cols": 4,
+      "rows": 2,
+      "frames": 8,
+      "bytes": 1033425,
+      "sha256": "317c331ef5d94a373127e2a9d695a7149b54d064c7419dcdd0ee807ab5d0d9e5",
+      "width": 1774,
+      "height": 887,
+      "alpha": {
+        "transparentPixels": 1064882,
+        "partialPixels": 508063,
+        "opaquePixels": 593,
+        "visiblePixels": 405611,
+        "nearOpaquePixels": 389155
+      }
+    },
+    {
+      "file": "chung-punch-sheet.png",
+      "cols": 2,
+      "rows": 2,
+      "frames": 4,
+      "bytes": 762488,
+      "sha256": "2e6ec50af5d8f2f07accc40279cae0153b4efbd1286ac39b0b76276b142d36aa",
+      "width": 1254,
+      "height": 1254,
+      "alpha": {
+        "transparentPixels": 1198361,
+        "partialPixels": 374049,
+        "opaquePixels": 106,
+        "visiblePixels": 267398,
+        "nearOpaquePixels": 229692
+      }
+    }
+  ]
+}

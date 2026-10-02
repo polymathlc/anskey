@@ -289,5 +289,74 @@
   item('chronicle','Chronicle of Tomorrow','mythical','equipment','Every third damaging correct action echoes for double damage. +20 attack and +35 MP.',{damage:20,maxMp:35,echo:true},'⌛');
   item('void-edge','Void Edge','mythical','equipment','All attacks ignore enemy armour and guard. +35 attack.',{damage:35,pierce:1,ignoreGuard:true},'⚔');
   item('sovereign-star','Sovereign Star','mythical','equipment','Each damaging correct action heals the whole team for 12% HP and restores 5 MP. +20 attack.',{damage:20,teamLeech:.12,teamMana:5},'✦');
+  // Fifty illustrated relics; atlas positions are stable saved-content identifiers.
+  const TREASURE_COLLECTION = [
+    ['copper-sabre','Copper Sabre','common','+5 attack.',{damage:5},'⚔'],
+    ['buckler-of-bravery','Buckler of Bravery','common','+4 defence.',{defence:4},'▣'],
+    ['crimson-vial-charm','Crimson Vial Charm','common','+18 maximum HP.',{maxHp:18},'♥'],
+    ['azure-vial-charm','Azure Vial Charm','common','+15 maximum MP.',{maxMp:15},'✦'],
+    ['healers-ribbon','Healer’s Ribbon','common','+5 healing and +8 maximum MP.',{healing:5,maxMp:8},'✚'],
+    ['scouts-feather','Scout’s Feather','common','+4% critical chance.',{critChance:.04},'➶'],
+    ['oak-leaf-pendant','Oak Leaf Pendant','common','+12 maximum HP and +2 defence.',{maxHp:12,defence:2},'♣'],
+    ['apprentice-grimoire','Apprentice Grimoire','common','+3 attack and +10 maximum MP.',{damage:3,maxMp:10},'✦'],
+    ['iron-gauntlet','Iron Gauntlet','common','+3 attack and +2 defence.',{damage:3,defence:2},'⚔'],
+    ['amber-band','Amber Band','common','+2 attack and +3% critical chance.',{damage:2,critChance:.03},'♦'],
+    ['ember-sabre','Ember Sabre','uncommon','+8 attack and +2% critical chance.',{damage:8,critChance:.02},'⚔'],
+    ['mossguard-shield','Mossguard Shield','uncommon','+7 defence and +18 maximum HP.',{defence:7,maxHp:18},'▣'],
+    ['verdant-flask-charm','Verdant Flask Charm','uncommon','+35 maximum HP and +4 healing.',{maxHp:35,healing:4},'✚'],
+    ['tideglass-pendant','Tideglass Pendant','uncommon','+25 maximum MP and restore 2 MP per correct answer.',{maxMp:25,manaRegen:2},'✦'],
+    ['moonpetal-brooch','Moonpetal Brooch','uncommon','+9 healing and +15 maximum HP.',{healing:9,maxHp:15},'✚'],
+    ['windfletch-quiver','Windfletch Quiver','uncommon','+6 attack and +7% critical chance.',{damage:6,critChance:.07},'➶'],
+    ['foxtrail-boots','Foxtrail Boots','uncommon','+5 defence and +6% critical chance.',{defence:5,critChance:.06},'»'],
+    ['runecarved-wand','Runecarved Wand','uncommon','+7 attack and +18 maximum MP.',{damage:7,maxMp:18},'✦'],
+    ['thornvine-ring','Thornvine Ring','uncommon','+6 attack; heal for 4% of damage dealt.',{damage:6,leech:.04},'♣'],
+    ['sunwoven-cape','Sunwoven Cape','uncommon','+22 maximum HP, +16 maximum MP and +3 defence.',{maxHp:22,maxMp:16,defence:3},'▣'],
+    ['ruby-fang','Ruby Fang','rare','+14 attack; heal for 8% of damage dealt.',{damage:14,leech:.08},'⚔'],
+    ['sapphire-bastion','Sapphire Bastion','rare','+13 defence and +35 maximum HP.',{defence:13,maxHp:35},'▣'],
+    ['phoenix-plume','Phoenix Plume','rare','+45 maximum HP and +12 healing.',{maxHp:45,healing:12},'✚'],
+    ['prismatic-compass','Prismatic Compass','rare','+38 maximum MP and restore 4 MP per correct answer.',{maxMp:38,manaRegen:4},'✦'],
+    ['frostbite-bow','Frostbite Bow','rare','+12 attack and +12% critical chance.',{damage:12,critChance:.12},'➶'],
+    ['celestial-censer','Celestial Censer','rare','+17 healing and +28 maximum MP.',{healing:17,maxMp:28},'✚'],
+    ['stormglass-orb','Stormglass Orb','rare','+13 attack and +32 maximum MP.',{damage:13,maxMp:32},'✦'],
+    ['lions-heart-medal','Lion’s Heart Medal','rare','+55 maximum HP and +8 attack.',{maxHp:55,damage:8},'♥'],
+    ['silver-thread-gloves','Silver Thread Gloves','rare','+10 attack, +8% critical chance and +0.15 critical multiplier.',{damage:10,critChance:.08,critMultiplier:.15},'⚔'],
+    ['starlit-tiara','Starlit Tiara','rare','+32 maximum MP, +8 defence and +8 healing.',{maxMp:32,defence:8,healing:8},'♛'],
+    ['voidsteel-katana','Voidsteel Katana','epic','+20 attack and ignore half of enemy armour.',{damage:20,pierce:.5},'⚔'],
+    ['dragonheart-aegis','Dragonheart Aegis','epic','+19 defence and +65 maximum HP.',{defence:19,maxHp:65},'▣'],
+    ['astral-bottle-relic','Astral Bottle Relic','epic','+55 maximum MP, +16 healing and restore 5 MP per correct answer.',{maxMp:55,healing:16,manaRegen:5},'✦'],
+    ['cometburst-relic','Cometburst Relic','epic','+22 attack and +0.25 critical multiplier.',{damage:22,critMultiplier:.25},'♦'],
+    ['thunderwing-quiver','Thunderwing Quiver','epic','+18 attack and +18% critical chance.',{damage:18,critChance:.18},'➶'],
+    ['eclipse-grimoire','Eclipse Grimoire','epic','+18 attack, +50 maximum MP and +12 healing.',{damage:18,maxMp:50,healing:12},'✦'],
+    ['bloodmoon-pendant','Bloodmoon Pendant','epic','+16 attack; heal for 20% of damage dealt.',{damage:16,leech:.2},'♥'],
+    ['spiritwood-totem','Spiritwood Totem','epic','+60 maximum HP, +14 healing and +10 defence.',{maxHp:60,healing:14,defence:10},'♣'],
+    ['solar-sovereign-blade','Solar Sovereign Blade','legendary','+28 attack; each damaging correct action heals the team for 6% HP.',{damage:28,teamLeech:.06},'⚔'],
+    ['worldtree-seed','Worldtree Seed','legendary','+115 maximum HP, +15 defence and restore 8 MP per correct answer.',{maxHp:115,defence:15,manaRegen:8},'♣'],
+    ['titanforge-hammer','Titanforge Hammer','legendary','+32 attack, +12 defence and ignore half of enemy armour.',{damage:32,defence:12,pierce:.5},'⚔'],
+    ['seraphim-halo','Seraphim Halo','legendary','+30 healing and +50 maximum MP; each damaging correct action heals the team for 8% HP.',{healing:30,maxMp:50,teamLeech:.08},'✚'],
+    ['tempest-longbow','Tempest Longbow','legendary','+25 attack, +22% critical chance and +0.35 critical multiplier.',{damage:25,critChance:.22,critMultiplier:.35},'➶'],
+    ['infinity-mana-lantern','Infinity Mana Lantern','legendary','+80 maximum MP, +18 attack and restore 10 MP per correct answer.',{maxMp:80,damage:18,manaRegen:10},'✦'],
+    ['aegis-of-the-mountain','Aegis of the Mountain','legendary','+28 defence and +100 maximum HP.',{defence:28,maxHp:100},'▣'],
+    ['starweaver-scepter','Starweaver Scepter','legendary','+24 attack and +20 healing; each damaging correct action restores 4 MP to the team.',{damage:24,healing:20,teamMana:4},'✦'],
+    ['eternal-phoenix-diadem','Eternal Phoenix Diadem','mythical','Once per encounter, the first fallen teammate rises at 50% HP. +100 HP, +20 defence and +18 healing.',{maxHp:100,defence:20,healing:18,revive:true},'♛'],
+    ['hourglass-of-infinity','Hourglass of Infinity','mythical','Every third damaging correct action echoes for double damage. +30 attack, +60 MP and restore 6 MP per correct answer.',{damage:30,maxMp:60,manaRegen:6,echo:true},'⌛'],
+    ['reality-cleaver','Reality Cleaver','mythical','All attacks ignore armour and guard. +45 attack; heal for 12% of damage dealt.',{damage:45,pierce:1,ignoreGuard:true,leech:.12},'⚔'],
+    ['heart-of-the-constellation','Heart of the Constellation','mythical','Each damaging correct action heals the team for 15% HP and restores 8 MP. +25 attack and +60 HP.',{damage:25,maxHp:60,teamLeech:.15,teamMana:8},'✦']
+  ];
+  TREASURE_COLLECTION.forEach((entry,index)=>{
+    const [id,name,rarity,description,effect,icon]=entry;
+    item(id,name,rarity,'equipment','While equipped: '+description,effect,icon);
+    ITEMS[id].art={sheet:'items-'+(Math.floor(index/10)+1),col:index%5,row:Math.floor(index%10/5)};
+    ITEMS[id].collection='treasure-fifty';
+  });
+  // Original rewards retain their IDs and mechanics and reuse the matching art archetype.
+  const LEGACY_ART={
+    'red-potion':'crimson-vial-charm','blue-ether':'azure-vial-charm','iron-charm':'iron-gauntlet','bronze-blade':'copper-sabre',
+    'fire-flask':'crimson-vial-charm','party-tonic':'verdant-flask-charm','oak-amulet':'oak-leaf-pendant','hunters-band':'amber-band',
+    'phoenix-feather':'phoenix-plume','mana-prism':'stormglass-orb','crimson-edge':'ruby-fang','silver-aegis':'sapphire-bastion',
+    'elixir':'astral-bottle-relic','starbomb':'cometburst-relic','storm-quiver':'thunderwing-quiver','moon-codex':'eclipse-grimoire',
+    'dawnbringer':'solar-sovereign-blade','worldroot':'worldtree-seed','phoenix-crown':'eternal-phoenix-diadem',
+    'chronicle':'hourglass-of-infinity','void-edge':'reality-cleaver','sovereign-star':'heart-of-the-constellation'
+  };
+  Object.entries(LEGACY_ART).forEach(([legacy,id])=>{ITEMS[legacy].art={...ITEMS[id].art};});
   return {ROLES,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES};
 });
