@@ -191,7 +191,7 @@
     if (state.pending) { showError(new Error('Choose Correct, Incorrect or Skip for the current answer first.')); return false; }
     error = ''; return true;
   }
-  function spinning() { if (opened) render(); }
+  function spinning() { if (opened) render(); else wheelClosed(); }
   function wheelClosed() {
     wheelPreviewEpoch++;
     if (offWheelProfile) offWheelProfile(); offWheelProfile = null;
