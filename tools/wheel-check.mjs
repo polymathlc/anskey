@@ -27,9 +27,11 @@ const ok = (name, cond, note) => {
   else { fail++; console.log('  ✗ ' + name + (note ? '\n      ' + note : '')); }
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(process.env.PLAYWRIGHT_BROWSER_CHANNEL ? { channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL } : {});
 const ctx = await browser.newContext({ viewport: { width: 1100, height: 860 }, reducedMotion: 'reduce' });
 const page = await ctx.newPage();
+// The fixture owns Firebase; do not replace its proxy with the network SDK.
+await page.route(/firebase-[a-z]+-compat\.js(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: '' }));
 await page.addInitScript(() => {
   const chain = () => new Proxy(function () { return chain(); }, {
     get: (t, k) => (k === 'then' ? undefined : chain()),
@@ -38,7 +40,7 @@ await page.addInitScript(() => {
   window.pdfjsLib = chain(); window.firebase = chain(); window.grecaptcha = chain();
 });
 const errors = [];
-page.on('pageerror', e => errors.push(e.message));
+page.on('pageerror', e => errors.push(e.stack || e.message));
 await page.goto(FILE);
 await page.waitForTimeout(1000);
 ok('the page loads with no uncaught error', errors.length === 0, errors.join('\n      '));

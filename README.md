@@ -3,6 +3,12 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.114.0 — Classroom boss battle
+
+Teachers open **Classroom battle**, select a class, and call students with the existing wheel. CER heroes retain their equipped avatars and choose Warrior, Ranger, Mage or Healer in **CER → Your Hero**. Correct answers trigger animated abilities; teacher-triggered boss attacks and charged ultimates challenge the team.
+
+Twenty original transparent boss avatars have distinct moves and gameplay. Encounters save to the shared Firebase project after every resolved action and restore on reopening, with transactions preventing duplicate answers or lost damage across sessions. See [battle controls, balancing, persistence and validation](docs/classroom-battle.md).
+
 ## v1.113.0 — Name wheel
 
 A 🎡 **Wheel** button (teacher only, shortcut **Z**) opens a floating window

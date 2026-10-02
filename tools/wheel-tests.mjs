@@ -19,6 +19,17 @@ const plain = (x) => JSON.parse(JSON.stringify(x));
 const seq = (...v) => { let i = 0; return () => v[i++ % v.length]; };
 const roster = (...names) => { const s = W('wheelClean(null, "2026-10-07")'); names.forEach(n => W('wheelAddName')(s, n)); return s; };
 
+test('same-name registered students retain separate stable identities across save and reload', () => {
+  const state = W('wheelClean(null, "2026-10-07")');
+  W('wheelAddName')(state, 'Alex', 'account-a');
+  W('wheelAddName')(state, 'Alex', 'account-b');
+  assert.equal(W('wheelAddName')(state, 'Alex renamed', 'account-a'), null);
+  const restored = W('wheelClean')(JSON.parse(JSON.stringify(state)), '2026-10-07');
+  assert.deepEqual(plain(restored.names.map(n => n.id)), ['account-a', 'account-b']);
+  const called = [W('wheelPick')(restored, () => 0), W('wheelPick')(restored, () => 0)];
+  assert.deepEqual(called, [0, 1]);
+});
+
 test('every name is called exactly once before anyone is called again', () => {
   const state = roster('Ann', 'Ben', 'Cai', 'Dee', 'Eli', 'Fay', 'Gus');
   const pick = W('wheelPick');
