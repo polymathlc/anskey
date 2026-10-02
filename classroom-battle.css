@@ -1,0 +1,121 @@
+/* A classroom-sized stage, with the original wheel embedded intact. */
+.cbOpen { overflow: hidden; }
+.cbOverlay[hidden] { display: none; }
+.cbOverlay { position: fixed; inset: 0; z-index: 120; background: #182537b8; padding: 18px; display: flex; align-items: center; justify-content: center; color: #223549; font-family: inherit; }
+.cbShell { --cb-border: #d9e4e7; background: #f6f8f6; width: 1460px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; border: 1px solid #ffffffd0; border-radius: 24px; box-shadow: 0 30px 90px #11233166; overflow: hidden; }
+.cbShell * { box-sizing: border-box; }
+.cbShell button, .cbShell select { font-family: inherit; }
+.cbShell button { min-height: 44px; border-radius: 10px; border: 1px solid #c7d5d9; color: #294355; background: #fff; padding: 10px 16px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .16s, transform .16s; }
+.cbShell button:hover:not(:disabled) { background: #edf4f2; transform: translateY(-1px); }
+.cbShell button:disabled { cursor: not-allowed; opacity: .45; }
+.cbShell button:focus-visible, .cbShell summary:focus-visible, .cbShell select:focus-visible { outline: 3px solid #ecae56; outline-offset: 3px; }
+.cbHeader { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 22px 28px 19px; border-bottom: 1px solid var(--cb-border); background: #fff; }
+.cbEyebrow { font-size: 9px; letter-spacing: 1.5px; color: #637e87; font-weight: 800; display: block; }
+.cbHeader h2 { font-size: 25px; letter-spacing: -.7px; margin: 4px 0; color: #1e3d45; }
+.cbHeader p { margin: 0; font-size: 12px; color: #71818e; }
+.cbHeaderActions { display: flex; align-items: center; gap: 15px; }
+.cbSaved { color: #388063; font-size: 11px; white-space: nowrap; }
+.cbSaved.cbSaveError { color: #a75130; }
+.cbHeader #cbClose { font-size: 18px; padding: 8px 13px; background: #f6f8f8; }
+.cbError { color: #87401e; background: #fff0d7; border-bottom: 1px solid #efce95; padding: 11px 24px; font-size: 13px; }
+.cbMain { display: grid; grid-template-columns: 260px minmax(0,1fr); flex: 1; min-height: 0; overflow: auto; }
+.cbWheelPane { padding: 20px 16px 12px; border-right: 1px solid var(--cb-border); background: #fbfcfa; }
+.cbSectionTitle { color: #7b9098; font-size: 9px; font-weight: 800; letter-spacing: 1.2px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cbLiveDot { color: #4d8f73; font-size: 8px; letter-spacing: .4px; }
+.cbLiveDot:before { content: ''; display: inline-block; width: 5px; height: 5px; background: #65a885; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.cbWheelSlot { margin-top: 14px; min-height: 320px; }
+.cbWheelSlot #wheelModal { display: block !important; position: relative !important; inset: auto !important; padding: 0 !important; background: transparent !important; z-index: auto !important; }
+.cbWheelSlot #wheelCard { position: relative !important; inset: auto !important; height: auto !important; width: 100% !important; min-width: 0 !important; max-width: none !important; max-height: none !important; box-shadow: none !important; background: transparent !important; border: 0 !important; border-radius: 0 !important; overflow: visible !important; }
+.cbWheelSlot #wheelHead, .cbWheelSlot #wheelGrip, .cbWheelSlot #wheelAward, .cbWheelSlot #wheelBattleBtn { display: none !important; }
+.cbWheelSlot .whBody { padding: 0 !important; overflow: visible !important; gap: 10px; }
+.cbWheelSlot #wheelClassSelect { width: 100%; min-height: 42px; font-size: 11px; background: white; padding: 8px; }
+.cbWheelSlot #wheelStage { height: 208px !important; flex: none !important; width: 100%; min-height: 150px; }
+.cbWheelSlot #wheelCanvas { max-width: 100%; }
+.cbWheelSlot .whWinner { font-size: 18px; }
+.cbWheelSlot .whResult { padding: 0; min-height: 24px; }
+.cbWheelSlot #wheelNames { max-height: 92px; overflow: auto; border-radius: 9px; }
+.cbWheelSlot .whSpinRow { display: flex; flex-direction: column; gap: 8px; }
+.cbWheelSlot #wheelSpinBtn { width: 100%; background: #236b58; border-color: #236b58; color: white; min-height: 45px; font-size: 14px; }
+.cbWheelSlot #wheelSpinBtn:hover:not(:disabled) { background: #17533f; }
+.cbWheelSlot .whRound { font-size: 10px; text-align: center; }
+.cbWheelSlot .whAddRow input { min-width: 0; width: 100%; font-size: 11px; padding: 8px; }
+.cbWheelSlot .whAddRow button, .cbWheelSlot .whTools button { min-height: 32px; font-size: 10px; padding: 6px 9px; }
+.cbWheelSlot .whTools { flex-wrap: wrap; }
+.cbHelp { border-top: 1px solid var(--cb-border); margin-top: 16px; padding-top: 13px; color: #6e8389; font-size: 11px; line-height: 1.6; }
+.cbHelp summary { font-weight: 700; cursor: pointer; color: #3d655f; }
+.cbHelp a { color: #236b58; }
+.cbArena { padding: 20px 25px 17px; position: relative; min-width: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 86% 55%,#ddeddd 0,transparent 55%),linear-gradient(150deg,#f1f5ed,#f5f8f5); }
+.cbArenaTop { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 22px; }
+.cbEncounterStatus { font-size: 8px; font-weight: 800; letter-spacing: .7px; color: #527468; background: #e2ece2; border: 1px solid #d0dfd2; padding: 5px 8px; border-radius: 20px; }
+.cbBattlefield { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(230px,1fr); gap: 28px; flex: 1; align-items: start; }
+.cbTeamTitle { display: flex; justify-content: space-between; align-items: center; margin-bottom: 13px; }
+.cbTeamTitle h3 { font-size: 17px; margin: 0; letter-spacing: -.3px; }
+.cbTeamTitle span { color: #758b90; font-size: 11px; }
+.cbHeroes { display: grid; grid-template-columns: repeat(auto-fill,minmax(110px,1fr)); gap: 10px; max-height: 510px; overflow-y: auto; padding: 3px; margin: -3px; }
+.cbHero { background: #ffffffe0; border: 1px solid #dde7df; border-radius: 15px; min-width: 0; padding: 10px 9px 9px; text-align: center; position: relative; display: flex; flex-direction: column; align-items: center; transition: border-color .15s, background .15s; }
+.cbHero.cbSelected { border: 2px solid #daaa3c; padding: 9px 8px 8px; background: #fff9dd; box-shadow: 0 0 0 3px #f1d47838, 0 4px 14px #a4842420; }
+.cbHero.cbSelected:after { content: 'YOUR TURN'; position: absolute; top: -5px; left: 50%; transform: translateX(-50%); padding: 2px 7px; border-radius: 5px; background: #d6a537; color: #fff; font-size: 7px; letter-spacing: .7px; font-weight: 800; white-space: nowrap; }
+.cbHero.cbResting { background: #f3f4f3; }
+.cbHero.cbResting .cbAvatar { filter: grayscale(.7); opacity: .65; }
+.cbHeroRole { position: absolute; top: 7px; right: 8px; font-size: 15px; color: #829995; }
+.cbAvatar { width: 84px; height: 92px; object-fit: contain; flex: none; display: block; }
+.cbAvatarFallback { display: grid; place-items: center; font-size: 38px; color: #6f9b8c; background: radial-gradient(circle,#e5f0e4,transparent 70%); }
+.cbHeroName { font-size: 12px; margin: 5px 0 2px; max-width: 100%; overflow-wrap: anywhere; }
+.cbRoleName { font-size: 9px; color: #8a9696; margin-bottom: 8px; }
+.cbHp { height: 5px; border-radius: 8px; background: #e4eae2; overflow: hidden; width: 100%; }
+.cbHp > span { display: block; height: 100%; background: #6caa81; width: 100%; border-radius: inherit; transition: width .55s ease; }
+.cbHeroHp { display: block; font-size: 8px; color: #657b75; padding-top: 4px; }
+.cbHeroStats { font-size: 8px; color: #6f8880; margin-top: 6px; }
+.cbAvatarNote { font-size: 7px; color: #91a29a; line-height: 1.3; margin-top: 5px; max-width: 100%; }
+.cbEmpty { color: #7c8f8e; font-size: 13px; line-height: 1.7; grid-column: 1/-1; }
+.cbBoss { text-align: center; padding: 9px 4px 16px; min-width: 0; }
+.cbBossTag { font-size: 9px; color: #677662; letter-spacing: 1px; font-weight: 800; text-transform: uppercase; background: #ffffff99; padding: 6px 12px; border-radius: 20px; border: 1px solid #d1dfcb; display: inline-block; }
+.cbBossArt { height: clamp(210px,30vh,340px); margin: 13px 0 8px; position: relative; display: grid; place-items: center; }
+.cbBossArt:after { content: ''; position: absolute; width: 75%; height: 25px; background: #72956125; filter: blur(7px); border-radius: 50%; bottom: 3px; z-index: 0; }
+.cbBossArt img { height: 100%; width: 100%; object-fit: contain; position: relative; z-index: 1; filter: drop-shadow(0 10px 12px #42632d20); }
+.cbMystery { font-family: Georgia,serif; font-size: 150px; color: #b1c5aa; line-height: 1; text-shadow: 0 10px 0 #aabd9920; }
+.cbBoss h3 { margin: 5px 0; color: #304c3b; font-size: 23px; letter-spacing: -.6px; }
+.cbBoss > p { font-size: 11px; color: #82917d; line-height: 1.6; max-width: 270px; margin: 6px auto 17px; }
+.cbHpLine { display: flex; justify-content: space-between; color: #5b735e; font-size: 10px; margin-top: 19px; margin-bottom: 7px; }
+.cbHpLine strong { font-size: 11px; }
+.cbBossHp { height: 11px; border: 2px solid #fff; background: #d6e2d3; box-shadow: 0 0 0 1px #cfdbcb; }
+.cbBossHp span { background: var(--boss-color,#8cae76); }
+.cbChargeLabel { display: flex; justify-content: space-between; gap: 5px; font-size: 9px; margin: 15px 0 7px; color: #8c7161; }
+.cbCharge { display: flex; gap: 5px; }
+.cbCharge span { height: 7px; flex: 1; border-radius: 3px; background: #e3ded0; }
+.cbCharge span.charged { background: #d6a563; box-shadow: 0 0 8px #eab25740; }
+.cbBoss p.cbBossIntent { font-size: 9px; color: #937b65; margin: 8px auto; }
+.cbBoss.cbDefeated .cbBossArt { opacity: .5; }
+.cbFeedback { border-top: 1px solid #d6e2d2; margin-top: 21px; padding-top: 14px; color: #5c776b; font-size: 12px; line-height: 1.5; min-height: 48px; }
+.cbControls { display: flex; gap: 20px; justify-content: space-between; align-items: center; padding: 18px 25px; background: white; border-top: 1px solid var(--cb-border); }
+.cbAnswerControls { display: flex; align-items: center; gap: 22px; }
+.cbTurnLabel { max-width: 220px; }
+.cbTurnLabel strong { font-size: 13px; display: block; margin-top: 6px; }
+.cbAnswerButtons, .cbTeacherControls { display: flex; gap: 7px; }
+.cbAnswerButtons button { min-width: 88px; }
+.cbAnswerButtons small { display: block; font-size: 8px; font-weight: 400; margin-top: 3px; opacity: .8; }
+.cbAnswerButtons button.cbCorrect { background: #287558; color: white; border-color: #287558; }
+.cbAnswerButtons button.cbCorrect:hover:not(:disabled) { background: #1b5b44; }
+.cbTeacherControls button { padding: 10px; font-size: 10px; max-width: 130px; }
+.cbTeacherControls .cbUltimate { color: #97733b; border-color: #e7d3b2; background: #fcf6ec; }
+.cbTeacherControls .cbStart { background: #ecf2ed; color: #4b735d; border-color: #cfdfd1; }
+.cbWheelHero { display: flex; gap: 8px; align-items: center; justify-content: center; padding: 4px; }
+.cbWheelHero[hidden] { display: none; }
+.cbWheelHero .cbAvatar { width: 38px; height: 45px; }
+.cbWheelHero strong { display: block; font-size: 12px; }
+.cbWheelHero small { display: block; font-size: 9px; color: #9a8744; }
+.cbWheelHero:not([hidden]) + .whWinner { display: none; }
+.cbEffects { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 4; }
+.cbParticle { position: absolute; font-size: 36px; color: #b69028; text-shadow: 0 0 15px #ffeb9b; white-space: nowrap; }
+.cbParticle.cbArrow { color: #579753; font-size: 47px; }
+.cbParticle.cbmage { color: #9073ce; text-shadow: 0 0 22px #b691fd; }
+.cbParticle.cbhealer, .cbParticle.cbHealing { color: #329b71; text-shadow: 0 0 15px #c4ff9d; }
+.cbParticle.cbHealing, .cbParticle.cbDamage { font-weight: 900; font-size: 25px; -webkit-text-stroke: .5px white; }
+.cbParticle.cbDamage { color: #db765b; text-shadow: 0 2px 5px #fff; }
+.cbParticle.cbBossProjectile { color: #d68d57; text-shadow: 0 0 15px #ffcd78; }
+.cbAreaAttack { position: absolute; inset: 15%; border-radius: 50%; border: 10px solid #e3ab7370; box-shadow: 0 0 80px #e3ab7380,inset 0 0 80px #e3ab7350; }
+@media (min-width:1500px) { .cbMain { grid-template-columns: 280px minmax(0,1fr); } .cbHeroes { grid-template-columns: repeat(auto-fill,minmax(125px,1fr)); } }
+@media (max-width:1100px) { .cbOverlay { padding: 10px; } .cbHeader { padding: 16px 20px; } .cbHeader h2 { font-size: 22px; } .cbMain { grid-template-columns: 225px minmax(0,1fr); } .cbArena { padding: 18px; } .cbBattlefield { gap: 16px; grid-template-columns: minmax(0,1fr) minmax(200px,.9fr); } .cbHeroes { grid-template-columns: repeat(auto-fill,minmax(95px,1fr)); } .cbControls { padding: 14px 18px; flex-wrap: wrap; gap: 10px; } .cbAnswerControls { justify-content: space-between; flex: 1; } .cbTeacherControls { margin-left: auto; } .cbBoss h3 { font-size: 20px; } .cbBossArt { height: 240px; } .cbWheelSlot #wheelStage { height: 185px !important; } }
+@media (max-width:800px) { .cbOverlay { padding: 0; } .cbShell { border-radius: 0; width: 100%; height: 100%; max-height: 100dvh; } .cbMain { grid-template-columns: 210px minmax(0,1fr); } .cbArena { padding: 14px; } .cbBattlefield { grid-template-columns: minmax(0,1fr); gap: 14px; } .cbBoss { grid-row: 1; padding: 0; } .cbBossArt { height: 190px; margin: 7px 0; } .cbBoss h3 { font-size: 21px; } .cbBoss > p { margin-bottom: 8px; } .cbHpLine { margin-top: 10px; } .cbBoss p.cbBossIntent { margin: 5px auto; } .cbTeam { grid-row: 2; } .cbHeroes { grid-template-columns: repeat(auto-fill,minmax(98px,1fr)); max-height: 260px; } .cbAvatar { height: 72px; width: 70px; } .cbArenaTop { margin-bottom: 15px; } .cbArenaTop .cbSectionTitle { display: none; } .cbEncounterStatus { margin-left: auto; } .cbHeader { padding: 14px 16px; } .cbHeader .cbEyebrow { font-size: 7px; } .cbHeader h2 { font-size: 20px; } .cbSaved { font-size: 9px; } .cbHeaderActions { gap: 8px; } .cbControls { padding: 12px 15px; } .cbTurnLabel { max-width: 180px; } .cbAnswerControls { gap: 12px; } .cbAnswerButtons button { min-width: 78px; padding: 8px 10px; } .cbTeacherControls { justify-content: flex-end; width: 100%; } .cbTeacherControls button { max-width: none; } .cbFeedback { margin-top: 15px; } }
+@media (max-width:560px) { .cbHeader h2 { font-size: 17px; } .cbHeader p { max-width: 210px; font-size: 10px; } .cbSaved { display: none; } .cbMain { grid-template-columns: 1fr; overflow-y: auto; } .cbWheelPane { border-right: 0; border-bottom: 1px solid var(--cb-border); padding: 12px; } .cbWheelSlot .whBody { display: grid; grid-template-columns: 1fr 1fr; align-items: start; } .cbWheelSlot #wheelClassSelect { grid-column: 1/-1; } .cbWheelSlot #wheelStage { grid-row: 2/5; height: 155px !important; } .cbWheelSlot .whNames, .cbWheelSlot .whAddRow, .cbWheelSlot .whTools { display: none; } .cbWheelSlot { min-height: 0; } .cbWheelSlot .whResult { grid-column: 2; } .cbWheelSlot .whSpinRow { grid-column: 2; } .cbHelp { margin-top: 10px; padding-top: 10px; } .cbBattlefield { grid-template-columns: 1fr 1fr; } .cbBoss { grid-column: 2; grid-row: 1; } .cbTeam { grid-column: 1; grid-row: 1; } .cbBossArt { height: 160px; } .cbBoss h3 { font-size: 16px; } .cbBossTag { font-size: 7px; padding: 4px 8px; } .cbHeroes { grid-template-columns: 1fr; max-height: 380px; } .cbHero { padding: 8px; } .cbTurnLabel { max-width: none; } .cbTurnLabel strong { font-size: 12px; } .cbAnswerControls { flex-direction: column; align-items: stretch; } .cbAnswerButtons button { flex: 1; } .cbTeacherControls { justify-content: space-between; } .cbTeacherControls button { flex: 1; } .cbControls { gap: 7px; padding: 10px; } .cbEyebrow { font-size: 7px; } }
+@media (prefers-reduced-motion:reduce) { .cbShell *, .cbShell *:before, .cbShell *:after { transition: none !important; scroll-behavior: auto !important; } }

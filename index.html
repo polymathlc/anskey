@@ -3604,6 +3604,7 @@ video.mirror { transform:scaleX(-1); }
 #playlistBar button[hidden] { display:none; }
 @media print { .barStack,.lessonBar,.lessonPlayer,#lessonModal,.lessonCamWin,#lessonExportModal,.playlistPanel { display:none!important; } }
 </style>
+<link rel="stylesheet" href="classroom-battle.css">
 </head>
 <body>
 
@@ -3916,6 +3917,7 @@ video.mirror { transform:scaleX(-1); }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><circle cx="12" cy="13" r="1.6"/><line x1="12" y1="5" x2="12" y2="11.4"/><line x1="12" y1="14.6" x2="12" y2="21"/><line x1="4" y1="13" x2="10.4" y2="13"/><line x1="13.6" y1="13" x2="20" y2="13"/><path d="M10 2.6h4L12 6z" fill="currentColor"/></svg>
       <span class="btnLabel">Wheel</span>
     </button>
+    <button class="btn" id="classroomBattleBtn" title="Classroom boss battle — play with your class's CER heroes" style="display:none">⚔️ <span class="btnLabel">Battle</span></button>
   <div class="toolbarMenu" id="lessonTools">
     <button class="btn toolbarMenuBtn" id="lessonMenuBtn" type="button" data-toolbar-menu="lessonMenu" aria-expanded="false" aria-controls="lessonMenu" title="Notes &amp; practice">
       <span class="toolbarMenuIcon" id="lessonMenuIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19a1 1 0 0 1 1 1v14.5"/><path d="M6 17h14v4H6a2 2 0 0 1 0-4z"/><line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="8.5" y1="11" x2="13.5" y2="11"/></svg></span>
@@ -4979,6 +4981,7 @@ video.mirror { transform:scaleX(-1); }
         <canvas id="wheelCanvas" title="Tap the wheel to spin"></canvas>
       </div>
       <div class="whResult" id="wheelResult">
+        <div id="wheelHeroPreview" class="cbWheelHero" hidden></div>
         <div class="whWinner" id="wheelWinner"></div>
         <div class="whAward" id="wheelAward"></div>
       </div>
@@ -4993,6 +4996,7 @@ video.mirror { transform:scaleX(-1); }
         <button class="btn" id="wheelAddBtn">Add</button>
       </div>
       <div class="whTools">
+        <button class="btn" id="wheelBattleBtn">⚔️ Boss battle</button>
         <button class="btn" id="wheelNewRoundBtn" title="Everyone goes back on the wheel">New round</button>
         <button class="btn" id="wheelReseedBtn" title="Put the class list back on the wheel">Reset names</button>
       </div>
@@ -28486,6 +28490,9 @@ function applyRewardVisibility() {
   if (btn) btn.style.display = show ? '' : 'none';
   var wbtn = $('wheelBtn');
   if (wbtn) wbtn.style.display = show ? '' : 'none';
+  var battleBtn = $('classroomBattleBtn');
+  if (battleBtn) battleBtn.style.display = show ? '' : 'none';
+  if (!show && window.ClassroomBattle) window.ClassroomBattle.close();
   if (!show) {
     $('rewardModal').classList.remove('open');
     closeWheel();
@@ -28988,7 +28995,7 @@ function wheelClean(raw, today) {
   (Array.isArray(raw.names) ? raw.names : []).forEach(function (n) {
     if (!n || typeof n.n !== 'string') return;
     var name = n.n.trim().slice(0, WHEEL_NAME_MAX);
-    var key = name.toLowerCase();
+    var key = typeof n.id === 'string' && n.id ? 'id:' + n.id : 'name:' + name.toLowerCase();
     if (!name || seen[key]) return;
     seen[key] = true;
     out.names.push({ n: name, id: typeof n.id === 'string' && n.id ? n.id : '', done: !!n.done });
@@ -29015,7 +29022,7 @@ function wheelAddName(state, name, id) {
   if (!name) return null;
   var key = name.toLowerCase();
   for (var i = 0; i < state.names.length; i++) {
-    if (state.names[i].n.toLowerCase() === key) return null;
+    if (id ? state.names[i].id === id : state.names[i].n.toLowerCase() === key) return null;
   }
   var entry = { n: name, id: id || '', done: false };
   state.names.push(entry);
@@ -29102,8 +29109,8 @@ function wheelSeed(force) {
   rwStudentsInClass(wheelClass).forEach(function (s) {
     var name = (s.name || '').trim();
     if (!name) return;
-    var existing = wheelState.names.filter(function (n) { return n.n.toLowerCase() === name.toLowerCase(); })[0];
-    if (existing) { existing.id = existing.id || s.id; return; }
+    var existing = wheelState.names.filter(function (n) { return n.id === s.id; })[0];
+    if (existing) { existing.n = name; return; }
     wheelAddName(wheelState, name, s.id);
   });
   wheelState.seeded = true;
@@ -29219,6 +29226,7 @@ function wheelRandom() {
 
 function wheelSpin() {
   if (!wheelTeacher() || wheelSpinning || !wheelState) return;
+  if (window.ClassroomBattle && !window.ClassroomBattle.beforeSpin()) return;
   if (!wheelState.names.length) { toast('Add some names to the wheel first.'); return; }
   var before = wheelRemaining(wheelState);
   var starting = !before.length;   // this spin opens a new round
@@ -29233,6 +29241,7 @@ function wheelSpin() {
   wheelGiven = 0;
   wheelSpinning = true;
   wheelRender();
+  if (window.ClassroomBattle) window.ClassroomBattle.spinning();
 
   var reduce = false;
   try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
@@ -29260,6 +29269,7 @@ function wheelLanded() {
   wheelDraw();
   wheelRender();
   var w = wheelState && wheelState.names[wheelWinnerIdx];
+  if (window.ClassroomBattle) window.ClassroomBattle.landed(w);
   if (w) toast('🎡 ' + w.n);
 }
 
@@ -29457,6 +29467,7 @@ function wheelSetClass(cls) {
   wheelSeed(false);
   wheelSave();
   wheelDraw(); wheelRender();
+  if (window.ClassroomBattle) window.ClassroomBattle.classChanged(wheelClass);
 }
 
 /* ---- The window ---- */
@@ -29536,6 +29547,7 @@ async function openWheel() {
 
 function closeWheel() {
   wheelStopSpin();
+  if (window.ClassroomBattle) window.ClassroomBattle.wheelClosed();
   var modal = $('wheelModal');
   if (modal) modal.classList.remove('open');
   var b = $('wheelBtn');
@@ -29562,7 +29574,10 @@ $('wheelCard').addEventListener('keydown', function (e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'Tab') return;
   e.stopPropagation();
-  if (e.key === 'Escape') closeWheel();
+  if (e.key === 'Escape') {
+    if (window.ClassroomBattle && window.ClassroomBattle.isOpen()) window.ClassroomBattle.close();
+    else closeWheel();
+  }
 });
 
 attachFloatWin({
@@ -34175,6 +34190,10 @@ refreshAiEngineNames();
 loadAiNotePrefs();
 </script>
 
+<script src="battle-bosses.js"></script>
+<script src="battle-core.js"></script>
+<script src="battle-store.js"></script>
+<script src="classroom-battle.js"></script>
 <script type="module">
 /* ================= Firebase AI Logic (Gemini) =================
    Gemini access for the AI text-box features. Uses the shared Polymath
