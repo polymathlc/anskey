@@ -2595,6 +2595,47 @@
   /* Beats the width:100% on .rwField input, so it sits inline with the chips. */
   .rwField input.rwAmountCustom { width: 96px; flex: 0 0 auto; }
   .rwAmountRow .rwBulkSpacer { flex: 1 1 auto; }
+  /* ---------- Name wheel ----------
+     A floating window like the calculator. The body scrolls as a whole, so a
+     window dragged small stays usable; the wheel takes whatever room is left. */
+  .modalBack.floatWin .whCard { display: flex; flex-direction: column; }
+  .whBody { display: flex; flex-direction: column; gap: 12px; padding: 12px 18px 26px; overflow-y: auto; }
+  .whSelect, .whAddRow input {
+    width: 100%; box-sizing: border-box;
+    font-family: var(--font); font-size: 0.88rem;
+    padding: 9px 12px;
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    background: #fff; outline: none;
+  }
+  .whSelect:focus, .whAddRow input:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
+  /* The canvas is taken out of flow, or it would hold the stage open at its own
+     size and the wheel could never shrink when the window does. */
+  .whStage { position: relative; flex: 1 1 0; min-height: 150px; }
+  #wheelCanvas { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: block; cursor: pointer; touch-action: manipulation; }
+  /* Always on screen, so the wheel does not jump smaller the moment a name is called. */
+  .whResult { text-align: center; padding: 10px 6px 4px; min-height: 104px; }
+  .whWinner.idle { color: var(--ink-faint); font-weight: normal; font-size: 0.95rem; }
+  .whWinner { font-size: 1.35rem; font-weight: bold; line-height: 1.4; margin-bottom: 10px; word-break: break-word; }
+  .whAward { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+  .whAward .rwAmount { padding: 7px 14px; }
+  .whAward input { width: 70px; font-family: var(--font); font-size: 0.84rem; padding: 7px 8px; border: 1px solid var(--line); border-radius: 999px; text-align: center; }
+  .whAwardNote { flex: 0 0 100%; font-size: 0.76rem; color: var(--ink-faint); line-height: 1.6; }
+  .whSpinRow { display: flex; align-items: center; gap: 14px; }
+  .whSpinRow .btn { padding: 10px 26px; }
+  .whRound { font-size: 0.8rem; color: var(--ink-faint); line-height: 1.5; }
+  .whNames { display: flex; flex-wrap: wrap; gap: 8px; }
+  .whChip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: #fff; overflow: hidden; }
+  .whChip.called { background: #F1F0EE; }
+  .whChip.called .whChipName { color: var(--ink-faint); text-decoration: line-through; }
+  .whChipName, .whChipX { border: none; background: none; font-family: var(--font); cursor: pointer; }
+  .whChipName { font-size: 0.84rem; padding: 6px 4px 6px 12px; }
+  .whChipX { font-size: 0.78rem; padding: 6px 10px 6px 6px; color: var(--ink-faint); }
+  .whChipX:hover { color: var(--bad, #c0392b); }
+  .whNamesEmpty { font-size: 0.82rem; color: var(--ink-faint); line-height: 1.6; }
+  .whAddRow { display: flex; gap: 8px; }
+  .whAddRow .btn { flex: 0 0 auto; }
+  .whTools { display: flex; gap: 8px; flex-wrap: wrap; }
+  .whTools .btn { padding: 6px 12px; font-size: 0.78rem; }
   .rwClassNote {
     font-size: 0.76rem;
     color: var(--ink-faint);
@@ -3871,6 +3912,10 @@ video.mirror { transform:scaleX(-1); }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><polyline points="8.5 12.5 7 22 12 19 17 22 15.5 12.5"/></svg>
       <span class="btnLabel">Reward</span>
     </button>
+    <button class="btn" id="wheelBtn" data-key="Z" title="Name wheel — call on every student once per round, and award marks from the wheel" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><circle cx="12" cy="13" r="1.6"/><line x1="12" y1="5" x2="12" y2="11.4"/><line x1="12" y1="14.6" x2="12" y2="21"/><line x1="4" y1="13" x2="10.4" y2="13"/><line x1="13.6" y1="13" x2="20" y2="13"/><path d="M10 2.6h4L12 6z" fill="currentColor"/></svg>
+      <span class="btnLabel">Wheel</span>
+    </button>
   <div class="toolbarMenu" id="lessonTools">
     <button class="btn toolbarMenuBtn" id="lessonMenuBtn" type="button" data-toolbar-menu="lessonMenu" aria-expanded="false" aria-controls="lessonMenu" title="Notes &amp; practice">
       <span class="toolbarMenuIcon" id="lessonMenuIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19a1 1 0 0 1 1 1v14.5"/><path d="M6 17h14v4H6a2 2 0 0 1 0-4z"/><line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="8.5" y1="11" x2="13.5" y2="11"/></svg></span>
@@ -4916,6 +4961,46 @@ video.mirror { transform:scaleX(-1); }
   </div>
 </div>
 
+<!-- The name wheel: a window like the calculator. Drag the title bar to move
+     it, the corner to resize it, – to fold it down to its title bar. The
+     worksheet stays live underneath. -->
+<div class="modalBack floatWin" id="wheelModal">
+  <div class="modalCard whCard" id="wheelCard" tabindex="-1">
+    <div class="modalHead" id="wheelHead" title="Drag to move — the worksheet stays live underneath">
+      <h2 id="wheelTitle">🎡 Name wheel</h2>
+      <div class="winBtns">
+        <button class="modalClose" id="wheelMinBtn" title="Minimise — keeps your place in the round">–</button>
+        <button class="modalClose" id="wheelCloseBtn" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="modalBody whBody">
+      <select id="wheelClassSelect" class="whSelect" title="Which class's names are on the wheel"></select>
+      <div class="whStage" id="wheelStage">
+        <canvas id="wheelCanvas" title="Tap the wheel to spin"></canvas>
+      </div>
+      <div class="whResult" id="wheelResult">
+        <div class="whWinner" id="wheelWinner"></div>
+        <div class="whAward" id="wheelAward"></div>
+      </div>
+      <div class="whSpinRow">
+        <button class="btn btnPrimary" id="wheelSpinBtn">Spin</button>
+        <span class="whRound" id="wheelRound"></span>
+      </div>
+      <div class="whNames" id="wheelNames"></div>
+      <div class="whAddRow">
+        <input type="text" id="wheelNewName" list="wheelRosterList" maxlength="40" placeholder="Add a name" autocomplete="off">
+        <datalist id="wheelRosterList"></datalist>
+        <button class="btn" id="wheelAddBtn">Add</button>
+      </div>
+      <div class="whTools">
+        <button class="btn" id="wheelNewRoundBtn" title="Everyone goes back on the wheel">New round</button>
+        <button class="btn" id="wheelReseedBtn" title="Put the class list back on the wheel">Reset names</button>
+      </div>
+    </div>
+    <div class="floatWinGrip" id="wheelGrip" title="Drag to resize"></div>
+  </div>
+</div>
+
 <div class="modalBack" id="notesModal">
   <div class="modalCard tnWide">
     <div class="modalHead">
@@ -5202,7 +5287,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.112.0';
+var APP_VERSION = 'v1.113.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -28399,8 +28484,11 @@ function applyRewardVisibility() {
   var show = isAdmin(currentUser) && !actingStudent && !isSharedVisitor();
   var btn = $('rewardBtn');
   if (btn) btn.style.display = show ? '' : 'none';
+  var wbtn = $('wheelBtn');
+  if (wbtn) wbtn.style.display = show ? '' : 'none';
   if (!show) {
     $('rewardModal').classList.remove('open');
+    closeWheel();
     rwStudents = [];
   }
 }
@@ -28768,12 +28856,12 @@ function rwAwardEntry(student, delta, reason) {
   };
 }
 
-async function rwAwardMarks(student, delta) {
+async function rwAwardMarks(student, delta, reasonOverride) {
   delta = Math.round(Number(delta) || 0);
   if (!delta || !isAdmin(currentUser) || actingStudent || rwAwarding[student.id]) return;
   rwAwarding[student.id] = true;
   renderRewardList();
-  var reason = rwReason();
+  var reason = reasonOverride || rwReason();
   try {
     var marks = await db.runTransaction(async function (tx) {
       var sRef = db.collection('students').doc(student.id);
@@ -28862,6 +28950,628 @@ async function rwDamageBosses(points) {
     await rwDamageBoss(snap.docs[i].ref, points);
   }
 }
+
+/* ================= Name wheel =================
+   Calls on every student once before anyone is called twice. The names are
+   remembered PER CLASS (the reward system's own slot string, which already
+   carries the day and the hour), so next week's lesson at the same time
+   opens on the same names. The teacher can add and remove names freely —
+   they are the wheel's own list, seeded once from the class register.
+
+   A "round" is one pass through the list. Each spin picks, at random, one
+   name that has not yet been called this round; when the last is called the
+   next spin starts round N+1 with everyone back on the wheel. The picks of a
+   half-finished round do not follow the class into the next lesson (the day
+   changes), but the names do.
+
+   Marks are awarded through rwAwardMarks — the same transaction, award row
+   and boss damage as the Reward window — so the history shows them as normal.
+   The wheel never touches Firestore itself and is the teacher's own tool:
+   hidden by applyRewardVisibility and refused in every handler. */
+
+/* ===== NAME WHEEL — rounds (pure) ===== */
+var WHEEL_NAME_MAX = 40;
+var WHEEL_TURNS_MIN = 4, WHEEL_TURNS_MAX = 6;
+
+function wheelDay(d) {
+  d = d || new Date();
+  var m = d.getMonth() + 1, day = d.getDate();
+  return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+}
+
+/* Whatever came out of storage becomes a state that is safe to use. A new
+   lesson day keeps the names and clears who has been called. */
+function wheelClean(raw, today) {
+  var out = { names: [], round: 1, day: today, seeded: false };
+  if (!raw || typeof raw !== 'object') return out;
+  var seen = {};
+  (Array.isArray(raw.names) ? raw.names : []).forEach(function (n) {
+    if (!n || typeof n.n !== 'string') return;
+    var name = n.n.trim().slice(0, WHEEL_NAME_MAX);
+    var key = name.toLowerCase();
+    if (!name || seen[key]) return;
+    seen[key] = true;
+    out.names.push({ n: name, id: typeof n.id === 'string' && n.id ? n.id : '', done: !!n.done });
+  });
+  out.seeded = !!raw.seeded;
+  if (raw.day === today) {
+    var r = Math.floor(Number(raw.round));
+    out.round = r > 0 ? r : 1;
+  } else {
+    out.names.forEach(function (n) { n.done = false; });
+  }
+  return out;
+}
+
+function wheelRemaining(state) {
+  var idx = [];
+  state.names.forEach(function (n, i) { if (!n.done) idx.push(i); });
+  return idx;
+}
+
+/* Add a name. Returns the new entry, or null for a blank or repeated name. */
+function wheelAddName(state, name, id) {
+  name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, WHEEL_NAME_MAX);
+  if (!name) return null;
+  var key = name.toLowerCase();
+  for (var i = 0; i < state.names.length; i++) {
+    if (state.names[i].n.toLowerCase() === key) return null;
+  }
+  var entry = { n: name, id: id || '', done: false };
+  state.names.push(entry);
+  return entry;
+}
+
+/* Choose who is called next. rnd() is a number in [0, 1). When everybody has
+   been called the round is over and this spin opens the next one. Returns the
+   index in state.names, or -1 when there is nobody on the wheel. */
+function wheelPick(state, rnd) {
+  if (!state.names.length) return -1;
+  var left = wheelRemaining(state);
+  if (!left.length) {
+    state.round += 1;
+    state.names.forEach(function (n) { n.done = false; });
+    left = wheelRemaining(state);
+  }
+  var k = Math.min(left.length - 1, Math.floor(rnd() * left.length));
+  var pick = left[k];
+  state.names[pick].done = true;
+  return pick;
+}
+
+/* The wheel angle that leaves the pointer (straight up) inside segment i of n,
+   `off` (0..1) of the way across it, after at least `turns` whole turns from
+   the current angle. Segment i spans angle + i*s .. angle + (i+1)*s. */
+function wheelLandingAngle(current, i, n, off, turns) {
+  var TAU = Math.PI * 2, s = TAU / n, up = -Math.PI / 2;
+  var target = up - (i + off) * s;
+  var diff = (((target - current) % TAU) + TAU) % TAU;
+  return current + diff + TAU * turns;
+}
+
+/* Which segment is under the pointer at this angle? The check on the animation. */
+function wheelSegmentAt(angle, n) {
+  var TAU = Math.PI * 2, s = TAU / n;
+  var rel = ((((-Math.PI / 2) - angle) % TAU) + TAU) % TAU;
+  return Math.min(n - 1, Math.floor(rel / s));
+}
+/* ===== NAME WHEEL — window ===== */
+
+var WHEEL_STORE = 'polymath.wheel:';
+var WHEEL_CLASS_KEY = 'polymath.wheelClass';
+var WHEEL_WIN_KEY = 'polymath.wheelWin';
+var WHEEL_MIN_W = 260, WHEEL_MIN_H = 330;
+var WHEEL_COLORS = ['#FFD8A8', '#B8E0D2', '#C9D6FF', '#F7C6D9', '#E4D4F4', '#FFF1A8', '#BFE3F2', '#D5E8B0'];
+var WHEEL_AMOUNTS = [1, 2, 5, 10];
+
+var wheelWin = null;          // {x, y, w, h}
+var wheelMin = false;
+var wheelClass = '';
+var wheelState = null;
+var wheelAngle = 0;
+var wheelSpinning = false;
+var wheelRaf = 0;
+var wheelSegs = null;         // names on the wheel while it turns
+var wheelWinnerIdx = -1;      // index in wheelState.names of the latest pick
+var wheelGiven = 0;           // marks handed to that pick from this window
+var wheelCustom = '';
+
+function wheelTeacher() {
+  return isAdmin(currentUser) && !actingStudent && !isSharedVisitor();
+}
+
+function wheelStoreKey(cls) { return WHEEL_STORE + (cls || '_none'); }
+
+function wheelLoad(cls) {
+  var raw = null;
+  try { raw = JSON.parse(localStorage.getItem(wheelStoreKey(cls)) || 'null'); } catch (e) {}
+  return wheelClean(raw, wheelDay());
+}
+
+function wheelSave() {
+  if (!wheelState) return;
+  try { localStorage.setItem(wheelStoreKey(wheelClass), JSON.stringify(wheelState)); }
+  catch (e) { /* the wheel still works for this visit */ }
+}
+
+/* The class register goes onto the wheel the first time a class is opened.
+   Seeded is remembered, so a name the teacher removes does not come back. */
+function wheelSeed(force) {
+  if (!wheelState || !wheelClass) return;
+  if (wheelState.seeded && !force) return;
+  rwStudentsInClass(wheelClass).forEach(function (s) {
+    var name = (s.name || '').trim();
+    if (!name) return;
+    var existing = wheelState.names.filter(function (n) { return n.n.toLowerCase() === name.toLowerCase(); })[0];
+    if (existing) { existing.id = existing.id || s.id; return; }
+    wheelAddName(wheelState, name, s.id);
+  });
+  wheelState.seeded = true;
+  wheelSave();
+}
+
+/* The reward-system student behind a wheel name, if there is one. */
+function wheelStudent(entry) {
+  if (!entry) return null;
+  if (entry.id) {
+    var byId = rwStudents.filter(function (s) { return s.id === entry.id; })[0];
+    if (byId) return byId;
+  }
+  var key = entry.n.toLowerCase();
+  var inClass = rwStudentsInClass(wheelClass).filter(function (s) { return (s.name || '').trim().toLowerCase() === key; });
+  if (inClass.length === 1) return inClass[0];
+  var anywhere = rwStudents.filter(function (s) { return (s.name || '').trim().toLowerCase() === key; });
+  return anywhere.length === 1 ? anywhere[0] : null;
+}
+
+/* ---- Drawing ---- */
+function wheelFit() {
+  var stage = $('wheelStage'), cv = $('wheelCanvas');
+  if (!stage || !cv || !$('wheelModal').classList.contains('open')) return;
+  var size = Math.floor(Math.min(stage.clientWidth, stage.clientHeight));
+  if (!(size > 60)) size = 150;
+  var dpr = window.devicePixelRatio || 1;
+  cv.style.width = size + 'px';
+  cv.style.height = size + 'px';
+  cv.width = Math.round(size * dpr);
+  cv.height = Math.round(size * dpr);
+  wheelDraw();
+}
+
+function wheelFontFor(px) {
+  return 'bold ' + px + 'px ' + (getComputedStyle(document.body).fontFamily || 'sans-serif');
+}
+
+function wheelClip(ctx, text, max) {
+  if (ctx.measureText(text).width <= max) return text;
+  while (text.length > 1 && ctx.measureText(text + '…').width > max) text = text.slice(0, -1);
+  return text + '…';
+}
+
+function wheelDraw() {
+  var cv = $('wheelCanvas');
+  if (!cv || !wheelState) return;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height, dpr = W / (parseFloat(cv.style.width) || W);
+  var cx = W / 2, cy = H / 2 + 6 * dpr, R = Math.min(W, H) / 2 - 10 * dpr;
+  ctx.clearRect(0, 0, W, H);
+  var segs = wheelSegs || wheelRemaining(wheelState).map(function (i) { return wheelState.names[i].n; });
+  var n = segs.length;
+  var TAU = Math.PI * 2;
+
+  if (!n) {
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU);
+    ctx.fillStyle = '#F1F0EE'; ctx.fill();
+    ctx.lineWidth = 3 * dpr; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.fillStyle = '#6b6a66'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var all = wheelState.names.length;
+    ctx.font = wheelFontFor(Math.max(12, R * 0.13));
+    if (all) {
+      ctx.fillText('Round ' + wheelState.round + ' complete', cx, cy - R * 0.08);
+      ctx.font = wheelFontFor(Math.max(11, R * 0.095));
+      ctx.fillText('Spin to start round ' + (wheelState.round + 1), cx, cy + R * 0.1);
+    } else {
+      ctx.fillText('Add names below', cx, cy);
+    }
+  } else {
+    var s = TAU / n;
+    var fs = Math.max(8 * dpr, Math.min(R * 0.15, R * 0.75 * s * 0.5, 26 * dpr));
+    ctx.font = wheelFontFor(fs);
+    for (var i = 0; i < n; i++) {
+      var a0 = wheelAngle + i * s;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a0, a0 + s); ctx.closePath();
+      ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+      // A lone leftover must not share its colour with the neighbour it wraps to.
+      if (n > 1 && i === n - 1 && i % WHEEL_COLORS.length === 0) ctx.fillStyle = WHEEL_COLORS[3];
+      ctx.fill();
+      ctx.lineWidth = 2 * dpr; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(a0 + s / 2);
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#26251f';
+      ctx.fillText(wheelClip(ctx, segs[i], R * 0.68), R - 12 * dpr, 0);
+      ctx.restore();
+    }
+    ctx.lineWidth = 3 * dpr; ctx.strokeStyle = '#fff';
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
+  }
+  // hub and the pointer at 12 o'clock
+  ctx.beginPath(); ctx.arc(cx, cy, Math.max(6 * dpr, R * 0.06), 0, TAU);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.lineWidth = 2 * dpr; ctx.strokeStyle = '#26251f'; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 11 * dpr, cy - R - 6 * dpr);
+  ctx.lineTo(cx + 11 * dpr, cy - R - 6 * dpr);
+  ctx.lineTo(cx, cy - R + 16 * dpr);
+  ctx.closePath();
+  ctx.fillStyle = '#E8590C'; ctx.fill();
+  ctx.lineWidth = 1.5 * dpr; ctx.strokeStyle = '#fff'; ctx.stroke();
+}
+
+/* ---- Spinning ---- */
+function wheelRandom() {
+  try {
+    var a = new Uint32Array(1);
+    crypto.getRandomValues(a);
+    return a[0] / 4294967296;
+  } catch (e) { return Math.random(); }
+}
+
+function wheelSpin() {
+  if (!wheelTeacher() || wheelSpinning || !wheelState) return;
+  if (!wheelState.names.length) { toast('Add some names to the wheel first.'); return; }
+  var before = wheelRemaining(wheelState);
+  var starting = !before.length;   // this spin opens a new round
+  var pick = wheelPick(wheelState, wheelRandom);
+  if (pick < 0) return;
+  // The wheel turns over the names that were on it, not the ones left after the pick.
+  var onWheel = starting ? wheelState.names.map(function (_, i) { return i; }) : before;
+  wheelSegs = onWheel.map(function (i) { return wheelState.names[i].n; });
+  var slot = onWheel.indexOf(pick);
+  wheelSave();
+  wheelWinnerIdx = pick;
+  wheelGiven = 0;
+  wheelSpinning = true;
+  wheelRender();
+
+  var reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  var turns = WHEEL_TURNS_MIN + Math.floor(wheelRandom() * (WHEEL_TURNS_MAX - WHEEL_TURNS_MIN + 1));
+  var from = wheelAngle;
+  var to = wheelLandingAngle(from, slot, onWheel.length, 0.12 + wheelRandom() * 0.76, reduce ? 0 : turns);
+  var dur = reduce ? 500 : 4200;
+  var t0 = null;
+  function frame(t) {
+    if (t0 === null) t0 = t;
+    var k = Math.min(1, (t - t0) / dur);
+    var e = 1 - Math.pow(1 - k, 4);
+    wheelAngle = from + (to - from) * e;
+    wheelDraw();
+    if (k < 1) { wheelRaf = requestAnimationFrame(frame); return; }
+    wheelRaf = 0;
+    wheelLanded();
+  }
+  wheelRaf = requestAnimationFrame(frame);
+}
+
+function wheelLanded() {
+  wheelSpinning = false;
+  wheelSegs = null;
+  wheelDraw();
+  wheelRender();
+  var w = wheelState && wheelState.names[wheelWinnerIdx];
+  if (w) toast('🎡 ' + w.n);
+}
+
+/* A spin cut short (window closed, role changed) still counts as called: the
+   pick was written before the wheel turned, so nobody is called twice. */
+function wheelStopSpin() {
+  if (wheelRaf) { cancelAnimationFrame(wheelRaf); wheelRaf = 0; }
+  wheelSpinning = false;
+  wheelSegs = null;
+}
+
+/* ---- The rest of the window ---- */
+function wheelRender() {
+  if (!wheelState) return;
+  var st = wheelState, total = st.names.length;
+  var left = wheelRemaining(st).length;
+  var called = total - left;
+
+  var round = $('wheelRound');
+  round.textContent = !total ? 'No names yet'
+    : left === 0 ? 'Round ' + st.round + ' complete — next spin starts round ' + (st.round + 1)
+    : 'Round ' + st.round + ' · ' + called + ' of ' + total + ' called';
+  $('wheelSpinBtn').disabled = wheelSpinning || !total;
+  $('wheelNewRoundBtn').disabled = wheelSpinning || !called;
+  $('wheelReseedBtn').disabled = wheelSpinning || !wheelClass;
+
+  var box = $('wheelNames');
+  box.innerHTML = '';
+  if (!total) {
+    var empty = document.createElement('div');
+    empty.className = 'whNamesEmpty';
+    empty.textContent = wheelClass
+      ? 'Nobody on the wheel. Add a name below, or tap Reset names to bring in the class list.'
+      : 'Pick a class above, or just add names below.';
+    box.appendChild(empty);
+  }
+  st.names.forEach(function (n, i) {
+    var chip = document.createElement('span');
+    chip.className = 'whChip' + (n.done ? ' called' : '');
+    var nm = document.createElement('button');
+    nm.className = 'whChipName';
+    nm.textContent = n.n;
+    nm.title = n.done ? 'Called this round — tap to put back on the wheel' : 'Tap to mark as called (absent, or already had a turn)';
+    nm.addEventListener('click', function () {
+      if (wheelSpinning || !wheelTeacher()) return;
+      n.done = !n.done;
+      wheelSave(); wheelDraw(); wheelRender();
+    });
+    var x = document.createElement('button');
+    x.className = 'whChipX';
+    x.textContent = '✕';
+    x.title = 'Take ' + n.n + ' off the wheel';
+    x.addEventListener('click', function () {
+      if (wheelSpinning || !wheelTeacher()) return;
+      st.names.splice(i, 1);
+      if (wheelWinnerIdx === i) wheelWinnerIdx = -1;
+      else if (wheelWinnerIdx > i) wheelWinnerIdx -= 1;
+      wheelSave(); wheelDraw(); wheelRender();
+    });
+    chip.appendChild(nm); chip.appendChild(x);
+    box.appendChild(chip);
+  });
+
+  // The roster names that are not on the wheel yet, for the add box.
+  var dl = $('wheelRosterList');
+  dl.innerHTML = '';
+  var on = {};
+  st.names.forEach(function (n) { on[n.n.toLowerCase()] = true; });
+  var pool = wheelClass ? rwStudentsInClass(wheelClass) : [];
+  pool.forEach(function (s) {
+    var nm = (s.name || '').trim();
+    if (!nm || on[nm.toLowerCase()]) return;
+    var o = document.createElement('option');
+    o.value = nm;
+    dl.appendChild(o);
+  });
+
+  wheelRenderResult();
+  wheelRenderTitle();
+}
+
+function wheelRenderResult() {
+  var res = $('wheelResult');
+  var entry = wheelWinnerIdx >= 0 && wheelState ? wheelState.names[wheelWinnerIdx] : null;
+  var award = $('wheelAward');
+  var winner = $('wheelWinner');
+  award.innerHTML = '';
+  winner.classList.toggle('idle', !entry || wheelSpinning);
+  if (!entry || wheelSpinning) {
+    winner.textContent = wheelSpinning ? '…' : 'Spin to call a name';
+    return;
+  }
+  winner.textContent = entry.n;
+  var student = wheelStudent(entry);
+  if (!student) {
+    var note = document.createElement('div');
+    note.className = 'whAwardNote';
+    note.textContent = 'Not in the reward system, so no marks to give. Add the name as it appears in the class list to link it.';
+    award.appendChild(note);
+    return;
+  }
+  var busy = !!rwAwarding[student.id];
+  WHEEL_AMOUNTS.forEach(function (n) {
+    var b = document.createElement('button');
+    b.className = 'rwAmount';
+    b.textContent = '+' + n;
+    b.disabled = busy;
+    b.addEventListener('click', function () { wheelGive(n); });
+    award.appendChild(b);
+  });
+  var inp = document.createElement('input');
+  inp.type = 'number'; inp.min = '1'; inp.placeholder = 'Other';
+  inp.value = wheelCustom;
+  inp.addEventListener('input', function () { wheelCustom = inp.value; });
+  inp.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); wheelGiveCustom(); }
+  });
+  award.appendChild(inp);
+  var give = document.createElement('button');
+  give.className = 'rwAmount';
+  give.textContent = 'Give';
+  give.disabled = busy;
+  give.addEventListener('click', wheelGiveCustom);
+  award.appendChild(give);
+  var tally = document.createElement('div');
+  tally.className = 'whAwardNote';
+  tally.textContent = (student.marks || 0) + ((student.marks || 0) === 1 ? ' mark' : ' marks') + ' now' + (wheelGiven ? ' · +' + wheelGiven + ' from this turn' : '');
+  award.appendChild(tally);
+}
+
+function wheelRenderTitle() {
+  var t = $('wheelTitle');
+  var entry = wheelWinnerIdx >= 0 && wheelState ? wheelState.names[wheelWinnerIdx] : null;
+  t.textContent = wheelMin && entry && !wheelSpinning ? '🎡 ' + entry.n : '🎡 Name wheel';
+}
+
+function wheelGiveCustom() {
+  var v = Math.floor(Number(wheelCustom));
+  if (!(v > 0)) { toast('Type how many marks to give.'); return; }
+  wheelGive(v);
+}
+
+async function wheelGive(delta) {
+  if (!wheelTeacher() || wheelSpinning) return;
+  var entry = wheelState && wheelState.names[wheelWinnerIdx];
+  var student = wheelStudent(entry);
+  if (!student) return;
+  var before = student.marks || 0;
+  var reason = 'Name wheel' + (docName && pdfDoc ? ' — ' + docName : '');
+  await rwAwardMarks(student, delta, reason);
+  // rwAwardMarks reports its own failure and leaves the balance alone.
+  if ((student.marks || 0) !== before) wheelGiven += (student.marks || 0) - before;
+  wheelRender();
+}
+
+function wheelAddFromBox() {
+  if (!wheelTeacher() || !wheelState) return;
+  var box = $('wheelNewName');
+  var name = box.value.replace(/\s+/g, ' ').trim();
+  if (!name) return;
+  var match = rwStudents.filter(function (s) { return (s.name || '').trim().toLowerCase() === name.toLowerCase(); });
+  var inClass = match.filter(function (s) { return rwStudentClasses(s).indexOf(wheelClass) !== -1; });
+  var linked = inClass.length === 1 ? inClass[0] : match.length === 1 ? match[0] : null;
+  var entry = wheelAddName(wheelState, linked ? (linked.name || '').trim() || name : name, linked ? linked.id : '');
+  if (!entry) { toast(name.length ? '“' + name + '” is already on the wheel.' : 'Type a name first.'); return; }
+  box.value = '';
+  wheelSave(); wheelDraw(); wheelRender();
+  try { box.focus(); } catch (e) {}
+}
+
+function wheelNewRound() {
+  if (!wheelTeacher() || wheelSpinning || !wheelState) return;
+  wheelState.round += 1;
+  wheelState.names.forEach(function (n) { n.done = false; });
+  wheelWinnerIdx = -1;
+  wheelSave(); wheelDraw(); wheelRender();
+}
+
+function wheelReseed() {
+  if (!wheelTeacher() || wheelSpinning || !wheelClass) return;
+  var roster = rwStudentsInClass(wheelClass).length;
+  if (!roster) { toast('Nobody is in ' + wheelClass + ' in the reward system yet.'); return; }
+  wheelSeed(true);
+  wheelDraw(); wheelRender();
+  toast('Class list added to the wheel.');
+}
+
+function wheelSetClass(cls) {
+  wheelStopSpin();
+  wheelClass = cls || '';
+  try { localStorage.setItem(WHEEL_CLASS_KEY, wheelClass); } catch (e) {}
+  wheelState = wheelLoad(wheelClass);
+  wheelWinnerIdx = -1;
+  wheelGiven = 0;
+  wheelSeed(false);
+  wheelSave();
+  wheelDraw(); wheelRender();
+}
+
+/* ---- The window ---- */
+function clampWheelWin(b) { return clampWinBox(b, WHEEL_MIN_W, WHEEL_MIN_H, wheelMin ? 56 : 0); }
+
+function defaultWheelWin() {
+  var vw = window.innerWidth, vh = floatWinViewportH();
+  var w = Math.min(340, Math.max(WHEEL_MIN_W, vw - 32));
+  var h = Math.min(700, Math.max(WHEEL_MIN_H, vh - 90));
+  return { x: Math.max(12, vw - w - 28), y: Math.max(12, Math.round((vh - h) / 2)), w: w, h: h };
+}
+
+function loadWheelWinBox() {
+  try {
+    var v = JSON.parse(localStorage.getItem(WHEEL_WIN_KEY) || 'null');
+    if (v && ['x', 'y', 'w', 'h'].every(function (k) { return isFinite(v[k]); })) return v;
+  } catch (e) {}
+  return null;
+}
+
+function saveWheelWin() {
+  try { localStorage.setItem(WHEEL_WIN_KEY, JSON.stringify(wheelWin)); } catch (e) {}
+}
+
+function applyWheelWin() {
+  var c = $('wheelCard');
+  if (!c || !wheelWin) return;
+  c.style.left = wheelWin.x + 'px';
+  c.style.top = wheelWin.y + 'px';
+  c.style.width = wheelWin.w + 'px';
+  c.style.height = wheelMin ? 'auto' : wheelWin.h + 'px';
+  wheelFit();
+}
+
+function setWheelMin(on) {
+  wheelMin = !!on;
+  $('wheelModal').classList.toggle('winMin', wheelMin);
+  var b = $('wheelMinBtn');
+  b.textContent = wheelMin ? '▢' : '–';
+  b.title = wheelMin ? 'Open it back up' : 'Minimise — keeps your place in the round';
+  if (wheelWin) { wheelWin = clampWheelWin(wheelWin); applyWheelWin(); }
+  wheelRenderTitle();
+}
+
+function wheelIsOpen() { return $('wheelModal').classList.contains('open'); }
+
+async function openWheel() {
+  if (!wheelTeacher()) return;
+  var modal = $('wheelModal');
+  if (modal.classList.contains('open')) { raiseFloatWin('wheelModal'); return; }
+  modal.classList.add('open');
+  raiseFloatWin('wheelModal');
+  $('wheelBtn').classList.add('active');
+  setWheelMin(false);
+  wheelWin = clampWheelWin(wheelWin || loadWheelWinBox() || defaultWheelWin());
+  applyWheelWin();
+
+  // The register is read once per visit; a failed read leaves the wheel
+  // working on whatever names it already holds.
+  try { await rwLoadStudents(false); } catch (e) { /* offline — names still work */ }
+  if (!wheelIsOpen()) return;   // closed while the register loaded
+  var sel = $('wheelClassSelect');
+  sel.innerHTML = '<option value="">— no class (free list) —</option>' +
+    rwAllClasses().map(function (o) {
+      return '<option value="' + escHtml(o.cls) + '">' + escHtml(o.cls) + ' (' + o.count + ')</option>';
+    }).join('');
+  var remembered = '';
+  try { remembered = localStorage.getItem(WHEEL_CLASS_KEY) || ''; } catch (e) {}
+  var cls = '';
+  try { cls = rwGuessClass() || ''; } catch (e) {}
+  sel.value = cls;
+  if (sel.value !== cls) cls = '';
+  if (!cls) { sel.value = remembered; cls = sel.value === remembered ? remembered : ''; }
+  wheelSetClass(cls);
+  wheelFit();
+}
+
+function closeWheel() {
+  wheelStopSpin();
+  var modal = $('wheelModal');
+  if (modal) modal.classList.remove('open');
+  var b = $('wheelBtn');
+  if (b) b.classList.remove('active');
+}
+
+function toggleWheel() { wheelIsOpen() ? closeWheel() : openWheel(); }
+
+$('wheelBtn').addEventListener('click', toggleWheel);
+$('wheelCloseBtn').addEventListener('click', closeWheel);
+$('wheelMinBtn').addEventListener('click', function () { setWheelMin(!wheelMin); });
+$('wheelSpinBtn').addEventListener('click', wheelSpin);
+$('wheelCanvas').addEventListener('click', wheelSpin);
+$('wheelAddBtn').addEventListener('click', wheelAddFromBox);
+$('wheelNewRoundBtn').addEventListener('click', wheelNewRound);
+$('wheelReseedBtn').addEventListener('click', wheelReseed);
+$('wheelClassSelect').addEventListener('change', function (e) { wheelSetClass(e.target.value); });
+$('wheelNewName').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); wheelAddFromBox(); }
+});
+/* Every key typed inside the window stays inside it, or the page's one-letter
+   tool shortcuts fire while a name is being written. */
+$('wheelCard').addEventListener('keydown', function (e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Tab') return;
+  e.stopPropagation();
+  if (e.key === 'Escape') closeWheel();
+});
+
+attachFloatWin({
+  modal: 'wheelModal', card: 'wheelCard', head: 'wheelHead', grip: 'wheelGrip',
+  get: function () { return wheelWin; },
+  set: function (b) { wheelWin = clampWheelWin(b); },
+  clamp: clampWheelWin, apply: applyWheelWin, save: saveWheelWin
+});
+if (window.ResizeObserver) new ResizeObserver(function () { wheelFit(); }).observe($('wheelStage'));
 
 /* ================= Live "being edited now" marker =================
    While the teacher has a saved worksheet open, that worksheet carries a
@@ -33098,7 +33808,7 @@ document.addEventListener('keydown', function (e) {
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', i: 'ainote', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', b: 'brace', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
-  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn', k: 'calcBtn', y: 'mmBtn' };
+  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn', z: 'wheelBtn', k: 'calcBtn', y: 'mmBtn' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
     if (toolKeys[k]) setTool(toolKeys[k]);

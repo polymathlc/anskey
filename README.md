@@ -3,6 +3,29 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.113.0 — Name wheel
+
+A 🎡 **Wheel** button (teacher only, shortcut **Z**) opens a floating window
+that calls on students fairly. Every name is called exactly once before anyone
+is called a second time; the spin after the last name starts the next round
+with everyone back on the wheel. Called names leave the wheel and sit struck
+through below it — tap one to put it back (or to skip an absent student).
+
+- **Names are remembered per class slot.** The list is kept against the reward
+  system's class string (day and time included), seeded once from the class
+  register. Add and remove names freely; a removed name stays removed. Next
+  lesson at the same time the same names are waiting, with nobody called yet
+  and the round back at 1. The list is stored on this device.
+- **Award marks from the wheel.** The student just called gets +1, +2, +5, +10
+  or any amount, through the Reward window's own award (marks history, bosses).
+  A name typed in by hand is linked to the register when it matches a student.
+- **Out of the way.** Drag the title bar to move it, the corner to resize it
+  (the wheel resizes with it), – to fold it to its title bar, which then shows
+  the last name called. The worksheet stays live underneath.
+
+Validation: `node --test tools/wheel-tests.mjs` and `node tools/wheel-check.mjs`
+(real Chromium: spins, a full round, award, move, resize, reload).
+
 ## v1.112.0 — GPT 6.1 Sol with two backup providers
 
 ChatGPT `gpt-6.1-sol` is the default for text, worksheet vision and reasoning.
