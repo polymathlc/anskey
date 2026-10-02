@@ -118,6 +118,10 @@ Minute prizes remain in the **Class prize bank** until the teacher marks them as
 
 Mission rolls, completion and prize redemption use durable receipts. If a save response is lost, **Retry saved request** retains the same roll, prize or summon instead of creating a new action. A failed transaction grants no prize. Lesson changes and closure cancel presentation without undoing committed progress.
 
+## Enemy health
+
+From v1.123.0, every enemy has half its previous maximum HP, with odd values rounded up. Existing active fights have both current and maximum HP halved once when opened or on their next saved action. This keeps ongoing damage progress while making the remaining fight shorter. Student stats, attack damage, XP and treasure are unchanged; completed encounters are preserved.
+
 ## Saving and migration
 
 The existing shared Firebase project remains in use. `ansKeyHeroes` verifies Google Firebase Auth and App Check, then authorizes each operation. Canonical characters and account claims live under `classroomHeroData/{teacherUid}`; encounter snapshots remain at `classroomBattles/{teacherUid}/classes/{classKey}`. Every server action updates its immutable receipt, encounter and participating canonical profiles in one transaction. Active encounter locks prevent one character fighting in two lessons simultaneously. Answers require the encounter and pending-turn ID; start, selection, boss turns and journal commands also enforce revisions. Failure is displayed instead of claiming the action saved.

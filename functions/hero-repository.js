@@ -204,8 +204,17 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
     const command=body.command;
     if(!['get','turn','cancel','focus','incorrect','redeem'].includes(command))deny('invalid_mission','Choose a mission action.',400);
     if(command==='get'){
-      const [saved,state]=await Promise.all([missionRef.get(),classRef.get()]);
-      return {mission:Missions.clean(docData(saved)),state:docData(state)};
+      return db.runTransaction(async tx=>{
+        const [saved,stateSnap]=await Promise.all([tx.get(missionRef),tx.get(classRef)]);
+        const before=docData(stateSnap);let state=Core.rebalanceEnemyHealth(before);
+        // Opening either battle screen updates a legacy encounter once. Keep
+        // this isolated from hero progression, mission prizes and combat turns.
+        if(state!==before){
+          state={...state,revision:(before.revision||0)+1,updatedAt:clock};
+          tx.set(classRef,state);
+        }
+        return {mission:Missions.clean(docData(saved)),state};
+      });
     }
     if(!/^[A-Za-z0-9_-]{8,100}$/.test(body.id||''))deny('invalid_mission','Invalid mission action.',400);
     if(command==='incorrect'&&!/^[A-Za-z0-9_-]{8,100}$/.test(body.spinId||''))deny('invalid_mission','Spin to call a student before recording an incorrect answer.',400);
