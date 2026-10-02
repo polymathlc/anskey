@@ -2,6 +2,25 @@
 
 Guidance for Claude when working in this repo.
 
+## Name wheel (v1.113.0)
+
+`WHEEL_*` / `wheelClean` / `wheelPick` / `wheelAddName` / `wheelLandingAngle` /
+`wheelSpin` / `wheelGive` / `openWheel` (search `Name wheel`), `#wheelBtn`,
+`#wheelModal` and the `.wh*` CSS. A floating window like the calculator, built on
+`attachFloatWin`; teacher-only through `applyRewardVisibility` and refused in every
+handler with `wheelTeacher()`. The rounds are pure and live between the
+`NAME WHEEL — rounds (pure)` and `— window` markers, which `tools/wheel-tests.mjs`
+cuts out of the page.
+
+The pick is made BEFORE the animation and written to storage first: a wheel closed
+mid-spin still counts the student as called, so nobody is called twice. The wheel
+turns over the names that were on it, then drops the winner. A spin with nobody left
+opens round N+1. Names are stored per reward-class string in `localStorage`
+(`polymath.wheel:{class}`); a new calendar day keeps the names and clears the calls.
+`seeded` stops a removed name coming back from the register. Marks go through
+`rwAwardMarks(student, delta, reason)`, never a second transaction. Run
+`node --test tools/wheel-tests.mjs` and `node tools/wheel-check.mjs`.
+
 ## Default text, vision and reasoning (v1.112.0)
 
 `OPENAI_DEFAULT_MODEL` is `gpt-6.1-sol`. `window.aiTextEngineOrder` keeps the
