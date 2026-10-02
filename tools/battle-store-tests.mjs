@@ -61,3 +61,13 @@ test('assist uses teacher API with lesson binding and preserves receipt through 
   assert.equal((await store.assist(payload)).hero.xp,6);assert.deepEqual(sent[0],sent[1]);
   assert.equal(sent[0].type,'assist');assert.equal(sent[0].classId,'Saturday 11am');
 });
+test('missions bind teacher and lesson, copy retry identity and require a confirmed mission',async()=>{
+  let sent,active=true,finish;
+  const store=setup((body)=>{sent=body;return new Promise(resolve=>{finish=resolve;});},()=>active);
+  const request={command:'turn',id:'mission-unique-001',expectedRevision:2,classId:'wrong',type:'battle'};
+  const promise=store.mission(request);request.id='changed';
+  assert.equal(sent.id,'mission-unique-001');assert.equal(sent.classId,'Saturday 11am');assert.equal(sent.type,'mission');
+  active=false;finish({mission:{revision:3}});await assert.rejects(promise,/Only the signed-in teacher/);
+  await assert.rejects(setup(async()=>({state:{}})).mission({command:'get'}),/could not be confirmed/);
+  await assert.rejects(setup().mission({command:'get'}),/Hero saving is loading/);
+});

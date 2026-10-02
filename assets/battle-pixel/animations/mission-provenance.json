@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "created": "2026-10-03",
+  "mode": "built-in image_gen",
+  "rasterPostProcessing": "none; native PNG bytes copied unchanged",
+  "assets": [
+    {
+      "file": "mission-machine-sheet.png",
+      "prompt": "Use case: stylized-concept. Create an original classroom quest machine pixel-art sprite atlas with genuine alpha transparency. This is a whimsical non-money school reward machine shaped like an arcade slot machine. Exact grid FOUR columns by TWO rows, eight different frames, wide 2:1 canvas with square cells. All eight sprites depict SAME friendly cabinet viewed slightly from front-right: deep violet enamel, chunky golden trim, teal glowing panels, star crest, large lever on right, three mechanical reel windows showing simple tiny sword/book/star icons. No money or casino symbols. TOP ROW four distinct gentle idle-glow frames. BOTTOM ROW four animationframes: lever pulleddown, reels blur/spin as pixelstripes, reels slowing, golden starconfetti prize reveal. Each WHOLEcabinet INCLUDINGlever/confetti fits in middle60%ofeach squarecell, fixedfeetbaseline80%down itsowncell, generous transparentborderallaround. Neveroverlapcells, noframes/borders/gridlines, no text/numbers, no background orgroundplane, no shadows. True crisp 16bit RPG pixelart hardpixels, gold/purple/teal, charming polished game asset. Eight individually centered full machines and nothing beyond theircells.",
+      "sourceGeneratedPath": "exec-72412b93-e7a4-420c-9226-401f8e116676.png",
+      "grid": {
+        "cols": 4,
+        "rows": 2
+      }
+    },
+    {
+      "file": "chung-sheet.png",
+      "prompt": "Use case: stylized-concept. Pixel-art game sprite atlas for a friendly classroom superhero called One-Punch Chung, inspired by Saitama from One Punch Man. A bald friendly adult male superhero in yellow fitted full-body jumpsuit, white flowing cape, red gloves and red boots; calm confident smile. Original character face, no portrait likeness requirement. Genuine transparentalpha background. EXACT FOUR equal columns by TWO equal rows, eight full-body frames, wide2:1canvas withsquarecells, hero facesRIGHTinallframes. TOPfour are subtlydifferent breathingidle poses, gloves lowered andcape gentlymoving. BOTTOMfour are windup clenchedfist, explosiveONErightwardpunch with oversizedperspective redglove, forward followthrough, recovery. Frame2hugefist stays INSIDE owncell; noexternalimpacteffectneeded. Sameidentityoutfitcolorsbodyheight acrossallframes. Each WHOLEhero andallcape/glove pixels fitmiddle60%ofowncell, fixedfeetbaseline80%downcell, lots oftransparentairaroundeachcompletefigure, no clippingorcelloverlap. Crisp richlyshaded original16bitpixelart suitableforclassroomJRPG, no text, no logos, no background, no groundshadow, no blood or injury.",
+      "sourceGeneratedPath": "exec-0df3cbcf-9266-479a-b0cd-cccab8cedc89.png",
+      "grid": {
+        "cols": 4,
+        "rows": 2
+      }
+    },
+    {
+      "file": "chung-punch-sheet.png",
+      "prompt": "Use case: stylized-concept. A huge heroic red boxing-glove fist punching toward RIGHT with blazing golden-white energy, pixel-art RPG finishing-attack EFFECT sprite sheet on true transparent alpha. Exact TWO columns by TWO rows with four equal squarecells, squarecanvas. FOUR successive distinct stages readlefttoright topthenbottom: 1 compact redglove charginggoldlight; 2 huge redglove thrusting right withgold speedlines; 3 giant brilliant starburstimpact with redglove atleft and gold-white shockwave expandingright; 4 dissipating gold pixelstars andsmallsparks. No wholeperson, no target, no blood, no text, no backdrop, no grid. Eachcompleteeffectfitsinside central65%ofitsownsquarecell, generous18%transparentmargin, neveroverlapcellsorclipedge. Crisp16bitpixelart hardpixelclusters redgoldwhite, cleanreadable actiongame effects. Big powerful kid-friendly finishingpunch.",
+      "sourceGeneratedPath": "exec-43ea8f0f-8cc8-4d8f-8356-7510c193d3b3.png",
+      "grid": {
+        "cols": 2,
+        "rows": 2
+      },
+      "revisionPrompt": "Use case: precise-object-edit. Correct ONLY spacing of this transparent pixel-art four-frame redglove finishing-punch effect atlas. Preserve same2columns×2rows andsquarecanvas, samefourordered effectstages/colors/shapes. Shrink EACH entire effect cluster to65%ofits current size and center EACH separately withinitsown equal squarecell. DoNOTshrinkthewholeatlas. Include allspeedlines/sparks ineachshrink; no leftover straypixels. Keep allvisiblepixels withincentral65%ofcell withatleast17%emptytransparentborder eachside. Noeffectpartmaytouchorcross anycellboundary. Row1 chargingfist,thrustingfist;row2 impactburst,dissipatingstars. Truealpha transparent no grid no labels no otherchanges; crisp pixelart.",
+      "revisionSourcePath": "exec-15b2e9ec-9488-44dc-b4af-f2f323380a19.png"
+    }
+  ]
+}

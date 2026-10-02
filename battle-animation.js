@@ -87,7 +87,7 @@
     nodes.forEach(function (node, index) {
       if (node.dataset.cbaMounted) return;
       node.dataset.cbaMounted = 'true';
-      var role = sheetName(node.dataset.cbaRole,node.dataset.cbaJob);
+      var role = node.dataset.cbaSpecial==='chung' ? 'chung' : sheetName(node.dataset.cbaRole,node.dataset.cbaJob);
       node.querySelector('.cbaFrames').style.backgroundImage = 'url("' + sheets + role + '-sheet.png")';
       node.querySelector('.cbaFrames').style.setProperty('--cba-phase', (-index * .23) + 's');
       load(role).then(function (ok) {
@@ -96,11 +96,12 @@
     });
   }
   function prepare(hero) {
-    var names=hero?[sheetName(hero.role,hero.job)]:roles.map(function(role){return sheetName(role);}).concat(effects);
+    var names=hero?[hero.isChung?'chung':sheetName(hero.role,hero.job)]:roles.map(function(role){return sheetName(role);}).concat(effects);
     (hero && hero.learnedSkills || []).forEach(function(id){var recipe=recipeFor(hero,id),atlas=atlases[recipe.family];names.push(atlas?atlas[0]:recipe.family);});
     return Promise.all(Array.from(new Set(names)).map(load));
   }
   function effectFor(hero, event) {
+    if(hero && hero.isChung) return 'chung-punch';
     var role = roleName(hero && hero.role), skill = skillById(event.skillId);
     if (event.itemId === 'fire-flask' || event.itemId === 'starbomb') return 'fire';
     if (skill) return recipeFor(hero,skill).family;
@@ -124,6 +125,7 @@
     var heroActor = options.heroActor || container.querySelector('[data-cba-actor="hero"]'), enemyActor = options.enemyActor || container.querySelector('[data-cba-actor="enemy"]');
     var sprite = heroActor && heroActor.querySelector('.cbaHero');
     var skill=skillById(event.skillId), recipe=recipeFor(hero,skill), fx = effectFor(hero, event), wasDormant=sprite && sprite.classList.contains('cbaDormant'), media = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    if(hero && hero.isChung) recipe.id='one-punch-chung';
     function stage(name, text) {
       if (done) return;
       container.dataset.cbaPhase = name;
@@ -192,7 +194,7 @@
     }
     var player = { finished: finished, cancel: function () { finish(true); } };
     players.set(container, player);
-    if (reduced() || !hero || !event || !(event.type === 'auto' || options.arena && event.type==='answer' && event.outcome==='correct' || options.preview)) { finish(false); return player; }
+    if (reduced() || !hero || !event || !(event.type === 'auto' || hero.isChung && event.type==='summon' || options.arena && event.type==='answer' && event.outcome==='correct' || options.preview)) { finish(false); return player; }
     function begin() {
     if(done || !container.isConnected) { finish(true); return; }
     if(reduced()) { finish(false); return; }
@@ -239,12 +241,24 @@
     }
     // Wait for just this cast's generated pixels before starting its timeline.
     // Slow first loads cannot consume the animation while the image is invisible.
-    var wanted=[sheetName(hero.role,hero.job),atlases[fx]?atlases[fx][0]:fx,'heal'];
+    var wanted=[hero.isChung?'chung':sheetName(hero.role,hero.job),atlases[fx]?atlases[fx][0]:fx,'heal'];
     if(event.enemy) wanted.push('slash');
     if(roleName(hero.role)==='mage' && (event.afflicted || []).some(function(entry){return entry.effect==='poison';})) wanted.push('fire');
     if((event.supported || []).length || (event.afflicted || []).length) wanted=wanted.concat(['cleric-advanced','mage-advanced','ranger-advanced']);
     Promise.all(Array.from(new Set(wanted)).map(load)).then(begin);
     return player;
+  }
+  function chungMarkup() {
+    return '<span class="cbaHero cbAvatar" data-cba-role="warrior" data-cba-special="chung" data-cba-sheet="chung" role="img" aria-label="One-Punch Chung"><span class="cbaFallback" aria-hidden="true">C</span><span class="cbaFrames" aria-hidden="true"></span></span>';
+  }
+  function playChung(container,options) {
+    options=options || {};
+    if(!container || !options.event || options.event.type!=='summon') return {finished:Promise.resolve({cancelled:true}),cancel:function(){}};
+    unmount(container);
+    var actor=document.createElement('div');actor.className='cbaChungActor';actor.innerHTML=chungMarkup()+'<strong>One-Punch Chung</strong>';container.appendChild(actor);mount(actor);
+    var hero={id:'teacher:chung',name:'One-Punch Chung',role:'warrior',isChung:true};
+    var player=playDuel(container,{hero:hero,event:options.event,heroActor:actor,enemyActor:options.enemyActor || container.querySelector('[data-cba-actor="enemy"],.cbBossVisual'),onStage:options.onStage});
+    player.finished.then(function(){actor.remove();});return player;
   }
   function playArena(container,options) { return playDuel(container,Object.assign({},options,{arena:true})); }
   function skillPreviewMarkup(skill,hero) {
@@ -264,5 +278,5 @@
     var target=container.querySelector('.cbaPreviewTarget'); if(skill.passive || !effect.power) target.hidden=true;
     return playDuel(container,{hero:hero,event:event,preview:true});
   }
-  window.ClassroomBattleAnimation = { heroMarkup: heroMarkup, mount: mount, unmount: unmount, prepare: prepare, playDuel: playDuel, effectFor: effectFor, recipeFor:recipeFor, previewSkill:previewSkill, skillPreviewMarkup:skillPreviewMarkup, playArena:playArena, reducedMotion: reduced };
+  window.ClassroomBattleAnimation = { heroMarkup: heroMarkup, chungMarkup:chungMarkup, playChung:playChung, mount: mount, unmount: unmount, prepare: prepare, playDuel: playDuel, effectFor: effectFor, recipeFor:recipeFor, previewSkill:previewSkill, skillPreviewMarkup:skillPreviewMarkup, playArena:playArena, reducedMotion: reduced };
 })();

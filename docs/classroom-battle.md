@@ -24,13 +24,15 @@ Award points with **+1 / +2 / +5 / +10 / Give** after a correct answer. The hero
 
 Points, the award history, school-wide boss damage and hero combat progress save in one server transaction. If a connection fails, **Retry +N points** checks the same award without counting it twice, including after reopening or reloading the wheel. Confirmed rejected changes unlock the controls so the roster or encounter can be corrected. The next points award after victory or defeat starts another random encounter and restores party HP/MP. Victory treasure goes to every hero.
 
+In v1.121.0, the server-confirmed HP/MP, damage log and victory treasure appear immediately. Animation continues as visual feedback without delaying the next spin or points award. The controls wait only for the save or a request that needs retry confirmation. The **Damage log** retains the latest 40 saved turns across encounters, showing the named hero and enemy, chosen move, awarded points, damage, critical hits, HP healing, actual MP restoration, shields, poison and enemy replies. Incorrect and skipped manual answers also appear. Reloading retains this history and does not replay old attacks.
+
 Turn off Quick fight to use the ordinary name wheel and marks buttons. Open Battle for manual answer-driven commands and the boss timing meter. An unresolved manual answer must be finished there before Quick fight continues. Closing the wheel or switching context cancels presentation; an already committed award remains saved.
 
 ## Teamwork and visible resources
 
-The wheel shows labelled HP and MP bars for the called hero and the enemy. Enemy skills spend 30 of 60 MP; normal attacks recover 15 MP. Bars retain the pre-turn values during animation and settle to the saved result afterward.
+The wheel shows labelled HP and MP bars for the called hero and the enemy. Enemy skills spend 30 of 60 MP; normal attacks recover 15 MP. Bars show the saved result immediately, without waiting for an animation or an animated bar transition.
 
-After a student is called, select **Assist · reward a helper**, choose another student in the same Lesson slot, and click **Give 6 assist XP**. The helper gains 6 XP once per called question. Assists do not award marks, spend MP, attack, or trigger an enemy reply. Their saved receipt prevents duplicate XP after retries or concurrent clicks. An interrupted save offers **Retry assist** and keeps the original helper/question through reopening the wheel.
+After a student is called, select **Assist · reward a helper**, choose another student in the same Lesson slot, and click **Give 6 assist XP**. The helper gains 6 XP once per called question. Assist itself does not award marks, spend MP, attack, or trigger an enemy reply; completing an Assist mission can separately earn its class prize. The saved receipt prevents duplicate XP after retries or concurrent clicks. An interrupted save offers **Retry assist** and keeps the original helper/question through reopening the wheel.
 
 ## Level-15 job upgrades
 
@@ -49,9 +51,11 @@ At level 15, choose a job in **My Hero** or the teacher’s hero journal between
 
 Both male and female versions of all four base hero classes and eight advanced jobs have four generated breathing idle frames and four action frames. Idle loops appear in the quick duel, party formation, journal, My Hero, class picker and skill-tree centre. Resting party heroes remain still. Warrior action frames show a sword windup, slash and recovery; Ranger frames draw and release the bow; Mage and Cleric frames raise their staffs and cast.
 
-After the server saves a quick or manual turn, the hero animates and a generated effect appears. Quick fight then plays the saved enemy reply; manual enemy turns remain teacher controlled. Warrior slashes strike the enemy, Ranger arrows travel across the duel, and Mage effects follow the selected skill path: Pyromancy uses fire, Frostcraft ice, and Arcanist lightning. Healing sparkles appear on heroes who actually received healing; affected teammates appear below the duel when needed. Damage numbers reflect the saved event. In Quick fight, health and victory treasure settle after the sequence, which takes about two seconds with an enemy response.
+After the server saves a quick or manual turn, the hero animates and a generated effect appears. Quick fight then plays the saved enemy reply; manual enemy turns remain teacher controlled. Warrior slashes strike the enemy, Ranger arrows travel across the duel, and Mage effects follow the selected skill path: Pyromancy uses fire, Frostcraft ice, and Arcanist lightning. Healing sparkles appear on heroes who actually received healing; affected teammates appear below the duel when needed. Damage numbers reflect the saved event. Health, the log and victory treasure are already visible while these effects play. A new spin or saved turn can cancel the current effect and continue immediately.
 
-The 35 transparent PNG sheets in `assets/battle-pixel/animations/` were made with built-in ImageGen and copied unchanged. Their 392 distinct frames, full generation/revision prompts, source filenames, and integrity manifest ship with the app. Version 1.120 adds twelve paired appearance sheets with 192 new frames. Each sheet has four columns and four rows: male idle, male attack, female idle, female attack. The earlier character and effect sheets remain available for compatibility. All 144 skills have their own deterministic effect choreography; generated effects include shields, revival, cleansing, time magic, wolves, hawks, phoenixes and healing roots. Both wheel and manual casts use these effects, and each skill has a replayable preview. Sprite sheets preload for Quick fight; missing sheets show an accessible gender badge without displaying the wrong character version. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. Job advancement, Assist and saved appearance changes require the updated `ansKeyHeroes` service; no new rules migration is needed.
+The 35 hero and spell PNG sheets in `assets/battle-pixel/animations/` contain 392 distinct frames. Version 1.120 added twelve paired appearance sheets with 192 frames: four columns and four rows for male idle, male attack, female idle and female attack. Version 1.121 adds three mission and One-Punch Chung sheets with 20 frames, bringing this folder to 38 sheets and 412 animation frames. The new mission-machine and Chung sheets each use four columns and two rows; the huge-punch effect uses two columns and two rows. All are native transparent built-in ImageGen outputs copied unchanged, with full generation/revision prompts, source filenames and integrity manifests. The five item atlases are stored separately in `assets/battle-pixel/items/`.
+
+All 144 skills have their own deterministic effect choreography; generated effects include shields, revival, cleansing, time magic, wolves, hawks, phoenixes and healing roots. Both wheel and manual casts use these effects, and each skill has a replayable preview. Sprite sheets preload for Quick fight; missing sheets show an accessible gender badge without displaying the wrong character version. Reduced-motion preferences skip combat playback and hold a still idle frame. Closing or changing context cancels visual effects without changing the saved result. Job advancement, Assist, appearance and missions require the updated `ansKeyHeroes` service; no new rules migration is needed.
 
 ## Commands and progression
 
@@ -73,14 +77,46 @@ Victory opens an animated four-frame pixel chest and gives **every hero**, inclu
 
 | Rarity | Chance | Examples |
 | --- | ---: | --- |
-| Common | 45% | Red Potion, Blue Ether, Iron Charm, Bronze Blade |
-| Uncommon | 27% | Fire Flask, Party Tonic, Oak Amulet, Hunter's Band |
-| Rare | 16% | Phoenix Feather, Mana Prism, Crimson Edge, Silver Aegis |
-| Epic | 8% | Astral Elixir, Starbomb, Storm Quiver, Moon Codex |
-| Legendary | 3.3% | Dawnbringer heals the team on damaging actions; Worldroot improves durability and MP recovery |
-| Mythical | 0.7% | Phoenix Crown revives a fallen ally, Chronicle echoes every third damaging action, Void Edge bypasses armour/guard, Sovereign Star restores team HP/MP |
+| Common | 45% | Red Potion, Copper Sabre, Buckler of Bravery, Apprentice Grimoire |
+| Uncommon | 27% | Party Tonic, Mossguard Shield, Tideglass Pendant, Windfletch Quiver |
+| Rare | 16% | Phoenix Feather, Ruby Fang, Frostbite Bow, Celestial Censer |
+| Epic | 8% | Starbomb, Voidsteel Katana, Thunderwing Quiver, Eclipse Grimoire |
+| Legendary | 3.3% | Solar Sovereign Blade heals the team on damaging actions; Infinity Mana Lantern improves MP capacity and recovery |
+| Mythical | 0.7% | Eternal Phoenix Diadem revives a fallen ally, Hourglass of Infinity echoes every third damaging action, Reality Cleaver bypasses armour/guard, Heart of the Constellation restores team HP/MP |
 
-Rewards are selected deterministically from an encounter ID and hero ID, with independent rarity and item rolls. Different heroes can receive the same item by chance. The catalogue contains 22 items. Duplicate items stack to 999; each hero equips one relic at a time. After every treasure drop, the hero automatically equips the highest-rarity equipment in their bag; consumables are excluded and equal-rarity ties keep the current relic. Auto-equipping never restores HP or MP by itself. The treasure result names any newly auto-equipped item. An encounter supports 100 heroes. Canonical roster profiles retain their progression independently of lesson snapshots and their bounded archives.
+Rewards are selected deterministically from an encounter ID and hero ID, with independent rarity and item rolls. Different heroes can receive the same item by chance. Version 1.121 adds 50 equipment items: 10 common, 10 uncommon, 10 rare, 8 epic, 8 legendary and 4 mythical, for **72 items total**. Their bonuses use actual attack, defence, HP, MP, healing, critical, recovery and special equipment mechanics. The original 22 IDs and effects remain compatible.
+
+The treasure screen shows a responsive grid with each student's name, item picture, rarity, XP, effects and any newly auto-equipped relic. Pictures also appear in My Hero and the teacher's treasure bag and Items menu. Five native ImageGen atlases contain ten distinct icons each in a five-column, two-row grid; the original items reuse suitable vial, feather, weapon, shield, book and relic pictures. Their catalog, full prompts, generation/edit provenance and integrity manifest are in `assets/battle-pixel/items/`.
+
+Duplicate items stack to 999; each hero equips one relic at a time. After every treasure drop, the hero automatically equips the highest-rarity equipment in their bag; consumables are excluded and equal-rarity ties keep the current relic. Auto-equipping never restores HP or MP by itself. An encounter supports 100 heroes. Canonical roster profiles retain their progression independently of lesson snapshots and their bounded archives.
+
+## Mission machine and One-Punch Chung
+
+The teacher can open the **Mission machine** in Quick fight or the manual battle and press **Turn**. The server independently chooses one of four equally likely class objectives and one prize. Finish or cancel the current mission before turning again. Missions and the class prize bank belong to the Lesson slot and persist across encounters and reloads.
+
+| Objective | How it progresses |
+| --- | --- |
+| Defeat the next enemy | Defeat the current active enemy, or the next encounter if none is active. |
+| 7 correct answers in a row | Correct manual answers and saved wheel point awards count; an incorrect answer resets the streak. Multiple awards for the same wheel question count only once toward the streak. In Quick fight, use **Incorrect answer · reset streak** when needed. |
+| Stay focused and quiet for 30 minutes | The saved server timer must elapse, then the teacher clicks **Confirm 30 focused minutes**. Focus is teacher confirmed rather than automatically observed. |
+| Assist your friends 3 times | Three newly saved Assist actions complete it; duplicate helper/question receipts do not add progress. |
+
+| Class prize | Chance |
+| --- | ---: |
+| Summon One-Punch Chung — rare | 5% |
+| +1 minute Blooket | 15% |
+| +2 minutes Blooket | 15% |
+| +3 minutes Blooket | 15% |
+| +1 minute Gimkit | 15% |
+| +2 minutes Gimkit | 15% |
+| +3 minutes Gimkit | 15% |
+| +5 bonus points for all students — rare | 5% |
+
+Minute prizes remain in the **Class prize bank** until the teacher marks them as used. The app records these rewards; the teacher provides the extra Blooket or Gimkit time. The points prize immediately gives 5 marks to every current roster student in that Lesson slot, even if they are not in the encounter. This payout has an award ledger entry for each student and is committed once with mission completion.
+
+**Use earned summon** spends one saved class summon. **Teacher help · one punch** is always available to the teacher during an active encounter and spends no reward. Both call the generated One-Punch Chung avatar, whose **One Huge Punch** defeats any enemy regardless of armour or guard, clears a pending answer and awards the ordinary victory treasure to every hero. HP, victory and the damage log update immediately after the save; the large punch animation is visual feedback. A retry cannot spend the summon or award loot twice.
+
+Mission rolls, completion and prize redemption use durable receipts. If a save response is lost, **Retry saved request** retains the same roll, prize or summon instead of creating a new action. A failed transaction grants no prize. Lesson changes and closure cancel presentation without undoing committed progress.
 
 ## Saving and migration
 
@@ -88,7 +124,7 @@ The existing shared Firebase project remains in use. `ansKeyHeroes` verifies Goo
 
 The state keeps schemaVersion 1 for deployed-rule compatibility. Hero progressionVersion 1 marks the independent character model. An older saved encounter retains its enemy, pending turn and proportional hero health during migration; Healer becomes Cleric. It receives no retroactive loot for an already completed encounter. Roster synchronization can update names and membership but cannot overwrite saved stats, skills or inventory. New encounters never trust roster-supplied progression.
 
-`battle-content.js` owns class skills and items; `battle-core.js` applies deterministic mechanics; `battle-store.js` subscribes to saved state and dispatches authenticated API requests; `functions/hero-repository.js` owns transactions. `classroom-battle.js` presents the arena, `quick-battle.js` the compact duel, `student-heroes.js` the claim/hero screens, and `hero-skill-tree.js` the reusable graph. Original generated assets and complete built-in ImageGen prompts are in `assets/battle-pixel/`. The chest sheet has four 543×724 frames, displayed with a 3:4 aspect ratio. Skill icons are crisp-edged inline pixel SVGs with distinct effect motifs.
+`battle-content.js` owns class skills and items; `battle-core.js` applies deterministic mechanics and records the latest 40 combat turns; `mission-content.js` defines objectives, prize weights and mission progress. `battle-store.js` subscribes to saved state and dispatches authenticated API requests; `functions/hero-repository.js` owns transactions, mission receipts and class payouts. `classroom-battle.js` presents the arena, `quick-battle.js` the compact duel, `mission-machine.js` the shared teacher mission panel, `battle-display.js` the item pictures, treasure grid and saved damage log, `student-heroes.js` the claim/hero screens, and `hero-skill-tree.js` the reusable graph. Original generated assets and complete built-in ImageGen prompts are in `assets/battle-pixel/`. The chest sheet has four 543×724 frames, displayed with a 3:4 aspect ratio. Skill icons are crisp-edged inline pixel SVGs with distinct effect motifs.
 
 This release requires the updated `ansKeyHeroes` deployment. Existing installations with the authoritative hero rules need no additional rules migration; fresh installations use the narrow shared-rules upgrade in `tools/hero-rules.mjs`. All browser access to canonical profiles and direct battle writes is denied; verified teachers retain encounter reads. Existing progress migrates from one prior snapshot (highest XP, then latest update/revision) without summing duplicated inventories. Unfinished legacy encounters still hold their locks. Do not replace the shared project's rules with an app-local rules file. After changing game rules, synchronize the Functions bundle with `node tools/sync-hero-game.mjs`.
 
@@ -100,3 +136,5 @@ This release requires the updated `ansKeyHeroes` deployment. Existing installati
 - `PW=/path/to/playwright/index.mjs node tools/wheel-check.mjs` checks the original wheel. Set `PLAYWRIGHT_BROWSER_CHANNEL=chrome` to use local Chrome. CI installs Chromium and saves screenshots.
 - `tools/quick-wheel-browser-check.mjs`, `tools/student-heroes-browser-check.mjs` and `tools/hero-skill-tree-browser-check.mjs` exercise automatic fights, claim/picker/teacher flows, account races, pixel graphs and mobile layouts with synthetic service fixtures. Production credentials are never embedded in the tests.
 - `tools/battle-animation-art-tests.mjs` verifies all generated sheet hashes, alpha, grid boundaries and distinct frame content. `tools/battle-animation-browser-check.mjs` verifies idle motion, each class effect, playback ordering, cancellation, duplicate callbacks, missing assets and reduced motion.
+- `tools/item-catalog-tests.mjs` checks all 72 loot entries, supported bonuses, drop reachability and the 50 unique item pictures. `tools/mission-animation-art-tests.mjs` checks the native mission/Chung sheets. `tools/mission-tests.mjs` and the server tests cover mission probabilities, timer/streak/Assist progress, current-roster payouts, summon authority and exact-once receipts. `tools/mission-machine-browser-check.mjs` exercises the mission panel, class bank, failed-response retries and Lesson slot lifecycle.
+- `tools/mission-animation-browser-check.mjs` checks Chung and machine playback, responsive controls during effects, cancellation, reduced motion and mobile layouts.

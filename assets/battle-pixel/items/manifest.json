@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "columns": 5,
+  "rows": 2,
+  "assets": [
+    {
+      "sheet": "items-1",
+      "file": "items-1.png",
+      "bytes": 962137,
+      "sha256": "2de7239b5b94c55ed658f015f89c7dce0f486ef4bcf0c445b9cd303a0720d993",
+      "width": 1983,
+      "height": 793,
+      "alpha": {
+        "transparentPixels": 1061918,
+        "partialPixels": 509172,
+        "opaquePixels": 1429,
+        "visiblePixels": 433037,
+        "nearOpaquePixels": 419195
+      }
+    },
+    {
+      "sheet": "items-2",
+      "file": "items-2.png",
+      "bytes": 1191152,
+      "sha256": "6e4298feb34baf26e9f8155fd87fbdcf86fe34169273f05670b5a586d4a5c34d",
+      "width": 1983,
+      "height": 793,
+      "alpha": {
+        "transparentPixels": 1038671,
+        "partialPixels": 533332,
+        "opaquePixels": 516,
+        "visiblePixels": 439213,
+        "nearOpaquePixels": 418046
+      }
+    },
+    {
+      "sheet": "items-3",
+      "file": "items-3.png",
+      "bytes": 784721,
+      "sha256": "a7567675a50421d46b617f280ed7bac593dc2ecd2a9b61fdf3679f2b201ed9cf",
+      "width": 1983,
+      "height": 793,
+      "alpha": {
+        "transparentPixels": 1276463,
+        "partialPixels": 295882,
+        "opaquePixels": 174,
+        "visiblePixels": 235827,
+        "nearOpaquePixels": 218462
+      }
+    },
+    {
+      "sheet": "items-4",
+      "file": "items-4.png",
+      "bytes": 1196450,
+      "sha256": "d850fc0b498a4dc6d4efe4b161112a9632436f9c2153fc5ded1fd61d5242cf31",
+      "width": 1983,
+      "height": 793,
+      "alpha": {
+        "transparentPixels": 1033889,
+        "partialPixels": 538482,
+        "opaquePixels": 148,
+        "visiblePixels": 410199,
+        "nearOpaquePixels": 377019
+      }
+    },
+    {
+      "sheet": "items-5",
+      "file": "items-5.png",
+      "bytes": 1375006,
+      "sha256": "41dfe75d89eff163e5614e35aab4b51b73b567feb36e0d0c9af74de15cd8fc73",
+      "width": 1983,
+      "height": 793,
+      "alpha": {
+        "transparentPixels": 1000067,
+        "partialPixels": 572340,
+        "opaquePixels": 112,
+        "visiblePixels": 427062,
+        "nearOpaquePixels": 385841
+      }
+    }
+  ]
+}

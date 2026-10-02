@@ -13,12 +13,12 @@ page.on('pageerror',error=>errors.push(error.message));
 const repo=path.resolve('.'), output=path.resolve(process.env.BATTLE_SCREENSHOTS || '../battle-validation');
 fs.mkdirSync(output,{recursive:true});
 const fixture=path.join(output,'animation-fixture.html');
-fs.writeFileSync(fixture,`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="${pathToFileURL(repo+path.sep).href}"><link rel="stylesheet" href="classroom-battle.css"><link rel="stylesheet" href="battle-animation.css"><style>body{background:#102037;color:white;margin:24px;font-family:system-ui}#wheelModal{display:block;position:static;width:auto}#wheelQuickFight{max-width:620px}#samples{display:flex;gap:24px;height:140px;align-items:center}#samples .cbaHero{width:100px;height:100px}</style></head><body><div id="samples"></div><div id="wheelModal" class="open"><select id="wheelClassSelect"><option>Science</option></select><div class="whSpinRow"><button id="wheelSpinBtn">Spin</button></div><div id="wheelHeroPreview"></div></div><script src="battle-bosses.js"></script><script src="battle-content.js"></script><script src="battle-core.js"></script><script>window.ClassroomBattleStore={};</script><script src="battle-animation.js"></script><script src="quick-battle.js"></script></body></html>`);
+fs.writeFileSync(fixture,`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="${pathToFileURL(repo+path.sep).href}"><link rel="stylesheet" href="classroom-battle.css"><link rel="stylesheet" href="battle-animation.css"><link rel="stylesheet" href="mission-machine.css"><style>body{background:#102037;color:white;margin:24px;font-family:system-ui}#wheelModal{display:block;position:static;width:auto}#wheelQuickFight{max-width:620px}#samples{display:flex;gap:24px;height:140px;align-items:center}#samples .cbaHero{width:100px;height:100px}</style></head><body><div id="samples"></div><div id="wheelModal" class="open"><select id="wheelClassSelect"><option>Science</option></select><div class="whSpinRow"><button id="wheelSpinBtn">Spin</button></div><div id="wheelHeroPreview"></div></div><script src="battle-bosses.js"></script><script src="battle-content.js"></script><script src="battle-core.js"></script><script>window.ClassroomBattleStore={};</script><script src="battle-animation.js"></script><script src="battle-display.js"></script><script src="quick-battle.js"></script></body></html>`);
 let checks=0, spin=0;
 function check(name,condition){assert.ok(condition,name);checks++;console.log('✓ '+name);}
 async function reset(role='warrior',options={}){
   await page.evaluate(({role,options})=>{
-    QuickBattle.close(); sessionStorage.clear(); window.__fail=false;window.__delay=25;window.__awardError='';
+    QuickBattle.close(); sessionStorage.clear(); window.__fail=false;window.__delay=25;window.__awardError='';window.__nextBeforeReply=false;
     window.__state=ClassroomBattleCore.reduce(null,{type:'start',id:'animation-start-'+Math.random().toString(36).slice(2),heroes:rwStudents.map((student,index)=>ClassroomBattleCore.configureHero(ClassroomBattleCore.heroFromStudent(student,null,index),{command:'class',role:index===0?role:'warrior'})),bossId:ClassroomBattleCore.BOSSES.find(b=>!b.legacy).id});
     if(options.gender)__state.heroes[0].gender=options.gender;
     if(options.wounded)__state.heroes.forEach(h=>h.hp=15);
@@ -29,9 +29,9 @@ async function reset(role='warrior',options={}){
   },{role,options});
   await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
 }
-async function land(points=1){const id='animation-spin-'+(++spin);await page.evaluate(({id,points})=>{wheelState.lastSpinId=id;window.wheelWinnerIdx=0;QuickBattle.landed({id:'one',n:'Ari'},id);window.__spinPromise=QuickBattle.award({id:'one',n:'Ari'},points,'Name wheel').catch(error=>{window.__awardError=error.message;});},{id,points});return id;}
+async function land(points=1){const id='animation-spin-'+(++spin);await page.evaluate(({id,points})=>{wheelState.lastSpinId=id;window.wheelWinnerIdx=0;QuickBattle.landed({id:'one',n:'Ari'},id);window.__awardSettled=false;window.__spinPromise=QuickBattle.award({id:'one',n:'Ari'},points,'Name wheel').then(()=>{__awardSettled=true;}).catch(error=>{window.__awardError=error.message;});},{id,points});return id;}
 async function phase(value){await page.waitForFunction(value=>document.getElementById('wheelQuickDuel').dataset.cbaPhase===value,value);}
-async function settle(){await page.evaluate(()=>__spinPromise);}
+async function settle(){await page.evaluate(()=>__spinPromise);await page.waitForFunction(()=>!document.querySelector('#wheelQuickDuel.cbaPlaying'));}
 try{
   await page.goto(pathToFileURL(fixture).href);
   await page.evaluate(()=>{
@@ -39,12 +39,12 @@ try{
     window.wheelClass='Science';window.wheelSpinning=false;
     window.rwStudents=[{id:'one',name:'Ari',slots:['Science'],marks:10},{id:'two',name:'Bo',slots:['Science'],marks:10}];
     window.rwStudentClasses=s=>s.slots;window.rwStudentsInClass=()=>rwStudents;window.wheelStudent=entry=>rwStudents.find(s=>s.id===entry?.id);window.wheelGiven=0;window.wheelRender=()=>QuickBattle.render();
-    window.wheelState={names:rwStudents.map(s=>({id:s.id,n:s.name}))};window.__calls=0;window.__listener=null;
+    window.wheelState={names:rwStudents.map(s=>({id:s.id,n:s.name}))};window.__calls=0;window.__listener=null;window.__duelPlays=[];const originalPlay=ClassroomBattleAnimation.playDuel;ClassroomBattleAnimation.playDuel=function(container,options){__duelPlays.push(options.event.id);return originalPlay(container,options);};
     ClassroomBattleStore.create=()=>({subscribe(fn){__listener=fn;setTimeout(()=>{if(__listener===fn)fn(structuredClone(__state));},0);return()=>{if(__listener===fn)__listener=null;};},async award({studentId,delta,action}){
       __calls++;await new Promise(r=>setTimeout(r,__delay));if(__fail)throw new Error('Save failed for test');
       __state=ClassroomBattleCore.reduce(__state,{...action,type:'auto',points:delta});
       const student=rwStudents.find(s=>s.id===studentId),award={id:action.id,studentId,delta,marks:student.marks+delta};
-      if(__listener)__listener(structuredClone(__state));await new Promise(r=>setTimeout(r,25));return {state:structuredClone(__state),award};
+      const savedReply=structuredClone(__state);if(__listener)__listener(structuredClone(__state));if(__nextBeforeReply){__state=ClassroomBattleCore.reduce(__state,{type:'start',id:'replacement-before-http-reply',expectedRevision:__state.revision,heroes:__state.heroes,bossId:ClassroomBattleCore.BOSSES.filter(b=>!b.legacy)[1].id});if(__listener)__listener(structuredClone(__state));}await new Promise(r=>setTimeout(r,25));return {state:savedReply,award};
     }});
     document.getElementById('samples').innerHTML=['warrior','ranger','mage','cleric'].map(role=>ClassroomBattleAnimation.heroMarkup(role)).join('');ClassroomBattleAnimation.mount(document.getElementById('samples'));
   });
@@ -65,8 +65,8 @@ try{
   await page.waitForTimeout(400);
   check('landing leaves the avatar idling without a save or attack',await page.evaluate(prior=>__calls===prior.calls&&__state.bossHp===prior.hp&&!document.querySelector('.cbaPlaying')&&!document.querySelector('.cbaEffect'),prior));
   const firstId=await land();await phase('windup');
-  check('saved point award starts one action pose and gates another spin',await page.evaluate(()=>document.querySelector('.cbQuickHero .cbaActing')&&document.getElementById('wheelSpinBtn').disabled&&!QuickBattle.beforeSpin()));
-  check('HP remains at the prior saved snapshot during windup',await page.locator('.cbQuickEnemy').textContent().then(text=>text.includes('HP '+prior.hp+'/')));
+  check('saved point award returns immediately and leaves the wheel available during animation',await page.evaluate(()=>__awardSettled&&document.querySelector('.cbQuickHero .cbaActing')&&!document.getElementById('wheelSpinBtn').disabled&&!QuickBattle.blocksAward()));
+  check('HP and the persisted damage log show final saved results during windup',await page.evaluate(()=>document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')&&document.querySelectorAll('[data-combat-id]').length===__state.combatLog.length));
   await phase('hero-impact');
   check('warrior slash is generated over the enemy',await page.locator('.cbQuickEnemy .cbaFx-slash').count()===1);
   await page.screenshot({path:path.join(output,'animated-warrior-slash.png')});
@@ -80,6 +80,8 @@ try{
   check('settled fight exposes final HP and re-enables the wheel',await page.evaluate(()=>!document.getElementById('wheelSpinBtn').disabled&&document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')&&!document.querySelector('.cbaEffect')));
   await page.evaluate(id=>QuickBattle.landed({id:'one',n:'Ari'},id),firstId);
   check('duplicate landing does not send another command or replay',await page.evaluate(calls=>__calls===calls+1&&!document.querySelector('.cbaPlaying'),prior.calls));
+  await reset();const playsBeforeReplacement=await page.evaluate(()=>__duelPlays.length);await page.evaluate(()=>__nextBeforeReply=true);await land();await page.evaluate(()=>__spinPromise);
+  check('newer encounter snapshot before the HTTP reply prevents stale attack playback',await page.evaluate(count=>__duelPlays.length===count&&!document.querySelector('#wheelQuickDuel.cbaPlaying')&&__state.encounterId==='replacement-before-http-reply'&&document.querySelector('.cbQuickEnemy').textContent.includes(ClassroomBattleCore.bossById(__state.bossId).name)&&document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')&&!QuickBattle.blocksAward(),playsBeforeReplacement));
   await reset('warrior',{knockout:true});await land();await phase('windup');
   check('a hero knocked out by the saved enemy reply still performs its earlier attack pose',await page.evaluate(()=>__state.heroes[0].hp===0&&getComputedStyle(document.querySelector('.cbQuickHero .cbaFrames')).animationName==='cbaActionFrames'));
   await settle();
@@ -96,8 +98,8 @@ try{
   check('cleric healing plays only on the recorded healed teammates',await page.evaluate(()=>{const expected=__state.lastEvent.healed.filter(e=>e.amount>0).map(e=>e.heroId);return __state.lastEvent.damage===0&&expected.length===2&&document.querySelectorAll('.cbaFx-heal').length===expected.length&&expected.every(id=>Array.from(document.querySelectorAll('[data-cba-hero-id]')).some(node=>node.dataset.cbaHeroId===id&&node.querySelector('.cbaFx-heal')))&&!document.querySelector('.cbQuickEnemy .cbaEffect');}));
   await page.screenshot({path:path.join(output,'animated-cleric-heal.png')});await settle();
   await reset('warrior',{victory:true});await land();await phase('hero-impact');
-  check('victory chest waits for the final hit presentation',await page.locator('.cbQuickTreasure').count()===0);await settle();
-  check('settled victory reveals the saved chest and rewards once',await page.evaluate(()=>document.querySelectorAll('.cbQuickTreasure').length===1&&document.querySelectorAll('.cbQuickTreasure details p').length===__state.rewards.length));
+  check('victory chest and item grid appear immediately while the final hit animates',await page.locator('.cbQuickTreasure .cbReward').count()===2);await settle();
+  check('settled victory reveals the saved chest and rewards once',await page.evaluate(()=>document.querySelectorAll('.cbQuickTreasure').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===__state.rewards.length));
   await reset();await land();await phase('hero-impact');
   const beforeClose=await page.evaluate(()=>JSON.stringify(__state));
   await page.evaluate(()=>{QuickBattle.close();document.getElementById('wheelModal').classList.remove('open');});await settle();await page.waitForTimeout(850);
@@ -108,7 +110,7 @@ try{
   check('failed award shows an error and no invented attack',await page.evaluate(()=>document.getElementById('wheelQuickStatus').textContent.includes('Save failed')&&__awardError.includes('Save failed')&&!document.querySelector('.cbaPlaying')&&!document.querySelector('.cbaEffect')));
   await reset();await land();await phase('windup');
   await page.evaluate(()=>{__state.revision++;__state.bossHp--;__listener(structuredClone(__state));});await settle();
-  check('newer snapshots queue through playback and win on completion',await page.evaluate(()=>document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')));
+  check('newer snapshots cancel old playback and show the newest saved results immediately',await page.evaluate(()=>document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')));
   await reset();await land();await phase('windup');await page.emulateMedia({reducedMotion:'reduce'});await settle();
   check('enabling reduced motion cancels visuals and settles saved health immediately',await page.evaluate(()=>!document.querySelector('.cbaPlaying')&&!document.getElementById('wheelSpinBtn').disabled));
   await reset('mage');const started=Date.now();await land();await settle();

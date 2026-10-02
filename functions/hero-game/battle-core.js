@@ -239,7 +239,7 @@
         const next=cleanHero(h,h); next.hp=h.hp<=0?0:int(next.stats.maxHp*(h.hp/h.stats.maxHp),1,next.stats.maxHp); return next;
       });
     }
-    state.heroArchive=state.heroArchive || {}; state.rewards=state.rewards || [];
+    state.heroArchive=state.heroArchive || {}; state.rewards=state.rewards || [];state.combatLog=(state.combatLog || []).slice(-40);
     if (state.lootAwarded===undefined) state.lootAwarded=state.status!=='active';
     state.bossWeakness=state.bossWeakness || 0; state.poison=state.poison || null;
     state.bossMaxMp=BOSS_MAX_MP;state.bossMp=state.bossMp===undefined?BOSS_MAX_MP:int(state.bossMp,0,BOSS_MAX_MP);
@@ -311,7 +311,7 @@
       const bossMaxHp=Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier);
       return {schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
         bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
-        bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,rewards:[],lootAwarded:false,lastEvent:event};
+        bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)};
     }
     if (!previous || action.encounterId!==previous.encounterId) fail('This encounter has changed. Reload its latest progress.');
     const state=normalizeState(previous), boss=bossById(state.bossId);
@@ -338,6 +338,12 @@
       state.status='defeat'; state.pending=null; state.revision++; state.lastEvent=event; return state;
     }
     if (state.status!=='active') fail('Encounter finished. Start a new encounter to play again.');
+    if (action.type==='summon') {
+      if (action.expectedRevision!==state.revision) fail('The encounter changed. Try the summon again.');
+      if (!['reward','teacher'].includes(action.source)) fail('Choose a class summon reward or teacher help.');
+      Object.assign(event,{actorName:'One-Punch Chung',move:'One Huge Punch',damage:state.bossHp,source:action.source,outcome:'victory'});
+      state.bossHp=0;state.pending=null;return finish(state,event);
+    }
     if (action.type==='select') {
       if (state.pending) fail('Resolve the selected answer before spinning again.');
       if (action.expectedRevision!==state.revision) fail('The class changed on another screen. Spin again.');
@@ -369,8 +375,9 @@
         Object.keys(hero.cooldowns).forEach(id=>{hero.cooldowns[id]=Math.max(0,hero.cooldowns[id]-1);});
         if (skill) {hero.mp-=skill.mpCost;hero.cooldowns[skill.id]=skill.cooldown;}
         if (itemEntry) {itemEntry.quantity--;hero.inventory=hero.inventory.filter(i=>i.quantity>0);}
-        if (event.command==='attack') restoreMana(hero,10);
-        restoreMana(hero,gear.manaRegen || 0);
+        const restore=(h,amount)=>{const actual=restoreMana(h,amount);if(actual>0)(event.supported||(event.supported=[])).push({heroId:h.id,effect:'mana',amount:actual});};
+        if (event.command==='attack') restore(hero,10);
+        restore(hero,gear.manaRegen || 0);
         support(state,hero,effect,event,target,points);
         if (effect.power || effect.damage) {
           hero.correctActions++;
@@ -382,7 +389,7 @@
           state.bossHp-=event.damage; state.guard=false;
           if (effect.leech || gear.leech) heal(hero,event.damage*((effect.leech || 0)+(gear.leech || 0)),event);
           if (gear.teamLeech) state.heroes.forEach(h=>heal(h,Math.round(h.stats.maxHp*gear.teamLeech)*points,event));
-          if (gear.teamMana) state.heroes.forEach(h=>restoreMana(h,gear.teamMana*points));
+          if (gear.teamMana) state.heroes.forEach(h=>restore(h,gear.teamMana*points));
           if (boss.playstyle==='reflect' && state.bossHp>0) {
             const damage=Math.min(hero.hp,Math.max(1,Math.round(event.damage*.12)));
             hero.hp-=damage;event.targets.push({heroId:hero.id,damage});event.effect='reflect';
@@ -425,7 +432,23 @@
     fail('Unknown battle action.');
   }
   // The multiplier is private: manual answer payloads cannot amplify combat.
-  function reduce(previous,action) { return apply(previous,action); }
+  function combatLogEntry(state,event) {
+    const names=new Map(state.heroes.map(h=>[h.id,h.name])),enemyName=bossById(state.bossId).name;
+    const named=rows=>(rows || []).map(row=>({...row,name:names.get(row.heroId)||'Hero'}));
+    const enemy=event.enemy?{actorName:enemyName,move:event.enemy.move,targets:named(event.enemy.targets),healed:named(event.enemy.healed),bossHealed:event.enemy.bossHealed||0,poisonDamage:event.enemy.poisonDamage||0}:null;
+    // Auto events already combine their recipient arrays; retain only the
+    // hero phase here, with the separately saved enemy reply nested below.
+    const withoutEnemy=(rows,other)=>{const result=[...(rows||[])];for(const row of other||[]){const i=result.findLastIndex(x=>JSON.stringify(x)===JSON.stringify(row));if(i>=0)result.splice(i,1);}return result;};
+    return {id:event.id,encounterId:state.encounterId,type:event.type,actorName:event.actorName || (event.type==='boss'?enemyName:names.get(event.heroId)||'Hero'),heroId:event.heroId||null,enemyName,
+      move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
+      targets:named(withoutEnemy(event.targets,event.enemy?.targets)),healed:named(withoutEnemy(event.healed,event.enemy?.healed)),supported:named(event.supported),afflicted:copy(event.afflicted||[]),enemy,bossHealed:event.bossHealed||0,poisonDamage:event.poisonDamage||0};
+  }
+  function reduce(previous,action) {
+    const next=apply(previous,action);
+    if(next===previous || !['answer','boss','auto','summon'].includes(action.type))return next;
+    const log=(previous?.combatLog || []).filter(row=>row.id!==action.id);
+    next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
+  }
   return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,bossById,skillById,itemById,heroFromStudent,
     reduce,cleanHero,configureHero,normalizeState,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,statsFor,rollReward};
 });

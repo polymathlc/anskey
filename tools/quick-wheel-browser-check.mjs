@@ -64,9 +64,10 @@ async function setup(delayProfiles = 0, pendingAward = false) {
         return result;
       }); queue = next.catch(() => {}); return next;
     } };
-    window.__assistCalls = []; window.__loseAssistReply = false; window.__awardCalls = []; window.__failAward = false; window.__loseAwardReply = false; window.__awardErrorCode = null; window.__awardReplyDelay = 0;
+    window.__replaceSummonReply=false;window.__assistCalls = []; window.__loseAssistReply = false; window.__awardCalls = []; window.__failAward = false; window.__loseAwardReply = false; window.__awardErrorCode = null; window.__awardReplyDelay = 0;
     window.ClassroomHeroAPI.request = async request => {
       const {type, classId, action, studentId, delta} = request;
+      if(type==='mission'&&request.command==='get')return {mission:ClassroomMissionContent.empty(),state:null};
       if (!['battle','wheelAward','assist'].includes(type)) throw new Error('Unexpected request in battle fixture.');
       if (type === 'assist') __assistCalls.push(structuredClone(request));
       if (type === 'battle' && action.type === 'auto') throw new Error('Award points before fighting.');
@@ -107,6 +108,7 @@ async function setup(delayProfiles = 0, pendingAward = false) {
         }
         tx.set(ref,state);tx.set(receipt,{encounterId:state.encounterId,revision:state.revision,type:action.type,...(award?{award}:{})});return {state,award};
       });
+      if(type==='battle'&&action.type==='summon'&&__replaceSummonReply){const replacement=ClassroomBattleCore.reduce(result.state,{type:'start',id:'new-enemy-before-summon-reply',expectedRevision:result.state.revision,heroes:result.state.heroes,bossId:result.state.bossId});documents[ref.key]=replacement;localStorage.setItem('battle-fixture-documents',JSON.stringify(documents));notify(ref.key);}
       if (type === 'assist' && __loseAssistReply) { __loseAssistReply=false;throw Error('Assist saved but reply lost'); }
       if (type === 'wheelAward' && __awardReplyDelay) await new Promise(resolve => setTimeout(resolve, __awardReplyDelay));
       if (type === 'wheelAward' && __loseAwardReply) { __loseAwardReply = false; throw new Error('Award saved but reply lost for test'); }
@@ -129,7 +131,7 @@ async function spin() {
 }
 async function award(points = 1) {
   await page.evaluate(points => wheelGive(points), points);
-  await page.waitForFunction(() => !document.getElementById('wheelQuickStatus').textContent.includes('Resolving'));
+  await page.waitForFunction(() => !document.getElementById('wheelQuickStatus').textContent.includes('Saving answer'));
 }
 try {
   await setup();
@@ -185,7 +187,8 @@ try {
   await spin();
   check('selecting the next student leaves the existing enemy and party unchanged',await page.evaluate(old=>JSON.stringify(__battleState())===old,waitingVictory));
   await award();
-  check('awarded final hit shows an animated chest and saved personal treasure for every hero',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure details p').length===16));
+  check('awarded final hit shows an animated chest and saved personal treasure for every hero',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===16&&document.querySelectorAll('.cbQuickTreasure .cbItemIcon[role=img]').length===16));
+  await page.locator('.cbQuickTreasure').evaluate(node=>node.scrollIntoView({block:'start'}));
   await page.screenshot({path:path.join(output,'quick-wheel-treasure.png'),fullPage:true});
   const victory=await page.evaluate(()=>({id:__battleState().encounterId,xp:__battleState().heroes.reduce((sum,h)=>sum+h.xp,0)}));
   await spin();
@@ -261,6 +264,15 @@ try {
   check('uncertain assist retains a dedicated retry and blocks conflicting awards',await page.evaluate(()=>document.getElementById('wheelQuickRetry').textContent.includes('Retry assist')&&document.getElementById('wheelSpinBtn').disabled&&document.querySelector('#wheelAward button').disabled));
   await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   check('retrying an assist after a lost reply cannot duplicate XP',await page.evaluate(({id,xp})=>__battleState().heroes.find(h=>h.studentId===id).xp===xp+6&&document.getElementById('wheelQuickRetry').hidden,{id:retryHelper,xp:retryXp}));
+  await page.locator('#wheelMissionDrawer > summary').click();
+  await page.waitForFunction(()=>!document.querySelector('#wheelMission [data-source=teacher]').disabled);
+  const beforeChung=await page.evaluate(()=>__battleState().bossHp);
+  await page.click('#wheelMission [data-source=teacher]');await page.waitForFunction(()=>__battleState().status==='victory'&&!document.getElementById('wheelSpinBtn').disabled);
+  check('wheel teacher help settles one-hit damage and all treasure immediately',await page.evaluate(hp=>__battleState().lastEvent.type==='summon'&&__battleState().lastEvent.damage===hp&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===16&&document.querySelector('.cbQuickEnemy').textContent.includes('HP 0/'),beforeChung));
+  check('wheel damage log retains named attacks, replies and the finishing summon',await page.evaluate(()=>{const log=document.getElementById('wheelQuickLog');return log.textContent.includes('One-Punch Chung')&&log.querySelectorAll('[data-combat-id]').length===__battleState().combatLog.length&&__battleState().combatLog.length>1;}));
+  await page.evaluate(()=>{const old=__battleState(),ref='classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science');__battleDocuments[ref]=ClassroomBattleCore.reduce(old,{type:'start',id:'race-summon-target',expectedRevision:old.revision,heroes:old.heroes,bossId:old.bossId});__battleNotify(ref);__replaceSummonReply=true;window.__lateChungPlays=0;const original=ClassroomBattleAnimation.playChung;ClassroomBattleAnimation.playChung=function(...args){__lateChungPlays++;return original(...args);};});
+  await page.waitForFunction(()=>!document.querySelector('#wheelMission [data-source=teacher]').disabled);await page.click('#wheelMission [data-source=teacher]');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled&&!document.querySelector('.mmRolling'));
+  check('late summon acknowledgement cannot punch a newer saved encounter',await page.evaluate(()=>__lateChungPlays===0&&__battleState().encounterId==='new-enemy-before-summon-reply'&&document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__battleState().bossHp+'/')));
   check('quick wheel raises no application exceptions',errors.length===0);
   console.log('\n'+checks+' quick wheel browser checks passed. Screenshots: '+output);
 } finally { await browser.close(); }
