@@ -2,11 +2,17 @@
 
 Guidance for Claude when working in this repo.
 
+## Hero advancement, equipment and teamwork (v1.119.0)
+
+Keep the four base `hero.role` values; optional `hero.job` selects one of two level-15 advanced paths per base class. `JOBS`/`JOB_SKILLS` own eight job definitions and 96 new skills. Use `Core.skillsFor`/`availableSkills` for commands and `treeSkills(hero, 'job'/'base')` for the graph; do not read only the base skill array after advancement. Server `configure:advance` and manual `sync:advance` enforce level, base class and no active encounter. Preserve previously learned skills but ignore inactive job effects. Loot calls `autoEquip` after inventory/XP updates, retaining equal-rarity equipment and absolute HP/MP.
+
+Wheel Assist grants exactly 6 canonical XP once per helper per saved spin. `Store.assist` calls the teacher-only service; server receipts hash spin/helper identity and update progression with no combat/marks. Keep the session outbox and original request on uncertain failures. Resource bars show both hero and enemy HP/MP, using pre-animation values/maxima until playback settles. Enemy maximum MP is 60; ultimate cost is 30, normal recovery is 15. At full charge with insufficient MP a normal attack must remain possible.
+
 ## Generated battle animation (v1.117.0)
 
 `battle-animation.js/css` renders generated hero sheets (4 columns × 2 rows: idle above action) and effect sheets (2 × 2). Load it before the skill graph, classroom controller, Quick fight and student heroes. `heroMarkup` keeps an accessible wrapper and static PNG fallback; call `mount` after inserting it. Role-specific CSS scale/baseline settings account for transparent sprite padding. Generated PNGs are unchanged; prompts, dimensions, alpha checks and SHA-256 are in `assets/battle-pixel/animations`.
 
-Quick fight animates only an acknowledged, saved auto event. During playback keep incoming snapshots queued, block extra spins, show the pre-turn health, and reveal final health/loot after settling. Per-award IDs prevent replays; reloads show current state without replaying history. Close, lesson changes, manual battle and account changes cancel presentation, not already saved combat. Never invoke the reducer or write XP/damage from animation callbacks. Respect reduced-motion changes and missing assets. Run the animation browser suite plus existing wheel/battle/student checks after changes.
+Quick fight animates only an acknowledged, saved auto event. During playback keep incoming snapshots queued, block extra spins, show the pre-turn health, and reveal final health/loot after settling. Per-award IDs prevent replays; reloads show current state without replaying history. Close, lesson changes, manual battle and account changes cancel presentation, not already saved combat. Never invoke the reducer or write XP/damage from animation callbacks. Respect reduced-motion changes and missing assets. Run the animation browser suite plus existing wheel/battle/student checks after changes. The v1.119 runtime adds `heroMarkup(role,{job})`, `recipeFor`, `previewSkill` and `playArena`; 23 generated atlases have 200 frames. Skill recipes are presentation only. Support effects use saved `supported`/`afflicted` records; never fabricate recipient gains. Manual events queue until the persisted state has finished rendering so replacement DOM cannot cut off their cast. Previews, newer events and closure must cancel previous players.
 
 ## Student heroes and classroom battle (v1.116.0)
 

@@ -51,3 +51,13 @@ test('a timeout preserves the caller request and its ID for explicit retry',asyn
 test('wheel awards never fall back to direct Firestore writes when the API is unavailable',async()=>{
   await assert.rejects(setup().award(request()),/Hero saving is loading/);
 });
+
+
+test('assist uses teacher API with lesson binding and preserves receipt through retry',async()=>{
+  let fail=true;const sent=[];
+  const payload={studentId:'sam',helpedStudentId:'alex',action:{id:'assist-0000001',spinId:'spin-0000001'}};
+  const store=setup(async body=>{sent.push(body);if(fail)throw Error('network');return {hero:{id:'student:sam',xp:6},state:null,assist:{id:body.action.id,xp:6}};});
+  await assert.rejects(store.assist(payload),/network/);fail=false;
+  assert.equal((await store.assist(payload)).hero.xp,6);assert.deepEqual(sent[0],sent[1]);
+  assert.equal(sent[0].type,'assist');assert.equal(sent[0].classId,'Saturday 11am');
+});

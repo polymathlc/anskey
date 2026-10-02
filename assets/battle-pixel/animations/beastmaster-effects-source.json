@@ -1,0 +1,52 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "generatedAt": "2026-10-03",
+  "useCase": "stylized-concept",
+  "file": "beastmaster-effects-sheet.png",
+  "width": 1254,
+  "height": 1254,
+  "columns": 4,
+  "rows": 4,
+  "rowAnimations": [
+    {
+      "row": 0,
+      "family": "spirit-wolf",
+      "frames": 4,
+      "description": "Cyan-green spirit wolf crouch, spring, pounce, landing; faces right"
+    },
+    {
+      "row": 1,
+      "family": "spirit-hawk",
+      "frames": 4,
+      "description": "Golden hawk dive and wing cycle; faces right"
+    },
+    {
+      "row": 2,
+      "family": "spirit-phoenix",
+      "frames": 4,
+      "description": "Fire phoenix wing cycle; faces right"
+    },
+    {
+      "row": 3,
+      "family": "grove",
+      "frames": 4,
+      "description": "World-tree roots and healing burst growth"
+    }
+  ],
+  "source": "C:/Users/chung/.codex/generated_images/01a0fda8-60b6-7e81-8807-f540487be609/exec-1d3495bf-7226-40c8-945d-c129e2db5c39.png",
+  "initialSource": "C:/Users/chung/.codex/generated_images/01a0fda8-60b6-7e81-8807-f540487be609/exec-b5748c87-a82f-49aa-a36c-e4a7f23c8bed.png",
+  "prompt": "Use case: stylized-concept\nAsset type: production-ready original pixel-art battle animation sprite atlas for a classroom role-playing game.\nPrimary request: one PNG animation sheet with an actual transparent alpha background, square canvas, exactly 4 columns by 4 rows of equally sized invisible cells. Prefer 1536 by 1536 pixels. There must be exactly sixteen separate sprites, one sprite centered inside each cell. Each ROW is one distinct animation with four chronological frames read left to right. Grid boundaries are at 25%, 50%, 75%. Do not draw grid lines.\nRow 1 / top row: a recognizably canine magical spirit WOLF, cyan and leaf-green fur with dark pixel outlines, side profile facing RIGHT. Four distinct sequential frames: crouch, forward spring, outstretched pounce, landing. The entire animal including ears, tail and paws stays inside its own cell.\nRow 2: a recognizably avian golden spirit HAWK with beak and talons, side profile facing RIGHT. Four distinct sequential frames: wings raised, wings extended dive, wings down with talons forward, wing recovery.\nRow 3: a magical fiery PHOENIX bird with red-orange flame feathers, bright gold accents and a long fiery tail, side profile facing RIGHT. Four distinct sequential frames of flying forward: wings raised, wings halfway, wings down, wings raised again with different flame trail. The entire bird and every flame must fit inside each cell.\nRow 4 / bottom row: a luminous WORLD-TREE ROOT healing spell. No people or creatures in this row. Four sequential growth frames: emerald roots emerging and a tiny seed, a small glowing branching sapling, a broad luminous rooted tree surrounded by a ring of green healing sparks, dissolving golden-green leaves and roots. Same central point and baseline in all four cells.\nStyle: original detailed 16-bit console pixel art with sharply stepped pixel contours, compact limited palettes, dark one-pixel outlines, crisp individual square pixels. Clearly readable at small game scale. No blur, no smooth airbrush, no photorealism.\nAtlas constraints: ALL sixteen cells have the same coordinate layout, consistent baseline and generously padded borders. Each subject centered around the center of its cell. Keep all visible pixels within the inner 72% of the cell width and height so the outer 14% of EVERY cell on ALL FOUR SIDES is totally transparent. Keep whole silhouettes separated; no overlapping sprites, no artwork crossing cell boundaries, no clipping at edges, no ground or cast shadows. Natural compact animal silhouettes, each occupying comparable area. Transparent everywhere outside artwork; do not depict transparency as checkerboard.\nAvoid: words, numbers, labels, watermarks, cell borders, solid background, checkerboard background, frames, portraits, human characters, UI.",
+  "spacingEditPrompt": "Edit target: the attached 4 by 4 pixel animation sprite sheet. Preserve ALL sixteen sprite designs, colors, original pixel-art finish, ordering and distinct poses. Make ONLY a spacing and scale correction: shrink every individual sprite into the inner 68% of its own grid cell, leaving a completely empty transparent moat at least 16% of the cell on all four sides. The canvas must be square with four exactly equal columns and four exactly equal rows. Every sprite stays centered in its cell; preserve the same baseline across each row. Preserve actual alpha transparency outside sprites, remove stray specks from transparent regions. Each sprite must be fully isolated from neighboring cells with generous totally-transparent padding. No border, lines, labels, background, drop shadows or checkerboard. Rows remain spirit wolf, golden hawk, fiery phoenix, luminous tree healing burst, four sequential frames per row. Do not add, remove, duplicate, reorder or crop a sprite.",
+  "sha256": "63d8c58fec99c0f9eed93140bcb85de8481f3325da4019ee643febb1e8a9b2ad",
+  "validation": {
+    "mode": "RGBA",
+    "alphaRange": [
+      0,
+      255
+    ],
+    "distinctFrames": 16,
+    "visiblePixelsDoNotCrossCellBoundaries": true,
+    "method": "ImageGen output visually inspected; each equal cell alpha >= 32 bounds inspected without modifying source",
+    "postProcessing": "None; unchanged generated PNG copied into repository."
+  }
+}

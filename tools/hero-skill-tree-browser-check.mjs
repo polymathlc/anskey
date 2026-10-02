@@ -10,11 +10,11 @@ const page = await browser.newPage({ viewport: { width: 1150, height: 1250 }, re
 const output = path.resolve(process.env.BATTLE_SCREENSHOTS || '../battle-validation');
 fs.mkdirSync(output, { recursive: true });
 const errors = []; page.on('pageerror', e => errors.push(e.message));
-const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/hero-skill-tree.css"><style>body{margin:0;padding:24px;background:#090d15}#mount{max-width:940px;margin:auto}@media(max-width:500px){body{padding:8px}}</style></head><body><main id="mount"></main><script src="/battle-bosses.js"></script><script src="/battle-content.js"></script><script src="/battle-core.js"></script><script src="/hero-skill-tree.js"></script></body></html>';
+const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/hero-skill-tree.css"><link rel="stylesheet" href="/battle-animation.css"><style>body{margin:0;padding:24px;background:#090d15}#mount{max-width:940px;margin:auto}@media(max-width:500px){body{padding:8px}}</style></head><body><main id="mount"></main><script src="/battle-bosses.js"></script><script src="/battle-content.js"></script><script src="/battle-core.js"></script><script src="/battle-animation.js"></script><script src="/hero-skill-tree.js"></script></body></html>';
 await page.route('http://skill-tree.test/**', route => {
   const file = new URL(route.request().url()).pathname.slice(1);
   if (!file) return route.fulfill({ contentType: 'text/html', body: html });
-  if (/^(battle-(bosses|content|core)\.js|hero-skill-tree\.(js|css)|assets\/battle-pixel\/(warrior|mage|ranger|cleric)\.png)$/.test(file)) return route.fulfill({ path: path.resolve(file) });
+  if (/^(battle-(bosses|content|core)\.js|battle-animation\.(js|css)|hero-skill-tree\.(js|css)|assets\/battle-pixel\/[a-z0-9/_.-]+\.(png|json))$/.test(file)) return route.fulfill({ path: path.resolve(file) });
   return route.fulfill({ status: 404, body: '' });
 });
 let checks = 0;
@@ -33,10 +33,15 @@ async function setup(role = 'mage', options = {}) {
 }
 try {
   await page.goto('http://skill-tree.test/');
+  await page.evaluate(()=>{window.__previews=[];window.__previewEnds=[];const preview=ClassroomBattleAnimation.previewSkill;if(preview)ClassroomBattleAnimation.previewSkill=function(container,hero,skill){const stamp=__previews.length;__previews.push({skillId:skill.id,passive:skill.passive});const player=preview.call(this,container,hero,skill);player.finished.then(result=>__previewEnds.push({stamp,...result}));return player;};});
   await setup();
   check('twelve skill buttons, three branches and all dependency edges render', await page.evaluate(() => document.querySelectorAll('[data-hst-node]').length === 12 && document.querySelectorAll('.hstBranch').length === 3 && document.querySelectorAll('.hstLink').length === 12));
   await page.click('[data-hst-node="mage-frozen-core"]');
   check('locked passive explains its level requirement and prerequisite', await page.evaluate(() => document.querySelector('[data-hst-learn]').disabled && document.querySelector('.hstDetail').textContent.includes('Ice Lance') && document.querySelector('.hstDetail').textContent.includes('Always-on passive') && document.querySelector('.hstDetail').textContent.includes('Requires level 2')));
+  check('passive skills preview their own generated aura when inspected',await page.evaluate(()=>__previews.at(-1)?.skillId==='mage-frozen-core'&&__previews.at(-1)?.passive&&!!document.querySelector('.cbaSkillPreview .cbaHero')));
+  const previewBefore=await page.evaluate(()=>({hero:JSON.stringify(h),count:__previews.length}));
+  await page.click('[data-hst-preview]');
+  check('replaying a skill preview cannot spend points or mutate the hero',await page.evaluate(before=>JSON.stringify(h)===before.hero&&calls===0&&__previews.length===before.count+1,previewBefore));
   await page.click('[data-hst-node="mage-ice-lance"]');
   check('available active skill shows MP, cooldown and SP cost', await page.evaluate(() => !document.querySelector('[data-hst-learn]').disabled && ['16 MP', '2 turn cooldown', '1 SP'].every(t => document.querySelector('.hstDetail').textContent.includes(t))));
   await page.evaluate(() => { const b = document.querySelector('[data-hst-learn]'); b.click(); b.click(); });
@@ -67,6 +72,15 @@ try {
     await setup(role, { level: 4, xp: 450, skillPoints: 12 });
     check(role + ' changes its original sprite, skill names and branch effects', await page.evaluate(role => document.querySelector('.hstOrigin img').getAttribute('src').endsWith(role + '.png') && [...document.querySelectorAll('[data-hst-node]')].every(n => n.dataset.hstNode.startsWith(role + '-')), role));
   }
+  for (const job of ['paladin','berserker','sharpshooter','beastmaster','archmage','chronomancer','hierophant','oracle']) {
+    const role=await page.evaluate(id=>ClassroomBattleCore.JOBS[id].role,job);
+    await setup(role,{job,level:15,xp:7500,skillPoints:30});
+    check(job+' opens its advanced tree with distinct connected skills',await page.evaluate(id=>document.querySelectorAll('[data-hst-node]').length===12&&[...document.querySelectorAll('[data-hst-node]')].every(n=>ClassroomBattleCore.skillById(n.dataset.hstNode).job===id)&&document.querySelector('[data-hst-tree="job"]').getAttribute('aria-pressed')==='true',job));
+    await page.click('[data-hst-tree="base"]');
+    check(job+' foundation toggle keeps original class training accessible',await page.evaluate(role=>[...document.querySelectorAll('[data-hst-node]')].every(n=>n.dataset.hstNode.startsWith(role+'-'))&&document.querySelector('[data-hst-tree="base"]').getAttribute('aria-pressed')==='true',role));
+    await page.click('[data-hst-tree="job"]');
+  }
+  await page.screenshot({path:path.join(output,'hero-advanced-oracle-tree.png'),fullPage:true});
   await page.setViewportSize({ width: 390, height: 844 });
   await setup('mage');
   check('mobile scrolls within the map without overflowing the page', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector('.hstViewport').scrollWidth > document.querySelector('.hstViewport').clientWidth));
@@ -74,7 +88,10 @@ try {
   await page.locator('.hstDetailAction').scrollIntoViewIfNeeded();
   check('mobile skill description and learn button stay visible and tappable', await page.evaluate(() => { const b = document.querySelector('[data-hst-learn]').getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && b.height >= 44 && document.querySelector('.hstDetail h4').textContent === 'Arcane Pulse'; }));
   await page.screenshot({ path: path.join(output, 'hero-skill-constellation-mobile.png'), fullPage: true });
-  await page.evaluate(() => widget.destroy());
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.evaluate(() => { document.querySelector('[data-hst-preview]').click();widget.destroy(); });
+  await page.waitForFunction(()=>__previewEnds.some(event=>event.stamp===__previews.length-1&&event.cancelled));
+  check('destroy cancels an active generated skill preview',await page.evaluate(()=>!document.querySelector('.cbaSkillPreview.cbaPlaying')));
   const priorCalls = await page.evaluate(() => calls);
   await page.evaluate(() => document.querySelector('[data-hst-learn]').click());
   check('destroy removes handlers before a host remount', await page.evaluate(n => calls === n, priorCalls));

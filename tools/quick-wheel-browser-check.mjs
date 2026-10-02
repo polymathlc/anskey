@@ -64,10 +64,11 @@ async function setup(delayProfiles = 0, pendingAward = false) {
         return result;
       }); queue = next.catch(() => {}); return next;
     } };
-    window.__awardCalls = []; window.__failAward = false; window.__loseAwardReply = false; window.__awardErrorCode = null; window.__awardReplyDelay = 0;
+    window.__assistCalls = []; window.__loseAssistReply = false; window.__awardCalls = []; window.__failAward = false; window.__loseAwardReply = false; window.__awardErrorCode = null; window.__awardReplyDelay = 0;
     window.ClassroomHeroAPI.request = async request => {
       const {type, classId, action, studentId, delta} = request;
-      if (!['battle','wheelAward'].includes(type)) throw new Error('Unexpected request in battle fixture.');
+      if (!['battle','wheelAward','assist'].includes(type)) throw new Error('Unexpected request in battle fixture.');
+      if (type === 'assist') __assistCalls.push(structuredClone(request));
       if (type === 'battle' && action.type === 'auto') throw new Error('Award points before fighting.');
       if (type === 'wheelAward') {
         __awardCalls.push(structuredClone(request));
@@ -76,6 +77,18 @@ async function setup(delayProfiles = 0, pendingAward = false) {
       }
       const ref = db.collection('classroomBattles').doc(currentUser.uid).collection('classes').doc(ClassroomBattleStore.classKey(classId));
       const result = await db.runTransaction(async tx => {
+        if (type === 'assist') {
+          const receipt=ref.collection('assists').doc(action.spinId+'-'+studentId),saved=await tx.get(receipt),snapshot=await tx.get(ref),old=snapshot.exists?snapshot.data():null;
+          const profileRef=db.collection('assistHeroes').doc(studentId),profile=await tx.get(profileRef);
+          let hero=old?.heroes.find(h=>h.studentId===studentId) || (profile.exists?profile.data():ClassroomBattleCore.heroFromStudent(rwStudents.find(s=>s.id===studentId)));
+          if(saved.exists)return {hero,state:old,assist:saved.data(),duplicate:true};
+          if(studentId===request.helpedStudentId)throw Error('Choose another helper.');
+          hero=ClassroomBattleCore.grantAssistXp(hero,6);
+          const assist={id:action.id,spinId:action.spinId,studentId,helpedStudentId:request.helpedStudentId,xp:6};
+          const state=old?{...old,revision:old.revision+1,lastAssist:assist,heroes:old.heroes.map(h=>h.studentId===studentId?hero:h)}:null;
+          tx.set(profileRef,hero);tx.set(receipt,assist);if(state)tx.set(ref,state);
+          return {hero,state,assist};
+        }
         const receipt = ref.collection('actions').doc(action.id), oldReceipt = await tx.get(receipt), snapshot = await tx.get(ref);
         const old = snapshot.exists ? snapshot.data() : null;
         if (oldReceipt.exists) return {state:old,award:oldReceipt.data().award};
@@ -94,6 +107,7 @@ async function setup(delayProfiles = 0, pendingAward = false) {
         }
         tx.set(ref,state);tx.set(receipt,{encounterId:state.encounterId,revision:state.revision,type:action.type,...(award?{award}:{})});return {state,award};
       });
+      if (type === 'assist' && __loseAssistReply) { __loseAssistReply=false;throw Error('Assist saved but reply lost'); }
       if (type === 'wheelAward' && __awardReplyDelay) await new Promise(resolve => setTimeout(resolve, __awardReplyDelay));
       if (type === 'wheelAward' && __loseAwardReply) { __loseAwardReply = false; throw new Error('Award saved but reply lost for test'); }
       return result;
@@ -221,6 +235,30 @@ try {
   await page.waitForFunction(()=>!document.getElementById('wheelQuickRetry').hidden&&!document.getElementById('wheelQuickRetry').disabled);
   await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   check('reopening and confirming a committed award cannot award damage or points twice',await page.evaluate(({id,prior})=>__awardCalls.at(-1).action.id===id&&__battleState().revision===prior.revision+1&&rwStudents.find(s=>s.id===prior.studentId).marks===prior.marks+3&&__battleDocuments['students/'+prior.studentId].marks===prior.marks+3,{id:closeAwardId,prior:beforeCloseAward}));
+  await spin();
+  check('wheel displays labelled hero and enemy HP/MP bars with saved values',await page.evaluate(()=>{
+    const bars=[...document.querySelectorAll('#wheelQuickDuel [role=progressbar]')],state=__battleState(),hero=state.heroes.find(h=>h.id===document.querySelector('.cbQuickHero').dataset.cbaHeroId);
+    return bars.length===4&&bars.every(b=>b.getAttribute('aria-label')&&Number(b.getAttribute('aria-valuemax'))>0)&&Number(bars[0].getAttribute('aria-valuenow'))===hero.hp&&Number(bars[1].getAttribute('aria-valuenow'))===hero.mp&&Number(bars[2].getAttribute('aria-valuenow'))===state.bossHp&&Number(bars[3].getAttribute('aria-valuenow'))===state.bossMp;
+  }));
+  await page.click('[data-assist-toggle]');
+  const helper=await page.evaluate(()=>{const called=wheelStudent(wheelState.names[wheelWinnerIdx]),helper=rwStudents.find(s=>s.id!==called.id);return {id:helper.id,called:called.id,name:helper.name};});
+  check('Assist picker excludes the called student',await page.evaluate(id=>![...document.querySelectorAll('#wheelAssistStudent option')].some(o=>o.value===id),helper.called));
+  await page.selectOption('#wheelAssistStudent',helper.id);
+  const beforeAssist=await page.evaluate(id=>({xp:__battleState().heroes.find(h=>h.studentId===id).xp,hp:__battleState().bossHp,mp:__battleState().bossMp,turns:__battleState().bossTurns,count:__battleState().actionCount,marks:rwStudents.map(s=>s.marks),animations:__battleAnimations.length}),helper.id);
+  await page.click('[data-assist-save]');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
+  check('Assist gives the selected helper 6 XP with no attack, enemy turn or marks change',await page.evaluate(({before,id})=>{const state=__battleState();return state.heroes.find(h=>h.studentId===id).xp===before.xp+6&&state.bossHp===before.hp&&state.bossMp===before.mp&&state.bossTurns===before.turns&&state.actionCount===before.count&&JSON.stringify(rwStudents.map(s=>s.marks))===JSON.stringify(before.marks)&&__battleAnimations.length===before.animations;},{before:beforeAssist,id:helper.id}));
+  check('the helper is marked as already rewarded for this question',await page.evaluate(id=>document.querySelector('#wheelAssistStudent option[value="'+id+'"]').disabled,helper.id));
+  const dedupAssist=await page.evaluate(async()=>ClassroomHeroAPI.request({...__assistCalls.at(-1),action:{...__assistCalls.at(-1).action,id:'new-client-assist-id-0001'}}));
+  check('different client receipt for the same helper/question still awards only once',dedupAssist.duplicate&&dedupAssist.hero.xp===beforeAssist.xp+6);
+  await page.screenshot({path:path.join(output,'quick-wheel-assist-bars.png'),fullPage:true});
+  await spin();await page.click('[data-assist-toggle]');
+  const retryHelper=await page.evaluate(()=>document.querySelector('#wheelAssistStudent option:not(:disabled)').value);
+  await page.selectOption('#wheelAssistStudent',retryHelper);
+  const retryXp=await page.evaluate(id=>__battleState().heroes.find(h=>h.studentId===id).xp,retryHelper);
+  await page.evaluate(()=>__loseAssistReply=true);await page.click('[data-assist-save]');await page.waitForFunction(()=>!document.getElementById('wheelQuickRetry').hidden);
+  check('uncertain assist retains a dedicated retry and blocks conflicting awards',await page.evaluate(()=>document.getElementById('wheelQuickRetry').textContent.includes('Retry assist')&&document.getElementById('wheelSpinBtn').disabled&&document.querySelector('#wheelAward button').disabled));
+  await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
+  check('retrying an assist after a lost reply cannot duplicate XP',await page.evaluate(({id,xp})=>__battleState().heroes.find(h=>h.studentId===id).xp===xp+6&&document.getElementById('wheelQuickRetry').hidden,{id:retryHelper,xp:retryXp}));
   check('quick wheel raises no application exceptions',errors.length===0);
   console.log('\n'+checks+' quick wheel browser checks passed. Screenshots: '+output);
 } finally { await browser.close(); }
