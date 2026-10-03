@@ -3,6 +3,20 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.125.0 — Hold-to-snap shapes and the Pen select tool
+
+**Hold to snap.** Draw with the pen or the highlighter and **hold still for about half a second** without lifting: the stroke snaps to the neat shape it was meant to be. It now recognises a straight line (which also levels itself when it is nearly level, upright or at 45°), an arc, a smooth curve, a circle, an ellipse, a rectangle or square (at any tilt), a triangle and the regular polygons up to a hexagon. **Keep dragging** to adjust the shape — a line's end, a circle's radius, a rectangle's corner, a polygon's nearest corner, how far an arc sweeps — and lift to keep it. A snapped shape is still an ordinary pen (or highlighter) stroke, so saving, printing, erasing and undo (one step) work exactly as before. Handwriting and scribbles that are not a clean shape are left alone, and a stroke that is not held is plain ink, byte for byte. The recogniser is the new shared `shape-snap.js` (the same file in the book, CER and Ans Key apps); if it ever fails to load, the pen simply keeps writing.
+
+**Pen select** (Tools menu, next to the lasso; shortcut **Shift+S** — plain S is still the lasso). The Photoshop pen, used to make a selection:
+
+- **Click** to place a corner point; **click and drag** to pull a smooth point out with symmetric curve handles. Hold **Shift** to keep a line level or at 45°.
+- A dashed rubber band follows the pointer; when it is near the first point a ring shows that clicking will close the path.
+- **Click the first point**, press **Enter**, or **double-click** to close the path. Everything inside is selected exactly as if you had circled it with the lasso (same rule, same bar: move, resize, rotate, group, duplicate, delete).
+- While the path is open, press a point or a handle to **drag it** instead of adding a new one (Alt-drag a handle to move it on its own). **Backspace** (or Ctrl+Z) takes the last point back, **Esc** cancels. A path needs at least three points (or a curve that encloses an area).
+- The path is only a preview: nothing is saved, undoable or printed until you change something with the selection. Switching tool, opening another worksheet, a lost window or an account change drops an unfinished path.
+
+Validation: `node --test tools/shape-snap-tests.mjs tools/hold-snap-tests.mjs tools/pen-select-tests.mjs tools/writing-tests.mjs`, and `node tools/shape-snap-browser-check.mjs` (real Chromium: real mouse strokes, the Tools button, Shift+S, the path preview at two zooms). No server or rules change.
+
 ## v1.117.0 — Animated pixel heroes and battle effects
 
 Heroes now breathe and move through generated idle frames in Quick fight, the classroom party, My Hero and class pickers. Saved quick turns play a short sequence: Warrior sword windup and slash, Ranger bow release and travelling arrow, Mage fire/ice/lightning matched to the skill branch, or Cleric casting and healing over the actual recipients. The enemy responds before final health and treasure appear.

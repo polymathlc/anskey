@@ -3670,7 +3670,7 @@ video.mirror { transform:scaleX(-1); }
 
   <div class="tGroup" id="toolButtons">
     <div class="toolbarMenu" id="selectionTools">
-      <button class="btn toolbarMenuBtn" id="selectionMenuBtn" type="button" data-toolbar-menu="selectionMenu" aria-expanded="false" aria-controls="selectionMenu" title="Select, lasso and highlight tools">
+      <button class="btn toolbarMenuBtn" id="selectionMenuBtn" type="button" data-toolbar-menu="selectionMenu" aria-expanded="false" aria-controls="selectionMenu" title="Select, lasso, pen select and highlight tools">
         <span class="btnLabel">Tools</span><span class="menuChevron" aria-hidden="true">▾</span>
       </button>
       <div class="toolbarMenuPanel" id="selectionMenu" role="group" aria-labelledby="selectionMenuBtn" hidden>
@@ -3682,6 +3682,10 @@ video.mirror { transform:scaleX(-1); }
     <button class="toolbarMenuItem toolBtn" data-tool="lasso" data-key="S" title="Lasso — circle several things, then duplicate or resize them">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="9.5" rx="8" ry="6" stroke-dasharray="4 3"/><path d="M11 15.4c-.6 2.2-2.4 3.8-4.8 4.3"/></svg>
       <span class="btnLabel">Lasso</span><kbd aria-hidden="true">S</kbd>
+    </button>
+    <button class="toolbarMenuItem toolBtn" data-tool="penselect" data-key="Shift+S" title="Pen select — click to place points, drag to curve; click the first point or press Enter to close the path and select what is inside. Shift keeps a line level or at 45°. Esc cancels, Backspace removes the last point.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21l5-8-2.4-5H9.4L7 13z"/><path d="M12 21v-6.2"/><circle cx="12" cy="13.4" r="1.2"/><path d="M9.4 8V4.5h5.2V8"/></svg>
+      <span class="btnLabel">Pen select</span><kbd aria-hidden="true">⇧S</kbd>
     </button>
     <button class="toolbarMenuItem toolBtn" data-tool="highlight" data-key="H" title="Highlighter">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l6-6 4 4-6 6z"/><path d="M9 11l-4 4 2 2-3 3h6l1-1 2 2 6-6"/></svg>
@@ -5240,6 +5244,7 @@ video.mirror { transform:scaleX(-1); }
 <script src="bar-models.js"></script>
 <script src="model-suite.js"></script>
 <script src="model-templates.js"></script>
+<script src="shape-snap.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -5304,7 +5309,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.125.0';
+var APP_VERSION = 'v1.125.1';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -5714,6 +5719,7 @@ function cancelStaleGesture() {
   resizingSel = null;
   activePointerId = null;
   activePointerType = null;
+  if (typeof penSelectEndDrag === 'function') penSelectEndDrag();   // a press that never ended; the points placed stay
   renderAllOverlays();
 }
 var erasing = null;         // { page, snap, removed, lastX, lastY } while the eraser is down
@@ -5760,7 +5766,7 @@ function isPalmTouch(e) {
 function isDrawTool(t) {
   return t === 'modelbar' || t === 'modelcut' || t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
          t === 'line' || t === 'arrow' || t === 'brace' || t === 'text' || t === 'ai' || t === 'eraser' ||
-         t === 'laser' || t === 'lasso';
+         t === 'laser' || t === 'lasso' || t === 'penselect';
 }
 
 /* ---- Laser pointer: glowing strokes that fade away on their own ----
@@ -6150,6 +6156,8 @@ async function buildPagesFromBytes(contextCheck) {
   // Every page object is replaced, so the old ones' renders are cancelled
   // rather than left painting into canvases that are about to be thrown away.
   pages.forEach(function (p) { if (p.renderTask) { try { p.renderTask.cancel(); } catch (e) {} } });
+  // …and an unfinished Pen-select path was drawn on one of them.
+  if (typeof penSelectCancel === 'function') penSelectCancel();
 
   $('emptyState').style.display = 'none';
   var container = $('pagesContainer');
@@ -6793,6 +6801,8 @@ function applyScale() {
   });
   updateToolCursor();
   if (typeof positionLassoBar === 'function') positionLassoBar();
+  // The pen path's points and handles are drawn at a fixed SCREEN size.
+  if (typeof penSelectRedraw === 'function') penSelectRedraw();
   // Live widgets are positioned in screen pixels, so they follow the zoom.
   if (typeof syncAllAiWidgets === 'function') syncAllAiWidgets();
   scheduleRaster();
@@ -7247,6 +7257,7 @@ function renderOverlay(p) {
     }
   }
   if (lassoSel && lassoSel.page === p) renderLassoChrome(p);
+  if (typeof penSelectRender === 'function') penSelectRender(p);   // the unfinished Pen-select path survives a re-render
   renderEditChrome(p);
   if (typeof syncAiWidgets === 'function') syncAiWidgets(p);
   if (keptCaret) restoreTextEditCaret(svg, keptCaret);
@@ -13788,7 +13799,10 @@ function setTool(t) {
   if (t === 'video' && (isStudent() || isSharedVisitor())) t = 'select'; // placing video buttons is teacher-only
   if (t === 'ainote' && (isStudent() || isSharedVisitor())) t = 'select'; // generating cards is teacher-only
   commitActiveTextEdit(); // switching tools closes the text box being typed in
-  if (t !== 'lasso') clearLassoSel(true);
+  // The lasso and the pen path make the SAME selection, so moving from one to
+  // the other keeps it; anything else lets it go — and an unfinished path with it.
+  if (t !== 'lasso' && t !== 'penselect') clearLassoSel(true);
+  if (t !== 'penselect' && typeof penSelectCancel === 'function') penSelectCancel();
   tool = t;
   if (t !== 'select') { selectedId = null; editModeId = null; renderAllOverlays(); }
   if (t === 'laser' && !laserHintShown) {
@@ -13917,7 +13931,7 @@ function attachOverlayHandlers(p) {
       var vAnn = vG && annotations.find(function (x) { return x.id === vG.getAttribute('data-id'); });
       if (vAnn && vAnn.type === 'video') {
         var vTeacher = !isStudent() && !isSharedVisitor();
-        if (!(vTeacher && (tool === 'select' || tool === 'lasso' || tool === 'eraser'))) {
+        if (!(vTeacher && (tool === 'select' || tool === 'lasso' || tool === 'penselect' || tool === 'eraser'))) {
           e.preventDefault();
           if (vAnn.lessonRecording) openVideoPop(p, vAnn);
           else if (vTeacher) openVideoBtnModal({ mode: 'edit', id: vAnn.id, page: p });
@@ -13961,10 +13975,11 @@ function attachOverlayHandlers(p) {
        which is exactly the finger that is trying to move the card. The
        heading's own buttons were dealt with further up, so they still win. */
     var gripEl = e.target.closest ? e.target.closest('[data-ainote-grip]') : null;
-    // The eraser and the lasso keep their own meaning for a tap on a card — a
-    // grip that swallowed those would make a card impossible to rub out.
+    // The eraser, the lasso and the pen path keep their own meaning for a tap
+    // on a card — a grip that swallowed those would make a card impossible to
+    // rub out, and a point impossible to place on top of one.
     if (gripEl && !isStudent() && !isSharedVisitor() && !reviseMode &&
-        tool !== 'eraser' && tool !== 'lasso') {
+        tool !== 'eraser' && tool !== 'lasso' && tool !== 'penselect') {
       var gG = gripEl.closest ? gripEl.closest('g[data-id]') : null;
       var gId = gG && gG.getAttribute('data-id');
       var gAnn = gId && annotations.find(function (x) { return x.id === gId; });
@@ -14058,26 +14073,9 @@ function attachOverlayHandlers(p) {
       return;
     }
 
-    if (tool === 'lasso') {
-      // Grabbing the resize or rotate handle keeps the current selection.
-      if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-handle')) {
-        startLassoResize(e, p);
-        return;
-      }
-      if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-rotate')) {
-        startLassoRotate(e, p);
-        return;
-      }
-      // Default action: dragging from inside the selection box moves the
-      // whole group; anywhere else begins a fresh lasso.
-      if (lassoSel && lassoSel.page === p) {
-        var gb = lassoGroupBBox();
-        if (gb && pt.x >= gb.x - 8 && pt.x <= gb.x + gb.w + 8 &&
-                  pt.y >= gb.y - 8 && pt.y <= gb.y + gb.h + 8) {
-          startLassoMove(e, p, pt);
-          return;
-        }
-      }
+    if (tool === 'lasso' || tool === 'penselect') {
+      if (selectionGrab(e, p, pt)) return;
+      if (tool === 'penselect') { penSelectDown(e, p, pt); return; }
       e.preventDefault();
       clearLassoSel(true);
       claimPointer(e);
@@ -14255,6 +14253,10 @@ function attachOverlayHandlers(p) {
       applyLassoMove(eventPoint(e, p));
       return;
     }
+    if (penPath && penPath.page === p) {
+      penSelectMove(e, p);
+      return;
+    }
     if (lassoing && lassoing.page === p) {
       var qpt = eventPoint(e, p);
       var qlast = lassoing.pts[lassoing.pts.length - 1];
@@ -14313,13 +14315,19 @@ function attachOverlayHandlers(p) {
     }
     var sampleRect = p.svg.getBoundingClientRect();
     var pt2 = eventPoint(e, p, sampleRect);
+    // Page units per screen pixel, from the rect just read — what hold-to-snap
+    // tells the recogniser, so it never needs a layout read of its own.
+    drawing.unit = sampleRect.width > 0 ? p.baseW / sampleRect.width : 1;
     var a = drawing.ann;
     if (drawing.snap) {
       // The stroke has snapped to a shape — dragging now adjusts it
-      // (line endpoint, circle radius, polygon corner, curve end).
-      a.points = snapShapePoints(drawing.snap, pt2);
-      drawing._d = null; // points replaced wholesale, not appended to
-      queueTempRedraw();
+      // (line end, circle radius, rectangle or polygon corner, arc or curve end).
+      var adjusted = snapAdjustPoints(pt2);
+      if (adjusted) {
+        a.points = adjusted;
+        drawing._d = null; // points replaced wholesale, not appended to
+        queueTempRedraw();
+      }
       return;
     }
     if (a.type === 'pen' || a.type === 'highlight') {
@@ -14365,6 +14373,10 @@ function attachOverlayHandlers(p) {
     }
     if (lassoing && lassoing.page === p) {
       completeLasso();
+      return;
+    }
+    if (penPath && penPath.page === p && penPath.drag) {
+      penSelectUp(e);
       return;
     }
     if (erasing && erasing.page === p) {
@@ -14516,6 +14528,13 @@ function attachOverlayHandlers(p) {
       activePointerId = null;
       return;
     }
+    if (penPath && penPath.page === p && penPath.drag) {
+      // The path is made of clicks, so an interrupted press costs only the
+      // drag in progress — every point already placed stays.
+      penSelectEndDrag();
+      activePointerId = null;
+      return;
+    }
     if (erasing && erasing.page === p) {
       if (erasing.removed) { pushUndo(erasing.snap); setDirty(true); }
       erasing = null;
@@ -14555,6 +14574,7 @@ function attachOverlayHandlers(p) {
     if (activePointerId === null || e.pointerId !== activePointerId) return;
     var busy = (drawing && drawing.page === p) || (erasing && erasing.page === p) ||
                (lasering && lasering.page === p) || (lassoing && lassoing.page === p) ||
+               (penPath && penPath.page === p && penPath.drag) ||
                (lassoMoving && lassoMoving.page === p) || (lassoResizing && lassoResizing.page === p) ||
                (lassoRotating && lassoRotating.page === p) ||
                (draggingSel && draggingSel.page === p) || (resizingSel && resizingSel.page === p);
@@ -14744,7 +14764,19 @@ function completeLasso() {
   var p = lassoing.page;
   if (lassoing.node && lassoing.node.parentNode) lassoing.node.parentNode.removeChild(lassoing.node);
   lassoing = null;
-  if (poly.length < 3) return;
+  selectAnnotationsInPolygon(p, poly, 'lasso');
+}
+
+/* THE ONE RULE FOR "WHAT DOES THIS LOOP SELECT" — shared by the freehand lasso
+   and the Pen select tool, so the two can never disagree about it: an
+   annotation is in when the CENTRE of its box falls inside the polygon, a
+   locked picture is never picked up, and a group always comes whole. What
+   happens next (the bar, move, resize, rotate, group, duplicate, delete) is
+   the lasso's own and is reused untouched.
+   `what` only words the "nothing there" notice. Returns whether anything was
+   selected. */
+function selectAnnotationsInPolygon(p, poly, what) {
+  if (poly.length < 3) return false;
   var ids = [];
   annotations.forEach(function (a) {
     if (a.page !== p.num) return;
@@ -14755,8 +14787,10 @@ function completeLasso() {
     if (pointInPoly({ x: b.x + b.w / 2, y: b.y + b.h / 2 }, poly)) ids.push(a.id);
   });
   if (!ids.length) {
-    toast('Nothing inside the lasso — draw a loop around the items you want.');
-    return;
+    toast(what === 'path'
+      ? 'Nothing inside the path — adjust the points, or press Esc to cancel.'
+      : 'Nothing inside the lasso — draw a loop around the items you want.');
+    return false;
   }
   // A group always selects as a whole — lassoing any member pulls in the rest.
   var grps = {};
@@ -14776,6 +14810,33 @@ function completeLasso() {
     lassoMoveHintShown = true;
     toast('Selected — drag inside the box to move everything, or use Duplicate / Resize above.', 3500);
   }
+  return true;
+}
+
+/* What a press does when a selection ALREADY exists, for both selecting tools:
+   a resize or rotate handle keeps it, and a press inside its box moves the
+   whole group. Returns true when it took the press. */
+function selectionGrab(e, p, pt) {
+  // Grabbing the resize or rotate handle keeps the current selection.
+  if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-handle')) {
+    startLassoResize(e, p);
+    return true;
+  }
+  if (lassoSel && e.target.getAttribute && e.target.getAttribute('data-lasso-rotate')) {
+    startLassoRotate(e, p);
+    return true;
+  }
+  // Default action: dragging from inside the selection box moves the
+  // whole group; anywhere else begins a fresh selection.
+  if (lassoSel && lassoSel.page === p) {
+    var gb = lassoGroupBBox();
+    if (gb && pt.x >= gb.x - 8 && pt.x <= gb.x + gb.w + 8 &&
+              pt.y >= gb.y - 8 && pt.y <= gb.y + gb.h + 8) {
+      startLassoMove(e, p, pt);
+      return true;
+    }
+  }
+  return false;
 }
 
 function lassoGroupBBox() {
@@ -15138,247 +15199,312 @@ function toggleLassoGroup() {
   showLassoBar(); // refresh the Group/Ungroup label
 }
 
+/* ================= Pen select (Photoshop-style) =================
+   The pen tool, used to make a SELECTION. Click places a corner point; click
+   and drag pulls a smooth point out with symmetric Bezier handles (hold Shift
+   to keep a line level or at 45°). Click the FIRST point, press Enter or
+   double-click to close the path: everything inside it is selected exactly as
+   if it had been circled with the lasso — same inclusion rule, same bar, same
+   move / resize / rotate / group / duplicate / delete. Esc cancels; Backspace
+   (or Ctrl+Z) takes the last point back. Pressing a point or a handle while
+   the path is still open drags THAT instead of adding a new one (Alt-drag a
+   handle to break its symmetry).
+
+   NOTHING HERE IS AN ANNOTATION. The path is a preview drawn on the page's
+   overlay and held in `penPath`; it is never pushed onto `annotations`, never
+   saved, never undoable. The only thing it ever produces is `lassoSel`, which
+   is the lasso's own state — so the one rule for "what is inside" lives in
+   selectAnnotationsInPolygon and is not written a second time. The geometry
+   (flattening Bezier anchors to a polygon, hit-testing a point or a handle)
+   is shape-snap.js's, shared byte for byte with cer and book.
+
+   Everything the pen draws is sized in SCREEN pixels: `unit` is the size of
+   one screen pixel in page units, so a point is the same grab at every zoom. */
+var PEN_HIT_PX = 9;         // grab radius of a point or a handle
+var PEN_CLOSE_PX = 8;       // pointer this close to the first point = click to close
+var PEN_DBL_MS = 380;       // two presses this close in time…
+var PEN_DBL_PX = 6;         // …and space are a double-click: close and select
+var PEN_FLAT_PX = 0.5;      // how finely a curve is cut into straight pieces
+var PEN_MIN_AREA_PX = 6;    // a path must enclose at least this many pixels square
+var PEN_COLOR = '#1E88E5';
+var penPath = null;         // { page, anchors[], cursor, drag, unit, lastDown, node } while a path is open
+var penSelectHintShown = false;
+
+function penUnit(p, rect) {
+  rect = rect || p.svg.getBoundingClientRect();
+  return rect.width > 0 ? p.baseW / rect.width : 1;
+}
+
+/* Shift: the new point lies on the nearest 0 / 45 / 90° line from `from`. */
+function penConstrain(from, pt) {
+  var dx = pt.x - from.x, dy = pt.y - from.y;
+  if (Math.hypot(dx, dy) < 1e-6) return { x: pt.x, y: pt.y };
+  var ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  var along = dx * Math.cos(ang) + dy * Math.sin(ang);
+  return { x: round2(from.x + Math.cos(ang) * along), y: round2(from.y + Math.sin(ang) * along) };
+}
+
+function penCopyAnchor(a) {
+  var c = { x: a.x, y: a.y };
+  if (a.hin) c.hin = { x: a.hin.x, y: a.hin.y };
+  if (a.hout) c.hout = { x: a.hout.x, y: a.hout.y };
+  return c;
+}
+
+function penSelectDown(e, p, pt) {
+  var S = shapeSnapApi();
+  if (!S || typeof S.hitAnchors !== 'function') {
+    // shape-snap.js did not load: say so rather than doing nothing silently.
+    toast('Pen select needs shape-snap.js, which did not load — reload the page.');
+    return;
+  }
+  e.preventDefault();
+  var unit = penUnit(p);
+  // A path belongs to the page it was started on; a press on another page
+  // starts a fresh one there.
+  if (penPath && penPath.page !== p) penSelectCancel();
+  if (!penPath) {
+    clearLassoSel(true);
+    penPath = { page: p, anchors: [], cursor: null, drag: null, unit: unit, lastDown: null, node: null };
+    if (!penSelectHintShown) {
+      penSelectHintShown = true;
+      toast('Pen select — click to place points, drag to curve, click the first point or press Enter to close. Esc cancels.', 5200);
+    }
+  }
+  var path = penPath;
+  path.unit = unit;
+  var last = path.lastDown;
+  var dbl = !!(last && path.anchors.length && e.timeStamp - last.t <= PEN_DBL_MS &&
+    Math.hypot(e.clientX - last.cx, e.clientY - last.cy) <= PEN_DBL_PX);
+  path.lastDown = { t: e.timeStamp, cx: e.clientX, cy: e.clientY };
+  claimPointer(e);
+  p.svg.setPointerCapture(e.pointerId);
+  // The browser's own dblclick is not reliable once the overlay holds the
+  // capture, so it is read from the two presses. The first of them already
+  // placed its point, which is why the second adds none.
+  if (dbl) {
+    path.drag = null;
+    penSelectClose();
+    return;
+  }
+  var hit = S.hitAnchors(path.anchors, pt, PEN_HIT_PX * unit);
+  if (hit) {
+    var an = path.anchors[hit.i];
+    path.drag = {
+      part: hit.part, i: hit.i, cx: e.clientX, cy: e.clientY, moved: false, start: pt, base: penCopyAnchor(an),
+      // A press on the first point closes the path — unless it turns into a
+      // drag, which moves that point instead.
+      closeOnTap: hit.part === 'anchor' && hit.i === 0 && path.anchors.length >= 2
+    };
+    penSelectDraw();
+    return;
+  }
+  var at = e.shiftKey && path.anchors.length ? penConstrain(path.anchors[path.anchors.length - 1], pt) : pt;
+  path.anchors.push({ x: at.x, y: at.y });
+  path.drag = { part: 'new', i: path.anchors.length - 1, cx: e.clientX, cy: e.clientY, moved: false, start: at };
+  path.cursor = at;
+  penSelectDraw();
+}
+
+function penSelectMove(e, p) {
+  var path = penPath, S = shapeSnapApi();
+  if (!path || !S) return;
+  var g = path.drag;
+  // A finger has no hover: only a press-and-drag of its own means anything.
+  if (!g && e.pointerType === 'touch') return;
+  var rect = p.svg.getBoundingClientRect();
+  var pt = eventPoint(e, p, rect);
+  path.unit = penUnit(p, rect);
+  if (g) {
+    // A press is not yet a drag — a pen tip wobbles, and a click that nudged
+    // its own point into a curve would be the worst kind of silent change.
+    if (!dragStarted(g, e)) return;
+    var an = path.anchors[g.i];
+    if (!an) { path.drag = null; return; }
+    if (g.part === 'new') {
+      var tip = e.shiftKey ? penConstrain(an, pt) : pt;
+      S.setSmoothHandles(an, tip);
+      an.sym = true;
+    } else if (g.part === 'anchor') {
+      var dx = pt.x - g.start.x, dy = pt.y - g.start.y;
+      an.x = round2(g.base.x + dx);
+      an.y = round2(g.base.y + dy);
+      if (g.base.hin) an.hin = { x: round2(g.base.hin.x + dx), y: round2(g.base.hin.y + dy) };
+      if (g.base.hout) an.hout = { x: round2(g.base.hout.x + dx), y: round2(g.base.hout.y + dy) };
+    } else {
+      var other = g.part === 'hout' ? 'hin' : 'hout';
+      var tipH = e.shiftKey ? penConstrain(an, pt) : pt;
+      an[g.part] = { x: tipH.x, y: tipH.y };
+      if (e.altKey) an.sym = false;           // Alt breaks the pair: this handle goes its own way
+      if (an.sym !== false) {                  // otherwise the other one mirrors it
+        an[other] = { x: round2(2 * an.x - tipH.x), y: round2(2 * an.y - tipH.y) };
+        an.sym = true;
+      }
+    }
+    penSelectDraw();
+    return;
+  }
+  // Between clicks: the rubber band follows the pointer.
+  var from = path.anchors[path.anchors.length - 1];
+  path.cursor = e.shiftKey && from ? penConstrain(from, pt) : pt;
+  penSelectDraw();
+}
+
+/* The press ended. Closing is decided HERE for a press on the first point,
+   because only now is it known whether it was a click or a drag. */
+function penSelectUp(e) {
+  var path = penPath;
+  if (!path) return;
+  var g = path.drag;
+  path.drag = null;
+  if (g && g.closeOnTap && !g.moved && e.type === 'pointerup') { penSelectClose(); return; }
+  penSelectDraw();
+}
+
+/* An interrupted press (pointercancel, lost capture): the drag is over, the
+   points already placed are not. */
+function penSelectEndDrag() {
+  if (!penPath || !penPath.drag) return;
+  penPath.drag = null;
+  penSelectDraw();
+}
+
+function penSelectCancel() {
+  var path = penPath;
+  penPath = null;
+  if (path && path.node && path.node.parentNode) path.node.parentNode.removeChild(path.node);
+}
+
+function penSelectBackspace() {
+  var path = penPath;
+  if (!path) return;
+  path.drag = null;
+  path.anchors.pop();
+  if (!path.anchors.length) { penSelectCancel(); return; }
+  penSelectDraw();
+}
+
+/* Close the path and select what is inside it. A path that cannot be closed
+   (too few points, no area, nothing inside) is left open so it can be mended —
+   losing eight carefully placed points to a near miss is the wrong way to
+   say "not yet". */
+function penSelectClose() {
+  var path = penPath, S = shapeSnapApi();
+  if (!path || !S) return false;
+  var unit = path.unit || 1, n = path.anchors.length;
+  var poly = S.flattenAnchors(path.anchors, true, PEN_FLAT_PX * unit);
+  var area = poly.length >= 3 ? S.polygonArea(poly) : 0;
+  var floor = Math.pow(PEN_MIN_AREA_PX * unit, 2);
+  if (n < 3 && area < floor) {
+    toast('A path needs at least three points — click to add more, or press Esc to cancel.');
+    return false;
+  }
+  if (area < floor) {
+    toast('Those points enclose no area — move them apart, or press Esc to cancel.');
+    return false;
+  }
+  var p = path.page;
+  // Lift the path off the page BEFORE selecting: selecting re-renders the
+  // overlay, which would otherwise draw the finished path straight back.
+  penSelectCancel();
+  if (selectAnnotationsInPolygon(p, poly, 'path')) return true;
+  penPath = path;          // nothing inside: keep the path, adjust it, try again
+  path.drag = null;
+  penSelectDraw();
+  return false;
+}
+
+/* Enter, Esc, Backspace / Delete and Ctrl+Z while a path is open. Returns
+   true when it took the key. */
+function penSelectKey(e) {
+  if (!penPath) return false;
+  if (e.altKey) return false;
+  var key = e.key;
+  if (e.ctrlKey || e.metaKey) {
+    if (!e.shiftKey && key && key.toLowerCase() === 'z') { e.preventDefault(); penSelectBackspace(); return true; }
+    return false;
+  }
+  if (key === 'Enter') { e.preventDefault(); penSelectClose(); return true; }
+  if (key === 'Escape') { e.preventDefault(); penSelectCancel(); return true; }
+  if (key === 'Backspace' || key === 'Delete') { e.preventDefault(); penSelectBackspace(); return true; }
+  return false;
+}
+
+/* ---- drawing the path ---- */
+function penSelectRender(p) {
+  if (penPath && penPath.page === p) penSelectDraw();
+}
+function penSelectRedraw() {
+  if (!penPath) return;
+  penPath.unit = penUnit(penPath.page);
+  penSelectDraw();
+}
+
+function penSelectDraw() {
+  var path = penPath, S = shapeSnapApi();
+  if (!path) return;
+  if (path.node && path.node.parentNode) path.node.parentNode.removeChild(path.node);
+  path.node = null;
+  if (!S) return;
+  var u = path.unit || 1, A = path.anchors, n = A.length, tol = PEN_FLAT_PX * u;
+  var cur = path.cursor, live = !path.drag && !!cur && n > 0;
+  var nearFirst = live && n >= 2 && Math.hypot(cur.x - A[0].x, cur.y - A[0].y) <= PEN_CLOSE_PX * u;
+  var g = el('g', { 'pointer-events': 'none', 'data-pen-select': '1' });
+  // What the selection would be if it were closed here, faintly filled so the
+  // loop is visible before it is made.
+  var shown = live && !nearFirst ? A.concat([{ x: cur.x, y: cur.y }]) : A;
+  var fill = S.flattenAnchors(shown, true, tol);
+  if (fill.length >= 3) g.appendChild(el('path', { d: pathFromPoints(fill) + ' Z', fill: 'rgba(30,136,229,0.07)', stroke: 'none' }));
+  var solid = S.flattenAnchors(A, false, tol);
+  if (solid.length >= 2) {
+    g.appendChild(el('path', { d: pathFromPoints(solid), fill: 'none', stroke: PEN_COLOR, 'stroke-width': 1.6 * u, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'data-pen-path': '1' }));
+  }
+  // The rubber band is only worth drawing once the pointer has left the point
+  // it is stretching from.
+  if (live && Math.hypot(cur.x - A[n - 1].x, cur.y - A[n - 1].y) > u) {
+    var rubber = S.flattenAnchors([A[n - 1], nearFirst ? A[0] : { x: cur.x, y: cur.y }], false, tol);
+    if (rubber.length >= 2) {
+      g.appendChild(el('path', { d: pathFromPoints(rubber), fill: 'none', stroke: PEN_COLOR, 'stroke-width': 1.3 * u, 'stroke-dasharray': (5 * u) + ' ' + (4 * u), 'data-pen-rubber': '1' }));
+    }
+  }
+  A.forEach(function (a, i) {
+    ['hin', 'hout'].forEach(function (k) {
+      if (!a[k]) return;
+      g.appendChild(el('line', { x1: a.x, y1: a.y, x2: a[k].x, y2: a[k].y, stroke: PEN_COLOR, 'stroke-width': 1 * u, opacity: 0.8 }));
+      g.appendChild(el('circle', { cx: a[k].x, cy: a[k].y, r: 3.4 * u, fill: '#fff', stroke: PEN_COLOR, 'stroke-width': 1.2 * u, 'data-pen-handle': i + ':' + k }));
+    });
+  });
+  A.forEach(function (a, i) {
+    var half = 3.6 * u, solidPt = i === n - 1 || (i === 0 && nearFirst);
+    g.appendChild(el('rect', { x: a.x - half, y: a.y - half, width: half * 2, height: half * 2, fill: solidPt ? PEN_COLOR : '#fff', stroke: PEN_COLOR, 'stroke-width': 1.4 * u, 'data-pen-anchor': String(i) }));
+  });
+  if (nearFirst) {
+    g.appendChild(el('circle', { cx: A[0].x, cy: A[0].y, r: PEN_CLOSE_PX * u * 1.15, fill: 'rgba(232,165,75,0.18)', stroke: '#E8A54B', 'stroke-width': 2 * u, 'data-pen-close': '1' }));
+  }
+  path.page.svg.appendChild(g);
+  path.node = g;
+}
+
 /* ================= Hold-to-snap shape recognition =================
    GoodNotes-style: draw a stroke and hold the pencil still without lifting —
-   the stroke snaps to the neat shape it looks like (straight line, smooth
-   curve, circle, ellipse, triangle, rectangle or another polygon). Keep
-   dragging to adjust the snapped shape: a line's endpoint, a circle's
-   radius, a polygon's nearest corner. The result stays a pen/highlight
-   stroke, so saving, printing and erasing work unchanged. */
-var SNAP_HOLD_MS = 550;     // hold this long to snap
-var SNAP_JITTER_PX = 7;     // screen-pixel wobble still counted as "holding still"
+   the stroke snaps to the neat shape it looks like (straight line, arc,
+   smooth curve, circle, ellipse, triangle, rectangle / square or a regular
+   polygon). Keep dragging to adjust the snapped shape: a line's endpoint, a
+   circle's radius, a rectangle's corner, a polygon's nearest corner. The
+   result stays a pen/highlight stroke, so saving, printing, erasing and undo
+   work unchanged.
+
+   THE RECOGNISER IS shape-snap.js (window.ShapeSnap), the same file byte for
+   byte in cer, book and anskey. It is pure geometry — it never touches the
+   page — so everything below is glue: when to ask, what to do with the
+   answer. It is optional on purpose: if the script failed to load, a held
+   stroke simply stays the ink it was drawn as and nothing throws. */
+var SNAP_HOLD_MS = 550;     // hold this long to snap (ShapeSnap.T.HOLD_MS)
+var SNAP_JITTER_PX = 7;     // screen-pixel wobble still counted as "holding still" (ShapeSnap.T.HOLD_JITTER_PX)
 var snapHintShown = false;
 
-function ptDist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
-function strokeLength(pts) {
-  var L = 0;
-  for (var i = 1; i < pts.length; i++) L += ptDist(pts[i - 1], pts[i]);
-  return L;
-}
-function perpDist(q, a, b) {
-  var dx = b.x - a.x, dy = b.y - a.y;
-  var L = Math.hypot(dx, dy);
-  if (L < 0.001) return ptDist(q, a);
-  return Math.abs((q.x - a.x) * dy - (q.y - a.y) * dx) / L;
-}
-
-/* Douglas–Peucker simplification, returns a subset of the points. */
-function dpSimplify(pts, eps) {
-  if (pts.length < 3) return pts.slice();
-  var keep = new Array(pts.length);
-  keep[0] = keep[pts.length - 1] = true;
-  var stack = [[0, pts.length - 1]];
-  while (stack.length) {
-    var seg = stack.pop();
-    var s = seg[0], e2 = seg[1];
-    var maxD = 0, maxI = -1;
-    for (var i = s + 1; i < e2; i++) {
-      var d = perpDist(pts[i], pts[s], pts[e2]);
-      if (d > maxD) { maxD = d; maxI = i; }
-    }
-    if (maxD > eps) { keep[maxI] = true; stack.push([s, maxI], [maxI, e2]); }
-  }
-  return pts.filter(function (q, i) { return keep[i]; });
-}
-
-/* Corner candidates of a closed stroke: split at the point farthest from the
-   start, simplify both halves, then merge near-duplicate corners. */
-function closedCorners(pts, eps) {
-  var far = 0, maxD = 0;
-  for (var i = 1; i < pts.length; i++) {
-    var d = ptDist(pts[0], pts[i]);
-    if (d > maxD) { maxD = d; far = i; }
-  }
-  var half1 = dpSimplify(pts.slice(0, far + 1), eps);
-  var half2 = dpSimplify(pts.slice(far), eps);
-  var verts = half1.concat(half2.slice(1));
-  var out = [];
-  verts.forEach(function (v) {
-    if (!out.length || ptDist(out[out.length - 1], v) > eps * 1.4) out.push(v);
-  });
-  while (out.length > 1 && ptDist(out[0], out[out.length - 1]) <= eps * 1.6) out.pop();
-  return out;
-}
-
-/* Snap a line endpoint to exactly horizontal/vertical when it is close. */
-function axisSnapEnd(p0, pt) {
-  var dx = pt.x - p0.x, dy = pt.y - p0.y;
-  var ang = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI);
-  var toAxis = Math.min(ang % 90, 90 - (ang % 90));
-  if (toAxis < 6) {
-    if (Math.abs(dx) > Math.abs(dy)) return { x: round2(pt.x), y: round2(p0.y) };
-    return { x: round2(p0.x), y: round2(pt.y) };
-  }
-  return { x: round2(pt.x), y: round2(pt.y) };
-}
-
-function sampleEllipsePts(cx, cy, rx, ry) {
-  var out = [];
-  for (var i = 0; i <= 36; i++) {
-    var t = i / 36 * Math.PI * 2;
-    out.push({ x: round2(cx + rx * Math.cos(t)), y: round2(cy + ry * Math.sin(t)) });
-  }
-  return out;
-}
-
-function sampleQuadCurve(p0, c1, p2) {
-  var out = [];
-  for (var i = 0; i <= 24; i++) {
-    var t = i / 24, u = 1 - t;
-    out.push({
-      x: round2(u * u * p0.x + 2 * u * t * c1.x + t * t * p2.x),
-      y: round2(u * u * p0.y + 2 * u * t * c1.y + t * t * p2.y)
-    });
-  }
-  return out;
-}
-
-/* Decide what shape a freehand stroke looks like. Returns null (leave the
-   freehand ink alone) or a snap descriptor used by snapShapePoints(). */
-function recognizeStroke(pts) {
-  if (pts.length < 6) return null;
-  var len = strokeLength(pts);
-  if (len < 20) return null;
-  var p0 = pts[0], pn = pts[pts.length - 1];
-  var chord = ptDist(p0, pn);
-
-  // Straight line: every point close to the start→end chord.
-  if (chord > 24) {
-    var maxDev = 0;
-    for (var i = 1; i < pts.length - 1; i++) {
-      var d = perpDist(pts[i], p0, pn);
-      if (d > maxDev) maxDev = d;
-    }
-    if (maxDev < Math.max(4, chord * 0.055)) return { kind: 'line', p0: p0 };
-  }
-
-  var closed = chord < Math.max(24, len * 0.22);
-  if (closed) {
-    var cx = 0, cy = 0;
-    pts.forEach(function (q) { cx += q.x; cy += q.y; });
-    cx /= pts.length; cy /= pts.length;
-    var c = { x: cx, y: cy };
-    // A genuine closed shape wraps (almost) all the way around its centre;
-    // a zig-zag that merely ends near where it started does not — leave
-    // that freehand ink alone.
-    var wind = 0;
-    for (var w2 = 1; w2 < pts.length; w2++) {
-      var wa = Math.atan2(pts[w2 - 1].y - c.y, pts[w2 - 1].x - c.x);
-      var wb = Math.atan2(pts[w2].y - c.y, pts[w2].x - c.x);
-      var da = wb - wa;
-      if (da > Math.PI) da -= 2 * Math.PI;
-      if (da < -Math.PI) da += 2 * Math.PI;
-      wind += da;
-    }
-    if (Math.abs(wind) < Math.PI * 1.6) return null;
-    var rMean = 0;
-    pts.forEach(function (q) { rMean += ptDist(q, c); });
-    rMean /= pts.length;
-    var rVar = 0;
-    pts.forEach(function (q) { var dr = ptDist(q, c) - rMean; rVar += dr * dr; });
-    var rStd = Math.sqrt(rVar / pts.length);
-    if (rStd / rMean < 0.13) return { kind: 'circle', c: c };
-
-    // Polygon: few clear corners → triangle, rectangle, pentagon, hexagon.
-    var verts = closedCorners(pts, Math.max(7, len * 0.03));
-    if (verts.length >= 3 && verts.length <= 6) {
-      if (verts.length === 4) {
-        // A near-axis-aligned quad tidies up into a true rectangle.
-        var axisOk = true;
-        for (var v = 0; v < 4; v++) {
-          var w = verts[(v + 1) % 4];
-          var eAng = Math.abs(Math.atan2(w.y - verts[v].y, w.x - verts[v].x) * 180 / Math.PI);
-          var off = Math.min(eAng % 90, 90 - (eAng % 90));
-          if (off > 12) { axisOk = false; break; }
-        }
-        if (axisOk) {
-          var xs = verts.map(function (q) { return q.x; });
-          var ys = verts.map(function (q) { return q.y; });
-          var x1 = Math.min.apply(null, xs), x2 = Math.max.apply(null, xs);
-          var y1 = Math.min.apply(null, ys), y2 = Math.max.apply(null, ys);
-          verts = [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }];
-        }
-      }
-      // Continue-drag moves the corner nearest to where the pencil is now.
-      var dragIdx = 0, best = Infinity;
-      verts.forEach(function (v2, idx) {
-        var dd = ptDist(v2, pn);
-        if (dd < best) { best = dd; dragIdx = idx; }
-      });
-      return { kind: 'poly', verts: verts, dragIdx: dragIdx };
-    }
-
-    // Oval that isn't round enough for a circle: axis-aligned ellipse fit.
-    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    pts.forEach(function (q) {
-      if (q.x < minX) minX = q.x; if (q.x > maxX) maxX = q.x;
-      if (q.y < minY) minY = q.y; if (q.y > maxY) maxY = q.y;
-    });
-    var ex = (minX + maxX) / 2, ey = (minY + maxY) / 2;
-    var rx = Math.max(2, (maxX - minX) / 2), ry = Math.max(2, (maxY - minY) / 2);
-    var fitErr = 0;
-    pts.forEach(function (q) {
-      var nx = (q.x - ex) / rx, ny = (q.y - ey) / ry;
-      fitErr += Math.abs(Math.hypot(nx, ny) - 1);
-    });
-    if (fitErr / pts.length < 0.18) {
-      return { kind: 'ellipse', c: { x: ex, y: ey }, rx: rx, ry: ry, d0: Math.max(ptDist({ x: ex, y: ey }, pn), 2) };
-    }
-    return null;
-  }
-
-  // Open and bent: smooth it into a quadratic curve through the bend.
-  var devI = 0, devMax = 0;
-  for (var j = 1; j < pts.length - 1; j++) {
-    var dj = perpDist(pts[j], p0, pn);
-    if (dj > devMax) { devMax = dj; devI = j; }
-  }
-  if (devMax < 6) return null;
-  var u = Math.max(0.15, Math.min(0.85, strokeLength(pts.slice(0, devI + 1)) / len));
-  var M = pts[devI];
-  var uu = 1 - u;
-  var c1 = {
-    x: (M.x - uu * uu * p0.x - u * u * pn.x) / (2 * u * uu),
-    y: (M.y - uu * uu * p0.y - u * u * pn.y) / (2 * u * uu)
-  };
-  // Reject the fit if the smoothed curve strays far from the real stroke
-  // (e.g. zig-zags or letters) — better to leave the freehand ink alone.
-  var fitted = sampleQuadCurve(p0, c1, pn);
-  var worst = 0;
-  for (var k2 = 0; k2 < pts.length; k2 += 2) {
-    var bestD = Infinity;
-    for (var m2 = 0; m2 < fitted.length; m2++) {
-      var dd2 = ptDist(pts[k2], fitted[m2]);
-      if (dd2 < bestD) bestD = dd2;
-    }
-    if (bestD > worst) worst = bestD;
-  }
-  if (worst > Math.max(9, len * 0.06)) return null;
-  return { kind: 'curve', p0: p0, c1: c1 };
-}
-
-/* Regenerate the snapped shape's points with the pencil at dragPt. */
-function snapShapePoints(snap, dragPt) {
-  if (snap.kind === 'line') {
-    return [
-      { x: round2(snap.p0.x), y: round2(snap.p0.y) },
-      axisSnapEnd(snap.p0, dragPt)
-    ];
-  }
-  if (snap.kind === 'circle') {
-    var r = Math.max(3, ptDist(snap.c, dragPt));
-    return sampleEllipsePts(snap.c.x, snap.c.y, r, r);
-  }
-  if (snap.kind === 'ellipse') {
-    var s = Math.max(0.15, ptDist(snap.c, dragPt) / snap.d0);
-    return sampleEllipsePts(snap.c.x, snap.c.y, snap.rx * s, snap.ry * s);
-  }
-  if (snap.kind === 'poly') {
-    snap.verts[snap.dragIdx] = { x: round2(dragPt.x), y: round2(dragPt.y) };
-    return snap.verts.concat([snap.verts[0]]);
-  }
-  // curve — the endpoint follows the pencil
-  return sampleQuadCurve(snap.p0, snap.c1, dragPt);
+function shapeSnapApi() {
+  return typeof ShapeSnap === 'object' && ShapeSnap && typeof ShapeSnap.recognize === 'function' ? ShapeSnap : null;
 }
 
 /* Called by the hold timer: if the pencil has stayed still long enough,
@@ -15387,15 +15513,50 @@ function trySnapShape() {
   if (!drawing || drawing.snap || drawing.isText) return;
   var a = drawing.ann;
   if (a.type !== 'pen' && a.type !== 'highlight') return;
-  var rec = recognizeStroke(a.points);
-  if (!rec) return;
-  drawing.snap = rec;
-  a.points = snapShapePoints(rec, a.points[a.points.length - 1]);
+  var S = shapeSnapApi();
+  if (!S) return;
+  /* `unit` is the size of ONE SCREEN PIXEL in page units, so the recogniser's
+     small absolute floors (a dot is not a shape, a wobble is not a bend) mean
+     the same thing at every zoom. */
+  var unit = drawing.unit;
+  if (!(unit > 0)) {
+    var rect = drawing.page.svg.getBoundingClientRect();
+    unit = rect.width > 0 ? drawing.page.baseW / rect.width : 1;
+  }
+  var last = a.points[a.points.length - 1];
+  var desc = null, pts = null;
+  try {
+    desc = S.recognize(a.points, { unit: unit, last: last });
+    if (desc) pts = S.toPoints(desc);
+  } catch (err) { desc = null; }
+  if (!desc || !pts || pts.length < 2) return;
+  drawing.snap = desc;       // the shape as it was when it snapped
+  drawing.snapCur = desc;    // …and as it is now (an arc grows from where it is)
+  a.points = pts;
+  drawing._d = null;         // points replaced wholesale, not appended to
   redrawTemp(true);
   if (!snapHintShown) {
     snapHintShown = true;
-    toast('Snapped! Keep dragging to adjust, or lift the pencil to keep the shape.');
+    toast(S.label(desc) + ' — keep dragging to adjust, or lift the pencil to keep it.');
   }
+}
+
+/* The snapped shape's points with the pencil now at `pt`. Everything is
+   measured from the shape AS IT SNAPPED, except an arc, which is extended
+   from where it is now: it can sweep round more than half a turn, and an
+   angle measured from the snap would lose count past 180°. Returns null when
+   nothing can be made of it, and the stroke is then left as it is. */
+function snapAdjustPoints(pt) {
+  var S = shapeSnapApi();
+  if (!S || !drawing || !drawing.snap) return null;
+  var base = drawing.snap.kind === 'arc' && drawing.snapCur ? drawing.snapCur : drawing.snap;
+  try {
+    var next = S.drag(base, pt);
+    var pts = S.toPoints(next);
+    if (!pts || pts.length < 2) return null;
+    drawing.snapCur = next;
+    return pts;
+  } catch (err) { return null; }
 }
 
 function armSnapHold(e) {
@@ -15403,6 +15564,7 @@ function armSnapHold(e) {
   drawing.holdCX = e.clientX;
   drawing.holdCY = e.clientY;
   clearTimeout(drawing.holdTimer);
+  if (!shapeSnapApi()) return;   // nothing to ask — the stroke stays freehand
   drawing.holdTimer = setTimeout(trySnapShape, SNAP_HOLD_MS);
 }
 
@@ -27630,6 +27792,7 @@ function applyRoleUI() {
   if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
   lessonRoleChanged();
   voiceRoleChanged();
+  if (typeof penSelectCancel === 'function') penSelectCancel();   // a path belongs to the role that started it
   var student = isStudent();
   var hideTools = student && !practiceMode; // practising students get drawing tools
   document.body.classList.toggle('studentMode', hideTools);
@@ -32872,7 +33035,7 @@ function syncToolbarMenuState() {
   if (!shapeButton) return;
   var selected = selectedId ? annotations.find(function (a) { return a.id === selectedId; }) : null;
   var kind = selected ? selected.type : tool;
-  var selectionLabels = { select: 'Select / move', lasso: 'Lasso', highlight: 'Highlight' };
+  var selectionLabels = { select: 'Select / move', lasso: 'Lasso', penselect: 'Pen select', highlight: 'Highlight' };
   $('selectionMenuBtn').classList.toggle('active', !!selectionLabels[kind]);
   $('selectionMenuBtn').setAttribute('aria-label', selectionLabels[kind] ? 'Tools: ' + selectionLabels[kind] : 'Tools');
   var labels = { line: 'Line', arrow: 'Arrow', brace: 'Bracket', rect: 'Rectangle', ellipse: 'Ellipse' };
@@ -33682,6 +33845,9 @@ function suspendPointerInput() {
     gesture.page.cancelPointerGesture({ type: 'pointercancel', pointerId: activePointerId, pointerType: activePointerType });
   }
   activePointerId = null; activePointerType = null; navPenPointerId = null;
+  // An unfinished Pen-select path belongs to the worksheet, account and focus
+  // it was started under — none of those survive this.
+  if (typeof penSelectCancel === 'function') penSelectCancel();
   penTouchGuardUntil = performance.now() + 350;
   stopNavMomentum();
   if (navZoom.raf) cancelAnimationFrame(navZoom.raf);
@@ -33825,6 +33991,9 @@ document.addEventListener('keydown', function (e) {
     if (voiceTeacher()) voiceToggle();
     return;
   }
+  // An unfinished Pen-select path owns Enter, Esc, Backspace / Delete and undo
+  // until it is closed or cancelled — for whoever is holding the tool.
+  if (typeof penSelectKey === 'function' && penSelectKey(e)) return;
   if (isStudent() && !practiceMode) {
     // Reading-only shortcuts for students: zoom, download and Escape.
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); downloadAnnotated(); return; }
@@ -33869,7 +34038,10 @@ document.addEventListener('keydown', function (e) {
   var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn', z: 'wheelBtn', k: 'calcBtn', y: 'mmBtn' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
-    if (toolKeys[k]) setTool(toolKeys[k]);
+    // Every letter is taken, so the Pen select tool is Shift+S — plain S is
+    // still the lasso it sits beside in the Tools menu.
+    if (e.shiftKey && k === 's') setTool('penselect');
+    else if (toolKeys[k]) setTool(toolKeys[k]);
     else if (uiKeys[k]) {
       // Share-link visitors stay on their one worksheet — no drawer, no My PDFs.
       if (isSharedVisitor() && (k === 'q' || k === 'm')) return;
