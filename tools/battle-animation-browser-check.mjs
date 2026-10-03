@@ -19,7 +19,9 @@ function check(name,condition){assert.ok(condition,name);checks++;console.log('â
 async function reset(role='warrior',options={}){
   await page.evaluate(({role,options})=>{
     QuickBattle.close(); sessionStorage.clear(); window.__fail=false;window.__delay=25;window.__awardError='';window.__nextBeforeReply=false;
-    window.__state=ClassroomBattleCore.reduce(null,{type:'start',id:'animation-start-'+Math.random().toString(36).slice(2),heroes:rwStudents.map((student,index)=>ClassroomBattleCore.configureHero(ClassroomBattleCore.heroFromStudent(student,null,index),{command:'class',role:index===0?role:'warrior'})),bossId:ClassroomBattleCore.BOSSES.find(b=>!b.legacy).id});
+    // Timeline/race checks need an enemy that survives even a critical starter
+    // skill. Victory scenarios explicitly lower its HP to one below.
+    window.__state=ClassroomBattleCore.reduce(null,{type:'start',id:'animation-start-'+Math.random().toString(36).slice(2),heroes:rwStudents.map((student,index)=>ClassroomBattleCore.configureHero(ClassroomBattleCore.heroFromStudent(student,null,index),{command:'class',role:index===0?role:'warrior'})),bossId:'lich'});
     if(options.gender)__state.heroes[0].gender=options.gender;
     if(options.wounded)__state.heroes.forEach(h=>h.hp=15);
     if(options.knockout)__state.heroes[0].hp=1;

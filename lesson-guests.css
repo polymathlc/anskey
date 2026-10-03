@@ -1,0 +1,19 @@
+.whGuests { min-width:0; width:100%; display:grid; gap:8px; }
+#wheelGuestToggle { width:100%; white-space:normal; text-align:left; }
+#wheelGuestPanel { padding:12px; border:2px solid #60769d; background:#17233d; color:#edf2ff; }
+.whGuestHint { margin:0 0 12px; font-size:12px; line-height:1.5; color:#c4d3ed; }
+.whGuestFields { display:grid; gap:10px; }
+.whGuestFields label { display:grid; gap:5px; font-size:12px; font-weight:700; min-width:0; }
+.whGuestFields select { width:100%; min-width:0; max-width:100%; background:#0f1a2e; color:#edf2ff; border:2px solid #687da4; padding:8px; border-radius:2px; }
+#wheelGuestList { list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px; }
+#wheelGuestList li { display:flex; gap:8px; align-items:center; justify-content:space-between; min-width:0; border-top:1px solid #475b7f; padding-top:8px; }
+#wheelGuestList li>span { min-width:0; overflow-wrap:anywhere; }
+#wheelGuestList strong,#wheelGuestList small { display:block; }
+#wheelGuestList small,.whGuestEmpty { font-size:11px; color:#c4d3ed; }
+#wheelGuestList button { flex-shrink:0; padding:6px 8px; font-size:12px; }
+#wheelGuestStatus { margin:0; font-size:12px; color:#c4d3ed; overflow-wrap:anywhere; }
+#wheelGuestStatus.whGuestError { color:#ffce98; }
+#wheelCard .whChip.guest { border-color:#d9b567; }
+.whGuestBadge { display:inline-block; margin-left:5px; color:#f6d897; font-size:10px; font-weight:800; text-transform:uppercase; }
+.cbWheelSlot .whGuests { grid-column:1/-1; }
+.cbWheelSlot #wheelGuestPanel { color:#edf2ff; }

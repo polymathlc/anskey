@@ -6,6 +6,9 @@
   var q = { epoch: 0, store: null, off: null, state: null, queued: null, player: null, playing: false, before: null, cls: '', uid: '', loading: false, busy: false, error: '', heroId: '', selection: null, request: null, assistOpen: false, assistMessage: '', assisted: new Set(), on: true };
   var played = new Set(), missionPanel = null;
   function missionBusy() {return !!(missionPanel && missionPanel.blocked());}
+  function guestsBusy() { return !!(window.wheelGuestsBusy && wheelGuestsBusy()); }
+  function lessonStudents() { return window.wheelLessonStudents ? wheelLessonStudents(q.cls) : window.rwStudentsInClass ? rwStudentsInClass(q.cls) : []; }
+  function studentInLesson(student) { return !!student && (window.wheelStudentInLesson ? wheelStudentInLesson(student, q.cls) : rwStudentClasses(student).includes(q.cls)); }
   function cancelFeedback() { if (q.player) q.player.cancel(); q.player=null; q.playing=false; q.before=null; }
   try { q.on = localStorage.getItem('polymath.wheelQuickFight') !== 'off'; } catch (_) {}
   function el(id) { return document.getElementById(id); }
@@ -76,17 +79,20 @@
     return 'wheel-' + (h >>> 0).toString(36);
   }
   function roster() {
-    var students = window.rwStudentsInClass ? rwStudentsInClass(q.cls).slice() : [], seen = new Set(students.map(function (s) { return s.id; }));
+    var students = lessonStudents().slice(), seen = new Set(students.map(function (s) { return s.id; }));
     if (window.wheelState) wheelState.names.forEach(function (entry) {
       var linked = window.wheelStudent && wheelStudent(entry);
+      if (entry.guest && !studentInLesson(linked)) return;
       if (linked && seen.has(linked.id)) return;
-      students.push({ id: guestId(entry), name: entry.n });
+      var student = studentInLesson(linked) ? linked : { id: guestId(entry), name: entry.n };
+      if (!seen.has(student.id)) { students.push(student); seen.add(student.id); }
     });
     return students.map(function (student, index) { return Core.heroFromStudent(student, null, index); });
   }
   function heroId(entry) {
     var student = window.wheelStudent && wheelStudent(entry);
-    if (student && !rwStudentClasses(student).includes(q.cls)) student = null;
+    if (!studentInLesson(student)) student = null;
+    if (entry.guest && !student) return '';
     return Core.heroFromStudent(student || { id: guestId(entry), name: entry.n }).id;
   }
   function summary(s) {
@@ -111,16 +117,17 @@
     return window.ClassroomBattleAnimation ? ClassroomBattleAnimation.heroMarkup(role, { job:hero.job, gender:hero.gender, className: 'cbAvatar', alt: Core.ROLES[role].name + ' pixel hero', dormant: hero.hp <= 0 && !q.playing }) : '<img class="cbAvatar" src="assets/battle-pixel/' + esc(role) + '.png" alt="' + esc(Core.ROLES[role].name) + ' pixel hero">';
   }
   function controls(s) {
-    el('wheelQuickToggle').disabled = q.busy || missionBusy() || !!q.request || !!window.wheelSpinning;
-    if (q.on && q.cls) el('wheelSpinBtn').disabled = q.loading || q.busy || missionBusy() || !!q.request || !!window.wheelSpinning || !!(s && s.pending) || !window.wheelState || !wheelState.names.length;
-    if (!q.on) el('wheelSpinBtn').disabled = missionBusy() || !!window.wheelSpinning || !window.wheelState || !wheelState.names.length;
-    el('wheelClassSelect').disabled = q.busy || missionBusy() || !!q.request || !!window.wheelSpinning;
+    el('wheelQuickToggle').disabled = q.busy || missionBusy() || guestsBusy() || !!q.request || !!window.wheelSpinning;
+    if (q.on && q.cls) el('wheelSpinBtn').disabled = q.loading || q.busy || missionBusy() || guestsBusy() || !!q.request || !!window.wheelSpinning || !!(s && s.pending) || !window.wheelState || !wheelState.names.length;
+    if (!q.on) el('wheelSpinBtn').disabled = missionBusy() || guestsBusy() || !!window.wheelSpinning || !window.wheelState || !wheelState.names.length;
+    el('wheelClassSelect').disabled = q.busy || missionBusy() || guestsBusy() || !!q.request || !!window.wheelSpinning;
     el('wheelQuickRetry').hidden = !q.on || !q.request || q.busy;
-    el('wheelQuickRetry').disabled = q.loading || q.busy;
+    el('wheelQuickRetry').disabled = q.loading || q.busy || guestsBusy();
     el('wheelQuickRetry').textContent = q.request ? q.request.kind === 'assist' ? 'Retry assist for ' + q.request.studentName : 'Retry +' + q.request.delta + ' points for ' + q.request.studentName : '';
     renderAssist();
     var selected = window.wheelState && window.wheelStudent && wheelStudent(wheelState.names[window.wheelWinnerIdx]);
     document.querySelectorAll('#wheelAward button, #wheelAward input').forEach(function (button) { button.disabled = blocksAward() || !!(window.rwAwarding && selected && rwAwarding[selected.id]); });
+    if (window.LessonGuests) LessonGuests.renderButtons();
   }
   function render(force) {
     if (!el('wheelQuickFight')) return;
@@ -163,22 +170,22 @@
   function renderAssist() {
     var host = el('wheelQuickAssist'); if (!host) return;
     var called = q.selection && window.wheelStudent && wheelStudent(q.selection.entry);
-    host.hidden = !q.on || !called || !!window.wheelSpinning;
+    host.hidden = !q.on || !studentInLesson(called) || !!window.wheelSpinning;
     if (host.hidden) return;
-    var helpers = rwStudentsInClass(q.cls).filter(function (student) { return student.id !== called.id; });
+    var helpers = lessonStudents().filter(function (student) { return student.id !== called.id; });
     var picked = el('wheelAssistStudent') && el('wheelAssistStudent').value;
-    var busy = q.busy || q.loading || missionBusy() || !!q.request;
+    var busy = q.busy || q.loading || missionBusy() || guestsBusy() || !!q.request;
     host.innerHTML = '<button type="button" class="cbAssistToggle" data-assist-toggle aria-expanded="' + q.assistOpen + '"' + (busy || !helpers.length ? ' disabled' : '') + '>✦ Assist · reward a helper</button>' + (q.assistOpen ? '<div class="cbAssistPanel"><label for="wheelAssistStudent">Who helped ' + esc(called.name) + '?</label><select id="wheelAssistStudent"' + (busy ? ' disabled' : '') + '>' + helpers.map(function (student) { var used=q.assisted.has(q.selection.spinId+':'+student.id);return '<option value="' + esc(student.id) + '"' + (used ? ' disabled' : '') + (picked===student.id && !used ? ' selected' : '') + '>' + esc(student.name) + (used ? ' · XP given' : '') + '</option>'; }).join('') + '</select><button type="button" data-assist-save' + (busy || helpers.every(function (student) { return q.assisted.has(q.selection.spinId+':'+student.id); }) ? ' disabled' : '') + '>Give 6 assist XP</button><small>Once per helper for this question. No attack or enemy reply.</small></div>' : '');
   }
   function clearRequest(uid, cls, id) {
     try { var saved=JSON.parse(sessionStorage.getItem(requestKey(uid,cls)) || 'null'); if (saved && saved.action.id===id) sessionStorage.removeItem(requestKey(uid,cls)); } catch (_) {}
   }
   async function assist(studentId, retry) {
-    if (manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || window.wheelSpinning) throw new Error('Wait for the current turn before recording an assist.');
+    if (manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || guestsBusy() || window.wheelSpinning) throw new Error('Wait for the current turn before recording an assist.');
     if (retry ? !q.request || q.request.kind !== 'assist' : q.request) throw new Error('Confirm the pending save with Retry first.');
     if (!retry) {
-      var called = q.selection && wheelStudent(q.selection.entry), helper = rwStudentsInClass(q.cls).find(function (student) { return student.id === studentId; });
-      if (!called || !helper || called.id===helper.id || q.selection.spinId !== wheelState.lastSpinId) throw new Error('Choose another student in this Lesson slot who helped the called student.');
+      var called = q.selection && wheelStudent(q.selection.entry), helper = lessonStudents().find(function (student) { return student.id === studentId; });
+      if (!studentInLesson(called) || !helper || called.id===helper.id || q.selection.spinId !== wheelState.lastSpinId) throw new Error('Choose another student in this Lesson slot who helped the called student.');
       if (q.assisted.has(q.selection.spinId+':'+helper.id)) throw new Error('This helper already received XP for this question.');
       var id='assist-'+(crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
       q.request={kind:'assist',studentId:helper.id,studentName:helper.name,helpedStudentId:called.id,helpedStudentName:called.name,action:{id:id,spinId:q.selection.spinId,heroId:q.heroId}};
@@ -208,16 +215,17 @@
     return pool[Math.floor(Core.randomUnit(spinId + ':enemy') * pool.length)].id;
   }
   function blocksAward() {
-    return !manual() && (missionBusy() || q.on && (q.loading || q.busy || !!q.request || !q.store || !!(q.state && q.state.pending)));
+    return !manual() && (missionBusy() || guestsBusy() || q.on && (q.loading || q.busy || !!q.request || !q.store || !!(q.state && q.state.pending)));
   }
   function landed(entry, spinId) {
-    if (!entry || manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || !q.cls) return;
+    if (!entry || manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || guestsBusy() || !q.cls) return;
     if (!/^[a-zA-Z0-9_-]{8,100}$/.test(spinId || '')) { q.error = 'Spin again before awarding points.'; render(); return; }
+    if (!heroId(entry)) { q.error = 'Reload the guest list to confirm this student before calling their hero.'; render(); return; }
     q.selection = {entry: {id:entry.id, n:entry.n}, spinId:spinId};
     cancelFeedback(); q.heroId = heroId(entry); q.assistOpen = false; q.assistMessage = ''; q.error = ''; render();
   }
   async function award(entry, delta, reason, retry) {
-    if (manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || !q.cls || window.wheelSpinning) throw new Error('Wait for the wheel and saved encounter before awarding points.');
+    if (manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || guestsBusy() || !q.cls || window.wheelSpinning) throw new Error('Wait for the wheel and saved encounter before awarding points.');
     if (q.state && q.state.pending) throw new Error('Resolve the manual answer in Battle before awarding Quick fight points.');
     if (retry ? !q.request : q.request) throw new Error('Use Retry to confirm the pending points award first.');
     var current = q.state;
@@ -225,7 +233,7 @@
       if (!Number.isSafeInteger(delta) || delta < 1 || delta > 10000) throw new Error('Give a whole number of points from 1 to 10,000.');
       if (!entry || !q.selection || entry.id !== q.selection.entry.id || entry.n !== q.selection.entry.n || q.selection.spinId !== (window.wheelState && wheelState.lastSpinId)) throw new Error('Spin to select this student before awarding points.');
       var student = window.wheelStudent && wheelStudent(entry);
-      if (!student || !rwStudentClasses(student).includes(q.cls)) throw new Error('Link this name to a student in this Lesson slot before awarding points.');
+      if (!studentInLesson(student)) throw new Error('Link this name to a student in this Lesson slot before awarding points.');
       var id = 'award-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
       q.request = {studentId:student.id,studentName:student.name || entry.n,delta:delta,reason:reason,action:{type:'auto',id:id,spinId:q.selection.spinId,heroId:Core.heroFromStudent(student).id,heroes:roster(),bossId:enemyFor(q.selection.spinId)}};
     }
@@ -269,9 +277,10 @@
     }
   }
   function beforeSpin() {
+    if (guestsBusy()) { render(); return false; }
     if (!q.on || !window.wheelClass) return true;
     if (!q.store) open(window.wheelClass);
-    if (q.loading || q.busy || missionBusy() || q.request || !q.store || q.state && q.state.pending) { render(); return false; }
+    if (q.loading || q.busy || missionBusy() || guestsBusy() || q.request || !q.store || q.state && q.state.pending) { render(); return false; }
     cancelFeedback(); return allowed() && visible();
   }
   function playFeedback(event, encounterId) {
@@ -284,12 +293,27 @@
   function mountMission() {
     if (!window.ClassroomMissionMachine || !q.store) return;
     missionPanel=ClassroomMissionMachine.mount(el('wheelMission'), {store:q.store,teacherId:q.uid,classId:q.cls,
-      canAct:function () { return !q.loading&&!q.busy&&!q.request&&!window.wheelSpinning&&allowed()&&visible()&&!manual(); },
+      canAct:function () { return !guestsBusy()&&!q.loading&&!q.busy&&!q.request&&!window.wheelSpinning&&allowed()&&visible()&&!manual(); },
       getState:function () {return q.on ? q.state : null;},getSpinId:function () {return q.selection&&q.selection.spinId;},
       onChange:function (result) {if(result.state&&(!q.state||result.state.revision>=q.state.revision))q.state=result.state;render();},
       onBusy:function () {controls(q.state);},
       onSummon:function (event,encounterId) {if(event)playFeedback(event,encounterId);}
     });
   }
-  window.QuickBattle = { open: open, close: close, beforeSpin: beforeSpin, landed: landed, award: award, assist: assist, blocksAward: blocksAward, render: render, enabled: function () { return q.on; } };
+  function guestChangeBlocked(retry) {
+    return !manual() && visible() && !!(q.loading || q.busy || missionBusy() || q.request || window.wheelSpinning || !retry && q.state && q.state.pending);
+  }
+  function rosterChanged(detail) {
+    if (!detail || detail.classId !== q.cls || !q.store || manual() || !visible() || !allowed() || currentUser.uid !== q.uid) return;
+    if (detail.state && (!q.state || detail.state.revision >= q.state.revision)) {
+      if (q.busy) { if (!q.queued || detail.state.revision >= q.queued.revision) q.queued = detail.state; }
+      else { cancelFeedback(); q.state = detail.state; }
+    }
+    if (q.selection && q.selection.entry.id && !studentInLesson(window.wheelStudent && wheelStudent(q.selection.entry))) {
+      q.selection = null; q.heroId = ''; q.assistOpen = false; q.assistMessage = '';
+    }
+    render();
+  }
+  window.addEventListener('wheel-guests-changed', function (event) { rosterChanged(event.detail); });
+  window.QuickBattle = { guestChangeBlocked: guestChangeBlocked, rosterChanged: rosterChanged, open: open, close: close, beforeSpin: beforeSpin, landed: landed, award: award, assist: assist, blocksAward: blocksAward, render: render, enabled: function () { return q.on; } };
 })();
