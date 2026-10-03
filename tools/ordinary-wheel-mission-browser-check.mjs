@@ -16,7 +16,7 @@ const teacher = { uid: 'teacher-fixture', teacherId: 'teacher-fixture', email: '
 const errors = [], requests = [], data = new Map(), versions = new Map();
 let version = 0, randomIndex = 0, objectiveRoll = .3, prizeRoll = .99, checks = 0;
 const clone = value => value === undefined ? undefined : structuredClone(value);
-function check(name, condition) { assert.ok(condition, name); checks++; console.log('✓ ' + name); }
+function check(name, condition, details) { assert.ok(condition, details ? name + '\n' + JSON.stringify(details) : name); checks++; console.log('✓ ' + name); }
 function ref(p, collection = false, filters = []) {
   return { path: p, isCollection: collection, filters, collection: name => ref(p + '/' + name, true), doc: id => ref(p + '/' + id), where: (field, op, value) => { assert.equal(op, '=='); return ref(p, true, [...filters, [field, value]]); }, get: async () => read(ref(p, collection, filters)) };
 }
@@ -195,9 +195,12 @@ try {
   await page.evaluate(() => { __failure = 'after'; }); await award(page, 4);
   const lostId = requests.filter(r => r.type === 'wheelAward').at(-1).action.id;
   check('timeout after commit saves exactly one award and answer while keeping confirmation pending', totalMarks() === beforeLostMarks + 4 && mission().current.progress === 3 && await page.isVisible('#wheelQuickRetry'));
+  const beforeReload = await page.evaluate(() => ({ spinId: wheelState.lastSpinId, day: wheelState.day, round: wheelState.round, storedState: localStorage.getItem(wheelStoreKey(wheelClass)) }));
   await setup(page);
   await page.waitForFunction(() => !document.getElementById('wheelQuickRetry').hidden && !document.getElementById('wheelQuickRetry').disabled);
-  check('reload retains the unresolved ordinary award and current question without resending', requests.filter(r => r.type === 'wheelAward' && r.action.id === lostId).length === 1 && await page.evaluate(id => wheelState.lastSpinId === id, lostSpin));
+  const reloadedQuestion = await page.evaluate(() => ({ spinId: wheelState.lastSpinId, state: wheelState, storedState: localStorage.getItem(wheelStoreKey(wheelClass)), question: sessionStorage.getItem('polymath.wheelQuestion.' + currentUser.uid + '.' + encodeURIComponent(wheelClass)) }));
+  const lostRequests = requests.filter(r => r.type === 'wheelAward' && r.action.id === lostId).length;
+  check('reload retains the unresolved ordinary award and current question without resending', lostRequests === 1 && reloadedQuestion.spinId === lostSpin, { expectedSpinId: lostSpin, lostRequests, beforeReload, ...reloadedQuestion });
   await retryAward(page);
   check('reload retry confirms committed points without repeating marks, history, answer or prize', totalMarks() === beforeLostMarks + 4 && mission().current.progress === 3 && requests.filter(r => r.type === 'wheelAward' && r.action.id === lostId).length === 2 && mission().bank.length === 1);
   const afterReload = totalMarks(); await award(page, 1);

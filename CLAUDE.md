@@ -2,7 +2,7 @@
 
 Guidance for Claude when working in this repo.
 
-## Ordinary wheel mission answers (v1.125.1)
+## Ordinary wheel mission answers (v1.125.2)
 
 Registered Lesson slot wheel awards use the `wheelAward` server transaction with either Quick fight enabled or disabled. Off-mode uses `mode:'ordinary'` and `action.type:'award'`; it commits marks, normal award history, school-wide boss point damage, mission progress and any class prize atomically, without touching encounters or hero progression. Keep free-list/manual reward paths through `rwAwardMarks`; never send both for the same award. Duplicate receipts return current balances, not historical prize balances. The store checks for local marks changed during a request and reconciles affected balances from the server before applying its delayed reply; a failed read must preserve newer displayed marks.
 
