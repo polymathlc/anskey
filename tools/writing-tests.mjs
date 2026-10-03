@@ -53,7 +53,7 @@ class Node {
 var document = new Node('document'), window = new Node('window'), viewerArea = new Node('viewer');
 var localStorage = { getItem: function() { return null; } };
 var drawing = null, draggingSel = null, resizingSel = null, lassoing = null, lassoMoving = null, lassoResizing = null, lassoRotating = null, lasering = null;
-var editingId = null, editModeId = null, selectedId = null, kwGuessActive = null, reviseMode = false, practiceMode = false, lassoSel = null;
+var editingId = null, editModeId = null, selectedId = null, kwGuessActive = null, reviseMode = false, practiceMode = false, lassoSel = null, penPath = null;
 var annotations = [], undoStack = [], redoStack = [], tool = 'pen', color = '#000', strokeW = 2, scale = 1, showTimestamps = false, SNAP_JITTER_PX = 8;
 var p = { num: 1, baseW: 600, baseH: 800, svg: new Node('svg'), wrap: new Node('wrap') }, pages = [p];
 function isStudent() { return false; } function isSharedVisitor() { return false; }
@@ -75,6 +75,7 @@ function handleAiNoteAction() {} function openAiNoteModal() {} function mmEditAt
 function translateAnn(a, dx, dy) { (a.points || []).forEach(function (q) { q.x += dx; q.y += dy; }); }
 function focusTextAnn() {} function clearLassoSel() {} function showLassoBar() {}
 function startLassoMove() {} function startLassoResize() {} function startLassoRotate() {}
+function selectionGrab() { return false; } function penSelectDown() {} function penSelectMove() {} function penSelectUp() {} function penSelectEndDrag() {}
 function lassoGroupBBox() { return null; }
 ` + actual + `
 attachOverlayHandlers(p);
