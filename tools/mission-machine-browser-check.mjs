@@ -18,37 +18,57 @@ try {
   await page.evaluate(()=>{
     const Core=ClassroomBattleCore,M=ClassroomMissionContent;
     window.rwStudents=[{id:'one',name:'Ari',marks:10},{id:'two',name:'Bo',marks:10}];
-    window.__missions={Science:M.empty(),Maths:M.empty()};window.__receipts={};window.__requests=[];window.__objective=.3;window.__prize=.1;window.__lose=false;window.__hold=false;window.__release=null;window.__rejection=null;window.__summons=[];window.__live=true;window.__slot='Science';window.__now=Date.now();window.__spin='mission-question-001';
+    window.__missions={Science:M.empty(),Maths:M.empty()};window.__receipts={};window.__answers={};window.__marks={one:10,two:10};window.__requests=[];window.__objective=.3;window.__prize=.1;window.__lose=false;window.__hold=false;window.__release=null;window.__rejection=null;window.__getError=false;window.__getHold=false;window.__getRelease=null;window.__getCalls=0;window.__summons=[];window.__live=true;window.__slot='Science';window.__now=Date.now();window.__spin='mission-question-001';
     window.__state=Core.reduce(null,{type:'start',id:'mission-ui-encounter',heroes:rwStudents.map(s=>Core.heroFromStudent(s)),bossId:Core.BOSSES.find(b=>!b.legacy).id});
     const reference=()=>({collection:reference,doc:reference});
     window.__mount=function(slot='Science') {
       if(window.__panel)__panel.destroy();__live=true;__slot=slot;const boundSlot=slot;
       const store=ClassroomBattleStore.create({db:{collection:reference},teacherId:'mission-teacher',classId:slot,canWrite:()=>__live&&__slot===boundSlot,
-        transport:async request=>{
-          if(request.command==='get')return {mission:structuredClone(__missions[request.classId]),state:structuredClone(__state)};
+        onMission:result=>__panel.receive(result),transport:async request=>{
+          if(request.command==='get'){__getCalls++;if(__getHold)await new Promise(resolve=>__getRelease=resolve);if(__getError)throw Error('Mission unavailable');return {mission:structuredClone(__missions[request.classId]),state:structuredClone(__state)};}
           __requests.push(structuredClone(request));if(__hold)await new Promise(resolve=>{__release=resolve;});
           if(__rejection)throw Object.assign(Error('The saved mission changed.'),{code:__rejection});
-          let result=__receipts[request.id||request.action?.id];
+          const receiptId=request.command==='incorrect'?'incorrect:'+request.classId+':'+request.missionId+':'+request.spinId:request.id||request.action?.id;
+          let result=__receipts[receiptId];
+          if(result)result={...structuredClone(result),duplicate:true,mission:structuredClone(__missions[request.classId]),balances:Object.entries(__marks).map(([studentId,marks])=>({studentId,marks})),...(result.award?{award:{...result.award,marks:__marks[result.award.studentId]}}:{})};
           if(!result) {
             let m=__missions[request.classId];
-            if(request.type==='battle') {
+            if(request.type==='wheelAward'&&request.mode==='ordinary') {
+              __marks[request.studentId]+=request.delta;
+              const answerKey=request.classId+':'+request.missionId+':'+request.action.spinId;
+              let answer=__answers[answerKey];
+              if(!answer&&m.current?.id===request.missionId&&m.current.status==='active') {
+                m=M.progress(m,{kind:'correct',now:__now});answer={spinId:request.action.spinId,missionId:request.missionId,revision:m.revision};__answers[answerKey]=answer;
+                if(m.current.status==='complete'&&m.current.prize.kind==='points') {
+                  m.lastPayout.awards=Object.keys(__marks).map(studentId=>({studentId,marks:__marks[studentId]+=5,delta:5}));
+                }
+              }
+              result={state:null,award:{id:request.action.id,studentId:request.studentId,delta:request.delta,marks:__marks[request.studentId]},mission:structuredClone(m),answer:structuredClone(answer),balances:Object.entries(__marks).map(([studentId,marks])=>({studentId,marks}))};
+            } else if(request.type==='battle') {
               const a=request.action;
               if(a.source==='reward') {const token=m.bank.find(p=>p.kind==='summon'&&p.status==='available');if(!token)throw Object.assign(Error('No token'),{code:'summon_unavailable'});token.status='redeemed';m=M.clean(m);m.revision++;}
               __state=Core.reduce(__state,a);result={state:structuredClone(__state),mission:structuredClone(m)};
             } else {
-              if(request.command==='turn')m=M.start(m,{id:request.id,now:__now,objectiveRoll:__objective,prizeRoll:__prize,encounterId:__state.encounterId});
+              if(request.command==='turn')m=M.start(m,{id:request.id,now:__now,objectiveRoll:__objective,prizeRoll:__prize,encounterId:__state?.encounterId});
               else if(request.command==='cancel'){m=structuredClone(m);m.current.status='cancelled';m.revision++;}
-              else if(request.command==='incorrect')m=M.progress(m,{kind:'incorrect',now:__now});
+              else if(request.command==='incorrect') {
+                if(request.expectedRevision!==m.revision||request.missionId!==m.current?.id)throw Object.assign(Error('This question is older than the current streak.'),{code:'mission_changed'});
+                m=M.progress(m,{kind:'incorrect',now:__now});
+                __answers[request.classId+':'+request.missionId+':'+request.spinId]={spinId:request.spinId,missionId:request.missionId,revision:m.revision};
+              }
               else if(request.command==='focus') {if(__now<m.current.focusReadyAt)throw Object.assign(Error('Not ready'),{code:'focus_not_ready'});m=M.progress(m,{kind:'focus',now:__now});}
               else if(request.command==='redeem'){m=structuredClone(m);m.bank.find(p=>p.id===request.prizeId).status='redeemed';m.revision++;}
-              result={mission:structuredClone(m),state:structuredClone(__state)};
+              result={mission:structuredClone(m),state:structuredClone(__state),...(request.command==='incorrect'?{answer:__answers[request.classId+':'+request.missionId+':'+request.spinId],balances:Object.entries(__marks).map(([studentId,marks])=>({studentId,marks}))}:{})};
             }
-            __missions[request.classId]=m;__receipts[request.id||request.action?.id]=structuredClone(result);
+            __missions[request.classId]=m;__receipts[receiptId]=structuredClone(result);
           }
           if(__lose){__lose=false;throw Error('Reply lost after save');}return structuredClone(result);
         }});
+      window.__store=store;
       window.__panel=ClassroomMissionMachine.mount(document.getElementById('mission'),{store,teacherId:'mission-teacher',classId:slot,canAct:()=>__live&&__slot===boundSlot,getState:()=>__state,getSpinId:()=>__spin,onChange:result=>{if(result.state)__state=result.state;},onSummon:event=>__summons.push(event.id)});
     };
+    window.__question=spin=>{__spin=spin;return __panel.question(spin);};
+    window.__ordinary=async(id,spin=__spin,delta=1)=>__store.award({studentId:'one',studentName:'Ari',delta,reason:'Correct answer',mode:'ordinary',...__panel.getAnswerContext(spin),action:{type:'award',id,spinId:spin}});
     __mount();
   });
   await ready();
@@ -60,7 +80,7 @@ try {
   await page.evaluate(()=>{__hold=false;__release();});await ready();
   check('saved objective and class prize are shown together',await page.locator('.mmReels').textContent().then(t=>t.includes('7 correct answers')&&t.includes('Blooket')));
   check('active missions require cancel before another turn',await page.locator('[data-mm=turn]').isDisabled()&&await page.locator('[data-mm=cancel]').isEnabled());
-  await page.evaluate(()=>{__missions.Science=ClassroomMissionContent.progress(__missions.Science,{kind:'correct',now:__now});__panel.refresh();});
+  await page.evaluate(async()=>{__missions.Science=ClassroomMissionContent.progress(__missions.Science,{kind:'correct',now:__now});await __panel.refresh();__question(__spin);});
   await page.waitForFunction(()=>document.querySelector('.mmReels').textContent.includes('1 / 7'));
   await page.click('[data-mm=incorrect]');await ready();
   check('incorrect answer sends the saved question identity and resets the shown streak',await page.evaluate(()=>__requests.at(-1).spinId===__spin&&__missions.Science.current.progress===0));
@@ -74,14 +94,42 @@ try {
   await page.click('[data-mm=retry]');await ready();
   check('retry reuses the original roll identity and prize',await page.evaluate(id=>__requests.at(-1).id===id&&__missions.Science.current.prize.id==='class-points'&&!__panel.blocked(),savedId));
   check('rare whole-class point prizes are labelled rare',await page.locator('.mmRare').textContent().then(t=>t.includes('RARE')&&t.includes('+5 bonus points')));
-  await page.click('[data-mm=cancel]');await ready();
+  await page.evaluate(async()=>{__savedEncounter=structuredClone(__state);__state=null;__question('ordinary-question-001');await __ordinary('ordinary-award-001');await __ordinary('ordinary-award-002',__spin,2);await __ordinary('ordinary-award-002',__spin,2);});
+  check('ordinary saved awards count one answer per spin while retaining additional legitimate marks',await page.evaluate(()=>__missions.Science.current.progress===1&&__marks.one===13&&rwStudents[0].marks===13&&__state===null));
+  await page.evaluate(async()=>{__question('ordinary-question-002');await __ordinary('ordinary-award-003');await __panel.refresh();});
+  const correctRevision=await page.evaluate(()=>__panel.getAnswerContext(__spin).missionRevision);
+  await page.click('[data-mm=incorrect]');await ready();
+  check('reset after this question was marked correct uses its confirmed revision and preserves its marks',await page.evaluate(revision=>__requests.at(-1).expectedRevision===revision&&__missions.Science.current.progress===0&&__marks.one===14&&rwStudents[0].marks===14,correctRevision));
+  await page.evaluate(()=>__ordinary('ordinary-award-after-reset'));
+  check('another legitimate points award on the reset question keeps that question incorrect',await page.evaluate(()=>__missions.Science.current.progress===0&&__marks.one===15&&rwStudents[0].marks===15));
+  await page.evaluate(()=>{__question('ordinary-question-003');__rejection='network_error';});await page.click('[data-mm=incorrect]');await page.waitForFunction(()=>!!document.querySelector('[data-mm=retry]'));
+  const oldReset=await page.evaluate(()=>structuredClone(__requests.at(-1)));
+  await page.evaluate(async()=>{__rejection=null;__missions.Science=ClassroomMissionContent.progress(__missions.Science,{kind:'correct',now:__now});await __panel.refresh();__mount();});
+  await page.waitForFunction(()=>!!document.querySelector('[data-mm=retry]:not([disabled])'));await page.click('[data-mm=retry]');await ready();
+  check('reload and refresh preserve an uncommitted reset revision so its retry cannot clear a newer streak',await page.evaluate(request=>__requests.at(-1).id===request.id&&__requests.at(-1).expectedRevision===request.expectedRevision&&__missions.Science.current.progress===1&&!__panel.blocked(),oldReset));
+  await page.evaluate(()=>{__question('ordinary-question-004');__lose=true;});await page.click('[data-mm=incorrect]');await page.waitForFunction(()=>!!document.querySelector('[data-mm=retry]'));
+  const committedReset=await page.evaluate(()=>structuredClone(__requests.at(-1)));
+  await page.evaluate(()=>{__missions.Science=ClassroomMissionContent.progress(__missions.Science,{kind:'correct',now:__now});__getError=true;__mount();});
+  await page.waitForFunction(()=>!!document.querySelector('[data-mm=load]'));
+  check('a pending reset remains recoverable when its initial reload read also fails',await page.evaluate(()=>__panel.blocked()&&!!sessionStorage.getItem('polymath.classMission.mission-teacher.Science')));
+  await page.evaluate(()=>{__getError=false;});await page.click('[data-mm=load]');
+  await page.waitForFunction(()=>!!document.querySelector('[data-mm=retry]:not([disabled])'));await page.click('[data-mm=retry]');await ready();
+  check('a committed reset with a lost reply confirms its receipt without resetting a later answer',await page.evaluate(request=>__requests.at(-1).id===request.id&&__missions.Science.current.progress===1&&__panel.getAnswerContext(__spin).missionRevision<__missions.Science.revision,committedReset));
+  await page.evaluate(()=>__question('ordinary-question-005'));await page.click('[data-mm=incorrect]');await ready();
+  const beforePoints=await page.evaluate(()=>structuredClone(__marks));
+  await page.evaluate(async()=>{for(let i=0;i<7;i++){__question('ordinary-complete-question-'+i);await __ordinary('ordinary-complete-award-'+i);}});
+  check('seven distinct saved ordinary answers complete the mission and award +5 class points exactly once',await page.evaluate(before=>__missions.Science.current.status==='complete'&&__missions.Science.current.progress===7&&__missions.Science.bank.filter(p=>p.kind==='points').length===1&&__marks.one===before.one+12&&__marks.two===before.two+5&&rwStudents.every(s=>s.marks===__marks[s.id]),beforePoints));
+  await page.evaluate(async()=>{await __ordinary('ordinary-complete-award-6');await __ordinary('ordinary-extra-award-6',__spin,3);});
+  check('replaying the completing award and a later extra award cannot repeat the prize or restore historical balances',await page.evaluate(before=>__missions.Science.bank.filter(p=>p.kind==='points').length===1&&__marks.one===before.one+15&&__marks.two===before.two+5&&rwStudents[0].marks===__marks.one&&__state===null,beforePoints));
+  check('off-mode progress and resets send no attacks or encounter start requests',await page.evaluate(()=>__requests.filter(r=>(r.action?.id||r.spinId||'').startsWith('ordinary-')).every(r=>r.type==='mission'||r.type==='wheelAward'&&r.mode==='ordinary'&&r.action.type==='award')));
+  await page.evaluate(()=>{__state=__savedEncounter;});
   await page.evaluate(()=>{__objective=.55;__prize=.1;});await page.click('[data-mm=turn]');await ready();
   check('focus timer starts from the saved server deadline and cannot complete early',await page.locator('[data-mm=focus]').isDisabled()&&await page.locator('.mmReels').textContent().then(t=>t.includes('30 minutes remaining')));
   await page.evaluate(()=>{__missions.Science.current.focusReadyAt=Date.now()-1000;__now=Date.now();__panel.refresh();});
   await page.waitForFunction(()=>!document.querySelector('[data-mm=focus]').disabled);await page.click('[data-mm=focus]');await ready();
   check('teacher confirmation banks the class game-time prize',await page.locator('.mmBank').textContent().then(t=>t.includes('Blooket'))&&await page.evaluate(()=>__missions.Science.current.status==='complete'));
   await page.click('[data-mm=redeem]');await ready();
-  check('marking a game prize used sends the exact bank ID and removes it from available prizes',await page.evaluate(()=>__requests.at(-1).prizeId===__missions.Science.bank[0].id&&__missions.Science.bank[0].status==='redeemed')&&await page.locator('[data-mm=redeem]').count()===0);
+  check('marking a game prize used sends the exact bank ID and removes it from available prizes',await page.evaluate(()=>{const prize=__missions.Science.bank.find(p=>p.kind==='minutes');return __requests.at(-1).prizeId===prize.id&&prize.status==='redeemed';})&&await page.locator('[data-mm=redeem]').count()===0);
   await page.evaluate(()=>{__objective=.8;__prize=0;});await page.click('[data-mm=turn]');await ready();
   await page.evaluate(()=>{for(let i=0;i<3;i++)__missions.Science=ClassroomMissionContent.progress(__missions.Science,{kind:'assist',now:__now});__panel.refresh();});
   await page.waitForFunction(()=>!document.querySelector('[data-source=reward]').disabled);
@@ -105,6 +153,30 @@ try {
   check('class bonus mutation updates all returned roster balances',await page.evaluate(()=>rwStudents.every(s=>s.marks===15)));
   await page.evaluate(async()=>{rwStudents[0].marks=20;await __panel.refresh();});
   check('background mission refresh never overwrites newer awarded marks with an old payout',await page.evaluate(()=>rwStudents[0].marks===20));
+  await page.evaluate(()=>{__getError=true;__mount('Science');});await page.waitForFunction(()=>!!document.querySelector('[data-mm=load]'));
+  check('an initial mission read failure blocks answers until an explicit load retry succeeds',await page.evaluate(()=>__panel.blocked()&&__panel.question('question-before-mission-load')===null)&&await page.locator('[data-mm=turn]').isDisabled());
+  await page.evaluate(()=>{__getError=false;});await page.click('[data-mm=load]');await ready();
+  check('retrying the mission read restores a confirmed question binding without a mission mutation',await page.evaluate(()=>!!__panel.question('question-after-mission-load')&&!__panel.blocked()));
+  await page.evaluate(()=>{
+    __oldQuestionContext=__panel.getAnswerContext('question-after-mission-load');
+    const M=ClassroomMissionContent;let m=__missions.Science;if(m.current?.status==='active'){m=structuredClone(m);m.current.status='cancelled';m.revision++;}
+    __missions.Science=M.start(m,{id:'remote-new-correct-mission',now:__now,objectiveRoll:.3,prizeRoll:.1});
+    __getHold=true;__getRelease=null;__freshRead=__panel.refresh(true);
+  });
+  await page.waitForFunction(()=>!!__getRelease);
+  check('a new question waits for a fresh mission read while keeping the previous retry binding frozen',await page.evaluate(()=>__panel.blocked()&&__panel.question('question-during-fresh-read')===null&&JSON.stringify(__panel.getAnswerContext('question-after-mission-load'))===JSON.stringify(__oldQuestionContext)));
+  await page.evaluate(()=>{__freshReadCalls=__getCalls;__backgroundRead=__panel.refresh();__sameQuestionRead=__backgroundRead===__freshRead;__getHold=false;__getRelease();});
+  check('background refresh cannot supersede or duplicate the in-flight per-question server read',await page.evaluate(async()=>__sameQuestionRead&&await __freshRead===true&&await __backgroundRead===true&&__getCalls===__freshReadCalls));
+  await page.evaluate(async()=>{__question('question-on-remote-mission');await __ordinary('award-on-remote-mission');});
+  check('an already-open panel counts the next spun question against a mission started in another tab',await page.evaluate(()=>__panel.getAnswerContext(__spin).missionId==='remote-new-correct-mission'&&__missions.Science.current.progress===1));
+  check('a failed per-question read cannot bind a new question to the stale displayed mission',await page.evaluate(async()=>{__getError=true;const result=await __panel.refresh(true);return result===false&&!__panel.blocked()&&__panel.question('question-after-failed-refresh')===null&&!!__panel.getAnswerContext('question-on-remote-mission');}));
+  check('a background read does not silently revive a question whose required refresh failed',await page.evaluate(async()=>{__getError=false;await __panel.refresh();return __panel.question('question-after-failed-refresh')===null;}));
+  await page.evaluate(async()=>{await __panel.refresh(true);__question('question-after-new-refresh');await __ordinary('award-after-new-refresh');});
+  check('the next successful per-question refresh restores correct progress without rebinding the failed question',await page.evaluate(()=>__missions.Science.current.progress===2&&__panel.getAnswerContext('question-after-failed-refresh')===null));
+  await page.evaluate(async()=>{const M=ClassroomMissionContent;__missions.Science=M.progress(M.progress(__missions.Science,{kind:'incorrect',now:__now}),{kind:'correct',now:__now});await __panel.refresh(true);__question('question-after-remote-reset');});
+  const afterRemoteResetRevision=await page.evaluate(()=>__missions.Science.revision);
+  await page.click('[data-mm=incorrect]');await ready();
+  check('a fresh question following another tab reset can reset the current streak with the new revision',await page.evaluate(revision=>__requests.at(-1).expectedRevision===revision&&__missions.Science.current.progress===0,afterRemoteResetRevision));
   await page.setViewportSize({width:375,height:800});await page.screenshot({path:path.join(output,'mission-machine-mobile.png'),fullPage:true});
   check('mission controls fit a phone without horizontal overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.setViewportSize({width:960,height:900});await page.screenshot({path:path.join(output,'mission-machine-desktop.png'),fullPage:true});

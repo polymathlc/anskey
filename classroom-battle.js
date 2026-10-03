@@ -226,7 +226,7 @@
     if (state.pending) { showError(new Error('Choose Correct, Incorrect or Skip for the current answer first.')); return false; }
     error = ''; return true;
   }
-  function spinning() { if (opened) render(); else if (window.QuickBattle) QuickBattle.render(); }
+  function spinning() { if (opened) render(); else if (window.QuickBattle) QuickBattle.spinning(); }
   function wheelClosed() {
     if (window.QuickBattle) QuickBattle.close();
     wheelPreviewEpoch++;
@@ -242,7 +242,7 @@
   }
 
   async function landed(entry, spinId) {
-    if (!opened) { if (window.QuickBattle && QuickBattle.enabled()) await QuickBattle.landed(entry, spinId); else { if (window.QuickBattle) QuickBattle.render(); wheelPreview(entry); } return; }
+    if (!opened) { if (window.QuickBattle) await QuickBattle.landed(entry, spinId); if (!window.QuickBattle || !QuickBattle.enabled()) wheelPreview(entry); return; }
     if (!opened || !entry || !allowed() || !state || state.status !== 'active' || selectionInFlight || guestsBusy()) return;
     selectionInFlight = true;
     try {

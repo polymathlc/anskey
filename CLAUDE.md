@@ -2,6 +2,14 @@
 
 Guidance for Claude when working in this repo.
 
+## Ordinary wheel mission answers (v1.125.0)
+
+Registered Lesson slot wheel awards use the `wheelAward` server transaction with either Quick fight enabled or disabled. Off-mode uses `mode:'ordinary'` and `action.type:'award'`; it commits marks, normal award history, school-wide boss point damage, mission progress and any class prize atomically, without touching encounters or hero progression. Keep free-list/manual reward paths through `rwAwardMarks`; never send both for the same award. Duplicate receipts return current balances, not historical prize balances. The store checks for local marks changed during a request and reconciles affected balances from the server before applying its delayed reply; a failed read must preserve newer displayed marks.
+
+Every new spin reads the current mission during the wheel animation before capturing its question context. Persist the selected question and immutable mission binding per teacher/slot in session storage, including across reloads; retain the same-day wheel spin ID. A failed fresh read must block awards for that question. An old question or retry must never inherit the mission revision from a later background refresh. Award IDs are independent of spin IDs so extra legitimate points save while each question advances the mission once. Incorrect resets use the captured/acknowledged question revision; check committed reset receipts first, then reject uncommitted stale resets. The reset watermark also prevents delayed pre-reset correct answers extending a newer streak.
+
+Run the ordinary-wheel mission browser suite against the production repository implementation, plus panel, store, wheel, Quick fight and manual battle regressions. Cover seven distinct answers and exactly-once +5 class prize, reset/recompletion, concurrent tabs, late/lost responses, reload, and account/slot boundaries. Deploy only `functions:ans-key-live:ansKeyHeroes` before this frontend release; no rules changes or data migration are needed.
+
 ## Temporary lesson guests (v1.124.0)
 
 `lesson-guests.js/css` adds a teacher picker shared by the ordinary wheel and embedded battle wheel. Guests are existing registered students, selected by source Lesson slot and stable roster ID. `lessonGuests` get/add/remove saves per-teacher/per-slot membership under `classroomHeroData/{teacherUid}/lessonGuests/{classKey}` until explicitly removed; never edit `students.slot/slots`, claims or copy a hero. Both battle controllers use `wheelLessonStudents` / `wheelStudentInLesson`. Confirmed entries carry `guest:true` in the wheel list, survive reload, and are removed by a saved guest removal rather than only deleting the local chip. Unconfirmed guest entries must never become disposable `wheel-*` heroes.
@@ -75,9 +83,9 @@ mid-spin still counts the student as called, so nobody is called twice. The whee
 turns over the names that were on it, then drops the winner. A spin with nobody left
 opens round N+1. Names are stored per reward-class string in `localStorage`
 (`polymath.wheel:{class}`); a new calendar day keeps the names and clears the calls.
-`seeded` stops a removed name coming back from the register. Ordinary marks go through
-`rwAwardMarks(student, delta, reason)`. Quick fight awards use the single atomic
-`wheelAward` server transaction instead; never call both for one award. Run
+`seeded` stops a removed name coming back from the register. Free-list/manual marks go through
+`rwAwardMarks(student, delta, reason)`. Registered Lesson slot wheel awards use the single atomic
+`wheelAward` server transaction in both Quick fight modes; never call both for one award. Run
 `node --test tools/wheel-tests.mjs` and `node tools/wheel-check.mjs`.
 
 ## Default text, vision and reasoning (v1.112.0)

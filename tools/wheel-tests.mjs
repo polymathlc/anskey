@@ -19,6 +19,13 @@ const plain = (x) => JSON.parse(JSON.stringify(x));
 const seq = (...v) => { let i = 0; return () => v[i++ % v.length]; };
 const roster = (...names) => { const s = W('wheelClean(null, "2026-10-07")'); names.forEach(n => W('wheelAddName')(s, n)); return s; };
 
+test('reload preserves the newest same-day question identity but never carries it into the next lesson day', () => {
+  const saved = {names:[{id:'ann',n:'Ann',done:true}],round:2,day:'2026-10-07',seeded:true,lastSpinId:'wheel-manual-newer-question'};
+  assert.equal(W('wheelClean')(saved,'2026-10-07').lastSpinId,'wheel-manual-newer-question');
+  assert.equal(W('wheelClean')(saved,'2026-10-08').lastSpinId,undefined);
+  assert.equal(W('wheelClean')({...saved,lastSpinId:'bad/id'},'2026-10-07').lastSpinId,undefined);
+});
+
 test('same-name registered students retain separate stable identities across save and reload', () => {
   const state = W('wheelClean(null, "2026-10-07")');
   W('wheelAddName')(state, 'Alex', 'account-a');

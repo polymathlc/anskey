@@ -72,6 +72,7 @@ async function setup(delayProfiles = 0) {
     window.__appearanceHold=false;window.__appearanceRelease=null;window.__appearanceCancelled=0;
     window.ClassroomHeroAPI.request = async ({type, classId, action, command}, lifecycle={}) => {
       if(type==='lessonGuests'&&command==='get')return {guests:[],state:null};
+      if(type==='mission'&&command==='get')return {mission:ClassroomMissionContent.empty(),state:null};
       if(action?.command==='appearance' && __appearanceHold)await new Promise(resolve=>__appearanceRelease=resolve);
       if(lifecycle.canSend && !lifecycle.canSend()){__appearanceCancelled++;throw new Error('The lesson or signed-in account changed.');}
       if (type !== 'battle') throw new Error('Unexpected request in battle fixture.');
