@@ -10,6 +10,12 @@ The account links to the existing roster character without replacing XP, equipme
 
 My Hero shows level, XP, skill points, a connected pixel skill tree and the treasure bag. It refreshes while open, and future logins return to the saved hero. Student build changes wait until the active encounter is finished or ended; appearance changes remain available during an encounter.
 
+## Temporary guests from another lesson
+
+In the wheel or battle sidebar, choose **Add student from another slot**, select the student's source **Lesson slot** and name, then **Add guest**. The student joins the current wheel and battle with their saved hero. Their home lesson slot and account claim stay unchanged, and points, XP, skills, equipment and treasure continue on the same character. Guests can give or receive assists and share class mission prizes.
+
+Guest entries survive closing or refreshing the page. Open **Lesson guests** and press **Remove** when they leave; the Guest chip's × does the same. Removing a guest preserves their progress and the enemy's current health. Finish the selected answer before changing guests. If their hero is still fighting in another lesson, finish or end that encounter first. A failed save offers a safe retry of the same change.
+
 ## Character gender
 
 All four base classes and eight advanced jobs offer **Male** and **Female** character versions, each with four idle and four attack frames. Students choose **My Hero → Character gender**. Teachers click a hero in the battle formation and use **Character gender** in the hero journal (start the first encounter to create a saved character).

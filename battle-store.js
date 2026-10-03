@@ -23,6 +23,21 @@
           onState(snap.exists ? snap.data() : null);
         }, onError);
       },
+      async guests(request) {
+        authorize();
+        const frozen = JSON.parse(JSON.stringify(request));
+        if (!['get','add','remove'].includes(frozen.command)) throw new Error('Invalid temporary student request.');
+        if (frozen.command !== 'get') {
+          if (!/^[a-zA-Z0-9_-]{8,100}$/.test(frozen.id || '')) throw new Error('Invalid temporary student request ID.');
+          if (typeof frozen.studentId !== 'string' || !frozen.studentId || frozen.studentId.length > 200 || /\//.test(frozen.studentId)) throw new Error('Choose a valid temporary student.');
+        }
+        const api = transport || (typeof window !== 'undefined' && window.ClassroomHeroAPI && window.ClassroomHeroAPI.request);
+        if (!api) throw new Error('Hero saving is loading. Refresh Ans Key and try again.');
+        const result = await api({...frozen,type:'lessonGuests',classId},{canSend:canWrite});
+        authorize();
+        if (!Array.isArray(result?.guests) || result.guests.some(guest => !guest || typeof guest.studentId !== 'string' || !guest.studentId || typeof guest.name !== 'string' || !Array.isArray(guest.lessonSlots) || guest.lessonSlots.some(slot => typeof slot !== 'string')) || new Set(result.guests.map(guest => guest.studentId)).size !== result.guests.length) throw new Error('The temporary students could not be confirmed. Retry the same request.');
+        return result;
+      },
       async mission(request) {
         authorize();
         const frozen = JSON.parse(JSON.stringify(request));

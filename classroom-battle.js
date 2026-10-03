@@ -13,10 +13,13 @@
   var missionPanel = null;
   var journalTree = null, arenaPlayer = null, animationPending = null, animationId = '';
   function missionBusy() {return !!(missionPanel && missionPanel.blocked());}
+  function guestsBusy() { return !!(window.wheelGuestsBusy && wheelGuestsBusy()); }
+  function lessonStudents() { return window.wheelLessonStudents ? wheelLessonStudents(classId) : window.rwStudentsInClass ? rwStudentsInClass(classId) : []; }
+  function studentInLesson(student) { return !!student && (window.wheelStudentInLesson ? wheelStudentInLesson(student, classId) : rwStudentClasses(student).includes(classId)); }
   function cancelArena() { if (arenaPlayer) arenaPlayer.cancel(); arenaPlayer = null; }
   function queueAnimation(event, encounterId) {
     if (!opened || !event || !state || !state.lastEvent || state.lastEvent.id !== event.id || state.encounterId !== encounterId || event.id === animationId) return;
-    if (busy || missionBusy()) { animationPending = {event:event,encounterId:encounterId}; return; }
+    if (busy || missionBusy() || guestsBusy()) { animationPending = {event:event,encounterId:encounterId}; return; }
     animationPending = null; animationId = event.id; animate(event);
   }
   var roleText = Core.ROLES;
@@ -46,7 +49,8 @@
   function allowed() { return !!(window.wheelTeacher && wheelTeacher() && window.currentUser && currentUser.uid); }
   function boss() { return state && Core.BOSSES.find(function (b) { return b.id === state.bossId; }); }
   function heroIdFor(entry) {
-    var student = entry && window.rwStudents.find(function (s) { return entry.id && s.id === entry.id && rwStudentClasses(s).indexOf(classId) !== -1; });
+    var student = entry && lessonStudents().find(function (s) { return entry.id && s.id === entry.id; });
+    if (entry && entry.guest && !student) return null;
     return Core.heroFromStudent(student || { id: guestId(entry), name: entry ? entry.n : 'Guest hero' }, student && profiles[student.uid]).id;
   }
   function guestId(entry) {
@@ -55,12 +59,13 @@
     return 'wheel-' + (h >>> 0).toString(36);
   }
   function roster() {
-    var students = window.rwStudentsInClass ? rwStudentsInClass(classId).slice() : [];
+    var students = lessonStudents().slice();
     var ids = new Set(students.map(function (s) { return s.id; }));
     if (window.wheelClass === classId && window.wheelState) wheelState.names.forEach(function (entry) {
       if (entry.id && ids.has(entry.id)) return;
       // Only a concrete register ID can link a wheel entry to an account. Never use a name lookup.
-      var registered = entry.id && window.rwStudents.find(function (s) { return s.id === entry.id && rwStudentClasses(s).indexOf(classId) !== -1; });
+      var registered = entry.id && window.rwStudents.find(function (s) { return s.id === entry.id && studentInLesson(s); });
+      if (entry.guest && !registered) return;
       if (registered) { students.push(registered); ids.add(registered.id); }
       else students.push({ id: guestId(entry), name: entry.n });
     });
@@ -185,7 +190,7 @@
     syncTimer = setTimeout(function () {
       syncTimer = null;
       if (!opened || !store || !state || !classReady || pendingProfiles) return;
-      if (busy || missionBusy() || timing || selectionInFlight || window.wheelSpinning) { scheduleSync(); return; }
+      if (busy || missionBusy() || guestsBusy() || timing || selectionInFlight || window.wheelSpinning) { scheduleSync(); return; }
       var heroes = roster(), signature = JSON.stringify(heroes.map(function (h) { return { id: h.id, name: h.name, role: h.role, stats: h.stats }; }));
       if (signature === synced) return;
       synced = signature;
@@ -193,7 +198,7 @@
     }, 200);
   }
   async function act(action) {
-    if (!opened || !allowed() || !store || busy || missionBusy()) throw new Error('Wait for the current action to finish.');
+    if (!opened || !allowed() || !store || busy || missionBusy() || guestsBusy()) throw new Error('Wait for the current action to finish.');
     var stamp = epoch, activeStore = store;
     action.id = action.id || uuid();
     if (state) { action.encounterId = state.encounterId; action.expectedRevision = state.revision; }
@@ -206,7 +211,7 @@
     finally { if (stamp === epoch) { busy = false; render(); if(missionPanel)missionPanel.refresh(); if (animationPending) queueAnimation(animationPending.event,animationPending.encounterId); } }
   }
   async function start() {
-    if (!allowed() || !classId || !classReady || pendingProfiles || busy || timing || window.wheelSpinning) return;
+    if (!allowed() || !classId || !classReady || pendingProfiles || busy || guestsBusy() || timing || window.wheelSpinning) return;
     var heroes = roster();
     if (!heroes.length) { showError(new Error('Add students to this class or to the wheel first.')); return; }
     if (state && state.status === 'active' && !window.confirm('Start another encounter for ' + classId + '? This replaces the current boss and restores your team’s health.')) return;
@@ -216,7 +221,7 @@
   }
   function beforeSpin() {
     if (!opened) return window.QuickBattle ? QuickBattle.beforeSpin() : true;
-    if (!allowed() || busy || missionBusy() || timing || selectionInFlight || loading || pendingProfiles) return false;
+    if (!allowed() || busy || missionBusy() || guestsBusy() || timing || selectionInFlight || loading || pendingProfiles) return false;
     if (!state || state.status !== 'active') { showError(new Error('Start an encounter before calling a hero.')); return false; }
     if (state.pending) { showError(new Error('Choose Correct, Incorrect or Skip for the current answer first.')); return false; }
     error = ''; return true;
@@ -238,21 +243,22 @@
 
   async function landed(entry, spinId) {
     if (!opened) { if (window.QuickBattle && QuickBattle.enabled()) await QuickBattle.landed(entry, spinId); else { if (window.QuickBattle) QuickBattle.render(); wheelPreview(entry); } return; }
-    if (!opened || !entry || !allowed() || !state || state.status !== 'active' || selectionInFlight) return;
+    if (!opened || !entry || !allowed() || !state || state.status !== 'active' || selectionInFlight || guestsBusy()) return;
     selectionInFlight = true;
     try {
       var hid = heroIdFor(entry);
+      if (!hid) { showError(new Error('Reload the guest list to confirm this student before calling their hero.')); return; }
       if (!state.heroes.some(function (h) { return h.id === hid; })) await act({ type: 'sync', heroes: roster() });
       await act({ type: 'select', heroId: hid, turnId: uuid() });
     } catch (_) {} finally { selectionInFlight = false; render(); }
   }
   async function answer(outcome) {
-    if (!allowed() || busy || missionBusy() || timing || selectionInFlight || !state || !state.pending || window.wheelSpinning) return;
+    if (!allowed() || busy || missionBusy() || guestsBusy() || timing || selectionInFlight || !state || !state.pending || window.wheelSpinning) return;
     if (outcome === 'correct' && menu !== 'attack' && !commandId) { showError(new Error('Choose a skill or item first.')); return; }
     try { await act({ type: 'answer', turnId: state.pending.id, outcome: outcome, command: menu, skillId: menu === 'skill' ? commandId : undefined, itemId: menu === 'item' ? commandId : undefined, targetId: el('cbTarget').value || undefined }); } catch (_) {}
   }
   function attack(ultimate) {
-    if (!allowed() || busy || missionBusy() || timing || selectionInFlight || !state || state.status !== 'active' || state.pending || window.wheelSpinning) return;
+    if (!allowed() || busy || missionBusy() || guestsBusy() || timing || selectionInFlight || !state || state.status !== 'active' || state.pending || window.wheelSpinning) return;
     var b = boss(); if (ultimate && (!b || state.charge < b.chargeMax || (state.bossMp == null ? 60 : state.bossMp) < (Core.BOSS_SKILL_MP || 30))) return;
     timing = { ultimate: !!ultimate, start: performance.now(), position: 0, encounterId: state.encounterId, revision: state.revision };
     render(); el('cbStop').focus(); tickMeter();
@@ -282,13 +288,13 @@
     container.querySelectorAll('img.cbAvatar').forEach(function (img) { img.onerror = function () { img.alt = 'Hero sprite unavailable'; }; });
   }
   async function journalAction(values) {
-    var h = inspectedHero(); if (!h || busy || timing || window.wheelSpinning || state && state.pending && values.command !== 'appearance') return;
+    var h = inspectedHero(); if (!h || busy || guestsBusy() || timing || window.wheelSpinning || state && state.pending && values.command !== 'appearance') return;
     if (values.command === 'advance' && state && state.status === 'active') { showError(new Error('Finish or end this encounter before upgrading a job.')); return; }
     if (!state) { showError(new Error('Start the first encounter to save your class and skills.')); return; }
     try { await act(Object.assign({ type: 'sync', heroId: h.id }, values)); } catch (_) {}
   }
   function renderCommands() {
-    var h = activeHero(), locked = busy || !!timing || !h || !!window.wheelSpinning;
+    var h = activeHero(), locked = busy || guestsBusy() || !!timing || !h || !!window.wheelSpinning;
     var turn = state && state.pending && state.pending.id || '';
     if (turn !== commandTurn) { commandTurn = turn; menu = 'attack'; commandId = ''; }
     document.querySelectorAll('[data-menu]').forEach(function (n) { n.setAttribute('aria-pressed', String(n.dataset.menu === menu)); n.disabled = locked; });
@@ -318,7 +324,7 @@
     }).join('') + '</div></section>';
   }
   function journalAppearance(h) {
-    var current = h.gender === 'female' ? 'female' : 'male', locked = busy || !!timing || !state || !!window.wheelSpinning;
+    var current = h.gender === 'female' ? 'female' : 'male', locked = busy || guestsBusy() || !!timing || !state || !!window.wheelSpinning;
     return '<section class="cbAppearance" aria-busy="' + busy + '" aria-label="Character gender"><h4>Character gender <span>Appearance only</span></h4><p>' + (!state ? 'Start the first encounter to save this character’s appearance.' : 'Change this hero’s appearance any time. Class, XP, skills, equipment and the current turn stay the same.') + '</p><div class="cbGenderChoices" role="group" aria-label="Choose character gender">' + ['male', 'female'].map(function (gender) {
       var selected = current === gender, label = gender === 'female' ? 'Female' : 'Male';
       return button(avatar(Object.assign({}, h, {gender:gender}), 'cbGenderAvatar') + '<strong>' + label + '</strong><span>' + (selected ? 'Current appearance' : 'Use ' + label.toLowerCase() + ' appearance') + '</span>', 'class="cbGenderChoice" data-cb-gender="' + gender + '" aria-pressed="' + selected + '"', locked || selected);
@@ -327,7 +333,7 @@
   function renderJournal() {
     if (el('cbHeroPanel').hidden) return;
     var h = inspectedHero(); if (!h) return;
-    var locked = busy || missionBusy() || !!timing || !state || !!state.pending || !!window.wheelSpinning;
+    var locked = busy || missionBusy() || guestsBusy() || !!timing || !state || !!state.pending || !!window.wheelSpinning;
     el('cbJournalName').textContent = h.name + ' / ' + heroClassName(h);
     var inventory = h.inventory || [];
     if (journalTree) journalTree.destroy(); journalTree = null;
@@ -369,7 +375,7 @@
     var active = state && state.status === 'active', selected = pending && heroes.find(function (h) { return h.id === pending.heroId; });
     var living = heroes.filter(function (h) { return h.hp > 0; }), nextTarget = state && living[state.bossTurns % living.length];
     var targetsAll = b && (b.playstyle === 'splash' || state.charge >= b.chargeMax);
-    var locked = busy || missionBusy() || !!timing || loading || pendingProfiles > 0 || selectionInFlight || !!window.wheelSpinning || !classReady || !allowed();
+    var locked = busy || missionBusy() || guestsBusy() || !!timing || loading || pendingProfiles > 0 || selectionInFlight || !!window.wheelSpinning || !classReady || !allowed();
     el('cbClassLabel').textContent = classId || 'Choose a class on the wheel';
     el('cbError').hidden = !error; el('cbError').textContent = error;
     el('cbSaveStatus').textContent = busy ? 'Saving…' : loading || pendingProfiles ? 'Loading…' : error ? 'Needs attention' : state ? '✓ Saved to your class' : 'Ready to start';
@@ -423,7 +429,7 @@
     el('cbEnd').disabled = locked || !active;
     el('cbStart').textContent = state ? 'New encounter' : 'Start encounter';
     el('wheelSpinBtn').disabled = locked || !active || !!pending || !window.wheelState || !wheelState.names.length;
-    el('wheelClassSelect').disabled = busy || missionBusy() || !!timing || selectionInFlight || !!window.wheelSpinning;
+    el('wheelClassSelect').disabled = busy || missionBusy() || guestsBusy() || !!timing || selectionInFlight || !!window.wheelSpinning;
     var preview = el('wheelHeroPreview'); preview.hidden = !selected;
     if (selected) preview.innerHTML = avatar(selected) + '<span><strong>' + esc(selected.name) + '</strong><small>' + heroClassName(selected) + ' · your turn</small></span>';
     bindAvatarFailures(preview);
@@ -432,11 +438,12 @@
     renderCommands(); renderJournal(); renderLoot();
     el('cbDamageLog').innerHTML=window.ClassroomBattleDisplay?ClassroomBattleDisplay.log(state):'';
     if(missionPanel)missionPanel.render();
+    if (window.LessonGuests) LessonGuests.renderButtons();
   }
   function mountMission() {
     if(!window.ClassroomMissionMachine||!store)return;
     missionPanel=ClassroomMissionMachine.mount(el('cbMission'),{store:store,teacherId:teacherId,classId:classId,
-      canAct:function(){return opened&&allowed()&&!busy&&!loading&&!timing&&!selectionInFlight&&!window.wheelSpinning;},
+      canAct:function(){return opened&&allowed()&&!guestsBusy()&&!busy&&!loading&&!timing&&!selectionInFlight&&!window.wheelSpinning;},
       getState:function(){return state;},getSpinId:function(){return null;},
       onChange:function(result){if(result.state&&(!state||result.state.revision>=state.revision))state=result.state;render();},
       onBusy:function(){render();},onSummon:function(event,encounterId){if(event)queueAnimation(event,encounterId);}
@@ -492,7 +499,19 @@
       if (event.bossHealed) particle('+' + event.bossHealed + ' ✚', destination, { x: destination.x, y: destination.y - 60 }, 'cbHealing', 350);
     }
   }
-  window.ClassroomBattle = { open: open, close: close, isOpen: function () { return opened; }, classChanged: classChanged, beforeSpin: beforeSpin, spinning: spinning, landed: landed, wheelClosed: wheelClosed, wheelOpened: function () { if (!opened && window.QuickBattle) QuickBattle.open(window.wheelClass || ''); } };
+  function guestChangeBlocked(retry) {
+    return opened && !!(busy || loading || missionBusy() || timing || selectionInFlight || pendingProfiles || window.wheelSpinning || !retry && state && state.pending);
+  }
+  function rosterChanged(detail) {
+    if (!detail || detail.classId !== classId || !opened || !store || !allowed() || currentUser.uid !== teacherId) return;
+    if (detail.state && (!state || detail.state.revision >= state.revision)) {
+      state = detail.state;
+      lastEventId = state.lastEvent ? state.lastEvent.id : '';
+    }
+    synced = ''; render(); scheduleSync();
+  }
+  window.addEventListener('wheel-guests-changed', function (event) { rosterChanged(event.detail); });
+  window.ClassroomBattle = { render: render, guestChangeBlocked: guestChangeBlocked, rosterChanged: rosterChanged, open: open, close: close, isOpen: function () { return opened; }, classChanged: classChanged, beforeSpin: beforeSpin, spinning: spinning, landed: landed, wheelClosed: wheelClosed, wheelOpened: function () { if (!opened && window.QuickBattle) QuickBattle.open(window.wheelClass || ''); } };
   el('classroomBattleBtn').addEventListener('click', open);
   el('wheelBattleBtn').addEventListener('click', open);
   if (window.applyRewardVisibility) applyRewardVisibility();

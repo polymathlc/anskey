@@ -67,6 +67,7 @@ async function setup(delayProfiles = 0, pendingAward = false) {
     window.__replaceSummonReply=false;window.__assistCalls = []; window.__loseAssistReply = false; window.__awardCalls = []; window.__failAward = false; window.__loseAwardReply = false; window.__awardErrorCode = null; window.__awardReplyDelay = 0;
     window.ClassroomHeroAPI.request = async request => {
       const {type, classId, action, studentId, delta} = request;
+      if(type==='lessonGuests'&&request.command==='get')return {guests:[],state:null};
       if(type==='mission'&&request.command==='get')return {mission:ClassroomMissionContent.empty(),state:null};
       if (!['battle','wheelAward','assist'].includes(type)) throw new Error('Unexpected request in battle fixture.');
       if (type === 'assist') __assistCalls.push(structuredClone(request));

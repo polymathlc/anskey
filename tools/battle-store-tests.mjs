@@ -71,3 +71,41 @@ test('missions bind teacher and lesson, copy retry identity and require a confir
   await assert.rejects(setup(async()=>({state:{}})).mission({command:'get'}),/could not be confirmed/);
   await assert.rejects(setup().mission({command:'get'}),/Hero saving is loading/);
 });
+
+test('temporary students bind a copied request to the teacher lesson and preserve its retry identity',async()=>{
+  const request={type:'battle',classId:'Wrong lesson',command:'add',studentId:'alex',id:'guest-00000001'};
+  const sent=[];let fail=true,gate;
+  const result={guests:[{studentId:'alex',name:'Alex',lessonSlots:['Sunday 2pm']}],state:{revision:2}};
+  const store=setup(async(body,lifecycle)=>{sent.push(structuredClone(body));gate=lifecycle.canSend;if(fail)throw Error('Lost reply');return result;});
+  await assert.rejects(store.guests(request),/Lost reply/);fail=false;
+  assert.deepEqual(await store.guests(request),result);
+  assert.deepEqual(sent[0],sent[1]);assert.equal(sent[0].type,'lessonGuests');assert.equal(sent[0].classId,'Saturday 11am');
+  assert.equal(request.type,'battle');assert.equal(request.classId,'Wrong lesson');assert.equal(gate(),true);
+});
+
+test('temporary student validation and authorization prevent invalid network writes',async()=>{
+  let calls=0;const transport=async()=>{calls++;return {guests:[],state:null};};
+  await assert.rejects(setup(transport,()=>false).guests({command:'get'}),/Only the signed-in teacher/);
+  for(const request of [{command:'replace'}, {command:'add',id:'bad',studentId:'alex'}, {command:'remove',id:'guest-00000001'}, {command:'add',id:'guest-00000001',studentId:'path/invalid'}]) {
+    await assert.rejects(setup(transport).guests(request),/Invalid temporary|valid temporary/);
+  }
+  assert.equal(calls,0);
+  assert.deepEqual(await setup(transport).guests({command:'get'}),{guests:[],state:null});
+});
+
+test('temporary student reads and mutations require a confirmed roster, never direct writes',async()=>{
+  const guest={studentId:'alex',name:'Alex',lessonSlots:['Sunday 2pm']};
+  for(const result of [null,{}, {guests:null},{guests:[{}]},{guests:[{studentId:'alex'}]},{guests:[{...guest,lessonSlots:[null]}]},{guests:[guest,guest]}]) {
+    await assert.rejects(setup(async()=>result).guests({command:'get'}),/could not be confirmed.*Retry the same request/);
+  }
+  await assert.rejects(setup().guests({command:'get'}),/Hero saving is loading/);
+});
+
+test('temporary student responses are withheld after account or lesson changes',async()=>{
+  let active=true,finish,sent;
+  const store=setup(body=>{sent=body;return new Promise(resolve=>{finish=resolve;});},()=>active);
+  const request={command:'remove',studentId:'alex',id:'guest-00000002'};
+  const promise=store.guests(request);request.studentId='changed';
+  assert.equal(sent.studentId,'alex');active=false;finish({guests:[],state:null});
+  await assert.rejects(promise,/Only the signed-in teacher/);
+});

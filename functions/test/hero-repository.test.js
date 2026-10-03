@@ -43,6 +43,181 @@ function wheelRequest(state=null,{id=aid(),spinId=aid(),studentId='alex',delta=1
 async function begin(call,slot='Saturday',party=heroes) {return (await battle(call,slot,{id:aid(),type:'start',bossId:'goblin',heroes:party})).state;}
 async function claim(call,uid='one',studentId='alex',lessonSlot='Saturday') {await call(pupil(uid),{type:'claim',studentId,lessonSlot});await call(teacher,{type:'approve',studentId});}
 
+const guestPath=slot=>'classroomHeroData/teacher/lessonGuests/'+key(slot);
+function guestRequest(command='get',extra={}) {return {type:'lessonGuests',classId:'Saturday',command,...(command==='get'?{}:{studentId:'visitor',id:aid()}),...extra};}
+function guestSetup() {
+  const result=setup();result.db.seed('students/visitor',{name:'Visiting student',slot:'Tuesday',marks:7,notes:'Keep original roster'});
+  return {...result,visit:(command,extra={})=>result.call(teacher,guestRequest(command,extra))};
+}
+
+test('temporary guest membership is teacher-only and rejects invalid target, source, student and receipts without writes',async()=>{
+  const {call,db}=guestSetup(),before=JSON.stringify([...db.data]);
+  for(const command of ['get','add','remove'])await assert.rejects(call(pupil('one'),guestRequest(command)),/teacher/);
+  for(const request of [guestRequest('oops'),guestRequest('add',{id:12345678}),guestRequest('add',{id:'short'}),guestRequest('add',{studentId:'missing'}),guestRequest('add',{studentId:'sam'}),guestRequest('add',{classId:'Missing'})])await assert.rejects(call(teacher,request));
+  assert.equal(JSON.stringify([...db.data]),before);
+});
+
+test('temporary guests persist by teacher and slot without editing permanent roster, claims or lesson catalogue',async()=>{
+  const {call,db,visit}=guestSetup(),original=db.data.get('students/visitor');
+  const result=await visit('add');assert.deepEqual(result.guests,[{studentId:'visitor',name:'Visiting student',lessonSlots:['Tuesday']}]);assert.equal(result.state,null);
+  assert.deepEqual(db.data.get('students/visitor'),original);assert.equal(db.data.get(profilePath('visitor')).hero.xp,0);
+  assert.deepEqual((await visit('get')).guests,result.guests);
+  assert.deepEqual((await call(teacher,guestRequest('get',{classId:'Sunday'}))).guests,[]);
+  const catalogue=await call(pupil('one'),{type:'catalog',lessonSlot:'Saturday'});assert.ok(!catalogue.students.some(s=>s.id==='visitor'));
+  await assert.rejects(call(pupil('one'),{type:'claim',studentId:'visitor',lessonSlot:'Saturday'}),/not in this lesson/);
+  await claim(call,'one','visitor','Tuesday');assert.equal((await call(pupil('one'),{type:'me'})).claim.lessonSlots[0],'Tuesday');
+});
+
+test('guest mutations and concurrent retries are idempotent; old receipts cannot undo newer membership',async()=>{
+  const {call,db,visit}=guestSetup(),request=guestRequest('add');
+  const responses=await Promise.all([call(teacher,request),call(teacher,request),call(teacher,request)]);assert.equal(responses.filter(r=>r.duplicate).length,2);
+  assert.deepEqual(db.data.get(guestPath('Saturday')).studentIds,['visitor']);
+  await visit('add');assert.equal(db.data.get(guestPath('Saturday')).revision,1);
+  const remove=guestRequest('remove');await call(teacher,remove);
+  assert.deepEqual((await call(teacher,request)).guests,[]);
+  await visit('add');assert.equal((await call(teacher,remove)).guests.length,1);
+  await assert.rejects(call(teacher,{...request,command:'remove'}),/different details/);
+});
+
+test('adding and removing a guest from an active encounter preserves enemy, pending answer and canonical progress',async()=>{
+  const {call,db,visit}=guestSetup();await claim(call,'one','visitor','Tuesday');
+  const configured=await call(pupil('one'),{type:'configure',command:'class',role:'mage'});
+  const progress={...configured.hero,xp:300,inventory:[{id:'bag:crimson-edge',itemId:'crimson-edge',quantity:1}]};
+  const progressed={...C.cleanHero(progress,progress),hp:33,mp:17};
+  db.seed(profilePath('visitor'),{...db.data.get(profilePath('visitor')),hero:progressed});
+  let state=await begin(call);state=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  const before=structuredClone(state),result=await visit('add');state=result.state;
+  assert.deepEqual(state.pending,before.pending);assert.equal(state.bossHp,before.bossHp);assert.equal(state.bossMaxHp,before.bossMaxHp);assert.deepEqual(state.lastEvent,before.lastEvent);assert.deepEqual(state.combatLog,before.combatLog);
+  const guest=state.heroes.find(h=>h.studentId==='visitor');assert.equal(guest.role,'mage');assert.equal(guest.xp,300);assert.equal(guest.hp,33);assert.equal(guest.mp,17);assert.deepEqual(guest.inventory,progressed.inventory);assert.equal(guest.uid,'one');
+  assert.deepEqual(db.data.get(profilePath('visitor')).activeEncounter,{classId:'Saturday',encounterId:state.encounterId});
+  const profileBefore=structuredClone(db.data.get(profilePath('visitor')).hero),removed=(await visit('remove')).state;
+  assert.equal(removed.heroes.length,2);assert.deepEqual(removed.pending,before.pending);assert.equal(removed.bossHp,before.bossHp);assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);assert.deepEqual(db.data.get(profilePath('visitor')).hero,profileBefore);
+});
+
+test('selected guest cannot leave until answer is resolved; removal never clears another pending answer',async()=>{
+  const {call,db,visit}=guestSetup();let state=await begin(call);state=(await visit('add')).state;
+  state=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:visitor',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  const before=JSON.stringify([...db.data]);await assert.rejects(visit('remove'),/Resolve or skip/);assert.equal(JSON.stringify([...db.data]),before);
+  state=(await battle(call,'Saturday',{id:aid(),type:'answer',outcome:'skip',turnId:state.pending.id,encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  assert.equal((await visit('remove')).state.heroes.length,2);
+});
+
+test('temporary guests retain canonical cross-lesson locks and concurrent adds cannot put one hero into two fights',async()=>{
+  const {call,db,visit}=guestSetup();let source=await begin(call,'Tuesday',[C.heroFromStudent({id:'visitor',name:'Visiting student'})]);
+  await assert.rejects(visit('add'),/active encounter in Tuesday/);assert.ok(!db.data.has(guestPath('Saturday')));
+  await battle(call,'Tuesday',{id:aid(),type:'end',encounterId:source.encounterId,expectedRevision:source.revision});
+  await begin(call);
+  // Sunday has a separate permanent hero so both target encounters may run.
+  db.seed('students/sunday',{name:'Sunday student',slot:'Sunday'});await begin(call,'Sunday',[C.heroFromStudent({id:'sunday',name:'Sunday student'})]);
+  const races=await Promise.allSettled([visit('add'),visit('add',{classId:'Sunday'})]);assert.equal(races.filter(r=>r.status==='fulfilled').length,1);assert.match(races.find(r=>r.status==='rejected').reason.message,/active encounter/);
+  const lock=db.data.get(profilePath('visitor')).activeEncounter;assert.ok(['Saturday','Sunday'].includes(lock.classId));
+});
+
+test('guest membership authorizes start, sync, marks, assists and victory loot using the same registered profile',async()=>{
+  const {call,db,visit}=guestSetup();await visit('add');
+  const visitor=C.heroFromStudent({id:'visitor',name:'Visiting student'}),party=[...heroes,visitor];
+  let state=await begin(call,'Saturday',party);
+  state=(await battle(call,'Saturday',{id:aid(),type:'sync',heroes:party,encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  const help=await call(teacher,{type:'assist',classId:'Saturday',studentId:'visitor',helpedStudentId:'alex',action:{id:aid(),spinId:aid()}});assert.equal(help.hero.xp,6);state=help.state;
+  const award=await call(teacher,wheelRequest(state,{studentId:'visitor',delta:1,heroes:party}));assert.equal(award.award.marks,8);assert.equal(db.data.get(profilePath('visitor')).hero.xp,18);assert.equal(db.data.get('students/visitor').slot,'Tuesday');state=award.state;
+  const victory=await call(teacher,wheelRequest(state,{studentId:'visitor',delta:10000,heroes:party}));assert.equal(victory.state.status,'victory');assert.equal(victory.state.rewards.length,3);assert.ok(db.data.get(profilePath('visitor')).hero.inventory.length);assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);
+  const historical=structuredClone(victory.state);assert.deepEqual((await visit('remove')).state,historical);
+  await assert.rejects(call(teacher,wheelRequest(null,{studentId:'visitor',heroes:party})),/no longer in this lesson/);
+  await assert.rejects(call(teacher,{type:'assist',classId:'Saturday',studentId:'visitor',helpedStudentId:'alex',action:{id:aid(),spinId:aid()}}),/Both students/);
+});
+
+test('temporary guests receive class-wide mission points once without duplicate permanent members or changing slots',async()=>{
+  const {db,call,mission}=missionSetup(.6,.99);db.seed('students/visitor',{name:'Visitor',slot:'Tuesday',marks:7});
+  await call(teacher,guestRequest('add'));const started=await mission('turn',{expectedRevision:0});
+  // Focus objective completes after the server timer; guest inclusion is read
+  // in the same payout transaction, not copied from a browser roster.
+  const saved=db.data.get(missionPath('Saturday'));saved.current.startedAt=0;db.seed(missionPath('Saturday'),saved);
+  const repo=createHeroRepository(db,{now:()=>2000000});
+  const completed=await repo.execute(teacher,{type:'mission',classId:'Saturday',command:'focus',id:aid(),missionId:started.mission.current.id});
+  assert.equal(completed.mission.lastPayout.awards.length,3);assert.equal(db.data.get('students/visitor').marks,12);assert.equal(db.data.get('students/visitor').slot,'Tuesday');
+  assert.equal([...db.data].filter(([p,v])=>p.startsWith('awards/')&&v.studentId==='visitor').length,1);
+});
+
+test('guest changes roll back all membership, encounter, profile and receipt writes on failed commits',async()=>{
+  const {db,call,visit}=guestSetup();await begin(call);const before=JSON.stringify([...db.data]),add=guestRequest('add');
+  db.failNextCommit=true;await assert.rejects(call(teacher,add),/commit failed/);assert.equal(JSON.stringify([...db.data]),before);
+  const result=await call(teacher,add);assert.equal(result.state.heroes.length,3);const added=JSON.stringify([...db.data]);
+  db.failNextCommit=true;await assert.rejects(visit('remove'),/commit failed/);assert.equal(JSON.stringify([...db.data]),added);assert.equal((await visit('get')).guests.length,1);
+});
+
+test('guest reads prune deleted or now-permanent members while preserving valid guests and historical battles',async()=>{
+  const {db,visit}=guestSetup();await visit('add');db.seed('students/another',{name:'Another',slot:'Tuesday'});await visit('add',{studentId:'another'});
+  db.seed('students/visitor',{name:'Visitor moved',slot:'Saturday'});db.data.delete('students/another');
+  assert.deepEqual((await visit('get')).guests,[]);assert.deepEqual(db.data.get(guestPath('Saturday')).studentIds,[]);assert.equal(db.data.get('students/visitor').slot,'Saturday');
+});
+
+test('guest assist mission completion awards the visiting helper and selected visitor canonical XP and class bonus exactly once',async()=>{
+  const {db,call,mission}=missionSetup(.9,.99);db.seed('students/visitor',{name:'Visitor',slot:'Tuesday',marks:7});
+  await call(teacher,guestRequest('add'));await mission('turn',{expectedRevision:0});
+  const first={type:'assist',classId:'Saturday',studentId:'sam',helpedStudentId:'visitor',action:{id:aid(),spinId:aid()}};
+  await call(teacher,first);
+  await call(teacher,{...first,studentId:'visitor',helpedStudentId:'alex',action:{id:aid(),spinId:aid()}});
+  const last={...first,studentId:'visitor',helpedStudentId:'sam',action:{id:aid(),spinId:aid()}};
+  const result=await call(teacher,last);assert.equal(result.mission.current.status,'complete');assert.equal(result.hero.xp,12);assert.equal(db.data.get('students/visitor').marks,12);assert.equal(result.mission.lastPayout.awards.length,3);
+  const retry=await call(teacher,last);assert.equal(retry.duplicate,true);assert.equal(retry.hero.xp,12);assert.equal(db.data.get('students/visitor').marks,12);
+});
+
+test('visiting student wheel award and completing class bonus combine into one returned balance and retain permanent membership',async()=>{
+  const {db,call,mission}=missionSetup(0,.99);db.seed('students/visitor',{name:'Visitor',slot:'Tuesday',marks:7});
+  await call(teacher,guestRequest('add'));await mission('turn',{expectedRevision:0});
+  const party=[...heroes,C.heroFromStudent({id:'visitor',name:'Visitor'})];
+  const request=wheelRequest(null,{studentId:'visitor',delta:10000,heroes:party}),result=await call(teacher,request);
+  assert.equal(result.state.status,'victory');assert.equal(result.award.marks,10012);assert.equal(result.mission.lastPayout.awards.length,3);assert.equal(db.data.get('students/visitor').slot,'Tuesday');
+  assert.equal((await call(teacher,request)).award.marks,10012);assert.equal([...db.data].filter(([p,v])=>p.startsWith('awards/')&&v.studentId==='visitor').length,2);
+});
+
+test('removed guest carries progression back to the original lesson and can be removed after permanent target roster disappears',async()=>{
+  const {db,call,visit}=guestSetup();await begin(call);let state=(await visit('add')).state;
+  const helped=await call(teacher,{type:'assist',classId:'Saturday',studentId:'visitor',helpedStudentId:'alex',action:{id:aid(),spinId:aid()}});state=helped.state;
+  db.seed('students/alex',{name:'Alex',slot:'Sunday'});db.seed('students/sam',{name:'Sam',slot:'Sunday'});
+  const removed=await visit('remove');assert.equal(removed.guests.length,0);assert.equal(removed.state.bossHp,state.bossHp);assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);
+  const source=await begin(call,'Tuesday',[C.heroFromStudent({id:'visitor',name:'Visitor'})]);assert.equal(source.heroes[0].xp,6);assert.equal(source.heroes[0].studentId,'visitor');
+});
+
+test('pruning a deleted or slotless guest removes hidden active heroes and releases locks without granting treasure',async()=>{
+  for(const change of ['deleted','slotless']){
+    const {db,call,visit}=guestSetup();await begin(call);let state=(await visit('add')).state;
+    const before=structuredClone(state),hero=structuredClone(db.data.get(profilePath('visitor')).hero);
+    if(change==='deleted')db.data.delete('students/visitor');else db.seed('students/visitor',{name:'Visitor',slots:[]});
+    const result=await visit('get');state=result.state;
+    assert.deepEqual(result.guests,[]);assert.equal(state.heroes.length,2);assert.ok(!state.heroes.some(h=>h.studentId==='visitor'));assert.equal(state.bossHp,before.bossHp);assert.equal(state.bossMaxHp,before.bossMaxHp);assert.deepEqual(state.lastEvent,before.lastEvent);assert.deepEqual(state.combatLog,before.combatLog);assert.deepEqual(state.rewards,before.rewards);
+    assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);assert.deepEqual(db.data.get(profilePath('visitor')).hero,hero);assert.equal(db.data.get(guestPath('Saturday')).studentIds.length,0);
+    const replay=await visit('get');assert.equal(replay.state.revision,state.revision);
+    const synced=await battle(call,'Saturday',{id:aid(),type:'sync',heroes,encounterId:state.encounterId,expectedRevision:state.revision});assert.equal(synced.state.heroes.length,2);
+  }
+});
+
+test('pruning a selected deleted guest requires resolving or skipping the saved answer before releasing the lock',async()=>{
+  const {db,call,visit}=guestSetup();await begin(call);let state=(await visit('add')).state;
+  state=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:visitor',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  db.data.delete('students/visitor');const before=JSON.stringify([...db.data]);
+  await assert.rejects(visit('get'),e=>e.code==='guest_pending'&&/Resolve or skip/.test(e.message));assert.equal(JSON.stringify([...db.data]),before);
+  state=(await battle(call,'Saturday',{id:aid(),type:'answer',outcome:'skip',turnId:state.pending.id,encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  const result=await visit('get');assert.equal(result.guests.length,0);assert.equal(result.state.heroes.length,2);assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);
+});
+
+test('a temporary student moved permanently into the target keeps the existing active hero and lock after pruning the label',async()=>{
+  const {db,call,visit}=guestSetup();await begin(call);const state=(await visit('add')).state,profile=structuredClone(db.data.get(profilePath('visitor')));
+  db.seed('students/visitor',{name:'Visitor',slot:'Saturday'});
+  const result=await visit('get');assert.deepEqual(result.guests,[]);assert.deepEqual(result.state,state);assert.deepEqual(db.data.get(profilePath('visitor')),profile);
+  const removed=await visit('remove');assert.deepEqual(removed.state,state);assert.deepEqual(db.data.get(profilePath('visitor')),profile);
+});
+
+test('removing the final temporary hero ends an empty encounter and preserves enemy HP and canonical progress',async()=>{
+  const {db,call,visit}=guestSetup();await visit('add');
+  const state=await begin(call,'Saturday',[C.heroFromStudent({id:'visitor',name:'Visitor'})]);
+  db.seed('students/alex',{name:'Alex',slot:'Sunday'});db.seed('students/sam',{name:'Sam',slot:'Sunday'});
+  const before=structuredClone(db.data.get(profilePath('visitor')).hero),removed=(await visit('remove')).state;
+  assert.equal(removed.status,'defeat');assert.deepEqual(removed.heroes,[]);assert.equal(removed.pending,null);assert.equal(removed.bossHp,state.bossHp);assert.equal(removed.bossMaxHp,state.bossMaxHp);assert.deepEqual(removed.rewards,state.rewards);assert.deepEqual(removed.lastEvent,state.lastEvent);
+  assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);assert.deepEqual(db.data.get(profilePath('visitor')).hero,before);
+  const resumed=await begin(call,'Tuesday',[C.heroFromStudent({id:'visitor',name:'Visitor'})]);assert.equal(resumed.status,'active');
+});
+
 test('contested name and one account/two names claims serialize; names never establish ownership',async()=>{
   const {call,db}=setup();const result=await Promise.allSettled(['one','two'].map(uid=>call(pupil(uid),{type:'claim',studentId:'alex',lessonSlot:'Saturday'})));
   assert.equal(result.filter(x=>x.status==='fulfilled').length,1);const winner=db.data.get(profilePath('alex')).claim.uid;

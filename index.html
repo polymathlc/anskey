@@ -3608,6 +3608,7 @@ video.mirror { transform:scaleX(-1); }
 <link rel="stylesheet" href="battle-animation.css">
 <link rel="stylesheet" href="mission-machine.css">
 <link rel="stylesheet" href="wheel-pixel.css">
+<link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="student-heroes.css">
 </head>
@@ -5303,7 +5304,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.123.0';
+var APP_VERSION = 'v1.124.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -27886,6 +27887,7 @@ function renderAuthArea() {
 }
 
 auth.onAuthStateChanged(function (user) {
+  if (window.LessonGuests) LessonGuests.close();
   currentUser = user;
   studentProfile = null;
   actingStudent = null; // a real sign-in/out always ends the handover
@@ -29014,7 +29016,7 @@ function wheelClean(raw, today) {
     var key = typeof n.id === 'string' && n.id ? 'id:' + n.id : 'name:' + name.toLowerCase();
     if (!name || seen[key]) return;
     seen[key] = true;
-    out.names.push({ n: name, id: typeof n.id === 'string' && n.id ? n.id : '', done: !!n.done });
+    out.names.push({ n: name, id: typeof n.id === 'string' && n.id ? n.id : '', done: !!n.done, ...(n.guest === true ? {guest:true} : {}) });
   });
   out.seeded = !!raw.seeded;
   if (raw.day === today) {
@@ -29246,6 +29248,7 @@ function wheelRandom() {
 
 function wheelSpin() {
   if (!wheelTeacher() || wheelSpinning || !wheelState) return;
+  if (window.wheelGuestsBusy && wheelGuestsBusy()) return;
   if (window.ClassroomBattle && !window.ClassroomBattle.beforeSpin()) return;
   if (!wheelState.names.length) { toast('Add some names to the wheel first.'); return; }
   var before = wheelRemaining(wheelState);
@@ -29313,7 +29316,7 @@ function wheelRender() {
   round.textContent = !total ? 'No names yet'
     : left === 0 ? 'Round ' + st.round + ' complete — next spin starts round ' + (st.round + 1)
     : 'Round ' + st.round + ' · ' + called + ' of ' + total + ' called';
-  $('wheelSpinBtn').disabled = wheelSpinning || !total;
+  $('wheelSpinBtn').disabled = wheelSpinning || !total || !!(window.wheelGuestsBusy && wheelGuestsBusy());
   $('wheelNewRoundBtn').disabled = wheelSpinning || !called;
   $('wheelReseedBtn').disabled = wheelSpinning || !wheelClass;
 
@@ -29329,13 +29332,14 @@ function wheelRender() {
   }
   st.names.forEach(function (n, i) {
     var chip = document.createElement('span');
-    chip.className = 'whChip' + (n.done ? ' called' : '');
+    chip.className = 'whChip' + (n.done ? ' called' : '') + (n.guest ? ' guest' : '');
     var nm = document.createElement('button');
     nm.className = 'whChipName';
     nm.textContent = n.n;
+    if (n.guest) { var badge = document.createElement('span'); badge.className = 'whGuestBadge'; badge.textContent = 'Guest'; nm.appendChild(badge); }
     nm.title = n.done ? 'Called this round — tap to put back on the wheel' : 'Tap to mark as called (absent, or already had a turn)';
     nm.addEventListener('click', function () {
-      if (wheelSpinning || !wheelTeacher()) return;
+      if (wheelSpinning || !wheelTeacher() || (window.wheelGuestsBusy && wheelGuestsBusy())) return;
       n.done = !n.done;
       wheelSave(); wheelDraw(); wheelRender();
     });
@@ -29344,7 +29348,8 @@ function wheelRender() {
     x.textContent = '✕';
     x.title = 'Take ' + n.n + ' off the wheel';
     x.addEventListener('click', function () {
-      if (wheelSpinning || !wheelTeacher()) return;
+      if (wheelSpinning || !wheelTeacher() || (window.wheelGuestsBusy && wheelGuestsBusy())) return;
+      if (n.guest && window.LessonGuests) { LessonGuests.remove(n.id); return; }
       st.names.splice(i, 1);
       if (wheelWinnerIdx === i) wheelWinnerIdx = -1;
       else if (wheelWinnerIdx > i) wheelWinnerIdx -= 1;
@@ -29370,6 +29375,7 @@ function wheelRender() {
 
   wheelRenderResult();
   wheelRenderTitle();
+  if (window.LessonGuests) LessonGuests.renderButtons();
 }
 
 function wheelRenderResult() {
@@ -29392,7 +29398,7 @@ function wheelRenderResult() {
     award.appendChild(note);
     return;
   }
-  var busy = !!rwAwarding[student.id] || !!(window.QuickBattle && QuickBattle.blocksAward());
+  var busy = !!rwAwarding[student.id] || !!(window.QuickBattle && QuickBattle.blocksAward()) || !!(window.wheelGuestsBusy && wheelGuestsBusy());
   WHEEL_AMOUNTS.forEach(function (n) {
     var b = document.createElement('button');
     b.className = 'rwAmount';
@@ -29435,6 +29441,7 @@ function wheelGiveCustom() {
 
 async function wheelGive(delta) {
   if (!wheelTeacher() || wheelSpinning) return;
+  if (window.wheelGuestsBusy && wheelGuestsBusy()) return;
   var entry = wheelState && wheelState.names[wheelWinnerIdx];
   var student = wheelStudent(entry);
   if (!student) return;
@@ -29455,12 +29462,16 @@ async function wheelGive(delta) {
 
 function wheelAddFromBox() {
   if (!wheelTeacher() || !wheelState) return;
+  if (wheelSpinning || (window.wheelGuestsBusy && wheelGuestsBusy())) return;
   var box = $('wheelNewName');
   var name = box.value.replace(/\s+/g, ' ').trim();
   if (!name) return;
   var match = rwStudents.filter(function (s) { return (s.name || '').trim().toLowerCase() === name.toLowerCase(); });
   var inClass = match.filter(function (s) { return rwStudentClasses(s).indexOf(wheelClass) !== -1; });
   var linked = inClass.length === 1 ? inClass[0] : match.length === 1 ? match[0] : null;
+  if (linked && wheelClass && rwStudentClasses(linked).indexOf(wheelClass) === -1 && window.LessonGuests) {
+    LessonGuests.addStudent(linked.id); box.value = ''; return;
+  }
   var entry = wheelAddName(wheelState, linked ? (linked.name || '').trim() || name : name, linked ? linked.id : '');
   if (!entry) { toast(name.length ? '“' + name + '” is already on the wheel.' : 'Type a name first.'); return; }
   box.value = '';
@@ -29494,6 +29505,7 @@ function wheelSetClass(cls) {
   wheelGiven = 0;
   wheelSeed(false);
   wheelSave();
+  if (window.LessonGuests) LessonGuests.open(wheelClass);
   wheelDraw(); wheelRender();
   if (window.ClassroomBattle) window.ClassroomBattle.classChanged(wheelClass);
 }
@@ -29576,6 +29588,7 @@ async function openWheel() {
 
 function closeWheel() {
   wheelStopSpin();
+  if (window.LessonGuests) LessonGuests.close();
   if (window.ClassroomBattle) window.ClassroomBattle.wheelClosed();
   var modal = $('wheelModal');
   if (modal) modal.classList.remove('open');
@@ -34227,6 +34240,7 @@ loadAiNotePrefs();
 <script src="pixel-wheel.js"></script>
 <script src="battle-animation.js"></script>
 <script src="hero-skill-tree.js"></script>
+<script src="lesson-guests.js"></script>
 <script src="classroom-battle.js"></script>
 <script src="mission-content.js"></script>
 <script src="battle-display.js"></script>
