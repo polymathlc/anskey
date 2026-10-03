@@ -5309,7 +5309,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.125.0';
+var APP_VERSION = 'v1.125.2';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -29185,6 +29185,7 @@ function wheelClean(raw, today) {
   if (raw.day === today) {
     var r = Math.floor(Number(raw.round));
     out.round = r > 0 ? r : 1;
+    if (typeof raw.lastSpinId === 'string' && /^[a-zA-Z0-9_-]{8,100}$/.test(raw.lastSpinId)) out.lastSpinId = raw.lastSpinId;
   } else {
     out.names.forEach(function (n) { n.done = false; });
   }
@@ -29609,14 +29610,14 @@ async function wheelGive(delta) {
   var student = wheelStudent(entry);
   if (!student) return;
   var reason = 'Name wheel' + (docName && pdfDoc ? ' — ' + docName : '');
-  if (window.QuickBattle && QuickBattle.enabled() && !(window.ClassroomBattle && ClassroomBattle.isOpen())) {
+  if (window.QuickBattle && wheelClass && !(window.ClassroomBattle && ClassroomBattle.isOpen())) {
     if (QuickBattle.blocksAward()) return;
     try { await QuickBattle.award(entry, delta, reason); }
     catch (e) { toast(e.message || 'Could not confirm the points award. Use Retry in Quick fight.'); }
   } else {
     var before = student.marks || 0;
     await rwAwardMarks(student, delta, reason);
-    // Ordinary wheel/manual battle awards retain the reward system's behavior.
+    // Free-list wheel and manual battle marks keep the reward system's behavior.
     if ((student.marks || 0) !== before) wheelGiven += (student.marks || 0) - before;
   }
   wheelRender();

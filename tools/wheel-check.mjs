@@ -40,6 +40,27 @@ await page.addInitScript(() => {
     apply: () => chain(), construct: () => chain(), set: () => true
   });
   window.pdfjsLib = chain(); window.firebase = chain(); window.grecaptcha = chain();
+  window.__installWheelFixture = cls => {
+    window.isAdmin = () => true;
+    window.currentUser = { uid:'wheel-test-teacher', email:'chungzhikai@gmail.com' };
+    window.__awards = [];
+    window.rwStudents = ['Ann','Ben','Cai','Dee','Eli'].map((name,i)=>({id:'s'+i,name,slots:[cls],marks:10}));
+    window.rwAwardMarks = async (student,delta,reason) => { __awards.push({id:student.id,d:delta,reason,route:'rewards'});student.marks+=delta; };
+    function reference() {return {collection:reference,doc:reference,orderBy:reference,get:async()=>({exists:false,docs:[],forEach(){}}),onSnapshot(callback){const timer=setTimeout(()=>callback({exists:false}),0);return()=>clearTimeout(timer);}};}
+    window.db={collection:reference};
+    window.ClassroomHeroAPI.request=async body=>{
+      if(body.type==='lessonGuests')return {guests:[],state:null};
+      const mission=ClassroomMissionContent.empty();
+      if(body.type==='mission'&&body.command==='get')return {mission,state:null};
+      if(body.type==='wheelAward'&&body.mode==='ordinary'){
+        const student=rwStudents.find(row=>row.id===body.studentId);
+        __awards.push({id:student.id,d:body.delta,reason:body.reason,route:'ordinary',spinId:body.action.spinId});
+        student.marks+=body.delta;
+        return {mission,award:{id:body.action.id,studentId:student.id,delta:body.delta,marks:student.marks},answer:null,balances:rwStudents.map(row=>({studentId:row.id,marks:row.marks}))};
+      }
+      throw Error('Unexpected wheel fixture request: '+body.type);
+    };
+  };
 });
 const errors = [];
 page.on('pageerror', e => errors.push(e.stack || e.message));
@@ -49,11 +70,7 @@ ok('the page loads with no uncaught error', errors.length === 0, errors.join('\n
 
 const CLASS = 'P5 Science — Wednesday 5pm–6.45pm';
 await page.evaluate((cls) => {
-  window.isAdmin = () => true;
-  window.currentUser = { email: 'chungzhikai@gmail.com' };
-  window.__awards = [];
-  window.rwStudents = ['Ann', 'Ben', 'Cai', 'Dee', 'Eli'].map((n, i) => ({ id: 's' + i, name: n, slots: [cls], marks: 10 }));
-  window.rwAwardMarks = async (s, d, reason) => { window.__awards.push({ id: s.id, d, reason }); s.marks += d; };
+  __installWheelFixture(cls);
   localStorage.clear();
   applyRewardVisibility();
 }, CLASS);
@@ -70,6 +87,7 @@ await page.evaluate((cls) => {
 await page.evaluate((cls) => { localStorage.setItem('polymath.wheelClass', cls); }, CLASS);
 await page.click('#wheelBtn');
 await page.waitForFunction(() => wheelState && wheelState.names.length === 5, null, { timeout: 3000 });
+await page.waitForFunction(() => !$('wheelSpinBtn').disabled);
 ok('it opens on the class register', await page.evaluate(() => wheelState.names.map(n => n.n).join() === 'Ann,Ben,Cai,Dee,Eli'));
 const box0 = await page.evaluate(() => { const r = $('wheelCanvas').getBoundingClientRect(); return { w: r.width, h: r.height }; });
 ok('the wheel opens large enough for the classroom to read', box0.w >= 360 && Math.abs(box0.w - box0.h) < 1, JSON.stringify(box0));
@@ -110,7 +128,7 @@ ok('the name shown is the name called', landed.name === landed.shown && landed.l
 await page.click('.whAward .rwAmount:nth-of-type(2)');   // +2
 await page.waitForFunction(() => window.__awards.length === 1);
 const aw = await page.evaluate(() => ({ a: window.__awards[0], w: wheelState.names[wheelWinnerIdx].id }));
-ok('+2 reaches the award function for the student on the wheel', aw.a.d === 2 && aw.a.id === aw.w && /Name wheel/.test(aw.a.reason), JSON.stringify(aw));
+ok('+2 reaches the saved ordinary award for the selected student and spun question', aw.a.route==='ordinary' && aw.a.d === 2 && aw.a.id === aw.w && !!aw.a.spinId && /Name wheel/.test(aw.a.reason), JSON.stringify(aw));
 
 // Add, remove, persist.
 await page.fill('#wheelNewName', 'Zoe');
@@ -149,8 +167,7 @@ await page.click('#wheelMinBtn');
 await page.reload();
 await page.waitForTimeout(800);
 await page.evaluate((cls) => {
-  window.isAdmin = () => true; window.currentUser = { email: 'chungzhikai@gmail.com' };
-  window.rwStudents = ['Ann', 'Ben', 'Cai', 'Dee', 'Eli'].map((n, i) => ({ id: 's' + i, name: n, slots: [cls], marks: 10 }));
+  __installWheelFixture(cls);
   applyRewardVisibility();
 }, CLASS);
 await page.click('#wheelBtn');
@@ -175,6 +192,12 @@ await page.click('#wheelNewName');
 await page.keyboard.type('pen');
 const tool1 = await page.evaluate(() => typeof tool !== 'undefined' ? tool : null);
 ok('typing a name does not fire tool shortcuts', tool0 === tool1);
+// A free list is not a Lesson slot and keeps the ordinary rewards function.
+await page.evaluate(()=>{wheelSetClass('');wheelState.names=[];wheelAddName(wheelState,'Ann','s0');wheelSave();wheelDraw();wheelRender();});
+await page.click('#wheelSpinBtn');await page.waitForFunction(()=>!wheelSpinning&&wheelWinnerIdx>=0);
+await page.click('.whAward .rwAmount:nth-of-type(1)');await page.waitForFunction(()=>__awards.length===1);
+ok('free-list awards retain the ordinary rewards function',await page.evaluate(()=>__awards[0].route==='rewards'&&__awards[0].id==='s0'&&__awards[0].d===1));
+await page.click('#wheelNewName');
 await page.keyboard.press('Escape');
 ok('Escape closes the window', await page.evaluate(() => !wheelIsOpen()));
 ok('no script errors along the way', errors.length === 0, errors.join('\n      '));

@@ -1,9 +1,9 @@
-/* Points-triggered wheel battles. Each awarded amount has a durable action receipt. */
+/* Saved wheel awards and optional battles. Every award has a durable receipt. */
 (function () {
   'use strict';
   var Core = window.ClassroomBattleCore, Store = window.ClassroomBattleStore;
   if (!Core || !Store) return;
-  var q = { epoch: 0, store: null, off: null, state: null, queued: null, player: null, playing: false, before: null, cls: '', uid: '', loading: false, busy: false, error: '', heroId: '', selection: null, request: null, assistOpen: false, assistMessage: '', assisted: new Set(), on: true };
+  var q = { epoch: 0, store: null, off: null, state: null, queued: null, player: null, playing: false, before: null, cls: '', uid: '', loading: false, busy: false, error: '', heroId: '', selection: null, questionRead: null, request: null, assistOpen: false, assistMessage: '', assisted: new Set(), on: true };
   var played = new Set(), missionPanel = null;
   function missionBusy() {return !!(missionPanel && missionPanel.blocked());}
   function guestsBusy() { return !!(window.wheelGuestsBusy && wheelGuestsBusy()); }
@@ -16,6 +16,26 @@
   function manual() { return window.ClassroomBattle && ClassroomBattle.isOpen(); }
   function visible() { return !!el('wheelModal') && el('wheelModal').classList.contains('open'); }
   function allowed() { return !!(window.wheelTeacher && wheelTeacher() && window.currentUser && currentUser.uid); }
+  function selectionKey(uid, cls) { return 'polymath.wheelQuestion.' + uid + '.' + encodeURIComponent(cls); }
+  function currentSpinId() {
+    var entry=window.wheelState && wheelState.names[window.wheelWinnerIdx];
+    return !window.wheelSpinning && q.selection && entry && entry.id===q.selection.entry.id && entry.n===q.selection.entry.n && wheelState.lastSpinId===q.selection.spinId ? q.selection.spinId : null;
+  }
+  function clearSelection() {
+    q.selection=null;q.heroId='';
+    try {sessionStorage.removeItem(selectionKey(q.uid,q.cls));} catch (_) {}
+  }
+  function restoreSelection() {
+    try {
+      var saved=JSON.parse(sessionStorage.getItem(selectionKey(q.uid,q.cls)) || 'null');
+      if(!saved || !window.wheelState || saved.day!==wheelState.day || saved.round!==wheelState.round || !/^[a-zA-Z0-9_-]{8,100}$/.test(saved.spinId || '') || !saved.entry) return;
+      if(wheelState.lastSpinId && wheelState.lastSpinId!==saved.spinId)return;
+      var index=wheelState.names.findIndex(function(entry){return entry.id===saved.entry.id && entry.n===saved.entry.n;});
+      if(index<0)return;
+      q.selection={entry:saved.entry,spinId:saved.spinId};wheelState.lastSpinId=saved.spinId;window.wheelWinnerIdx=index;
+      q.heroId=q.on?heroId(saved.entry):'';
+    } catch (_) {}
+  }
   function mount() {
     if (el('wheelQuickFight')) return;
     var box = document.createElement('section'); box.id = 'wheelQuickFight'; box.className = 'cbQuick';
@@ -34,6 +54,7 @@
     el('wheelQuickToggle').addEventListener('change', function () {
       q.on = this.checked;
       try { localStorage.setItem('polymath.wheelQuickFight', q.on ? 'on' : 'off'); } catch (_) {}
+      q.heroId=q.on && q.selection ? heroId(q.selection.entry) : '';
       if (!q.on) cancelFeedback();
       open(window.wheelClass || '');
     });
@@ -41,7 +62,7 @@
   function close() {
     cancelFeedback(); q.queued = null; if (missionPanel) missionPanel.destroy(); missionPanel=null;
     q.epoch++; if (q.off) q.off(); q.off = null; q.store = null;
-    q.busy = false; q.loading = false; q.state = null; q.heroId = ''; q.selection = null; q.request = null; q.assistOpen = false; q.assistMessage = ''; q.error = '';
+    q.busy = false; q.loading = false; q.state = null; q.heroId = ''; q.selection = null; q.questionRead = null; q.request = null; q.assistOpen = false; q.assistMessage = ''; q.error = '';
     if (el('wheelQuickFight')) el('wheelQuickFight').hidden = true;
     if (el('wheelMissionDock')) el('wheelMissionDock').hidden = true;
     if (el('wheelClassSelect')) el('wheelClassSelect').disabled = false;
@@ -58,11 +79,14 @@
     } catch (_) {}
     if (q.request) q.heroId = q.request.action.heroId;
     if (!cls) { render(); return; }
+    restoreSelection();
+    if(q.selection && window.wheelRender)wheelRender();
     if (q.on && window.ClassroomBattleAnimation) ClassroomBattleAnimation.prepare();
     var stamp = q.epoch; q.loading = true; render();
     try {
       q.store = Store.create({ onMission:function(result){if(missionPanel)missionPanel.receive(result);}, db: window.db, teacherId: uid, classId: cls, canWrite: function () { return !manual() && stamp === q.epoch && allowed() && currentUser.uid === uid && window.wheelClass === cls && visible(); } });
       mountMission();
+      if(q.selection && missionPanel && missionPanel.question)missionPanel.question(q.selection.spinId);
       q.off = q.store.subscribe(function (next) {
         if (stamp !== q.epoch) return;
         if (next && q.state && next.revision < q.state.revision) return;
@@ -99,9 +123,9 @@
     if (q.request && q.request.kind === 'assist') return 'Retry to confirm ' + q.request.studentName + '’s assist. The same helper receives XP only once per question.';
     if (q.assistMessage && !q.request) return q.assistMessage;
     if (q.request) return 'Confirm the pending +' + q.request.delta + ' points for ' + q.request.studentName + ' using Retry. The same award is never counted twice.';
+    if (s && s.pending) return 'A manual answer is waiting. Open Battle to resolve it before using Quick fight.';
     if (q.selection && (!s || !s.lastEvent || s.lastEvent.spinId !== q.selection.spinId)) return q.selection.entry.n + ' is ready. Award points for a correct answer to attack. +1 = 1× power; +5 = 5× power.';
     if (!s) return 'Spin to choose a student, then award points for a correct answer. Spinning alone never causes damage.';
-    if (s.pending) return 'A manual answer is waiting. Open Battle to resolve it before using Quick fight.';
     var event = s.lastEvent || {}, h = s.heroes.find(function (hero) { return hero.id === event.heroId; });
     if(event.type==='summon') return 'One-Punch Chung · '+Number(event.damage||0)+' damage. Victory! Every hero earned treasure.';
     var text = event.type === 'auto' ? (h ? h.name : 'Hero') + ': ' + (event.move || 'Attack') + ' · +' + (event.points || 1) + ' points · ' + (event.damage || 0) + ' damage' : 'Award points after a spin to fight.';
@@ -119,9 +143,9 @@
   function controls(s) {
     el('wheelQuickToggle').disabled = q.busy || missionBusy() || guestsBusy() || !!q.request || !!window.wheelSpinning;
     if (q.on && q.cls) el('wheelSpinBtn').disabled = q.loading || q.busy || missionBusy() || guestsBusy() || !!q.request || !!window.wheelSpinning || !!(s && s.pending) || !window.wheelState || !wheelState.names.length;
-    if (!q.on) el('wheelSpinBtn').disabled = missionBusy() || guestsBusy() || !!window.wheelSpinning || !window.wheelState || !wheelState.names.length;
+    if (!q.on) el('wheelSpinBtn').disabled = q.loading || q.busy || !!q.request || missionBusy() || guestsBusy() || !!window.wheelSpinning || !window.wheelState || !wheelState.names.length;
     el('wheelClassSelect').disabled = q.busy || missionBusy() || guestsBusy() || !!q.request || !!window.wheelSpinning;
-    el('wheelQuickRetry').hidden = !q.on || !q.request || q.busy;
+    el('wheelQuickRetry').hidden = !q.request || q.busy;
     el('wheelQuickRetry').disabled = q.loading || q.busy || guestsBusy();
     el('wheelQuickRetry').textContent = q.request ? q.request.kind === 'assist' ? 'Retry assist for ' + q.request.studentName : 'Retry +' + q.request.delta + ' points for ' + q.request.studentName : '';
     renderAssist();
@@ -140,13 +164,13 @@
     el('wheelMissionHint').hidden = !!q.cls && q.on;
     if (!missionPanel) el('wheelMission').innerHTML = '<section class="mmPanel" aria-label="Class mission machine"><div class="mmHeading"><span class="mmMachine" role="img" aria-label="Pixel mission slot machine"></span><div><span class="mmEyebrow">WHOLE CLASS QUEST</span><h3>Mission machine</h3><p>Turn for a random objective and a class prize.</p></div></div><button type="button" disabled>↻ Turn</button></section>';
     if (missionPanel) missionPanel.render();
-    el('wheelQuickStatus').textContent = !q.on ? 'Name wheel only. Turn on Quick fight to battle when points are awarded.' : q.error || (!q.cls ? 'Choose a Lesson slot to enable battles for points.' : q.loading ? 'Loading the saved encounter…' : q.busy ? 'Saving answer…' : window.wheelSpinning ? 'Choosing your champion…' : summary(q.state));
+    el('wheelQuickStatus').textContent = statusText(q.state);
     if (q.playing && !force) return;
     var s = q.state, heroes = s ? s.heroes : roster(), h = heroes.find(function (hero) { return hero.id === q.heroId; }) || roster().find(function (hero) { return hero.id === q.heroId; }) || heroes.find(function (hero) { return s && s.lastEvent && hero.id === s.lastEvent.heroId; }) || heroes[0];
     var b = s ? Core.bossById(s.bossId) : q.selection ? Core.bossById(enemyFor(q.selection.spinId)) : null, role = h && (h.role === 'healer' ? 'cleric' : h.role);
     var shownHero = h;
     el('wheelQuickDuel').hidden = !q.on;
-    el('wheelQuickStatus').hidden = !q.on;
+    el('wheelQuickStatus').hidden = !q.on && !q.error && !q.request && !q.busy && !q.loading;
     el('wheelQuickDuel').innerHTML = !q.on ? '' : '<div class="cbQuickHero" data-cba-actor="hero" data-cba-hero-id="' + esc(h && h.id) + '">' + (h ? avatar(h) + '<strong>' + esc(h.name) + '</strong><small>' + esc(Core.JOBS && Core.JOBS[h.job] ? Core.JOBS[h.job].name : Core.ROLES[role].name) + ' · LV ' + h.level + '</small>' + bars(h.name, shownHero ? shownHero.hp : null, shownHero ? shownHero.stats.maxHp : null, shownHero ? shownHero.mp : null, shownHero ? shownHero.stats.maxMp : null) : '<span>Choose a hero</span>') + '</div><b class="cbQuickVs">VS</b><div class="cbQuickEnemy" data-cba-actor="enemy">' + (b ? '<img src="' + esc(b.image) + '" alt="' + esc(b.name) + ' pixel enemy"><strong>' + esc(b.name) + '</strong><small>' + (s && s.status === 'victory' ? 'VICTORY' : s && s.status === 'defeat' ? 'FINISHED' : 'ENEMY') + '</small>' + bars(b.name, s ? s.bossHp : null, s ? s.bossMaxHp : null, s ? enemyMp(s) : null, s ? (s.bossMaxMp || Core.BOSS_MAX_MP || 60) : null) : '<span class="cbQuickMystery" aria-hidden="true">?</span><strong>Next encounter</strong><small>Revealed on your spin · waits for points</small>') + '</div>';
     if (q.playing && s && s.lastEvent) {
       var affected = new Set((s.lastEvent.healed || []).concat(s.lastEvent.supported || [], s.lastEvent.enemy && s.lastEvent.enemy.targets || []).map(function (entry) { return entry.heroId; }));
@@ -155,9 +179,12 @@
     }
     if (s && s.status === 'victory' && q.on) el('wheelQuickDuel').innerHTML += '<div class="cbQuickTreasure"><span class="cbChest" aria-label="Opening treasure chest" role="img"></span><div class="cbQuickSpoils"><h4>Treasure for all ' + s.rewards.length + ' heroes</h4>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.treasure(s) : '') + '</div></div>';
     if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(el('wheelQuickDuel'));
-    el('wheelQuickStatus').textContent = !q.on ? 'Name wheel only. Turn on Quick fight to battle when points are awarded.' : q.error || (!q.cls ? 'Choose a Lesson slot to enable battles for points.' : q.loading ? 'Loading the saved encounter…' : q.busy ? 'Saving answer…' : window.wheelSpinning ? 'Choosing your champion…' : summary(s));
+    el('wheelQuickStatus').textContent = statusText(s);
     el('wheelQuickStatus').classList.toggle('cbQuickError', !!q.error);
     if (q.on) el('wheelHeroPreview').hidden = true;
+  }
+  function statusText(state) {
+    return q.error || (q.loading ? 'Loading the saved lesson…' : q.busy ? 'Saving answer…' : q.request ? summary(state) : !q.on ? 'Name wheel only. Correct-answer points also advance your class mission.' : !q.cls ? 'Choose a Lesson slot to enable battles for points.' : window.wheelSpinning ? 'Choosing your champion…' : summary(state));
   }
   function enemyMp(state) { return Number.isFinite(state.bossMp) ? state.bossMp : Core.BOSS_MAX_MP || 60; }
   function bars(name, hp, maxHp, mp, maxMp) {
@@ -215,35 +242,55 @@
     return pool[Math.floor(Core.randomUnit(spinId + ':enemy') * pool.length)].id;
   }
   function blocksAward() {
-    return !manual() && (missionBusy() || guestsBusy() || q.on && (q.loading || q.busy || !!q.request || !q.store || !!(q.state && q.state.pending)));
+    return !manual() && (missionBusy() || guestsBusy() || !!q.cls && (q.loading || q.busy || !!q.request || !q.store || !currentSpinId() || q.on && !!(q.state && q.state.pending)));
   }
-  function landed(entry, spinId) {
-    if (!entry || manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || guestsBusy() || !q.cls) return;
+  function spinning() {
+    if (!manual() && q.store && q.cls && missionPanel && window.wheelState) {
+      // Read during the animation so a question in an idle tab starts from
+      // the latest mission/reset, without rebinding an older saved retry.
+      q.questionRead = {epoch:q.epoch,spinId:wheelState.lastSpinId,promise:missionPanel.refresh(true)};
+    }
+    render();
+  }
+  async function landed(entry, spinId) {
+    var read=q.questionRead;
+    if (read && read.spinId===spinId) {
+      var fresh=await read.promise;
+      if(read!==q.questionRead || read.epoch!==q.epoch || !allowed() || currentUser.uid!==q.uid || window.wheelClass!==q.cls || manual() || !visible() || !window.wheelState || wheelState.lastSpinId!==spinId)return;
+      q.questionRead=null;
+      if(!fresh){q.error='Could not confirm the mission for this question. Spin again to retry before awarding points.';render();return;}
+    }
+    if (!entry || manual() || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || guestsBusy() || !q.cls) return;
     if (!/^[a-zA-Z0-9_-]{8,100}$/.test(spinId || '')) { q.error = 'Spin again before awarding points.'; render(); return; }
-    if (!heroId(entry)) { q.error = 'Reload the guest list to confirm this student before calling their hero.'; render(); return; }
+    if (q.on && !heroId(entry)) { q.error = 'Reload the guest list to confirm this student before calling their hero.'; render(); return; }
+    if(missionPanel && missionPanel.question && !missionPanel.question(spinId)){q.error='Spin again to confirm the current mission before awarding points.';render();return;}
     q.selection = {entry: {id:entry.id, n:entry.n}, spinId:spinId};
-    cancelFeedback(); q.heroId = heroId(entry); q.assistOpen = false; q.assistMessage = ''; q.error = ''; render();
+    try {sessionStorage.setItem(selectionKey(q.uid,q.cls),JSON.stringify({...q.selection,day:wheelState.day,round:wheelState.round}));}catch(_){}
+    cancelFeedback(); q.heroId = q.on ? heroId(entry) : ''; q.assistOpen = false; q.assistMessage = ''; q.error = ''; render();
   }
   async function award(entry, delta, reason, retry) {
-    if (manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || guestsBusy() || !q.cls || window.wheelSpinning) throw new Error('Wait for the wheel and saved encounter before awarding points.');
-    if (q.state && q.state.pending) throw new Error('Resolve the manual answer in Battle before awarding Quick fight points.');
+    if (manual() || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || guestsBusy() || !q.cls || window.wheelSpinning) throw new Error('Wait for the wheel and saved lesson before awarding points.');
+    var ordinary=retry ? q.request && q.request.mode==='ordinary' : !q.on;
+    if (!ordinary && q.state && q.state.pending) throw new Error('Resolve the manual answer in Battle before awarding Quick fight points.');
     if (retry ? !q.request : q.request) throw new Error('Use Retry to confirm the pending points award first.');
     var current = q.state;
     if (!retry) {
       if (!Number.isSafeInteger(delta) || delta < 1 || delta > 10000) throw new Error('Give a whole number of points from 1 to 10,000.');
-      if (!entry || !q.selection || entry.id !== q.selection.entry.id || entry.n !== q.selection.entry.n || q.selection.spinId !== (window.wheelState && wheelState.lastSpinId)) throw new Error('Spin to select this student before awarding points.');
+      if (!entry || !q.selection || entry.id !== q.selection.entry.id || entry.n !== q.selection.entry.n || !currentSpinId()) throw new Error('Spin to select this student before awarding points.');
       var student = window.wheelStudent && wheelStudent(entry);
       if (!studentInLesson(student)) throw new Error('Link this name to a student in this Lesson slot before awarding points.');
       var id = 'award-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
-      q.request = {studentId:student.id,studentName:student.name || entry.n,delta:delta,reason:reason,action:{type:'auto',id:id,spinId:q.selection.spinId,heroId:Core.heroFromStudent(student).id,heroes:roster(),bossId:enemyFor(q.selection.spinId)}};
+      var context=missionPanel && missionPanel.getAnswerContext ? missionPanel.getAnswerContext(q.selection.spinId) : null;
+      if(missionPanel && !context)throw new Error('Spin again to start a new mission question before awarding points.');
+      q.request = {studentId:student.id,studentName:student.name || entry.n,delta:delta,reason:reason,...(context || {}),...(ordinary ? {mode:'ordinary'} : {}),action:ordinary ? {type:'award',id:id,spinId:q.selection.spinId} : {type:'auto',id:id,spinId:q.selection.spinId,heroId:Core.heroFromStudent(student).id,heroes:roster(),bossId:enemyFor(q.selection.spinId)}};
     }
     // Reusing the same receipt is safe after a timeout, including after reload.
     // A latest revision allows an explicitly retried, uncommitted award to proceed.
-    if (current) { q.request.action.encounterId = current.encounterId; q.request.action.expectedRevision = current.revision; }
+    if (current && !ordinary) { q.request.action.encounterId = current.encounterId; q.request.action.expectedRevision = current.revision; }
     var request = JSON.parse(JSON.stringify(q.request)), stamp = q.epoch, activeStore = q.store, uid = q.uid, cls = q.cls, feedbackEvent = null, feedbackEncounter = null;
     try { sessionStorage.setItem(requestKey(uid,cls), JSON.stringify(request)); }
     catch (_) { q.request = null; throw new Error('Enable session storage so points awards can be retried safely.'); }
-    cancelFeedback(); q.heroId = request.action.heroId; q.busy = true; q.assistMessage = ''; q.error = ''; render();
+    cancelFeedback(); q.heroId = ordinary ? '' : request.action.heroId; q.busy = true; q.assistMessage = ''; q.error = ''; render();
     try {
       var result = await activeStore.award(request), next = result.state;
       // Clear only this acknowledgement; an older request must not erase a new one.
@@ -258,7 +305,7 @@
       if (window.wheelRender) wheelRender();
       if (window.toast) toast('+' + result.award.delta + ' to ' + request.studentName + ' — now ' + result.award.marks + '.');
       if (next && (!q.state || next.revision >= q.state.revision)) q.state = next;
-      if (next && next.lastEvent && next.lastEvent.type === 'auto' && next.lastEvent.id === request.action.id && !played.has(request.action.id) && window.ClassroomBattleAnimation) {
+      if (!ordinary && next && next.lastEvent && next.lastEvent.type === 'auto' && next.lastEvent.id === request.action.id && !played.has(request.action.id) && window.ClassroomBattleAnimation) {
         played.add(request.action.id); if (played.size > 100) played.delete(played.values().next().value);
         feedbackEvent = next.lastEvent; feedbackEncounter = next.encounterId;
       }
@@ -266,7 +313,7 @@
     } catch (err) {
       // These explicit server rejections occur without committing the award.
       // Network, auth and unknown failures retain their receipt for safe retry.
-      if (['invalid_action','invalid_slot','invalid_student','invalid_points','invalid_award','invalid_reason','invalid_balance','invalid_roster','roster_changed','missing_student','encounter_active','battle_changed'].includes(err.code)) {
+      if (['invalid_action','invalid_slot','invalid_student','invalid_points','invalid_award','invalid_reason','invalid_balance','invalid_roster','invalid_mission','roster_changed','missing_student','encounter_active','battle_changed','award_changed','mission_changed'].includes(err.code)) {
         try { var pending = JSON.parse(sessionStorage.getItem(requestKey(uid,cls)) || 'null'); if (pending && pending.action.id === request.action.id) sessionStorage.removeItem(requestKey(uid,cls)); } catch (_) {}
         if (stamp === q.epoch) q.request = null;
       }
@@ -278,10 +325,11 @@
   }
   function beforeSpin() {
     if (guestsBusy()) { render(); return false; }
-    if (!q.on || !window.wheelClass) return true;
+    if (!window.wheelClass) return true;
     if (!q.store) open(window.wheelClass);
-    if (q.loading || q.busy || missionBusy() || guestsBusy() || q.request || !q.store || q.state && q.state.pending) { render(); return false; }
-    cancelFeedback(); return allowed() && visible();
+    if (q.loading || q.busy || missionBusy() || guestsBusy() || q.request || !q.store || q.on && q.state && q.state.pending) { render(); return false; }
+    if(!allowed() || !visible())return false;
+    clearSelection();q.questionRead=null;cancelFeedback();return true;
   }
   function playFeedback(event, encounterId) {
     if (!window.ClassroomBattleAnimation || !q.state || !event || !q.state.lastEvent || q.state.lastEvent.id !== event.id || q.state.encounterId !== encounterId) return;
@@ -294,7 +342,7 @@
     if (!window.ClassroomMissionMachine || !q.store) return;
     missionPanel=ClassroomMissionMachine.mount(el('wheelMission'), {store:q.store,teacherId:q.uid,classId:q.cls,
       canAct:function () { return !guestsBusy()&&!q.loading&&!q.busy&&!q.request&&!window.wheelSpinning&&allowed()&&visible()&&!manual(); },
-      getState:function () {return q.on ? q.state : null;},getSpinId:function () {return q.selection&&q.selection.spinId;},
+      getState:function () {return q.on ? q.state : null;},getSpinId:currentSpinId,
       onChange:function (result) {if(result.state&&(!q.state||result.state.revision>=q.state.revision))q.state=result.state;render();},
       onBusy:function () {controls(q.state);},
       onSummon:function (event,encounterId) {if(event)playFeedback(event,encounterId);}
@@ -315,5 +363,5 @@
     render();
   }
   window.addEventListener('wheel-guests-changed', function (event) { rosterChanged(event.detail); });
-  window.QuickBattle = { guestChangeBlocked: guestChangeBlocked, rosterChanged: rosterChanged, open: open, close: close, beforeSpin: beforeSpin, landed: landed, award: award, assist: assist, blocksAward: blocksAward, render: render, enabled: function () { return q.on; } };
+  window.QuickBattle = { guestChangeBlocked: guestChangeBlocked, rosterChanged: rosterChanged, open: open, close: close, beforeSpin: beforeSpin, spinning: spinning, landed: landed, award: award, assist: assist, blocksAward: blocksAward, render: render, enabled: function () { return q.on; } };
 })();

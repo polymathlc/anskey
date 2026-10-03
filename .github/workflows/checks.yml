@@ -44,6 +44,7 @@ jobs:
           node tools/hero-skill-tree-browser-check.mjs
           node tools/student-heroes-browser-check.mjs
           node tools/quick-wheel-browser-check.mjs
+          node tools/ordinary-wheel-mission-browser-check.mjs
           node tools/lesson-guests-browser-check.mjs
           node tools/battle-animation-browser-check.mjs
           node tools/mission-machine-browser-check.mjs
