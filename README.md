@@ -3,6 +3,17 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.125.2 — The downloaded 1080p lesson video can be scrubbed
+
+A lesson exported with **⬇ 1080p** could be played from the top but not jumped ahead in (Windows Media Player, VLC, editors and some phone galleries showed a scrub bar that would not move, or no length at all). The browser writes the file as it records, in fragments, with no total length and no index, and nothing afterwards gave it one.
+
+- **MP4** (what Safari and recent Chrome/Edge write) now gets its index rebuilt when the export finishes (`LessonMp4Finalize`): one `moov` with the whole sample table and the real durations goes **in front of** the media, the fragments are gone, and the file's brands no longer claim to be fragmented. Not a single compressed byte is touched or re-encoded, so it takes a moment and the picture and sound are identical to what was recorded. A track that started late keeps its offset (an empty edit), so picture and sound stay in step. The samples are carried across as Blob slices, so an hour of video is never held in memory twice.
+- **WebM** (Firefox) already had its duration written in by `LessonAudioFinalize`; that is unchanged.
+- Anything the finalizer does not understand (a layout it has not seen, a file past 4 GB) is handed over exactly as recorded — playable, as before, never broken.
+- **Also fixed:** exporting with the camera beside the page (the default **side** layout) failed with `drawStyledLine is not defined`, because the Speed-up/formatting release (#133) replaced two `ctx.fillText` calls in the export's title panel with a helper that only exists inside the PDF text painter. The panel's title and subtitle are drawn again.
+
+Validation: `node --test tools/lesson-mp4-tests.mjs` (synthetic fragmented files read back by an independent parser, plus a real ffmpeg file compared frame by frame), `node tools/export-check.mjs` (real Chromium exports a lesson and checks the file's boxes). No server or rules change.
+
 ## v1.125.1 — Closing the name wheel no longer loses the called student
 
 Closing the wheel after a name was called (or while it was still spinning) threw the pick away, so that student could no longer be given points. The called student is now saved with the wheel's list for the lesson day and **comes back when the wheel is reopened**, with the award buttons ready (and, with Quick fight on, selected again for the same spin once the saved encounter has loaded). A new round, removing the name, or a new lesson day clears it. No server or rules change.

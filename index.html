@@ -5309,7 +5309,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.125.1';
+var APP_VERSION = 'v1.125.2';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -10129,6 +10129,442 @@ var LessonAudioFinalize = (function () {
   return { finalize: finalize };
 })();
 
+/* ================= Seekable lesson video (MP4) ================= */
+// MediaRecorder writes an MP4 as it goes, in FRAGMENTS: an `ftyp`, a `moov`
+// that describes the tracks but holds no samples, then a `moof` + `mdat` pair
+// every second or so. The file is correct and plays from the top, but it has
+// no total length and no index — nothing says where second 400 starts — so
+// Windows Media Player, VLC, an editor or a phone gallery cannot jump ahead,
+// and a few cannot even say how long it is. A WebM has the same fault and
+// LessonAudioFinalize writes the missing Duration into it; an MP4 needs more
+// than one number, so this rewrites its INDEX instead.
+//
+// It never touches a compressed byte. The samples stay exactly where the
+// recorder wrote them and are re-attached, in the same order, behind a new
+// `moov` that carries the whole sample table (stts / stsc / stsz / stco, plus
+// stss and ctts when they are needed) and the real durations. The new `moov`
+// goes FIRST so a browser can start playing, and seeking, before the file has
+// finished downloading. Only the small boxes (ftyp, moov, each moof) are read
+// into memory; the media itself is carried across as Blob slices, so an hour
+// of 1080p never sits in memory twice.
+//
+// Anything it does not understand — a file that is not fragmented, a codec
+// layout it has not seen, a size past what 32-bit offsets can address — leaves
+// the recording EXACTLY as it was written. A video that plays but cannot be
+// scrubbed is better than one this function broke.
+var LessonMp4Finalize = (function () {
+  'use strict';
+  // The recorder's own sample flags: bit 16 is "this sample depends on others".
+  var NON_SYNC = 0x10000;
+  // Chunk offsets are written as 32-bit `stco` entries. A longer file is left
+  // fragmented rather than given a second, rarely-exercised `co64` code path.
+  var LIMIT = 0xffffffff;
+  var TWO32 = 4294967296;
+  var MAX_BOXES = 400000;
+  var SAMPLE_TABLES = ['stts', 'ctts', 'stsc', 'stsz', 'stz2', 'stco', 'co64', 'stss',
+    'stsh', 'stdp', 'sdtp', 'sbgp', 'sgpd', 'subs', 'saiz', 'saio'];
+  // Brands that only a FRAGMENTED file may claim. The result is a plain MP4.
+  var FRAGMENT_BRANDS = ['iso5', 'iso6', 'iso7', 'iso8', 'iso9', 'dash', 'cmfc', 'cmff', 'cmfl', 'msdh', 'msix', 'sdtp'];
+
+  function fail(why) {
+    throw new Error('The video could not be made seekable' + (why ? ' (' + why + ')' : '') + '.');
+  }
+  function view(buf) { return new DataView(buf.buffer, buf.byteOffset, buf.byteLength); }
+  function fourcc(v, at) {
+    return String.fromCharCode(v.getUint8(at), v.getUint8(at + 1), v.getUint8(at + 2), v.getUint8(at + 3));
+  }
+  function ascii(text) {
+    var out = new Uint8Array(text.length);
+    for (var i = 0; i < text.length; i++) out[i] = text.charCodeAt(i) & 0xff;
+    return out;
+  }
+  // A list of unsigned 32-bit numbers, big-endian. Signed values (a negative
+  // media time) are passed through `>>> 0` by the caller's own arithmetic here.
+  function words(list) {
+    var out = new Uint8Array(list.length * 4), v = view(out);
+    for (var i = 0; i < list.length; i++) v.setUint32(i * 4, list[i] >>> 0);
+    return out;
+  }
+  function make(type, parts) {
+    var length = 8, i;
+    for (i = 0; i < parts.length; i++) length += parts[i].length;
+    if (length > LIMIT) fail('a box past 4 GB');
+    var out = new Uint8Array(length), at = 8;
+    view(out).setUint32(0, length);
+    out.set(ascii(type), 4);
+    for (i = 0; i < parts.length; i++) { out.set(parts[i], at); at += parts[i].length; }
+    return out;
+  }
+  // The boxes lying directly between `start` and `end` of `buf`, with offsets
+  // relative to `buf`. A size that runs past `end` is a corrupt file, never a
+  // reason to read on.
+  function readBoxes(buf, start, end) {
+    var v = view(buf), at = start, out = [];
+    while (at + 8 <= end) {
+      var length = v.getUint32(at), header = 8, type = fourcc(v, at + 4);
+      if (length === 1) {
+        if (at + 16 > end) fail('a truncated box header');
+        length = v.getUint32(at + 8) * TWO32 + v.getUint32(at + 12); header = 16;
+      } else if (length === 0) length = end - at;
+      if (length < header || at + length > end) fail('a box with an impossible size');
+      out.push({ type: type, start: at, body: at + header, end: at + length });
+      at += length;
+      if (out.length > MAX_BOXES) fail('too many boxes');
+    }
+    return out;
+  }
+  function dig(buf, box, path) {
+    var cursor = box;
+    for (var i = 0; i < path.length; i++) {
+      var found = null, kids = readBoxes(buf, cursor.body, cursor.end);
+      for (var k = 0; k < kids.length; k++) if (kids[k].type === path[i]) { found = kids[k]; break; }
+      if (!found) return null;
+      cursor = found;
+    }
+    return cursor;
+  }
+  // `[count, value, count, value, …]` for each run of equal neighbours.
+  function runs(values) {
+    var out = [], i = 0;
+    while (i < values.length) {
+      var j = i + 1;
+      while (j < values.length && values[j] === values[i]) j++;
+      out.push(j - i, values[i]);
+      i = j;
+    }
+    return out;
+  }
+  function setWide(buf, at, value, wide) {
+    var v = view(buf);
+    if (wide) { v.setUint32(at, Math.floor(value / TWO32)); v.setUint32(at + 4, value % TWO32); }
+    else v.setUint32(at, value);
+  }
+
+  /* ---- the top level of the file, read a header at a time ---- */
+  async function scan(blob) {
+    var out = [], at = 0, size = blob.size;
+    while (at + 8 <= size) {
+      var head = new DataView(await blob.slice(at, Math.min(size, at + 16)).arrayBuffer());
+      var length = head.getUint32(0), header = 8, type = fourcc(head, 4);
+      if (length === 1) {
+        if (head.byteLength < 16) break;
+        length = head.getUint32(8) * TWO32 + head.getUint32(12); header = 16;
+      } else if (length === 0) length = size - at;
+      if (length < header) fail('a box with an impossible size');
+      out.push({ type: type, start: at, header: header, end: Math.min(size, at + length), clipped: at + length > size });
+      at += length;
+      if (out.length > MAX_BOXES) fail('too many boxes');
+    }
+    return out;
+  }
+
+  /* ---- what the `moov` says about each track ---- */
+  function analyse(buf, header) {
+    var v = view(buf), info = { movieScale: 0, tracks: {}, byAt: {}, order: [], trex: {}, fragmented: false, hasSamples: false };
+    readBoxes(buf, header, buf.length).forEach(function (box) {
+      if (box.type === 'mvhd') {
+        info.movieScale = v.getUint32(box.body + (buf[box.body] ? 20 : 12));
+      } else if (box.type === 'mvex') {
+        info.fragmented = true;
+        readBoxes(buf, box.body, box.end).forEach(function (trex) {
+          if (trex.type !== 'trex') return;
+          info.trex[v.getUint32(trex.body + 4)] = {
+            sdi: v.getUint32(trex.body + 8), dur: v.getUint32(trex.body + 12),
+            size: v.getUint32(trex.body + 16), flags: v.getUint32(trex.body + 20)
+          };
+        });
+      } else if (box.type === 'trak') {
+        var tkhd = dig(buf, box, ['tkhd']), mdhd = dig(buf, box, ['mdia', 'mdhd']), stbl = dig(buf, box, ['mdia', 'minf', 'stbl']);
+        if (!tkhd || !mdhd || !stbl) fail('a track without its header');
+        var stsz = dig(buf, stbl, ['stsz']);
+        // A track that already lists samples is not a fragmented one.
+        if (stsz && v.getUint32(stsz.body + 8) > 0) info.hasSamples = true;
+        var id = v.getUint32(tkhd.body + (buf[tkhd.body] ? 20 : 12));
+        var track = {
+          id: id, at: box.start, scale: v.getUint32(mdhd.body + (buf[mdhd.body] ? 20 : 12)),
+          hasEdts: !!dig(buf, box, ['edts']),
+          dur: [], size: [], cts: [], sync: [], runs: [], offsets: [],
+          nonSync: false, hasCts: false, start: 0, seenStart: false,
+          total: 0, mediaDur: 0, movieDur: 0, gap: 0, edts: null
+        };
+        if (!track.scale) fail('a track with no timescale');
+        info.tracks[id] = track; info.byAt[box.start] = track; info.order.push(track);
+      }
+    });
+    if (!info.movieScale) fail('a movie with no timescale');
+    if (info.hasSamples) info.fragmented = false;
+    return info;
+  }
+
+  /* ---- one `moof`: where each sample really is ---- */
+  function readFragment(buf, header, moofAt, info, fileSize, chunks, state) {
+    var v = view(buf);
+    state.next = null;
+    readBoxes(buf, header, buf.length).forEach(function (traf) {
+      if (traf.type !== 'traf' || state.truncated) return;
+      var head = null, decode = null, trun = [];
+      readBoxes(buf, traf.body, traf.end).forEach(function (part) {
+        if (part.type === 'tfhd') head = part;
+        else if (part.type === 'tfdt') decode = part;
+        else if (part.type === 'trun') trun.push(part);
+      });
+      if (!head) fail('a fragment without a header');
+      var flags = v.getUint32(head.body) & 0xffffff, at = head.body + 4;
+      var track = info.tracks[v.getUint32(at)];
+      at += 4;
+      var fallback = (track && info.trex[track.id]) || {};
+      var base;
+      if (flags & 0x1) { base = v.getUint32(at) * TWO32 + v.getUint32(at + 4); at += 8; }
+      else if (flags & 0x20000) base = moofAt;
+      else base = state.next === null ? moofAt : state.next;
+      var sdi = fallback.sdi || 1, defDur = fallback.dur || 0, defSize = fallback.size || 0, defFlags = fallback.flags || 0;
+      if (flags & 0x2) { sdi = v.getUint32(at); at += 4; }
+      if (flags & 0x8) { defDur = v.getUint32(at); at += 4; }
+      if (flags & 0x10) { defSize = v.getUint32(at); at += 4; }
+      if (flags & 0x20) { defFlags = v.getUint32(at); at += 4; }
+      var cursor = base;
+      if (!track) {
+        // A track the movie never declared: skip its bytes, keep the cursor honest.
+        trun.forEach(function (box) {
+          var f = v.getUint32(box.body) & 0xffffff, n = v.getUint32(box.body + 4), p = box.body + 8, offset = null;
+          if (f & 0x1) { offset = v.getInt32(p); p += 4; }
+          if (f & 0x4) p += 4;
+          var bytes = 0;
+          for (var i = 0; i < n; i++) {
+            var size = defSize;
+            if (f & 0x100) p += 4;
+            if (f & 0x200) { size = v.getUint32(p); p += 4; }
+            if (f & 0x400) p += 4;
+            if (f & 0x800) p += 4;
+            bytes += size;
+          }
+          cursor = (offset === null ? cursor : base + offset) + bytes;
+        });
+        state.next = cursor;
+        return;
+      }
+      if (decode && !track.seenStart) {
+        track.start = buf[decode.body] ? v.getUint32(decode.body + 4) * TWO32 + v.getUint32(decode.body + 8) : v.getUint32(decode.body + 4);
+        track.seenStart = true;
+      }
+      trun.forEach(function (box) {
+        if (state.truncated) return;
+        var f = v.getUint32(box.body) & 0xffffff, n = v.getUint32(box.body + 4), p = box.body + 8;
+        var offset = null, firstFlags = null;
+        if (f & 0x1) { offset = v.getInt32(p); p += 4; }
+        if (f & 0x4) { firstFlags = v.getUint32(p); p += 4; }
+        var start = offset === null ? cursor : base + offset, bytes = 0, taken = 0;
+        for (var i = 0; i < n; i++) {
+          var dur = defDur, size = defSize, sflags = i === 0 && firstFlags !== null ? firstFlags : defFlags, cts = 0;
+          if (f & 0x100) { dur = v.getUint32(p); p += 4; }
+          if (f & 0x200) { size = v.getUint32(p); p += 4; }
+          if (f & 0x400) { sflags = v.getUint32(p); p += 4; }
+          if (f & 0x800) { cts = v.getInt32(p); p += 4; }
+          if (cts < 0) fail('a negative composition offset');
+          // A recording cut short: keep every whole sample there is.
+          if (start + bytes + size > fileSize) { state.truncated = true; break; }
+          var sync = !(sflags & NON_SYNC);
+          track.dur.push(dur); track.size.push(size); track.cts.push(cts); track.sync.push(sync);
+          if (!sync) track.nonSync = true;
+          if (cts) track.hasCts = true;
+          bytes += size; taken++;
+        }
+        cursor = start + bytes;
+        if (taken) {
+          chunks.push({ track: track, at: start, len: bytes });
+          track.runs.push({ n: taken, sdi: sdi });
+        }
+      });
+      state.next = cursor;
+    });
+  }
+
+  /* ---- the sample tables, from what the fragments said ---- */
+  function tables(track) {
+    var parts = [], count = track.size.length, i;
+    var pairs = runs(track.dur);
+    parts.push(make('stts', [words([0, pairs.length / 2]), words(pairs)]));
+    if (track.hasCts) {
+      var shifts = runs(track.cts), ctts = make('ctts', [words([0, shifts.length / 2]), words(shifts)]);
+      parts.push(ctts);
+    }
+    var groups = [];
+    track.runs.forEach(function (run, index) {
+      var last = groups[groups.length - 1];
+      if (last && last.n === run.n && last.sdi === run.sdi) return;
+      groups.push({ first: index + 1, n: run.n, sdi: run.sdi });
+    });
+    var stscWords = [0, groups.length];
+    groups.forEach(function (g) { stscWords.push(g.first, g.n, g.sdi); });
+    parts.push(make('stsc', [words(stscWords)]));
+    var uniform = true;
+    for (i = 1; i < count; i++) if (track.size[i] !== track.size[0]) { uniform = false; break; }
+    parts.push(make('stsz', uniform ? [words([0, track.size[0], count])] : [words([0, 0, count]), words(track.size)]));
+    parts.push(make('stco', [words([0, track.offsets.length]), words(track.offsets)]));
+    if (track.nonSync) {
+      var keys = [];
+      for (i = 0; i < count; i++) if (track.sync[i]) keys.push(i + 1);
+      parts.push(make('stss', [words([0, keys.length]), words(keys)]));
+    }
+    return parts;
+  }
+
+  /* ---- the `moov`, rewritten box by box ---- */
+  function rebuild(buf, box, parent, fn) {
+    var action = fn(box, parent);
+    if (action === undefined) return buf.subarray(box.start, box.end);
+    if (action === null) return null;
+    if (action instanceof Uint8Array) return action;
+    var parts = [];
+    readBoxes(buf, box.body, box.end).forEach(function (kid) {
+      var piece = rebuild(buf, kid, box.type, fn);
+      if (piece) parts.push(piece);
+      if (action.after && action.after[kid.type]) parts.push(action.after[kid.type]);
+    });
+    (action.add || []).forEach(function (piece) { parts.push(piece); });
+    return make(box.type, parts);
+  }
+  function patched(buf, box, at, value, wide) {
+    var copy = buf.slice(box.start, box.end);
+    setWide(copy, box.body - box.start + at, value, wide);
+    return copy;
+  }
+  function emptyEdit(gap, length) {
+    return make('edts', [make('elst', [words([0, 2, gap, 0xffffffff, 0x10000, length, 0, 0x10000])])]);
+  }
+  // An edit list the recorder wrote with a ZERO length means "to the end of the
+  // track", which a plain file does not understand. Only that one shape is
+  // touched: any other list is the recorder's own timing and is kept as it is.
+  function zeroEdit(buf, box, length) {
+    var kids = readBoxes(buf, box.body, box.end);
+    if (kids.length !== 1 || kids[0].type !== 'elst') return undefined;
+    var v = view(buf), elst = kids[0], wide = buf[elst.body] === 1;
+    if (v.getUint32(elst.body + 4) !== 1) return undefined;
+    var at = elst.body + 8;
+    if (v.getUint32(at) !== 0 || (wide && v.getUint32(at + 4) !== 0)) return undefined;
+    var copy = buf.slice(elst.start, elst.end);
+    setWide(copy, elst.body - elst.start + 8, length, wide);
+    return make('edts', [copy]);
+  }
+  function moovBytes(buf, header, info, movieDur, base, chunks) {
+    // Chunk offsets are absolute in the NEW file: the first pass uses 0 to
+    // learn the size, the second the real numbers (the table's size does not
+    // depend on its values, so the two are the same length).
+    var cursor = 0;
+    info.order.forEach(function (t) { t.offsets = []; });
+    chunks.forEach(function (c) { c.track.offsets.push(base + cursor); cursor += c.len; });
+    var whole = { start: 0, body: header, end: buf.length, type: 'moov' };
+    var current = null;
+    return rebuild(buf, whole, '', function (box, parent) {
+      var wide;
+      switch (box.type) {
+        case 'moov': return {};
+        case 'mvex': return null;
+        case 'mvhd': wide = buf[box.body] === 1; return patched(buf, box, wide ? 24 : 16, movieDur, wide);
+        case 'trak':
+          current = info.byAt[box.start];
+          if (!current || !current.size.length) return null;
+          return { after: current.edts && !current.hasEdts ? { tkhd: current.edts } : null };
+        case 'tkhd': wide = buf[box.body] === 1; return patched(buf, box, wide ? 28 : 20, current.gap + current.movieDur, wide);
+        case 'edts':
+          if (parent !== 'trak') return undefined;
+          return zeroEdit(buf, box, current.movieDur);
+        case 'mdia': case 'minf': return {};
+        case 'mdhd': wide = buf[box.body] === 1; return patched(buf, box, wide ? 24 : 16, current.mediaDur, wide);
+        case 'stbl':
+          return { add: tables(current) };
+        default:
+          if (parent === 'stbl' && SAMPLE_TABLES.indexOf(box.type) !== -1) return null;
+          return undefined;
+      }
+    });
+  }
+
+  /* ---- the file's first box, with the fragment-only brands taken out ---- */
+  function typeBox(bytes) {
+    var v = view(bytes), brands = ['isom', 'iso2', 'avc1', 'mp41'];
+    if (bytes.length >= 16) {
+      var major = fourcc(v, 8);
+      var seen = [major];
+      for (var at = 16; at + 4 <= bytes.length; at += 4) seen.push(fourcc(v, at));
+      seen.forEach(function (brand) {
+        if (brands.indexOf(brand) === -1 && FRAGMENT_BRANDS.indexOf(brand) === -1) brands.push(brand);
+      });
+    }
+    return make('ftyp', [ascii('isom'), words([0x200])].concat(brands.map(ascii)));
+  }
+
+  /* ---- the check run on what was built, before it is handed back ---- */
+  function checked(moov, header, expected) {
+    var total = 0, v = view(moov);
+    (function walk(start, end) {
+      readBoxes(moov, start, end).forEach(function (box) {
+        if (box.type === 'mvex') fail('a leftover fragment index');
+        if (box.type === 'stsz') total += v.getUint32(box.body + 8);
+        if (box.type === 'trak' || box.type === 'mdia' || box.type === 'minf' || box.type === 'stbl') walk(box.body, box.end);
+      });
+    })(header, moov.length);
+    if (total !== expected) fail('the sample count changed');
+  }
+
+  async function finalize(blob) {
+    if (!blob || !blob.size || blob.size > LIMIT) return blob;
+    var top = await scan(blob), moovTop = null, typeTop = null, fragments = [];
+    top.forEach(function (box) {
+      if (box.type === 'moov' && !moovTop) moovTop = box;
+      else if (box.type === 'ftyp' && !typeTop) typeTop = box;
+      else if (box.type === 'moof' && !box.clipped) fragments.push(box);
+    });
+    // Already a plain MP4 (no fragments), or not an MP4 at all: leave it alone.
+    if (!moovTop || !fragments.length || moovTop.clipped) return blob;
+    var moovBuf = new Uint8Array(await blob.slice(moovTop.start, moovTop.end).arrayBuffer());
+    var info = analyse(moovBuf, moovTop.header);
+    if (!info.fragmented || !info.order.length) return blob;
+
+    var chunks = [], state = { next: null, truncated: false };
+    for (var f = 0; f < fragments.length && !state.truncated; f++) {
+      var moof = fragments[f];
+      var raw = new Uint8Array(await blob.slice(moof.start, moof.end).arrayBuffer());
+      readFragment(raw, moof.header, moof.start, info, blob.size, chunks, state);
+    }
+    var tracks = info.order.filter(function (t) { return t.size.length; });
+    if (!tracks.length) return blob;
+
+    // Every time below is in the track's own ticks until it is converted.
+    var earliest = Infinity, movieDur = 0, samples = 0;
+    tracks.forEach(function (t) { earliest = Math.min(earliest, t.start / t.scale); });
+    tracks.forEach(function (t) {
+      // A last sample the recorder gave no length takes its neighbour's.
+      for (var i = t.dur.length - 1; i >= 0; i--) {
+        if (!t.dur[i]) t.dur[i] = (i + 1 < t.dur.length ? t.dur[i + 1] : (i ? t.dur[i - 1] : 0)) || 1;
+      }
+      t.mediaDur = t.dur.reduce(function (a, b) { return a + b; }, 0);
+      t.movieDur = Math.round(t.mediaDur * info.movieScale / t.scale);
+      t.gap = Math.round((t.start / t.scale - earliest) * info.movieScale);
+      t.edts = t.gap > 0 && !t.hasEdts ? emptyEdit(t.gap, t.movieDur) : null;
+      if (!t.edts) t.gap = 0;
+      movieDur = Math.max(movieDur, t.gap + t.movieDur);
+      samples += t.size.length;
+    });
+
+    var ftyp = typeBox(typeTop ? new Uint8Array(await blob.slice(typeTop.start, typeTop.end).arrayBuffer()) : new Uint8Array(0));
+    var payload = chunks.reduce(function (sum, c) { return sum + c.len; }, 0);
+    var first = moovBytes(moovBuf, moovTop.header, info, movieDur, 0, chunks);
+    var base = ftyp.length + first.length + 8;
+    if (base + payload > LIMIT) return blob;
+    var moov = moovBytes(moovBuf, moovTop.header, info, movieDur, base, chunks);
+    if (moov.length !== first.length) fail('the index changed size');
+    checked(moov, 8, samples);
+
+    var pieces = [ftyp, moov, words([payload + 8]), ascii('mdat')];
+    chunks.forEach(function (c) { pieces.push(blob.slice(c.at, c.at + c.len)); });
+    var out = new Blob(pieces, { type: blob.type });
+    if (out.size !== base + payload) fail('the size is wrong');
+    return out;
+  }
+  return { finalize: finalize };
+})();
+
 /* ================= Lesson camera and microphone ================= */
 /* 🎥 A lesson recording can carry the CAMERA now, and the teacher chooses which
    camera and which microphone, SEES the camera before a second is recorded,
@@ -11839,12 +12275,12 @@ function lessonExportPanel(ctx, job, state) {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 34px ' + LESSON_EXPORT_FONT;
-  lessonExportWrap(ctx, job.title, w, 3).forEach(function (line) { y += 42; drawStyledLine(line); });
+  lessonExportWrap(ctx, job.title, w, 3).forEach(function (line) { y += 42; ctx.fillText(line, x, y); });
   if (job.subtitle) {
     ctx.fillStyle = '#A9BCCB';
     ctx.font = '24px ' + LESSON_EXPORT_FONT;
     y += 10;
-    lessonExportWrap(ctx, job.subtitle, w, 2).forEach(function (line) { y += 32; drawStyledLine(line); });
+    lessonExportWrap(ctx, job.subtitle, w, 2).forEach(function (line) { y += 32; ctx.fillText(line, x, y); });
   }
   var chip = 'Page ' + state.view.page + ' of ' + job.infos.length;
   ctx.font = 'bold 20px ' + LESSON_EXPORT_FONT;
@@ -12302,11 +12738,16 @@ async function lessonExportFinish(job) {
   var blob = new Blob(job.chunks, { type: type });
   job.chunks = [];
   if (!blob.size) { lessonExportFail(job, new Error('Nothing was written. Try the export again.')); return; }
-  // A WebM straight out of MediaRecorder has no duration, and many players
-  // then cannot seek it. The finalizer writes it in; a file it refuses (one
-  // past its ceiling) is still a perfectly playable video, so it goes as is.
+  // A file straight out of MediaRecorder has no duration and no index, and many
+  // players then cannot jump ahead in it. A WebM only lacks its duration, which
+  // LessonAudioFinalize writes in; an MP4 is written in fragments and needs its
+  // whole sample index rebuilt, which LessonMp4Finalize does without touching a
+  // compressed byte. A file either refuses (past its ceiling, a layout it does
+  // not know) is still a perfectly playable video, so it goes as recorded.
   if (/webm/i.test(type)) {
     try { blob = await LessonAudioFinalize.finalize(blob, Math.max(1, Math.round(job.duration))); } catch (e) { /* kept as recorded */ }
+  } else if (/mp4/i.test(type)) {
+    try { blob = await LessonMp4Finalize.finalize(blob); } catch (e) { /* kept as recorded */ }
   }
   if (lessonExportJob !== job) return;
   job.blob = blob;
