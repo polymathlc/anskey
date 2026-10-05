@@ -202,6 +202,27 @@ ok('…in about the time the lesson takes', took > done.duration / 1000 * 0.8 &&
 ok('…named for the worksheet and the question', /^P5 Maths — Tanks and Litres — Q5 · video lesson \(1080p\)\.(mp4|webm)$/.test(done.name || ''), done.name);
 ok('…and it downloaded itself', downloads.length === 1 && downloads[0].suggestedFilename() === done.name, downloads.map(d => d.suggestedFilename()).join(', '));
 
+// A recorder's MP4 is written in fragments with no index, so a player can run
+// it from the top and cannot jump ahead. The file handed over has to carry its
+// own index: one `moov` before the media, no `moof` left over, and — for the
+// other container — a duration the player can read.
+const container = await page.evaluate(async () => {
+  const blob = lessonExportJob.blob, head = new Uint8Array(await blob.slice(0, 64).arrayBuffer());
+  const text = String.fromCharCode.apply(null, head.slice(4, 8));
+  if (text === 'ftyp') {
+    const types = []; let at = 0;
+    while (at + 8 <= blob.size && types.length < 50000) {
+      const h = new DataView(await blob.slice(at, at + 8).arrayBuffer());
+      const size = h.getUint32(0), type = String.fromCharCode(h.getUint8(4), h.getUint8(5), h.getUint8(6), h.getUint8(7));
+      types.push(type); if (size < 8) break; at += size;
+    }
+    return { kind: 'mp4', types: types.join(',') };
+  }
+  return { kind: 'webm', type: blob.type };
+});
+ok('the downloaded file carries its own index, so a player can jump ahead in it',
+  container.kind === 'webm' || (/^ftyp,moov,mdat$/.test(container.types)), JSON.stringify(container));
+
 const file = await page.evaluate(async () => {
   const blob = lessonExportJob.blob;
   const v = document.createElement('video');

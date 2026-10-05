@@ -2,6 +2,20 @@
 
 Guidance for Claude when working in this repo.
 
+## Seekable 1080p lesson video (v1.125.2)
+
+`LessonMp4Finalize` (search `Seekable lesson video (MP4)`, beside `LessonAudioFinalize`) and the `else if (/mp4/i.test(type))` branch of **`lessonExportFinish`**. MediaRecorder writes an MP4 in fragments (`ftyp`, an empty `moov` with `mvex`, then `moof`+`mdat` pairs): it plays from the top but has no length and no index, so Windows Media Player, VLC and editors cannot scrub it. A WebM only lacks its Duration, which `LessonAudioFinalize` writes; an MP4 needs its whole INDEX rebuilt.
+
+- **IT NEVER TOUCHES A COMPRESSED BYTE.** The recorder's samples stay in order and are re-attached behind a new `moov` holding `stts` / `stsc` / `stsz` / `stco` (plus `stss` only when some sample is not a keyframe, `ctts` only when there are composition offsets) and the real `mvhd` / `tkhd` / `mdhd` durations. The new `moov` goes FIRST (play and seek before the download ends); `mvex` is dropped and the `ftyp` loses the fragment-only brands (`iso5`/`iso6`/`dash`/…). Only `ftyp`, `moov` and each `moof` are read into memory; the media is carried as `blob.slice(...)` pieces, so an hour of 1080p is never held twice. **Never read the whole blob** (the harness pins it).
+- **IT REFUSES BY LEAVING THE FILE ALONE.** Not an MP4, no `moof`, no `mvex`, tracks that already list samples, or a size past 32-bit `stco` offsets: `finalize` returns the SAME blob. A layout it cannot honour (a negative composition offset, i.e. B-frames with a negative `ctts`) THROWS, and the caller's `try/catch` keeps the recording as written. A video that plays but cannot be scrubbed is better than one this broke. Chrome's recorder uses no B-frames; Safari's output has not shown any.
+- **TIMING IS PRESERVED, NOT RE-DERIVED.** Durations come from the `trun`s (a zero-length last sample takes its neighbour's), the first `tfdt` of each track becomes an EMPTY EDIT relative to the earliest track so a late-starting video stays in step with the sound, and two tracks that start at the same non-zero time get no black lead-in. An existing zero-length `elst` is made a real length; any other edit list is the recorder's own and is kept.
+- **CHUNKS KEEP THE RECORDER'S INTERLEAVE** (one chunk per `trun`, merged in `stsc` when equal). Offsets are computed in two passes (the table's size does not depend on its values), and the result is checked (no `mvex`, sample count unchanged, output size exactly `ftyp + moov + 8 + payload`) before it is handed back.
+- It applies only to the 1080p export. The lesson RECORDER and its playback (`LessonAudioFinalize`, which deliberately passes MP4 audio through) are untouched.
+
+**Also in this release:** the export's side panel called `drawStyledLine` (a helper inside the PDF text painter) instead of `ctx.fillText(line, x, y)`, so the default side layout failed with `drawStyledLine is not defined` since #133. `tools/export-check.mjs` caught it; it now also asserts the downloaded file's boxes.
+
+Run `node --test tools/lesson-mp4-tests.mjs` (synthetic fragmented files read back by an independent parser; a real ffmpeg file compared frame, packet and keyframe by keyframe when ffmpeg is installed) and `node tools/export-check.mjs`. Every failure is silent: the file still plays, it just cannot be scrubbed — which is how it shipped.
+
 ## Hold-to-snap shapes and Pen select (v1.125.0)
 
 `shape-snap.js` (`window.ShapeSnap`) is the one recogniser and pen-path geometry: `recognize` / `toPoints` / `drag` / `label`, and `flattenAnchors` / `setSmoothHandles` / `hitAnchors` / `pointInPolygon` / `polygonArea` for the pen. It is **byte-identical in `polymathlc/book`, `polymathlc/cer` and this repo, with identical `tools/shape-snap-tests.mjs` + `shape-snap-fixtures.mjs` — change it in all three or in none.** Plain `<script src="shape-snap.js">`, loaded before the application script and listed in `tools/check-syntax.mjs`; there is no hosting list to update (the site is the directory).
