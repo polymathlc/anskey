@@ -138,3 +138,23 @@ test('marks go through the reward window\'s own transaction', () => {
   assert(/await rwAwardMarks\(student, delta, reason\)/.test(html));
   assert(/reasonOverride \|\| rwReason\(\)/.test(html));
 });
+
+test('the last called student survives a save and reload on the same day only', () => {
+  const state = roster('Ann', 'Ben');
+  state.last = { id: '', n: 'Ben' };
+  state.lastSpinId = 'wheel-abcdef12';
+  const saved = JSON.parse(JSON.stringify(state));
+  const same = W('wheelClean')(saved, '2026-10-07');
+  assert.deepEqual(plain(same.last), { id: '', n: 'Ben' });
+  assert.equal(same.lastSpinId, 'wheel-abcdef12');
+  const next = W('wheelClean')(saved, '2026-10-08');
+  assert.equal(next.last, undefined);
+  assert.equal(next.lastSpinId, undefined);
+  assert.equal(W('wheelClean')({ ...saved, lastSpinId: 'x' }, '2026-10-07').lastSpinId, undefined);
+});
+
+test('closing the window keeps the pick: spin stores it and reopening restores it', () => {
+  assert(/wheelState\.last = \{ id: wheelState\.names\[pick\]/.test(html), 'spin records the pick');
+  assert(/wheelRestoreWinner\(\);\n\s*wheelSave\(\);/.test(html), 'class open restores it');
+  assert(/function wheelRestoreSelection\(\)/.test(html));
+});

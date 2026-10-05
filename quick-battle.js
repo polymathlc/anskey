@@ -69,7 +69,7 @@
         // Store listeners often arrive before the command response. Keep the
         // persisted snapshot, but let one acknowledged event own its playback.
         if (q.busy) { if (!q.queued || !next || next.revision >= q.queued.revision) q.queued = next; return; }
-        if(q.playing && next && q.state && next.revision>q.state.revision)cancelFeedback(); q.state = next; q.loading = false; render(); if (missionPanel) missionPanel.refresh();
+        if(q.playing && next && q.state && next.revision>q.state.revision)cancelFeedback(); q.state = next; q.loading = false; if (!q.selection && !(next && next.pending) && window.wheelRestoreSelection) wheelRestoreSelection(); render(); if (missionPanel) missionPanel.refresh();
       }, function (err) { if (stamp === q.epoch) { q.loading = false; q.error = err.message; render(); } });
     } catch (err) { q.loading = false; q.error = err.message; render(); }
   }

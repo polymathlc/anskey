@@ -5309,7 +5309,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.125.0';
+var APP_VERSION = 'v1.125.1';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -29185,6 +29185,13 @@ function wheelClean(raw, today) {
   if (raw.day === today) {
     var r = Math.floor(Number(raw.round));
     out.round = r > 0 ? r : 1;
+    // Who was called last, kept so closing the window does not lose the
+    // chance to award them marks. Only for the same lesson day.
+    if (raw.last && typeof raw.last === 'object' && typeof raw.last.n === 'string') {
+      out.last = { id: typeof raw.last.id === 'string' ? raw.last.id : '', n: raw.last.n.trim().slice(0, WHEEL_NAME_MAX) };
+      if (typeof raw.lastSpinId === 'string' && /^[a-zA-Z0-9_-]{8,100}$/.test(raw.lastSpinId)) out.lastSpinId = raw.lastSpinId;
+      if (!out.last.n) { delete out.last; delete out.lastSpinId; }
+    }
   } else {
     out.names.forEach(function (n) { n.done = false; });
   }
@@ -29423,6 +29430,7 @@ function wheelSpin() {
   wheelSegs = onWheel.map(function (i) { return wheelState.names[i].n; });
   var slot = onWheel.indexOf(pick);
   wheelState.lastSpinId = 'wheel-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
+  wheelState.last = { id: wheelState.names[pick].id || '', n: wheelState.names[pick].n };
   wheelSave();
   wheelWinnerIdx = pick;
   wheelGiven = 0;
@@ -29514,7 +29522,7 @@ function wheelRender() {
       if (wheelSpinning || !wheelTeacher() || (window.wheelGuestsBusy && wheelGuestsBusy())) return;
       if (n.guest && window.LessonGuests) { LessonGuests.remove(n.id); return; }
       st.names.splice(i, 1);
-      if (wheelWinnerIdx === i) wheelWinnerIdx = -1;
+      if (wheelWinnerIdx === i) { wheelWinnerIdx = -1; delete st.last; delete st.lastSpinId; }
       else if (wheelWinnerIdx > i) wheelWinnerIdx -= 1;
       wheelSave(); wheelDraw(); wheelRender();
     });
@@ -29647,6 +29655,7 @@ function wheelNewRound() {
   wheelState.round += 1;
   wheelState.names.forEach(function (n) { n.done = false; });
   wheelWinnerIdx = -1;
+  delete wheelState.last; delete wheelState.lastSpinId;
   wheelSave(); wheelDraw(); wheelRender();
 }
 
@@ -29659,6 +29668,29 @@ function wheelReseed() {
   toast('Class list added to the wheel.');
 }
 
+/* Closing the window must not lose the student who was called: bring the last
+   pick back so their marks can still be given. */
+function wheelRestoreWinner() {
+  wheelWinnerIdx = -1;
+  var last = wheelState && wheelState.last;
+  if (!last) return;
+  var idx = -1;
+  wheelState.names.forEach(function (n, i) {
+    if (idx < 0 && (last.id ? n.id === last.id : n.n === last.n)) idx = i;
+  });
+  if (idx < 0) { delete wheelState.last; delete wheelState.lastSpinId; return; }
+  wheelWinnerIdx = idx;
+}
+
+/* Quick fight forgets its selection when the window closes. Once its saved
+   encounter has loaded, select the restored student again (same spin). */
+function wheelRestoreSelection() {
+  if (wheelSpinning || wheelWinnerIdx < 0 || !wheelState || !wheelState.lastSpinId) return;
+  var entry = wheelState.names[wheelWinnerIdx];
+  if (!entry || !window.QuickBattle || !QuickBattle.enabled()) return;
+  try { QuickBattle.landed(entry, wheelState.lastSpinId); } catch (e) {}
+}
+
 function wheelSetClass(cls) {
   wheelStopSpin();
   wheelClass = cls || '';
@@ -29667,6 +29699,7 @@ function wheelSetClass(cls) {
   wheelWinnerIdx = -1;
   wheelGiven = 0;
   wheelSeed(false);
+  wheelRestoreWinner();
   wheelSave();
   if (window.LessonGuests) LessonGuests.open(wheelClass);
   wheelDraw(); wheelRender();
