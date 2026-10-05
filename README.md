@@ -3,6 +3,10 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.125.1 — Closing the name wheel no longer loses the called student
+
+Closing the wheel after a name was called (or while it was still spinning) threw the pick away, so that student could no longer be given points. The called student is now saved with the wheel's list for the lesson day and **comes back when the wheel is reopened**, with the award buttons ready (and, with Quick fight on, selected again for the same spin once the saved encounter has loaded). A new round, removing the name, or a new lesson day clears it. No server or rules change.
+
 ## v1.125.0 — Hold-to-snap shapes and the Pen select tool
 
 **Hold to snap.** Draw with the pen or the highlighter and **hold still for about half a second** without lifting: the stroke snaps to the neat shape it was meant to be. It now recognises a straight line (which also levels itself when it is nearly level, upright or at 45°), an arc, a smooth curve, a circle, an ellipse, a rectangle or square (at any tilt), a triangle and the regular polygons up to a hexagon. **Keep dragging** to adjust the shape — a line's end, a circle's radius, a rectangle's corner, a polygon's nearest corner, how far an arc sweeps — and lift to keep it. A snapped shape is still an ordinary pen (or highlighter) stroke, so saving, printing, erasing and undo (one step) work exactly as before. Handwriting and scribbles that are not a clean shape are left alone, and a stroke that is not held is plain ink, byte for byte. The recogniser is the new shared `shape-snap.js` (the same file in the book, CER and Ans Key apps); if it ever fails to load, the pen simply keeps writing.
