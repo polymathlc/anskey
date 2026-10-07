@@ -3,6 +3,12 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+
+## v1.126.0 — Quests continue in any lesson
+
+- A student in an active encounter in another lesson can keep fighting from this wheel; they are moved out of the old party automatically.
+- The wheel is smaller and the enemy-vs-student quest is the main panel.
+
 ## v1.125.2 — The downloaded 1080p lesson video can be scrubbed
 
 A lesson exported with **⬇ 1080p** could be played from the top but not jumped ahead in (Windows Media Player, VLC, editors and some phone galleries showed a scrub bar that would not move, or no length at all). The browser writes the file as it records, in fragments, with no total length and no index, and nothing afterwards gave it one.

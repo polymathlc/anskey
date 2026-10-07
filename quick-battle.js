@@ -24,7 +24,7 @@
     if (side) side.appendChild(box); else document.querySelector('#wheelModal .whSpinRow').insertAdjacentElement('afterend', box);
     var mission = document.createElement('section'); mission.id='wheelMissionDock'; mission.className='whMissionDock';
     mission.innerHTML='<div id="wheelMission"></div><p id="wheelMissionHint" class="whMissionHint"></p>';
-    box.insertAdjacentElement('beforebegin', mission);
+    box.insertAdjacentElement('afterend', mission);
     el('wheelQuickToggle').checked = q.on;
     el('wheelQuickRetry').addEventListener('click', function () { (q.request && q.request.kind === 'assist' ? assist(null, true) : award(null, 0, '', true)).catch(function (err) { if (window.toast) toast(err.message); }); });
     el('wheelQuickAssist').addEventListener('click', function (event) {

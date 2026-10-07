@@ -373,6 +373,17 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       return {hero:profile.hero,state,assist:receipt,mission};
     });
   }
+  // Moves a hero out of an encounter in another lesson slot. Reads only, so
+  // callers apply the returned write after all transaction reads are done.
+  async function releaseLock(tx,classes,lock,studentId,clock) {
+    const ref=classes.doc(key(lock.classId)), state=docData(await tx.get(ref));
+    if (!state || state.status!=='active' || state.encounterId!==lock.encounterId) return null;
+    const hero=(state.heroes||[]).find(h=>h.studentId===studentId);
+    if (!hero) return null;
+    const heroes=state.heroes.filter(h=>h!==hero);
+    const pending=state.pending?.heroId===hero.id ? null : state.pending;
+    return {ref,state:{...state,heroes,pending,heroArchive:{...(state.heroArchive||{}),[hero.id]:hero},revision:(state.revision||0)+1,updatedAt:clock,...(!heroes.length?{status:'defeat',pending:null}:{})}};
+  }
   async function battle(actor, body, refs, clock) {
     const {root,classes,profiles} = refs, classId=body.classId, classRef=classes.doc(key(classId)),missionRef=root.collection('missions').doc(key(classId)), action=clone(body.action || {});
     if (!/^[A-Za-z0-9_-]{8,100}$/.test(action.id || '')) deny('invalid_action','Invalid battle action.',400);
@@ -454,12 +465,18 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       }
       if (action.heroId) action.heroId=mapId.get(action.heroId)||action.heroId;
       if (action.targetId) action.targetId=mapId.get(action.targetId)||action.targetId;
-      const otherEncounter=new Set();
+      const otherEncounter=new Set(), lockReleases=[];
       for (const student of identities.filter(s=>!s.guest)) {
         const profile=profileMap.get(student.id), lock=profile.activeEncounter;
         if (lock && (lock.classId!==classId || (!starting && old?.encounterId!==lock.encounterId))) {
-          if (action.type==='end') otherEncounter.add(student.id);
-          else deny('encounter_active',student.name+' is in an active encounter in '+lock.classId+'. End it before starting another.');
+          if (action.type==='end') { otherEncounter.add(student.id); continue; }
+          if (lock.classId===classId) deny('encounter_active',student.name+' is in an active encounter in '+lock.classId+'. End it before starting another.');
+          // A student may continue their quest from any lesson's wheel: the
+          // hero is moved out of the other lesson's encounter (kept in its
+          // archive) in this same transaction, so only one party holds them.
+          const moved=await releaseLock(tx,classes,lock,student.id,clock);
+          if (moved) lockReleases.push(moved);
+          profile.activeEncounter=null;
         }
       }
       const canonical=identities.map((student,i)=> {
@@ -538,6 +555,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       if(answerRef&&!answerAlreadyCounted)tx.set(answerRef,{actionId:action.id,createdAt:clock});
       if(award&&mission.lastPayout?.id!==beforeMission.lastPayout?.id){const bonus=mission.lastPayout?.awards.find(row=>row.studentId===award.studentId);if(bonus)award.marks=bonus.marks;}
       if(mission.revision!==beforeMission.revision){mission.updatedAt=clock;tx.set(missionRef,mission);next.missionRevision=mission.revision;}
+      for (const r of lockReleases) tx.set(r.ref,r.state);
       tx.set(classRef,next); tx.set(receiptRef,{encounterId:next.encounterId,revision:next.revision,type:action.type,...(award ? {awardRequest,award} : {})});
       return {state:next,mission,...(award ? {award} : {})};
     });
