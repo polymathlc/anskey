@@ -1,11 +1,11 @@
-# Jev voice commands and live assistance
+# Voice commands with OpenAI Decisions and live assistance
 
 This directory provides the server functions for Ans Key's **Voice AI** button.
 The teacher can speak to move, resize, add or delete worksheet objects, undo or
-redo edits, change pages, and ask questions. Jev routes the spoken request and
+redo edits, change pages, and ask questions. OpenAI Decisions routes the spoken request and
 selects an existing target; the app validates and applies supported edits. The
 existing worksheet tutor supplies answers and explanations. OpenAI Live handles
-the speech conversation. Jev itself returns typed decisions, not audio or prose.
+the speech conversation. OpenAI Decisions returns typed decisions, not audio or prose.
 
 Cursor context includes the hovered page and page-unit coordinates;
 `write_answer` asks the grounded worksheet tutor to place the requested answer
@@ -19,7 +19,7 @@ recording. Recordings work without these server functions.
 
 ## Fast formatting commands (v1.109.0)
 
-Select an editable object, then address Jev with an explicit command. These
+Select an editable object, then address Jev (the existing voice alias) with an explicit command. These
 commands run locally after the Live delegation, without another routing or
 planning API call and without a new backend deployment:
 
@@ -45,11 +45,11 @@ PDF output preserve font emphasis, alignment, underline and line dashes.
 Standard PDF fonts approximate the screen fonts; handwriting retains the existing
 standard-font fallback in PDF/canvas output.
 
-For other commands, addressed transcript drafts prefetch Jev's decision after a
+For other commands, addressed transcript drafts prefetch the Decisions result after a
 200 ms pause. No draft performs an edit or generates an answer. Only an exact
 command/context match is reused at delegation; newer speech cancels earlier
 work. At most two prefetches run per delegated turn. These can consume existing
-Jev allowances even when cancelled. The existing grounded tutor still handles
+decision allowances even when cancelled. The existing grounded tutor still handles
 academic explanations and answers. No live microphone latency claim is made by
 mocked tests.
 
@@ -61,19 +61,21 @@ All three functions use the existing `mathgen--app` Firebase project:
 | --- | --- | --- |
 | `ansKeyLive` | Start, renew and stop an authenticated Live conversation | `OPENAI_API_KEY` |
 | `ansKeyLiveCleanup` | Close expired or abandoned conversations | `OPENAI_API_KEY` |
-| `ansKeyJevCommand` | Classify a spoken request and resolve one worksheet target | `JEV_API_KEY` |
+| `ansKeyJevCommand` | Classify a spoken request and resolve one worksheet target | `OPENAI_API_KEY` |
 
-Both keys are configured in the project's Secret Manager. Keep them out of the
+The shared OpenAI key is configured in the project's Secret Manager. Keep it out of the
 page, browser storage, committed environment files and GitHub Pages settings.
-To replace the Jev secret, use Firebase's prompt for the value:
+To replace the OpenAI secret, use Firebase's prompt for the value:
 
 ```sh
-firebase functions:secrets:set JEV_API_KEY --project mathgen--app
+firebase functions:secrets:set OPENAI_API_KEY --project mathgen--app
 ```
 
 Deploy the bound function after changing a secret so it uses the new version.
 
 ## Deploy and test
+
+Merges that change the backend trigger the scoped deployment workflow. It requires the existing `FIREBASE_SERVICE_ACCOUNT` repository secret for `mathgen--app`; missing credentials fail visibly. No shared database rules are deployed.
 
 Use Node 22 and an authorized Firebase account with access to `mathgen--app`:
 
@@ -104,9 +106,7 @@ node tools/recording-ui-tests.mjs
 node tools/recording-audio-tests.mjs
 ```
 
-Automated tests mock paid calls. A separate real Jev provider check has verified
-synthetic move, add and question requests. That check does not verify microphone
-capture or a signed-in production conversation.
+Automated tests mock paid calls and exercise the OpenAI Decisions request and response schema. Live Decisions access, microphone capture and signed-in production behavior require a deployed smoke check.
 
 ## Access and request handling
 
@@ -116,9 +116,9 @@ capture or a signed-in production conversation.
 - The server fixes the Live model, instructions and allowed events, and requests
   `store: false`. It does not accept browser-supplied provider settings.
 - Voice AI stays quiet until addressed. Requests are delegated to the app, where
-  Jev routes them to editing or the grounded worksheet tutor. Jev receives only
+  OpenAI Decisions routes them to editing or the grounded worksheet tutor. Decisions receives only
   the transcript and a bounded object inventory, not audio or the page image.
-- Jev requests permit a transcript of at most 4,000 characters and at most 100
+- Decisions requests permit a transcript of at most 4,000 characters and at most 100
   objects. Low-confidence or unresolved target decisions require clarification.
   The browser validates the plan against the current worksheet before editing.
 - `ansKeyJevCommand` allows 90 requests per minute and 1,800 per Singapore day
@@ -157,11 +157,6 @@ audio mix. Stopping either feature must leave the other operating independently.
 
 ## Provider references
 
-- [TypeSafe API reference](https://docs.typesafe.ai/api): official endpoint,
-  Bearer authentication, and typed Choice responses.
-- [TypeSafe capabilities](https://docs.typesafe.ai/introduction): decisions and
-  confidence, without text generation.
-- [Choice confidence](https://docs.typesafe.ai/confidence) and
-  [structured criteria](https://docs.typesafe.ai/primitives/advanced).
+- [OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions): fixed-choice routing, named answers and probability arrays.
 - [OpenAI Live WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc?api=live)
   and [server controls](https://developers.openai.com/api/docs/guides/voice-server-controls?api=live).
