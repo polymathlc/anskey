@@ -1,0 +1,50 @@
+name: Deploy Ans Key voice functions
+on:
+  push:
+    branches: [main]
+    paths: ['functions/**', 'firebase.json', '.firebaserc', '.github/workflows/deploy-functions.yml']
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: deploy-ans-key-live
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.repository == 'polymathlc/anskey' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci --prefix functions --ignore-scripts --no-audit --no-fund
+      - run: npm test --prefix functions
+      - name: Prepare deployment credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          node --input-type=module <<'JS'
+          import { writeFileSync, appendFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+          if (!raw) throw new Error('Missing FIREBASE_SERVICE_ACCOUNT repository secret. Voice functions have not been deployed.');
+          let key;
+          try { key = JSON.parse(raw); } catch { throw new Error('Deployment credential must be service-account JSON.'); }
+          if (key.type !== 'service_account' || key.project_id !== 'mathgen--app' || !key.client_email || !key.private_key) {
+            throw new Error('Expected a mathgen--app deployment service account.');
+          }
+          const path = join(process.env.RUNNER_TEMP, 'ans-key-sa.json');
+          writeFileSync(path, raw, { mode: 0o600 });
+          appendFileSync(process.env.GITHUB_ENV, 'GOOGLE_APPLICATION_CREDENTIALS=' + path + '\n');
+          JS
+      - name: Deploy only the Ans Key codebase
+        run: npx --yes firebase-tools@15.29.0 deploy --only functions:ans-key-live --project mathgen--app --non-interactive
+      - name: Remove deployment credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ans-key-sa.json"
