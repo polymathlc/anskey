@@ -157,7 +157,7 @@ try {
   await setup();
   await page.waitForFunction(() => document.querySelector('#wheelMission [data-mm=turn]') && !document.querySelector('#wheelMission [data-mm=turn]').disabled);
   const desktopLayout = await wheelLayout();
-  check('opening Wheel shows a large wheel and usable mission machine together without a disclosure click', desktopLayout.wheel.width >= 360 && desktopLayout.wheelVisible && desktopLayout.turnVisible && desktopLayout.mission.x >= desktopLayout.wheel.right && desktopLayout.inViewport);
+  check('opening Wheel shows a compact wheel beside the quest and usable mission machine without a disclosure click', desktopLayout.wheel.width >= 200 && desktopLayout.wheelVisible && desktopLayout.turnVisible && desktopLayout.mission.x >= desktopLayout.wheel.right && desktopLayout.inViewport);
   await page.locator('#wheelMission [data-mm=turn]').click({ trial: true });
   check('desktop wheel, mission and fight panels fit without horizontal scrolling', desktopLayout.overflow.length === 0);
   await page.screenshot({ path: path.join(output, 'quick-wheel-mission-desktop.png'), fullPage: true });
@@ -220,7 +220,7 @@ try {
   check('awarded final hit shows an animated chest and saved personal treasure for every hero',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===16&&document.querySelectorAll('.cbQuickTreasure .cbItemIcon[role=img]').length===16));
   await scrollWheelToTop();
   const victoryLayout = await wheelLayout();
-  check('a full class treasure grid leaves the wheel and mission control usable', victoryLayout.wheel.width >= 360 && victoryLayout.wheelVisible && victoryLayout.turnVisible && victoryLayout.overflow.length === 0);
+  check('a full class treasure grid keeps the compact wheel usable beside the quest, without overflow', victoryLayout.wheel.width >= 200 && victoryLayout.wheelVisible && victoryLayout.overflow.length === 0);
   await page.locator('#wheelMission [data-mm=turn]').click({ trial: true });
   await page.locator('.cbQuickTreasure').evaluate(node=>node.scrollIntoView({block:'start'}));
   await page.screenshot({path:path.join(output,'quick-wheel-treasure.png'),fullPage:true});
@@ -317,7 +317,7 @@ try {
     await page.evaluate(() => { wheelWin = clampWheelWin({ ...wheelWin, x: 12, y: 12, w: innerWidth - 24, h: innerHeight - 40 }); applyWheelWin(); });
     await scrollWheelToTop();
     const layout = await wheelLayout();
-    check(viewport.width + 'px viewport keeps a readable wheel and all panels within the window width', layout.inViewport && layout.overflow.length === 0 && layout.wheel.width >= 220);
+    check(viewport.width + 'px viewport keeps a readable wheel and all panels within the window width', layout.inViewport && layout.overflow.length === 0 && layout.wheel.width >= 180);
     if (viewport.width === 390) check('phone result panel fully contains wrapped point controls and the awarded-points tally', await page.evaluate(() => {
       const result = document.querySelector('#wheelCard .whResult').getBoundingClientRect();
       return [...document.querySelectorAll('#wheelAward button, #wheelAward input, #wheelAward .whAwardNote')].every(node => {

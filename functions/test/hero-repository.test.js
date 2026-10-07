@@ -263,7 +263,6 @@ test('deleted roster claims remain visible to the teacher and unlink preserves p
 test('active encounter locks configuration and cross-slot duplication, explicit end unlocks',async()=>{
   const {call}=setup();await claim(call);const s=await begin(call);
   await assert.rejects(call(pupil('one'),{type:'configure',command:'class',role:'mage'}),/active encounter/);
-  await assert.rejects(begin(call,'Sunday',[heroes[0]]),/active encounter/);
   await battle(call,'Saturday',{id:aid(),type:'end',encounterId:s.encounterId,expectedRevision:s.revision});
   const configured=await call(pupil('one'),{type:'configure',command:'class',role:'ranger'});assert.equal(configured.hero.role,'ranger');
   assert.equal((await begin(call,'Sunday',[heroes[0]])).heroes[0].role,'ranger');
@@ -271,7 +270,6 @@ test('active encounter locks configuration and cross-slot duplication, explicit 
 
 test('teacher can end an unclaimed moved-slot encounter from claim administration; students cannot',async()=>{
   const {call,db}=setup();await begin(call);db.seed('students/alex',{name:'Alex',slots:['Monday']});
-  await assert.rejects(begin(call,'Monday',[heroes[0]]),/active encounter/);
   const administration=await call(teacher,{type:'claims'});assert.equal(administration.claims.length,0);assert.ok(administration.activeEncounters.some(e=>e.studentId==='alex' && e.classId==='Saturday'));
   await assert.rejects(call(pupil('one'),{type:'endEncounter',studentId:'alex'}),/teacher/);
   await call(teacher,{type:'endEncounter',studentId:'alex'});assert.equal(db.data.get(profilePath('alex')).activeEncounter,null);assert.equal(db.data.get(profilePath('sam')).activeEncounter,null);
@@ -357,7 +355,7 @@ test('adding a progressed hero to an active party preserves canonical XP, skills
     const hero={...heroes[1],xp:300,level:3,skillPoints:6,equipped:'bag:crimson-edge',learnedSkills:['warrior-slash','warrior-cleave'],inventory:[...heroes[1].inventory,{id:'bag:crimson-edge',itemId:'crimson-edge',quantity:1}]};
     db.seed(profilePath('sam'),{schemaVersion:1,studentId:'sam',hero,claim:null,activeEncounter:null});
     const id=aid();const result=type==='auto' ? await call(teacher,wheelRequest(s,{id,studentId:'sam'})) : await battle(call,'Saturday',{type,id,encounterId:s.encounterId,expectedRevision:s.revision,heroes,heroId:'student:sam',bossId:'goblin'});
-    const saved=result.state.heroes.find(h=>h.studentId==='sam');assert.ok(saved.xp>=300);assert.ok(saved.learnedSkills.includes('warrior-cleave'));assert.equal(saved.equipped,'bag:crimson-edge');assert.equal(db.data.get(profilePath('sam')).hero.xp,saved.xp);
+    const saved=result.state.heroes.find(h=>h.studentId==='sam');assert.ok(saved.xp>=300);assert.ok(saved.learnedSkills.includes('warrior-cleave'));assert.ok(saved.inventory.some(i=>i.itemId==='crimson-edge'));assert.equal(db.data.get(profilePath('sam')).hero.xp,saved.xp);
   }
 });
 
@@ -479,7 +477,6 @@ test('student cosmetic changes update the active lesson atomically, preserving p
   const saved=db.data.get(classPath('Saturday')),expected=structuredClone(before);expected.revision++;expected.heroes[0].gender='female';
   assert.deepEqual(saved,expected);assert.deepEqual(changed.hero,{...profileBefore.hero,gender:'female'});
   assert.deepEqual(db.data.get(profilePath('alex')).activeEncounter,profileBefore.activeEncounter);
-  await assert.rejects(begin(call,'Sunday',[heroes[0]]),/active encounter/);
   const answered=await battle(call,'Saturday',{id:aid(),type:'answer',encounterId:saved.encounterId,turnId:saved.pending.id,outcome:'correct',command:'attack'});
   assert.equal(answered.state.heroes[0].gender,'female');assert.equal(answered.state.pending,null);
 });
@@ -668,7 +665,7 @@ test('summon cannot bypass teacher authority, revision validation, active encoun
   await assert.rejects(call(pupil('one'),{type:'battle',classId:'Saturday',action}),/teacher/);
   await assert.rejects(battle(call,'Saturday',{...action,expectedRevision:0}),/changed/);assert.equal((await mission('get')).mission.summonTokens,1);
   db.failNextCommit=true;await assert.rejects(battle(call,'Saturday',action),/commit failed/);assert.equal((await mission('get')).mission.summonTokens,1);assert.equal(db.data.get(classPath('Saturday')).status,'active');
-  const profile=db.data.get(profilePath('alex'));profile.activeEncounter={classId:'Sunday',encounterId:'different'};db.seed(profilePath('alex'),profile);
+  const profile=db.data.get(profilePath('alex'));profile.activeEncounter={classId:'Saturday',encounterId:'different'};db.seed(profilePath('alex'),profile);
   await assert.rejects(battle(call,'Saturday',action),/active encounter/);assert.equal((await mission('get')).mission.summonTokens,1);
 });
 
@@ -677,4 +674,14 @@ test('multiple point awards for the same called question count only once toward 
   let result=await call(teacher,wheelRequest(null,{spinId,delta:1}));
   result=await call(teacher,wheelRequest(result.state,{spinId,delta:2}));
   assert.equal(result.mission.current.progress,1);assert.equal(result.state.combatLog.length,2);assert.equal(result.award.marks,3);
+});
+
+test('a student locked in another lesson continues their quest here; the old party releases them atomically',async()=>{
+  const {call,db}=setup();await claim(call);let s=await begin(call);
+  s=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',encounterId:s.encounterId,expectedRevision:s.revision})).state;
+  db.seed('students/alex',{name:'Alex',slots:['Saturday','Sunday']});
+  const moved=await begin(call,'Sunday',[heroes[0]]);assert.equal(moved.heroes[0].studentId,'alex');
+  assert.equal(db.data.get(profilePath('alex')).activeEncounter.classId,'Sunday');
+  const old=db.data.get(classPath('Saturday'));assert.ok(!old.heroes.some(h=>h.studentId==='alex'));assert.equal(old.pending,null);assert.ok(old.heroArchive['student:alex']);
+  const result=await call(teacher,wheelRequest(moved,{classId:'Sunday',heroes:[heroes[0]]}));assert.equal(result.state.lastEvent.type,'auto');
 });

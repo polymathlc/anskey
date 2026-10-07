@@ -2,6 +2,10 @@
 
 Guidance for Claude when working in this repo.
 
+## Quests continue across lessons; the quest is the main window (v1.126.0)
+
+`releaseLock` in `functions/hero-repository.js`. A student locked in an active encounter in ANOTHER lesson slot no longer blocks a battle action here: the server moves the hero out of the other party (into its `heroArchive`, clearing a pending answer that was theirs, ending an emptied party as `defeat`) in the same transaction and re-locks the profile to this lesson. A mismatched encounter in the SAME slot still refuses. Guest add still refuses. The wheel window puts the Quick fight duel in the wide column (first on narrow screens) above the mission dock, and the wheel is compact (≤320 px). Requires an `ansKeyHeroes` deploy.
+
 ## Seekable 1080p lesson video (v1.125.2)
 
 `LessonMp4Finalize` (search `Seekable lesson video (MP4)`, beside `LessonAudioFinalize`) and the `else if (/mp4/i.test(type))` branch of **`lessonExportFinish`**. MediaRecorder writes an MP4 in fragments (`ftyp`, an empty `moov` with `mvex`, then `moof`+`mdat` pairs): it plays from the top but has no length and no index, so Windows Media Player, VLC and editors cannot scrub it. A WebM only lacks its Duration, which `LessonAudioFinalize` writes; an MP4 needs its whole INDEX rebuilt.

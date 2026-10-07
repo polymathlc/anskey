@@ -72,7 +72,7 @@ await page.click('#wheelBtn');
 await page.waitForFunction(() => wheelState && wheelState.names.length === 5, null, { timeout: 3000 });
 ok('it opens on the class register', await page.evaluate(() => wheelState.names.map(n => n.n).join() === 'Ann,Ben,Cai,Dee,Eli'));
 const box0 = await page.evaluate(() => { const r = $('wheelCanvas').getBoundingClientRect(); return { w: r.width, h: r.height }; });
-ok('the wheel opens large enough for the classroom to read', box0.w >= 360 && Math.abs(box0.w - box0.h) < 1, JSON.stringify(box0));
+ok('the wheel opens compact beside the quest, still readable', box0.w >= 200 && box0.w <= 320 && Math.abs(box0.w - box0.h) < 1, JSON.stringify(box0));
 ok('the enlarged wheel preserves crisp pixel rendering', await page.evaluate(() => {
   const canvas = $('wheelCanvas');
   return canvas.dataset.pixelWheel === 'ready' && canvas.getContext('2d').imageSmoothingEnabled === false;
