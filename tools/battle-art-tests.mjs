@@ -20,10 +20,12 @@ test('all twenty original PNGs match the visually reviewed transparent artwork m
   }
 });
 
-test('every playable pixel hero, enemy and treasure frame is shipped with provenance', () => {
+test('the original six pixel enemies, four heroes and treasure frames are shipped with provenance', () => {
   const folder = new URL('../assets/battle-pixel/',import.meta.url);
   const manifest = JSON.parse(fs.readFileSync(new URL('provenance.json',folder),'utf8'));
-  const required = ['warrior.png','ranger.png','mage.png','cleric.png','chest-sheet.png',...bosses.filter(b=>!b.legacy).map(b=>b.image.split('/').pop())];
+  const originalEnemies=bosses.filter(b=>!b.legacy && !b.art);
+  assert.equal(originalEnemies.length,6);
+  const required = ['warrior.png','ranger.png','mage.png','cleric.png','chest-sheet.png',...originalEnemies.map(b=>b.image.split('/').pop())];
   assert.equal(new Set(required).size,11);
   for (const name of required) {
     const png=fs.readFileSync(new URL(name,folder));

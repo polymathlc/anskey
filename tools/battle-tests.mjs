@@ -8,7 +8,14 @@ const makeHero = (role, uid = role) => C.heroFromStudent({id:'register-'+uid,uid
 const heroes = roles.map(role => makeHero(role));
 let seq = 0;
 const id = () => 'action-' + String(++seq).padStart(8, '0');
-const start = (bossId = 'mossback', party = heroes) => C.reduce(null, {type:'start',id:id(),bossId,heroes:party});
+// Mechanical fixtures deliberately replace the randomly selected enemy after
+// start. Production starts always enforce the saved no-repeat rotation.
+const start = (bossId = 'mossback', party = heroes) => {
+  const state=C.reduce(null,{type:'start',id:id(),heroes:party}),boss=C.bossById(bossId);
+  state.bossId=boss.id;
+  state.bossHp=state.bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.max(200,state.heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)/2));
+  return state;
+};
 const apply = (s,type,values={}) => C.reduce(s,{id:id(),encounterId:s.encounterId,expectedRevision:s.revision,type,...values});
 function answer(s,role,outcome='correct',command={}) {
   const chosen=apply(s,'select',{heroId:'student:register-'+role});
@@ -132,8 +139,8 @@ test('boss black, orange, red timing is strictly monotonic and invalid positions
   for(const timing of [-1,1.01,NaN,Infinity,'red'])assert.throws(()=>apply(s,'boss',{timing}),/meter/);
 });
 
-test('six pixel encounters range from weak goblins to powerful bosses; old saves retain 20 originals',()=>{
-  const pixel=C.BOSSES.filter(b=>!b.legacy);assert.equal(pixel.length,6);assert.equal(C.BOSSES.filter(b=>b.legacy).length,20);
+test('one hundred pixel encounters range from weak goblins to powerful bosses; old saves retain 20 originals',()=>{
+  const pixel=C.BOSSES.filter(b=>!b.legacy);assert.equal(pixel.length,100);assert.equal(C.BOSSES.filter(b=>b.legacy).length,20);
   assert.ok(C.bossById('goblin').hpMultiplier<C.bossById('dragon').hpMultiplier);
   for(const b of C.BOSSES){assert.ok(b.image);assert.ok(b.attackName);assert.ok(b.ultimateName);
     let s=start(b.id);assert.throws(()=>apply(s,'boss',{ultimate:true}),/not charged/);

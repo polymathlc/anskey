@@ -4,6 +4,12 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.127.0 — Full equipment, pets and 100 boss encounters
+
+Every classroom hero now wears equipment in ten separate slots and has a pet companion. The catalog contains 20 choices per gear slot and 30 pets across all six rarities; equipped bonuses apply together, and each slot upgrades independently after treasure drops. Existing inventory IDs and effects remain compatible. My Hero and the teacher journal show the full character loadout with slot-specific changes and removal.
+
+The wheel and manual battle share a saved round of 100 distinct enemies. Every enemy appears once before a new round begins, including across reloads and save retries. Ninety-four new bosses and the expanded armory use native transparent ImageGen artwork with prompts and integrity manifests committed alongside the assets. See [the battle guide](docs/classroom-battle.md).
+
 ## v1.126.0 — Quests continue in any lesson
 
 - A student in an active encounter in another lesson can keep fighting from this wheel; they are moved out of the old party automatically.

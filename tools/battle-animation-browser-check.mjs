@@ -22,6 +22,9 @@ async function reset(role='warrior',options={}){
     // Timeline/race checks need an enemy that survives even a critical starter
     // skill. Victory scenarios explicitly lower its HP to one below.
     window.__state=ClassroomBattleCore.reduce(null,{type:'start',id:'animation-start-'+Math.random().toString(36).slice(2),heroes:rwStudents.map((student,index)=>ClassroomBattleCore.configureHero(ClassroomBattleCore.heroFromStudent(student,null,index),{command:'class',role:index===0?role:'warrior'})),bossId:'lich'});
+    // Boss choice is now authoritative and may select a weak enemy; timeline
+    // fixtures set enough HP explicitly rather than relying on a requested ID.
+    __state.bossHp=__state.bossMaxHp=100000;
     if(options.gender)__state.heroes[0].gender=options.gender;
     if(options.wounded)__state.heroes.forEach(h=>h.hp=15);
     if(options.knockout)__state.heroes[0].hp=1;

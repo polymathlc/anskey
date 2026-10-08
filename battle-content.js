@@ -358,5 +358,3638 @@
     'chronicle':'hourglass-of-infinity','void-edge':'reality-cleaver','sovereign-star':'heart-of-the-constellation'
   };
   Object.entries(LEGACY_ART).forEach(([legacy,id])=>{ITEMS[legacy].art={...ITEMS[id].art};});
-  return {ROLES,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES};
+  // Full character armory: exactly twenty choices in each of ten gear slots, plus thirty companions.
+  const EQUIPMENT_SLOTS = {
+    "helm": {
+      "name": "Helm",
+      "icon": "♛"
+    },
+    "torso": {
+      "name": "Torso",
+      "icon": "▣"
+    },
+    "gloves": {
+      "name": "Gloves",
+      "icon": "✊"
+    },
+    "legs": {
+      "name": "Legs",
+      "icon": "▥"
+    },
+    "boots": {
+      "name": "Boots",
+      "icon": "»"
+    },
+    "amulet": {
+      "name": "Amulet",
+      "icon": "◆"
+    },
+    "ring1": {
+      "name": "Ring 1",
+      "icon": "◉"
+    },
+    "ring2": {
+      "name": "Ring 2",
+      "icon": "◎"
+    },
+    "mainHand": {
+      "name": "Main Hand",
+      "icon": "⚔"
+    },
+    "offHand": {
+      "name": "Off Hand",
+      "icon": "▣"
+    },
+    "pet": {
+      "name": "Pet",
+      "icon": "♣"
+    }
+  };
+  const LEGACY_SLOTS = {
+    "scouts-feather": "helm",
+    "starlit-tiara": "helm",
+    "phoenix-crown": "helm",
+    "eternal-phoenix-diadem": "helm",
+    "seraphim-halo": "helm",
+    "sunwoven-cape": "torso",
+    "worldroot": "torso",
+    "worldtree-seed": "torso",
+    "spiritwood-totem": "torso",
+    "iron-charm": "gloves",
+    "iron-gauntlet": "gloves",
+    "silver-thread-gloves": "gloves",
+    "foxtrail-boots": "boots",
+    "oak-amulet": "amulet",
+    "crimson-vial-charm": "amulet",
+    "azure-vial-charm": "amulet",
+    "healers-ribbon": "amulet",
+    "oak-leaf-pendant": "amulet",
+    "verdant-flask-charm": "amulet",
+    "tideglass-pendant": "amulet",
+    "moonpetal-brooch": "amulet",
+    "phoenix-plume": "amulet",
+    "prismatic-compass": "amulet",
+    "celestial-censer": "amulet",
+    "lions-heart-medal": "amulet",
+    "astral-bottle-relic": "amulet",
+    "cometburst-relic": "amulet",
+    "bloodmoon-pendant": "amulet",
+    "sovereign-star": "amulet",
+    "heart-of-the-constellation": "amulet",
+    "hourglass-of-infinity": "amulet",
+    "hunters-band": "ring1",
+    "amber-band": "ring1",
+    "thornvine-ring": "ring1",
+    "bronze-blade": "mainHand",
+    "crimson-edge": "mainHand",
+    "dawnbringer": "mainHand",
+    "void-edge": "mainHand",
+    "copper-sabre": "mainHand",
+    "ember-sabre": "mainHand",
+    "runecarved-wand": "mainHand",
+    "ruby-fang": "mainHand",
+    "frostbite-bow": "mainHand",
+    "voidsteel-katana": "mainHand",
+    "solar-sovereign-blade": "mainHand",
+    "titanforge-hammer": "mainHand",
+    "tempest-longbow": "mainHand",
+    "starweaver-scepter": "mainHand",
+    "reality-cleaver": "mainHand",
+    "silver-aegis": "offHand",
+    "storm-quiver": "offHand",
+    "moon-codex": "offHand",
+    "buckler-of-bravery": "offHand",
+    "apprentice-grimoire": "offHand",
+    "mossguard-shield": "offHand",
+    "windfletch-quiver": "offHand",
+    "sapphire-bastion": "offHand",
+    "stormglass-orb": "offHand",
+    "dragonheart-aegis": "offHand",
+    "thunderwing-quiver": "offHand",
+    "eclipse-grimoire": "offHand",
+    "infinity-mana-lantern": "offHand",
+    "aegis-of-the-mountain": "offHand",
+    "chronicle": "offHand"
+  };
+  Object.entries(LEGACY_SLOTS).forEach(([id,slot])=>{ITEMS[id].slot=slot;});
+  const ARMORY_ITEMS = [
+    {
+      "id": "helm-tideglass-helm",
+      "name": "Tideglass Helm",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +12 maximum MP, +3 defence.",
+      "effect": {
+        "maxMp": 12,
+        "defence": 3
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 0,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-moonpetal-crown",
+      "name": "Moonpetal Crown",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +20 maximum MP, +5 defence.",
+      "effect": {
+        "maxMp": 20,
+        "defence": 5
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 1,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-foxfire-diadem",
+      "name": "Foxfire Diadem",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +11 maximum MP, +3 defence.",
+      "effect": {
+        "maxMp": 11,
+        "defence": 3
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 2,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-thunder-hood",
+      "name": "Thunder Hood",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +12 maximum MP, +3 defence.",
+      "effect": {
+        "maxMp": 12,
+        "defence": 3
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 3,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-sunwoven-helm",
+      "name": "Sunwoven Helm",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +15 maximum MP, +4 defence.",
+      "effect": {
+        "maxMp": 15,
+        "defence": 4
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 4,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-prismatic-crown",
+      "name": "Prismatic Crown",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +16 maximum MP, +4 defence.",
+      "effect": {
+        "maxMp": 16,
+        "defence": 4
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 0,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-ruby-diadem",
+      "name": "Ruby Diadem",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +17 maximum MP, +4 defence.",
+      "effect": {
+        "maxMp": 17,
+        "defence": 4
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-sapphire-hood",
+      "name": "Sapphire Hood",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +15 maximum MP, +4 defence.",
+      "effect": {
+        "maxMp": 15,
+        "defence": 4
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 2,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-spiritwood-helm",
+      "name": "Spiritwood Helm",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +21 maximum MP, +5 defence.",
+      "effect": {
+        "maxMp": 21,
+        "defence": 5
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 3,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-dragonheart-crown",
+      "name": "Dragonheart Crown",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +22 maximum MP, +5 defence.",
+      "effect": {
+        "maxMp": 22,
+        "defence": 5
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 4,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-bloodmoon-diadem",
+      "name": "Bloodmoon Diadem",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +20 maximum MP, +5 defence.",
+      "effect": {
+        "maxMp": 20,
+        "defence": 5
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-starweaver-hood",
+      "name": "Starweaver Hood",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +26 maximum MP, +6 defence.",
+      "effect": {
+        "maxMp": 26,
+        "defence": 6
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-solar-helm",
+      "name": "Solar Helm",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +27 maximum MP, +6 defence.",
+      "effect": {
+        "maxMp": 27,
+        "defence": 6
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-infinity-crown",
+      "name": "Infinity Crown",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +25 maximum MP, +6 defence.",
+      "effect": {
+        "maxMp": 25,
+        "defence": 6
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "helm-eternal-diadem",
+      "name": "Eternal Diadem",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "helm",
+      "description": "While equipped: +31 maximum MP, +7 defence.",
+      "effect": {
+        "maxMp": 31,
+        "defence": 7
+      },
+      "icon": "♛",
+      "art": {
+        "sheet": "gear-helm",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-copper-vest",
+      "name": "Copper Vest",
+      "rarity": "common",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +14 maximum HP, +2 defence.",
+      "effect": {
+        "maxHp": 14,
+        "defence": 2
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 4,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-tideglass-coat",
+      "name": "Tideglass Coat",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +30 maximum HP, +6 defence.",
+      "effect": {
+        "maxHp": 30,
+        "defence": 6
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 0,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-moonpetal-cuirass",
+      "name": "Moonpetal Cuirass",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +61 maximum HP, +12 defence.",
+      "effect": {
+        "maxHp": 61,
+        "defence": 12
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 1,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-foxfire-mantle",
+      "name": "Foxfire Mantle",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +22 maximum HP, +4 defence.",
+      "effect": {
+        "maxHp": 22,
+        "defence": 4
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 2,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-thunder-vest",
+      "name": "Thunder Vest",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +23 maximum HP, +4 defence.",
+      "effect": {
+        "maxHp": 23,
+        "defence": 4
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 3,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-sunwoven-coat",
+      "name": "Sunwoven Coat",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +34 maximum HP, +6 defence.",
+      "effect": {
+        "maxHp": 34,
+        "defence": 6
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 4,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-prismatic-cuirass",
+      "name": "Prismatic Cuirass",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +30 maximum HP, +6 defence.",
+      "effect": {
+        "maxHp": 30,
+        "defence": 6
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 0,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-ruby-mantle",
+      "name": "Ruby Mantle",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +31 maximum HP, +6 defence.",
+      "effect": {
+        "maxHp": 31,
+        "defence": 6
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-sapphire-vest",
+      "name": "Sapphire Vest",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +32 maximum HP, +6 defence.",
+      "effect": {
+        "maxHp": 32,
+        "defence": 6
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 2,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-spiritwood-coat",
+      "name": "Spiritwood Coat",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +43 maximum HP, +8 defence.",
+      "effect": {
+        "maxHp": 43,
+        "defence": 8
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 3,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-dragonheart-cuirass",
+      "name": "Dragonheart Cuirass",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +44 maximum HP, +8 defence.",
+      "effect": {
+        "maxHp": 44,
+        "defence": 8
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 4,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-bloodmoon-mantle",
+      "name": "Bloodmoon Mantle",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +40 maximum HP, +8 defence.",
+      "effect": {
+        "maxHp": 40,
+        "defence": 8
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-starweaver-vest",
+      "name": "Starweaver Vest",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +51 maximum HP, +10 defence.",
+      "effect": {
+        "maxHp": 51,
+        "defence": 10
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-solar-coat",
+      "name": "Solar Coat",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +52 maximum HP, +10 defence.",
+      "effect": {
+        "maxHp": 52,
+        "defence": 10
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-infinity-cuirass",
+      "name": "Infinity Cuirass",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +53 maximum HP, +10 defence.",
+      "effect": {
+        "maxHp": 53,
+        "defence": 10
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "torso-eternal-mantle",
+      "name": "Eternal Mantle",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "torso",
+      "description": "While equipped: +64 maximum HP, +12 defence.",
+      "effect": {
+        "maxHp": 64,
+        "defence": 12
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-torso",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-sandstone-wraps",
+      "name": "Sandstone Wraps",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +4 attack, +2% critical chance.",
+      "effect": {
+        "damage": 4,
+        "critChance": 0.02
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 3,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-copper-grips",
+      "name": "Copper Grips",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +9 attack, +4% critical chance.",
+      "effect": {
+        "damage": 9,
+        "critChance": 0.04
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 4,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-tideglass-gloves",
+      "name": "Tideglass Gloves",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +12 attack, +5% critical chance.",
+      "effect": {
+        "damage": 12,
+        "critChance": 0.05
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 0,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-moonpetal-gauntlets",
+      "name": "Moonpetal Gauntlets",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +12 attack, +6% critical chance.",
+      "effect": {
+        "damage": 12,
+        "critChance": 0.06
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 1,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-foxfire-wraps",
+      "name": "Foxfire Wraps",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +5 attack, +2% critical chance.",
+      "effect": {
+        "damage": 5,
+        "critChance": 0.02
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 2,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-thunder-grips",
+      "name": "Thunder Grips",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +6 attack, +2% critical chance.",
+      "effect": {
+        "damage": 6,
+        "critChance": 0.02
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 3,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-sunwoven-gloves",
+      "name": "Sunwoven Gloves",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +6 attack, +3% critical chance.",
+      "effect": {
+        "damage": 6,
+        "critChance": 0.03
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 4,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-prismatic-gauntlets",
+      "name": "Prismatic Gauntlets",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +7 attack, +3% critical chance.",
+      "effect": {
+        "damage": 7,
+        "critChance": 0.03
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 0,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-ruby-wraps",
+      "name": "Ruby Wraps",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +8 attack, +3% critical chance.",
+      "effect": {
+        "damage": 8,
+        "critChance": 0.03
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-sapphire-grips",
+      "name": "Sapphire Grips",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +6 attack, +3% critical chance.",
+      "effect": {
+        "damage": 6,
+        "critChance": 0.03
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 2,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-spiritwood-gloves",
+      "name": "Spiritwood Gloves",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +9 attack, +4% critical chance.",
+      "effect": {
+        "damage": 9,
+        "critChance": 0.04
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 3,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-dragonheart-gauntlets",
+      "name": "Dragonheart Gauntlets",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +10 attack, +4% critical chance.",
+      "effect": {
+        "damage": 10,
+        "critChance": 0.04
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 4,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-bloodmoon-wraps",
+      "name": "Bloodmoon Wraps",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +8 attack, +4% critical chance.",
+      "effect": {
+        "damage": 8,
+        "critChance": 0.04
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-starweaver-grips",
+      "name": "Starweaver Grips",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +11 attack, +5% critical chance.",
+      "effect": {
+        "damage": 11,
+        "critChance": 0.05
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-solar-gloves",
+      "name": "Solar Gloves",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +12 attack, +5% critical chance.",
+      "effect": {
+        "damage": 12,
+        "critChance": 0.05
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-infinity-gauntlets",
+      "name": "Infinity Gauntlets",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +10 attack, +5% critical chance.",
+      "effect": {
+        "damage": 10,
+        "critChance": 0.05
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "gloves-eternal-wraps",
+      "name": "Eternal Wraps",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "gloves",
+      "description": "While equipped: +13 attack, +6% critical chance.",
+      "effect": {
+        "damage": 13,
+        "critChance": 0.06
+      },
+      "icon": "✊",
+      "art": {
+        "sheet": "gear-gloves",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-nettle-legguards",
+      "name": "Nettle Legguards",
+      "rarity": "common",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +8 maximum HP, +1 defence.",
+      "effect": {
+        "maxHp": 8,
+        "defence": 1
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 0,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-cinder-greaves",
+      "name": "Cinder Greaves",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +17 maximum HP, +2 defence.",
+      "effect": {
+        "maxHp": 17,
+        "defence": 2
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 1,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-frost-trousers",
+      "name": "Frost Trousers",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +26 maximum HP, +3 defence.",
+      "effect": {
+        "maxHp": 26,
+        "defence": 3
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 2,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-sandstone-leggings",
+      "name": "Sandstone Leggings",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +35 maximum HP, +4 defence.",
+      "effect": {
+        "maxHp": 35,
+        "defence": 4
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 3,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-copper-legguards",
+      "name": "Copper Legguards",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +40 maximum HP, +5 defence.",
+      "effect": {
+        "maxHp": 40,
+        "defence": 5
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 4,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-tideglass-greaves",
+      "name": "Tideglass Greaves",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +49 maximum HP, +6 defence.",
+      "effect": {
+        "maxHp": 49,
+        "defence": 6
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 0,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-moonpetal-trousers",
+      "name": "Moonpetal Trousers",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +18 maximum HP, +2 defence.",
+      "effect": {
+        "maxHp": 18,
+        "defence": 2
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 1,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-foxfire-leggings",
+      "name": "Foxfire Leggings",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +19 maximum HP, +2 defence.",
+      "effect": {
+        "maxHp": 19,
+        "defence": 2
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 2,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-thunder-legguards",
+      "name": "Thunder Legguards",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +16 maximum HP, +2 defence.",
+      "effect": {
+        "maxHp": 16,
+        "defence": 2
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 3,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-sunwoven-greaves",
+      "name": "Sunwoven Greaves",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +25 maximum HP, +3 defence.",
+      "effect": {
+        "maxHp": 25,
+        "defence": 3
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 4,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-prismatic-trousers",
+      "name": "Prismatic Trousers",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +26 maximum HP, +3 defence.",
+      "effect": {
+        "maxHp": 26,
+        "defence": 3
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 0,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-ruby-leggings",
+      "name": "Ruby Leggings",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +27 maximum HP, +3 defence.",
+      "effect": {
+        "maxHp": 27,
+        "defence": 3
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-sapphire-legguards",
+      "name": "Sapphire Legguards",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +24 maximum HP, +3 defence.",
+      "effect": {
+        "maxHp": 24,
+        "defence": 3
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 2,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-spiritwood-greaves",
+      "name": "Spiritwood Greaves",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +33 maximum HP, +4 defence.",
+      "effect": {
+        "maxHp": 33,
+        "defence": 4
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 3,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-dragonheart-trousers",
+      "name": "Dragonheart Trousers",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +34 maximum HP, +4 defence.",
+      "effect": {
+        "maxHp": 34,
+        "defence": 4
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 4,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-bloodmoon-leggings",
+      "name": "Bloodmoon Leggings",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +35 maximum HP, +4 defence.",
+      "effect": {
+        "maxHp": 35,
+        "defence": 4
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-starweaver-legguards",
+      "name": "Starweaver Legguards",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +40 maximum HP, +5 defence.",
+      "effect": {
+        "maxHp": 40,
+        "defence": 5
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-solar-greaves",
+      "name": "Solar Greaves",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +41 maximum HP, +5 defence.",
+      "effect": {
+        "maxHp": 41,
+        "defence": 5
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-infinity-trousers",
+      "name": "Infinity Trousers",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +42 maximum HP, +5 defence.",
+      "effect": {
+        "maxHp": 42,
+        "defence": 5
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "legs-eternal-leggings",
+      "name": "Eternal Leggings",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "legs",
+      "description": "While equipped: +51 maximum HP, +6 defence.",
+      "effect": {
+        "maxHp": 51,
+        "defence": 6
+      },
+      "icon": "▥",
+      "art": {
+        "sheet": "gear-legs",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-cinder-treads",
+      "name": "Cinder Treads",
+      "rarity": "common",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +1 defence, +1% critical chance.",
+      "effect": {
+        "defence": 1,
+        "critChance": 0.01
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 1,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-frost-sabatons",
+      "name": "Frost Sabatons",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +3 defence, +3% critical chance.",
+      "effect": {
+        "defence": 3,
+        "critChance": 0.03
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 2,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-sandstone-sandals",
+      "name": "Sandstone Sandals",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +4 defence, +4% critical chance.",
+      "effect": {
+        "defence": 4,
+        "critChance": 0.04
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 3,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-copper-boots",
+      "name": "Copper Boots",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +5 defence, +5% critical chance.",
+      "effect": {
+        "defence": 5,
+        "critChance": 0.05
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 4,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-tideglass-treads",
+      "name": "Tideglass Treads",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +6 defence, +6% critical chance.",
+      "effect": {
+        "defence": 6,
+        "critChance": 0.06
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 0,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-moonpetal-sabatons",
+      "name": "Moonpetal Sabatons",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +2 defence, +2% critical chance.",
+      "effect": {
+        "defence": 2,
+        "critChance": 0.02
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 1,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-foxfire-sandals",
+      "name": "Foxfire Sandals",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +2 defence, +2% critical chance.",
+      "effect": {
+        "defence": 2,
+        "critChance": 0.02
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 2,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-thunder-boots",
+      "name": "Thunder Boots",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +2 defence, +2% critical chance.",
+      "effect": {
+        "defence": 2,
+        "critChance": 0.02
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 3,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-sunwoven-treads",
+      "name": "Sunwoven Treads",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +3 defence, +3% critical chance.",
+      "effect": {
+        "defence": 3,
+        "critChance": 0.03
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 4,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-prismatic-sabatons",
+      "name": "Prismatic Sabatons",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +3 defence, +3% critical chance.",
+      "effect": {
+        "defence": 3,
+        "critChance": 0.03
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 0,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-ruby-sandals",
+      "name": "Ruby Sandals",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +3 defence, +3% critical chance.",
+      "effect": {
+        "defence": 3,
+        "critChance": 0.03
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-sapphire-boots",
+      "name": "Sapphire Boots",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +3 defence, +3% critical chance.",
+      "effect": {
+        "defence": 3,
+        "critChance": 0.03
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 2,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-spiritwood-treads",
+      "name": "Spiritwood Treads",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +4 defence, +4% critical chance.",
+      "effect": {
+        "defence": 4,
+        "critChance": 0.04
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 3,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-dragonheart-sabatons",
+      "name": "Dragonheart Sabatons",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +4 defence, +4% critical chance.",
+      "effect": {
+        "defence": 4,
+        "critChance": 0.04
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 4,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-bloodmoon-sandals",
+      "name": "Bloodmoon Sandals",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +4 defence, +4% critical chance.",
+      "effect": {
+        "defence": 4,
+        "critChance": 0.04
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-starweaver-boots",
+      "name": "Starweaver Boots",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +5 defence, +5% critical chance.",
+      "effect": {
+        "defence": 5,
+        "critChance": 0.05
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-solar-treads",
+      "name": "Solar Treads",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +5 defence, +5% critical chance.",
+      "effect": {
+        "defence": 5,
+        "critChance": 0.05
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-infinity-sabatons",
+      "name": "Infinity Sabatons",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +5 defence, +5% critical chance.",
+      "effect": {
+        "defence": 5,
+        "critChance": 0.05
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "boots-eternal-sandals",
+      "name": "Eternal Sandals",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "boots",
+      "description": "While equipped: +6 defence, +6% critical chance.",
+      "effect": {
+        "defence": 6,
+        "critChance": 0.06
+      },
+      "icon": "»",
+      "art": {
+        "sheet": "gear-boots",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "amulet-infinity-medallion",
+      "name": "Infinity Medallion",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "amulet",
+      "description": "While equipped: +30 maximum MP, +10 healing.",
+      "effect": {
+        "maxMp": 30,
+        "healing": 10
+      },
+      "icon": "◆",
+      "art": {
+        "sheet": "gear-amulet",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "amulet-eternal-talisman",
+      "name": "Eternal Talisman",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "amulet",
+      "description": "While equipped: +36 maximum MP, +12 healing.",
+      "effect": {
+        "maxMp": 36,
+        "healing": 12
+      },
+      "icon": "◆",
+      "art": {
+        "sheet": "gear-amulet",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-sandstone-ring",
+      "name": "Sandstone Ring",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +6 attack, +3% critical chance.",
+      "effect": {
+        "damage": 6,
+        "critChance": 0.03
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 3,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-copper-signet",
+      "name": "Copper Signet",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +8 attack, +4% critical chance.",
+      "effect": {
+        "damage": 8,
+        "critChance": 0.04
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 4,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-tideglass-band",
+      "name": "Tideglass Band",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +10 attack, +5% critical chance.",
+      "effect": {
+        "damage": 10,
+        "critChance": 0.05
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 0,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-moonpetal-loop",
+      "name": "Moonpetal Loop",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +12 attack, +6% critical chance.",
+      "effect": {
+        "damage": 12,
+        "critChance": 0.06
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 1,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-foxfire-ring",
+      "name": "Foxfire Ring",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +4 attack, +2% critical chance.",
+      "effect": {
+        "damage": 4,
+        "critChance": 0.02
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 2,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-thunder-signet",
+      "name": "Thunder Signet",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +4 attack, +2% critical chance.",
+      "effect": {
+        "damage": 4,
+        "critChance": 0.02
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 3,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-sunwoven-band",
+      "name": "Sunwoven Band",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +6 attack, +3% critical chance.",
+      "effect": {
+        "damage": 6,
+        "critChance": 0.03
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 4,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-prismatic-loop",
+      "name": "Prismatic Loop",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +6 attack, +3% critical chance.",
+      "effect": {
+        "damage": 6,
+        "critChance": 0.03
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 0,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-ruby-ring",
+      "name": "Ruby Ring",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +6 attack, +3% critical chance.",
+      "effect": {
+        "damage": 6,
+        "critChance": 0.03
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-sapphire-signet",
+      "name": "Sapphire Signet",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +6 attack, +3% critical chance.",
+      "effect": {
+        "damage": 6,
+        "critChance": 0.03
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 2,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-spiritwood-band",
+      "name": "Spiritwood Band",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +8 attack, +4% critical chance.",
+      "effect": {
+        "damage": 8,
+        "critChance": 0.04
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 3,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-dragonheart-loop",
+      "name": "Dragonheart Loop",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +8 attack, +4% critical chance.",
+      "effect": {
+        "damage": 8,
+        "critChance": 0.04
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 4,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-bloodmoon-ring",
+      "name": "Bloodmoon Ring",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +8 attack, +4% critical chance.",
+      "effect": {
+        "damage": 8,
+        "critChance": 0.04
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-starweaver-signet",
+      "name": "Starweaver Signet",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +10 attack, +5% critical chance.",
+      "effect": {
+        "damage": 10,
+        "critChance": 0.05
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-solar-band",
+      "name": "Solar Band",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +10 attack, +5% critical chance.",
+      "effect": {
+        "damage": 10,
+        "critChance": 0.05
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-infinity-loop",
+      "name": "Infinity Loop",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +10 attack, +5% critical chance.",
+      "effect": {
+        "damage": 10,
+        "critChance": 0.05
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring1-eternal-ring",
+      "name": "Eternal Ring",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "ring1",
+      "description": "While equipped: +12 attack, +6% critical chance.",
+      "effect": {
+        "damage": 12,
+        "critChance": 0.06
+      },
+      "icon": "◉",
+      "art": {
+        "sheet": "gear-ring1",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-nettle-promise-ring",
+      "name": "Nettle Promise Ring",
+      "rarity": "common",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +2 healing, +6 maximum HP.",
+      "effect": {
+        "healing": 2,
+        "maxHp": 6
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 0,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-cinder-seal",
+      "name": "Cinder Seal",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +4 healing, +12 maximum HP.",
+      "effect": {
+        "healing": 4,
+        "maxHp": 12
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 1,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-frost-circle",
+      "name": "Frost Circle",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +6 healing, +18 maximum HP.",
+      "effect": {
+        "healing": 6,
+        "maxHp": 18
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 2,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-sandstone-oath-ring",
+      "name": "Sandstone Oath Ring",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +8 healing, +24 maximum HP.",
+      "effect": {
+        "healing": 8,
+        "maxHp": 24
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 3,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-copper-promise-ring",
+      "name": "Copper Promise Ring",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +10 healing, +30 maximum HP.",
+      "effect": {
+        "healing": 10,
+        "maxHp": 30
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 4,
+        "row": 0,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-tideglass-seal",
+      "name": "Tideglass Seal",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +12 healing, +36 maximum HP.",
+      "effect": {
+        "healing": 12,
+        "maxHp": 36
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 0,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-moonpetal-circle",
+      "name": "Moonpetal Circle",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +4 healing, +12 maximum HP.",
+      "effect": {
+        "healing": 4,
+        "maxHp": 12
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 1,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-foxfire-oath-ring",
+      "name": "Foxfire Oath Ring",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +4 healing, +12 maximum HP.",
+      "effect": {
+        "healing": 4,
+        "maxHp": 12
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 2,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-thunder-promise-ring",
+      "name": "Thunder Promise Ring",
+      "rarity": "uncommon",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +4 healing, +12 maximum HP.",
+      "effect": {
+        "healing": 4,
+        "maxHp": 12
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 3,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-sunwoven-seal",
+      "name": "Sunwoven Seal",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +6 healing, +18 maximum HP.",
+      "effect": {
+        "healing": 6,
+        "maxHp": 18
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 4,
+        "row": 1,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-prismatic-circle",
+      "name": "Prismatic Circle",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +6 healing, +18 maximum HP.",
+      "effect": {
+        "healing": 6,
+        "maxHp": 18
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 0,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-ruby-oath-ring",
+      "name": "Ruby Oath Ring",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +6 healing, +18 maximum HP.",
+      "effect": {
+        "healing": 6,
+        "maxHp": 18
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-sapphire-promise-ring",
+      "name": "Sapphire Promise Ring",
+      "rarity": "rare",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +6 healing, +18 maximum HP.",
+      "effect": {
+        "healing": 6,
+        "maxHp": 18
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 2,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-spiritwood-seal",
+      "name": "Spiritwood Seal",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +8 healing, +24 maximum HP.",
+      "effect": {
+        "healing": 8,
+        "maxHp": 24
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 3,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-dragonheart-circle",
+      "name": "Dragonheart Circle",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +8 healing, +24 maximum HP.",
+      "effect": {
+        "healing": 8,
+        "maxHp": 24
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 4,
+        "row": 2,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-bloodmoon-oath-ring",
+      "name": "Bloodmoon Oath Ring",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +8 healing, +24 maximum HP.",
+      "effect": {
+        "healing": 8,
+        "maxHp": 24
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-starweaver-promise-ring",
+      "name": "Starweaver Promise Ring",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +10 healing, +30 maximum HP.",
+      "effect": {
+        "healing": 10,
+        "maxHp": 30
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-solar-seal",
+      "name": "Solar Seal",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +10 healing, +30 maximum HP.",
+      "effect": {
+        "healing": 10,
+        "maxHp": 30
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-infinity-circle",
+      "name": "Infinity Circle",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +10 healing, +30 maximum HP.",
+      "effect": {
+        "healing": 10,
+        "maxHp": 30
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "ring2-eternal-oath-ring",
+      "name": "Eternal Oath Ring",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "ring2",
+      "description": "While equipped: +12 healing, +36 maximum HP.",
+      "effect": {
+        "healing": 12,
+        "maxHp": 36
+      },
+      "icon": "◎",
+      "art": {
+        "sheet": "gear-ring2",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "mainhand-bloodmoon-bow",
+      "name": "Bloodmoon Bow",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "mainHand",
+      "description": "While equipped: +19 attack, +12 maximum MP.",
+      "effect": {
+        "damage": 19,
+        "maxMp": 12
+      },
+      "icon": "⚔",
+      "art": {
+        "sheet": "gear-mainhand",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "mainhand-starweaver-blade",
+      "name": "Starweaver Blade",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "mainHand",
+      "description": "While equipped: +20 attack, +15 maximum MP.",
+      "effect": {
+        "damage": 20,
+        "maxMp": 15
+      },
+      "icon": "⚔",
+      "art": {
+        "sheet": "gear-mainhand",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "mainhand-solar-wand",
+      "name": "Solar Wand",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "mainHand",
+      "description": "While equipped: +21 attack, +15 maximum MP.",
+      "effect": {
+        "damage": 21,
+        "maxMp": 15
+      },
+      "icon": "⚔",
+      "art": {
+        "sheet": "gear-mainhand",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "mainhand-infinity-hammer",
+      "name": "Infinity Hammer",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "mainHand",
+      "description": "While equipped: +22 attack, +15 maximum MP.",
+      "effect": {
+        "damage": 22,
+        "maxMp": 15
+      },
+      "icon": "⚔",
+      "art": {
+        "sheet": "gear-mainhand",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "mainhand-eternal-bow",
+      "name": "Eternal Bow",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "mainHand",
+      "description": "While equipped: +27 attack, +18 maximum MP.",
+      "effect": {
+        "damage": 27,
+        "maxMp": 18
+      },
+      "icon": "⚔",
+      "art": {
+        "sheet": "gear-mainhand",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "offhand-bloodmoon-quiver",
+      "name": "Bloodmoon Quiver",
+      "rarity": "epic",
+      "type": "equipment",
+      "slot": "offHand",
+      "description": "While equipped: +8 defence, +20 maximum MP.",
+      "effect": {
+        "defence": 8,
+        "maxMp": 20
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-offhand",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "offhand-starweaver-shield",
+      "name": "Starweaver Shield",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "offHand",
+      "description": "While equipped: +10 defence, +25 maximum MP.",
+      "effect": {
+        "defence": 10,
+        "maxMp": 25
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-offhand",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "offhand-solar-codex",
+      "name": "Solar Codex",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "offHand",
+      "description": "While equipped: +10 defence, +25 maximum MP.",
+      "effect": {
+        "defence": 10,
+        "maxMp": 25
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-offhand",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "offhand-infinity-focus",
+      "name": "Infinity Focus",
+      "rarity": "legendary",
+      "type": "equipment",
+      "slot": "offHand",
+      "description": "While equipped: +10 defence, +25 maximum MP.",
+      "effect": {
+        "defence": 10,
+        "maxMp": 25
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-offhand",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "offhand-eternal-quiver",
+      "name": "Eternal Quiver",
+      "rarity": "mythical",
+      "type": "equipment",
+      "slot": "offHand",
+      "description": "While equipped: +12 defence, +30 maximum MP.",
+      "effect": {
+        "defence": 12,
+        "maxMp": 30
+      },
+      "icon": "▣",
+      "art": {
+        "sheet": "gear-offhand",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 4
+      },
+      "collection": "armory"
+    },
+    {
+      "id": "pet-bramble-mouse",
+      "name": "Bramble Mouse",
+      "rarity": "common",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "tiny leaf-eared green mouse",
+      "description": "While equipped: +2 attack, +5 maximum HP.",
+      "effect": {
+        "damage": 2,
+        "maxHp": 5
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 0,
+        "row": 0,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-copper-beetle",
+      "name": "Copper Beetle",
+      "rarity": "common",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "bronze clockwork beetle",
+      "description": "While equipped: +2 healing, +4 maximum MP.",
+      "effect": {
+        "healing": 2,
+        "maxMp": 4
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 1,
+        "row": 0,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-pebble-tortoise",
+      "name": "Pebble Tortoise",
+      "rarity": "common",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "stone-shell baby tortoise",
+      "description": "While equipped: +1 defence, +6 maximum HP.",
+      "effect": {
+        "defence": 1,
+        "maxHp": 6
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 2,
+        "row": 0,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-cloud-sparrow",
+      "name": "Cloud Sparrow",
+      "rarity": "common",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "fluffy white sparrow",
+      "description": "While equipped: +2 attack, +5 maximum HP.",
+      "effect": {
+        "damage": 2,
+        "maxHp": 5
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 3,
+        "row": 0,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-moss-bunny",
+      "name": "Moss Bunny",
+      "rarity": "common",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "green moss rabbit",
+      "description": "While equipped: +2 healing, +4 maximum MP.",
+      "effect": {
+        "healing": 2,
+        "maxMp": 4
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 4,
+        "row": 0,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-ember-gecko",
+      "name": "Ember Gecko",
+      "rarity": "uncommon",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "orange fire gecko",
+      "description": "While equipped: +2 defence, +12 maximum HP.",
+      "effect": {
+        "defence": 2,
+        "maxHp": 12
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 0,
+        "row": 1,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-dewdrop-frog",
+      "name": "Dewdrop Frog",
+      "rarity": "uncommon",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "blue dew frog",
+      "description": "While equipped: +3 attack, +10 maximum HP.",
+      "effect": {
+        "damage": 3,
+        "maxHp": 10
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 1,
+        "row": 1,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-acorn-squirrel",
+      "name": "Acorn Squirrel",
+      "rarity": "uncommon",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "brown squirrel with acorn",
+      "description": "While equipped: +3 healing, +8 maximum MP.",
+      "effect": {
+        "healing": 3,
+        "maxMp": 8
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 2,
+        "row": 1,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-honey-bumblebee",
+      "name": "Honey Bumblebee",
+      "rarity": "uncommon",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "golden bee",
+      "description": "While equipped: +2 defence, +12 maximum HP.",
+      "effect": {
+        "defence": 2,
+        "maxHp": 12
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 3,
+        "row": 1,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-bubble-otter",
+      "name": "Bubble Otter",
+      "rarity": "uncommon",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "teal otter with bubbles",
+      "description": "While equipped: +3 attack, +10 maximum HP.",
+      "effect": {
+        "damage": 3,
+        "maxHp": 10
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 4,
+        "row": 1,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-frost-kitten",
+      "name": "Frost Kitten",
+      "rarity": "rare",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "ice-blue snow kitten",
+      "description": "While equipped: +4 healing, +12 maximum MP.",
+      "effect": {
+        "healing": 4,
+        "maxMp": 12
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 0,
+        "row": 2,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-moon-moth",
+      "name": "Moon Moth",
+      "rarity": "rare",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "lavender crescent moth",
+      "description": "While equipped: +3 defence, +18 maximum HP.",
+      "effect": {
+        "defence": 3,
+        "maxHp": 18
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-foxfire-cub",
+      "name": "Foxfire Cub",
+      "rarity": "rare",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "glowing amber fox cub",
+      "description": "While equipped: +4 attack, +15 maximum HP.",
+      "effect": {
+        "damage": 4,
+        "maxHp": 15
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 2,
+        "row": 2,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-coral-crab",
+      "name": "Coral Crab",
+      "rarity": "rare",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "pink coral crab",
+      "description": "While equipped: +4 healing, +12 maximum MP.",
+      "effect": {
+        "healing": 4,
+        "maxMp": 12
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 3,
+        "row": 2,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-rune-owl",
+      "name": "Rune Owl",
+      "rarity": "rare",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "purple owl with rune feathers",
+      "description": "While equipped: +3 defence, +18 maximum HP.",
+      "effect": {
+        "defence": 3,
+        "maxHp": 18
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 4,
+        "row": 2,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-thunder-pup",
+      "name": "Thunder Pup",
+      "rarity": "epic",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "electric-blue puppy",
+      "description": "While equipped: +5 attack, +20 maximum HP.",
+      "effect": {
+        "damage": 5,
+        "maxHp": 20
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 0,
+        "row": 3,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-crystal-hedgehog",
+      "name": "Crystal Hedgehog",
+      "rarity": "epic",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "amethyst crystal hedgehog",
+      "description": "While equipped: +5 healing, +16 maximum MP.",
+      "effect": {
+        "healing": 5,
+        "maxMp": 16
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 1,
+        "row": 3,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-sapphire-axolotl",
+      "name": "Sapphire Axolotl",
+      "rarity": "epic",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "blue axolotl",
+      "description": "While equipped: +4 defence, +24 maximum HP.",
+      "effect": {
+        "defence": 4,
+        "maxHp": 24
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 2,
+        "row": 3,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-jade-serpent",
+      "name": "Jade Serpent",
+      "rarity": "epic",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "small jade wingless serpent",
+      "description": "While equipped: +5 attack, +20 maximum HP.",
+      "effect": {
+        "damage": 5,
+        "maxHp": 20
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 3,
+        "row": 3,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-silver-lynx",
+      "name": "Silver Lynx",
+      "rarity": "epic",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "silver lynx kitten",
+      "description": "While equipped: +5 healing, +16 maximum MP.",
+      "effect": {
+        "healing": 5,
+        "maxMp": 16
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 4,
+        "row": 3,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-ruby-griffin",
+      "name": "Ruby Griffin",
+      "rarity": "legendary",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "red baby griffin",
+      "description": "While equipped: +5 defence, +30 maximum HP.",
+      "effect": {
+        "defence": 5,
+        "maxHp": 30
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 0,
+        "row": 4,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-starlight-fawn",
+      "name": "Starlight Fawn",
+      "rarity": "legendary",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "violet star-spotted fawn",
+      "description": "While equipped: +6 attack, +25 maximum HP.",
+      "effect": {
+        "damage": 6,
+        "maxHp": 25
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 1,
+        "row": 4,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-aurora-penguin",
+      "name": "Aurora Penguin",
+      "rarity": "legendary",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "pastel aurora penguin",
+      "description": "While equipped: +6 healing, +20 maximum MP.",
+      "effect": {
+        "healing": 6,
+        "maxMp": 20
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 2,
+        "row": 4,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-spirit-panda",
+      "name": "Spirit Panda",
+      "rarity": "legendary",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "green spectral baby panda",
+      "description": "While equipped: +5 defence, +30 maximum HP.",
+      "effect": {
+        "defence": 5,
+        "maxHp": 30
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 3,
+        "row": 4,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-sun-phoenix",
+      "name": "Sun Phoenix",
+      "rarity": "legendary",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "golden miniature phoenix",
+      "description": "While equipped: +6 attack, +25 maximum HP.",
+      "effect": {
+        "damage": 6,
+        "maxHp": 25
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 4,
+        "row": 4,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-dragon-whelp",
+      "name": "Dragon Whelp",
+      "rarity": "mythical",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "crimson baby dragon",
+      "description": "While equipped: +7 healing, +24 maximum MP.",
+      "effect": {
+        "healing": 7,
+        "maxMp": 24
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 0,
+        "row": 5,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-celestial-koi",
+      "name": "Celestial Koi",
+      "rarity": "mythical",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "floating blue-gold koi",
+      "description": "While equipped: +6 defence, +36 maximum HP.",
+      "effect": {
+        "defence": 6,
+        "maxHp": 36
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 1,
+        "row": 5,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-worldtree-dryad",
+      "name": "Worldtree Dryad",
+      "rarity": "mythical",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "tiny leafy tree spirit",
+      "description": "While equipped: +7 attack, +30 maximum HP.",
+      "effect": {
+        "damage": 7,
+        "maxHp": 30
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 2,
+        "row": 5,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-void-unicorn",
+      "name": "Void Unicorn",
+      "rarity": "mythical",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "purple galaxy unicorn foal",
+      "description": "While equipped: +7 healing, +24 maximum MP.",
+      "effect": {
+        "healing": 7,
+        "maxMp": 24
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 3,
+        "row": 5,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    },
+    {
+      "id": "pet-eternal-kirin",
+      "name": "Eternal Kirin",
+      "rarity": "mythical",
+      "type": "pet",
+      "slot": "pet",
+      "subject": "pink-gold mythical kirin foal",
+      "description": "While equipped: +6 defence, +36 maximum HP.",
+      "effect": {
+        "defence": 6,
+        "maxHp": 36
+      },
+      "icon": "♣",
+      "art": {
+        "sheet": "pets",
+        "col": 4,
+        "row": 5,
+        "columns": 5,
+        "rows": 6
+      },
+      "collection": "companions"
+    }
+  ];
+  ARMORY_ITEMS.forEach(entry=>{ITEMS[entry.id]=entry;});
+  return {ROLES,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS};
 });

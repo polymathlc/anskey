@@ -143,11 +143,13 @@
     el('wheelQuickStatus').textContent = !q.on ? 'Name wheel only. Turn on Quick fight to battle when points are awarded.' : q.error || (!q.cls ? 'Choose a Lesson slot to enable battles for points.' : q.loading ? 'Loading the saved encounter…' : q.busy ? 'Saving answer…' : window.wheelSpinning ? 'Choosing your champion…' : summary(q.state));
     if (q.playing && !force) return;
     var s = q.state, heroes = s ? s.heroes : roster(), h = heroes.find(function (hero) { return hero.id === q.heroId; }) || roster().find(function (hero) { return hero.id === q.heroId; }) || heroes.find(function (hero) { return s && s.lastEvent && hero.id === s.lastEvent.heroId; }) || heroes[0];
-    var b = s ? Core.bossById(s.bossId) : q.selection ? Core.bossById(enemyFor(q.selection.spinId)) : null, role = h && (h.role === 'healer' ? 'cleric' : h.role);
+    var preview = !!(s && s.status !== 'active' && q.selection && q.selection.completedEncounterId === s.encounterId);
+    var b = s && !preview ? Core.bossById(s.bossId) : q.selection ? Core.bossById(enemyFor(q.selection.spinId)) : null, role = h && (h.role === 'healer' ? 'cleric' : h.role);
+    var shownEnemy = preview ? null : s;
     var shownHero = h;
     el('wheelQuickDuel').hidden = !q.on;
     el('wheelQuickStatus').hidden = !q.on;
-    el('wheelQuickDuel').innerHTML = !q.on ? '' : '<div class="cbQuickHero" data-cba-actor="hero" data-cba-hero-id="' + esc(h && h.id) + '">' + (h ? avatar(h) + '<strong>' + esc(h.name) + '</strong><small>' + esc(Core.JOBS && Core.JOBS[h.job] ? Core.JOBS[h.job].name : Core.ROLES[role].name) + ' · LV ' + h.level + '</small>' + bars(h.name, shownHero ? shownHero.hp : null, shownHero ? shownHero.stats.maxHp : null, shownHero ? shownHero.mp : null, shownHero ? shownHero.stats.maxMp : null) : '<span>Choose a hero</span>') + '</div><b class="cbQuickVs">VS</b><div class="cbQuickEnemy" data-cba-actor="enemy">' + (b ? '<img src="' + esc(b.image) + '" alt="' + esc(b.name) + ' pixel enemy"><strong>' + esc(b.name) + '</strong><small>' + (s && s.status === 'victory' ? 'VICTORY' : s && s.status === 'defeat' ? 'FINISHED' : 'ENEMY') + '</small>' + bars(b.name, s ? s.bossHp : null, s ? s.bossMaxHp : null, s ? enemyMp(s) : null, s ? (s.bossMaxMp || Core.BOSS_MAX_MP || 60) : null) : '<span class="cbQuickMystery" aria-hidden="true">?</span><strong>Next encounter</strong><small>Revealed on your spin · waits for points</small>') + '</div>';
+    el('wheelQuickDuel').innerHTML = !q.on ? '' : '<div class="cbQuickHero" data-cba-actor="hero" data-cba-hero-id="' + esc(h && h.id) + '">' + (h ? avatar(h) + '<strong>' + esc(h.name) + '</strong><small>' + esc(Core.JOBS && Core.JOBS[h.job] ? Core.JOBS[h.job].name : Core.ROLES[role].name) + ' · LV ' + h.level + '</small>' + bars(h.name, shownHero ? shownHero.hp : null, shownHero ? shownHero.stats.maxHp : null, shownHero ? shownHero.mp : null, shownHero ? shownHero.stats.maxMp : null) : '<span>Choose a hero</span>') + '</div><b class="cbQuickVs">VS</b><div class="cbQuickEnemy" data-cba-actor="enemy" data-boss-id="' + esc(b && b.id) + '">' + (b ? (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.enemyArt(b) : '<img src="' + esc(b.image) + '" alt="' + esc(b.name) + ' pixel enemy">') + '<strong>' + esc(b.name) + '</strong><small>' + (preview ? 'NEXT ENEMY · AWARD POINTS TO BEGIN' : s && s.status === 'victory' ? 'VICTORY' : s && s.status === 'defeat' ? 'FINISHED' : 'ENEMY') + '</small>' + bars(b.name, shownEnemy ? shownEnemy.bossHp : null, shownEnemy ? shownEnemy.bossMaxHp : null, shownEnemy ? enemyMp(shownEnemy) : null, shownEnemy ? (shownEnemy.bossMaxMp || Core.BOSS_MAX_MP || 60) : null) : '<span class="cbQuickMystery" aria-hidden="true">?</span><strong>Next encounter</strong><small>Revealed on your spin · waits for points</small>') + '</div>';
     if (q.playing && s && s.lastEvent) {
       var affected = new Set((s.lastEvent.healed || []).concat(s.lastEvent.supported || [], s.lastEvent.enemy && s.lastEvent.enemy.targets || []).map(function (entry) { return entry.heroId; }));
       var teammates = heroes.filter(function (hero) { return hero.id !== h.id && affected.has(hero.id); });
@@ -156,6 +158,7 @@
     if (s && s.status === 'victory' && q.on) el('wheelQuickDuel').innerHTML += '<div class="cbQuickTreasure"><span class="cbChest" aria-label="Opening treasure chest" role="img"></span><div class="cbQuickSpoils"><h4>Treasure for all ' + s.rewards.length + ' heroes</h4>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.treasure(s) : '') + '</div></div>';
     if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(el('wheelQuickDuel'));
     el('wheelQuickStatus').textContent = !q.on ? 'Name wheel only. Turn on Quick fight to battle when points are awarded.' : q.error || (!q.cls ? 'Choose a Lesson slot to enable battles for points.' : q.loading ? 'Loading the saved encounter…' : q.busy ? 'Saving answer…' : window.wheelSpinning ? 'Choosing your champion…' : summary(s));
+    if (q.on && window.ClassroomBattleDisplay && !q.error) el('wheelQuickStatus').textContent += ' · ' + ClassroomBattleDisplay.rotation(s);
     el('wheelQuickStatus').classList.toggle('cbQuickError', !!q.error);
     if (q.on) el('wheelHeroPreview').hidden = true;
   }
@@ -211,8 +214,7 @@
   }
   function requestKey(uid, cls) { return 'polymath.wheelAward.' + uid + '.' + encodeURIComponent(cls); }
   function enemyFor(spinId) {
-    var pool = Core.BOSSES.filter(function (enemy) { return !enemy.legacy; });
-    return pool[Math.floor(Core.randomUnit(spinId + ':enemy') * pool.length)].id;
+    return Core.nextBoss(q.state, spinId).id;
   }
   function blocksAward() {
     return !manual() && (missionBusy() || guestsBusy() || q.on && (q.loading || q.busy || !!q.request || !q.store || !!(q.state && q.state.pending)));
@@ -221,7 +223,8 @@
     if (!entry || manual() || !q.on || !allowed() || !visible() || !q.store || q.loading || q.busy || missionBusy() || guestsBusy() || !q.cls) return;
     if (!/^[a-zA-Z0-9_-]{8,100}$/.test(spinId || '')) { q.error = 'Spin again before awarding points.'; render(); return; }
     if (!heroId(entry)) { q.error = 'Reload the guest list to confirm this student before calling their hero.'; render(); return; }
-    q.selection = {entry: {id:entry.id, n:entry.n}, spinId:spinId};
+    var sameSpin=q.selection && q.selection.spinId===spinId;
+    q.selection = {entry: {id:entry.id, n:entry.n}, spinId:spinId, completedEncounterId:sameSpin ? q.selection.completedEncounterId : q.state && q.state.status!=='active' ? q.state.encounterId : null};
     cancelFeedback(); q.heroId = heroId(entry); q.assistOpen = false; q.assistMessage = ''; q.error = ''; render();
   }
   async function award(entry, delta, reason, retry) {

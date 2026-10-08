@@ -170,7 +170,14 @@ try {
   check('repeated landing callbacks remain a read-only hero preview',await page.evaluate(()=>!__battleState()&&__awardCalls.length===0));
   await award();
   check('awarding one point starts combat, chooses a skill and resolves one enemy reply',await page.evaluate(()=>{const s=__battleState();return s.lastEvent.type==='auto'&&s.lastEvent.skillId&&s.lastEvent.enemy&&s.pending===null&&s.bossTurns===1&&__awardCalls[0].delta===1;}));
-  check('wheel displays hero versus enemy avatars with HP and MP',await page.evaluate(()=>document.querySelectorAll('#wheelQuickDuel .cbaHero').length===1&&document.querySelectorAll('#wheelQuickDuel .cbQuickEnemy img').length===1&&document.getElementById('wheelQuickDuel').textContent.includes('MP ')&&document.getElementById('wheelQuickDuel').textContent.includes('HP ')));
+  check('wheel displays loaded hero and enemy pixels with HP and MP',await page.evaluate(async()=>{
+    const enemy=document.querySelector('#wheelQuickDuel .cbQuickEnemy img, #wheelQuickDuel .cbQuickEnemy .cbEnemySprite');
+    if(!enemy)return false;
+    const source=enemy.tagName==='IMG'?enemy.src:getComputedStyle(enemy).backgroundImage.replace(/^url\(["']?|["']?\)$/g,'');
+    const loaded=await new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(image.naturalWidth>32&&image.naturalHeight>32);image.onerror=()=>resolve(false);image.src=source;});
+    const rect=enemy.getBoundingClientRect();
+    return loaded&&rect.width>0&&rect.height>0&&document.querySelectorAll('#wheelQuickDuel .cbaHero').length===1&&document.getElementById('wheelQuickDuel').textContent.includes('MP ')&&document.getElementById('wheelQuickDuel').textContent.includes('HP ');
+  }));
   const genderBattle=await page.evaluate(()=>{const s=__battleState();const h=s.heroes.find(h=>h.id===s.lastEvent.heroId);h.gender='female';__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));return JSON.stringify(s);});
   check('wheel uses saved character gender without resolving another turn',await page.evaluate(before=>JSON.stringify(__battleState())===before,genderBattle)&&await page.locator('.cbQuickHero [data-cba-gender="female"]').count()===1);
   check('combat and the awarded point update the same student exactly once',await page.evaluate(()=>{const s=wheelStudent(wheelState.names[wheelWinnerIdx]);return s.marks===11&&__battleDocuments['students/'+s.id].marks===11&&wheelGiven===1;}));
@@ -227,8 +234,11 @@ try {
   const victory=await page.evaluate(()=>({id:__battleState().encounterId,xp:__battleState().heroes.reduce((sum,h)=>sum+h.xp,0)}));
   await spin();
   check('spinning after victory does not start another encounter',await page.evaluate(v=>__battleState().encounterId===v.id&&__battleState().status==='victory',victory));
+  const nextBossPreview=await page.locator('.cbQuickEnemy').getAttribute('data-boss-id');
+  check('next spin previews an unseen boss with resources waiting for the next saved award',await page.evaluate(id=>id===ClassroomBattleCore.nextBoss(__battleState(),wheelState.lastSpinId).id&&!__battleState().bossRotation.seen.includes(id)&&document.querySelector('.cbQuickEnemy').textContent.includes('NEXT ENEMY')&&[...document.querySelectorAll('.cbQuickEnemy [role=progressbar]')].every(node=>!node.hasAttribute('aria-valuenow')),nextBossPreview));
   await award();
   check('next awarded answer starts a new encounter and carries all XP forward',await page.evaluate(v=>__battleState().encounterId!==v.id&&__battleState().heroes.reduce((sum,h)=>sum+h.xp,0)===v.xp+12,victory));
+  check('the server starts exactly the boss previewed before the points award',await page.evaluate(id=>__battleState().bossId===id,nextBossPreview));
   await page.click('#wheelBattleBtn');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   await page.click('#wheelSpinBtn');await page.waitForFunction(()=>!!__battleState().pending);
   const pending=await page.evaluate(()=>__battleState().pending.id);

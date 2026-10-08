@@ -19,7 +19,7 @@ if(process.argv.includes('--write-manifest')) {
 const manifest=JSON.parse(fs.readFileSync(new URL('manifest.json',directory),'utf8'));
 
 test('fifty additional relics preserve the twenty-two original reward IDs and rarity weighting',()=>{
-  assert.equal(collection.length,50);assert.equal(items.length,72);
+  assert.equal(collection.length,50);assert.equal(items.length,238);
   assert.deepEqual(Object.fromEntries(Object.keys(C.RARITIES).map(rarity=>[rarity,collection.filter(i=>i.rarity===rarity).length])),{common:10,uncommon:10,rare:10,epic:8,legendary:8,mythical:4});
   assert.deepEqual(Object.values(C.RARITIES).map(r=>r.weight),[45,27,16,8,3.3,.7]);
   for(const id of ['red-potion','blue-ether','iron-charm','bronze-blade','fire-flask','party-tonic','oak-amulet','hunters-band','phoenix-feather','mana-prism','crimson-edge','silver-aegis','elixir','starbomb','storm-quiver','moon-codex','dawnbringer','worldroot','phoenix-crown','chronicle','void-edge','sovereign-star'])assert.ok(C.ITEMS[id],id);
@@ -43,20 +43,50 @@ test('all new relics increase real hero stats and only use supported equipment e
   assert.equal(C.ITEMS['heart-of-the-constellation'].effect.teamLeech,.15);
 });
 
-test('all seventy-two rewards can drop and their inventory art always resolves',()=>{
+test('all 238 rewards can drop and their inventory art always resolves',()=>{
   const seen=new Set();
   for(let i=0;i<30000;i++)seen.add(C.rollReward('loot-atlas-'+i,'student:art',{rewardXp:45}).itemId);
-  assert.equal(seen.size,72);
+  assert.equal(seen.size,238);
   for(const item of items) {
-    assert.ok(seen.has(item.id));assert.match(item.art.sheet,/^items-[1-5]$/);
-    assert.ok(Number.isInteger(item.art.col)&&item.art.col>=0&&item.art.col<5);
-    assert.ok(Number.isInteger(item.art.row)&&item.art.row>=0&&item.art.row<2);
+    assert.ok(seen.has(item.id));assert.match(item.art.sheet,/^(items-[1-5]|gear-[a-z0-9]+|pets)$/);
+    const columns=item.art.columns || 5,rows=item.art.rows || 2;
+    assert.ok(Number.isInteger(item.art.col)&&item.art.col>=0&&item.art.col<columns);
+    assert.ok(Number.isInteger(item.art.row)&&item.art.row>=0&&item.art.row<rows);
     assert.ok(fs.existsSync(new URL(item.art.sheet+'.png',directory)),item.id);
   }
   assert.equal(new Set(collection.map(i=>`${i.art.sheet}:${i.art.col}:${i.art.row}`)).size,50);
   const hero=C.heroFromStudent({id:'rarity-proof',name:'Hero'},null,0);
   hero.inventory=collection.map(i=>({id:'bag:'+i.id,itemId:i.id,quantity:1}));
-  C.autoEquip(hero);assert.equal(C.ITEMS[hero.inventory.find(i=>i.id===hero.equipped).itemId].rarity,'mythical');
+  C.autoEquip(hero);
+  const loadout=C.loadoutFor(hero),rarities=Object.keys(C.RARITIES);
+  assert.ok(C.equippedEntries(hero).some(entry=>C.ITEMS[entry.itemId].rarity==='mythical'));
+  for(const [slot,id] of Object.entries(loadout)) {
+    const selected=hero.inventory.find(entry=>entry.id===id);
+    const available=hero.inventory.filter(entry=>C.equipmentFits(C.ITEMS[entry.itemId],slot) && Object.entries(loadout).filter(([other,worn])=>other!==slot && worn===entry.id).length<entry.quantity);
+    assert.equal(rarities.indexOf(C.ITEMS[selected.itemId].rarity),Math.max(...available.map(entry=>rarities.indexOf(C.ITEMS[entry.itemId].rarity))),slot+' equips the best available rarity');
+  }
+});
+
+test('every gear slot has twenty usable choices across all rarities and thirty pets have real bonuses',()=>{
+  assert.equal(Object.keys(C.EQUIPMENT_SLOTS).length,11);
+  assert.equal(items.filter(i=>i.type==='equipment').length,200);
+  assert.equal(items.filter(i=>i.type==='pet').length,30);
+  assert.equal(items.filter(i=>i.type==='consumable').length,8);
+  const slots=Object.keys(C.EQUIPMENT_SLOTS).filter(k=>k!=='pet');
+  for(const slot of slots){
+    const pool=items.filter(i=>i.type==='equipment' && i.slot===slot);
+    assert.equal(pool.length,20,slot);
+    assert.equal(new Set(pool.map(i=>i.rarity)).size,6,slot+' has every rarity');
+  }
+  const pets=items.filter(i=>i.type==='pet');
+  for(const rarity of Object.keys(C.RARITIES))assert.equal(pets.filter(i=>i.rarity===rarity).length,5);
+  const hero=C.heroFromStudent({id:'armory-stats',name:'Ari'},null,0),base=C.statsFor(hero);
+  for(const item of items.filter(i=>i.collection==='armory'||i.collection==='companions')){
+    const equipped={...hero,inventory:[{id:'bag:'+item.id,itemId:item.id,quantity:1}],loadout:{[item.slot]:'bag:'+item.id}};
+    const stats=C.statsFor(equipped);
+    assert.ok(Object.keys(base).some(k=>stats[k]>base[k]),item.id+' affects combat stats');
+    assert.deepEqual(C.equipmentEffect(equipped),item.effect);
+  }
 });
 
 test('all five native item atlases match their provenance and integrity manifest',()=>{

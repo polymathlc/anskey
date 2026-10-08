@@ -1,0 +1,1128 @@
+{
+  "version": 1,
+  "generated": "2026-10-09",
+  "generator": "OpenAI built-in image_gen",
+  "nativePngUnchanged": true,
+  "notes": "94 original full-body pixel-art boss sprites, shipped as ten native transparent atlases. Nine atlases have ten occupied tiles; the final atlas has four bosses in its top-left tiles. Every source was generated through the built-in tool; five sheets were repaired with built-in image edits to restore padding/remove lines. No programmatic image modification. Rarity changes encounter stats and presentation, not encounter frequency.",
+  "assets": [
+    {
+      "name": "atlas-01",
+      "file": "assets/battle-pixel/bosses/atlas-01.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-e57883f7-d18c-4357-83ff-3a1626fe786f.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-0f1965eb-1abe-41e2-8c59-68d5f6de2fc6.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 65% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Bramblehide Boar: a russet wild boar with mossy tusks, leafy bristle mane and four sturdy hooves; 2. Acorncap Knight: a small oak-armored squirrel knight carrying an acorn shield and branch lance; 3. Lanternwing Owl: a teal owl with glowing amber lantern feathers and spread rounded wings; 4. Thorncrown Stag: an emerald stag with twisting thorn antlers and a violet flower chest crest; 5. Rootmaw Colossus: a massive dark oak root giant with orange hollow eyes and thick branch arms; 6. Sapscale Serpent: a golden tree-sap serpent with leaf fins and a spiraling emerald tail; 7. Fernblade Mantis: a bright green mantis with fern frond blade forearms and six thin legs; 8. Puffspore Monarch: a squat violet mushroom giant with golden spotted cap and stubby root feet; 9. Barkshield Warden: a stout chestnut bark golem with a round wood shield and glowing blue rune eye; 10. Blossomwing Wyvern: a pink and ivory flower wyvern with petal wings, tiny horns and curling green tail.",
+      "edits": [
+        {
+          "prompt": "Use case: precise-object-edit. Edit target: the provided transparent 5-column, 2-row pixel-art boss atlas. Preserve all TEN existing boss identities, exact colors, pixel-art detail and exact row-major order. Fix spacing ONLY: redraw every full-body boss at exactly 65% of its current size, centered in its own cell in EXACTLY five equally sized columns by two rows on the same 5:2 canvas. Each complete creature, all wings, horns, staffs and tail, must stay entirely within its own cell with at least 16% fully transparent padding on ALL FOUR sides. No pixels may touch or cross any cell boundary. Keep all empty surrounding space genuinely transparent alpha; no checkerboard, text, lines, frames, labels, numbers, extra objects, floor, shadows, watermarks. The first row is cells1–5 and second row6–10. Produce the complete unchanged-order ten-boss atlas.",
+          "reason": "Shrink all full-body sprites within their own tiles to prevent clipping."
+        }
+      ],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "brambleboar",
+        "acornknight",
+        "lanternowl",
+        "thornstag",
+        "rootmaw",
+        "sapserpent",
+        "fernmantis",
+        "puffspore",
+        "barkwarden",
+        "blossomwyvern"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "b4ad40ea023aee83fe9e42aeb987595d1f5db53a0bdab0b660e35b48a3b23825",
+      "sourceSha256": "b4ad40ea023aee83fe9e42aeb987595d1f5db53a0bdab0b660e35b48a3b23825",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 1063353,
+        "partialPixels": 508473,
+        "opaquePixels": 693,
+        "visiblePixels": 424692,
+        "nearOpaquePixels": 400079
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 39238,
+          "coloredPixels": 35401,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "c525d5424fdfcd6d695a49fe4cb89a5fb82f16e7df2bdad14358881d06c6c0e5"
+        },
+        {
+          "occupiedPixels": 31400,
+          "coloredPixels": 28780,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "eae908db35bfeaa25fa5abc4f2c3de572d21cd4d3ca87758e10a67de7f74d327"
+        },
+        {
+          "occupiedPixels": 43863,
+          "coloredPixels": 41193,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "e56e9d3d0286312cbce9c2eece7d4803d0b7ae38ac177d9c0c941a33ba59e1dc"
+        },
+        {
+          "occupiedPixels": 35335,
+          "coloredPixels": 28658,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "a3d0e82b0767ef0f59b2b0796e618f16d10ebb0dd2833188ecb4280820d45cbd"
+        },
+        {
+          "occupiedPixels": 53024,
+          "coloredPixels": 43781,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "c66a5b67f1d1b39db1da2481868f15be3f7e41e8949fad5036f8c60589244371"
+        },
+        {
+          "occupiedPixels": 43301,
+          "coloredPixels": 39992,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "3c20c2a072f3fb16aa9e9b0030131b6e62ce1688f954f094cac6768a9acd513e"
+        },
+        {
+          "occupiedPixels": 31232,
+          "coloredPixels": 26485,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "a7d7f7b4c4151b72efe11b9b775e6f1bd95f92c0300a4ffaad23ab30f20c628c"
+        },
+        {
+          "occupiedPixels": 47823,
+          "coloredPixels": 46497,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "c87bed8e54618b25e12743d573fff48f45e2909f8aa64482dfac3b9425715dea"
+        },
+        {
+          "occupiedPixels": 48988,
+          "coloredPixels": 46206,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "d209d88b5249cc8d19e426bd8b10e96184e61b1000ded97188509474524cf482"
+        },
+        {
+          "occupiedPixels": 50488,
+          "coloredPixels": 46485,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "dd819e8f7992e9d6b4c29b0431dc308d7521631ebbb735e1a418715bfaf54e9f"
+        }
+      ]
+    },
+    {
+      "name": "atlas-02",
+      "file": "assets/battle-pixel/bosses/atlas-02.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-4e14176d-2596-4360-8481-48b1546d76bb.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-824ff9e1-ce9d-4e92-b5fc-0f420a74bdc1.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 65% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Mudmaw Crocodile: an olive crocodile with muddy stone scales, broad jaws and four short legs; 2. Boglight Witch: a purple frog witch wearing a reed hat and holding a blue will-o-wisp staff; 3. Reedcloak Stalker: a long-legged heron rogue with green reed cloak and curved wooden beak dagger; 4. Mirebell Toad: a large orange toad with green lily-pad collar and bell-shaped cheek pouches; 5. Mossjaw Lamprey: a curling turquoise lamprey with moss frills and a ring of small ivory teeth; 6. Willowveil Wisp: a floating pale-blue spirit in a willow-leaf hood with two glowing eyes and curled ghost tail; 7. Lilypad Hydra: a three-headed jade swamp hydra with lotus crests and a stout four-legged body; 8. Rotcap Alchemist: a russet mushroom alchemist with a black spotted cap, blue potion and woven satchel; 9. Sludgeplate Knight: a stocky green slime knight inside dented bronze armor with a dripping shield; 10. Fenfire Basilisk: a black and emerald six-legged basilisk with amber crown spikes and luminous eyes.",
+      "edits": [
+        {
+          "prompt": "Use case: precise-object-edit. Edit target: the provided transparent 5-column, 2-row pixel-art boss atlas. Preserve all TEN existing boss identities, exact colors, pixel-art detail and exact row-major order. Fix spacing ONLY: redraw every full-body boss at exactly 65% of its current size, centered in its own cell in EXACTLY five equally sized columns by two rows on the same 5:2 canvas. Each complete creature, all wings, horns, staffs and tail, must stay entirely within its own cell with at least 16% fully transparent padding on ALL FOUR sides. No pixels may touch or cross any cell boundary. Keep all empty surrounding space genuinely transparent alpha; no checkerboard, text, lines, frames, labels, numbers, extra objects, floor, shadows, watermarks. The first row is cells1–5 and second row6–10. Produce the complete unchanged-order ten-boss atlas.",
+          "reason": "Shrink all full-body sprites within their own tiles to prevent clipping."
+        }
+      ],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "mudmaw",
+        "bogwitch",
+        "reedstalker",
+        "miretoad",
+        "mosslamprey",
+        "willowwisp",
+        "lilyhydra",
+        "rotcap",
+        "sludgeknight",
+        "fenbasilisk"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "ec6d14c95bf266f933eafa9fe1294fa1f6b7298c5d5dcd309e4c2337bf576386",
+      "sourceSha256": "ec6d14c95bf266f933eafa9fe1294fa1f6b7298c5d5dcd309e4c2337bf576386",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 1118572,
+        "partialPixels": 453640,
+        "opaquePixels": 307,
+        "visiblePixels": 353582,
+        "nearOpaquePixels": 328905
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 33179,
+          "coloredPixels": 28044,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "14a292ab6802c0ede818f444d0cf2a4397cbc40dd13e66901ab55923f9efa5d0"
+        },
+        {
+          "occupiedPixels": 34276,
+          "coloredPixels": 27895,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "6641447500b398f36011d3cffe0be07db18ceb9621462e5bdd1c242a66bb866b"
+        },
+        {
+          "occupiedPixels": 26807,
+          "coloredPixels": 18023,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "473642d39011215578320be8e710978b39ea66913db3e239968a8d76c04297c6"
+        },
+        {
+          "occupiedPixels": 34272,
+          "coloredPixels": 32049,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "600622b4cb2e1295036f041b4951daa12890eb43c6175e811f6fdb0690baead2"
+        },
+        {
+          "occupiedPixels": 38587,
+          "coloredPixels": 33657,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "034a473ebd8dc6898013f1dec7133bffbca6f163fcda7dfb9e4ab9e151ec277e"
+        },
+        {
+          "occupiedPixels": 29454,
+          "coloredPixels": 22992,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "6899967b042a906d5022a3ee2c8e2374a19666f66a6d84ffeeebbd3476f7f3da"
+        },
+        {
+          "occupiedPixels": 47660,
+          "coloredPixels": 39451,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "b5e5a432a4827c24a75f80dfe2f47b0095531cbcc70d6df5086933e2f4173993"
+        },
+        {
+          "occupiedPixels": 32158,
+          "coloredPixels": 27005,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "91a1688b0e4ff305d1d686a7fbc4ac8dfdc5f9af2e092df0c81b2256f0905359"
+        },
+        {
+          "occupiedPixels": 40559,
+          "coloredPixels": 34624,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "e7ad14863f5c202cb9c07090f94f36ced5c801d6392dd254948cc2a1723f4b12"
+        },
+        {
+          "occupiedPixels": 36630,
+          "coloredPixels": 31890,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "a76fd6435ef4900875de2cac8bd8a916f3a5108fa7945181ea3d925e69f2e5c7"
+        }
+      ]
+    },
+    {
+      "name": "atlas-03",
+      "file": "assets/battle-pixel/bosses/atlas-03.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-3c2a99f3-ac5d-4b9d-873f-de7fd5dd5636.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-3c2a99f3-ac5d-4b9d-873f-de7fd5dd5636.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 65% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Craghoof Ram: a gray mountain ram with oversized spiral stone horns and a red braided mane; 2. Frosttalon Eagle: a silver eagle with blue crystal talons and wide ice-tipped wings; 3. Quartzback Armadillo: a round lavender armadillo with a chunky quartz crystal shell and small pink snout; 4. Cobalt Rook: a giant cobalt raven with silver armor feathers, black beak and bright cyan eyes; 5. Gravelpaw Mole: a brown burrowing mole with stone digging claws and a golden miner helmet; 6. Summitclub Ogre: a blue mountain ogre in a shaggy white fur vest holding a rounded stone club; 7. Avalanche Ape: a hulking white mountain ape with ice-blue hands and a crown of stone ridges; 8. Shardhorn Ibex: a black ibex with turquoise shard horns and silver geometric hoof armor; 9. Granitewing Gryphon: a winged gryphon with granite-gray lion body and amber crystal eagle head; 10. Ironpeak Titan: a towering silver mountain titan with angular iron armor and glowing ruby core.",
+      "edits": [],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "cragram",
+        "frosttalon",
+        "quartzback",
+        "cobaltrook",
+        "gravelmole",
+        "summitogre",
+        "avalancheape",
+        "shardhorn",
+        "granitegryphon",
+        "ironpeak"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "3cc6d949c65c43943430530fe2398a89bff348c641fa51cabed18925d28f68a2",
+      "sourceSha256": "3cc6d949c65c43943430530fe2398a89bff348c641fa51cabed18925d28f68a2",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 657346,
+        "partialPixels": 915002,
+        "opaquePixels": 171,
+        "visiblePixels": 749020,
+        "nearOpaquePixels": 708935
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 71951,
+          "coloredPixels": 65938,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "8370ec08f8757056aab147d723cc0181d7301a5d4697693bc513068036870585"
+        },
+        {
+          "occupiedPixels": 80739,
+          "coloredPixels": 73123,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "c1b0d6f5b3952829ab36968c2971293853082156dba5d578a38c5652e39d29d8"
+        },
+        {
+          "occupiedPixels": 65112,
+          "coloredPixels": 62596,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "e133d0f343cf17167deccd72407273f951881af8facd06f682a82e68f0654904"
+        },
+        {
+          "occupiedPixels": 69256,
+          "coloredPixels": 64213,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "be8b0271570d6791fce4b797a521b0cb4455293abd32ad4282b07649d2432e9c"
+        },
+        {
+          "occupiedPixels": 60371,
+          "coloredPixels": 57094,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "ecd1d02de97003fb0def1cc32cc5df1635d924baceda33e94ff833004013b8b8"
+        },
+        {
+          "occupiedPixels": 81403,
+          "coloredPixels": 78022,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "f38d5c08848474245c40b581ed638f2aa79fba1bab501d8d379ba3ce718e5bd4"
+        },
+        {
+          "occupiedPixels": 85942,
+          "coloredPixels": 67404,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "54c5fb89c87d833ac7267d47af81a6940e5d413d877b833a24c8971438863c4b"
+        },
+        {
+          "occupiedPixels": 59087,
+          "coloredPixels": 50788,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "425d0fbaab1b154f7396015950080dafdc29699776d781fd47a7ccdd35fbeec2"
+        },
+        {
+          "occupiedPixels": 88352,
+          "coloredPixels": 76000,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "7465028650b79c9160a61e5e9bb2cfe6ecb7f123a25021510cab59fee34556ba"
+        },
+        {
+          "occupiedPixels": 86807,
+          "coloredPixels": 67019,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "415a621f8c674ba66f8a18b052de08a59939fd8f7ce3aa6b1e5c01b4ad8ef92c"
+        }
+      ]
+    },
+    {
+      "name": "atlas-04",
+      "file": "assets/battle-pixel/bosses/atlas-04.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-3cf26f13-af99-4e55-9c34-d176b203c678.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-76cf3e6b-bcf5-4681-b462-29723f5843e6.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 65% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Coralcrest Colossus: a broad coral-pink reef golem with blue anemone hands and branching coral crown; 2. Pearlmoon Witch: a lilac merfolk witch with a pearl crown, coiled fish tail and silver shell wand; 3. Tidalcrest Orca: a hovering black and white orca with turquoise wave fins and a bright blue crest; 4. Reefjaw Shark: a small blue reef shark with orange coral dorsal fin and broad friendly jaws; 5. Barnacle King: a stout purple crab wearing a blue barnacle crown with oversized armored claws; 6. Jellylantern Seer: a golden jellyfish with a blue glowing bell and seven trailing amber tentacles; 7. Kelpveil Kraken: a huge teal octopus with a crown of emerald kelp and eight curled powerful arms; 8. Seaglass Drake: a slender aquamarine water dragon with translucent glass fins and pearl horns; 9. Spiralshell Oracle: a violet sea snail sage with golden spiral shell and a little silver staff; 10. Abysslight Angler: a midnight-blue armored anglerfish with a radiant star lure and purple fan fins.",
+      "edits": [
+        {
+          "prompt": "Use case: precise-object-edit. Edit target: the provided transparent 5-column, 2-row pixel-art boss atlas. Preserve all TEN existing boss identities, exact colors, pixel-art detail and exact row-major order. Fix spacing ONLY: redraw every full-body boss at exactly 65% of its current size, centered in its own cell in EXACTLY five equally sized columns by two rows on the same 5:2 canvas. Each complete creature, all wings, horns, staffs and tail, must stay entirely within its own cell with at least 16% fully transparent padding on ALL FOUR sides. No pixels may touch or cross any cell boundary. Keep all empty surrounding space genuinely transparent alpha; no checkerboard, text, lines, frames, labels, numbers, extra objects, floor, shadows, watermarks. The first row is cells1–5 and second row6–10. Produce the complete unchanged-order ten-boss atlas.",
+          "reason": "Shrink all full-body sprites within their own tiles to prevent clipping."
+        }
+      ],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "coralcolossus",
+        "pearlwitch",
+        "tidalorca",
+        "reefjaw",
+        "barnacleking",
+        "jellylantern",
+        "kelpkraken",
+        "seaglassdrake",
+        "shelloracle",
+        "abyssangler"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "ed3aa03e4a470316898184f97c2f50571fa53442176ee60d2e304853e876c45f",
+      "sourceSha256": "ed3aa03e4a470316898184f97c2f50571fa53442176ee60d2e304853e876c45f",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 1055204,
+        "partialPixels": 517141,
+        "opaquePixels": 174,
+        "visiblePixels": 421683,
+        "nearOpaquePixels": 388332
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 45743,
+          "coloredPixels": 45194,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "52db56a8bc3413b42b0bce3180cc25d115ec15c814909e249a42c1b53b80f7c9"
+        },
+        {
+          "occupiedPixels": 36528,
+          "coloredPixels": 34724,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "e22377546acf4b1a8213b8c56e5f50f3b27553a62026b59026d32b9f38a06112"
+        },
+        {
+          "occupiedPixels": 40335,
+          "coloredPixels": 37698,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "2ed3542d8e7d7c31ab6f894efe2bbc66ebd2b620183f015ee8efa789271fb4c5"
+        },
+        {
+          "occupiedPixels": 28435,
+          "coloredPixels": 26597,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "6a0f1cc35a56a82429f7048e134aa14121955d92292950a2561f9e6bd2ffea69"
+        },
+        {
+          "occupiedPixels": 40464,
+          "coloredPixels": 39201,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "3c17464b446a61d1990d37b7bd20a023e5c9c1ee42f34ed34b89ebb16739b9f7"
+        },
+        {
+          "occupiedPixels": 40590,
+          "coloredPixels": 39532,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "62dd822e0da5dc897a06f885732f5f14a6eab1b70c158f676291d1a67829481b"
+        },
+        {
+          "occupiedPixels": 58795,
+          "coloredPixels": 57225,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "968473a7c071c3ba29d44f863aa882f5d4b0f55be7cf4985b6d7057d156d86d8"
+        },
+        {
+          "occupiedPixels": 47606,
+          "coloredPixels": 45973,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "11be2a7204c2a2f02c8fe41b24ddb633fe4633a882214014f28742aea483d38e"
+        },
+        {
+          "occupiedPixels": 43091,
+          "coloredPixels": 40810,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "8590fc8e66cbeb868e8b1ebe6cfa03cdf0aa2f7bf28c900e8c04a953ef9eb442"
+        },
+        {
+          "occupiedPixels": 40096,
+          "coloredPixels": 39066,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "1e9b26624f2cc867347766000591b51d6cefcf2afca6ea529c7d8e045d58fffa"
+        }
+      ]
+    },
+    {
+      "name": "atlas-05",
+      "file": "assets/battle-pixel/bosses/atlas-05.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-8e03e0cb-b7db-48bf-a571-d8da1db4115e.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-8e03e0cb-b7db-48bf-a571-d8da1db4115e.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Duneboot Jackal: a sandy jackal scout with blue scarf and a curved bronze dagger; 2. Miragecoil Serpent: an orange and turquoise cobra with shimmering diamond hood markings; 3. Amberfang Cobra: a coiled honey-gold cobra with amber crystal fangs and a small red crown; 4. Glassclaw Scorpion: a purple desert scorpion with transparent cyan pincers and arched crystal tail; 5. Sunplate Scarab: a golden scarab beetle with red solar disc shell and six stout armored legs; 6. Oasiswell Djinn: a mint-blue genie with a golden turban, water-droplet torso and curling whirlpool tail; 7. Sandstone Mason: a squat orange sandstone giant with turquoise mosaic fists and square head; 8. Brasswing Vulture: a bronze mechanical desert vulture with silver beak and jewel-green wing tips; 9. Dustveil Dancer: a swirling crimson sand spirit with gold mask, ribbon arms and a tornado lower body; 10. Pharaohstar Cat: a regal black feline sphinx with striped blue-gold headdress and celestial anklets. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+      "edits": [],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "dunejackal",
+        "mirageserpent",
+        "ambercobra",
+        "glassscorpion",
+        "sunscarab",
+        "oasisdjinn",
+        "sandstonegiant",
+        "brassvulture",
+        "dustdancer",
+        "pharaohcat"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "71860e134ee304448d97fea0b562c33b969cfecec9917dc056871e62ad6710fb",
+      "sourceSha256": "71860e134ee304448d97fea0b562c33b969cfecec9917dc056871e62ad6710fb",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 1070385,
+        "partialPixels": 501808,
+        "opaquePixels": 326,
+        "visiblePixels": 380219,
+        "nearOpaquePixels": 350888
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 26728,
+          "coloredPixels": 26578,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "a680f531714196d272ae21558c0940ede254ba32753cc5659597768f91a486d7"
+        },
+        {
+          "occupiedPixels": 33904,
+          "coloredPixels": 33464,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "530f673a37dc4111507525e0ea6fa67932d52affbf76d17703d0941dbac3f773"
+        },
+        {
+          "occupiedPixels": 32919,
+          "coloredPixels": 32737,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "7b7f699b3aae27b7b4c7f07082beafe0f4c70f6cbca5a762d206ae0a57312da1"
+        },
+        {
+          "occupiedPixels": 33329,
+          "coloredPixels": 31978,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "d65179b4b19f236a3528720d612100042b2af4bc9c40d0be21c21c1cdcd5b572"
+        },
+        {
+          "occupiedPixels": 40416,
+          "coloredPixels": 39416,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "4de1a81cfc444fe411f13d9f0da74ba433c6fbc672b5e136e3480ecbd4abb9a4"
+        },
+        {
+          "occupiedPixels": 32699,
+          "coloredPixels": 32079,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "493fb66081482e0951a4385c6ebbab9a53eddd4904657bd15f284a38ab4155c5"
+        },
+        {
+          "occupiedPixels": 57354,
+          "coloredPixels": 56486,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "3ff58d1bd931152cbafb25e80ca019d43cc7da54028d01594dc05cad0af5d645"
+        },
+        {
+          "occupiedPixels": 45697,
+          "coloredPixels": 44239,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "24459d648e8e60e474c382fd3e072e627b8279440695f45e2b01b8e7bb3afc6a"
+        },
+        {
+          "occupiedPixels": 38807,
+          "coloredPixels": 38719,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "b5acc2dba6bea373a270da2b674dc6134704e6483b6d38f029144b5945b61e10"
+        },
+        {
+          "occupiedPixels": 38366,
+          "coloredPixels": 35598,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "ce06b6e4ee96b1700f75f96f33c8deee77eff538db638766378ebac6fd64bb45"
+        }
+      ]
+    },
+    {
+      "name": "atlas-06",
+      "file": "assets/battle-pixel/bosses/atlas-06.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-b86ac104-1410-490d-b4fd-acee900f1001.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-b86ac104-1410-490d-b4fd-acee900f1001.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Ashhorn Minotaur: a charcoal bull warrior with orange volcanic horns and a broad brass hammer; 2. Lavashell Crab: a small ruby-red crab with black rock shell and bright orange claw tips; 3. Emberwing Wasp: a black and gold wasp with fiery orange wings and ruby abdomen; 4. Sootcap Imp: a squat purple imp with a sooty orange cap and a little glowing coal staff; 5. Magmafin Wyrm: a chunky orange lava serpent with black plated back and ruby crystal fins; 6. Furnaceplate Knight: a heavy bronze armored knight with a fiery furnace chest and iron tower shield; 7. Cinderplume Phoenix: a crimson phoenix with gold flame feathers and a curling violet ember tail; 8. Basaltback Bull: a black basalt bull with broad silver horns and glowing orange hooves; 9. Coalglow Witch: a small russet fox witch in black robes with an orange coal orb floating above one paw; 10. Infernostar Hound: a towering three-headed violet fire hound with gold collars and contained orange flame mane. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+      "edits": [],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "ashminotaur",
+        "lavacrab",
+        "emberwasp",
+        "sootimp",
+        "magmawyrm",
+        "furnaceknight",
+        "cinderphoenix",
+        "basaltbull",
+        "coalwitch",
+        "infernohound"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "e6b2d164972a3b821f8218ec067e88a8226d0904629ffd991301b6bcd3a07cc5",
+      "sourceSha256": "e6b2d164972a3b821f8218ec067e88a8226d0904629ffd991301b6bcd3a07cc5",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 1102451,
+        "partialPixels": 469820,
+        "opaquePixels": 248,
+        "visiblePixels": 360307,
+        "nearOpaquePixels": 328979
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 40598,
+          "coloredPixels": 24171,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "f41d25b48df204d1cd6ead35d529a50031831cfbc9fc116fbe7aea5c141b2971"
+        },
+        {
+          "occupiedPixels": 29289,
+          "coloredPixels": 26850,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "7c351815d91545004c9930e11d4ca04e5341496a684ee70fd3761f9af80f47e0"
+        },
+        {
+          "occupiedPixels": 25920,
+          "coloredPixels": 23378,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "fd6be0004a8deb6f1182c18fc11424f56ae4159362ce00a3171086f1292b3dbf"
+        },
+        {
+          "occupiedPixels": 27418,
+          "coloredPixels": 25310,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "f28b06553885bd1ade19f7817cb88b5d0bd442bba6adde4239ee562e89362850"
+        },
+        {
+          "occupiedPixels": 40683,
+          "coloredPixels": 37672,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "1837a55f83b64d8408e91696f2920158e059d2f19f9c89fd064844707d55a2c1"
+        },
+        {
+          "occupiedPixels": 42664,
+          "coloredPixels": 36783,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "7ac8cfcdb79f8dfb6bda30a7a73072bc8c95a8bb24d724c9a89db48a3f6e2176"
+        },
+        {
+          "occupiedPixels": 39240,
+          "coloredPixels": 39096,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "292c184598d1dd1ebce340495a6e693e229acfd4b77962f9d23f1817caf42ce7"
+        },
+        {
+          "occupiedPixels": 38997,
+          "coloredPixels": 28521,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "f1494fe2b4f89c2f9f048eb11a21cb2435a6b8f3f2505bda637e7c7269a6abc0"
+        },
+        {
+          "occupiedPixels": 26487,
+          "coloredPixels": 22143,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "d9b9f16be5e5b9560dc046e9c2acc7294b0aa0fd98edb838e4bfc13aff4cbb11"
+        },
+        {
+          "occupiedPixels": 49011,
+          "coloredPixels": 46017,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "c1f195c8d6e2e35c3611ad835e75effcacff1c568b3679de581bdc54f167c021"
+        }
+      ]
+    },
+    {
+      "name": "atlas-07",
+      "file": "assets/battle-pixel/bosses/atlas-07.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-d58131e4-e113-4dae-b143-c55ce730eef0.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-d58131e4-e113-4dae-b143-c55ce730eef0.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Icetooth Walrus: a blue-gray walrus with thick ivory tusks, white mustache and ice crystal back; 2. Snowfeather Harpy: a white owl harpy with lavender face, blue scarf and wide feathered arm wings; 3. Rimeblock Golem: a squat mint-blue ice block golem with ruby eyes and square snow-capped fists; 4. Winterveil Moth: a large silver moth with blue snowflake wing patterns and a fuzzy lavender body; 5. Hoarfrost Bear: a sturdy white polar bear with blue crystal claws and a crown of frozen branches; 6. Glacialback Turtle: a pale cyan turtle with a faceted purple iceberg shell and golden eyes; 7. Frostcrown Regent: a regal ice spirit with blue crystal crown, white robes and a curling snowy ghost tail; 8. Blizzardhoof Elk: a lavender elk with snowflake antlers and a white windblown mane; 9. Aurorascale Wyrm: a long teal dragon with pink aurora ribbon wings and pearl horn crest; 10. Crystalcap Penguin: a stout navy penguin wearing a blue crystal helmet and carrying an icy paddle. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+      "edits": [],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "icetooth",
+        "snowharpy",
+        "rimegolem",
+        "wintermoth",
+        "hoarfrostbear",
+        "glacialturtle",
+        "frostcrown",
+        "blizzardelk",
+        "aurorawyrm",
+        "crystalpenguin"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "16b72852632a18650ac499b7b7ce4b929515fa803c0facf07a113856c130907c",
+      "sourceSha256": "16b72852632a18650ac499b7b7ce4b929515fa803c0facf07a113856c130907c",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 968616,
+        "partialPixels": 603839,
+        "opaquePixels": 64,
+        "visiblePixels": 437569,
+        "nearOpaquePixels": 394663
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 44813,
+          "coloredPixels": 42811,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "28e52c0f42ff2005ce819bf928ff4fef28e94d69d9c01dc7fd099050035fa7b8"
+        },
+        {
+          "occupiedPixels": 41862,
+          "coloredPixels": 34835,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "06676feae44267ff8b9e8173729d12073f787df46713a9ff895f2de968c8ab30"
+        },
+        {
+          "occupiedPixels": 40088,
+          "coloredPixels": 36188,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "5f6c8222cdc0893af1b28a9031756f6d91ccd7eeab86b5def334b95ac737d081"
+        },
+        {
+          "occupiedPixels": 50115,
+          "coloredPixels": 48695,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "7188e79835d795da5f6b5de6707c1388ee0ab92d679185e938dbae66a5d910c4"
+        },
+        {
+          "occupiedPixels": 46778,
+          "coloredPixels": 34952,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "a0ebafe9f28085b01c22424c3b4362dd241faf679e11efa8f3f4e9c712fc3839"
+        },
+        {
+          "occupiedPixels": 42258,
+          "coloredPixels": 38469,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "a75483e4e3847cae22d1b59264df27bd65dc47acff355ee1ba67675557109b07"
+        },
+        {
+          "occupiedPixels": 40420,
+          "coloredPixels": 35086,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "fc68e2b1022cce5669a9276b798e021c25a041200d98d3316f40fcedd60b4fb4"
+        },
+        {
+          "occupiedPixels": 36529,
+          "coloredPixels": 33048,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "a9f0b4b7b3d4561ea5c049a1d323312cfae61df1d588cffe17eb5898d557d1e4"
+        },
+        {
+          "occupiedPixels": 62562,
+          "coloredPixels": 60309,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "e8204399829fe02b0d5b1562ae8c8c7834140464e554dbac2c6221f4f3dd25e8"
+        },
+        {
+          "occupiedPixels": 32144,
+          "coloredPixels": 30128,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "fdd764d9591a7f91cbec45071c2fa89d80c0f859c0377f2af21cf9ad0d98dc23"
+        }
+      ]
+    },
+    {
+      "name": "atlas-08",
+      "file": "assets/battle-pixel/bosses/atlas-08.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-79fe5677-3d98-456f-86e1-236e56e0b3b0.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-a1317fc4-719c-4a8c-8268-6bc794c21464.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Cogweb Arachnid: a brass clockwork spider with eight gear-jointed legs and glowing cyan eyes; 2. Steamplate Rhino: a copper robotic rhinoceros with a silver drill horn and small steam chimney; 3. Coppercap Jester: a copper toy jester with green spring legs, bell hat and rounded baton; 4. Clockblade Mantis: a silver mechanical mantis with blue clock-face chest and gold blade arms; 5. Mercurywing Gargoyle: a glossy silver gargoyle with folded violet crystal wings and three blue eyes; 6. Gearjaw Behemoth: a huge bronze robot gorilla with gear shoulders, cyan furnace heart and massive fists; 7. Voltwing Vulture: a teal electric robot vulture with golden lightning wing feathers and yellow beak; 8. Magnetmaw Mimic: a red metal horseshoe magnet creature with little iron feet and an open square jaw; 9. Prismcore Droid: a floating white diamond robot with four small crystal fins and rainbow central lens; 10. Chronocrown Titan: a towering gold clockwork titan with a blue hourglass chest, silver limbs and crown gears. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+      "edits": [
+        {
+          "prompt": "Use case: precise-object-edit. Edit target: the supplied transparent ten-boss pixel-art sprite atlas. Preserve the ten boss identities, pixel art detail, exact colors, and exact left-to-right order of five columns by two rows. Correct spacing ONLY: redraw each sprite at 65% of its present size, precisely centered in its own invisible cell. Every complete creature must have at least20% transparent padding on all four cell edges. In particular the gold clockwork titan in the bottom-right must have clean transparent margin below its feet and to its right. Keep the same 5:2 overall aspect ratio. True transparent alpha. No floor, shadows, panels, lines, checkerboard, captions, text, numbers or watermark. No sprite pixel may touch any cell boundary.",
+          "reason": "Shrink all full-body sprites within their own tiles to prevent clipping."
+        }
+      ],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "cogarachnid",
+        "steamrhino",
+        "copperjester",
+        "clockmantis",
+        "mercurygargoyle",
+        "gearbehemoth",
+        "voltvulture",
+        "magnetmaw",
+        "prismdroid",
+        "chronotitan"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "b01bd3c79051615e1722bfca3c1bb890d6bb8fb8d0e851adc448b49b944bcb2d",
+      "sourceSha256": "b01bd3c79051615e1722bfca3c1bb890d6bb8fb8d0e851adc448b49b944bcb2d",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 1272636,
+        "partialPixels": 299406,
+        "opaquePixels": 477,
+        "visiblePixels": 222822,
+        "nearOpaquePixels": 206923
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 19258,
+          "coloredPixels": 15835,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "43bc3e7bb3e92204679430450af9eebafe63bea380e8d7cb75a788affd56521c"
+        },
+        {
+          "occupiedPixels": 23315,
+          "coloredPixels": 17863,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "80366cbffcdff4aa37f927d512c28a3722ef7b6bddf9d448514f84d11789aa50"
+        },
+        {
+          "occupiedPixels": 18238,
+          "coloredPixels": 14318,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "43ae62c52956322ef8a83d27fd6239e3125d71277a4838ccb11b3718ebc02313"
+        },
+        {
+          "occupiedPixels": 18756,
+          "coloredPixels": 10911,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "76fadd205f499040e077d8fdd149ecd5d0d3efae7a0124faaa63fb7863b1d45a"
+        },
+        {
+          "occupiedPixels": 23782,
+          "coloredPixels": 17648,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "04d29343f43022291ae7f4bc65a0b963fe7a38924cdb3ec31cee3b5384bfd136"
+        },
+        {
+          "occupiedPixels": 29832,
+          "coloredPixels": 23158,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "4a7f2ef774bada8ca1e7740bd04e1add8a33df7f7bdfd6f2924030baadf9207a"
+        },
+        {
+          "occupiedPixels": 25274,
+          "coloredPixels": 22215,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "aa24ed65e42c206a07b1485c65291aefef6e01fa72ede35be219863747853994"
+        },
+        {
+          "occupiedPixels": 17926,
+          "coloredPixels": 12741,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "0872fe2e0b663dd10cf0aef2df1845f02ad9dbb9140cbc647138171f27275f43"
+        },
+        {
+          "occupiedPixels": 11004,
+          "coloredPixels": 6753,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "0e5ba3f762851253e7237e5001945fdb06ccb9bace2b31f425042a9e6ffaa458"
+        },
+        {
+          "occupiedPixels": 35437,
+          "coloredPixels": 27243,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "fe270c0fe65685d58e0cbcef52121934d35e34f95262f04c2b9a7ae2e9b1bcb2"
+        }
+      ]
+    },
+    {
+      "name": "atlas-09",
+      "file": "assets/battle-pixel/bosses/atlas-09.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-5d39d73c-8803-46b0-b42f-1f6d6d5d079a.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-5d39d73c-8803-46b0-b42f-1f6d6d5d079a.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Lunarcrown Cobra: a silver lunar cobra with a crescent-shaped lavender hood and midnight star scales; 2. Sunmane Lion: a golden lion with a red solar-disc mane and brilliant amber paws; 3. Starlance Mantis: a midnight-blue mantis with silver star-speckled shell and cyan spear-like forearms; 4. Voidveil Manta: a floating deep-purple manta ray with turquoise luminous fins and a white crescent forehead; 5. Cometwing Gryphon: a violet gryphon with golden comet eagle wings and a long blue starlight tail; 6. Eclipseplate Knight: a black and silver armored knight with a crescent shield and a violet glowing sword; 7. Nebulabell Jelly: a floating pink cosmic jellyfish with blue star-marked bell and six lavender tendrils; 8. Orbitstone Golem: a squat navy stone golem with three small gold rings around its shoulders and glowing green eyes; 9. Constellacrown Stag: a luminous ivory stag with blue star-branch antlers and violet crystal hooves; 10. Cosmicscale Wyrm: a curled sapphire dragon with gold orbit-ring fins and a bright magenta galaxy core. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+      "edits": [],
+      "columns": 5,
+      "rows": 2,
+      "count": 10,
+      "bossIds": [
+        "lunarcobra",
+        "sunlion",
+        "starmantis",
+        "voidmanta",
+        "cometgryphon",
+        "eclipseknight",
+        "nebulajelly",
+        "orbitgolem",
+        "constellastag",
+        "cosmicwyrm"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "6b6262a425a2f34a4cbbc6a18d4fb34e8ffb3bf05dd8a45bfdc9e8fbf82be2c9",
+      "sourceSha256": "6b6262a425a2f34a4cbbc6a18d4fb34e8ffb3bf05dd8a45bfdc9e8fbf82be2c9",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 1045574,
+        "partialPixels": 526845,
+        "opaquePixels": 100,
+        "visiblePixels": 367089,
+        "nearOpaquePixels": 323707
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 36957,
+          "coloredPixels": 25896,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "2d790d14af858f3458392dd42859197d8c7c0d25bff1e2d491f9a287eb5ac04d"
+        },
+        {
+          "occupiedPixels": 41373,
+          "coloredPixels": 40727,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "2cff5ce394a55dff12bcd8550b8b6ee149749f2f56d2a0bde735e49b8779698f"
+        },
+        {
+          "occupiedPixels": 26533,
+          "coloredPixels": 23819,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "274f2256b4075bac682f1b4e3872ea0d4cff654a623c8aa015de6eda2a768517"
+        },
+        {
+          "occupiedPixels": 27826,
+          "coloredPixels": 26024,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "90797c4f91bbf106849f44707e63fdd649b414f0cb884f0aed918c3b6ddb7b76"
+        },
+        {
+          "occupiedPixels": 46190,
+          "coloredPixels": 42615,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "b6adc8b568a94420e18a37173a4958734b5482ece524ca8f478c0b5d83a9179e"
+        },
+        {
+          "occupiedPixels": 41584,
+          "coloredPixels": 29086,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "cacbce2de811ecc01174476d9b441a469839b3195419897b3a693a43866fbc11"
+        },
+        {
+          "occupiedPixels": 28463,
+          "coloredPixels": 28088,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "1c814cc41ab36a6e77326d85a8137522de22c199e8a3ad905f6b0d4b1e7fc8a5"
+        },
+        {
+          "occupiedPixels": 46477,
+          "coloredPixels": 38768,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "d1c1c3212e6121bbda3a85add828fd0021b1fd62ca814ff4a0225979f6f9f87d"
+        },
+        {
+          "occupiedPixels": 26839,
+          "coloredPixels": 23545,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "ee7b34706a3bc7e4fe746df41c68bb47fcd3fb03e5c002c342d377c7448d6ee6"
+        },
+        {
+          "occupiedPixels": 44847,
+          "coloredPixels": 42097,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "5e6ff207b76d3321494de0db8bd411bc222c4aeaeeeb813b70b7d097c6c0b3da"
+        }
+      ]
+    },
+    {
+      "name": "atlas-10",
+      "file": "assets/battle-pixel/bosses/atlas-10.png",
+      "source": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-57380e15-238d-4bcd-b90f-a3e37298e1eb.png",
+      "initialSource": "C:\\Users\\chung\\.codex\\generated_images\\01a11d05-a110-7493-855e-d9b8de4c3bbf\\exec-4700e863-bf54-45ff-a7c8-3f11cc764754.png",
+      "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 4 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Bookspine Wyrm: a small green dragon made of layered red and gold books with page-shaped wings; 2. Candystone King: a stout candy crystal golem with pink peppermint crown and blue sugar fists; 3. Mirrorveil Witch: an ivory porcelain witch with silver mirror face, violet robes and a crystal wand; 4. Dreamweave Chimera: a majestic lavender lion with teal dragon wings, a white owl head and a golden serpent tail. IMPORTANT: only first four cells in the TOP row are occupied. Top-right fifth cell and the entire bottom row are completely transparent and empty. The transparent canvas still has five columns and two rows. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+      "edits": [
+        {
+          "prompt": "Use case: precise-object-edit. Edit target: supplied four-boss transparent pixel-art atlas. Preserve the exact four existing boss designs and their left-to-right order: green book dragon, pink candy golem king, violet mirror-face witch, lavender owl-headed winged chimera. Fix ONLY composition and background. REMOVE EVERY faint colored vertical and horizontal GRID LINE completely; every pixel outside the four creatures must be transparent. Render each complete creature at60% of its present size and centered within its own square cell. The image keeps a5:2 aspect ratio and an invisible5columns×2rows layout. Place the four bosses in cells1,2,3,4 of the TOP row; the fifth top-row cell and ALL FIVE bottom-row cells must be100% transparent and empty. Each used cell must have at least20% transparent margin along all four edges. No border, cell separators, panels, checkerboard, shadows, floor, text, labels, numbers, watermarks or extra sprites. No pixels may touch any cell boundary. Keep exact pixel-art style and all wings, horns, tails, staffs and feet fully visible.",
+          "reason": "Remove faint gridlines and center four full bodies with transparent tile margins."
+        }
+      ],
+      "columns": 5,
+      "rows": 2,
+      "count": 4,
+      "bossIds": [
+        "bookwyrm",
+        "candyking",
+        "mirrorwitch",
+        "dreamchimera"
+      ],
+      "nativePngUnchanged": true,
+      "fullBodyVisualReview": "passed",
+      "gridVisualReview": "passed",
+      "sha256": "f150631dc33173f9f57626d20ee6e1053310f84d4a07b02a3e6a20247af22917",
+      "sourceSha256": "f150631dc33173f9f57626d20ee6e1053310f84d4a07b02a3e6a20247af22917",
+      "width": 1983,
+      "height": 793,
+      "aspect": 1.0002522068095838,
+      "alpha": {
+        "transparentPixels": 1365536,
+        "partialPixels": 206833,
+        "opaquePixels": 150,
+        "visiblePixels": 154584,
+        "nearOpaquePixels": 143693
+      },
+      "tiles": [
+        {
+          "occupiedPixels": 36711,
+          "coloredPixels": 33813,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "4a4fabc99aa984eb267da19f8b0e41b71a2f274348e86963c66c5df594effe6b"
+        },
+        {
+          "occupiedPixels": 37367,
+          "coloredPixels": 34147,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "aeddbb0b8df4fd6a111c52bec436a74301234d9f684d5162e911b82dba929cb1"
+        },
+        {
+          "occupiedPixels": 37829,
+          "coloredPixels": 36008,
+          "edgePixels": 0,
+          "area": 156816,
+          "fingerprint": "de4e4db056f8d31a9d60b785cefa1c3adbbbb295dd50e39d497e0a0d00a109cd"
+        },
+        {
+          "occupiedPixels": 42677,
+          "coloredPixels": 39763,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "0bc28a8e1f9ddcd625cb7ee1064911930c5b2bbc6c8f75c77f02ed263f694414"
+        },
+        {
+          "occupiedPixels": 0,
+          "coloredPixels": 0,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "4fe7b59af6de3b665b67788cc2f99892ab827efae3a467342b3bb4e3bc8e5bfe"
+        },
+        {
+          "occupiedPixels": 0,
+          "coloredPixels": 0,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "4fe7b59af6de3b665b67788cc2f99892ab827efae3a467342b3bb4e3bc8e5bfe"
+        },
+        {
+          "occupiedPixels": 0,
+          "coloredPixels": 0,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "4fe7b59af6de3b665b67788cc2f99892ab827efae3a467342b3bb4e3bc8e5bfe"
+        },
+        {
+          "occupiedPixels": 0,
+          "coloredPixels": 0,
+          "edgePixels": 0,
+          "area": 157212,
+          "fingerprint": "4fe7b59af6de3b665b67788cc2f99892ab827efae3a467342b3bb4e3bc8e5bfe"
+        },
+        {
+          "occupiedPixels": 0,
+          "coloredPixels": 0,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "4fe7b59af6de3b665b67788cc2f99892ab827efae3a467342b3bb4e3bc8e5bfe"
+        },
+        {
+          "occupiedPixels": 0,
+          "coloredPixels": 0,
+          "edgePixels": 0,
+          "area": 157609,
+          "fingerprint": "4fe7b59af6de3b665b67788cc2f99892ab827efae3a467342b3bb4e3bc8e5bfe"
+        }
+      ]
+    }
+  ]
+}

@@ -16,13 +16,13 @@ async function idle(){await page.waitForFunction(()=>document.getElementById('sh
 try{
   await page.route('https://hero.test/**',async route=>{
     const url=new URL(route.request().url());
-    if(url.pathname==='/') return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif}button,select{font:inherit}</style><base href="https://hero.test/"><link rel="stylesheet" href="student-heroes.css"><link rel="stylesheet" href="battle-animation.css"><link rel="stylesheet" href="hero-skill-tree.css"></head><body><button id="myHeroBtn">My Hero</button><button id="heroClaimsBtn">Hero claims</button><div id="profileModal"></div></body></html>'});
+    if(url.pathname==='/') return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif}button,select{font:inherit}</style><base href="https://hero.test/"><link rel="stylesheet" href="classroom-battle.css"><link rel="stylesheet" href="student-heroes.css"><link rel="stylesheet" href="battle-animation.css"><link rel="stylesheet" href="hero-skill-tree.css"></head><body><button id="myHeroBtn">My Hero</button><button id="heroClaimsBtn">Hero claims</button><div id="profileModal"></div></body></html>'});
     const local=path.resolve('.'+url.pathname);
     if(!local.startsWith(process.cwd()+path.sep)||!fs.existsSync(local))return route.abort();
     return route.fulfill({path:local});
   });
   await page.goto('https://hero.test/');
-  for(const script of ['battle-bosses.js','battle-content.js','battle-core.js','battle-animation.js','hero-skill-tree.js'])await page.addScriptTag({url:'/'+script});
+  for(const script of ['battle-bosses.js','battle-content.js','battle-core.js','battle-display.js','battle-animation.js','hero-skill-tree.js'])await page.addScriptTag({url:'/'+script});
   await page.evaluate(()=>{
     window.currentUser={uid:'student-a',email:'ari@example.test'};
     window.isAdmin=u=>u?.uid==='teacher';window.isSharedVisitor=()=>false;window.profileComplete=()=>true;window.studentProfile={level:'P5'};
@@ -86,6 +86,17 @@ try{
   check('learning through the graph persists progression at the API boundary',await page.evaluate(()=>__heroFixture.hero.learnedSkills.includes('mage-ice-lance')&&__heroFixture.hero.skillPoints===7));
   await page.locator('[data-sh-equip]').first().click();await idle();
   check('equipment uses the inventory instance identifier',await page.evaluate(()=>__heroFixture.hero.equipped?.startsWith('bag:')));
+  check('My Hero renders ten gear slots and a companion around the character',await page.locator('[data-equipment-slot]').count()===11&&await page.locator('[data-equipment-slot="pet"]').count()===1);
+  await page.evaluate(()=>{const Core=ClassroomBattleCore;for(const slot of ['helm','torso','pet']){const item=Object.values(Core.ITEMS).find(i=>Core.equipmentSlot(i)===slot);if(!__heroFixture.hero.inventory.some(e=>e.itemId===item.id))__heroFixture.hero.inventory.push({id:'bag:'+item.id,itemId:item.id,quantity:1});}});
+  await page.click('#shRefresh');await page.waitForSelector('[data-sh-loadout-slot="pet"]:not([disabled])');
+  let beforePet;
+  for(const slot of ['helm','torso','pet']){const id=await page.evaluate(slot=>{const Core=ClassroomBattleCore;return __heroFixture.hero.inventory.find(e=>Core.equipmentSlot(Core.itemById(e.itemId))===slot).id;},slot);if(slot==='pet')beforePet=await page.evaluate(()=>({damage:__heroFixture.hero.stats.damage,maxHp:__heroFixture.hero.stats.maxHp}));await page.selectOption('[data-sh-loadout-slot="'+slot+'"]',id);await idle();}
+  check('independent gear and pet choices save together with their target slots',await page.evaluate(()=>['helm','torso','pet'].every(slot=>!!ClassroomBattleCore.loadoutFor(__heroFixture.hero)[slot])&&__heroFixture.calls.filter(call=>call.command==='equip'&&call.slot).length>=3));
+  check('equipped pet contributes its attack and health bonuses to the saved character',await page.evaluate(before=>__heroFixture.hero.stats.damage===before.damage+2&&__heroFixture.hero.stats.maxHp===before.maxHp+5,beforePet));
+  const loadoutBefore=await page.evaluate(()=>ClassroomBattleCore.loadoutFor(__heroFixture.hero));
+  await page.click('[data-sh-remove-slot="helm"]');await idle();
+  check('removing one slot preserves the other gear and pet',await page.evaluate(before=>{const now=ClassroomBattleCore.loadoutFor(__heroFixture.hero);return !now.helm&&now.torso===before.torso&&now.pet===before.pet&&__heroFixture.calls.at(-2)?.slot==='helm';},loadoutBefore));
+  await page.locator('.cbEquipment').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'student-equipment-slots.png'),fullPage:true});
   await page.screenshot({path:path.join(output,'student-my-hero.png'),fullPage:true});
   await page.evaluate(()=>{__heroFixture.active={classId:'Science Saturday 11am',encounterId:'battle-one'};});
   await page.click('#shRefresh');await page.waitForSelector('.shLock');
@@ -124,6 +135,8 @@ try{
   check('refresh restores the saved gender and job from the verified service',await page.locator('.shHeroTop [data-cba-sheet="archmage-genders"][data-cba-gender="female"]').count()===1);
   await page.screenshot({path:path.join(output,'student-advanced-archmage.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await page.locator('.shAppearance').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'student-character-gender-mobile.png'),fullPage:true});
+  await page.locator('.cbEquipment').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'student-equipment-mobile.png'),fullPage:true});
+  check('mobile equipment panel and all eleven slot choices fit without horizontal scrolling',await page.locator('.cbEquipment').evaluate(node=>node.scrollWidth<=node.clientWidth+2)&&await page.locator('[data-sh-loadout-slot]').evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth&&node.getBoundingClientRect().left>=0)));
   await page.screenshot({path:path.join(output,'student-my-hero-mobile.png'),fullPage:true});
   check('mobile dialog fits its viewport',await page.locator('#shDialog').evaluate(d=>d.getBoundingClientRect().width<=window.innerWidth&&d.scrollWidth<=d.clientWidth+2));
   await page.click('#shClose');await page.evaluate(()=>{__heroFixture.delay=true;StudentHeroes.open('student');});

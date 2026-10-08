@@ -13,7 +13,7 @@ let sequence=0;
 const id=()=>`progression-${String(++sequence).padStart(8,'0')}`;
 function stateWith(h,bossId='mossback') {
   let s=C.reduce(null,{type:'start',id:id(),bossId,heroes:[h]});
-  s.heroes=[structuredClone(h)];s.bossHp=s.bossMaxHp=100000;
+  s.bossId=bossId;s.heroes=[structuredClone(h)];s.bossHp=s.bossMaxHp=100000;
   return s;
 }
 const act=(s,type,more={})=>C.reduce(s,{id:id(),type,encounterId:s.encounterId,expectedRevision:s.revision,...more});
@@ -111,13 +111,15 @@ test('automatic commands consider learned active-job abilities but never dormant
 });
 
 function put(h,itemId) {h.inventory.push({id:'bag:'+itemId,itemId,quantity:1});}
-test('automatic equipment selects the highest rarity equipment, preserves ties and ignores consumables',()=>{
-  const h=hero();put(h,'iron-charm');put(h,'starbomb');put(h,'storm-quiver');put(h,'moon-codex');
-  assert.equal(C.autoEquip(h),'storm-quiver');assert.equal(h.equipped,'bag:storm-quiver');
+test('automatic equipment selects the highest rarity in every slot, preserves ties and ignores consumables',()=>{
+  const weapons=Object.values(C.ITEMS).filter(i=>C.equipmentSlot(i)==='mainHand');
+  const rare=weapons.find(i=>i.rarity==='rare'),tie=weapons.find(i=>i.rarity==='rare'&&i.id!==rare.id),mythical=weapons.find(i=>i.rarity==='mythical');
+  const h=hero();put(h,'starbomb');put(h,rare.id);put(h,tie.id);
+  assert.equal(C.autoEquip(h),rare.id);assert.equal(h.loadout.mainHand,'bag:'+rare.id);
   const inventory=structuredClone(h.inventory);assert.equal(C.autoEquip(h),null);assert.deepEqual(h.inventory,inventory);
-  h.equipped='bag:moon-codex';assert.equal(C.autoEquip(h),null);assert.equal(h.equipped,'bag:moon-codex');
-  put(h,'void-edge');assert.equal(C.autoEquip(h),'void-edge');assert.equal(h.equipped,'bag:void-edge');
-  put(h,'phoenix-crown');assert.equal(C.autoEquip(h),null);assert.equal(h.equipped,'bag:void-edge');
+  h.loadout.mainHand='bag:'+tie.id;assert.equal(C.autoEquip(h),null);assert.equal(h.loadout.mainHand,'bag:'+tie.id);
+  put(h,mythical.id);assert.equal(C.autoEquip(h),mythical.id);assert.equal(h.loadout.mainHand,'bag:'+mythical.id);
+  put(h,'phoenix-crown');assert.equal(C.autoEquip(h),'phoenix-crown');assert.equal(h.loadout.helm,'bag:phoenix-crown');assert.equal(h.loadout.mainHand,'bag:'+mythical.id);
   const empty=hero();assert.equal(C.autoEquip(empty),null);assert.equal(empty.equipped,null);
 });
 
@@ -132,8 +134,8 @@ test('auto-equipping HP or MP gear cannot heal, refill mana or revive fallen her
 test('victory equips each heroes highest-rarity collected gear and announces changes once',()=>{
   const h=hero();put(h,'void-edge');let s=stateWith(h,'goblin');s.bossHp=1;
   const selected=act(s,'select',{heroId:h.id});const next=act(selected,'answer',{turnId:selected.pending.id,outcome:'correct'});
-  assert.equal(next.status,'victory');assert.equal(next.heroes[0].equipped,'bag:void-edge');
-  assert.equal(next.rewards[0].autoEquipped,'void-edge');assert.equal(next.rewards[0].autoEquippedName,'Void Edge');
+  assert.equal(next.status,'victory');assert.equal(next.heroes[0].loadout.mainHand,'bag:void-edge');
+  assert.ok(next.rewards[0].autoEquipped);assert.equal(next.rewards[0].autoEquippedName,C.itemById(next.rewards[0].autoEquipped).name);
   assert.throws(()=>act(next,'answer',{turnId:selected.pending.id,outcome:'correct'}),/finished/);
 });
 
