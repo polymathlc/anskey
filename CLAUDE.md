@@ -2,6 +2,16 @@
 
 Guidance for Claude when working in this repo.
 
+## Full equipment, companions and 100-enemy rounds (v1.127.0)
+
+`battle-content.js` owns eleven `EQUIPMENT_SLOTS`: Helm, Torso, Gloves, Legs, Boots, Amulet, Ring 1, Ring 2, Main Hand, Off Hand and Pet. The catalog has exactly 20 items per gear slot, 30 pets (five per rarity) and eight unchanged consumables: 238 total. Existing 64 equipment IDs retain effects and receive their matching slot; 136 new gear items complete the armory. Keep the six rarity weights unchanged. New gear and pet art uses native ImageGen atlases with explicit `columns`/`rows`; the original five item sheets remain stable.
+
+Canonical `hero.loadout` maps a slot to an owned inventory ID. `Core.loadoutFor` accepts old single `equipped` IDs until migration; `cleanHero` merges duplicate inventory entries, remaps legacy IDs and persists loadoutVersion 1 without healing. `configureHero` validates ownership with `equipmentFits` and supports removing only `action.slot`. Rings fit either ring position, and each position needs an owned copy; auto-equipping reserves copies worn in the other position. `equipmentEffect` aggregates all gear and the pet with bounded fractional effects and boolean OR. `autoEquip` upgrades each slot independently by rarity, retains equal-rarity choices and preserves absolute HP/MP. Character panels in My Hero and the teacher journal use the shared `ClassroomBattleDisplay.equipmentPanel`.
+
+Exactly 100 non-legacy enemies participate in `Core.nextBoss`. Preserve the original 20 legacy IDs for historical snapshots. `bossRotation` saves `{version:1,round,seen}` per teacher and Lesson slot; both quick and manual encounters select only unseen IDs until the pool is exhausted. The core ignores client-requested boss IDs, derives the choice from the saved round and stable action/spin ID, and records it in the same transaction as the encounter. Retry receipts and failed commits cannot consume an extra enemy. Reconcile older six-enemy histories without clearing already-seen IDs. The interface shows the saved round and encountered count.
+
+Run application/server tests, artwork integrity checks and the existing browser suite. `tools/equipment-rotation-tests.mjs` and server repository tests cover old-save migration, simultaneous bonuses, ownership, per-slot removal, two full boss rounds, reloads and rollback. Run `tools/sync-hero-game.mjs` after any final core/content/boss change. Deploy the updated `ansKeyHeroes` service; no shared rules migration is needed.
+
 ## Quests continue across lessons; the quest is the main window (v1.126.0)
 
 `releaseLock` in `functions/hero-repository.js`. A student locked in an active encounter in ANOTHER lesson slot no longer blocks a battle action here: the server moves the hero out of the other party (into its `heroArchive`, clearing a pending answer that was theirs, ending an emptied party as `defeat`) in the same transaction and re-locks the profile to this lesson. A mismatched encounter in the SAME slot still refuses. Guest add still refuses. The wheel window puts the Quick fight duel in the wide column (first on narrow screens) above the mission dock, and the wheel is compact (≤320 px). Requires an `ansKeyHeroes` deploy.

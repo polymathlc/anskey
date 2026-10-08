@@ -206,7 +206,7 @@
     animate(sprite, roleName(hero.role) === 'warrior' ? [{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(20px)' }, { transform: 'translateX(0)' }] : [{ transform: 'translateY(0)' }, { transform: 'translateY(-5px)' }, { transform: 'translateY(0)' }], 750);
     later(function () {
       stage('hero-impact', hero.name + ': ' + (event.move || 'Attack') + (event.damage ? ' · ' + event.damage + ' damage' : ''));
-      if (event.damage > 0) { if(skill) skillEffect(enemyActor,options.preview?'':'−'+event.damage); else effect(fx, enemyActor, '−' + event.damage, fx === 'arrow'); animate(enemyActor && enemyActor.querySelector('img'), [{ filter: 'brightness(1)' }, { filter: 'brightness(2)' }, { filter: 'brightness(1)' }], 420); }
+      if (event.damage > 0) { if(skill) skillEffect(enemyActor,options.preview?'':'−'+event.damage); else effect(fx, enemyActor, '−' + event.damage, fx === 'arrow'); animate(enemyActor && enemyActor.querySelector('img,.cbEnemySprite'), [{ filter: 'brightness(1)' }, { filter: 'brightness(2)' }, { filter: 'brightness(1)' }], 420); }
       var enemyTargets = (event.enemy && event.enemy.targets || []).slice();
       (event.targets || []).forEach(function (target) {
         var enemyIndex = enemyTargets.findIndex(function (other) { return other.heroId === target.heroId && other.damage === target.damage; });
@@ -228,7 +228,7 @@
     if (event.enemy) {
       later(function () {
         stage('enemy-windup', 'Enemy uses ' + event.enemy.move + '…');
-        animate(enemyActor && enemyActor.querySelector('img'), [{ transform: 'translateX(0)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-16px)' }, { transform: 'translateX(0)' }], 560);
+        animate(enemyActor && enemyActor.querySelector('img,.cbEnemySprite'), [{ transform: 'translateX(0)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-16px)' }, { transform: 'translateX(0)' }], 560);
       }, enemyStart);
       later(function () {
         var targets = event.enemy.targets || [];

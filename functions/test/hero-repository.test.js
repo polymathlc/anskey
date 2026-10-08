@@ -115,6 +115,7 @@ test('temporary guests retain canonical cross-lesson locks and concurrent adds c
 
 test('guest membership authorizes start, sync, marks, assists and victory loot using the same registered profile',async()=>{
   const {call,db,visit}=guestSetup();await visit('add');
+  await call(teacher,{type:'configure',command:'class',studentId:'visitor',role:'warrior'});
   const visitor=C.heroFromStudent({id:'visitor',name:'Visiting student'}),party=[...heroes,visitor];
   let state=await begin(call,'Saturday',party);
   state=(await battle(call,'Saturday',{id:aid(),type:'sync',heroes:party,encounterId:state.encounterId,expectedRevision:state.revision})).state;
@@ -565,7 +566,7 @@ test('a direct points award migrates legacy enemy health and commits damage and 
   db.seed(classPath('Saturday'),legacy);
   const request=wheelRequest(legacy),result=await call(teacher,request);
   assert.equal(result.state.enemyHealthVersion,1);assert.equal(result.state.bossMaxHp,2000);
-  assert.equal(result.state.bossHp,1500-result.state.lastEvent.damage);
+  assert.equal(result.state.bossHp,1500-result.state.lastEvent.damage+(result.state.lastEvent.enemy.bossHealed || 0)-(result.state.lastEvent.enemy.poisonDamage || 0));
   assert.equal(result.state.status,'active');assert.equal(result.award.marks,1);
   assert.equal(result.state.heroes[0].xp,legacy.heroes[0].xp+12);
   const saved=structuredClone([...db.data]),retries=await Promise.all([call(teacher,request),call(teacher,request)]);
@@ -684,4 +685,48 @@ test('a student locked in another lesson continues their quest here; the old par
   assert.equal(db.data.get(profilePath('alex')).activeEncounter.classId,'Sunday');
   const old=db.data.get(classPath('Saturday'));assert.ok(!old.heroes.some(h=>h.studentId==='alex'));assert.equal(old.pending,null);assert.ok(old.heroArchive['student:alex']);
   const result=await call(teacher,wheelRequest(moved,{classId:'Sunday',heroes:[heroes[0]]}));assert.equal(result.state.lastEvent.type,'auto');
+});
+
+test('server equipment commands preserve independent slots, validate ownership and save pets across battle retries',async()=>{
+  const {call,db}=setup();await claim(call);
+  const helmet=C.ITEMS['phoenix-crown'],pet=Object.values(C.ITEMS).find(i=>i.type==='pet');
+  const profile=db.data.get(profilePath('alex'));
+  profile.hero.inventory.push({id:'old-crown',itemId:helmet.id,quantity:1},{id:'bag:'+pet.id,itemId:pet.id,quantity:1});
+  delete profile.hero.loadout;delete profile.hero.loadoutVersion;profile.hero.equipped='old-crown';profile.hero.hp=9;profile.hero.mp=2;
+  db.seed(profilePath('alex'),profile);
+  let result=await call(pupil('one'),{type:'configure',command:'equip',studentId:'alex',slot:'pet',itemId:'bag:'+pet.id});
+  assert.deepEqual(result.hero.loadout,{helm:'bag:phoenix-crown',pet:'bag:'+pet.id});assert.equal(result.hero.hp,9);assert.equal(result.hero.mp,2);
+  const before=structuredClone([...db.data]);
+  await assert.rejects(call(pupil('one'),{type:'configure',command:'equip',studentId:'alex',slot:'ring1',itemId:'bag:'+pet.id}),/does not fit/);
+  await assert.rejects(call(pupil('one'),{type:'configure',command:'equip',studentId:'alex',slot:'mainHand',itemId:'bag:unowned'}),/inventory/);
+  assert.deepEqual([...db.data],before);
+  const state=await begin(call),action={type:'sync',id:aid(),encounterId:state.encounterId,expectedRevision:state.revision,command:'equip',heroId:'student:alex',slot:'helm',itemId:null};
+  const [one,two]=await Promise.all([battle(call,'Saturday',action),battle(call,'Saturday',action)]);
+  assert.deepEqual(one.state,two.state);assert.equal(one.state.heroes[0].loadout.helm,undefined);assert.equal(one.state.heroes[0].loadout.pet,'bag:'+pet.id);
+  assert.deepEqual(db.data.get(profilePath('alex')).hero.loadout,one.state.heroes[0].loadout);
+});
+
+test('server persists all 100 enemies before repeating across reopened repositories and duplicate receipts',async()=>{
+  const {db}=setup();let repo=createHeroRepository(db,{now:()=>123456789}),state=null;const ids=[];
+  assert.equal(C.BOSSES.filter(b=>!b.legacy).length,100);
+  for(let index=0;index<101;index++){
+    if(index===50)repo=createHeroRepository(db,{now:()=>123456789});
+    const action={type:'start',id:aid(),heroes,bossId:'goblin',expectedRevision:state?.revision},predicted=C.nextBoss(state,action.id);
+    const request={type:'battle',classId:'Saturday',action};
+    const result=await repo.execute(teacher,request);state=result.state;
+    assert.equal(state.bossId,predicted.id);ids.push(state.bossId);
+    assert.equal(state.bossRotation.round,index<100?1:2);assert.equal(state.bossRotation.seen.length,index%100+1);
+    assert.deepEqual((await repo.execute(teacher,request)).state,state);
+    assert.deepEqual(db.data.get(classPath('Saturday')).bossRotation,state.bossRotation);
+  }
+  assert.equal(new Set(ids.slice(0,100)).size,100);assert.ok(ids.slice(0,100).includes(ids[100]));
+});
+
+test('a failed new Quick fight rolls back the rotation together with points and resumes the same preview on retry',async()=>{
+  const {call,db}=setup();let state=await begin(call);
+  state=(await battle(call,'Saturday',{type:'end',id:aid(),encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  const request=wheelRequest(state,{bossId:state.bossId}),predicted=C.nextBoss(state,request.action.spinId),before=structuredClone([...db.data]);
+  db.failNextCommit=true;await assert.rejects(call(teacher,request),/commit failed/);assert.deepEqual([...db.data],before);
+  const saved=await call(teacher,request);assert.equal(saved.state.bossId,predicted.id);assert.equal(saved.state.bossRotation.seen.length,2);
+  const repeat=await call(teacher,request);assert.equal(repeat.duplicate,true);assert.deepEqual(repeat.state.bossRotation,saved.state.bossRotation);assert.equal(repeat.award.marks,saved.award.marks);
 });

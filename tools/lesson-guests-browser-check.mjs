@@ -118,12 +118,18 @@ async function setup(pendingGuest = false) {
         if (!roster(classId).some(s => s.id === studentId)) throw Object.assign(Error('This student is not in the lesson.'),{code:'roster_changed'});
         Object.assign(trusted,{type:'auto',points:delta});
       }
-      // Keep the encounter alive: these checks exercise attendance, not random victory loot.
-      if (!old && (trusted.type === 'auto' || trusted.type === 'start')) trusted.bossId='dragon';
-      const seeded = old || ((trusted.type === 'auto' || trusted.type === 'start') ? {revision:0,heroes,heroArchive:{}} : null);
+      // Keep the encounter alive: these checks exercise attendance rather
+      // than enemy selection or treasure. Production ignores supplied bosses.
+      let seeded = old || ((trusted.type === 'auto' || trusted.type === 'start') ? {revision:0,heroes,heroArchive:{}} : null);
       if (!old && seeded) trusted.expectedRevision=0;
+      if (!old && trusted.type === 'auto') {
+        seeded=ClassroomBattleCore.reduce(seeded,{type:'start',id:trusted.id,expectedRevision:0,heroes,spinId:trusted.spinId});
+        seeded.bossHp=seeded.bossMaxHp=100000;
+        trusted.encounterId=seeded.encounterId;trusted.expectedRevision=seeded.revision;
+      }
       const next = ClassroomBattleCore.reduce(seeded, trusted);
       const state = next ? {...next,teacherId:currentUser.uid,classId} : null;
+      if (!old && trusted.type === 'start') state.bossHp=state.bossMaxHp=100000;
       let award;
       if (type === 'wheelAward') {
         documents['students/' + studentId].marks += delta;
@@ -248,6 +254,7 @@ try {
   check('temporary guest flows run without uncaught browser exceptions',errors.length === 0);
   console.log(`Passed ${checks} temporary lesson guest browser checks.`);
 } catch (error) {
+  console.error('Browser exceptions:',errors);
   console.error(await page.evaluate(() => ({guestStatus:document.getElementById('wheelGuestStatus')?.textContent,quickStatus:document.getElementById('wheelQuickStatus')?.textContent,selected:window.wheelState?.names[window.wheelWinnerIdx],hero:window.__battleState?.()?.heroes.find(h=>h.studentId==='away-alex'),errors:window.__guestCalls})));
   throw error;
 } finally {

@@ -105,11 +105,19 @@ try {
   await setup();
   check('teacher opens the battle with original wheel and independent pixel avatars', await page.evaluate(() => document.querySelectorAll('#cbHeroes .cbHero').length === 16 && document.querySelectorAll('#cbHeroes [data-cba-sheet][data-cba-gender]').length === 16 && !!document.querySelector('#cbWheelMount #wheelCanvas')));
   check('animated avatars leave room for every hero name and HP label', await page.evaluate(() => [...document.querySelectorAll('#cbHeroes .cbHero')].every(node => node.querySelector('.cbHeroHp').getBoundingClientRect().bottom <= node.getBoundingClientRect().bottom + 1)));
-  await page.selectOption('#cbEncounterChoice', await page.evaluate(() => ClassroomBattleCore.BOSSES.find(b => !b.legacy && b.id.includes('goblin')).id));
+  check('manual encounters show the no-repeat boss policy',await page.locator('#cbEncounterChoice').isDisabled()&&await page.locator('#cbEncounterChoice').textContent().then(t=>t.includes('no repeats')));
   await page.click('#cbStart'); await settle();
   check('new encounter is persisted for this teacher and class', await page.evaluate(() => __battleState().heroes.length === 16 && __battleState().status === 'active'));
+  check('boss round progress counts the saved enemy once',await page.locator('#cbEncounterStatus').textContent().then(t=>t.includes('Boss round 1 · 1/')));
+  check('the active enemy image or atlas decodes and renders visible pixels',await page.evaluate(async()=>{
+    const enemy=document.getElementById('cbBossImage');
+    const source=enemy.tagName==='IMG'?enemy.src:getComputedStyle(enemy).backgroundImage.replace(/^url\(["']?|["']?\)$/g,'');
+    const loaded=await new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(image.naturalWidth>32&&image.naturalHeight>32);image.onerror=()=>resolve(false);image.src=source;});
+    const rect=enemy.getBoundingClientRect();return loaded&&rect.width>0&&rect.height>0;
+  }));
   check('four heroes form a vertical column facing the enemy on the right', await page.evaluate(() => { const a = [...document.querySelectorAll('#cbHeroes .cbHero')].map(n=>n.getBoundingClientRect()); const boss=document.getElementById('cbBoss').getBoundingClientRect(); return a[0].left === a[3].left && a[3].top > a[0].top && a[4].left > a[0].left && a[4].top === a[0].top && boss.left > a[0].right; }));
   await page.locator('.cbHero').first().click();
+  check('teacher journal renders ten named equipment slots and one pet slot',await page.locator('[data-equipment-slot]').count()===11&&await page.locator('[data-equipment-slot="pet"]').count()===1);
   await page.selectOption('#cbRoleChoice', 'mage'); await settle();
   check('class changes are saved locally to the classroom hero', await page.evaluate(() => __battleState().heroes[0].role === 'mage'));
   check('skill tree has 12 nodes and three visible branching columns', await page.locator('.hstNode').count() === 12);
@@ -160,7 +168,9 @@ try {
     await page.locator('#cbCorrect').scrollIntoViewIfNeeded();
     check(name+' commands remain tappable without page overflow',await page.evaluate(()=>{const b=document.getElementById('cbCorrect').getBoundingClientRect();return b.left>=0&&b.right<=innerWidth&&b.height>=44&&document.querySelector('.cbShell').scrollWidth<=innerWidth;}));
     check(name+' maintains heroes left and enemy right',await page.evaluate(()=>document.getElementById('cbHeroes').getBoundingClientRect().left<document.getElementById('cbBoss').getBoundingClientRect().left));
-    check(name+' enemy artwork does not overlap its name or health',await page.evaluate(()=>document.getElementById('cbBossImage').getBoundingClientRect().bottom<=document.getElementById('cbBossName').getBoundingClientRect().top));
+    const enemyLayout=await page.evaluate(()=>({art:document.getElementById('cbBossImage').getBoundingClientRect().toJSON(),container:document.getElementById('cbBossArt').getBoundingClientRect().toJSON(),name:document.getElementById('cbBossName').getBoundingClientRect().toJSON()}));
+    if(enemyLayout.art.bottom>enemyLayout.name.top){console.error(name+' enemy layout:',enemyLayout);await page.screenshot({path:path.join(output,'pixel-battle-'+name+'-overlap.png'),fullPage:true});}
+    check(name+' enemy artwork does not overlap its name or health',enemyLayout.art.bottom<=enemyLayout.name.top);
     await page.screenshot({path:path.join(output,'pixel-battle-'+name+'.png'),fullPage:true});
   }
   await page.setViewportSize({width:1440,height:1000});
@@ -180,7 +190,7 @@ try {
   await page.locator('[data-inspect="'+relicHero+'"]').click();
   check('victory automatically equips collected gear in its owner journal',await page.evaluate(id=>!!__battleState().heroes.find(h=>h.id===id).equipped,relicHero));
   const selectedRelic = await page.evaluate(id=>__battleState().heroes.find(h=>h.id===id).equipped,relicHero);
-  await page.locator('[data-equip=""]').click(); await settle();
+  await page.locator('[data-equip=""]').first().click(); await settle();
   await page.locator('[data-equip="'+selectedRelic+'"]').click(); await settle();
   check('collected equipment can be equipped from its owner journal',await page.evaluate(id=>!!__battleState().heroes.find(h=>h.id===id).equipped,relicHero));
   await page.click('#cbJournalClose');

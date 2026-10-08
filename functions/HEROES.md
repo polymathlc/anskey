@@ -12,6 +12,10 @@ Battle actions and their immutable receipts commit in the same transaction as ev
 
 ## Request contract
 
+Hero `loadout` maps the ten equipment slots and `pet` to owned inventory IDs. Equip requests accept `slot`; `itemId:null` removes only that slot. Rings fit either ring position, with an owned copy required for each. Old single `equipped` IDs migrate without changing inventory effects, HP or MP. The server aggregates all slot bonuses and automatically upgrades each slot by rarity after treasure.
+
+Encounter snapshots also persist `bossRotation:{version:1,round,seen}`. `start` and new Quick fights derive their enemy from unseen IDs in the 100-enemy pool, using the stable action or spin ID. A browser-supplied `bossId` cannot bypass the round. The rotation, encounter and immutable receipt commit together, so retries and failed saves never skip an enemy.
+
 All routes use POST JSON `{type, ...fields}` and the `Authorization: Bearer ...` and `X-Firebase-AppCheck` headers.
 
 | Type | Fields | Result |
@@ -20,7 +24,7 @@ All routes use POST JSON `{type, ...fields}` and the `Authorization: Bearer ...`
 | `catalog` | Optional `lessonSlot` | `{slots:[{id,name}],students:[{id,name,lessonSlots,status}]}` |
 | `claim` | `studentId`, `lessonSlot` | Pending self view |
 | `cancelClaim` | None | Unclaimed self view |
-| `configure` | `command: class/advance/learn/equip/appearance`; `role`/`jobId`/`skillId`/`itemId`/`gender`; optional appearance receipt `id` | Updated owned hero; only cosmetic appearance is allowed during an active encounter |
+| `configure` | `command: class/advance/learn/equip/appearance`; `role`/`jobId`/`skillId`/`itemId`/`gender`; optional equipment `slot` and appearance receipt `id` | Updated owned hero; only cosmetic appearance is allowed during an active encounter |
 | `claims` | Teacher only | `{claims,activeEncounters}` including locks on unclaimed profiles |
 | `approve`, `reject`, `unlink` | Teacher only, `studentId` | Updated claim status |
 | `assist` | Teacher only, `classId`, helper `studentId`, `helpedStudentId`, `action:{id,spinId}` | `{hero,state,assist,mission,duplicate?}` |

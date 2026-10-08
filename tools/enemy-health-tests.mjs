@@ -8,10 +8,13 @@ const party=count=>Array.from({length:count},(_,i)=>C.heroFromStudent({id:'stude
 const start=(bossId='goblin',count=4)=>C.reduce(null,{type:'start',id:id(),bossId,heroes:party(count)});
 function legacy(hp=701,max=1001){const state=start();delete state.enemyHealthVersion;state.bossHp=hp;state.bossMaxHp=max;return state;}
 
-test('all 26 enemies start at half their former HP for small and large classes',()=>{
-  assert.equal(C.BOSSES.length,26);
-  for(const count of [1,4,15])for(const enemy of C.BOSSES){
-    const state=start(enemy.id,count);
+test('all playable enemies start at half their former HP for small and large classes',()=>{
+  assert.equal(C.BOSSES.filter(enemy=>!enemy.legacy).length,100);
+  for(const count of [1,4,15])for(const enemy of C.BOSSES.filter(enemy=>!enemy.legacy)){
+    // Exhaust the other candidates to verify each real production start.
+    const previous={...start(),status:'defeat',bossId:enemy.id,bossRotation:{version:1,round:1,seen:C.BOSSES.filter(b=>!b.legacy&&b.id!==enemy.id).map(b=>b.id)}};
+    delete previous.bossId;
+    const state=C.reduce(previous,{type:'start',id:id(),expectedRevision:previous.revision,heroes:party(count)});
     const former=Math.round(Math.max(200,state.heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*enemy.hpMultiplier);
     assert.equal(state.bossMaxHp,Math.ceil(former/2),`${enemy.id}, ${count} heroes`);
     assert.equal(state.bossHp,state.bossMaxHp);

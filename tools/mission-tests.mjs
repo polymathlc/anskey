@@ -4,7 +4,11 @@ import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),M=require('../mission-content.js'),C=require('../battle-core.js');
 const hero=C.heroFromStudent({id:'alex',name:'Alex'});
 let sequence=0;const id=()=>`mission-test-${++sequence}`;
-const start=(previous=null,bossId='goblin')=>C.reduce(previous,{type:'start',id:id(),bossId,heroes:[hero],expectedRevision:previous?.revision});
+const start=(previous=null,bossId='goblin')=>{
+  const state=C.reduce(previous,{type:'start',id:id(),heroes:[hero],expectedRevision:previous?.revision});
+  // These fixtures isolate summon and history mechanics from enemy selection.
+  state.bossId=bossId;return state;
+};
 
 test('mission machine has four objectives and exact 5/15 percent prize boundaries',()=>{
   assert.equal(M.OBJECTIVES.length,4);assert.equal(M.PRIZES.length,8);assert.equal(M.PRIZES.reduce((n,p)=>n+p.weight,0),100);

@@ -1,0 +1,221 @@
+[
+  {
+    "atlas": "atlas-01",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 65% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Bramblehide Boar: a russet wild boar with mossy tusks, leafy bristle mane and four sturdy hooves; 2. Acorncap Knight: a small oak-armored squirrel knight carrying an acorn shield and branch lance; 3. Lanternwing Owl: a teal owl with glowing amber lantern feathers and spread rounded wings; 4. Thorncrown Stag: an emerald stag with twisting thorn antlers and a violet flower chest crest; 5. Rootmaw Colossus: a massive dark oak root giant with orange hollow eyes and thick branch arms; 6. Sapscale Serpent: a golden tree-sap serpent with leaf fins and a spiraling emerald tail; 7. Fernblade Mantis: a bright green mantis with fern frond blade forearms and six thin legs; 8. Puffspore Monarch: a squat violet mushroom giant with golden spotted cap and stubby root feet; 9. Barkshield Warden: a stout chestnut bark golem with a round wood shield and glowing blue rune eye; 10. Blossomwing Wyvern: a pink and ivory flower wyvern with petal wings, tiny horns and curling green tail.",
+    "edits": [
+      {
+        "prompt": "Use case: precise-object-edit. Edit target: the provided transparent 5-column, 2-row pixel-art boss atlas. Preserve all TEN existing boss identities, exact colors, pixel-art detail and exact row-major order. Fix spacing ONLY: redraw every full-body boss at exactly 65% of its current size, centered in its own cell in EXACTLY five equally sized columns by two rows on the same 5:2 canvas. Each complete creature, all wings, horns, staffs and tail, must stay entirely within its own cell with at least 16% fully transparent padding on ALL FOUR sides. No pixels may touch or cross any cell boundary. Keep all empty surrounding space genuinely transparent alpha; no checkerboard, text, lines, frames, labels, numbers, extra objects, floor, shadows, watermarks. The first row is cells1–5 and second row6–10. Produce the complete unchanged-order ten-boss atlas.",
+        "reason": "Shrink all full-body sprites within their own tiles to prevent clipping."
+      }
+    ],
+    "bossIds": [
+      "brambleboar",
+      "acornknight",
+      "lanternowl",
+      "thornstag",
+      "rootmaw",
+      "sapserpent",
+      "fernmantis",
+      "puffspore",
+      "barkwarden",
+      "blossomwyvern"
+    ]
+  },
+  {
+    "atlas": "atlas-02",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 65% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Mudmaw Crocodile: an olive crocodile with muddy stone scales, broad jaws and four short legs; 2. Boglight Witch: a purple frog witch wearing a reed hat and holding a blue will-o-wisp staff; 3. Reedcloak Stalker: a long-legged heron rogue with green reed cloak and curved wooden beak dagger; 4. Mirebell Toad: a large orange toad with green lily-pad collar and bell-shaped cheek pouches; 5. Mossjaw Lamprey: a curling turquoise lamprey with moss frills and a ring of small ivory teeth; 6. Willowveil Wisp: a floating pale-blue spirit in a willow-leaf hood with two glowing eyes and curled ghost tail; 7. Lilypad Hydra: a three-headed jade swamp hydra with lotus crests and a stout four-legged body; 8. Rotcap Alchemist: a russet mushroom alchemist with a black spotted cap, blue potion and woven satchel; 9. Sludgeplate Knight: a stocky green slime knight inside dented bronze armor with a dripping shield; 10. Fenfire Basilisk: a black and emerald six-legged basilisk with amber crown spikes and luminous eyes.",
+    "edits": [
+      {
+        "prompt": "Use case: precise-object-edit. Edit target: the provided transparent 5-column, 2-row pixel-art boss atlas. Preserve all TEN existing boss identities, exact colors, pixel-art detail and exact row-major order. Fix spacing ONLY: redraw every full-body boss at exactly 65% of its current size, centered in its own cell in EXACTLY five equally sized columns by two rows on the same 5:2 canvas. Each complete creature, all wings, horns, staffs and tail, must stay entirely within its own cell with at least 16% fully transparent padding on ALL FOUR sides. No pixels may touch or cross any cell boundary. Keep all empty surrounding space genuinely transparent alpha; no checkerboard, text, lines, frames, labels, numbers, extra objects, floor, shadows, watermarks. The first row is cells1–5 and second row6–10. Produce the complete unchanged-order ten-boss atlas.",
+        "reason": "Shrink all full-body sprites within their own tiles to prevent clipping."
+      }
+    ],
+    "bossIds": [
+      "mudmaw",
+      "bogwitch",
+      "reedstalker",
+      "miretoad",
+      "mosslamprey",
+      "willowwisp",
+      "lilyhydra",
+      "rotcap",
+      "sludgeknight",
+      "fenbasilisk"
+    ]
+  },
+  {
+    "atlas": "atlas-03",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 65% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Craghoof Ram: a gray mountain ram with oversized spiral stone horns and a red braided mane; 2. Frosttalon Eagle: a silver eagle with blue crystal talons and wide ice-tipped wings; 3. Quartzback Armadillo: a round lavender armadillo with a chunky quartz crystal shell and small pink snout; 4. Cobalt Rook: a giant cobalt raven with silver armor feathers, black beak and bright cyan eyes; 5. Gravelpaw Mole: a brown burrowing mole with stone digging claws and a golden miner helmet; 6. Summitclub Ogre: a blue mountain ogre in a shaggy white fur vest holding a rounded stone club; 7. Avalanche Ape: a hulking white mountain ape with ice-blue hands and a crown of stone ridges; 8. Shardhorn Ibex: a black ibex with turquoise shard horns and silver geometric hoof armor; 9. Granitewing Gryphon: a winged gryphon with granite-gray lion body and amber crystal eagle head; 10. Ironpeak Titan: a towering silver mountain titan with angular iron armor and glowing ruby core.",
+    "edits": [],
+    "bossIds": [
+      "cragram",
+      "frosttalon",
+      "quartzback",
+      "cobaltrook",
+      "gravelmole",
+      "summitogre",
+      "avalancheape",
+      "shardhorn",
+      "granitegryphon",
+      "ironpeak"
+    ]
+  },
+  {
+    "atlas": "atlas-04",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 65% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Coralcrest Colossus: a broad coral-pink reef golem with blue anemone hands and branching coral crown; 2. Pearlmoon Witch: a lilac merfolk witch with a pearl crown, coiled fish tail and silver shell wand; 3. Tidalcrest Orca: a hovering black and white orca with turquoise wave fins and a bright blue crest; 4. Reefjaw Shark: a small blue reef shark with orange coral dorsal fin and broad friendly jaws; 5. Barnacle King: a stout purple crab wearing a blue barnacle crown with oversized armored claws; 6. Jellylantern Seer: a golden jellyfish with a blue glowing bell and seven trailing amber tentacles; 7. Kelpveil Kraken: a huge teal octopus with a crown of emerald kelp and eight curled powerful arms; 8. Seaglass Drake: a slender aquamarine water dragon with translucent glass fins and pearl horns; 9. Spiralshell Oracle: a violet sea snail sage with golden spiral shell and a little silver staff; 10. Abysslight Angler: a midnight-blue armored anglerfish with a radiant star lure and purple fan fins.",
+    "edits": [
+      {
+        "prompt": "Use case: precise-object-edit. Edit target: the provided transparent 5-column, 2-row pixel-art boss atlas. Preserve all TEN existing boss identities, exact colors, pixel-art detail and exact row-major order. Fix spacing ONLY: redraw every full-body boss at exactly 65% of its current size, centered in its own cell in EXACTLY five equally sized columns by two rows on the same 5:2 canvas. Each complete creature, all wings, horns, staffs and tail, must stay entirely within its own cell with at least 16% fully transparent padding on ALL FOUR sides. No pixels may touch or cross any cell boundary. Keep all empty surrounding space genuinely transparent alpha; no checkerboard, text, lines, frames, labels, numbers, extra objects, floor, shadows, watermarks. The first row is cells1–5 and second row6–10. Produce the complete unchanged-order ten-boss atlas.",
+        "reason": "Shrink all full-body sprites within their own tiles to prevent clipping."
+      }
+    ],
+    "bossIds": [
+      "coralcolossus",
+      "pearlwitch",
+      "tidalorca",
+      "reefjaw",
+      "barnacleking",
+      "jellylantern",
+      "kelpkraken",
+      "seaglassdrake",
+      "shelloracle",
+      "abyssangler"
+    ]
+  },
+  {
+    "atlas": "atlas-05",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Duneboot Jackal: a sandy jackal scout with blue scarf and a curved bronze dagger; 2. Miragecoil Serpent: an orange and turquoise cobra with shimmering diamond hood markings; 3. Amberfang Cobra: a coiled honey-gold cobra with amber crystal fangs and a small red crown; 4. Glassclaw Scorpion: a purple desert scorpion with transparent cyan pincers and arched crystal tail; 5. Sunplate Scarab: a golden scarab beetle with red solar disc shell and six stout armored legs; 6. Oasiswell Djinn: a mint-blue genie with a golden turban, water-droplet torso and curling whirlpool tail; 7. Sandstone Mason: a squat orange sandstone giant with turquoise mosaic fists and square head; 8. Brasswing Vulture: a bronze mechanical desert vulture with silver beak and jewel-green wing tips; 9. Dustveil Dancer: a swirling crimson sand spirit with gold mask, ribbon arms and a tornado lower body; 10. Pharaohstar Cat: a regal black feline sphinx with striped blue-gold headdress and celestial anklets. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+    "edits": [],
+    "bossIds": [
+      "dunejackal",
+      "mirageserpent",
+      "ambercobra",
+      "glassscorpion",
+      "sunscarab",
+      "oasisdjinn",
+      "sandstonegiant",
+      "brassvulture",
+      "dustdancer",
+      "pharaohcat"
+    ]
+  },
+  {
+    "atlas": "atlas-06",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Ashhorn Minotaur: a charcoal bull warrior with orange volcanic horns and a broad brass hammer; 2. Lavashell Crab: a small ruby-red crab with black rock shell and bright orange claw tips; 3. Emberwing Wasp: a black and gold wasp with fiery orange wings and ruby abdomen; 4. Sootcap Imp: a squat purple imp with a sooty orange cap and a little glowing coal staff; 5. Magmafin Wyrm: a chunky orange lava serpent with black plated back and ruby crystal fins; 6. Furnaceplate Knight: a heavy bronze armored knight with a fiery furnace chest and iron tower shield; 7. Cinderplume Phoenix: a crimson phoenix with gold flame feathers and a curling violet ember tail; 8. Basaltback Bull: a black basalt bull with broad silver horns and glowing orange hooves; 9. Coalglow Witch: a small russet fox witch in black robes with an orange coal orb floating above one paw; 10. Infernostar Hound: a towering three-headed violet fire hound with gold collars and contained orange flame mane. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+    "edits": [],
+    "bossIds": [
+      "ashminotaur",
+      "lavacrab",
+      "emberwasp",
+      "sootimp",
+      "magmawyrm",
+      "furnaceknight",
+      "cinderphoenix",
+      "basaltbull",
+      "coalwitch",
+      "infernohound"
+    ]
+  },
+  {
+    "atlas": "atlas-07",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Icetooth Walrus: a blue-gray walrus with thick ivory tusks, white mustache and ice crystal back; 2. Snowfeather Harpy: a white owl harpy with lavender face, blue scarf and wide feathered arm wings; 3. Rimeblock Golem: a squat mint-blue ice block golem with ruby eyes and square snow-capped fists; 4. Winterveil Moth: a large silver moth with blue snowflake wing patterns and a fuzzy lavender body; 5. Hoarfrost Bear: a sturdy white polar bear with blue crystal claws and a crown of frozen branches; 6. Glacialback Turtle: a pale cyan turtle with a faceted purple iceberg shell and golden eyes; 7. Frostcrown Regent: a regal ice spirit with blue crystal crown, white robes and a curling snowy ghost tail; 8. Blizzardhoof Elk: a lavender elk with snowflake antlers and a white windblown mane; 9. Aurorascale Wyrm: a long teal dragon with pink aurora ribbon wings and pearl horn crest; 10. Crystalcap Penguin: a stout navy penguin wearing a blue crystal helmet and carrying an icy paddle. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+    "edits": [],
+    "bossIds": [
+      "icetooth",
+      "snowharpy",
+      "rimegolem",
+      "wintermoth",
+      "hoarfrostbear",
+      "glacialturtle",
+      "frostcrown",
+      "blizzardelk",
+      "aurorawyrm",
+      "crystalpenguin"
+    ]
+  },
+  {
+    "atlas": "atlas-08",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Cogweb Arachnid: a brass clockwork spider with eight gear-jointed legs and glowing cyan eyes; 2. Steamplate Rhino: a copper robotic rhinoceros with a silver drill horn and small steam chimney; 3. Coppercap Jester: a copper toy jester with green spring legs, bell hat and rounded baton; 4. Clockblade Mantis: a silver mechanical mantis with blue clock-face chest and gold blade arms; 5. Mercurywing Gargoyle: a glossy silver gargoyle with folded violet crystal wings and three blue eyes; 6. Gearjaw Behemoth: a huge bronze robot gorilla with gear shoulders, cyan furnace heart and massive fists; 7. Voltwing Vulture: a teal electric robot vulture with golden lightning wing feathers and yellow beak; 8. Magnetmaw Mimic: a red metal horseshoe magnet creature with little iron feet and an open square jaw; 9. Prismcore Droid: a floating white diamond robot with four small crystal fins and rainbow central lens; 10. Chronocrown Titan: a towering gold clockwork titan with a blue hourglass chest, silver limbs and crown gears. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+    "edits": [
+      {
+        "prompt": "Use case: precise-object-edit. Edit target: the supplied transparent ten-boss pixel-art sprite atlas. Preserve the ten boss identities, pixel art detail, exact colors, and exact left-to-right order of five columns by two rows. Correct spacing ONLY: redraw each sprite at 65% of its present size, precisely centered in its own invisible cell. Every complete creature must have at least20% transparent padding on all four cell edges. In particular the gold clockwork titan in the bottom-right must have clean transparent margin below its feet and to its right. Keep the same 5:2 overall aspect ratio. True transparent alpha. No floor, shadows, panels, lines, checkerboard, captions, text, numbers or watermark. No sprite pixel may touch any cell boundary.",
+        "reason": "Shrink all full-body sprites within their own tiles to prevent clipping."
+      }
+    ],
+    "bossIds": [
+      "cogarachnid",
+      "steamrhino",
+      "copperjester",
+      "clockmantis",
+      "mercurygargoyle",
+      "gearbehemoth",
+      "voltvulture",
+      "magnetmaw",
+      "prismdroid",
+      "chronotitan"
+    ]
+  },
+  {
+    "atlas": "atlas-09",
+    "columns": 5,
+    "rows": 2,
+    "count": 10,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 10 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Lunarcrown Cobra: a silver lunar cobra with a crescent-shaped lavender hood and midnight star scales; 2. Sunmane Lion: a golden lion with a red solar-disc mane and brilliant amber paws; 3. Starlance Mantis: a midnight-blue mantis with silver star-speckled shell and cyan spear-like forearms; 4. Voidveil Manta: a floating deep-purple manta ray with turquoise luminous fins and a white crescent forehead; 5. Cometwing Gryphon: a violet gryphon with golden comet eagle wings and a long blue starlight tail; 6. Eclipseplate Knight: a black and silver armored knight with a crescent shield and a violet glowing sword; 7. Nebulabell Jelly: a floating pink cosmic jellyfish with blue star-marked bell and six lavender tendrils; 8. Orbitstone Golem: a squat navy stone golem with three small gold rings around its shoulders and glowing green eyes; 9. Constellacrown Stag: a luminous ivory stag with blue star-branch antlers and violet crystal hooves; 10. Cosmicscale Wyrm: a curled sapphire dragon with gold orbit-ring fins and a bright magenta galaxy core. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+    "edits": [],
+    "bossIds": [
+      "lunarcobra",
+      "sunlion",
+      "starmantis",
+      "voidmanta",
+      "cometgryphon",
+      "eclipseknight",
+      "nebulajelly",
+      "orbitgolem",
+      "constellastag",
+      "cosmicwyrm"
+    ]
+  },
+  {
+    "atlas": "atlas-10",
+    "columns": 5,
+    "rows": 2,
+    "count": 4,
+    "prompt": "Use case: stylized-concept. Asset type: production-ready transparent pixel-art ENEMY BOSS battle sprite atlas for an original classroom fantasy JRPG. Create exactly 4 distinct full-body bosses in EXACTLY five equally spaced columns and two equally spaced rows, read left-to-right across TOP row then BOTTOM row. The entire image must have a 5:2 aspect ratio (for example 2560x1024) so each invisible cell is square. Every used cell contains exactly one isolated full-body creature centered within its own square cell. Entire wings, horns, tails, legs and weapons visible, all contained within the central 45% of its cell. All bosses face LEFT in a clear three-quarter battle-ready pose. Preserve exact grid positions and listed ordering. Crisp authentic 16-bit JRPG pixel art, hard square pixel clusters, chunky dark purple outline, restrained palettes with jewel-like highlights, readable silhouette at 80x80. Charming fantastical monsters suitable for a classroom game. Scene/backdrop: truly transparent alpha background everywhere outside the sprites. No floor, ground shadows, checkerboard, labels, text, captions, numbers, panels, cell borders, grid lines, UI, logos, watermark, blood, gore, smooth gradients or photorealism. 1. Bookspine Wyrm: a small green dragon made of layered red and gold books with page-shaped wings; 2. Candystone King: a stout candy crystal golem with pink peppermint crown and blue sugar fists; 3. Mirrorveil Witch: an ivory porcelain witch with silver mirror face, violet robes and a crystal wand; 4. Dreamweave Chimera: a majestic lavender lion with teal dragon wings, a white owl head and a golden serpent tail. IMPORTANT: only first four cells in the TOP row are occupied. Top-right fifth cell and the entire bottom row are completely transparent and empty. The transparent canvas still has five columns and two rows. CRITICAL CELL PADDING: each creature must occupy at most45% of its cell width and height, leaving at least25% transparent margin along all four edges. This is a SPACED sprite atlas with visibly large blank gaps between creatures. Never fill the cell or let silhouettes reach tile boundaries.",
+    "edits": [
+      {
+        "prompt": "Use case: precise-object-edit. Edit target: supplied four-boss transparent pixel-art atlas. Preserve the exact four existing boss designs and their left-to-right order: green book dragon, pink candy golem king, violet mirror-face witch, lavender owl-headed winged chimera. Fix ONLY composition and background. REMOVE EVERY faint colored vertical and horizontal GRID LINE completely; every pixel outside the four creatures must be transparent. Render each complete creature at60% of its present size and centered within its own square cell. The image keeps a5:2 aspect ratio and an invisible5columns×2rows layout. Place the four bosses in cells1,2,3,4 of the TOP row; the fifth top-row cell and ALL FIVE bottom-row cells must be100% transparent and empty. Each used cell must have at least20% transparent margin along all four edges. No border, cell separators, panels, checkerboard, shadows, floor, text, labels, numbers, watermarks or extra sprites. No pixels may touch any cell boundary. Keep exact pixel-art style and all wings, horns, tails, staffs and feet fully visible.",
+        "reason": "Remove faint gridlines and center four full bodies with transparent tile margins."
+      }
+    ],
+    "bossIds": [
+      "bookwyrm",
+      "candyking",
+      "mirrorwitch",
+      "dreamchimera"
+    ]
+  }
+]

@@ -5,6 +5,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(BOSSES, CONTENT) {
   'use strict';
   const { ROLES, SKILLS, JOBS, JOB_SKILLS, ITEMS, RARITIES } = CONTENT;
+  const EQUIPMENT_SLOTS = CONTENT.EQUIPMENT_SLOTS || Object.fromEntries(['helm','torso','gloves','legs','boots','amulet','ring1','ring2','mainHand','offHand','pet'].map(key=>[key,{name:key}]));
+  const SLOT_KEYS = Object.keys(EQUIPMENT_SLOTS);
   const ROLE_KEYS = Object.keys(ROLES), ALL_SKILLS = [...Object.values(SKILLS).flat(),...Object.values(JOB_SKILLS).flat()];
   const BOSS_MAX_MP=60, BOSS_SKILL_MP=30, BOSS_ATTACK_MP=15;
   const ENEMY_HEALTH_VERSION=1;
@@ -36,12 +38,72 @@
     hash = Math.imul(hash,0x846ca68b); hash ^= hash >>> 16;
     return (hash >>> 0) / 4294967296;
   }
+  function bossRotationFor(previous) {
+    const playable=new Set(BOSSES.filter(b=>!b.legacy).map(b=>b.id)),saved=previous?.bossRotation;
+    const rotation={version:1,round:int(saved?.round || 1,1,1000000),seen:[...new Set((Array.isArray(saved?.seen)?saved.seen:[]).filter(id=>playable.has(id)))]};
+    // Existing encounters already showed their current enemy. Count it once
+    // when introducing rotations or reconciling an older six-enemy catalogue.
+    if (playable.has(previous?.bossId) && !rotation.seen.includes(previous.bossId)) rotation.seen.push(previous.bossId);
+    return rotation;
+  }
+  function nextBoss(previous,seed) {
+    const rotation=bossRotationFor(previous),playable=BOSSES.filter(b=>!b.legacy);
+    if (!playable.length) fail('No playable enemies. Reload the app.');
+    const remaining=playable.filter(b=>!rotation.seen.includes(b.id)),pool=remaining.length?remaining:playable;
+    return pool[Math.floor(randomUnit(String(seed)+':enemy')*pool.length)];
+  }
+  function rotationAfterStart(previous,boss) {
+    const rotation=bossRotationFor(previous),count=BOSSES.filter(b=>!b.legacy).length;
+    if (rotation.seen.length>=count) {rotation.round++;rotation.seen=[];}
+    rotation.seen.push(boss.id);return rotation;
+  }
   function xpForLevel(level) { return 75 * (int(level,1,50)-1) * int(level,1,50) / 2; }
   function levelForXp(xp) { let level=1; while (level<50 && xp>=xpForLevel(level+1)) level++; return level; }
+  function equipmentSlot(item) {
+    if (!item || !['equipment','pet'].includes(item.type)) return null;
+    const slot=item.type==='pet'?'pet':item.slot || 'mainHand';
+    return SLOT_KEYS.includes(slot) ? slot : null;
+  }
+  function equipmentFits(item,slot) {
+    const assigned=equipmentSlot(item);
+    return !!assigned && SLOT_KEYS.includes(slot) && (assigned===slot || ['ring1','ring2'].includes(assigned) && ['ring1','ring2'].includes(slot));
+  }
+  function loadoutFor(hero) {
+    const result={},used=new Map(),inventory=(hero.inventory || []).filter(e=>e && e.quantity>0);
+    const source=hero.loadout && typeof hero.loadout==='object' && !Array.isArray(hero.loadout) ? hero.loadout : {};
+    const add=(slot,id)=>{
+      const entry=inventory.find(e=>e.id===id);
+      if (!entry || !equipmentFits(itemById(entry.itemId),slot) || (used.get(id)||0)>=entry.quantity) return;
+      result[slot]=entry.id;used.set(id,(used.get(id)||0)+1);
+    };
+    SLOT_KEYS.forEach(slot=>add(slot,source[slot]));
+    // Old profiles store a single inventory ID. Interpret it until the first
+    // save writes the canonical loadout, retaining every owned legacy relic.
+    if (!Object.keys(result).length && typeof hero.equipped==='string') {
+      const entry=inventory.find(e=>e.id===hero.equipped),slot=entry && equipmentSlot(itemById(entry.itemId));
+      if (slot) add(slot,entry.id);
+    }
+    return result;
+  }
+  function equippedEntries(hero) {
+    return Object.values(loadoutFor(hero)).map(id=>(hero.inventory || []).find(e=>e.id===id));
+  }
+  function syncLoadout(hero) {
+    hero.loadout=loadoutFor(hero);
+    const ids=Object.values(hero.loadout);
+    hero.equipped=ids.includes(hero.equipped)?hero.equipped:(hero.loadout.mainHand || ids[0] || null);
+  }
   function equipmentEffect(hero) {
-    const entry = (hero.inventory || []).find(i => i.id === hero.equipped && i.quantity > 0);
-    const item = entry && itemById(entry.itemId);
-    return item && item.type === 'equipment' ? item.effect : {};
+    const result={};
+    equippedEntries(hero).forEach(entry=>Object.entries(itemById(entry.itemId).effect || {}).forEach(([key,value])=>{
+      if (typeof value==='boolean') result[key]=!!result[key] || value;
+      else if (Number.isFinite(value)) result[key]=(Number(result[key]) || 0)+value;
+    }));
+    // Fractional combat mechanics stay bounded even with all eleven slots.
+    for (const [key,maximum] of Object.entries({pierce:1,leech:.75,teamLeech:.3,critChance:.85})) {
+      if (result[key]!==undefined) result[key]=clamp(result[key],0,maximum);
+    }
+    return result;
   }
   function statsFor(hero) {
     const role = ROLES[hero.role], level = hero.level || 1;
@@ -62,7 +124,7 @@
   function freshHero(identity, role) {
     const hero={...identity,role:roleKey(role),gender:'male',progressionVersion:1,level:1,xp:0,skillPoints:2,
       learnedSkills:[SKILLS[roleKey(role)][0].id],inventory:[{id:'bag:red-potion',itemId:'red-potion',quantity:2},{id:'bag:blue-ether',itemId:'blue-ether',quantity:1}],
-      equipped:null,cooldowns:{},shield:0,weakened:false,correctActions:0,mythicalUsed:false};
+      equipped:null,loadout:{},loadoutVersion:1,cooldowns:{},shield:0,weakened:false,correctActions:0,mythicalUsed:false};
     refreshStats(hero); return hero;
   }
   function heroFromStudent(student, ignoredCerProfile, index) {
@@ -83,9 +145,19 @@
     hero.skillPoints=int(hero.skillPoints,0,150);
     hero.learnedSkills=[...new Set((hero.learnedSkills || []).filter(id=>!!skillById(id)))];
     if (!hero.learnedSkills.includes(SKILLS[hero.role][0].id)) hero.learnedSkills.push(SKILLS[hero.role][0].id);
-    hero.inventory=(hero.inventory || []).filter(i=>i && itemById(i.itemId) && i.quantity>0).map(i=>({id:'bag:'+i.itemId,itemId:i.itemId,quantity:int(i.quantity,1,999)}));
+    const oldInventory=hero.inventory || [],inventory=new Map(),ids=new Map();
+    oldInventory.filter(i=>i && itemById(i.itemId) && i.quantity>0).forEach(i=>{
+      const id='bag:'+i.itemId,existing=inventory.get(id);ids.set(i.id,id);
+      inventory.set(id,{id,itemId:i.itemId,quantity:int((existing?.quantity || 0)+int(i.quantity,1,999),1,999)});
+    });
+    hero.inventory=[...inventory.values()];
+    if (hero.loadout && typeof hero.loadout==='object') hero.loadout=Object.fromEntries(Object.entries(hero.loadout).map(([slot,id])=>[slot,ids.get(id)||id]));
+    hero.equipped=ids.get(hero.equipped) || hero.equipped;syncLoadout(hero);hero.loadoutVersion=1;
     hero.cooldowns=hero.cooldowns || {}; hero.shield=int(hero.shield,0,5000);
-    refreshStats(hero); return hero;
+    const hp=hero.hp,mp=hero.mp;refreshStats(hero);
+    if (Number.isFinite(hp)) hero.hp=int(hp,0,hero.stats.maxHp);
+    if (Number.isFinite(mp)) hero.mp=int(mp,0,hero.stats.maxMp);
+    return hero;
   }
   function configureHero(input, action) {
     const hero=cleanHero(input,input), hpBefore=hero.hp;
@@ -106,12 +178,22 @@
       hero.job=action.jobId;
       const starter=JOB_SKILLS[hero.job][0].id; if (!hero.learnedSkills.includes(starter)) hero.learnedSkills.push(starter);
     } else if (action.command==='equip') {
-      if (action.itemId===null || action.itemId==='') hero.equipped=null;
+      if (action.slot!==undefined && !SLOT_KEYS.includes(action.slot)) fail('Choose a valid equipment slot.');
+      if (action.itemId===null || action.itemId==='') {
+        if (action.slot) delete hero.loadout[action.slot]; else hero.loadout={};
+        hero.equipped=null;
+      }
       else {
         const entry=hero.inventory.find(i=>i.id===action.itemId && i.quantity>0), item=entry && itemById(entry.itemId);
-        if (!item || item.type!=='equipment') fail('Choose equipment from this hero’s inventory.');
-        hero.equipped=entry.id;
+        const assigned=equipmentSlot(item);
+        if (!assigned) fail('Choose equipment or a pet from this hero’s inventory.');
+        const slot=action.slot || assigned;
+        if (!equipmentFits(item,slot)) fail('That item does not fit this equipment slot.');
+        const used=Object.entries(hero.loadout).filter(([key,id])=>key!==slot && id===entry.id).length;
+        if (used>=entry.quantity) fail('Each equipped item must be owned by this hero.');
+        hero.loadout[slot]=entry.id;hero.equipped=entry.id;
       }
+      syncLoadout(hero);
     } else fail('Unknown hero command.');
     refreshStats(hero);
     if (action.command==='class' || action.command==='equip' || action.command==='advance') hero.hp=Math.min(hpBefore,hero.stats.maxHp);
@@ -141,16 +223,20 @@
     const hero=cleanHero(input,input); addXp(hero,amount); return hero;
   }
   function autoEquip(hero) {
-    const ranks=Object.keys(RARITIES), rank=entry=>{const item=itemById(entry.itemId);return item?.type==='equipment'?ranks.indexOf(item.rarity):-1;};
+    syncLoadout(hero);
+    const ranks=Object.keys(RARITIES), rank=entry=>{const item=itemById(entry.itemId);return equipmentSlot(item)?ranks.indexOf(item.rarity):-1;};
     const equipment=(hero.inventory || []).filter(e=>e.quantity>0 && rank(e)>=0);
-    const current=equipment.find(e=>e.id===hero.equipped);
-    let best=current || null;
-    // Inventory order is stable; ties keep the current item and never consume loot.
-    equipment.forEach(entry=>{if (!best || rank(entry)>rank(best)) best=entry;});
-    if (!best || best.id===hero.equipped) return null;
-    const hp=hero.hp,mp=hero.mp;hero.equipped=best.id;refreshStats(hero);
+    const changed=[],hp=hero.hp,mp=hero.mp;
+    SLOT_KEYS.forEach(slot=>{
+      let best=equipment.find(e=>e.id===hero.loadout[slot]) || null;
+      // Stable inventory order preserves an existing item on rarity ties.
+      equipment.filter(e=>equipmentFits(itemById(e.itemId),slot) && Object.entries(hero.loadout).filter(([key,id])=>key!==slot && id===e.id).length<e.quantity).forEach(entry=>{if (!best || rank(entry)>rank(best)) best=entry;});
+      if (best && best.id!==hero.loadout[slot]) {hero.loadout[slot]=best.id;hero.equipped=best.id;changed.push(best.itemId);}
+    });
+    if (!changed.length) return null;
+    syncLoadout(hero);refreshStats(hero);
     hero.hp=Math.min(hp,hero.stats.maxHp);hero.mp=Math.min(mp,hero.stats.maxMp);
-    return best.itemId;
+    return changed[changed.length-1];
   }
   function availableSkills(hero) { return skillsFor(hero).filter(s=>activeSkill(hero,s) && !s.passive && (hero.learnedSkills || []).includes(s.id)); }
   function canLearn(hero, id) {
@@ -246,11 +332,15 @@
       if (state.lastEvent.heroId) state.lastEvent.heroId=identity(state.lastEvent.heroId);
       ['targets','healed','supported','rewards'].forEach(key=>(state.lastEvent[key] || []).forEach(e=>{e.heroId=identity(e.heroId);}));
     }
-    if (!state.heroes.every(h=>h.progressionVersion===1)) {
+    if (!state.heroes.every(h=>h.progressionVersion===1 && h.loadoutVersion===1)) {
       state.heroes=state.heroes.map(h=>{
-        const next=cleanHero(h,h); next.hp=h.hp<=0?0:int(next.stats.maxHp*(h.hp/h.stats.maxHp),1,next.stats.maxHp); return next;
+        const next=cleanHero(h,h);
+        if (h.progressionVersion!==1) next.hp=h.hp<=0?0:int(next.stats.maxHp*(h.hp/h.stats.maxHp),1,next.stats.maxHp);
+        return next;
       });
     }
+    state.heroArchive=Object.fromEntries(Object.entries(state.heroArchive || {}).map(([id,h])=>[id,h.loadoutVersion===1?h:cleanHero(h,h)]));
+    state.bossRotation=bossRotationFor(state);
     state.heroArchive=state.heroArchive || {}; state.rewards=state.rewards || [];state.combatLog=(state.combatLog || []).slice(-40);
     if (state.lootAwarded===undefined) state.lootAwarded=state.status!=='active';
     state.bossWeakness=state.bossWeakness || 0; state.poison=state.poison || null;
@@ -284,7 +374,7 @@
     if (previous && action.expectedRevision!==previous.revision) fail('The encounter changed on another screen. Try awarding points again.');
     let state=previous?normalizeState(previous):null;
     if (!state || state.status!=='active') {
-      state=reduce(state,{type:'start',id:action.id,expectedRevision:state && state.revision,heroes:action.heroes,bossId:action.bossId});
+      state=reduce(state,{type:'start',id:action.id,spinId:action.spinId,expectedRevision:state && state.revision,heroes:action.heroes,bossId:action.bossId});
     } else if (action.encounterId!==state.encounterId) fail('This encounter has changed. Reload its latest progress.');
     if (Array.isArray(action.heroes) && action.heroes.length) {
       const fresh=roster(action.heroes,state); state.heroArchive=archiveFor(state,fresh); state.heroes=fresh;
@@ -317,12 +407,13 @@
     const event={id:action.id,type:action.type,healed:[],targets:[]};
     if (action.type==='auto') return autoTurn(previous,action);
     if (action.type==='start') {
+      if (previous?.encounterId===action.id) return previous;
       if (previous && action.expectedRevision!==previous.revision) fail('The class changed on another screen. Try again.');
-      const heroes=roster(action.heroes,previous && normalizeState(previous)), boss=bossById(action.bossId);
+      const heroes=roster(action.heroes,previous && normalizeState(previous)), boss=nextBoss(previous,action.spinId || action.id);
       heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=h.stats.maxMp;h.cooldowns={};h.shield=0;h.weakened=false;h.mythicalUsed=false;h.correctActions=0;});
       const bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)/2));
       return {schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
-        enemyHealthVersion:ENEMY_HEALTH_VERSION,
+        enemyHealthVersion:ENEMY_HEALTH_VERSION,bossRotation:rotationAfterStart(previous,boss),
         bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
         bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)};
     }
@@ -341,7 +432,7 @@
         const fresh=roster(action.heroes,state);
         state.heroArchive=archiveFor(state,fresh); state.heroes=fresh;
         if (state.pending && !state.heroes.some(h=>h.id===state.pending.heroId)) state.pending=null;
-        if (state.enemyHealthVersion===previous.enemyHealthVersion && JSON.stringify(state.heroes)===JSON.stringify(previous.heroes) && JSON.stringify(state.pending)===JSON.stringify(previous.pending)) return previous;
+        if (state.enemyHealthVersion===previous.enemyHealthVersion && JSON.stringify(state.bossRotation)===JSON.stringify(previous.bossRotation) && JSON.stringify(state.heroes)===JSON.stringify(previous.heroes) && JSON.stringify(state.pending)===JSON.stringify(previous.pending)) return previous;
       }
       if (action.command!=='appearance' && state.status==='active' && state.heroes.every(h=>h.hp<=0)) {state.status='defeat';state.pending=null;}
       state.revision++; if (action.command!=='appearance') state.lastEvent=event; return state;
@@ -462,6 +553,6 @@
     const log=(previous?.combatLog || []).filter(row=>row.id!==action.id);
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
-  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,bossById,skillById,itemById,heroFromStudent,
-    reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,statsFor,rollReward};
+  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,bossById,skillById,itemById,heroFromStudent,
+    reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor};
 });

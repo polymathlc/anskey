@@ -1,0 +1,1825 @@
+{
+  "version": 1,
+  "nativePngUnchanged": true,
+  "assets": [
+    {
+      "sheet": "gear-helm",
+      "file": "assets/battle-pixel/items/gear-helm.png",
+      "bytes": 1071446,
+      "sha256": "0e13690e1b4aed6151229562c9767a9dcfba85fef21c2412903c70a1b846cb78",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1197629,
+        "partialPixels": 374317,
+        "opaquePixels": 1098,
+        "visiblePixels": 277492,
+        "nearOpaquePixels": 258262
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 12398,
+          "coloredPixels": 11508,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "b65527f301a99e3ac53823671fa088cfc0ae8bb440d3869f20758493bd4f7e56"
+        },
+        {
+          "occupiedPixels": 8169,
+          "coloredPixels": 7937,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "c5fd538c9b26e3f562c3fbf4c239e6f3e32886434d9e169f652a52ebf405e6f3"
+        },
+        {
+          "occupiedPixels": 11657,
+          "coloredPixels": 10862,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "8239f897b11bb7780701d3f891916c0d45b88f823d5fa164419ab02a5f96b941"
+        },
+        {
+          "occupiedPixels": 13168,
+          "coloredPixels": 12926,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "b9815c8fe72d08dad0da7428c48a735deea522efd18523b62555348c08e20220"
+        },
+        {
+          "occupiedPixels": 11130,
+          "coloredPixels": 10892,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "0ceb13f53a5e870a2cbec837c7450e6549a3760d9bd6cbc827e7a427bd65d3c3"
+        },
+        {
+          "occupiedPixels": 15081,
+          "coloredPixels": 13332,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "66857c205b2e4bf88509f8df4ebc0e5d8f3240accf225cbeee36a3bfdb7bf691"
+        },
+        {
+          "occupiedPixels": 11880,
+          "coloredPixels": 10766,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "21a29de92928edde9001528fa34770e494410363c87ee72e7534063d74c844fe"
+        },
+        {
+          "occupiedPixels": 12211,
+          "coloredPixels": 11916,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "d55b60b27b8f0ce7e23698aabefbe8a6f0e32d43be36f8aa5dddba09fb5af809"
+        },
+        {
+          "occupiedPixels": 16122,
+          "coloredPixels": 12922,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "7615032a18007fdd1117dccffb7e1e38174b0927ab245834ac1a04e63bcac016"
+        },
+        {
+          "occupiedPixels": 15681,
+          "coloredPixels": 15287,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "798e38203f2e24f49f7edea56488c03a0c8ec5cc01eefc904b6a56d4322b942c"
+        },
+        {
+          "occupiedPixels": 13653,
+          "coloredPixels": 13243,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "ec413b1241d5e5190a80a0cadcde1f5551b9022ae3492edb52eb952d599aadb4"
+        },
+        {
+          "occupiedPixels": 11467,
+          "coloredPixels": 11124,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "bf98377da7f2a1b1c3d50dcf32d0ffd65096d3c9ddca9474338d0f227944fde7"
+        },
+        {
+          "occupiedPixels": 15965,
+          "coloredPixels": 14865,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "e400cea6cea5e47c346d56d6586bf37e2db7bc0eb5e2c53d06c3b9a159a49250"
+        },
+        {
+          "occupiedPixels": 15756,
+          "coloredPixels": 14147,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "fc8500aa2a8ebd3b479b4ce9139270b0eb9708e21a724710c95613c78466eb74"
+        },
+        {
+          "occupiedPixels": 13785,
+          "coloredPixels": 13242,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "5ede63b575b92508c7dd84c971775743575bbf11c3aa329404554f7221996ea4"
+        },
+        {
+          "occupiedPixels": 12079,
+          "coloredPixels": 10578,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "9abf048dab05ee0deba60c57be4b4a8cc9d0662dd5edb3ab9e7aa7c10b383ec5"
+        },
+        {
+          "occupiedPixels": 19117,
+          "coloredPixels": 16667,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "8fc2f805f2adb829c4b8af4ee8b68844576c873a4c1c94fc9a92e433f0161a2a"
+        },
+        {
+          "occupiedPixels": 17485,
+          "coloredPixels": 16753,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "387e5d4b68d4f76867e4a1e0b5807b6140dd12a974823eb2a6a295a920708050"
+        },
+        {
+          "occupiedPixels": 17082,
+          "coloredPixels": 15715,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "60824f10a32f364b681dafbd7405fe7b101819857e06a474d85cad32155175fd"
+        },
+        {
+          "occupiedPixels": 13606,
+          "coloredPixels": 13336,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "1527ecccf37003e795aacd297216149739ee9b165340e8ef865178d53c6fe182"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-torso",
+      "file": "assets/battle-pixel/items/gear-torso.png",
+      "bytes": 1382221,
+      "sha256": "7d5a58d803454463ca728c302a42327303faa45b908f2866b5664c1835e1ce1f",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1093567,
+        "partialPixels": 478069,
+        "opaquePixels": 1408,
+        "visiblePixels": 401816,
+        "nearOpaquePixels": 385247
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 17507,
+          "coloredPixels": 16187,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "46c0fa8da12138bba115fafd5bf5d889924c0f7b757931f826a59a99316d33fc"
+        },
+        {
+          "occupiedPixels": 17828,
+          "coloredPixels": 17637,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "9c271010cf749ddc696039e6a4d4de769e8102e66b10622ae88b23ba342e8688"
+        },
+        {
+          "occupiedPixels": 17712,
+          "coloredPixels": 15854,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "6459a3875341e72064ff11948bc0bb6be90957046d5194c313b8f96a64f9ff25"
+        },
+        {
+          "occupiedPixels": 16407,
+          "coloredPixels": 15088,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "4bb1a3cac93b99b04adbb6de3eaaca63de92dbbe995443ec71c67ac5af26a84b"
+        },
+        {
+          "occupiedPixels": 14501,
+          "coloredPixels": 14203,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "d1d7b9adacc76201ce9ae51cdd6b569ab4fc3b2f021a316fd739362bc42d0007"
+        },
+        {
+          "occupiedPixels": 21407,
+          "coloredPixels": 19695,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "ec0de69b7721bfe333b6f22e06d217b8d10270843b698d9ffed33b32e47acb49"
+        },
+        {
+          "occupiedPixels": 22302,
+          "coloredPixels": 19654,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "5347d86e810402eb7ad05e524e3831ecfecead39e04c527872ec5cedd6e9cd5d"
+        },
+        {
+          "occupiedPixels": 22314,
+          "coloredPixels": 22140,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "a79fdbf2731d9293f7b41b7424d84f440d344082d92e7a8344d32fa157f9c7c7"
+        },
+        {
+          "occupiedPixels": 17862,
+          "coloredPixels": 16610,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "0ac756ff74e4317fa591a306651d1958167ecd9fd4046afc299ce3437c62bded"
+        },
+        {
+          "occupiedPixels": 22801,
+          "coloredPixels": 22062,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "96f3359b4e541f7ccd6589f0e4388c819d241c70e8bf2fe67ffe5d2e4c9bf236"
+        },
+        {
+          "occupiedPixels": 18676,
+          "coloredPixels": 17172,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "ce774b6732b5a47139411b763d9e7d2a31bbf69f0e2a0dcd0470c08769289fe0"
+        },
+        {
+          "occupiedPixels": 23034,
+          "coloredPixels": 22697,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "7b1f5a807d214808b7f7763435d902ded1168f6b09b0caf0f3a0bea20a40d76e"
+        },
+        {
+          "occupiedPixels": 18044,
+          "coloredPixels": 16816,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "288a3a6971f4b2120c09eed3d07f70131ca51d426922288cca51a78424b5fbc4"
+        },
+        {
+          "occupiedPixels": 21599,
+          "coloredPixels": 20039,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "ed078ae19a964d96dad1e7e7077acda27ff1d7ecc5fcd53a11ed72455cdc34d9"
+        },
+        {
+          "occupiedPixels": 20942,
+          "coloredPixels": 20509,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "38a21b38ffd833b791d13c2a7a562cdfe31e193e16ff5ca52b941f90852187fb"
+        },
+        {
+          "occupiedPixels": 21543,
+          "coloredPixels": 18072,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "1e81c7f76f1133476bf048bbf2ca2da145e13a85f20450e114005a9bb168f46c"
+        },
+        {
+          "occupiedPixels": 19756,
+          "coloredPixels": 18986,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "535601b9312726c3ebc41b855ad503fe18409b76cb2a3e427d045f34739b2ebc"
+        },
+        {
+          "occupiedPixels": 24127,
+          "coloredPixels": 23629,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "666e40b434f26de4c380c7cd6406245042828a75a2f8b555e31f5fe4eff72a26"
+        },
+        {
+          "occupiedPixels": 20520,
+          "coloredPixels": 17392,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "b0dfb1e5f00a6b5cd7b80338a4a70236504efd751dd4905cca616c08c62abccb"
+        },
+        {
+          "occupiedPixels": 22934,
+          "coloredPixels": 21885,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "7ab96557739f9362f70e7300c722b6efd8d09a3e53489b014d376f076d3659e6"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-gloves",
+      "file": "assets/battle-pixel/items/gear-gloves.png",
+      "bytes": 1219667,
+      "sha256": "73ee238342246c75b62ea4a36873128a82f6202d7e853577b147749719b2d936",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1134490,
+        "partialPixels": 437745,
+        "opaquePixels": 809,
+        "visiblePixels": 340122,
+        "nearOpaquePixels": 320973
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 14614,
+          "coloredPixels": 11748,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "64328c267ac62a0831ef97a89c9e9516658413d4612c0c91c44e0837b804b331"
+        },
+        {
+          "occupiedPixels": 15458,
+          "coloredPixels": 13350,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "590a72040aa4f47e76dbfd888799c8bc3fac355295f209af8a70b2bd798de8e3"
+        },
+        {
+          "occupiedPixels": 14729,
+          "coloredPixels": 12780,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "6479186edf9156741da869c848830d5d64d0054fb707aa6ddaa8aaaa20231d8b"
+        },
+        {
+          "occupiedPixels": 15885,
+          "coloredPixels": 15563,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "d782e5cb1b8e69253304883303133360ec88f36ef65be74f0db9eb0e044ce5ff"
+        },
+        {
+          "occupiedPixels": 14614,
+          "coloredPixels": 14087,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "f92a964860f3a95ec6a9add620ec2deb7ceb01462c2d2a60e5603d0cbbfd17bb"
+        },
+        {
+          "occupiedPixels": 17543,
+          "coloredPixels": 16297,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "2603d05e0fd012a36234ed532c0ea609e3fa8628b304bf7956c9be08c86ae6d0"
+        },
+        {
+          "occupiedPixels": 17593,
+          "coloredPixels": 15776,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "29c31d8e5ab63648224b2871c9eaf625482d3c32748790e8bfdbb8600831628c"
+        },
+        {
+          "occupiedPixels": 17386,
+          "coloredPixels": 16634,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "dc0e0121f7b6c6246a5c70916cc26d1bb3755df5b431437da227d94e01849971"
+        },
+        {
+          "occupiedPixels": 17124,
+          "coloredPixels": 15724,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "b407a2933241f80f4b1c4de496949333cbe5cc8990566146ab22d55940b8ae13"
+        },
+        {
+          "occupiedPixels": 18167,
+          "coloredPixels": 17819,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "7d271639b8c2ea4c5937647b5ad2700e1d68f4f9c40b8e30cf93a6d2034a3df2"
+        },
+        {
+          "occupiedPixels": 15891,
+          "coloredPixels": 15110,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "0f8be6f729b757068599ea96154c84184427edc2c6e66b039b54e35b0e7737ea"
+        },
+        {
+          "occupiedPixels": 17777,
+          "coloredPixels": 15100,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "c4f87b77f2b7c6a42dd4a318873593ad44a28680133b5ee81f715e5d29969339"
+        },
+        {
+          "occupiedPixels": 16837,
+          "coloredPixels": 15106,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "a908d6e2c8e959a7cc0eec70a8cfaf48b0b296afa56cff23255de6ba6d5d18f0"
+        },
+        {
+          "occupiedPixels": 17865,
+          "coloredPixels": 16646,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "cc5720f3fab146d263d7828d5423c1cea67c21473b75e51fae12bcd87b8f9bc6"
+        },
+        {
+          "occupiedPixels": 17802,
+          "coloredPixels": 17303,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "244317089084ae66a9c46086347758bf0c72a7070091879b0d5b0a7b729ababb"
+        },
+        {
+          "occupiedPixels": 17577,
+          "coloredPixels": 14656,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "8f3998abaa656e6780589d0cf7d747fbe5e22c705d549dddd1f19b83c68f7c13"
+        },
+        {
+          "occupiedPixels": 18768,
+          "coloredPixels": 17727,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "59604e4067f8f7657fa222d85c378447301834e3812429f89b05f5103851c754"
+        },
+        {
+          "occupiedPixels": 17048,
+          "coloredPixels": 16703,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "e2daa1b569498a7ec90c0236b825877a4b88a96c0261321aaadd9a6393badcc4"
+        },
+        {
+          "occupiedPixels": 18933,
+          "coloredPixels": 17685,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "0b9e78c784b5b21bfc955c7089a691f68dc177e0a8e02cea9c6fec56d1c84b73"
+        },
+        {
+          "occupiedPixels": 18511,
+          "coloredPixels": 17829,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "6e16f9369c9a17a2b6460f00d4da0e42c210d402e8b01626b8f2352d17613479"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-legs",
+      "file": "assets/battle-pixel/items/gear-legs.png",
+      "bytes": 1405738,
+      "sha256": "6ba3be5c9b6a07c843e9f110096f5719a0dfc8b77aa8056341517f91fe6cccce",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1067257,
+        "partialPixels": 504207,
+        "opaquePixels": 1580,
+        "visiblePixels": 412536,
+        "nearOpaquePixels": 392939
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 17766,
+          "coloredPixels": 16393,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "e8a417f3ec7c8656e5fbc4ceb24f82dcdc7f1508c2a4db91c3f857431f072c70"
+        },
+        {
+          "occupiedPixels": 17662,
+          "coloredPixels": 16862,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "c02e77798aa378a3bf8413c09bf19d14ba4d5328cde90763de70260e668bf8e1"
+        },
+        {
+          "occupiedPixels": 18865,
+          "coloredPixels": 16195,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "61a734a8aa3f4b08d13b38a570c860adabf52874c41e5bfd234aa04a471054c9"
+        },
+        {
+          "occupiedPixels": 17139,
+          "coloredPixels": 16869,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "b7f280a92fa1f149039d36f53fa46381eb7dd78b7604e7c24c8647ec186d4c6d"
+        },
+        {
+          "occupiedPixels": 17178,
+          "coloredPixels": 16682,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "110e883d9f1fabceb4b996b8bddc0c8584a5a00e60f5d283f25bbe7ec7060743"
+        },
+        {
+          "occupiedPixels": 21050,
+          "coloredPixels": 19442,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "33f71404ee7d5445da747c39fc6187c61f4e750578a5e7e3b5f212e89adb6011"
+        },
+        {
+          "occupiedPixels": 21301,
+          "coloredPixels": 20158,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "34ead0905d1769c6291e30322f7b9e9c58d63b902fe0c5d17301ce74e78ee927"
+        },
+        {
+          "occupiedPixels": 21587,
+          "coloredPixels": 20962,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "980bf456588da360c3fb1d3df137934c740eb403ff6caa2624b6e09dc5d145ba"
+        },
+        {
+          "occupiedPixels": 20245,
+          "coloredPixels": 18296,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "40818c71b97fee1381f9f37caec0ae6c36dc5f9dfe449c12eba7dfd0f6200312"
+        },
+        {
+          "occupiedPixels": 21637,
+          "coloredPixels": 20817,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "90c04b21253c05af31cd77c380adbc264920ed7dacff29a642ffeb403527dbdd"
+        },
+        {
+          "occupiedPixels": 20814,
+          "coloredPixels": 19641,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "b292e0279900849b9e9c284202b8610a1f2192b2d572e913a595f41023396233"
+        },
+        {
+          "occupiedPixels": 19839,
+          "coloredPixels": 18707,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "3a2dfa3574cb217dcec70eaac6457a4f454b768a36df2af951494fc71fe8be7a"
+        },
+        {
+          "occupiedPixels": 20676,
+          "coloredPixels": 18281,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "d1758746b3f5b536e3227d72c02fb9adb5f4e09fbd82336ec6297df1c7f9ae75"
+        },
+        {
+          "occupiedPixels": 22331,
+          "coloredPixels": 20839,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "52d36bb9529c916e5fb1741665eef98e800490d0a1056b40cd7c13aafab87593"
+        },
+        {
+          "occupiedPixels": 21841,
+          "coloredPixels": 21492,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "7ac05a70b6cb268421d297725047ea4e27865f91734609328d33852fe8724cc8"
+        },
+        {
+          "occupiedPixels": 22302,
+          "coloredPixels": 20795,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "4b46e8d7f04f92587c21546e633e9ec747adf0df991b6880540f1081114094df"
+        },
+        {
+          "occupiedPixels": 24758,
+          "coloredPixels": 23303,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "24c707f64488ca20773f909955cdd628484e59314804179f15f6b53ad3fb8f86"
+        },
+        {
+          "occupiedPixels": 20700,
+          "coloredPixels": 18667,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "bad78e82b9d4255b5dbbaa02d27b85b83a7fe31be0ab1382b46b7365b7e7f9be"
+        },
+        {
+          "occupiedPixels": 22845,
+          "coloredPixels": 21482,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "a24224da1ed194f7f51b2b7afab9e5f0052d7b75eb0584ec0d7b7e7443423ad4"
+        },
+        {
+          "occupiedPixels": 22000,
+          "coloredPixels": 20505,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "98f7d31d4d1445aab4ce01af4e46f6c71fa7b52bec409ed67f39807342e73330"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-boots",
+      "file": "assets/battle-pixel/items/gear-boots.png",
+      "bytes": 1353519,
+      "sha256": "3f2fcbb7078c671e3b42e417d5a99b721f338378822de5ee291cee05a4c7da3d",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1099183,
+        "partialPixels": 472823,
+        "opaquePixels": 1038,
+        "visiblePixels": 396717,
+        "nearOpaquePixels": 378598
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 17319,
+          "coloredPixels": 16045,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "bc2a503b73545d7aec2f15bd40255148bb8762a373a14262f384e734399e815a"
+        },
+        {
+          "occupiedPixels": 17802,
+          "coloredPixels": 16524,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "00617a8d78c922b030371fe2d601e317f0eb7bf93baf9faf1679fec2ac55c743"
+        },
+        {
+          "occupiedPixels": 18202,
+          "coloredPixels": 17310,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "88c2f57a0a9a3925ab23460baae52765a2f37a28d88b19eb3910a5151b61bbff"
+        },
+        {
+          "occupiedPixels": 18162,
+          "coloredPixels": 17977,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "2999ea5038962eb57a0a7f53e5976f8240e9a4e3016a01c5ae084009d48c5ac5"
+        },
+        {
+          "occupiedPixels": 17558,
+          "coloredPixels": 17034,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "5f8aa7e37dc5b789c7d9815ef2e65f6dd9d01eb8543a58212925f0c00640d324"
+        },
+        {
+          "occupiedPixels": 20787,
+          "coloredPixels": 19901,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "962c4305a8f19bc1f7b984a602cd49dad9db28d1a52936ace9a3a56b2d94e209"
+        },
+        {
+          "occupiedPixels": 19672,
+          "coloredPixels": 18295,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "dd20e201f824264280adf6893bcb8480a306a7f533bc1085bcd880e54ced3bce"
+        },
+        {
+          "occupiedPixels": 19359,
+          "coloredPixels": 19120,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "f9c25040dae97910fd2683f11aafa12f96ff8f062520bc65aba11b6a93e9b75d"
+        },
+        {
+          "occupiedPixels": 20980,
+          "coloredPixels": 17593,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "517ba12d10f749fd0596ea2faf2f5d06f7c516526e644f9d187ab8ecb6408912"
+        },
+        {
+          "occupiedPixels": 20852,
+          "coloredPixels": 19550,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "c253d87adb10c2e009a46b0560c3166c5b13104f212f9d59d6cd8d9e7b3df9ae"
+        },
+        {
+          "occupiedPixels": 18808,
+          "coloredPixels": 18088,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "0ba80472f974131fdb6f6b8109db7c0cbe9f4f2c38d1d4a9a826cbac72243faf"
+        },
+        {
+          "occupiedPixels": 18946,
+          "coloredPixels": 18344,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "4ed66fbf362e12df494addd2e239b02dbee8873be70e6576951d3f0666cc01ff"
+        },
+        {
+          "occupiedPixels": 19218,
+          "coloredPixels": 17420,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "f20bf714d95fa3f032f444f40b03bede7463c0aa1b813f8f338b40408f21a5f0"
+        },
+        {
+          "occupiedPixels": 20798,
+          "coloredPixels": 19531,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "3aa0d0e9a10a0b9fd1700c378859d0ece2f37d4579741c948ae44175d6d82516"
+        },
+        {
+          "occupiedPixels": 21293,
+          "coloredPixels": 20592,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "d5d81f880495244937af725d9b43c569d0c2c08d5fc675156c2c01757015833f"
+        },
+        {
+          "occupiedPixels": 22161,
+          "coloredPixels": 19867,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "d2b3365c1e329676e44f9c638b591de3578d1dbb55ec4199adbc26d52b3b888e"
+        },
+        {
+          "occupiedPixels": 21562,
+          "coloredPixels": 20741,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "6b70e44572aabae66f02a6565192393f29e5a6eab28f6a8bad0b5ff7fe7b5944"
+        },
+        {
+          "occupiedPixels": 20660,
+          "coloredPixels": 19957,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "5b1a232e0d98dae45c63c5193c8b7a4c583e166017b4574765699a7e1c74e0cc"
+        },
+        {
+          "occupiedPixels": 22134,
+          "coloredPixels": 19870,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "8ddbdd0817b7acead8d7a45340ef369ce02b62b4ad633ac2473ddf9e6183791f"
+        },
+        {
+          "occupiedPixels": 20444,
+          "coloredPixels": 20254,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "9d9d1ddf30fbdb8e9d535ac694e2ad8a2204cdfe600a7bd82b59ffe74d048fdf"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-amulet",
+      "file": "assets/battle-pixel/items/gear-amulet.png",
+      "bytes": 857062,
+      "sha256": "e8285a6a6b61acb078e3d77caf44c937194092b71be5fea0643b71f7a0321c44",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1304279,
+        "partialPixels": 268015,
+        "opaquePixels": 750,
+        "visiblePixels": 178831,
+        "nearOpaquePixels": 161591
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 7685,
+          "coloredPixels": 6707,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "ccea6739283dd4ddde03c477b415b87b0919b4ca9706c7a5caf3aadb5fd30dd4"
+        },
+        {
+          "occupiedPixels": 5972,
+          "coloredPixels": 5273,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "8ae1a3b214c4db5055d5fab3a5149f33b5be01eec3e89830282fb9168da9a444"
+        },
+        {
+          "occupiedPixels": 5928,
+          "coloredPixels": 3649,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "7e39d0886861f0cae557b70bd54950cb629bb8e2245c72db10e207779986661d"
+        },
+        {
+          "occupiedPixels": 8538,
+          "coloredPixels": 7755,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "8ab0c88d1d6e5a0ed63c8c2e838cc5f8d80020121954d86937e9dfdc2042b11a"
+        },
+        {
+          "occupiedPixels": 7295,
+          "coloredPixels": 6838,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "261d5a253842a8f59d6257d848b6f57d9d292862b03fc72f6eebccb977343364"
+        },
+        {
+          "occupiedPixels": 8805,
+          "coloredPixels": 7304,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "8fbaf8751288b38eb28c0fa7f8c15a620c569ddd8964a8906bc15519f56865c7"
+        },
+        {
+          "occupiedPixels": 7994,
+          "coloredPixels": 5974,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "e12a81d5132f60b4730dcf9215796d1068839c7e1f5346cd3fcd5ff808cab80a"
+        },
+        {
+          "occupiedPixels": 9979,
+          "coloredPixels": 8825,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "3b27654931db325d835b164e4c66ffefa22ee5626537019301b7359befb28d55"
+        },
+        {
+          "occupiedPixels": 8801,
+          "coloredPixels": 7263,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "7a2910255db8036e1acf8cc6340a63fb066f3b6745bff63daa2030cce454c375"
+        },
+        {
+          "occupiedPixels": 8630,
+          "coloredPixels": 7729,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "01efe16be91060687e5ab8c7e0fa5e134a377a7adc12d1c5c29ed513e375c65c"
+        },
+        {
+          "occupiedPixels": 8843,
+          "coloredPixels": 7975,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "6e7e51e341328eb32dab70e345c182a52bf38ee9e0dfbf019587a991be4687e1"
+        },
+        {
+          "occupiedPixels": 10370,
+          "coloredPixels": 9899,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "3d52608da21aef06e235c5fc5e36d5df56df5746b073b859584cd4a53a876167"
+        },
+        {
+          "occupiedPixels": 7906,
+          "coloredPixels": 6367,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "762e665ac4fba3275e916b528ebbe42b9706587a8a4ce3534930c41ed3f27013"
+        },
+        {
+          "occupiedPixels": 11137,
+          "coloredPixels": 9421,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "a330138809930f8207dcfd4070a00bf21e45c3a8210e7a58a484eb4ef0834770"
+        },
+        {
+          "occupiedPixels": 10438,
+          "coloredPixels": 9676,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "7c6bc927d98bbb55575c76d0bab10eb00c0262cd01024256696a00588d86186b"
+        },
+        {
+          "occupiedPixels": 9218,
+          "coloredPixels": 8562,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "e92407df3b21dc55207c8ff9c82f1b17a2d9aab7cae09c921a8221d0868866d2"
+        },
+        {
+          "occupiedPixels": 9255,
+          "coloredPixels": 7703,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "6e2cdc84e1d0584acbbbe93b50f121cfdfc56787a7e8bf0b0dbaf611b595e1f0"
+        },
+        {
+          "occupiedPixels": 11907,
+          "coloredPixels": 10499,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "456541f712295036eee96fca9890dca120620359098407d3cdc4672d26dfa5ba"
+        },
+        {
+          "occupiedPixels": 10288,
+          "coloredPixels": 8183,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "b0e14ba9a0fe0f942186deac808272023c59d7a69eec001683682761dab23aee"
+        },
+        {
+          "occupiedPixels": 9842,
+          "coloredPixels": 8864,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "5fae83d706573037e350b620683575dbff79f29e8597962d36cab475e5ee70a1"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-ring1",
+      "file": "assets/battle-pixel/items/gear-ring1.png",
+      "bytes": 937062,
+      "sha256": "e5b7d0fc3ee05e3ea3860b8fe8ff8ff6e37540ec5bda64ce3db9c4d1e4f68d0d",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1254953,
+        "partialPixels": 316718,
+        "opaquePixels": 1373,
+        "visiblePixels": 241042,
+        "nearOpaquePixels": 226141
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 10832,
+          "coloredPixels": 10023,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "1f7fa60bda2e11acd6a0b80deccd3cfcad5c93de5e4697eb99d9c949d5a1d3ab"
+        },
+        {
+          "occupiedPixels": 10160,
+          "coloredPixels": 9955,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "2fc2e86eefa3226d486786824fb1102fab721a4ea4a5c35bf2961a4dd6e9be77"
+        },
+        {
+          "occupiedPixels": 11134,
+          "coloredPixels": 7887,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "9fba62c1dea6473f9c1a74cc4e72af99f613c40e214fed11bc858ace9b7ad59f"
+        },
+        {
+          "occupiedPixels": 11274,
+          "coloredPixels": 11132,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "37145aece2f7ebeff52599c4a234211fa0da7c7533dae4e679a8a4eb377b1a09"
+        },
+        {
+          "occupiedPixels": 11139,
+          "coloredPixels": 10959,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "b682ea156ca45b9c39cd435f10be9b54bf0845415220cdcba3e79694e88d6973"
+        },
+        {
+          "occupiedPixels": 13235,
+          "coloredPixels": 12695,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "d0e9516d6386909bd25072771a2fdf73cc15638a85371818d5ec52d0a4f6d787"
+        },
+        {
+          "occupiedPixels": 11419,
+          "coloredPixels": 8859,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "e8a41b462f310ddc0c4a244e3c20dbe5e0b2e8f99e6f8dcb9e11d36328177635"
+        },
+        {
+          "occupiedPixels": 11605,
+          "coloredPixels": 11146,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "546d4dfe58cad0bd68c0903761821fbafcd5403a95a425134f2449f9d8d18ca3"
+        },
+        {
+          "occupiedPixels": 12855,
+          "coloredPixels": 10435,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "ea0824b91f615ea1ccad9a45402376aa73896c920d798cff2d300bb92316fe28"
+        },
+        {
+          "occupiedPixels": 11440,
+          "coloredPixels": 11293,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "2b69739e85605728e1dd59d3448babec2b167ff21572e41c9838e2fefd9e55ec"
+        },
+        {
+          "occupiedPixels": 11959,
+          "coloredPixels": 6983,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "e5cb85448f7b6f3d8b320a487fbc2773be673a43440c91f36a87161611e5146e"
+        },
+        {
+          "occupiedPixels": 11445,
+          "coloredPixels": 11297,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "2893167c2f08cc3e6018df85e8873620ef6a465bc86acb3741cbf2dac80ffacc"
+        },
+        {
+          "occupiedPixels": 13065,
+          "coloredPixels": 8357,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "9ff87a2ab1825dfd8a55dcbe80f1307e43a7fcc6ac3083976bdbae7c9e3db067"
+        },
+        {
+          "occupiedPixels": 12296,
+          "coloredPixels": 11639,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "12b648fd34f9b45984716da12235bab02d35ffb53b71146efc203ba62ebcd9f2"
+        },
+        {
+          "occupiedPixels": 13284,
+          "coloredPixels": 13130,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "06686fbadd13d62a16821c9a41eab3ec6a5e33d115bf79991ea039a61e80654f"
+        },
+        {
+          "occupiedPixels": 12963,
+          "coloredPixels": 5219,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "139f82d18093626cb7920b79bec27ef219588a4ae84d1eff67eb4ec5fcacc18d"
+        },
+        {
+          "occupiedPixels": 12738,
+          "coloredPixels": 12241,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "73d5a49a70e7a5b34224a58c5bda080b9623f99ac3cdf05e7ef11bb6ec645199"
+        },
+        {
+          "occupiedPixels": 12737,
+          "coloredPixels": 12577,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "206a54bfa29f2288d6e3c2aafbe841cf008527fab8a9441eae7ca2a1e47e48ea"
+        },
+        {
+          "occupiedPixels": 12714,
+          "coloredPixels": 11519,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "80810ca3e427462513aed45b9ceffbc2d82696647eed4723bc2b3f55116ecd46"
+        },
+        {
+          "occupiedPixels": 12748,
+          "coloredPixels": 12392,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "cf387343bde5cb64d6c8ad9e1c5dba83127ae9335d879b7e9eb8eeeedcf20097"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-ring2",
+      "file": "assets/battle-pixel/items/gear-ring2.png",
+      "bytes": 1046904,
+      "sha256": "167d5142818c398cee0787771771cf8f81426c5d22fe9e986b4e2a65b547ff09",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1223647,
+        "partialPixels": 347520,
+        "opaquePixels": 1877,
+        "visiblePixels": 276497,
+        "nearOpaquePixels": 261807
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 11081,
+          "coloredPixels": 10111,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "482841fcf0431fe2c9d0f51d4e1ae16ff533eeda22b0e768616d441e2f1d86ca"
+        },
+        {
+          "occupiedPixels": 12256,
+          "coloredPixels": 10040,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "32a4ecef27e4cdc473f7c50e9581a865af446f2d23b2052bd4577f7b4537ce49"
+        },
+        {
+          "occupiedPixels": 12332,
+          "coloredPixels": 11460,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "5ee77f9682f657b530e328a79aaa86bc2df0c8bf00d80387b82ecb15cdac3488"
+        },
+        {
+          "occupiedPixels": 12242,
+          "coloredPixels": 11537,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "884dfd746a3075d99a9b77b2867cb846945bf02f501334355d594dfdd27b97ed"
+        },
+        {
+          "occupiedPixels": 12087,
+          "coloredPixels": 11394,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "e6544822e4b0cf6b1370bb750fc8df76cf591b89c472d057ddbf56a3083bcc94"
+        },
+        {
+          "occupiedPixels": 14417,
+          "coloredPixels": 11959,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "0f075123ce97c57ab7941eaed023bb9ad694912f94221713266abbd65d30e971"
+        },
+        {
+          "occupiedPixels": 12414,
+          "coloredPixels": 9676,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "f2e68703b33bbb97c0e6a352870239a95b70616c971da0481f5dff49015b54f9"
+        },
+        {
+          "occupiedPixels": 12963,
+          "coloredPixels": 12519,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "3b852062fcbe984fabae8a78f6100519493c1ee4d198ca4f75144ecb9145c504"
+        },
+        {
+          "occupiedPixels": 12573,
+          "coloredPixels": 11434,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "d0964ad25b95471c53f67c1daa5f1352736f300b67999fe974193c14750c957b"
+        },
+        {
+          "occupiedPixels": 14158,
+          "coloredPixels": 13537,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "ffadea240039058863b7719b2bc0812458f70327c40df60be557fa09cdef255a"
+        },
+        {
+          "occupiedPixels": 13803,
+          "coloredPixels": 12539,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "1bb022415e6c25d2a25353f3e731a1669d3c710fec21bf351d8aa0f20ce3a2ae"
+        },
+        {
+          "occupiedPixels": 14578,
+          "coloredPixels": 13782,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "5d893bfb88bd8684a6f20aaa332fb5f19656f1fa54a455b0f72cc3a5497350e1"
+        },
+        {
+          "occupiedPixels": 14284,
+          "coloredPixels": 12709,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "8ad3487d8e4815ad1be39db1504de8f85ecb5be81e92d67deff3b892391f4c33"
+        },
+        {
+          "occupiedPixels": 16196,
+          "coloredPixels": 14696,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "1e84c1bfff3d30e43ef7e8e0b020402188a8f36d901b527eb97375c3adf35d3c"
+        },
+        {
+          "occupiedPixels": 15983,
+          "coloredPixels": 15399,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "f26e15dcc6a53688c955c17b29385a167d55a5bcfa3123ce42046c5f92bfd750"
+        },
+        {
+          "occupiedPixels": 15102,
+          "coloredPixels": 10050,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "bca4959edbc820b845be58ba5101187fd6148526aaf485614e347cd1a1a4a750"
+        },
+        {
+          "occupiedPixels": 15026,
+          "coloredPixels": 13243,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "c0aa53fa38d4b9e4da00a837d8a59ecb1f0ef5f5e5c3096f434d9b786283047a"
+        },
+        {
+          "occupiedPixels": 14184,
+          "coloredPixels": 13475,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "1f2bdd1bf0aa3a4537e3e865c48c7914e99971557985db27637cf5428109c17c"
+        },
+        {
+          "occupiedPixels": 15404,
+          "coloredPixels": 14289,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "c60619eba562a913735a0560459da47ef31156d7a7a43b72eede855b6a9a2cb6"
+        },
+        {
+          "occupiedPixels": 15414,
+          "coloredPixels": 14465,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "4634923ea3d2efbbc377e6f6f92afe81f81f9ab9c52fc1a9dc19015266345fc6"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-mainhand",
+      "file": "assets/battle-pixel/items/gear-mainhand.png",
+      "bytes": 866265,
+      "sha256": "39cbe82f6d6c7b897ddde96d367e9d15e294b4010b31489bc4cadb4090f0c470",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1271125,
+        "partialPixels": 301741,
+        "opaquePixels": 178,
+        "visiblePixels": 171427,
+        "nearOpaquePixels": 130739
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 7558,
+          "coloredPixels": 7132,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "e15a9239acd62f7b833a38874fd59c6e0d870302d43db5e412893f09a828a724"
+        },
+        {
+          "occupiedPixels": 8521,
+          "coloredPixels": 8364,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "6e9cd20ed8cb6686ebdda656fc91b234ec507cdc1bee1b5b65df512315d21aa3"
+        },
+        {
+          "occupiedPixels": 6833,
+          "coloredPixels": 6284,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "e2fecbf7590bd699ff2f3607b490e3c1246f55a1aee669f48803a2b7bd7b6f6d"
+        },
+        {
+          "occupiedPixels": 9678,
+          "coloredPixels": 7852,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "084975510d66226a7346657cb8cc1db883fe176c3fee7c6a161b5f6d326d3b7a"
+        },
+        {
+          "occupiedPixels": 5276,
+          "coloredPixels": 5058,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "009f08ae53c6f0808a92747ad8d07d3d277023a20862cb0a5f96567f1a270e1d"
+        },
+        {
+          "occupiedPixels": 8721,
+          "coloredPixels": 8235,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "10fe67453fb6d896205065afbc54710e86c0deeacc338dac32e69780859a7846"
+        },
+        {
+          "occupiedPixels": 6093,
+          "coloredPixels": 5605,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "86c6eb77097614db652d85711c3851f8312f725fbc87eaa575cdc51e5fd8eef8"
+        },
+        {
+          "occupiedPixels": 8262,
+          "coloredPixels": 8217,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "cf721201ba6b857fb21dc8a0af917ac366bdacd66a58618eb624728660b0c662"
+        },
+        {
+          "occupiedPixels": 8371,
+          "coloredPixels": 8202,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "215c1b19efd881e014c571a35ac4e3cb67b18cc14ffefc1f89b5e4926451bb92"
+        },
+        {
+          "occupiedPixels": 6355,
+          "coloredPixels": 5556,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "1dcd3af23ca1f93680b6733a749daeb5f7a1e63531d9df6a9055ff6ffa7fa644"
+        },
+        {
+          "occupiedPixels": 10001,
+          "coloredPixels": 9609,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "9e24b79201c3bc718946db1738d1f397dee62fdb41aec9cf0c9af90154b68b29"
+        },
+        {
+          "occupiedPixels": 10142,
+          "coloredPixels": 9732,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "ad15024df9b69012220a4801e4734f57b34f69741ef19930161f921ab408ef0d"
+        },
+        {
+          "occupiedPixels": 11261,
+          "coloredPixels": 10627,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "4e06080db1321bbcc9de6bdbcdf69f5ab07cd9c36883ffa285d0bf27f12d0886"
+        },
+        {
+          "occupiedPixels": 8422,
+          "coloredPixels": 8154,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "026ebbf7f4548d66db40d290aae60a64730f8b5ec80ea788a0035726b5e6d991"
+        },
+        {
+          "occupiedPixels": 10459,
+          "coloredPixels": 9991,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "602a0f7685c07b2bc0500e9754602ab480324b236c9cd5e3df044f8df0c44245"
+        },
+        {
+          "occupiedPixels": 8339,
+          "coloredPixels": 7228,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "f37b10746f3e27e8d1de84c8b6eb485a008aefe208ae897e18ab211534f104eb"
+        },
+        {
+          "occupiedPixels": 9731,
+          "coloredPixels": 9237,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "5ffb9017e86e7c03e5cc8db224e2d0f9cd9e7753531943b987a3056d7dc046ec"
+        },
+        {
+          "occupiedPixels": 7183,
+          "coloredPixels": 7070,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "222ff04f51d156174af53ce0835a32b39772e24c8905ff33dd5a94da207d50c1"
+        },
+        {
+          "occupiedPixels": 10806,
+          "coloredPixels": 9858,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "b79d6870fd884c8e1862fbe72042a2aedeb70e40fc717701511e7551f253e7ff"
+        },
+        {
+          "occupiedPixels": 9415,
+          "coloredPixels": 9221,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "4ae60cda32f20407152d96d4ac63a00d08b243e5b61cdc083da5101723b14109"
+        }
+      ]
+    },
+    {
+      "sheet": "gear-offhand",
+      "file": "assets/battle-pixel/items/gear-offhand.png",
+      "bytes": 998142,
+      "sha256": "4fb24601990457a745d27238ae458459900b522524c1e3a3727b4a74dcf1f493",
+      "columns": 5,
+      "rows": 4,
+      "width": 1402,
+      "height": 1122,
+      "alpha": {
+        "transparentPixels": 1238037,
+        "partialPixels": 333804,
+        "opaquePixels": 1203,
+        "visiblePixels": 263751,
+        "nearOpaquePixels": 250898
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 10787,
+          "coloredPixels": 7079,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "d314458e3b12ca7a87857b4f1a3ae47ef243ddd8531fd683941b8c6f79dcdf70"
+        },
+        {
+          "occupiedPixels": 9835,
+          "coloredPixels": 8832,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "62a15e740b01d53baa372e8803ccbc95ba537f8cde4e9a8b0908923305ca64ce"
+        },
+        {
+          "occupiedPixels": 13213,
+          "coloredPixels": 11292,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "68a00295112bcb564ab0c7faff0abcb4a349f90d05f7b3c8ba5e3a7d70b72ca4"
+        },
+        {
+          "occupiedPixels": 12094,
+          "coloredPixels": 11664,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "a6489ef416cc3fd35ea1fb7c6341042475f09bf11c81ff06bf06d85056f19b25"
+        },
+        {
+          "occupiedPixels": 12675,
+          "coloredPixels": 12020,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "3b4d70d1f0af7e80cbeca5402eaf8b8029467a7afa87e282d1f195559c9dd4e1"
+        },
+        {
+          "occupiedPixels": 13888,
+          "coloredPixels": 10591,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "caf72a3bdd07203ab04723a42c0a1e121ef206c3a2d52d12891f3c59294ce8d4"
+        },
+        {
+          "occupiedPixels": 12065,
+          "coloredPixels": 10046,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "daa8b9c8d20807a173db844fa73c6ff27deced343df1568041c9875cc722b8ab"
+        },
+        {
+          "occupiedPixels": 12815,
+          "coloredPixels": 12110,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "f155b1527720d9520c755df562b1a68477d0336304c3d6c8bd9b26062308385a"
+        },
+        {
+          "occupiedPixels": 14089,
+          "coloredPixels": 13278,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "144deb48233d8db0ec353017c7926fbb984717130ef4edc8031683537b9c189e"
+        },
+        {
+          "occupiedPixels": 14770,
+          "coloredPixels": 14089,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "45080813efd88df9e6132895914d59acc93634ac074be7778d68a0d38aebb599"
+        },
+        {
+          "occupiedPixels": 13288,
+          "coloredPixels": 11960,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "cd9673b538ebdacf38cd9eaef55b764b14f724690f8690e5e5f7ef9eb6475aef"
+        },
+        {
+          "occupiedPixels": 16583,
+          "coloredPixels": 14346,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "5b91a5256b856d99b90371ae975d86fe83f65afdfd5216b432994d14a128a727"
+        },
+        {
+          "occupiedPixels": 10326,
+          "coloredPixels": 9354,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "4a9e38281523560e505d1ce43902a9a97baf3788c7c933914d0123cd7e4dead6"
+        },
+        {
+          "occupiedPixels": 15755,
+          "coloredPixels": 13940,
+          "edgePixels": 0,
+          "area": 78400,
+          "fingerprint": "232b4c263b1be865497ed6336ff7a1a1f8bb63ca3e6aa063c83a26aae88895e8"
+        },
+        {
+          "occupiedPixels": 16146,
+          "coloredPixels": 15501,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "afff4942a61074ff1b1fafc2a6a04bf1874842a5806212faea4c43537853f75a"
+        },
+        {
+          "occupiedPixels": 10998,
+          "coloredPixels": 9100,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "d215b28a0203c9f56574dc2487ac451744b0e4a5e6bc9116c5f1641b3b102ef6"
+        },
+        {
+          "occupiedPixels": 14033,
+          "coloredPixels": 13279,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "3144f50397be4591d446d7046b8c2552967aed287a295fb3603e21a869c96e77"
+        },
+        {
+          "occupiedPixels": 15730,
+          "coloredPixels": 13618,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "2e58e099c4c3a6bbb9d22b5846abd1f218e05a4650aad6662fe24cda639c0d75"
+        },
+        {
+          "occupiedPixels": 12547,
+          "coloredPixels": 11950,
+          "edgePixels": 0,
+          "area": 78680,
+          "fingerprint": "41105b0ee83dcddacfbf37daa0c840491210b424e14d7fc2b79af8d7779a2537"
+        },
+        {
+          "occupiedPixels": 12114,
+          "coloredPixels": 10725,
+          "edgePixels": 0,
+          "area": 78961,
+          "fingerprint": "c0b74515771dcb7d44b35a158b13ddbe59dee7c5daea28a13f6a5a91b73f2e11"
+        }
+      ]
+    },
+    {
+      "sheet": "pets",
+      "file": "assets/battle-pixel/items/pets.png",
+      "bytes": 806710,
+      "sha256": "3a7049f08e2e2c940cd015adf33dca24b1f480cd18fe55ceff2fb53f71de4243",
+      "columns": 5,
+      "rows": 6,
+      "width": 1145,
+      "height": 1374,
+      "alpha": {
+        "transparentPixels": 1309048,
+        "partialPixels": 263737,
+        "opaquePixels": 445,
+        "visiblePixels": 184766,
+        "nearOpaquePixels": 162319
+      },
+      "frameDetails": [
+        {
+          "occupiedPixels": 4599,
+          "coloredPixels": 4477,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "2fcc2d50e8fdc6ec1d047d7b249c2aff785073d6ebaaab1e62971a33b56cfb35"
+        },
+        {
+          "occupiedPixels": 5501,
+          "coloredPixels": 5326,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "3f3d4f3c96da669457a3e1b70a4c2058b1a2c87a20cf977a10651ad957cfcbbc"
+        },
+        {
+          "occupiedPixels": 5550,
+          "coloredPixels": 4237,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "c4d15a76730cc432a5ca38db0ae50aa4082070f873621bd752ba31bf091e7ae0"
+        },
+        {
+          "occupiedPixels": 4905,
+          "coloredPixels": 3594,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "dd72b85a24cabb578e4cefc618cea7ab4ffe0ca73f67975141cff050d78df868"
+        },
+        {
+          "occupiedPixels": 5503,
+          "coloredPixels": 5370,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "572a06a5df015d8c1da4f8159b9be7878f354805def174c0c73853ea85f44284"
+        },
+        {
+          "occupiedPixels": 4918,
+          "coloredPixels": 4828,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "8c90678c34bcd8c26f7d20dae63a1c9ac8420d3004abcd8735451599e74f75ef"
+        },
+        {
+          "occupiedPixels": 5089,
+          "coloredPixels": 4858,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "4495b4a53abe3571bcd087f2248e36dcce7944b055d6bde6bdfd4294954e18ee"
+        },
+        {
+          "occupiedPixels": 6816,
+          "coloredPixels": 6699,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "e6ab9be775d8914df6d0c5b3c6cf58f9690a4488886f5c8cc1e1da85b3216b7f"
+        },
+        {
+          "occupiedPixels": 4859,
+          "coloredPixels": 4716,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "127b808f3b7b0d0b45042c91921b677e890429738fcc6c6a396bac5caa1027e3"
+        },
+        {
+          "occupiedPixels": 6143,
+          "coloredPixels": 5552,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "3c363f2b573b18eef7dd1b684241ace5d0fdda8c1972facea170294a60a2c06f"
+        },
+        {
+          "occupiedPixels": 6927,
+          "coloredPixels": 5806,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "1860d546cf94f2e4f82500b91170918d324e18e11a071468be6824523d139348"
+        },
+        {
+          "occupiedPixels": 6359,
+          "coloredPixels": 6243,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "8743e36abb13c9fc5fbe610c15282943618811cd1ff529145e3dad2732299d40"
+        },
+        {
+          "occupiedPixels": 6198,
+          "coloredPixels": 6097,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "f287cbe4b450b37794be867138e9ef805a5724f93b2489a503d93624c7f1e77b"
+        },
+        {
+          "occupiedPixels": 6202,
+          "coloredPixels": 6095,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "74422044b70198a5c5ea2426b80e52c105091db09c443626179995291da9bf53"
+        },
+        {
+          "occupiedPixels": 6005,
+          "coloredPixels": 5692,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "2e562737c6815aa2bd9cfa8efe63ce7e6bba0cccbb0a6222bee25f93254fda0e"
+        },
+        {
+          "occupiedPixels": 6107,
+          "coloredPixels": 5868,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "8586fe0f11e1627346dbc7f4ee1f7188694cb58b02ced9e4914ba76a084a5091"
+        },
+        {
+          "occupiedPixels": 7226,
+          "coloredPixels": 6999,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "4bf8240fdf40b21fca08329a5b28603942122b68e368d47af615213b07eede03"
+        },
+        {
+          "occupiedPixels": 5615,
+          "coloredPixels": 5441,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "7da092736c14fa2cd17f91ae9b3c97cc37de74a2ad5a454f6a679799d0c2cd83"
+        },
+        {
+          "occupiedPixels": 5946,
+          "coloredPixels": 5786,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "c7c270fe62f45e49064637b8f28c7755b67bcb9c90468485074b0478b969fb36"
+        },
+        {
+          "occupiedPixels": 6478,
+          "coloredPixels": 3573,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "371600acfaf29b3090213ba86e5e1d7988f423a51791e9708a40e464fea7fa95"
+        },
+        {
+          "occupiedPixels": 7748,
+          "coloredPixels": 7653,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "00904898b5f0b0da3b6d05d932d0041c435685ed53b4e576a296502437fd6a78"
+        },
+        {
+          "occupiedPixels": 5069,
+          "coloredPixels": 4925,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "426dfddb6888c20207f8502c9ad5285886bd313eda69a70277d340776391cfc5"
+        },
+        {
+          "occupiedPixels": 6048,
+          "coloredPixels": 5662,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "536b538dafacfc966f9335dc6adfbe64a702e2f79c2e269b1884c67897699822"
+        },
+        {
+          "occupiedPixels": 6933,
+          "coloredPixels": 6735,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "a110db5f40af57e7bf5e27e035c004c7530c958240bda46a887da9a5794bac6d"
+        },
+        {
+          "occupiedPixels": 7319,
+          "coloredPixels": 7262,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "c2d0f8ad204d1ab888a81f1e5b30a0a2d2925935e06c750c185f9f4e45e5c11c"
+        },
+        {
+          "occupiedPixels": 6484,
+          "coloredPixels": 6422,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "44e067f70665530b8d6fe256047d22ef528b625db06014c051efb28f39333b9d"
+        },
+        {
+          "occupiedPixels": 7109,
+          "coloredPixels": 6771,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "b244d19e184e4ad48a65fb28b7858961819937eff20d32e11564852fa92fda93"
+        },
+        {
+          "occupiedPixels": 7280,
+          "coloredPixels": 7041,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "1aa0ea390a00c35140cc644968058fb5f86bd15e294367ea663e1f403be88579"
+        },
+        {
+          "occupiedPixels": 7062,
+          "coloredPixels": 6878,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "5cd2d35d111a82c7488903cc8af0bf2a2b9f0b17bcc57b2904d6d4a8cbff0b08"
+        },
+        {
+          "occupiedPixels": 6768,
+          "coloredPixels": 6588,
+          "edgePixels": 0,
+          "area": 52441,
+          "fingerprint": "7ac107ab45920bd0ee8336e2bbd6a2676ee593906328cb8b09eefa67b1814f4d"
+        }
+      ]
+    }
+  ]
+}
