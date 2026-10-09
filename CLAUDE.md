@@ -2,6 +2,10 @@
 
 Guidance for Claude when working in this repo.
 
+## 🎰 The mission machine's reels (v1.130.0)
+
+`REEL_*` / `reelFaces` / `reelPos` / `startSpin` / `landSpin` / `spinTick` / `stopSpin` in `mission-machine.js`, the `.mmSlot` / `.mmStrip` / `.mmFace` CSS. A Turn (or a Retry of a pending turn) spins two reels over `OBJECTIVES` and `PRIZES`; they land only on `data.current` once the save answers with that request's mission id. **Presentation only**: the roll is still the server's, `blocked()` is unchanged (the battle controllers' lock), and only the panel's own buttons and the drawer label wait while it spins (the label says "spinning…" so the result is not revealed early). A refusal, an unconfirmed save, a mismatched mission or `destroy` calls `stopSpin`; reduced motion never spins. Positions are written by `requestAnimationFrame` into whatever `.mmStrip` exists, so a `render()` mid-spin is harmless. `REEL_ROW` must equal `.mmFace` height. Run `node tools/mission-slot-browser-check.mjs` with the mission checks.
+
 ## ⚡ The attack starts when points are given (v1.129.0)
 
 `predict` / `shown` / `q.preview` / `q.playingId` in `quick-battle.js`, `IMPACT_MS` and the timeline in `battle-animation.js`, `teacherRecord` / the parallel `identify` / `Access-Control-Max-Age` in `functions/hero-service.js`, `minInstances: 1` on `ansKeyHeroes`, and the bosses read folded into the first batch of `battle()`'s transaction.
