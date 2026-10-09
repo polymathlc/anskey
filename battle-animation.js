@@ -118,6 +118,7 @@
     if (!container) return;
     var player = players.get(container); if (player) player.cancel();
   }
+  var IMPACT_MS = 220;
   function playDuel(container, options) {
     unmount(container); options = options || {};
     var event = options.event || {}, hero = options.hero, timers = new Set(), created = [], motions = [], done = false, resolveFinished;
@@ -203,7 +204,9 @@
     stage('windup', hero.name + ' uses ' + (event.move || 'Attack') + '…');
     if (sprite) { sprite.classList.remove('cbaDormant'); sprite.classList.add('cbaActing'); }
     if(recipe.passive) effect(recipe.family,heroActor,'Passive aura',false,recipe,0);
-    animate(sprite, roleName(hero.role) === 'warrior' ? [{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(20px)' }, { transform: 'translateX(0)' }] : [{ transform: 'translateY(0)' }, { transform: 'translateY(-5px)' }, { transform: 'translateY(0)' }], 750);
+    animate(sprite, roleName(hero.role) === 'warrior' ? [{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(20px)' }, { transform: 'translateX(0)' }] : [{ transform: 'translateY(0)' }, { transform: 'translateY(-5px)' }, { transform: 'translateY(0)' }], 600);
+    // A tighter beat: the hit lands sooner and the enemy answers sooner, so a
+    // whole turn reads in about a second and a half rather than two and a half.
     later(function () {
       stage('hero-impact', hero.name + ': ' + (event.move || 'Attack') + (event.damage ? ' · ' + event.damage + ' damage' : ''));
       if (event.damage > 0) { if(skill) skillEffect(enemyActor,options.preview?'':'−'+event.damage); else effect(fx, enemyActor, '−' + event.damage, fx === 'arrow'); animate(enemyActor && enemyActor.querySelector('img,.cbEnemySprite'), [{ filter: 'brightness(1)' }, { filter: 'brightness(2)' }, { filter: 'brightness(1)' }], 420); }
@@ -221,10 +224,10 @@
         if (entry.amount > 0) { effect('heal', findHero(entry.heroId), options.preview?'':'+' + entry.amount, false); if(skill && recipe.family!=='heal') effect(recipe.family,findHero(entry.heroId),'',false,recipe,0); }
       });
       supportEffects();
-    }, 330);
-    later(function () { if (sprite) { sprite.classList.remove('cbaActing'); if(wasDormant) sprite.classList.add('cbaDormant'); } }, 780);
-    var heroEnd=330+(recipe.count-1)*recipe.interval+recipe.duration+30;
-    var enemyStart=Math.max(1050,heroEnd+80);
+    }, IMPACT_MS);
+    later(function () { if (sprite) { sprite.classList.remove('cbaActing'); if(wasDormant) sprite.classList.add('cbaDormant'); } }, 640);
+    var heroEnd=IMPACT_MS+(recipe.count-1)*recipe.interval+recipe.duration+30;
+    var enemyStart=Math.max(700,heroEnd+40);
     if (event.enemy) {
       later(function () {
         stage('enemy-windup', 'Enemy uses ' + event.enemy.move + '…');
@@ -235,9 +238,9 @@
         stage('enemy-impact', 'Enemy: ' + event.enemy.move + ' · ' + targets.reduce(function (sum, target) { return sum + target.damage; }, 0) + ' damage');
         targets.forEach(function (target) { if (target.damage > 0) effect('slash', findHero(target.heroId), '−' + target.damage, false); });
         (event.enemy.healed || []).forEach(function (entry) { if (entry.amount > 0) effect('heal',findHero(entry.heroId),'+'+entry.amount,false); });
-      }, enemyStart+260);
+      }, enemyStart+200);
     }
-    later(function () { finish(false); }, event.enemy ? enemyStart+1080 : Math.max(1450,heroEnd+80));
+    later(function () { finish(false); }, event.enemy ? enemyStart+720 : Math.max(1000,heroEnd+60));
     }
     // Wait for just this cast's generated pixels before starting its timeline.
     // Slow first loads cannot consume the animation while the image is invisible.

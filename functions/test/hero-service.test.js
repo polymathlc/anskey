@@ -56,3 +56,23 @@ test('validation failures are useful; unexpected failures never expose data',asy
   const conflict=harness({repository:{async execute(){throw new HeroError(409,'name_unavailable','That name is already claimed.');}}});assert.equal((await conflict.request()).body.error.code,'name_unavailable');
   const failed=harness({repository:{async execute(){throw Error('private email and token');}}}),res=await failed.request();assert.equal(res.statusCode,503);assert.ok(!JSON.stringify(res).includes('private email'));assert.deepEqual(failed.calls.at(-1),['report','hero_request_failed']);
 });
+test('the teacher lookup is reused between requests and the three checks run together',async()=>{
+  const h=harness(),first=await h.request(),second=await h.request();
+  assert.equal(first.statusCode,200);assert.equal(second.statusCode,200);
+  assert.equal(h.calls.filter(x=>x[0]==='teacher').length,1,'one Auth API lookup of the teacher, not one per award');
+  assert.equal(h.calls.filter(x=>x[0]==='auth').length,2,'every request still verifies its own ID token, revocation included');
+  assert.ok(h.calls.filter(x=>x[0]==='auth').every(x=>x[2]===true));
+  assert.equal(h.calls.filter(x=>x[0]==='appCheck').length,2,'every request still verifies App Check');
+});
+test('a failed teacher lookup is not remembered',async()=>{
+  let fail=true;const h=harness({auth:{async getUserByEmail(){if(fail)throw Error('offline');return {uid:'teacher',emailVerified:true};}}});
+  assert.equal((await h.request()).statusCode,503);fail=false;assert.equal((await h.request()).statusCode,200);
+});
+test('a token that fails still refuses even though the checks run in parallel',async()=>{
+  const h=harness({auth:{async verifyIdToken(){throw Error('revoked');},async getUserByEmail(){return {uid:'teacher',emailVerified:true};}}});
+  const res=await h.request();assert.equal(res.statusCode,401);assert.equal(res.body.error.code,'sign_in_required');assert.ok(!h.calls.some(x=>x[0]==='execute'));
+  const app=harness({appCheck:{async verifyToken(){throw Error('bad');}}}),r2=await app.request();assert.equal(r2.statusCode,403);assert.equal(r2.body.error.code,'app_check_required');
+});
+test('the browser may reuse its permission check instead of asking before every award',async()=>{
+  const h=harness(),res=await h.request(undefined,{method:'OPTIONS'});assert.equal(res.statusCode,204);assert.equal(res.headers['Access-Control-Max-Age'],'7200');
+});
