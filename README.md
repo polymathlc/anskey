@@ -4,6 +4,18 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.128.0 — ✒️ Fix grammar on GPT-6 Luna
+
+✒️ **Fix grammar** on a text box now answers on GPT-6 Luna, the cheapest GPT-6
+tier, through the admin's own key. Proofreading is a small, checked job — the
+prompt forbids any change of meaning and the result is one Ctrl+Z away — so the
+full model buys nothing there. ✨ Fill with AI, 🐾 Mistake, marking, AI notes and
+the answer key are unchanged and keep the model chosen in the AI Engine dialog.
+
+A grammar fix leads with ChatGPT even when the engine radio is set to Gemini or
+Kimi, with that choice right behind it, so a refused or missing key is a slower
+fix rather than no fix. The dialog says which model it uses.
+
 ## v1.127.0 — Full equipment, pets and 100 boss encounters
 
 Every classroom hero now wears equipment in ten separate slots and has a pet companion. The catalog contains 20 choices per gear slot and 30 pets across all six rarities; equipped bonuses apply together, and each slot upgrades independently after treasure drops. Existing inventory IDs and effects remain compatible. My Hero and the teacher journal show the full character loadout with slot-specific changes and removal.

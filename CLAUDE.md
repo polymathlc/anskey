@@ -1753,6 +1753,36 @@ to know whether the upload/deploy went through.
 - Keep spacing scale consistent across the whole app so every surface feels like the same design
   system.
 
+## ⚡ ✒️ Fix grammar is the LIGHT job, on GPT-6 Luna (v1.128.0)
+
+`OPENAI_LIGHT_MODEL` / `aiTextEngineOrder(task)` / the `light` option on
+`window.askGemini` and `window.askOpenAI` / `aiRequest`'s `extra` / the
+`{ light: true }` in **`aiImprove`**, plus the note under the ChatGPT model
+dropdown. **`polymathlc/cer` and `polymathlc/tutor` carry the same idea for
+their own light jobs — ship a change to the shape to all three.**
+
+- **ONE job is light, and the census pins it** (`tools/ai-routing-tests.mjs`):
+  proofreading is checked by its own prompt (meaning, numbers and claims are
+  preserved) and by the teacher's eye and Ctrl+Z, so the cheapest GPT-6 tier is
+  enough. ✨ Fill, 🐾 Mistake, marking, the notes and the key must never ask for
+  it — a smaller model's slip there looks exactly like a correct answer. The
+  census fails both ways: the flag dropping off `aiImprove`, or appearing
+  anywhere else.
+- **A light call leads with ChatGPT whatever the engine radio says**, because
+  ChatGPT is the route that runs the light model — and the teacher's own choice
+  stays RIGHT BEHIND it, then the rest. A device with no OpenAI key simply
+  skips it, exactly as every other call does.
+- **The model rides the call, not the setting.** `askOpenAI` reads `o.light`
+  and the dialog's model is untouched, so a teacher's deliberate model pick is
+  never rewritten by this.
+- **A refused light model falls through to the backups with the identical
+  request**, through the same loop every call uses. There is no route mark-down
+  in this app to protect, so nothing else is needed.
+- This app reaches ChatGPT only through the admin's browser key, so no server
+  deploy is involved here.
+- Run **`node --test tools/ai-routing-tests.mjs tools/text-actions-tests.mjs`**
+  after touching any of it.
+
 ## 🤖 ChatGPT runs on GPT-6 Astra (v1.88.0)
 
 `OPENAI_DEFAULT_MODEL` / **`OPENAI_REASONING_RE`** / `OPENAI_SUPERSEDED_MODELS`
