@@ -47,6 +47,7 @@ jobs:
           node tools/lesson-guests-browser-check.mjs
           node tools/battle-animation-browser-check.mjs
           node tools/mission-machine-browser-check.mjs
+          node tools/mission-slot-browser-check.mjs
           node tools/mission-animation-browser-check.mjs
           node tools/shape-snap-browser-check.mjs
       - uses: actions/upload-artifact@v4

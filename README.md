@@ -4,6 +4,21 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.130.0 — The mission machine spins
+
+Pressing ↻ Turn on the class mission machine now plays a real slot machine.
+Two reels spin through every objective and every class prize the machine can
+give, slow down one after the other, and stop on the mission that was actually
+rolled, with a small celebration and a gold glow for a rare prize. The whole
+spin takes about two to three seconds.
+
+- **The result is still decided by the server, exactly as before.** The reels
+  keep spinning until the roll is saved and only ever stop on the saved
+  mission, so the animation can never show one prize and save another.
+- **A refused or unconfirmed save stops the reels at once**, and the usual
+  message or Retry button appears. Retry spins again and lands on the same roll.
+- **Reduced motion skips the spin** and shows the mission straight away.
+
 ## v1.129.0 — Points to damage, much faster
 
 Giving points in Quick fight now starts the attack straight away. Before, the
