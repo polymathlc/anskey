@@ -4,6 +4,14 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.128.1 — The wheel remembers who it called
+
+Closing the wheel window with a student picked, then opening it again, now
+keeps that student ready for points. Before, Quick fight said to spin again
+because it tried to bring the pick back only once, while the lesson guests were
+still loading, and gave up. It now waits until the encounter, guests and
+mission have all loaded, then selects the same student on the same spin.
+
 ## v1.128.0 — ✒️ Fix grammar on GPT-6 Luna
 
 ✒️ **Fix grammar** on a text box now answers on GPT-6 Luna, the cheapest GPT-6

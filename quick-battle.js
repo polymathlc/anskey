@@ -41,7 +41,7 @@
   function close() {
     cancelFeedback(); q.queued = null; if (missionPanel) missionPanel.destroy(); missionPanel=null;
     q.epoch++; if (q.off) q.off(); q.off = null; q.store = null;
-    q.busy = false; q.loading = false; q.state = null; q.heroId = ''; q.selection = null; q.request = null; q.assistOpen = false; q.assistMessage = ''; q.error = '';
+    q.busy = false; q.loading = false; q.state = null; q.heroId = ''; q.selection = null; q.request = null; q.assistOpen = false; q.assistMessage = ''; q.error = ''; q.restore = false;
     if (el('wheelQuickFight')) el('wheelQuickFight').hidden = true;
     if (el('wheelMissionDock')) el('wheelMissionDock').hidden = true;
     if (el('wheelClassSelect')) el('wheelClassSelect').disabled = false;
@@ -51,7 +51,7 @@
     if (manual() || !allowed() || !visible()) { close(); return; }
     var uid = currentUser.uid;
     if (q.store && q.cls === cls && q.uid === uid) { render(); return; }
-    close(); q.cls = cls; q.uid = uid;
+    close(); q.cls = cls; q.uid = uid; q.restore = true;
     try {
       var saved = JSON.parse(sessionStorage.getItem(requestKey(uid, cls)) || 'null');
       if (saved && saved.action && /^[a-zA-Z0-9_-]{8,100}$/.test(saved.action.id || '') && (saved.kind === 'assist' || Number.isSafeInteger(saved.delta) && saved.delta > 0 && saved.delta <= 10000)) q.request = saved;
@@ -69,7 +69,7 @@
         // Store listeners often arrive before the command response. Keep the
         // persisted snapshot, but let one acknowledged event own its playback.
         if (q.busy) { if (!q.queued || !next || next.revision >= q.queued.revision) q.queued = next; return; }
-        if(q.playing && next && q.state && next.revision>q.state.revision)cancelFeedback(); q.state = next; q.loading = false; if (!q.selection && !(next && next.pending) && window.wheelRestoreSelection) wheelRestoreSelection(); render(); if (missionPanel) missionPanel.refresh();
+        if(q.playing && next && q.state && next.revision>q.state.revision)cancelFeedback(); q.state = next; q.loading = false; render(); if (missionPanel) missionPanel.refresh();
       }, function (err) { if (stamp === q.epoch) { q.loading = false; q.error = err.message; render(); } });
     } catch (err) { q.loading = false; q.error = err.message; render(); }
   }
@@ -129,8 +129,21 @@
     document.querySelectorAll('#wheelAward button, #wheelAward input').forEach(function (button) { button.disabled = blocksAward() || !!(window.rwAwarding && selected && rwAwarding[selected.id]); });
     if (window.LessonGuests) LessonGuests.renderButtons();
   }
+  // Reopening the wheel brings back the student it last called. The saved
+  // encounter, lesson guests and mission all load separately, so the earlier
+  // pick is selected again only once none of them is still busy. A single try
+  // on the first encounter snapshot lost the selection whenever the guest list
+  // was slower, and points then asked for another spin.
+  function restoreSelection() {
+    if (!q.restore || q.selection) { q.restore = false; return; }
+    if (!q.on || !q.cls || !q.store || q.loading || q.busy || q.request || missionBusy() || guestsBusy() || window.wheelSpinning || manual() || !visible()) return;
+    if (q.state && q.state.pending) return;
+    q.restore = false;
+    if (window.wheelRestoreSelection) wheelRestoreSelection();
+  }
   function render(force) {
     if (!el('wheelQuickFight')) return;
+    restoreSelection();
     el('wheelQuickFight').hidden = manual() || !visible();
     el('wheelMissionDock').hidden = manual() || !visible();
     if (manual() || !visible()) return;

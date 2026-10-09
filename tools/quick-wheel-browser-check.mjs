@@ -67,7 +67,7 @@ async function setup(delayProfiles = 0, pendingAward = false) {
     window.__replaceSummonReply=false;window.__assistCalls = []; window.__loseAssistReply = false; window.__awardCalls = []; window.__failAward = false; window.__loseAwardReply = false; window.__awardErrorCode = null; window.__awardReplyDelay = 0;
     window.ClassroomHeroAPI.request = async request => {
       const {type, classId, action, studentId, delta} = request;
-      if(type==='lessonGuests'&&request.command==='get')return {guests:[],state:null};
+      if(type==='lessonGuests'&&request.command==='get'){if(window.__guestDelay)await new Promise(resolve=>setTimeout(resolve,window.__guestDelay));return {guests:[],state:null};}
       if(type==='mission'&&request.command==='get')return {mission:ClassroomMissionContent.empty(),state:null};
       if (!['battle','wheelAward','assist'].includes(type)) throw new Error('Unexpected request in battle fixture.');
       if (type === 'assist') __assistCalls.push(structuredClone(request));
@@ -191,13 +191,22 @@ try {
   await page.screenshot({path:path.join(output,'quick-wheel-duel.png'),fullPage:true});
   await setup();
   check('reload restores duel and marks without replaying the last spin',await page.evaluate(first=>JSON.stringify(__battleState())===first&&__awardCalls.length===0&&rwStudents.some(s=>s.marks===16),first));
+  await spin();
+  const keptPick=await page.evaluate(()=>({n:wheelState.names[wheelWinnerIdx].n,spinId:wheelState.lastSpinId,calls:__awardCalls.length,marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks}));
+  await page.evaluate(()=>{closeWheel();window.__guestDelay=400;});
+  await page.evaluate(()=>openWheel());
+  await page.waitForFunction(()=>!wheelGuestsBusy()&&!document.getElementById('wheelSpinBtn').disabled&&!document.getElementById('wheelQuickStatus').textContent.includes('Loading'));
+  await page.evaluate(()=>window.__guestDelay=0);
+  await award(2);
+  check('closing and reopening the wheel keeps the called student ready for points while the guest list loads slowly',await page.evaluate(prior=>wheelState.lastSpinId===prior.spinId&&wheelState.names[wheelWinnerIdx].n===prior.n&&__awardCalls.length===prior.calls+1&&__awardCalls.at(-1).delta===2&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===prior.marks+2&&!/Spin to select/.test(document.getElementById('wheelQuickStatus').textContent),keptPick));
+  const afterKept=await page.evaluate(()=>JSON.stringify(__battleState()));
   const called=await page.evaluate(()=>wheelState.names.filter(n=>n.done).length);
   await page.click('#wheelSpinBtn');await page.evaluate(()=>closeWheel());await page.waitForTimeout(650);
-  check('closing mid-spin cancels battle work while retaining the wheel call',await page.evaluate(({first,called})=>JSON.stringify(__battleState())===first&&!wheelSpinning&&wheelState.names.filter(n=>n.done).length===called+1,{first,called}));
+  check('closing mid-spin cancels battle work while retaining the wheel call',await page.evaluate(({first,called})=>JSON.stringify(__battleState())===first&&!wheelSpinning&&wheelState.names.filter(n=>n.done).length===called+1,{first:afterKept,called}));
   await page.evaluate(()=>openWheel());await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   await page.uncheck('#wheelQuickToggle');
   await page.click('#wheelSpinBtn');await page.waitForFunction(()=>!wheelSpinning);
-  check('turning Quick fight off leaves an ordinary name wheel',await page.evaluate(first=>JSON.stringify(__battleState())===first&&document.getElementById('wheelQuickDuel').hidden,first));
+  check('turning Quick fight off leaves an ordinary name wheel',await page.evaluate(first=>JSON.stringify(__battleState())===first&&document.getElementById('wheelQuickDuel').hidden,afterKept));
   await page.waitForFunction(() => document.querySelector('#wheelMission [data-mm=turn]') && !document.querySelector('#wheelMission [data-mm=turn]').disabled);
   await scrollWheelToTop();
   check('mission machine remains visible and usable while Quick fight is off', await page.locator('#wheelMissionDock').isVisible() && (await wheelLayout()).turnVisible);
