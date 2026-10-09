@@ -4713,6 +4713,7 @@ video.mirror { transform:scaleX(-1); }
           <option value="gpt-4o">gpt-4o</option>
           <option value="gpt-4.1">gpt-4.1</option>
         </select>
+        <span style="display:block;margin-top:6px;color:var(--ink-faint);font-size:0.8rem">✒️ Fix grammar always uses gpt-6-luna, the cheapest GPT-6, on this key. Everything else uses the model chosen here.</span>
       </div>
 
       <div class="fieldRow">
@@ -5309,7 +5310,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.127.0';
+var APP_VERSION = 'v1.128.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -16255,6 +16256,13 @@ function deleteSelected() {
 var AI_ENGINE_STORE = { engine: 'ak_ai_engine', key: 'ak_openai_key', model: 'ak_openai_model', modelExplicit: 'ak_openai_model_explicit', imageModel: 'ak_openai_image_model', kimiKey: 'ak_kimi_key', kimiModel: 'ak_kimi_model', modelGen: 'ak_openai_model_gen', imageEngine: 'ak_ai_image_engine', imageGen: 'ak_openai_image_gen' };
 var AI_ENGINE_COLLECTION = 'adminSettings';   // one doc per admin uid
 var OPENAI_DEFAULT_MODEL = 'gpt-6.1-sol';
+/* ⚡ THE LIGHT JOB (v1.128.0): ✒️ Fix grammar answers on the cheapest GPT-6
+   tier. It proofreads, the prompt forbids it to change meaning, and the
+   teacher sees the result and has Ctrl+Z — so the full model buys nothing
+   there. Every other call (✨ Fill, 🐾 Mistake, marking, notes, the key)
+   stays on the dialog's model. A call opts in with `light: true`; the census
+   in tools/ai-routing-tests.mjs fails if that flag spreads anywhere else. */
+var OPENAI_LIGHT_MODEL = 'gpt-6-luna';
 /* =====================================================================
    🖼 THE IMAGE ENGINE — ChatGPT Images 2.5 for EVERY picture (v1.90.0)
    ---------------------------------------------------------------------
@@ -16570,8 +16578,11 @@ window.kimiActive = kimiActive;
 window.kimiConfigured = function () { return !!getKimiKey(); };
 // Manual engine choices remain first. The default is OpenAI -> Gemini -> Kimi.
 // Keys are checked independently of the selected engine so Kimi can be a backup.
-window.aiTextEngineOrder = function () {
-  return [getAiEngine(), 'openai', 'gemini', 'kimi'].filter(function (engine, index, all) {
+// A LIGHT job leads with ChatGPT whatever the engine radio says (it is the
+// one that runs the light model); the teacher's own choice stays right behind
+// it, so a refused or missing key is a slower fix rather than no fix.
+window.aiTextEngineOrder = function (task) {
+  return (task === 'light' ? ['openai'] : []).concat([getAiEngine(), 'openai', 'gemini', 'kimi']).filter(function (engine, index, all) {
     return all.indexOf(engine) === index &&
       (engine === 'gemini' || engine === 'openai' && !!getOpenAiKey() || engine === 'kimi' && !!getKimiKey());
   });
@@ -16692,7 +16703,7 @@ function refreshAiEngineNames() {
    the chat-completions API. */
 window.askOpenAI = async function askOpenAI(prompt, opts) {
   var o = opts || {};
-  var model = getOpenAiModel();
+  var model = o.light ? OPENAI_LIGHT_MODEL : getOpenAiModel();
   var content = [{ type: 'text', text: prompt }];
   (o.images || []).forEach(function (img) {
     if (!img || !img.data) return;
@@ -21649,7 +21660,7 @@ function aiTextCommitForAction(id) {
    styleNoteGenerated) so that at save time the app can see what the teacher
    KEPT — the single sharpest thing it can learn about how they write, and the
    thing this feature threw away until v1.83.0. */
-function aiRequest(id, systemText, userText, busyMsg, images, learn) {
+function aiRequest(id, systemText, userText, busyMsg, images, learn, extra) {
   if (!aiTextActionAllowed()) return;
   if (aiBusy) { toast(aiEngineName() + ' is still working on the previous request…'); return; }
   if (!window.askGemini || !window.aiReady || !window.aiReady()) {
@@ -21662,6 +21673,7 @@ function aiRequest(id, systemText, userText, busyMsg, images, learn) {
   toast(busyMsg, 30000);
   var imgs = (images || []).map(function (im) { return { mimeType: im.mimeType, data: im.data }; });
   return window.askGemini(userText, { system: systemText, maxOutputTokens: 1200, temperature: 0.4, images: imgs,
+    light: !!(extra && extra.light),
     viewContext: aiViewSnapshot({ page: request.ann.page, target: request.ann }) }).then(function (text) {
     aiBusy = false;
     if (!aiTextRequestCurrent(request)) {
@@ -21714,8 +21726,9 @@ function aiImprove(id) {
   if (!t) { toast('The text box is empty — nothing to improve.'); return; }
   // Grounding stays shared, but its subject corrections cannot change this
   // grammar-only task. Proofreading is not a generated model answer to learn.
+  // Proofreading is a light job: it runs on OPENAI_LIGHT_MODEL (see there).
   return aiRequest(id, AI_IMPROVE_SYS + aiGrounding('answer', { q: t }) + AI_GRAMMAR_PRESERVE, t,
-            '✒️ Fixing grammar…');
+            '✒️ Fixing grammar…', null, null, { light: true });
 }
 
 /* ================= AI notes =================
@@ -34997,7 +35010,7 @@ function askTextRoute(work, opts) {
 }
 async function askGeminiRoutes(prompt, opts) {
   const preferred = openAiOn() ? "openai" : kimiOn() ? "kimi" : "gemini";
-  const order = window.aiTextEngineOrder ? window.aiTextEngineOrder() :
+  const order = window.aiTextEngineOrder ? window.aiTextEngineOrder(opts.light ? "light" : "") :
     preferred === "gemini" ? ["gemini"] : [preferred, "gemini"];
   let firstError = null;
   const attempted = [];
@@ -35009,7 +35022,7 @@ async function askGeminiRoutes(prompt, opts) {
         engine === "kimi" ? window.askKimi(prompt, routeOpts) : askGeminiDirect(prompt, routeOpts), opts);
       aiThrowIfAborted(opts.signal);
       if (typeof out !== "string" || !out.trim()) throw new Error(engine + " returned no answer");
-      window.aiLastCall = { engine, fellBack: attempted.length > 1, error: firstError ? String(firstError.message || firstError) : "", attempted: attempted.slice() };
+      window.aiLastCall = { engine, fellBack: attempted.length > 1, error: firstError ? String(firstError.message || firstError) : "", attempted: attempted.slice(), light: !!opts.light };
       return out;
     } catch (e) {
       aiThrowIfAborted(opts.signal);

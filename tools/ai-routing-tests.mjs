@@ -198,3 +198,62 @@ test('only an actual model-picker change marks a new deliberate model preference
   assert.equal(h.c.openAiModelExplicit(), true);
   assert.equal(h.c.getOpenAiModel(), 'gpt-6-astra');
 });
+
+/* ⚡ THE LIGHT JOB — ✒️ Fix grammar on the cheapest GPT-6 tier (v1.128.0). */
+test('a light call leads with ChatGPT on the light model, keeping the teacher\'s choice behind it', async () => {
+  const h = harness({ ...bothKeys, ak_ai_engine: 'gemini' });
+  assert.equal(h.c.OPENAI_LIGHT_MODEL, 'gpt-6-luna');
+  assert.deepEqual(plain(h.c.window.aiTextEngineOrder('light')), ['openai', 'gemini', 'kimi']);
+  h.values.set('ak_ai_engine', 'kimi');
+  assert.deepEqual(plain(h.c.window.aiTextEngineOrder('light')), ['openai', 'kimi', 'gemini']);
+  assert.deepEqual(plain(h.c.window.aiTextEngineOrder()), ['kimi', 'openai', 'gemini']);
+  h.values.delete('ak_openai_key');
+  assert.deepEqual(plain(h.c.window.aiTextEngineOrder('light')), ['kimi', 'gemini']);
+
+  const g = harness({ ...bothKeys, ak_ai_engine: 'gemini' });
+  assert.equal(await g.c.window.askGemini('He have 2 spring.', { light: true, temperature: 0.4, maxOutputTokens: 1200 }), 'Answer');
+  assert.equal(g.calls.length, 0, 'a light call must not start on Gemini');
+  const { body } = g.bodies.at(-1);
+  assert.equal(body.model, 'gpt-6-luna');
+  assert.equal(body.reasoning_effort, 'low');
+  assert.equal(Object.hasOwn(body, 'temperature'), false);
+  assert.equal(g.c.window.aiLastCall.light, true);
+});
+
+test('an ordinary call keeps the dialog model and the teacher\'s order', async () => {
+  const h = harness({ ...bothKeys, ak_openai_model: 'gpt-6-astra', ak_openai_model_explicit: '1' });
+  await h.c.window.askOpenAI('Explain question 3', { maxOutputTokens: 1200 });
+  assert.equal(h.bodies.at(-1).body.model, 'gpt-6-astra');
+  await h.c.window.askOpenAI('Fix this', { light: true });
+  assert.equal(h.bodies.at(-1).body.model, 'gpt-6-luna');
+  h.values.set('ak_ai_engine', 'gemini');
+  assert.equal(await h.c.window.askGemini('Explain question 3', {}), 'Gemini answer');
+  assert.equal(h.calls.length, 1);
+});
+
+test('a refused light model falls through to the backups with the same request', async () => {
+  const h = harness(bothKeys);
+  h.c.window.askOpenAI = async () => { const e = new Error('OpenAI API error 404: model not found'); e.status = 404; throw e; };
+  assert.equal(await h.c.window.askGemini('He have 2 spring.', { light: true, system: 'GRAMMAR-ONLY TASK' }), 'Gemini answer');
+  assert.equal(h.calls[0].opts.system, 'GRAMMAR-ONLY TASK');
+  assert.equal(h.c.window.aiLastCall.engine, 'gemini');
+  assert.equal(h.c.window.aiLastCall.fellBack, true);
+});
+
+/* THE CENSUS: the light flag belongs to ✒️ Fix grammar and nothing else. A
+   light call that loses it goes quietly back to the full model; the flag
+   spreading to ✨ Fill, 🐾 Mistake, marking or the key is a silent downgrade on
+   exactly the text a class reads. */
+test('census: only Fix grammar asks for the light model', () => {
+  const body = name => {
+    const a = html.indexOf('function ' + name + '(');
+    assert.ok(a >= 0, name);
+    const b = html.indexOf('\n}\n', a);
+    return html.slice(a, b);
+  };
+  assert.match(body('aiImprove'), /\{ light: true \}/);
+  for (const name of ['aiAnswer', 'aiMistakeGenerate']) assert.doesNotMatch(body(name), /light/);
+  const flags = html.match(/\blight: true\b/g) || [];
+  assert.equal(flags.length, 2, 'one in aiImprove and one in the comment above OPENAI_LIGHT_MODEL');
+  assert.match(body('aiRequest'), /light: !!\(extra && extra\.light\)/);
+});
