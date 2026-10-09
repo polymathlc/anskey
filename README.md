@@ -4,6 +4,27 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.129.0 — Points to damage, much faster
+
+Giving points in Quick fight now starts the attack straight away. Before, the
+app sent the award to the server in the US, waited for it to save, and only
+then began a two-and-a-half-second animation, so a single turn could take three
+to four seconds, and much longer when the server had gone to sleep.
+
+- **The attack plays while the award saves.** The turn is worked out on the
+  teacher's screen with the same rules the server uses, so the hit, the damage
+  numbers and the enemy's reply start the moment points are given. When the
+  save answers it almost always matches and the animation simply carries on;
+  if it differs, the saved turn replaces it, and if the save fails the attack
+  stops and the usual Retry appears. The award itself is saved exactly as
+  before, once.
+- **A shorter animation.** The hit lands sooner and the enemy answers sooner:
+  about 1.5 seconds per turn instead of about 2.5.
+- **A quicker server.** One server is kept warm so the first award of a lesson
+  no longer waits for a cold start, the browser stops re-asking permission
+  before every award, and the sign-in checks run together instead of one after
+  another.
+
 ## v1.128.1 — The wheel remembers who it called
 
 Closing the wheel window with a student picked, then opening it again, now

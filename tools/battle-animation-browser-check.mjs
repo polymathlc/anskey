@@ -18,7 +18,7 @@ let checks=0, spin=0;
 function check(name,condition){assert.ok(condition,name);checks++;console.log('✓ '+name);}
 async function reset(role='warrior',options={}){
   await page.evaluate(({role,options})=>{
-    QuickBattle.close(); sessionStorage.clear(); window.__fail=false;window.__delay=25;window.__awardError='';window.__nextBeforeReply=false;
+    QuickBattle.close(); sessionStorage.clear(); window.__fail=false;window.__delay=25;window.__tamper=false;window.__awardError='';window.__nextBeforeReply=false;
     // Timeline/race checks need an enemy that survives even a critical starter
     // skill. Victory scenarios explicitly lower its HP to one below.
     window.__state=ClassroomBattleCore.reduce(null,{type:'start',id:'animation-start-'+Math.random().toString(36).slice(2),heroes:rwStudents.map((student,index)=>ClassroomBattleCore.configureHero(ClassroomBattleCore.heroFromStudent(student,null,index),{command:'class',role:index===0?role:'warrior'})),bossId:'lich'});
@@ -47,7 +47,7 @@ try{
     window.wheelState={names:rwStudents.map(s=>({id:s.id,n:s.name}))};window.__calls=0;window.__listener=null;window.__duelPlays=[];const originalPlay=ClassroomBattleAnimation.playDuel;ClassroomBattleAnimation.playDuel=function(container,options){__duelPlays.push(options.event.id);return originalPlay(container,options);};
     ClassroomBattleStore.create=()=>({subscribe(fn){__listener=fn;setTimeout(()=>{if(__listener===fn)fn(structuredClone(__state));},0);return()=>{if(__listener===fn)__listener=null;};},async award({studentId,delta,action}){
       __calls++;await new Promise(r=>setTimeout(r,__delay));if(__fail)throw new Error('Save failed for test');
-      __state=ClassroomBattleCore.reduce(__state,{...action,type:'auto',points:delta});
+      __state=ClassroomBattleCore.reduce(__state,{...action,type:'auto',points:delta+(window.__tamper?1:0)});
       const student=rwStudents.find(s=>s.id===studentId),award={id:action.id,studentId,delta,marks:student.marks+delta};
       const savedReply=structuredClone(__state);if(__listener)__listener(structuredClone(__state));if(__nextBeforeReply){__state=ClassroomBattleCore.reduce(__state,{type:'start',id:'replacement-before-http-reply',expectedRevision:__state.revision,heroes:__state.heroes,bossId:ClassroomBattleCore.BOSSES.filter(b=>!b.legacy)[1].id});if(__listener)__listener(structuredClone(__state));}await new Promise(r=>setTimeout(r,25));return {state:savedReply,award};
     }});
@@ -69,12 +69,18 @@ try{
   await page.evaluate(()=>{wheelState.lastSpinId='animation-preview-only';window.wheelWinnerIdx=0;QuickBattle.landed({id:'one',n:'Ari'},wheelState.lastSpinId);});
   await page.waitForTimeout(400);
   check('landing leaves the avatar idling without a save or attack',await page.evaluate(prior=>__calls===prior.calls&&__state.bossHp===prior.hp&&!document.querySelector('.cbaPlaying')&&!document.querySelector('.cbaEffect'),prior));
+  // A slow save: the attack must not wait for it.
+  const playsBeforeFirst=await page.evaluate(()=>{__delay=500;return __duelPlays.length;});
   const firstId=await land();await phase('windup');
-  check('saved point award returns immediately and leaves the wheel available during animation',await page.evaluate(()=>__awardSettled&&document.querySelector('.cbQuickHero .cbaActing')&&!document.getElementById('wheelSpinBtn').disabled&&!QuickBattle.blocksAward()));
-  check('HP and the persisted damage log show final saved results during windup',await page.evaluate(()=>document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')&&document.querySelectorAll('[data-combat-id]').length===__state.combatLog.length));
+  check('the attack starts the moment points are given, before the save answers',await page.evaluate(()=>!__awardSettled&&__calls>0&&!!document.querySelector('.cbQuickHero .cbaActing')));
   await phase('hero-impact');
   check('warrior slash is generated over the enemy',await page.locator('.cbQuickEnemy .cbaFx-slash').count()===1);
+  check('the predicted hit is not written anywhere before the save',await page.evaluate(prior=>__state.bossHp===prior.hp,prior));
   await page.screenshot({path:path.join(output,'animated-warrior-slash.png')});
+  await page.evaluate(()=>__spinPromise);
+  check('saved point award leaves the wheel available during animation',await page.evaluate(()=>__awardSettled&&!!document.querySelector('#wheelQuickDuel.cbaPlaying')&&!document.getElementById('wheelSpinBtn').disabled&&!QuickBattle.blocksAward()));
+  check('a matching save keeps the cast already running instead of replaying it',await page.evaluate(count=>__duelPlays.length===count+1,playsBeforeFirst));
+  check('HP and the persisted damage log show final saved results during the cast',await page.evaluate(()=>document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')&&document.querySelectorAll('[data-combat-id]').length===__state.combatLog.length));
   const saved=await page.evaluate(()=>structuredClone(__state));
   await page.evaluate(()=>{__listener(structuredClone(__state));QuickBattle.render();});
   check('listener and wheel renders cannot replace an active animation',await page.locator('.cbQuickEnemy .cbaFx-slash').count()===1);
@@ -86,8 +92,8 @@ try{
   await page.evaluate(id=>QuickBattle.landed({id:'one',n:'Ari'},id),firstId);
   check('duplicate landing does not send another command or replay',await page.evaluate(calls=>__calls===calls+1&&!document.querySelector('.cbaPlaying'),prior.calls));
   await reset();const playsBeforeReplacement=await page.evaluate(()=>__duelPlays.length);await page.evaluate(()=>__nextBeforeReply=true);await land();await page.evaluate(()=>__spinPromise);
-  check('newer encounter snapshot before the HTTP reply prevents stale attack playback',await page.evaluate(count=>__duelPlays.length===count&&!document.querySelector('#wheelQuickDuel.cbaPlaying')&&__state.encounterId==='replacement-before-http-reply'&&document.querySelector('.cbQuickEnemy').textContent.includes(ClassroomBattleCore.bossById(__state.bossId).name)&&document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')&&!QuickBattle.blocksAward(),playsBeforeReplacement));
-  await reset('warrior',{knockout:true});await land();await phase('windup');
+  check('newer encounter snapshot before the HTTP reply prevents stale attack playback',await page.evaluate(count=>__duelPlays.length<=count+1&&!document.querySelector('#wheelQuickDuel.cbaPlaying')&&__state.encounterId==='replacement-before-http-reply'&&document.querySelector('.cbQuickEnemy').textContent.includes(ClassroomBattleCore.bossById(__state.bossId).name)&&document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')&&!QuickBattle.blocksAward(),playsBeforeReplacement));
+  await reset('warrior',{knockout:true});await land();await phase('windup');await page.evaluate(()=>__spinPromise);
   check('a hero knocked out by the saved enemy reply still performs its earlier attack pose',await page.evaluate(()=>__state.heroes[0].hp===0&&getComputedStyle(document.querySelector('.cbQuickHero .cbaFrames')).animationName==='cbaActionFrames'));
   await settle();
   check('the knocked-out hero becomes still only when that turn settles',await page.evaluate(()=>!!document.querySelector('.cbQuickHero .cbaDormant')&&getComputedStyle(document.querySelector('.cbQuickHero .cbaFrames')).animationName==='none'));
@@ -111,8 +117,11 @@ try{
   check('closing cancels pending visuals without changing the saved fight',await page.evaluate(old=>JSON.stringify(__state)===old&&!document.querySelector('.cbaPlaying')&&!document.querySelector('.cbaEffect'),beforeClose));
   await page.evaluate(()=>{document.getElementById('wheelModal').classList.add('open');QuickBattle.open('Science');});await page.waitForTimeout(100);
   check('reopening shows saved results without historical playback',await page.locator('.cbaPlaying').count()===0);
-  await reset();await page.evaluate(()=>__fail=true);await land();await settle();
+  await reset();await page.evaluate(()=>{__fail=true;__delay=500;});await land();await phase('windup');await settle();
   check('failed award shows an error and no invented attack',await page.evaluate(()=>document.getElementById('wheelQuickStatus').textContent.includes('Save failed')&&__awardError.includes('Save failed')&&!document.querySelector('.cbaPlaying')&&!document.querySelector('.cbaEffect')));
+  await reset();const playsBeforeTamper=await page.evaluate(()=>{__tamper=true;__delay=300;return __duelPlays.length;});await land();await phase('windup');await page.evaluate(()=>__spinPromise);
+  check('a save that differs from the prediction replaces its cast with the saved turn',await page.evaluate(count=>__duelPlays.length===count+2&&__duelPlays.slice(-2).every(x=>x===__state.lastEvent.id)&&__state.lastEvent.points===2&&document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/'),playsBeforeTamper));
+  await settle();
   await reset();await land();await phase('windup');
   await page.evaluate(()=>{__state.revision++;__state.bossHp--;__listener(structuredClone(__state));});await settle();
   check('newer snapshots cancel old playback and show the newest saved results immediately',await page.evaluate(()=>document.querySelector('.cbQuickEnemy').textContent.includes('HP '+__state.bossHp+'/')));

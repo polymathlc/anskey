@@ -400,7 +400,9 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
     }
     const receiptRef=classRef.collection('actions').doc(action.id);
     return db.runTransaction(async tx => {
-      const [oldReceipt,oldSnap,rosterSnap,missionSnap,guestSnap] = await Promise.all([tx.get(receiptRef),tx.get(classRef),tx.get(db.collection('students')),tx.get(missionRef),tx.get(root.collection('lessonGuests').doc(key(classId)))]);
+      // A points award also needs the school-wide bosses; read them with the
+      // rest of the first batch rather than in a second round trip.
+      const [oldReceipt,oldSnap,rosterSnap,missionSnap,guestSnap,bossSnap] = await Promise.all([tx.get(receiptRef),tx.get(classRef),tx.get(db.collection('students')),tx.get(missionRef),tx.get(root.collection('lessonGuests').doc(key(classId))),awardRequest ? tx.get(db.collection('bosses').where('active','==',true)) : null]);
       let old=docData(oldSnap);
       const beforeMission=Missions.clean(docData(missionSnap));let mission=Missions.clean(beforeMission);
       const roster=docs(rosterSnap).map(s=>({...s.data(),id:s.id})), rosterById=new Map(roster.map(s=>[s.id,s]));
@@ -425,7 +427,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         const marks=awardedStudent.marks || 0;
         if (!Number.isSafeInteger(marks) || !Number.isSafeInteger(marks+awardRequest.delta)) deny('invalid_balance','This marks balance needs to be corrected before awarding points.',409);
         award={id:action.id,studentId:awardRequest.studentId,delta:awardRequest.delta,marks:marks+awardRequest.delta};
-        schoolBosses=docs(await tx.get(db.collection('bosses').where('active','==',true)));
+        schoolBosses=docs(bossSnap);
       }
       const starting=action.type==='start' || (action.type==='auto' && (!old || old.status!=='active'));
       const syncing=action.type==='sync' && !action.command;

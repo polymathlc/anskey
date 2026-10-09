@@ -22,8 +22,11 @@ const heroService = createHeroService({
   auth: getAuth(), appCheck: getAppCheck(), repository: createHeroRepository(getFirestore()),
   report: code => logger.warn(code)
 });
+// One warm instance: a points award during a lesson must not wait several
+// seconds for a cold start (loading firebase-admin and the battle content on a
+// fractional CPU) after the wheel has been idle for a while.
 exports.ansKeyHeroes = onRequest({
-  region: 'us-central1', timeoutSeconds: 60, maxInstances: 5,
+  region: 'us-central1', timeoutSeconds: 60, minInstances: 1, maxInstances: 5,
   concurrency: 20, memory: '256MiB', invoker: 'public'
 }, heroService.handler);
 const openaiKey = defineSecret('OPENAI_API_KEY');

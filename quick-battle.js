@@ -3,13 +3,17 @@
   'use strict';
   var Core = window.ClassroomBattleCore, Store = window.ClassroomBattleStore;
   if (!Core || !Store) return;
-  var q = { epoch: 0, store: null, off: null, state: null, queued: null, player: null, playing: false, before: null, cls: '', uid: '', loading: false, busy: false, error: '', heroId: '', selection: null, request: null, assistOpen: false, assistMessage: '', assisted: new Set(), on: true };
+  var q = { epoch: 0, store: null, off: null, state: null, preview: null, queued: null, player: null, playing: false, playingId: '', before: null, cls: '', uid: '', loading: false, busy: false, error: '', heroId: '', selection: null, request: null, assistOpen: false, assistMessage: '', assisted: new Set(), on: true };
   var played = new Set(), missionPanel = null;
   function missionBusy() {return !!(missionPanel && missionPanel.blocked());}
   function guestsBusy() { return !!(window.wheelGuestsBusy && wheelGuestsBusy()); }
   function lessonStudents() { return window.wheelLessonStudents ? wheelLessonStudents(q.cls) : window.rwStudentsInClass ? rwStudentsInClass(q.cls) : []; }
   function studentInLesson(student) { return !!student && (window.wheelStudentInLesson ? wheelStudentInLesson(student, q.cls) : rwStudentClasses(student).includes(q.cls)); }
-  function cancelFeedback() { if (q.player) q.player.cancel(); q.player=null; q.playing=false; q.before=null; }
+  function cancelFeedback() { if (q.player) q.player.cancel(); q.player=null; q.playing=false; q.playingId=''; q.before=null; }
+  // What the duel shows. q.state is always the saved encounter and decides
+  // every guard; q.preview is the same deterministic turn worked out here the
+  // moment points are given, shown only until the save answers (see predict).
+  function shown() { return q.preview || q.state; }
   try { q.on = localStorage.getItem('polymath.wheelQuickFight') !== 'off'; } catch (_) {}
   function el(id) { return document.getElementById(id); }
   function esc(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -39,7 +43,7 @@
     });
   }
   function close() {
-    cancelFeedback(); q.queued = null; if (missionPanel) missionPanel.destroy(); missionPanel=null;
+    cancelFeedback(); q.preview = null; q.queued = null; if (missionPanel) missionPanel.destroy(); missionPanel=null;
     q.epoch++; if (q.off) q.off(); q.off = null; q.store = null;
     q.busy = false; q.loading = false; q.state = null; q.heroId = ''; q.selection = null; q.request = null; q.assistOpen = false; q.assistMessage = ''; q.error = ''; q.restore = false;
     if (el('wheelQuickFight')) el('wheelQuickFight').hidden = true;
@@ -148,14 +152,14 @@
     el('wheelMissionDock').hidden = manual() || !visible();
     if (manual() || !visible()) return;
     controls(q.state);
-    el('wheelQuickLog').innerHTML = q.on && window.ClassroomBattleDisplay ? ClassroomBattleDisplay.log(q.state) : '';
+    el('wheelQuickLog').innerHTML = q.on && window.ClassroomBattleDisplay ? ClassroomBattleDisplay.log(shown()) : '';
     el('wheelMissionHint').textContent = !q.cls ? 'Choose a Lesson slot to turn for a class mission.' : !q.on ? 'Turn on Quick fight to use a summon during battle.' : '';
     el('wheelMissionHint').hidden = !!q.cls && q.on;
     if (!missionPanel) el('wheelMission').innerHTML = '<section class="mmPanel" aria-label="Class mission machine"><div class="mmHeading"><span class="mmMachine" role="img" aria-label="Pixel mission slot machine"></span><div><span class="mmEyebrow">WHOLE CLASS QUEST</span><h3>Mission machine</h3><p>Turn for a random objective and a class prize.</p></div></div><button type="button" disabled>↻ Turn</button></section>';
     if (missionPanel) missionPanel.render();
     el('wheelQuickStatus').textContent = !q.on ? 'Name wheel only. Turn on Quick fight to battle when points are awarded.' : q.error || (!q.cls ? 'Choose a Lesson slot to enable battles for points.' : q.loading ? 'Loading the saved encounter…' : q.busy ? 'Saving answer…' : window.wheelSpinning ? 'Choosing your champion…' : summary(q.state));
     if (q.playing && !force) return;
-    var s = q.state, heroes = s ? s.heroes : roster(), h = heroes.find(function (hero) { return hero.id === q.heroId; }) || roster().find(function (hero) { return hero.id === q.heroId; }) || heroes.find(function (hero) { return s && s.lastEvent && hero.id === s.lastEvent.heroId; }) || heroes[0];
+    var s = shown(), heroes = s ? s.heroes : roster(), h = heroes.find(function (hero) { return hero.id === q.heroId; }) || roster().find(function (hero) { return hero.id === q.heroId; }) || heroes.find(function (hero) { return s && s.lastEvent && hero.id === s.lastEvent.heroId; }) || heroes[0];
     var preview = !!(s && s.status !== 'active' && q.selection && q.selection.completedEncounterId === s.encounterId);
     var b = s && !preview ? Core.bossById(s.bossId) : q.selection ? Core.bossById(enemyFor(q.selection.spinId)) : null, role = h && (h.role === 'healer' ? 'cleric' : h.role);
     var shownEnemy = preview ? null : s;
@@ -260,6 +264,16 @@
     try { sessionStorage.setItem(requestKey(uid,cls), JSON.stringify(request)); }
     catch (_) { q.request = null; throw new Error('Enable session storage so points awards can be retried safely.'); }
     cancelFeedback(); q.heroId = request.action.heroId; q.busy = true; q.assistMessage = ''; q.error = ''; render();
+    // Start the attack now instead of after the save's round trip. The turn is
+    // deterministic, so the saved reply almost always matches and the cast
+    // simply carries on; anything else is cancelled below.
+    var predicted = predict(request), predictedPlayer = null, predictedPlayed = false, keepPrediction = false;
+    if (predicted) {
+      q.preview = predicted; playFeedback(predicted.lastEvent, predicted.encounterId); predictedPlayer = q.player;
+      // A slow save can outlast the whole cast; a cast that already played out
+      // in full is not played a second time when the matching save arrives.
+      if (predictedPlayer) predictedPlayer.finished.then(function (r) { if (!r || !r.cancelled) predictedPlayed = true; });
+    }
     try {
       var result = await activeStore.award(request), next = result.state;
       // Clear only this acknowledgement; an older request must not erase a new one.
@@ -276,7 +290,8 @@
       if (next && (!q.state || next.revision >= q.state.revision)) q.state = next;
       if (next && next.lastEvent && next.lastEvent.type === 'auto' && next.lastEvent.id === request.action.id && !played.has(request.action.id) && window.ClassroomBattleAnimation) {
         played.add(request.action.id); if (played.size > 100) played.delete(played.values().next().value);
-        feedbackEvent = next.lastEvent; feedbackEncounter = next.encounterId;
+        if (predictedPlayer && (q.player === predictedPlayer || predictedPlayed) && predicted.encounterId === next.encounterId && JSON.stringify(predicted.lastEvent) === JSON.stringify(next.lastEvent)) keepPrediction = true;
+        else { feedbackEvent = next.lastEvent; feedbackEncounter = next.encounterId; }
       }
       return result;
     } catch (err) {
@@ -289,7 +304,15 @@
       if (stamp === q.epoch) q.error = (err.message || 'Could not confirm this points award.') + (q.request ? ' Retry checks the same award without adding it twice.' : '');
       throw err;
     } finally {
-      if (stamp === q.epoch) { if (q.queued && (!q.state || q.queued.revision >= q.state.revision)) q.state = q.queued; q.queued = null; q.busy = false; if (window.wheelRender) wheelRender(); render(); if (missionPanel) missionPanel.refresh(); if (feedbackEvent) playFeedback(feedbackEvent,feedbackEncounter); }
+      // A guess is never left on screen: a failed, refused or different save
+      // ends its cast, and the saved state is what renders from here on.
+      if (predicted && q.preview === predicted) q.preview = null;
+      if (predictedPlayer && q.player === predictedPlayer && !keepPrediction) cancelFeedback();
+      if (stamp === q.epoch) {
+        if (q.queued && (!q.state || q.queued.revision >= q.state.revision)) q.state = q.queued; q.queued = null; q.busy = false;
+        if (q.playing && (!q.state || !q.state.lastEvent || q.state.lastEvent.id !== q.playingId)) cancelFeedback();
+        if (window.wheelRender) wheelRender(); render(); if (missionPanel) missionPanel.refresh(); if (feedbackEvent) playFeedback(feedbackEvent,feedbackEncounter);
+      }
     }
   }
   function beforeSpin() {
@@ -299,12 +322,28 @@
     if (q.loading || q.busy || missionBusy() || guestsBusy() || q.request || !q.store || q.state && q.state.pending) { render(); return false; }
     cancelFeedback(); return allowed() && visible();
   }
+  // The turn a points award will save, worked out locally with the same
+  // reducer the server runs (seeded, no randomness of its own), over the saved
+  // party. Only an ongoing encounter is predicted: a new one is built from the
+  // canonical profiles, which this screen does not hold. Presentation only;
+  // nothing here is ever written anywhere.
+  function predict(request) {
+    var s = q.state;
+    if (!s || s.status !== 'active' || s.pending || !window.ClassroomBattleAnimation || (ClassroomBattleAnimation.reducedMotion && ClassroomBattleAnimation.reducedMotion())) return null;
+    try {
+      var action = JSON.parse(JSON.stringify(request.action));
+      action.points = request.delta; action.heroes = JSON.parse(JSON.stringify(s.heroes));
+      var next = Core.reduce(JSON.parse(JSON.stringify(s)), action);
+      return next && next !== s && next.lastEvent && next.lastEvent.id === action.id && next.lastEvent.type === 'auto' ? next : null;
+    } catch (_) { return null; }
+  }
   function playFeedback(event, encounterId) {
-    if (!window.ClassroomBattleAnimation || !q.state || !event || !q.state.lastEvent || q.state.lastEvent.id !== event.id || q.state.encounterId !== encounterId) return;
-    cancelFeedback(); q.playing = true; render(true);
-    var player = event.type === 'summon' && ClassroomBattleAnimation.playChung ? ClassroomBattleAnimation.playChung(el('wheelQuickDuel'), {event:event,enemyActor:el('wheelQuickDuel').querySelector('[data-cba-actor="enemy"]')}) : ClassroomBattleAnimation.playDuel(el('wheelQuickDuel'), {hero:q.state.heroes.find(function (h) { return h.id===event.heroId; }),event:event,heroes:q.state.heroes});
+    var s = shown();
+    if (!window.ClassroomBattleAnimation || !s || !event || !s.lastEvent || s.lastEvent.id !== event.id || s.encounterId !== encounterId) return;
+    cancelFeedback(); q.playing = true; q.playingId = event.id; render(true);
+    var player = event.type === 'summon' && ClassroomBattleAnimation.playChung ? ClassroomBattleAnimation.playChung(el('wheelQuickDuel'), {event:event,enemyActor:el('wheelQuickDuel').querySelector('[data-cba-actor="enemy"]')}) : ClassroomBattleAnimation.playDuel(el('wheelQuickDuel'), {hero:s.heroes.find(function (h) { return h.id===event.heroId; }),event:event,heroes:s.heroes});
     q.player=player;
-    player.finished.then(function () { if(q.player===player) { q.player=null;q.playing=false;render(); } });
+    player.finished.then(function () { if(q.player===player) { q.player=null;q.playing=false;q.playingId='';render(); } });
   }
   function mountMission() {
     if (!window.ClassroomMissionMachine || !q.store) return;
