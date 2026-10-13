@@ -5331,7 +5331,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.131.0';
+var APP_VERSION = 'v1.132.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -31350,13 +31350,39 @@ async function openSavedDoc(id, data) {
    is treated as not released (closed, never open, by default).
 
    `?ws=<id>` opens one worksheet directly — the portal's "Answer key" button
-   — for anyone `canSeeDoc` lets see it. */
+   — for anyone `canSeeDoc` lets see it. The portal's timeline adds what to
+   do once it is open, with `&do=`:
+     play             replay a recorded lesson (`&rec=<annotation id>` picks
+                      one; otherwise the latest), writing and all
+     print-answers    print the worksheet with its answers
+     print-worksheet  print the blank worksheet
+   Anything else, or nothing, just opens it. */
 var ONLINE_COURSES = 'onlineCourses';
 var ONLINE_RELEASE_AHEAD = 5;          // on worksheet n, release up to n + 5 (3 → 8)
 var ONLINE_PRELOAD_AHEAD = 2;          // and keep the next two on this device
 var ONLINE_PDF_CACHE = 'polymath-online-worksheets-v1';
 var WS_OPEN_ID = new URLSearchParams(location.search).get('ws') || '';
+var WS_OPEN_DO = onlineLinkAction(location.search);
 var wsOpenHandled = false;
+// What a `?ws=` link asks for once the worksheet is open. Pure, for tests.
+function onlineLinkAction(search) {
+  var q = new URLSearchParams(search || '');
+  var act = String(q.get('do') || '').toLowerCase();
+  if (['play', 'print-answers', 'print-worksheet'].indexOf(act) < 0) act = '';
+  var rec = String(q.get('rec') || '').slice(0, 120);
+  return { action: act, rec: /^[\w-]+$/.test(rec) ? rec : '' };
+}
+// The recorded lessons on a worksheet, newest first; `rec` puts that one first.
+function onlineLessonPick(list, rec) {
+  var lessons = (list || []).filter(function (a) {
+    return a && a.type === 'video' && a.url && a.lessonRecording;
+  }).sort(function (p, q) { return (Number(q.ts) || 0) - (Number(p.ts) || 0); });
+  if (rec) {
+    var hit = lessons.filter(function (a) { return a.id === rec; })[0];
+    if (hit) return hit;
+  }
+  return lessons[0] || null;
+}
 var onlineCourses = {};                // id → course
 var onlineCoursesLoaded = false;
 var onlineCoursesUnsub = null;
@@ -31635,7 +31661,26 @@ async function onlineOpenFromLink(user) {
     if (!canSeeDoc(d)) { toast('That worksheet has not been released to your class yet.', 6000); return; }
     await openSavedDoc(WS_OPEN_ID, d);
     if (!isAdmin(user) && typeof setTool === 'function') setTool('select');
+    await onlineRunLinkAction(WS_OPEN_ID, WS_OPEN_DO);
   } catch (e) { toast('Could not open the worksheet: ' + (e.message || e), 6000); }
+}
+// After a `?ws=` link has opened its worksheet: replay or print, as asked.
+async function onlineRunLinkAction(id, ask) {
+  if (!ask || !ask.action) return;
+  // The pages draw a moment after the document opens; wait for them.
+  for (var tries = 0; tries < 100 && (currentDocId !== id || !pdfDoc || !pages.length); tries++) {
+    await new Promise(function (r) { setTimeout(r, 100); });
+  }
+  if (currentDocId !== id || !pdfDoc) return;
+  if (ask.action === 'play') {
+    var lesson = onlineLessonPick(annotations, ask.rec);
+    if (!lesson) { toast('There is no recorded lesson on this worksheet yet.', 6000); return; }
+    await lessonPlay(lesson);
+  } else if (ask.action === 'print-answers') {
+    await runPrint('answers');
+  } else if (ask.action === 'print-worksheet') {
+    await runPrint('questions');
+  }
 }
 
 /* ---- ⏺ Asked at the start of every lesson ----

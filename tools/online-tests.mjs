@@ -171,3 +171,43 @@ test('the hooks are guarded, so the recorder runs without these sections', () =>
   assert.match(html, /if \(d\.onlineCourseId && \(typeof onlineReleased !== 'function' \|\| !onlineReleased\(d\)\)\) return false;/);
   assert.match(html, /if \(typeof onlineWorksheetOpened === 'function'\) onlineWorksheetOpened\(id, data\);/);
 });
+
+test('?ws= links can ask to replay a lesson or print, and nothing else', () => {
+  const c = makeContext({ search: '?ws=abc&do=play&rec=ann-7' });
+  assert.deepEqual(plain(c.WS_OPEN_DO), { action: 'play', rec: 'ann-7' });
+  assert.deepEqual(plain(c.onlineLinkAction('?ws=a&do=PRINT-ANSWERS')), { action: 'print-answers', rec: '' });
+  assert.deepEqual(plain(c.onlineLinkAction('?ws=a&do=print-worksheet')), { action: 'print-worksheet', rec: '' });
+  assert.deepEqual(plain(c.onlineLinkAction('?ws=a&do=delete')), { action: '', rec: '' });
+  assert.deepEqual(plain(c.onlineLinkAction('?ws=a&do=play&rec=<script>')), { action: 'play', rec: '' });
+  assert.deepEqual(plain(c.onlineLinkAction('')), { action: '', rec: '' });
+});
+
+test('the lesson to replay: the one asked for, else the newest recorded lesson', () => {
+  const c = makeContext();
+  const list = [
+    { id: 'pen1', type: 'pen' },
+    { id: 'yt', type: 'video', url: 'https://youtube.com/x' },
+    { id: 'old', type: 'video', url: 'https://a/old.m4a', ts: 100, lessonRecording: { version: 1 } },
+    { id: 'new', type: 'video', url: 'https://a/new.m4a', ts: 300, lessonRecording: { version: 1 } },
+    { id: 'mid', type: 'video', url: 'https://a/mid.m4a', ts: 200, lessonRecording: { version: 1 } }
+  ];
+  assert.equal(c.onlineLessonPick(list, '').id, 'new');
+  assert.equal(c.onlineLessonPick(list, 'old').id, 'old');
+  assert.equal(c.onlineLessonPick(list, 'missing').id, 'new');
+  assert.equal(c.onlineLessonPick([{ id: 'yt', type: 'video', url: 'u' }], ''), null);
+});
+
+test('after opening, the link replays or prints as asked', async () => {
+  const calls = [];
+  const lesson = { id: 'L', type: 'video', url: 'u', ts: 5, lessonRecording: { version: 1 } };
+  const c = makeContext({ currentDocId: 'w1', pdfDoc: {}, pages: [{}], annotations: [lesson],
+    lessonPlay: async (a) => calls.push(['play', a.id]), runPrint: async (k) => calls.push(['print', k]) });
+  await c.onlineRunLinkAction('w1', { action: 'play', rec: '' });
+  await c.onlineRunLinkAction('w1', { action: 'print-answers', rec: '' });
+  await c.onlineRunLinkAction('w1', { action: 'print-worksheet', rec: '' });
+  await c.onlineRunLinkAction('w1', { action: '', rec: '' });
+  assert.deepEqual(calls, [['play', 'L'], ['print', 'answers'], ['print', 'questions']]);
+  c.annotations = [];
+  await c.onlineRunLinkAction('w1', { action: 'play', rec: '' });
+  assert.match(c.toasts.pop(), /no recorded lesson/);
+});

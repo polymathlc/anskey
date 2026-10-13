@@ -2,6 +2,13 @@
 
 Guidance for Claude when working in this repo.
 
+## 🎓 Portal link actions (v1.132.0)
+
+- `?ws=<id>&do=play|print-answers|print-worksheet[&rec=<annotation id>]`. The `do` and `rec` values are parsed by the pure `onlineLinkAction` into `WS_OPEN_DO`.
+- After `onlineOpenFromLink` has opened the worksheet, `onlineRunLinkAction` waits for the pages to load. It then calls `lessonPlay(onlineLessonPick(annotations, rec))`, `runPrint('answers')` or `runPrint('questions')`.
+- These links are what the timeline buttons in cer/online use: Video, Print answer key and Print worksheet.
+- Tests are in `tools/online-tests.mjs`.
+
 ## 🎓 Polymath Online, ⏱ lesson steps and ⏺ asked at the start (v1.131.0)
 
 **🎓 Polymath Online.** Search for `Polymath Online — class sequences`. The parts are `ONLINE_*`, `onlineCourses*`, `onlineReleased`, `onlineWorksheetOpened`, `onlineNextFor`, `onlineNextRender`, `onlinePdfBytes`, `onlineCachedPdf`, `onlineDownload`, `onlinePrint`, `onlineOpenNext`, `onlineOpenFromLink`, `WS_OPEN_ID`, `#onlineNextCard`, `#nextTwoBtn` (key C) and the `.onlineNext*` CSS. The portal lives in `polymathlc/cer` under `online/`, published at polymathlc.com.sg/online. It writes `onlineCourses/{id}` with `worksheetIds` (pdfAnnotator ids in teaching order), `currentIndex` and `releasedThrough`. It also stamps `onlineCourseId` and `onlineSeq` on each listed `pdfAnnotator` doc.

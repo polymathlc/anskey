@@ -4,6 +4,20 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.132.0 — Portal links that replay a lesson or print the answer key
+
+The Polymath Online timeline at **polymathlc.com.sg/online** can now open a
+worksheet in Ans Key and do one thing straight away:
+
+- `?ws=<id>&do=play` replays the newest recorded lesson on the worksheet,
+  with the writing following the voice. Add `&rec=<id>` to pick a particular
+  recording.
+- `?ws=<id>&do=print-answers` prints the worksheet with its answers.
+- `?ws=<id>&do=print-worksheet` prints the blank worksheet.
+
+The usual check still runs first, so a student only gets a worksheet that has
+been released to their level and subject. Any other `do=` value is ignored.
+
 ## v1.131.0 — Polymath Online, the next two worksheets, and lessons that stamp themselves
 
 This version links Ans Key to the new student portal at
