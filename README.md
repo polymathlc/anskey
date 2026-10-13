@@ -4,6 +4,42 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.131.0 — Polymath Online, the next two worksheets, and lessons that stamp themselves
+
+This version links Ans Key to the new student portal at
+**polymathlc.com.sg/online**. It also changes how lessons are recorded and
+found again.
+
+- **Class lists drive the portal.** In the portal, the teacher uploads a whole
+  term of worksheets for a class once, in teaching order. When you open
+  worksheet *n* of that class here, the class moves to worksheet *n*. Every
+  worksheet up to *n* + 5 is released to the class's students, in the portal
+  and in this app's own worksheet list. So opening worksheet 3 releases
+  worksheets up to 8. A released worksheet stays released, and reopening an
+  older sheet never moves the class back.
+- **Up next: the next two worksheets.** On any class worksheet, a card in the
+  corner shows the next two worksheets in the list, with **Open**,
+  **Download** and **Print** buttons. Both PDFs are fetched straight away and
+  kept on this device, so the next lesson opens at once. Students see the same
+  card, counted from where the class is and limited to released worksheets. The
+  new toolbar button, or **C**, shows and hides the card.
+- **Asked at the start of every lesson.** The first time you open a worksheet in
+  a visit, the recording window opens with "Record this lesson?". Start
+  recording records your voice and writing. Not now closes the window. A tick
+  box in the window turns the question off on this device.
+- **Automatic timestamps for every question.** While a lesson records, the first
+  mark on a new question time-stamps the recording, for example "Q3 at 4:12".
+  The question is worked out from the number in the PDF's left margin. The
+  replay lists every step as a chip, and tapping a chip jumps the lesson there.
+  The recording bar shows the current question and how many steps there are so
+  far.
+- **The old timestamp labels are gone.** That covers the clock labels beside
+  each mark, the C toggle, the "recording started at" box for pasted videos
+  and the timestamps baked into exported PDFs. Recorded lessons time-stamp
+  themselves now.
+- **`?ws=<id>`** opens one worksheet directly for anyone allowed to see it.
+  This is the portal's **Answer key** button.
+
 ## v1.130.0 — The mission machine spins
 
 Pressing ↻ Turn on the class mission machine now plays a real slot machine.

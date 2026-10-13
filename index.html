@@ -1640,21 +1640,6 @@
      the card, with the same air between them. */
   .printBtnRow.stacked { flex-direction: column; gap: 9px; }
   .printBtnRow.stacked .btn { width: 100%; justify-content: center; padding: 10px 12px; }
-  text.tsLabel.tsLink { cursor: pointer; }
-  text.tsLabel.tsLink:hover { fill: #1E5FA8; }
-  #videoStartRow { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
-  #videoStartRow label { display: block; font-size: 0.78rem; font-weight: bold; color: var(--ink-soft); margin-bottom: 5px; }
-  #videoStartInput {
-    width: 100%;
-    font-family: var(--font);
-    font-size: 0.82rem;
-    padding: 8px 11px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  }
-  #videoStartInput:focus { border-color: var(--accent-strong); box-shadow: 0 0 0 3px rgba(255, 224, 178, 0.5); }
   .videoBtnRow { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
   .videoBtnRow .btn { padding: 7px 12px; font-size: 0.78rem; }
   .videoModalCard { max-width: 880px; }
@@ -2887,7 +2872,7 @@
     }
     /* Below 16px iOS zooms the whole page when the field takes focus, and
        never zooms back — the single most jarring thing on an iPad. */
-    #kwInput, #videoUrlInput, #videoStartInput, .fieldRow input, .fieldRow select,
+    #kwInput, #videoUrlInput, .fieldRow input, .fieldRow select,
     .wsRenameInput, .docEditRow .docNameInput,
     .stuCreate .docEditRow input[type="text"] { font-size: 16px; }
     .kwGuessInput { font-size: max(16px, 1em); }
@@ -3460,6 +3445,43 @@
 .lessonBar,.lessonPlayer { width:100%; padding:12px 16px; border:1px solid #c8d8e5; border-radius:16px; background:#fff; color:#17324d; box-shadow:0 8px 40px #172b4d30; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .lessonBar[hidden],.lessonPlayer[hidden] { display:none; }
 .lessonBar button,.lessonPlayer button { padding:9px 12px; border:1px solid #d3dfe9; border-radius:9px; background:#f3f7fa; cursor:pointer; font:inherit; }
+
+/* ⏱ Lesson steps — the live label while recording and the replay's chips */
+.lessonStepNow { padding:6px 11px; border-radius:999px; background:#FFF3E0; color:#8A5A12; font-size:.8rem; font-weight:700; white-space:nowrap; }
+.lessonSteps { width:100%; display:flex; align-items:center; gap:8px; overflow-x:auto; padding:6px 2px 2px; scrollbar-width:thin; }
+.lessonSteps[hidden] { display:none; }
+.lessonStepsHead { font-size:.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#6b8299; white-space:nowrap; }
+.lessonPlayer button.lessonStepChip { display:inline-flex; flex-direction:column; align-items:flex-start; gap:1px; padding:7px 12px; border-radius:12px; background:#fff; border:1px solid #d3dfe9; white-space:nowrap; transition:background .2s ease, border-color .2s ease, transform .2s ease; }
+.lessonPlayer button.lessonStepChip b { font-size:.85rem; color:#17324d; }
+.lessonPlayer button.lessonStepChip span { font-size:.72rem; color:#6b8299; font-variant-numeric:tabular-nums; }
+.lessonPlayer button.lessonStepChip:hover { transform:translateY(-1px); border-color:#FFCC80; }
+.lessonPlayer button.lessonStepChip.active { background:#FFE0B2; border-color:#E8A54B; }
+/* ⏺ Asked at the start of a lesson */
+.lessonAsk { margin:0 0 16px; padding:14px 16px; border-radius:12px; background:#FFF8EC; border:1px solid #FFE0B2; line-height:1.55; font-size:.9rem; color:#4a3a20; }
+.lessonAsk[hidden] { display:none; }
+.lessonAskAgain { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:.82rem; color:#6b5a3a; cursor:pointer; }
+/* 🎓 Up next — the class's next two worksheets */
+.onlineNextCard { position:fixed; right:18px; bottom:18px; z-index:60; width:min(380px, calc(100vw - 36px)); padding:16px 16px 12px; border-radius:16px; background:#fff; border:1px solid var(--line); box-shadow:var(--shadow-modal); font-family:var(--font); animation:onlineNextIn .35s cubic-bezier(.34,1.56,.64,1); }
+.onlineNextCard[hidden] { display:none; }
+@keyframes onlineNextIn { from { opacity:0; transform:translateY(10px) scale(.98); } to { opacity:1; transform:none; } }
+.onlineNextHead { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.onlineNextTitle { font-weight:700; font-size:.95rem; letter-spacing:.01em; }
+.onlineNextSub { margin-top:3px; font-size:.78rem; color:var(--ink-faint); }
+.onlineNextClose { border:none; background:none; cursor:pointer; font-size:.9rem; color:var(--ink-faint); padding:4px 6px; border-radius:8px; }
+.onlineNextClose:hover { background:#F3F2F0; }
+.onlineNextRow { display:grid; grid-template-columns:auto 1fr; gap:6px 10px; align-items:center; padding:10px 0; border-top:1px solid var(--line); }
+.onlineNextBadge { grid-row:span 2; align-self:start; margin-top:2px; padding:3px 9px; border-radius:999px; background:var(--accent); color:#8A5A12; font-size:.7rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+.onlineNextText { min-width:0; display:flex; flex-direction:column; gap:2px; }
+.onlineNextText b { font-size:.88rem; }
+.onlineNextText span { font-size:.78rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.onlineNextActions { grid-column:2; display:flex; gap:6px; flex-wrap:wrap; }
+.onlineNextBtn { padding:6px 12px; border-radius:9px; border:1px solid var(--line); background:#fff; font:inherit; font-size:.8rem; font-weight:600; cursor:pointer; box-shadow:var(--shadow-btn); transition:box-shadow .2s ease, transform .2s ease; }
+.onlineNextBtn:hover { transform:translateY(-1px); box-shadow:var(--shadow-btn-hover); }
+.onlineNextBtn.primary { background:var(--accent); border-color:var(--accent-strong); }
+.onlineNextNone { font-size:.82rem; color:var(--ink-soft); padding:6px 0 4px; }
+.onlinePrintFrame { position:fixed; width:1px; height:1px; right:0; bottom:0; border:0; opacity:0; pointer-events:none; }
+@media print { .onlineNextCard { display:none !important; } }
+body.lessonPlaying .onlineNextCard { display:none !important; }
 .lessonBar #lessonStopBtn { background:#a62639; color:#fff; border-color:#a62639; }
 .lessonBar .lessonInfo { flex:1 1 240px; font-size:13px; line-height:1.5; }
 /* The helper is a different thing from a recording, so it does not wear a red
@@ -3852,8 +3874,8 @@ video.mirror { transform:scaleX(-1); }
     <button class="toolBtn" id="stylusBtn" data-key="D" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
     </button>
-    <button class="toolBtn" id="tsToggleBtn" data-key="C" title="Show / hide annotation timestamps — tap one to jump the lesson recording to that moment">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+    <button class="toolBtn" id="nextTwoBtn" data-key="C" title="Up next — the class's next two worksheets, ready to open, download and print" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><polyline points="10 12 13 15 10 18"/></svg>
     </button>
     <button class="toolBtn" id="lessonRecordBtn" data-key="Shift+R" title="Record a lesson — your camera, voice, pencil strokes, typed text and page position, replayed together" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle class="recGlyphDot" cx="12" cy="12" r="4.2" stroke="none"/></svg>
@@ -4045,16 +4067,6 @@ video.mirror { transform:scaleX(-1); }
         <button class="btn" id="videoRemoveBtn" style="display:none">Remove</button>
       </div>
       <div class="sideHint" style="margin-top:8px">Share settings must allow “anyone with the link” to view.</div>
-      <div id="videoStartRow" style="display:none">
-        <label for="videoStartInput">Recording started at (clock time)</label>
-        <input type="time" id="videoStartInput" step="1">
-        <div class="videoBtnRow">
-          <button class="btn btnPrimary" id="videoStartSaveBtn">Save start time</button>
-          <button class="btn" id="videoStartFirstBtn" title="Fill in the clock time of the first mark on this worksheet">Use first mark</button>
-          <button class="btn" id="videoStartClearBtn" style="display:none">Clear</button>
-        </div>
-        <div class="sideHint" id="videoStartHint" style="margin-top:8px"></div>
-      </div>
     </div>
   </div>
   <div class="sideCard" id="printCard">
@@ -4071,10 +4083,6 @@ video.mirror { transform:scaleX(-1); }
     <button class="btn btnPrimary practiceWide" id="genKeyBtn">✨ Generate answer key</button>
     <button class="btn practiceWide" id="viewKeyBtn" style="display:none">📄 View the answer key</button>
     <button class="btn practiceWide" id="printKeyBtn" style="display:none">🖨 Print / save as PDF</button>
-  </div>
-  <div class="sideCard">
-    <div class="sideHint" id="tsHint">Timestamps beside each annotation show when it was written —
-      match them against the lesson recording to find the explanation for that part.</div>
   </div>
 </aside>
 
@@ -4252,6 +4260,13 @@ video.mirror { transform:scaleX(-1); }
   </div>
 </div>
 
+<aside class="onlineNextCard" id="onlineNextCard" hidden aria-label="The next two worksheets">
+  <div class="onlineNextHead">
+    <div><div class="onlineNextTitle" id="onlineNextTitle">Up next</div><div class="onlineNextSub" id="onlineNextSub"></div></div>
+    <button type="button" class="onlineNextClose" id="onlineNextClose" title="Hide (C shows it again)" aria-label="Hide the next worksheets">✕</button>
+  </div>
+  <div class="onlineNextList" id="onlineNextList"></div>
+</aside>
 <div class="modalBack" id="lessonModal" role="dialog" aria-modal="true" aria-labelledby="lessonHeading">
   <div class="modalCard lessonCard" id="lessonCard" tabindex="-1">
     <div class="modalHead">
@@ -4259,6 +4274,10 @@ video.mirror { transform:scaleX(-1); }
       <button class="modalClose" id="lessonCloseBtn" title="Close" aria-label="Close">✕</button>
     </div>
     <div class="modalBody">
+      <div class="lessonAsk" id="lessonAskNote" hidden>
+        <b>A lesson is starting.</b> Record the whole lesson? Your voice and writing are recorded together, and every new question you write on is time-stamped so you can jump to each step afterwards.
+        <label class="lessonAskAgain"><input type="checkbox" id="lessonAskAgain" checked> Ask me at the start of every lesson</label>
+      </div>
       <p class="lessonHelp">Explain while you write. Your voice, pencil strokes, typed text, zoom and page position play back together — and you on camera too, if you switch one on. A play button will be attached to this page.</p>
 
       <div class="lessonTitleRow">
@@ -4315,6 +4334,7 @@ video.mirror { transform:scaleX(-1); }
 <div class="lessonBar" id="lessonBar" hidden role="region" aria-label="Lesson recording">
   <video class="lessonLiveCam" id="lessonLiveCam" muted playsinline autoplay hidden aria-label="Your camera, as it is being recorded"></video>
   <span id="lessonClock">0:00</span><div class="lessonInfo" id="lessonStatus" role="status" aria-live="polite"></div>
+  <span class="lessonStepNow" id="lessonStepNow" hidden></span>
   <button id="lessonStopBtn">Stop &amp; save</button><button id="lessonRetryBtn" hidden>Retry save</button>
   <button id="lessonDownloadBtn" hidden>Download backup</button><button id="lessonDismissBtn" hidden>Discard</button>
 </div>
@@ -4328,6 +4348,7 @@ video.mirror { transform:scaleX(-1); }
 <div class="lessonPlayer" id="lessonPlayer" hidden role="region" aria-label="Lesson replay">
   <span id="lessonPlayerTitle" role="status"></span><button id="lessonExportBtn" hidden title="Make this lesson into a 1920 × 1080 video file — the page, your writing, your camera and your voice">⬇ 1080p video</button><button id="lessonPlayerClose">Close replay</button>
   <audio id="lessonAudio" controls preload="metadata" aria-label="Lesson audio and timeline"></audio>
+  <div class="lessonSteps" id="lessonSteps" hidden role="group" aria-label="Jump to a question"></div>
 </div>
 </div>
 <div class="lessonCamWin" id="lessonCamWin" hidden role="region" aria-label="Lesson video">
@@ -5310,7 +5331,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.130.0';
+var APP_VERSION = 'v1.131.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -5637,7 +5658,6 @@ var editModeId = null;      // annotation in handle-edit mode (double-click with
 var dirty = false;
 var currentUser = null;
 var annIdCounter = 1;
-var showTimestamps = false; // off for everyone by default — labels clutter the page
 var reviseMode = false;
 var revealedKw = {};        // normalised keyword -> true, revealed during revise mode
 var kwResults = {};         // 'annId:wordIndex' -> { guess, correct } per keyword box attempt
@@ -7242,7 +7262,6 @@ function renderOverlay(p) {
       if (a.page === p.num) svg.appendChild(annNode(a));
     });
   } finally { overlayRebuilding--; }
-  if (showTimestamps) refreshTsLabels(p);
   if (selectedId && selectedId !== editModeId && selectedId !== editingId) {
     var selAnn = annotations.find(function (a) { return a.id === selectedId; });
     if (selAnn && selAnn.page === p.num) {
@@ -7363,79 +7382,6 @@ function placeCaretFromPoint(node, cx, cy) {
   sel.removeAllRanges();
   sel.addRange(range);
   return true;
-}
-
-/* Only the earliest and latest timestamped annotation of a page get a
-   label — one stamp per annotation buried the worksheet in grey text and
-   made it look broken. */
-function tsLabelTargets(pageNum) {
-  var stamped = annotations.filter(function (a) { return a.page === pageNum && a.ts; });
-  if (stamped.length < 3) return stamped;
-  stamped.sort(function (x, y) { return x.ts - y.ts; });
-  if (!videoSeekReady()) return [stamped[0], stamped[stamped.length - 1]];
-  // Each label is a jump point into the recording, so two per page is too
-  // few — keep one per couple of minutes of lesson (the first and the last
-  // always), which stays readable without burying the page in grey text.
-  var GAP = 120000, MAX = 8;
-  var picked = [stamped[0]];
-  for (var i = 1; i < stamped.length - 1 && picked.length < MAX - 1; i++) {
-    if (stamped[i].ts - picked[picked.length - 1].ts >= GAP) picked.push(stamped[i]);
-  }
-  picked.push(stamped[stamped.length - 1]);
-  return picked;
-}
-
-/* Wipe and re-draw the page's timestamp labels (used by renderOverlay and
-   by the incremental commit path when a freshly drawn stroke is kept as-is
-   — the newest stroke becomes the page's "last" label). */
-function refreshTsLabels(p) {
-  p.svg.querySelectorAll('text.tsLabel').forEach(function (n) { n.remove(); });
-  if (!showTimestamps) return;
-  tsLabelTargets(p.num).forEach(function (a) { appendTsLabel(p, a); });
-}
-
-/* Timestamp label beside one annotation. Once the recording has a start
-   time, the label becomes a link: tapping it opens the recording at the
-   moment that mark was written. */
-function appendTsLabel(p, a) {
-  if (!showTimestamps || !a.ts) return;
-  var node = p.svg.querySelector('[data-id="' + a.id + '"]');
-  if (!node) return;
-  var box;
-  try { box = node.getBBox(); } catch (e) { return; }
-  var seekable = videoSeekReady();
-  var label = el('text', {
-    'class': seekable ? 'tsLabel tsLink' : 'tsLabel',
-    x: Math.min(box.x + box.width + 5, p.baseW - 4),
-    y: Math.max(box.y + 8, 10),
-    'font-size': 8.5,
-    fill: seekable ? '#3A6FB0' : '#8A8A84',
-    stroke: '#FFFFFF',
-    'stroke-width': 2.5,
-    'paint-order': 'stroke',
-    'text-anchor': box.x + box.width + 55 > p.baseW ? 'end' : 'start',
-    'pointer-events': seekable ? 'auto' : 'none'
-  });
-  label.style.fontFamily = 'var(--font)';
-  label.textContent = (seekable ? '▶ ' : '') + formatTs(a.ts);
-  if (seekable) {
-    label.style.cursor = 'pointer';
-    label.style.textDecoration = 'underline';
-    var tip = el('title');
-    tip.textContent = 'Play the recording from ' + formatOffset(videoOffsetFor(a.ts));
-    label.appendChild(tip);
-    // Swallow the pointer events so tapping the label never draws, selects
-    // or erases underneath it; the click itself opens the recording.
-    ['pointerdown', 'pointerup', 'mousedown', 'touchstart'].forEach(function (evt) {
-      label.addEventListener(evt, function (ev) { ev.stopPropagation(); });
-    });
-    label.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      ev.preventDefault();
-      jumpRecordingToTs(a.ts);
-    });
-  }
-  p.svg.appendChild(label);
 }
 
 /* Amber frame + resize handles + floating badge for the annotation in edit mode */
@@ -8580,61 +8526,7 @@ function renderVideoCard() {
   if (admin) {
     $('videoRemoveBtn').style.display = has ? 'inline-flex' : 'none';
     $('videoUrlInput').value = wsMeta.videoUrl || '';
-    renderVideoStartRow();
   }
-  updateTsHint();
-  maybeAutoShowTimestamps();
-}
-
-/* ---- Start time of the recording ----
-   Annotations carry a wall-clock stamp (a.ts). Knowing the clock time at
-   which the recording began turns any stamp into a position in the video:
-   position = stamp − start. The teacher sets that one clock time here. */
-
-/* Midnight (local) of the day the recording belongs to — used to turn the
-   "13:45:00" typed in the box into a real moment. Preference order: the day
-   already saved, the day of the first mark on the page, the worksheet date,
-   then today. */
-function videoStartDayBase() {
-  var d;
-  if (wsMeta.videoStart) d = new Date(wsMeta.videoStart);
-  else {
-    var first = firstAnnTs();
-    if (first) d = new Date(first);
-    else if (wsMeta.date) d = new Date(wsMeta.date + 'T00:00:00');
-  }
-  if (!d || isNaN(d)) d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function firstAnnTs() {
-  var t = 0;
-  annotations.forEach(function (a) { if (a.ts && (!t || a.ts < t)) t = a.ts; });
-  return t;
-}
-
-function clockToMs(hhmmss, dayBase) {
-  var m = String(hhmmss || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if (!m) return 0;
-  return dayBase + (+m[1]) * 3600000 + (+m[2]) * 60000 + (+(m[3] || 0)) * 1000;
-}
-
-function msToClock(ts) {
-  var d = new Date(ts);
-  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
-  return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-}
-
-/* Seconds into the recording for a wall-clock stamp (null when unknown). */
-function videoOffsetFor(ts) {
-  if (!ts || !wsMeta.videoStart) return null;
-  return Math.max(0, Math.round((ts - wsMeta.videoStart) / 1000));
-}
-
-/* Can a tapped timestamp actually move this recording? */
-function videoSeekReady() {
-  return !!(wsMeta.videoUrl && wsMeta.videoStart && videoEmbedInfo(wsMeta.videoUrl).seek !== 'none');
 }
 
 function formatOffset(sec) {
@@ -8642,79 +8534,6 @@ function formatOffset(sec) {
   var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   var pad = function (n) { return (n < 10 ? '0' : '') + n; };
   return (h ? h + ':' + pad(m) : String(m)) + ':' + pad(s);
-}
-
-function renderVideoStartRow() {
-  var has = !!wsMeta.videoUrl;
-  $('videoStartRow').style.display = has ? 'block' : 'none';
-  if (!has) return;
-  $('videoStartInput').value = wsMeta.videoStart ? msToClock(wsMeta.videoStart) : '';
-  $('videoStartClearBtn').style.display = wsMeta.videoStart ? 'inline-flex' : 'none';
-  var seek = videoEmbedInfo(wsMeta.videoUrl).seek;
-  var hint;
-  if (seek === 'none') {
-    hint = 'This link type cannot be jumped to a time — a Dropbox, YouTube or direct .mp4 link can.';
-  } else if (!wsMeta.videoStart) {
-    hint = 'Set the clock time the recording began and every timestamp on the page becomes a tap-to-jump link into it.';
-  } else {
-    hint = 'Recording began ' + formatTs(wsMeta.videoStart) + ' on ' +
-      new Date(wsMeta.videoStart).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) +
-      ' — tapping a timestamp jumps the recording to that moment.';
-  }
-  $('videoStartHint').textContent = hint;
-}
-
-/* When a worksheet arrives with a recording that timestamps can drive, show
-   the labels — they are the way into the recording. Anyone who works the C
-   toggle themselves keeps the last thing they chose. */
-var tsUserToggled = false;
-function maybeAutoShowTimestamps() {
-  if (tsUserToggled || showTimestamps || !videoSeekReady()) return;
-  showTimestamps = true;
-  $('tsToggleBtn').classList.add('active');
-  renderAllOverlays();
-}
-
-/* Student-facing line under the recording card. */
-function updateTsHint() {
-  var hint = $('tsHint');
-  if (!hint) return;
-  hint.textContent = videoSeekReady()
-    ? 'Tap a timestamp on the page to jump the lesson recording to that moment. Press C to show or hide the timestamps.'
-    : 'Timestamps beside each annotation show when it was written — match them against the lesson recording to find the explanation for that part.';
-}
-
-async function saveVideoStart() {
-  var raw = $('videoStartInput').value.trim();
-  if (!raw) { toast('Type the clock time the recording began, e.g. 14:05:00.'); return; }
-  var ms = clockToMs(raw, videoStartDayBase());
-  if (!ms) { toast('That time did not look right — use HH:MM or HH:MM:SS.'); return; }
-  wsMeta.videoStart = ms;
-  try {
-    await persistVideoMeta();
-    renderAllOverlays(); // timestamps become tap-to-jump links
-    toast('Start time saved — timestamps now jump the recording to that moment.', 3200);
-  } catch (e) {
-    toast('Could not save the start time: ' + (e.message || e));
-  }
-}
-
-function fillVideoStartFromFirstMark() {
-  var first = firstAnnTs();
-  if (!first) { toast('No timestamped marks on this worksheet yet.'); return; }
-  $('videoStartInput').value = msToClock(first);
-  toast('Filled in the time of the first mark — adjust it back to when you pressed record, then save.', 4200);
-}
-
-async function clearVideoStart() {
-  wsMeta.videoStart = 0;
-  try {
-    await persistVideoMeta();
-    renderAllOverlays();
-    toast('Start time cleared — timestamps no longer jump the recording.');
-  } catch (e) {
-    toast('Could not clear the start time: ' + (e.message || e));
-  }
 }
 
 /* Turn a pasted share link into something embeddable in the app.
@@ -8809,19 +8628,6 @@ function openVideoModal(startSec) {
   at.textContent = sec ? '▶ Playing from ' + formatOffset(sec) + ' into the recording.' : '';
   $('videoOpenTab').href = videoLinkAt(wsMeta.videoUrl, sec);
   $('videoModal').classList.add('open');
-}
-
-/* Tapping a timestamp on the page: open the recording at that moment. */
-function jumpRecordingToTs(ts) {
-  if (!wsMeta.videoUrl) { toast('No recording is attached to this worksheet yet.'); return; }
-  var off = videoOffsetFor(ts);
-  if (off === null) {
-    toast('The recording has no start time set yet, so timestamps cannot be matched to it.', 4500);
-    openVideoModal();
-    return;
-  }
-  if (ts < wsMeta.videoStart) toast('That mark was written before the recording began — playing from the start.', 4000);
-  openVideoModal(off);
 }
 
 function closeVideoModal() {
@@ -11351,6 +11157,8 @@ function lessonCaptureTick() {
     c.annotationsChanged = false;
     c.hadTransient = !!(drawing || editingId);
     c.lastMs = ms;
+    // ⏱ A stroke on a new question time-stamps the recording.
+    if (typeof lessonStepsTick === 'function') { try { lessonStepsTick(c, ms); } catch (stepErr) { /* a step is never worth a recording */ } }
     $('lessonClock').textContent = recFmtTime(ms);
     if (ms >= LessonReplayCore.limits.duration || c.bytes >= (c.limit || LESSON_AUDIO_LIMIT) - LESSON_BYTES_SLACK) lessonStop('The recording reached its size limit. The captured portion will be saved.');
   } catch (e) { lessonStop('The recording is full. The captured portion will be saved.'); }
@@ -11573,6 +11381,9 @@ async function lessonFinish(c) {
   // byte for byte what they always were.
   if (c.title) job.title = c.title;
   if (c.viewport) job.manifest.viewport = c.viewport;
+  // ⏱ The question-by-question steps, only when there are any.
+  if (c.steps && c.steps.length) job.manifest.steps = c.steps.slice();
+  if (typeof lessonStepsLive === 'function') lessonStepsLive(null);
   try { await lessonRecovery('put', job.uid + '/' + job.docId, job); job.backedUp = true; }
   catch (e) { job.backedUp = false; }
   if (lessonContextOK(job)) await lessonSavePending(); else lessonPendingUI();
@@ -11740,6 +11551,8 @@ async function lessonPlay(a) {
     if (video) lessonCamWinShow();
     $('lessonPlayerTitle').textContent = video ? 'Lesson replay · the writing follows the video' : 'Lesson replay · writing follows the audio';
     lessonReplayFrame();
+    // ⏱ One chip per question, tapped to jump the lesson there.
+    if (typeof lessonStepsShow === 'function') lessonStepsShow(manifest.steps, manifest.timeline.duration);
     media.play().catch(function () {
       if (lessonPlayback === pb) $('lessonPlayerTitle').textContent = video ? 'Press play on the video to watch the lesson' : 'Press play to hear the lesson';
     });
@@ -11784,6 +11597,7 @@ function lessonExitPlayback() {
   ['lessonAudio', 'lessonVideo'].forEach(function (key) { var m = $(key); m.pause(); m.removeAttribute('src'); m.load(); });
   $('lessonAudio').hidden = false; lessonCamWinHide();
   $('lessonPlayer').hidden = true; document.body.classList.remove('lessonPlaying');
+  if (typeof lessonStepsHide === 'function') lessonStepsHide();
   $('lessonExportBtn').hidden = true;
   // 🎬 A replay closed by the person watching ends the playlist it was part of.
   if (typeof lessonPlaylistExited === 'function') lessonPlaylistExited();
@@ -11988,6 +11802,197 @@ $('lessonTitleInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') e.preventDefault();
 });
 /* ================= End which question a lesson is for ================= */
+
+/* ================= ⏱ Lesson steps — a timestamp for every question ================= */
+/* ⏱ THE RECORDING STAMPS ITSELF. The old hand-set timestamps (a clock label
+   beside every mark, matched against a pasted video's start time) are gone:
+   a lesson recorded here already knows, to the millisecond, when each mark
+   was written. So while a lesson records, the first stroke on a NEW question
+   drops a step into the recording — "Q3 at 4:12" — and the replay lists
+   every step as a chip the teacher (or a student) taps to jump straight to
+   that part of the explanation.
+
+   · Which question a stroke belongs to is read off the PDF's own text, with
+     the same rule the 🏷 title guess uses (`lessonQuestionGuess`: a number
+     standing alone in the left margin, the nearest one at or above the
+     stroke). A page with no numbers is stepped as "Page 2".
+   · A step is added only when the question CHANGES, so going back and forth
+     between Q3 and Q4 gives Q3, Q4, Q3, Q4 — each one a real place in the
+     lesson — while forty strokes on Q3 give one.
+   · Steps live in the lesson's manifest (`manifest.steps`, only when there is
+     one), so a recording without steps is byte for byte what it always was
+     and every older lesson replays exactly as before.
+   · Everything here is called from the recorder behind a `typeof` guard: the
+     recorder's own tests run it without this section, and must keep passing. */
+var LESSON_STEP_MAX = 200;           // a lesson with more steps than this keeps the first 200
+// A question's number is read at its baseline, so ink written on the same
+// line starts a little ABOVE it: a number up to this far below the first
+// point of ink is still the question being written on.
+var LESSON_STEP_NUMBER_BELOW = 14;
+var LESSON_STEP_NUMBER_ABOVE = 2;
+var lessonStepTextCache = {};        // page number → Promise<[{str, x, y}]> for the open worksheet
+var lessonStepTextEpoch = -1;
+
+function lessonStepItems(pageInfo) {
+  if (!pageInfo || !pageInfo.page || typeof pageInfo.page.getTextContent !== 'function' || !pageInfo.viewport1) return Promise.resolve([]);
+  if (lessonStepTextEpoch !== wsEpoch) { lessonStepTextCache = {}; lessonStepTextEpoch = wsEpoch; }
+  if (!lessonStepTextCache[pageInfo.num]) {
+    lessonStepTextCache[pageInfo.num] = pageInfo.page.getTextContent().then(function (content) {
+      var vp = pageInfo.viewport1;
+      return (content.items || []).map(function (it) {
+        var pt = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+        return { str: it.str, x: pt[0], y: pt[1] };
+      });
+    }).catch(function () { return []; });
+  }
+  return lessonStepTextCache[pageInfo.num];
+}
+
+// Where on the page a mark begins, in page units — a stroke's first point,
+// a text box's or a shape's corner.
+function lessonStepAnchorY(ann) {
+  if (!ann) return null;
+  if (Array.isArray(ann.points) && ann.points.length && Number.isFinite(ann.points[0].y)) return ann.points[0].y;
+  if (Number.isFinite(ann.y)) return ann.y;
+  if (Number.isFinite(ann.y1)) return ann.y1;
+  return null;
+}
+
+async function lessonStepLabelFor(pageNum, y) {
+  var pageInfo = pages[pageNum - 1];
+  if (!pageInfo) return 'Page ' + pageNum;
+  var items = await lessonStepItems(pageInfo);
+  var guess = lessonQuestionGuess(items, y - LESSON_STEP_NUMBER_ABOVE, y + LESSON_STEP_NUMBER_BELOW, pageInfo.baseW);
+  return guess || ('Page ' + pageNum);
+}
+
+function lessonStepAdd(c, step) {
+  if (!c.steps) c.steps = [];
+  if (c.steps.length >= LESSON_STEP_MAX) return;
+  // Labels resolve asynchronously, so a step can arrive after a later one:
+  // it goes into its place in time, and a repeat of its neighbour is dropped.
+  var list = c.steps.concat([step]).sort(function (a, b) { return a.t - b.t; });
+  var out = [];
+  list.forEach(function (s) {
+    var prev = out[out.length - 1];
+    if (prev && prev.label === s.label) return;
+    out.push(s);
+  });
+  c.steps = out;
+  lessonStepsLive(c);
+}
+
+// Called by the recorder, every capture tick.
+function lessonStepsTick(c, ms) {
+  if (!c || c.phase !== 'recording') return;
+  if (!c.stepSeen) c.stepSeen = {};
+  if (!c.steps) {
+    c.steps = [];
+    // The lesson opens on whatever question is on screen.
+    var spot = typeof lessonTitleSpot === 'function' ? lessonTitleSpot() : null;
+    if (spot && spot.page) {
+      lessonStepItems(spot.page).then(function (items) {
+        if (lessonCapture !== c) return;
+        var label = lessonQuestionGuess(items, spot.top, spot.bottom, spot.page.baseW) || 'Start';
+        lessonStepAdd(c, { t: 0, label: label, page: spot.page.num, y: Math.round(spot.top) });
+      });
+    } else lessonStepAdd(c, { t: 0, label: 'Start', page: 1, y: 0 });
+  }
+  var ann = drawing && drawing.ann;
+  if (!ann || !ann.id || c.stepSeen[ann.id]) return;
+  if (LESSON_TYPES.indexOf(ann.type) === -1) return;
+  c.stepSeen[ann.id] = true;
+  var y = lessonStepAnchorY(ann), page = ann.page, t = Math.round(ms);
+  if (!(page >= 1) || y === null) return;
+  lessonStepLabelFor(page, y).then(function (label) {
+    if (lessonCapture !== c) return;
+    lessonStepAdd(c, { t: t, label: label, page: page, y: Math.round(y) });
+  });
+}
+
+// What the recording bar says while a lesson records: the question being
+// explained and how many steps the replay will have.
+function lessonStepsLive(c) {
+  var node = $('lessonStepNow');
+  if (!node) return;
+  if (!c || !c.steps || !c.steps.length) { node.hidden = true; return; }
+  var last = c.steps[c.steps.length - 1];
+  node.hidden = false;
+  node.textContent = '⏱ ' + last.label + ' · ' + c.steps.length + (c.steps.length === 1 ? ' step' : ' steps');
+  node.title = 'Each new question you write on is time-stamped, so the replay can jump straight to it.';
+}
+
+function lessonStepsClean(raw, duration) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(function (s) {
+    return s && Number.isFinite(s.t) && s.t >= 0 && (!duration || s.t <= duration) && typeof s.label === 'string';
+  }).slice(0, LESSON_STEP_MAX).map(function (s) {
+    return { t: s.t, label: s.label.slice(0, 24), page: s.page, y: s.y };
+  });
+}
+
+// The replay's chips: one per step, tapped to jump the lesson there.
+var lessonStepsShown = [];
+function lessonStepsShow(steps, duration) {
+  var box = $('lessonSteps');
+  if (!box) return;
+  lessonStepsShown = lessonStepsClean(steps, duration);
+  box.replaceChildren();
+  if (lessonStepsShown.length < 2) { box.hidden = true; return; }
+  var head = document.createElement('span');
+  head.className = 'lessonStepsHead';
+  head.textContent = 'Jump to';
+  box.appendChild(head);
+  lessonStepsShown.forEach(function (s, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'lessonStepChip';
+    b.dataset.i = String(i);
+    var strong = document.createElement('b');
+    strong.textContent = s.label;
+    var time = document.createElement('span');
+    time.textContent = recFmtTime(s.t);
+    b.append(strong, time);
+    b.title = 'Play the lesson from ' + s.label + ' (' + recFmtTime(s.t) + ')';
+    b.addEventListener('click', function () { lessonStepJump(i); });
+    box.appendChild(b);
+  });
+  box.hidden = false;
+  lessonStepsSync();
+}
+function lessonStepsHide() {
+  lessonStepsShown = [];
+  var box = $('lessonSteps');
+  if (box) { box.replaceChildren(); box.hidden = true; }
+}
+function lessonStepJump(i) {
+  var s = lessonStepsShown[i];
+  if (!s || !lessonPlayback) return;
+  var media = lessonMedia();
+  // A hair before the first stroke, so the sentence that introduces it is heard.
+  media.currentTime = Math.max(0, s.t / 1000 - 1);
+  var played = media.play();
+  if (played && typeof played.catch === 'function') played.catch(function () {});
+  lessonStepsSync();
+}
+function lessonStepsSync() {
+  var box = $('lessonSteps');
+  if (!box || box.hidden || !lessonPlayback) return;
+  var now = lessonMedia().currentTime * 1000, current = -1;
+  lessonStepsShown.forEach(function (s, i) { if (s.t <= now + 1100) current = i; });
+  box.querySelectorAll('.lessonStepChip').forEach(function (b) {
+    var on = Number(b.dataset.i) === current;
+    if (b.classList.contains('active') !== on) {
+      b.classList.toggle('active', on);
+      if (on && typeof b.scrollIntoView === 'function') { try { b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
+    }
+  });
+}
+['lessonAudio', 'lessonVideo'].forEach(function (key) {
+  var m = $(key);
+  if (m) m.addEventListener('timeupdate', lessonStepsSync);
+});
+/* ================= End lesson steps ================= */
 
 /* ================= 🎞 Lesson export — the replay as a 1080p video ================= */
 /* ⬇ A LESSON IS ONE CLICK AWAY FROM A FILE A CLASS CAN BE SENT.
@@ -14923,7 +14928,6 @@ function attachOverlayHandlers(p) {
       // (plus a layout pass per timestamp) made rapid dots very laggy.
       if (tempNode && tempNode.parentNode) {
         tempNode.removeAttribute('pointer-events');
-        if (showTimestamps) refreshTsLabels(p);
       } else {
         renderOverlay(p);
       }
@@ -28538,11 +28542,13 @@ auth.onAuthStateChanged(function (user) {
       if ($('qDrawer').classList.contains('open')) loadQuestionsList();
       applyDefaultPanels();   // open for a student, shut for the teacher
       if (window.StudentHeroes && profileComplete(studentProfile)) window.StudentHeroes.profileReady(user.uid);
+      if (typeof onlineOpenFromLink === 'function') onlineOpenFromLink(user);
     });
   } else {
     // Refresh the questions drawer for the new auth state if it is open
     if ($('qDrawer').classList.contains('open')) loadQuestionsList();
     applyDefaultPanels();
+    if (user && typeof onlineOpenFromLink === 'function') onlineOpenFromLink(user);
   }
   // The page was opened through a share link: resolve it once the initial
   // auth state is known (signed in, remembered session, or signed out).
@@ -29030,6 +29036,9 @@ function canSeeDoc(d) {
   // While the teacher's device is handed to a student, filter exactly as if
   // that student were signed in.
   if (!currentUser || (isAdmin(currentUser) && !actingStudent)) return true;
+  // 🎓 A worksheet in a class list reaches students only once the class has
+  // got far enough for it to be released (see Polymath Online).
+  if (d.onlineCourseId && (typeof onlineReleased !== 'function' || !onlineReleased(d))) return false;
   // A hidden worksheet is the teacher's own file. It is filed under Hidden in
   // their list and reaches no student list, chip or count anywhere — not even
   // the right level and subject let it through. A share link the teacher sent
@@ -31266,8 +31275,11 @@ async function openSavedDoc(id, data) {
       console.warn('Could not refresh the worksheet before opening it', e);
     }
     var url = await storage.ref(data.storagePath).getDownloadURL();
+    // 🎓 A class worksheet fetched ahead by the "Up next" card opens from here.
+    var ahead = typeof onlineCachedPdf === 'function' ? await onlineCachedPdf(data.storagePath) : null;
     var resp;
-    try {
+    if (ahead) resp = new Response(ahead);
+    else try {
       resp = await fetch(url);
     } catch (netErr) {
       // fetch() only throws before an HTTP status exists: the browser blocked
@@ -31302,11 +31314,380 @@ async function openSavedDoc(id, data) {
     syncThumbStars();
     renderSidebar();
     subscribeOpenDoc(id, annKey(data)); // keep it in step with the teacher from now on
+    // 🎓 A class worksheet moves its class along and shows the next two;
+    // ⏺ the first worksheet of a lesson asks whether to record it.
+    if (typeof onlineWorksheetOpened === 'function') onlineWorksheetOpened(id, data);
+    if (typeof lessonAutoAsk === 'function') lessonAutoAsk(id);
   } catch (e) {
     console.error(e);
     toast('Could not open: ' + (e.message || e));
   }
 }
+
+/* ================= 🎓 Polymath Online — class sequences, releases and the next two ================= */
+/* The student portal at polymathlc.com.sg/online (polymathlc/cer, online/)
+   keeps each class's WHOLE term of worksheets as one ordered list, uploaded
+   once: `onlineCourses/{id}` = { title, level, subject, day, slot,
+   worksheetIds: [pdfAnnotator ids, in teaching order], currentIndex,
+   releasedThrough, ... }. Every worksheet in a list carries
+   `onlineCourseId` + `onlineSeq` (its 0-based place) on its own
+   `pdfAnnotator` document.
+
+   THIS APP DRIVES THE LIST. When the teacher opens worksheet n of a class:
+   · the class's progress moves to n (never backwards — reopening last
+     week's sheet to check something is not the class going back),
+   · every worksheet up to n + ONLINE_RELEASE_AHEAD is released to the
+     class's students, in the portal AND in this app's own worksheet list —
+     on worksheet 3, worksheets up to 8 are out. Released stays released.
+   · the next two worksheets (n+1, n+2) are fetched and kept on this device,
+     and the "Up next" card shows them to the teacher with Open, Download
+     and Print, so the next lesson is ready before it starts.
+
+   A STUDENT sees the same card on any class worksheet, relative to where
+   the CLASS is (not to the sheet they happen to be reading), and never sees
+   a worksheet of a class list before it is released — `canSeeDoc` asks
+   `onlineReleased` first, and a class worksheet whose class is not known yet
+   is treated as not released (closed, never open, by default).
+
+   `?ws=<id>` opens one worksheet directly — the portal's "Answer key" button
+   — for anyone `canSeeDoc` lets see it. */
+var ONLINE_COURSES = 'onlineCourses';
+var ONLINE_RELEASE_AHEAD = 5;          // on worksheet n, release up to n + 5 (3 → 8)
+var ONLINE_PRELOAD_AHEAD = 2;          // and keep the next two on this device
+var ONLINE_PDF_CACHE = 'polymath-online-worksheets-v1';
+var WS_OPEN_ID = new URLSearchParams(location.search).get('ws') || '';
+var wsOpenHandled = false;
+var onlineCourses = {};                // id → course
+var onlineCoursesLoaded = false;
+var onlineCoursesUnsub = null;
+var onlineCoursesWaiters = [];
+var onlineReleaseSig = '';
+var onlineNextOpen = true;             // the card's own open/closed state, this session
+var onlineNextShown = null;            // { courseId, ids }
+var onlineDocCache = {};               // worksheet id → its pdfAnnotator data, for the card
+var onlinePdfMemory = {};              // storagePath → Promise<ArrayBuffer>
+
+function onlineTeacherHere() { return !!currentUser && isAdmin(currentUser) && !actingStudent && !practiceMode && !isSharedVisitor(); }
+
+/* ---- The class lists, live ---- */
+function onlineCoursesWatch(user) {
+  if (onlineCoursesUnsub) { try { onlineCoursesUnsub(); } catch (e) {} onlineCoursesUnsub = null; }
+  onlineCourses = {}; onlineCoursesLoaded = false; onlineReleaseSig = '';
+  if (!user) { onlineCoursesSettle(); onlineNextRender(); return; }
+  try {
+    onlineCoursesUnsub = db.collection(ONLINE_COURSES).onSnapshot(function (snap) {
+      var next = {};
+      snap.forEach(function (doc) { next[doc.id] = Object.assign({ id: doc.id }, doc.data()); });
+      onlineCourses = next;
+      var first = !onlineCoursesLoaded;
+      onlineCoursesLoaded = true;
+      onlineCoursesSettle();
+      // A release that lands while a student has the list open shows up in
+      // it without a reload; the teacher's list never depended on it.
+      var sig = Object.keys(next).sort().map(function (id) { return id + ':' + (next[id].releasedThrough) + ':' + (next[id].worksheetIds || []).length; }).join('|');
+      if (!first && sig !== onlineReleaseSig && currentUser && !onlineTeacherHere() && $('qDrawer').classList.contains('open')) loadQuestionsList();
+      onlineReleaseSig = sig;
+      onlineNextRender();
+    }, function (err) {
+      console.warn('Class lists could not be read', err);
+      onlineCoursesLoaded = true; onlineCoursesSettle();
+    });
+  } catch (e) { console.warn('Class lists unavailable', e); onlineCoursesLoaded = true; onlineCoursesSettle(); }
+}
+function onlineCoursesSettle() {
+  var waiters = onlineCoursesWaiters; onlineCoursesWaiters = [];
+  waiters.forEach(function (fn) { fn(); });
+}
+// The worksheet list waits for the class lists (briefly) before it filters,
+// so a released worksheet is never missing from a student's first look.
+function onlineCoursesReady(timeoutMs) {
+  if (onlineCoursesLoaded || !currentUser) return Promise.resolve();
+  return new Promise(function (resolve) {
+    var done = false;
+    var finish = function () { if (!done) { done = true; resolve(); } };
+    onlineCoursesWaiters.push(finish);
+    setTimeout(finish, timeoutMs || 4000);
+  });
+}
+auth.onAuthStateChanged(function (user) { onlineCoursesWatch(user && !user.isAnonymous ? user : null); });
+
+/* ---- Is this class worksheet out yet? ---- */
+function onlineReleased(d) {
+  if (!d || !d.onlineCourseId) return true;
+  var course = onlineCourses[d.onlineCourseId];
+  if (!course) return false;
+  var seq = typeof d.onlineSeq === 'number' ? d.onlineSeq : -1;
+  var rel = typeof course.releasedThrough === 'number' ? course.releasedThrough : -1;
+  return seq >= 0 && seq <= rel;
+}
+
+/* ---- The teacher opened a worksheet: move the class along ---- */
+async function onlineWorksheetOpened(id, data) {
+  if (!data) return;
+  onlineDocCache[id] = data;
+  if (!data.onlineCourseId) { onlineNextRender(); return; }
+  if (!onlineTeacherHere()) { onlineNextRender(); return; }
+  var ref = db.collection(ONLINE_COURSES).doc(data.onlineCourseId);
+  try {
+    var result = await db.runTransaction(async function (tx) {
+      var snap = await tx.get(ref);
+      if (!snap.exists) return null;
+      var c = snap.data(), ids = Array.isArray(c.worksheetIds) ? c.worksheetIds : [];
+      var seq = ids.indexOf(id);
+      if (seq < 0) return null;
+      var cur = typeof c.currentIndex === 'number' ? c.currentIndex : -1;
+      var rel = typeof c.releasedThrough === 'number' ? c.releasedThrough : -1;
+      var nextCur = Math.max(cur, seq);
+      var nextRel = Math.max(rel, Math.min(ids.length - 1, seq + ONLINE_RELEASE_AHEAD));
+      var update = { lastOpenedIndex: seq, lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() };
+      if (nextCur !== cur) { update.currentIndex = nextCur; update.currentDocId = ids[nextCur]; update.progressAt = firebase.firestore.FieldValue.serverTimestamp(); }
+      if (nextRel !== rel) { update.releasedThrough = nextRel; update.releasedAt = firebase.firestore.FieldValue.serverTimestamp(); }
+      tx.set(ref, update, { merge: true });
+      return { seq: seq, total: ids.length, rel: nextRel, newlyReleased: nextRel - rel, title: c.title || 'this class' };
+    });
+    if (result && currentDocId === id) {
+      toast('Worksheet ' + (result.seq + 1) + ' of ' + result.total + ' · ' + result.title + ' — ' +
+        (result.newlyReleased > 0 ? 'released to students up to worksheet ' + (result.rel + 1) + '.' : 'students already have up to worksheet ' + (result.rel + 1) + '.'), 5000);
+    }
+  } catch (e) { console.warn('Class progress not saved', e); }
+  onlineNextRender();
+}
+
+/* ---- The next two worksheets ---- */
+function onlineNextFor(docId, data) {
+  if (!data || !data.onlineCourseId) return null;
+  var course = onlineCourses[data.onlineCourseId];
+  if (!course || !Array.isArray(course.worksheetIds)) return null;
+  var ids = course.worksheetIds, seq = ids.indexOf(docId);
+  if (seq < 0) return null;
+  // The teacher plans from the sheet in front of them; a student follows the class.
+  var teacher = onlineTeacherHere();
+  var from = teacher ? seq : (typeof course.currentIndex === 'number' && course.currentIndex >= 0 ? course.currentIndex : seq);
+  var rel = typeof course.releasedThrough === 'number' ? course.releasedThrough : -1;
+  var next = [];
+  for (var i = from + 1; i <= from + ONLINE_PRELOAD_AHEAD && i < ids.length; i++) {
+    if (teacher || i <= rel) next.push({ id: ids[i], seq: i });
+  }
+  return { course: course, seq: seq, from: from, next: next, total: ids.length };
+}
+
+async function onlineDocData(id) {
+  if (onlineDocCache[id]) return onlineDocCache[id];
+  var snap = await db.collection(COLLECTION).doc(id).get();
+  if (!snap.exists) return null;
+  onlineDocCache[id] = snap.data();
+  return onlineDocCache[id];
+}
+
+// One fetch per file per session, and a copy in the browser's cache so the
+// next lesson opens from this device even when the centre's Wi-Fi does not.
+function onlinePdfBytes(storagePath) {
+  if (!storagePath) return Promise.reject(new Error('This worksheet has no PDF.'));
+  if (!onlinePdfMemory[storagePath]) {
+    onlinePdfMemory[storagePath] = (async function () {
+      var cacheKey = 'https://polymath-online.invalid/' + encodeURIComponent(storagePath);
+      var store = null;
+      try { if (window.caches) store = await caches.open(ONLINE_PDF_CACHE); } catch (e) { store = null; }
+      if (store) {
+        try { var hit = await store.match(cacheKey); if (hit) return await hit.arrayBuffer(); } catch (e) {}
+      }
+      var url = await storage.ref(storagePath).getDownloadURL();
+      var resp = await fetch(url);
+      if (!resp.ok) throw new Error('download failed (HTTP ' + resp.status + ')');
+      var buf = await resp.arrayBuffer();
+      if (store) {
+        try { await store.put(cacheKey, new Response(buf.slice(0), { headers: { 'Content-Type': 'application/pdf' } })); } catch (e) {}
+      }
+      return buf;
+    })();
+    onlinePdfMemory[storagePath].catch(function () { delete onlinePdfMemory[storagePath]; });
+  }
+  return onlinePdfMemory[storagePath];
+}
+// Asked by openSavedDoc: a worksheet already fetched ahead opens from here.
+async function onlineCachedPdf(storagePath) {
+  if (!storagePath || !onlinePdfMemory[storagePath]) return null;
+  try { var buf = await onlinePdfMemory[storagePath]; return buf.slice(0); } catch (e) { return null; }
+}
+
+function onlineFileName(name) {
+  return String(name || 'Worksheet').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) + '.pdf';
+}
+async function onlineDownload(id) {
+  try {
+    var d = await onlineDocData(id);
+    if (!d) { toast('That worksheet is no longer there.'); return; }
+    var buf = await onlinePdfBytes(d.storagePath);
+    var url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = onlineFileName(d.name);
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  } catch (e) { toast('Could not download: ' + (e.message || e)); }
+}
+async function onlinePrint(id) {
+  try {
+    var d = await onlineDocData(id);
+    if (!d) { toast('That worksheet is no longer there.'); return; }
+    toast('Preparing “' + (d.name || 'worksheet') + '” for printing…');
+    var buf = await onlinePdfBytes(d.storagePath);
+    var url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
+    var frame = document.createElement('iframe');
+    frame.className = 'onlinePrintFrame';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.src = url;
+    frame.onload = function () {
+      setTimeout(function () {
+        try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+        catch (e) { window.open(url, '_blank'); }
+      }, 250);
+    };
+    document.body.appendChild(frame);
+    setTimeout(function () { frame.remove(); URL.revokeObjectURL(url); }, 10 * 60000);
+  } catch (e) { toast('Could not print: ' + (e.message || e)); }
+}
+async function onlineOpenNext(id) {
+  try {
+    var d = await onlineDocData(id);
+    if (!d) { toast('That worksheet is no longer there.'); return; }
+    if (typeof lessonGuardChange === 'function' && !lessonGuardChange()) return;
+    await openSavedDoc(id, d);
+  } catch (e) { toast('Could not open: ' + (e.message || e)); }
+}
+
+function onlineNextRender() {
+  var card = $('onlineNextCard'), btn = $('nextTwoBtn');
+  if (!card) return;
+  var data = currentDocId ? onlineDocCache[currentDocId] : null;
+  var info = currentDocId && data ? onlineNextFor(currentDocId, data) : null;
+  if (!info) {
+    card.hidden = true; onlineNextShown = null;
+    if (btn) btn.style.display = 'none';
+    return;
+  }
+  if (btn) { btn.style.display = ''; btn.classList.toggle('active', onlineNextOpen); }
+  var key = info.course.id + ':' + info.from + ':' + info.next.map(function (n) { return n.id; }).join(',');
+  card.hidden = !onlineNextOpen;
+  if (onlineNextShown && onlineNextShown.key === key) return;
+  onlineNextShown = { key: key, courseId: info.course.id, ids: info.next.map(function (n) { return n.id; }) };
+  var teacher = onlineTeacherHere();
+  $('onlineNextTitle').textContent = info.next.length ? 'Up next · the next two worksheets' : 'Up next';
+  $('onlineNextSub').textContent = (info.course.title || 'This class') + ' · ' +
+    (teacher ? 'you are on worksheet ' + (info.seq + 1) : 'class is on worksheet ' + (info.from + 1)) + ' of ' + info.total;
+  var list = $('onlineNextList');
+  list.replaceChildren();
+  if (!info.next.length) {
+    var none = document.createElement('p');
+    none.className = 'onlineNextNone';
+    none.textContent = info.from + 1 >= info.total ? 'This is the last worksheet in the class list.' : 'The next worksheets have not been released yet.';
+    list.appendChild(none);
+    return;
+  }
+  info.next.forEach(function (n, k) {
+    var row = document.createElement('div');
+    row.className = 'onlineNextRow';
+    var badge = document.createElement('span');
+    badge.className = 'onlineNextBadge';
+    badge.textContent = k === 0 ? 'Next' : 'After';
+    var text = document.createElement('div');
+    text.className = 'onlineNextText';
+    var name = document.createElement('b');
+    name.textContent = 'Worksheet ' + (n.seq + 1);
+    var sub = document.createElement('span');
+    sub.textContent = 'Loading…';
+    text.append(name, sub);
+    var actions = document.createElement('div');
+    actions.className = 'onlineNextActions';
+    [['Open', function () { onlineOpenNext(n.id); }], ['Download', function () { onlineDownload(n.id); }], ['Print', function () { onlinePrint(n.id); }]].forEach(function (pair) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'onlineNextBtn' + (pair[0] === 'Open' ? ' primary' : '');
+      b.textContent = pair[0];
+      b.addEventListener('click', pair[1]);
+      actions.appendChild(b);
+    });
+    row.append(badge, text, actions);
+    list.appendChild(row);
+    onlineDocData(n.id).then(function (d) {
+      if (!d) { sub.textContent = 'Removed from the list'; return; }
+      sub.textContent = d.name || 'Untitled';
+      // Fetched and kept now, so it opens, downloads and prints at once.
+      return onlinePdfBytes(d.storagePath).then(function () {
+        sub.textContent = (d.name || 'Untitled') + ' · ready';
+      });
+    }).catch(function () { sub.textContent = sub.textContent.replace(' · ready', '') + ' · will load when opened'; });
+  });
+}
+function onlineNextToggle() {
+  onlineNextOpen = !onlineNextOpen;
+  onlineNextShown = null;
+  onlineNextRender();
+}
+
+/* ---- ?ws=<id>: the portal's "Answer key" button ---- */
+async function onlineOpenFromLink(user) {
+  if (!WS_OPEN_ID || wsOpenHandled || !user || currentUser !== user) return;
+  wsOpenHandled = true;
+  try {
+    await onlineCoursesReady();
+    var snap = await db.collection(COLLECTION).doc(WS_OPEN_ID).get();
+    if (!snap.exists) { toast('That worksheet is no longer available.', 5000); return; }
+    var d = snap.data();
+    if (!canSeeDoc(d)) { toast('That worksheet has not been released to your class yet.', 6000); return; }
+    await openSavedDoc(WS_OPEN_ID, d);
+    if (!isAdmin(user) && typeof setTool === 'function') setTool('select');
+  } catch (e) { toast('Could not open the worksheet: ' + (e.message || e), 6000); }
+}
+
+/* ---- ⏺ Asked at the start of every lesson ----
+   The first time the teacher opens a worksheet in a session, the recording
+   window opens by itself with "Record this lesson?" on top: Start recording
+   records it all (voice, writing, page — and each new question is
+   time-stamped, see ⏱ Lesson steps), Not now closes it. Once per worksheet
+   per visit, and the tick box in the window turns the question off on this
+   device for good. */
+var LESSON_ASK_PREF = 'anskeyAskToRecord';
+var lessonAskedFor = {};
+var lessonAskLive = false;
+function lessonAskEnabled() {
+  try { return localStorage.getItem(LESSON_ASK_PREF) !== '0'; } catch (e) { return true; }
+}
+function lessonAutoAsk(id) {
+  if (!id || lessonAskedFor[id] || WS_OPEN_ID || SHARE_OPEN_ID) return;
+  if (!lessonTeacher() || lessonBusy() || lessonPlayback || !lessonAskEnabled()) return;
+  lessonAskedFor[id] = true;
+  setTimeout(function () {
+    if (currentDocId !== id || !lessonTeacher() || lessonBusy() || lessonPlayback) return;
+    if (document.querySelector('.modalBack.open')) return;   // something else is being asked
+    lessonAskLive = true;
+    $('lessonAskNote').hidden = false;
+    $('lessonAskAgain').checked = true;
+    $('lessonHeading').textContent = 'Record this lesson?';
+    $('lessonCancelBtn').textContent = 'Not now';
+    lessonOpen();
+  }, 700);
+}
+function lessonAskReset() {
+  if (!lessonAskLive) return;
+  lessonAskLive = false;
+  $('lessonAskNote').hidden = true;
+  $('lessonHeading').textContent = 'Record a lesson';
+  $('lessonCancelBtn').textContent = 'Cancel';
+}
+$('lessonAskAgain').addEventListener('change', function () {
+  try { localStorage.setItem(LESSON_ASK_PREF, $('lessonAskAgain').checked ? '1' : '0'); } catch (e) {}
+});
+['lessonCancelBtn', 'lessonCloseBtn', 'lessonStartBtn'].forEach(function (key) {
+  $(key).addEventListener('click', function () { setTimeout(lessonAskReset, 0); });
+});
+$('lessonRecordBtn').addEventListener('click', lessonAskReset, true);
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setTimeout(function () { if (!$('lessonModal').classList.contains('open')) lessonAskReset(); }, 0); });
+
+$('nextTwoBtn').addEventListener('click', onlineNextToggle);
+// The open worksheet can change by many routes (a new PDF, a draft, sign-out);
+// the card simply follows it. Nothing is rebuilt unless what it shows changed.
+setInterval(function () { if (!document.hidden) onlineNextRender(); }, 1500);
+$('onlineNextClose').addEventListener('click', function () { onlineNextOpen = true; onlineNextToggle(); });
+/* ================= End Polymath Online ================= */
 
 /* ================= Questions drawer (burger menu) =================
    A collapsible left column listing every saved question in chronological
@@ -31465,6 +31846,7 @@ function questionSortTime(d) {
 
 async function loadQuestionsList() {
   var list = $('qList');
+  if (typeof onlineCoursesReady === 'function') await onlineCoursesReady();
   if (!currentUser) {
     list.innerHTML = '<div class="qEmpty">Sign in with Google to see the questions.</div>';
     await signIn();
@@ -33142,15 +33524,6 @@ async function buildAnnotatedPdf(includeTs, opts) {
   // that pass is synchronous, and embedding is not.
   var noteImages = await embedAiNoteImages(outDoc, anns);
 
-    // Baked timestamps follow the on-screen rule: only the first and last
-    // stamped annotation of each page get a label.
-    var tsTargets = {};
-    if (includeTs) {
-      pages.forEach(function (pi) {
-        tsLabelTargets(pi.num).forEach(function (t) { tsTargets[t.id] = true; });
-      });
-    }
-
     anns.forEach(function (a) {
       var pageInfo = pages[a.page - 1];
       if (!pageInfo) return;
@@ -33317,39 +33690,6 @@ async function buildAnnotatedPdf(includeTs, opts) {
         }
       }
 
-      // Timestamp label beside the annotation, mirroring the on-screen view
-      if (includeTs && a.ts && tsTargets[a.id]) {
-        var box = annBBox(a);
-        var tsLabel = formatTs(a.ts);
-        var tsSize = 8.5;
-        var tsW = font.widthOfTextAtSize(tsLabel, tsSize);
-        var lx = box.x + box.w + 5;
-        if (lx + tsW > pageInfo.baseW - 4) lx = Math.max(4, box.x + box.w - tsW);
-        var tsAnchor = cv(lx, Math.max(box.y + 8, 10));
-        var tsOff = videoOffsetFor(a.ts);
-        var tsSeekable = tsOff !== null && videoSeekReady();
-        page.drawText(tsLabel, {
-          x: tsAnchor.x, y: tsAnchor.y, size: tsSize, font: font,
-          color: tsSeekable ? rgb(0.23, 0.44, 0.69) : rgb(0.54, 0.54, 0.52)
-        });
-        // With a start time set, the stamp is a link into the recording at
-        // that exact moment — the printed copy keeps that.
-        if (tsSeekable) {
-          try {
-            var tsLinkRef = outDoc.context.register(outDoc.context.obj({
-              Type: 'Annot', Subtype: 'Link',
-              Rect: [tsAnchor.x - 2, tsAnchor.y - 2, tsAnchor.x + tsW + 2, tsAnchor.y + tsSize + 2],
-              Border: [0, 0, 0],
-              A: { Type: 'Action', S: 'URI', URI: PDFLib.PDFString.of(videoLinkAt(wsMeta.videoUrl, tsOff)) }
-            }));
-            var tsAnnots = page.node.lookup(PDFLib.PDFName.of('Annots'));
-            if (tsAnnots) tsAnnots.push(tsLinkRef);
-            else page.node.set(PDFLib.PDFName.of('Annots'), outDoc.context.obj([tsLinkRef]));
-          } catch (tsLinkErr) {
-            console.warn('Could not add the PDF link for a timestamp', tsLinkErr);
-          }
-        }
-      }
     });
 
   return outDoc.save();
@@ -33361,7 +33701,7 @@ async function downloadAnnotated() {
   btn.disabled = true;
   toast('Preparing PDF…');
   try {
-    var outBytes = await buildAnnotatedPdf(showTimestamps);
+    var outBytes = await buildAnnotatedPdf(false);
     var blob = new Blob([outBytes], { type: 'application/pdf' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -33413,7 +33753,7 @@ async function runPrint(kind) {
   var lab = printLabels();
   toast('Preparing ' + (answers ? lab.aToast : lab.qToast) + ' for printing…');
   try {
-    var outBytes = await buildAnnotatedPdf(answers && showTimestamps, {
+    var outBytes = await buildAnnotatedPdf(false, {
       anns: answers ? answerAnnotations() : []
     });
     printPdfBytes(outBytes, answers ? lab.aDone : lab.qDone);
@@ -33799,12 +34139,6 @@ syncFsBtn();
 
 $('stylusBtn').addEventListener('click', function () { setStylusOnly(!stylusOnly); });
 setStylusOnly(stylusOnly, true);   // the button matches the mode from the first frame
-$('tsToggleBtn').addEventListener('click', function () {
-  tsUserToggled = true; // their choice sticks — stop auto-showing the labels
-  showTimestamps = !showTimestamps;
-  $('tsToggleBtn').classList.toggle('active', showTimestamps);
-  renderAllOverlays();
-});
 $('sideToggleBtn').addEventListener('click', function () {
   $('sideBar').classList.toggle('open');
   syncPanelScrim();
@@ -34043,12 +34377,6 @@ $('videoUrlInput').addEventListener('keydown', function (e) {
 });
 $('wsRenameBtn').addEventListener('click', startWsRename);
 $('wsName').addEventListener('dblclick', startWsRename);
-$('videoStartSaveBtn').addEventListener('click', saveVideoStart);
-$('videoStartFirstBtn').addEventListener('click', fillVideoStartFromFirstMark);
-$('videoStartClearBtn').addEventListener('click', clearVideoStart);
-$('videoStartInput').addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') { e.preventDefault(); saveVideoStart(); }
-});
 
 /* Drag & drop */
 var viewerArea = $('viewerArea');
@@ -34521,7 +34849,7 @@ document.addEventListener('keydown', function (e) {
   var toolKeys = { v: 'select', p: 'pen', h: 'highlight', t: 'text', g: 'ai', i: 'ainote', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', b: 'brace', k: 'keyword', e: 'eraser', x: 'laser', s: 'lasso', u: 'video' };
   // Buttons without a tool: fit width, panels, toggles — same keys the
   // tooltips advertise. Clicking the button reuses its exact behaviour.
-  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'tsToggleBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn', z: 'wheelBtn', k: 'calcBtn', y: 'mmBtn' };
+  var uiKeys = { f: 'fitBtn', d: 'stylusBtn', c: 'nextTwoBtn', w: 'sideToggleBtn', n: 'thumbToggleBtn', q: 'burgerBtn', m: 'docsBtn', j: 'codeWinBtn', b: 'rewardBtn', z: 'wheelBtn', k: 'calcBtn', y: 'mmBtn' };
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     var k = e.key.toLowerCase();
     // Every letter is taken, so the Pen select tool is Shift+S — plain S is
