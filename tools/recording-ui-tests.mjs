@@ -172,41 +172,76 @@ await check('cancelled transient ink disappears on the next capture tick', async
   assert.equal(events.find(e => e.type === 'remove').t, 100, 'cancelled stroke must disappear before recording ends');
 });
 
-await check('adding a card stops recording and saves the portion before pictures diverge', async () => {
+const settle = async () => { for (let i = 0; i < 4; i++) await new Promise((resolve) => setImmediate(resolve)); };
+
+await check('adding a card mid-lesson keeps recording; the replay switches pictures at that moment', async () => {
   const h = harness();
   await h.run('lessonStart();');
-  h.run(`recorders[0].fireStart(); now = 50; annotations.push(ink()); setDirty(true); lessonCaptureTick();
+  h.run(`var PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    var recaptures = 0;
+    lessonCaptureBackgrounds = async function(list, infos) { recaptures++; return list.some(function(a){ return a.type === 'ainote'; }) ? [{ page: 1, x: 0, y: 0, w: 600, h: 800, data: PNG }] : []; };
+    recorders[0].fireStart(); now = 50; annotations.push(ink()); setDirty(true); lessonCaptureTick();
     annotations.push({id:'new-card', type:'ainote', page:1, kind:'notes', x:20, y:30, w:160, h:100, title:'New note', text:'Added during recording'});
     now = 100; lessonCaptureTick();`);
-  assert.equal(h.run('lessonCapture.phase'), 'stopping');
-  assert.equal(h.run('recorders[0].pendingStop'), true);
-  assert(h.run('messages.some(function(m){ return m.indexOf("picture or card changed") >= 0; })'));
+  await settle();
+  assert.equal(h.run('lessonCapture.phase'), 'recording', 'a new card never ends the recording');
+  assert.equal(h.run('recorders[0].pendingStop'), undefined);
+  assert.equal(h.run('recaptures'), 1);
+  h.run('now = 150; lessonCaptureTick(); now = 200; lessonCaptureTick();');
+  await settle();
+  assert.equal(h.run('recaptures'), 1, 'painted once per change');
+  assert.equal(h.run('lessonCapture.phase'), 'recording');
+  h.run('lessonStop();');
   await h.run('recorders[0].finishStop();');
-  assert.equal(h.run('lessonCapture'), null);
-  assert.equal(h.run('lessonPending'), null);
-  assert.equal(h.run('writes.length'), 1);
-  assert.equal(h.run('JSON.parse(uploads[1].text).timeline.duration'), 100);
-  assert.equal(h.run('JSON.parse(uploads[1].text).timeline.events[0].t'), 50);
-  assert.deepEqual(h.json('JSON.parse(uploads[1].text).backgrounds'), []);
-  assert(h.run('annotations.some(function(a){ return a.id === "new-card"; })'), 'the new card remains ordinary worksheet work');
-  assert(h.run('annotations.some(function(a){ return !!a.lessonRecording; })'), 'the captured portion is attached');
+  const backgrounds = h.json('JSON.parse(uploads[1].text).backgrounds');
+  assert.equal(backgrounds.length, 1);
+  assert.equal(backgrounds[0].from, 100, 'the new picture starts when the card appeared');
+  assert.equal(backgrounds[0].to, undefined);
+  assert.equal(h.run('JSON.parse(uploads[1].text).timeline.duration'), 200);
+  assert(h.run('annotations.some(function(a){ return !!a.lessonRecording; })'), 'the whole lesson is attached');
 });
 
-await check('card changes between preparation and recorder onstart never start a timeline', async () => {
+await check('a card that cannot be painted is noted once and the recording carries on', async () => {
   const h = harness();
   await h.run('lessonStart();');
-  h.run(`annotations.push({id:'late-card', type:'ainote', page:1, kind:'notes', x:20, y:30, w:160, h:100, title:'Late note', text:'Changed during preparation'});
-    recorders[0].fireStart();`);
-  assert.equal(h.run('lessonCapture.core'), undefined);
-  assert.equal(h.run('lessonCapture.phase'), 'stopping');
-  assert.equal(h.run('timers.size'), 0, 'preparation race must not launch the capture interval');
-  assert.equal(h.run('liveOptions'), null);
+  h.run(`recorders[0].fireStart(); now = 50; lessonCaptureTick();
+    annotations.push({id:'big-card', type:'ainote', page:1, kind:'notes', x:20, y:30, w:160, h:100, title:'Note', text:'x'});
+    now = 100; lessonCaptureTick();`);
+  await settle();
+  assert.equal(h.run('lessonCapture.phase'), 'recording');
+  assert(h.run('messages.some(function(m){ return m.indexOf("will not show in the replay") >= 0 && m.indexOf("carries on") >= 0; })'));
+  h.run('annotations[annotations.length - 1].text = "y"; now = 150; lessonCaptureTick();');
+  await settle();
+  assert.equal(h.run('messages.filter(function(m){ return m.indexOf("will not show in the replay") >= 0; }).length'), 1, 'said once');
+  assert.equal(h.run('lessonCapture.phase'), 'recording');
+});
+
+await check('a full writing record keeps the voice recording until Stop', async () => {
+  const h = harness();
+  await h.run('lessonStart();');
+  h.run(`recorders[0].fireStart(); now = 50; lessonCaptureTick();
+    lessonCapture.core.capture = function(){ throw new Error('Lesson recording: recording is full'); };
+    now = 100; lessonCaptureTick(); now = 150; lessonCaptureTick();`);
+  assert.equal(h.run('lessonCapture.phase'), 'recording');
+  assert.equal(h.run('lessonCapture.inkFull'), true);
+  assert.equal(h.run('messages.filter(function(m){ return m.indexOf("keeps recording until you press Stop") >= 0; }).length'), 1);
+});
+
+await check('card changes between preparation and recorder onstart are painted again at 0:00', async () => {
+  const h = harness();
+  await h.run('lessonStart();');
+  h.run(`var PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    lessonCaptureBackgrounds = async function() { return [{ page: 1, x: 0, y: 0, w: 600, h: 800, data: PNG }]; };
+    annotations.push({id:'late-card', type:'ainote', page:1, kind:'notes', x:20, y:30, w:160, h:100, title:'Late note', text:'Changed during preparation'});
+    recorders[0].fireStart(); now = 0; lessonCaptureTick();`);
+  await settle();
+  assert.equal(h.run('lessonCapture.phase'), 'recording');
+  assert.ok(h.run('!!lessonCapture.core'));
+  h.run('now = 80; lessonCaptureTick(); lessonStop();');
   await h.run('recorders[0].finishStop();');
-  assert.equal(h.run('lessonCapture'), null);
-  assert.equal(h.run('lessonPending'), null);
-  assert.equal(h.run('writes.length'), 0);
-  assert.equal(h.run('uploads.length'), 0);
-  assert(h.run('mic.track.stopped') > 0);
+  const backgrounds = h.json('JSON.parse(uploads[1].text).backgrounds');
+  assert.equal(backgrounds.length, 1);
+  assert.equal(backgrounds[0].from, undefined, 'from the very start');
 });
 
 await check('cancel before microphone permission resolves releases the late stream', async () => {

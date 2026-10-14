@@ -4,6 +4,26 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.134.0 — A lesson records until you press Stop
+
+A recording no longer ends by itself partway through a lesson.
+
+- **The writing record was filling up.** The recorder notes the page 20 times a
+  second, and every scroll, zoom or bit of a stroke is one event. The old
+  limit of 18,000 events ran out after about a quarter of an hour of writing
+  and ended the recording. It now holds 300,000 events (32 MB), which is more
+  than a whole lesson. If even that fills, your voice and camera keep recording
+  until Stop, and only new writing stops replaying.
+- **Adding, moving or changing a picture or card used to stop the recording.**
+  Now the cards are painted again and the replay (and the 1080p export) switch
+  to the new picture at the moment it changed.
+- **Longer files:** one recording holds about 6 hours, with or without the
+  camera (256 MB of audio, 1.5 GB of video).
+
+The recording still ends when the microphone or camera is unplugged, the
+browser itself stops recording, the page is closed, or someone else signs
+in. In each case the captured part is saved.
+
 ## v1.133.0 — Preload a worksheet's lesson videos
 
 When a student (or anyone but the teacher) opens a worksheet that has recorded

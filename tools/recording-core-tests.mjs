@@ -153,12 +153,12 @@ check('duration, event count and byte limits leave the last valid recording inta
   const words = text('words', 'x'.repeat(core.limits.text));
   const bytes = core.createRecorder([words], view);
   let accepted = 0;
-  for (let n = 1; n < 200; n++) {
+  for (let n = 1; n < 1000; n++) {
     words.text = String(n).padEnd(core.limits.text, 'x');
     try { bytes.capture(n, [words], view); accepted = n; }
     catch (error) { assert.match(error.message, /full/); break; }
   }
-  assert(accepted > 0 && accepted < 199);
+  assert(accepted > 0 && accepted < 999);
   assert(bytes.stats().bytes <= core.limits.bytes);
   const stored = bytes.finish(accepted);
   assert(new TextEncoder().encode(JSON.stringify(stored)).length <= core.limits.bytes);
@@ -231,10 +231,10 @@ console.log(`${count} recording core checks passed.`);
 
 check('the duration ceiling is a parser bound the byte caps always reach first, and the finalizer shares it', () => {
   // There is NO recording length limit: a lesson stops when its file is full.
-  // 64 MB of audio at 96 kbps runs out near 97 minutes, so this ceiling exists
+  // 256 MB of audio at 96 kbps runs out near 6 hours, so this ceiling exists
   // only to reject a stored timeline claiming an absurd clock.
-  assert.ok(core.limits.duration >= 4 * 60 * 60 * 1000, 'the ceiling must sit far above any byte-bounded recording');
-  const audioMinutes = (64 * 1024 * 1024 * 8 / 96000) / 60;
+  assert.ok(core.limits.duration >= 8 * 60 * 60 * 1000, 'the ceiling must sit far above any byte-bounded recording');
+  const audioMinutes = (256 * 1024 * 1024 * 8 / 96000) / 60;
   assert.ok(audioMinutes * 60000 < core.limits.duration, 'the audio size cap must bite before the clock does');
 
   // The WebM finalizer repeats this number because its own harness runs it
