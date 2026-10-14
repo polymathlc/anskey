@@ -4,6 +4,27 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.133.0 — Preload a worksheet's lesson videos
+
+When a student (or anyone but the teacher) opens a worksheet that has recorded
+lessons, a card at the bottom asks **"Preload these lesson videos?"** with the
+total size. **Preload** downloads every recording with a bar from 0 to 100%
+and keeps it on the device, so tapping a question chip or scrubbing the replay
+jumps there instantly instead of waiting for the network.
+
+- Asked once per worksheet per visit. Tick **Always preload lessons on this
+  device** to skip the question (a data-saver connection is still asked).
+- A lesson that is already playing switches to the downloaded copy at the same
+  moment when its download finishes.
+- Lessons are kept in the browser's Cache Storage, at most 2 GB per device;
+  the ones preloaded longest ago are removed first. If a saved copy ever fails
+  to play, the replay streams it instead.
+- Cancel stops the download; files already finished stay.
+
+Tests: `node --test tools/lesson-preload-tests.mjs`, and in a browser
+`node tools/lesson-preload-browser-check.mjs` (a real download into Cache
+Storage, and a preloaded video seeking to 0:15).
+
 ## v1.132.0 — Portal links that replay a lesson or print the answer key
 
 The Polymath Online timeline at **polymathlc.com.sg/online** can now open a

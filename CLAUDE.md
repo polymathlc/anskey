@@ -2,6 +2,15 @@
 
 Guidance for Claude when working in this repo.
 
+## ⏬ Lesson preload (v1.133.0)
+
+- The section is marked `⏬ Lesson preload` … `End lesson preload` in index.html. `openSavedDoc` calls `lessonPreloadOffer(id)` behind a typeof guard. It never runs for `lessonTeacher()`.
+- It finds recordings with `lessonPreloadItems(annotations)` (only `lessonAssetUrl`-valid URLs). Manifests download first, then media, through `lessonPreloadFetch`. That function tees the stream: one branch goes to `caches.open('polymath-lesson-media-v1').put(url)`, the other is only counted for the bar. Without Cache Storage the file is kept as an in-memory Blob in `lessonPreloadHeld`.
+- The bar: `lessonPreloadJobPercent` counts bytes when every media size is known from `storage.ref(audioPath).getMetadata()`. Otherwise each file is an equal share. It never goes back, and shows 100 only when done.
+- Replay hooks: `lessonPlay` takes `lessonPreloadSrc(a.url)` (an object URL) in its Promise.all and sets `pb.local` and `pb.remote`. `lessonReadManifest` tries `lessonPreloadResponse(url)` first. A media `error` while `pb.local` drops the copy and streams `pb.remote`. `lessonPreloadAdopt` switches a playing lesson to its local copy at the same currentTime.
+- localStorage keys: `anskeyLessonPreload` = 'always', and `anskeyLessonPreloadIndex` = [{url, bytes, doc, at}]. The index is used for the 2 GB `LESSON_PRELOAD_BUDGET`, evicting the oldest first via `lessonPreloadEvictions`.
+- Tests: `tools/lesson-preload-tests.mjs` (vm) and `tools/lesson-preload-browser-check.mjs` (localhost server, routed Storage, real Cache Storage, and an ffmpeg video seek).
+
 ## 🎓 Portal link actions (v1.132.0)
 
 - `?ws=<id>&do=play|print-answers|print-worksheet[&rec=<annotation id>]`. The `do` and `rec` values are parsed by the pure `onlineLinkAction` into `WS_OPEN_DO`.
