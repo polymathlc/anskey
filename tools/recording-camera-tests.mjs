@@ -317,8 +317,8 @@ test('a remembered device is found by its id, then by its NAME, and never swappe
 
 test('the window says what a minute costs and how long one recording holds, from the real bitrates', () => {
   const h = harness();
-  assert.equal(h.run('lessonSizeHint(false)'), 'Voice and writing only: under 1 MB a minute, so one recording holds about 1½ hours.');
-  assert.equal(h.run('lessonSizeHint(true)'), 'Camera on: about 4.3 MB a minute, so one recording holds about 2 hours.');
+  assert.equal(h.run('lessonSizeHint(false)'), 'Voice and writing only: under 1 MB a minute, so one recording holds about 6 hours.');
+  assert.equal(h.run('lessonSizeHint(true)'), 'Camera on: about 4.3 MB a minute, so one recording holds about 6 hours.');
   assert.equal(h.run('lessonPillWidth("Play lesson · 12:34")'), 180, 'an audio lesson’s pill is the width it always was');
   assert.ok(h.run('lessonPillWidth("Play video lesson · 1:02:03")') > 220, 'a long video label gets the room to be read');
 });

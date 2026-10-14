@@ -2,6 +2,25 @@
 
 Guidance for Claude when working in this repo.
 
+## ⏺ Recording until Stop (v1.134.0)
+
+- Zhi Kai wants a recording to end only on Stop. `lessonCaptureTick` no longer stops for card changes or a full timeline. Remaining automatic stops:
+  - context change (`lessonContextOK`)
+  - device or recorder errors
+  - pagehide
+  - the media file cap
+- LessonReplayCore LIMITS:
+  - events: 300000
+  - bytes: 32 MB
+  - duration: 8 h
+- The media caps are `LESSON_AUDIO_LIMIT` 256 MB and `LESSON_VIDEO_LIMIT` 1.5 GB. They must equal the finalizer's MAX_BYTES / MAX_VIDEO_BYTES / MAX_MS (recording-core-tests checks this).
+- When `core.capture` throws, it sets `c.inkFull`. Audio continues and writing capture stops (one toast).
+- A card change calls `lessonCardsRecapture(c, ms)`:
+  - It re-runs `lessonCaptureBackgrounds` and merges the result with `lessonBackgroundsChange(list, next, ms)`.
+  - Background entries may carry `from`/`to` ms. `lessonValidateBackgrounds` allows at most `LESSON_BACKGROUND_ENTRIES` (256) entries, with non-overlapping spans per page.
+  - The replay draws `lessonBackgroundsAt(pb.backgrounds, ms)`, and the export picks per frame from `job.cards[page]` (a list).
+- Tests are in `tools/lesson-backgrounds-tests.mjs` and in recording-ui-tests (card mid-lesson, unpaintable card, ink full).
+
 ## ⏬ Lesson preload (v1.133.0)
 
 - The section is marked `⏬ Lesson preload` … `End lesson preload` in index.html. `openSavedDoc` calls `lessonPreloadOffer(id)` behind a typeof guard. It never runs for `lessonTeacher()`.

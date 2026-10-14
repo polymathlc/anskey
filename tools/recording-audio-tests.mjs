@@ -105,7 +105,7 @@ test('truncated EBML, invalid timestamp scales, missing Info and oversized recor
     await assert.rejects(finalize(new Blob([data], { type: 'audio/webm' }), 2000), /could not be prepared/);
   }
   await assert.rejects(finalize(recording({ scale: 0 }), 2000), /could not be prepared/);
-  await assert.rejects(finalize({ type: 'audio/webm', size: 64 * 1024 * 1024 + 1, arrayBuffer() { throw new Error('must not allocate'); } }, 2000), /could not be prepared/);
+  await assert.rejects(finalize({ type: 'audio/webm', size: 256 * 1024 * 1024 + 1, arrayBuffer() { throw new Error('must not allocate'); } }, 2000), /could not be prepared/);
   // Read the finalizer's own ceiling: it is checked against the replay core's in
   // tools/recording-core-tests.mjs, and there is no recording length limit to
   // pin a literal to here.
@@ -175,20 +175,24 @@ test('a file far bigger than one read window is walked to its end without ever b
 
 test('a video lesson may be far larger than an audio one, and each has its own ceiling', async () => {
   const audioMax = ceiling('MAX_BYTES'), videoMax = ceiling('MAX_VIDEO_BYTES');
-  assert.equal(audioMax, 64 * 1024 * 1024);
+  assert.equal(audioMax, 256 * 1024 * 1024);
   assert.ok(videoMax > audioMax, 'a video ceiling below the audio one would refuse every long video lesson');
-  // One real 65 MB file: over the AUDIO ceiling, well inside the video one.
+  // One real 65 MB file, well inside both ceilings.
   const big = Buffer.alloc(65 * 1024 * 1024);
   const info = field(IDS.info, Buffer.concat([field(IDS.scale, uint(1000000)), field('4d80', Buffer.from('Chrome'))]));
   const header = field(IDS.header, field('4282', Buffer.from('webm')));
   const cluster = Buffer.concat([hex(IDS.cluster), hex('01ffffffffffffff'), field('e7', uint(0)), field('a3', big)]);
   const parts = [header, field(IDS.segment, Buffer.concat([info, cluster]), true)];
   const video = new Blob(parts, { type: videoType }), audio = new Blob(parts, { type: 'audio/webm' });
-  assert.ok(video.size > audioMax);
   const reads = [], fixed = await finalize(windowedOnly(video, reads), 3600000);
   assert.equal(durationIn(Buffer.from(await fixed.slice(0, 4096).arrayBuffer())), 3600000);
   assert.equal(fixed.size, video.size + 11);
-  await assert.rejects(finalize(audio, 3600000), /could not be prepared/, 'the same bytes as AUDIO are over its ceiling');
+  assert.equal((await finalize(audio, 3600000)).size, audio.size + 11, 'an hour of voice is far inside the audio ceiling');
+  // Past the AUDIO ceiling an audio file is refused before a byte is read; the
+  // same size as a video is still inside the video one.
+  await assert.rejects(finalize({ type: 'audio/webm', size: audioMax + 1,
+    arrayBuffer() { throw new Error('must not allocate'); }, slice() { throw new Error('must not read'); } }, 2000), /could not be prepared/);
+  assert.ok(videoMax > audioMax + 1);
   // Past the video ceiling it is refused before a single byte is read.
   await assert.rejects(finalize({ type: videoType, size: videoMax + 1,
     arrayBuffer() { throw new Error('must not allocate'); }, slice() { throw new Error('must not read'); } }, 2000), /could not be prepared/);

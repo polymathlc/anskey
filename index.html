@@ -5378,7 +5378,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.133.0';
+var APP_VERSION = 'v1.134.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -8984,8 +8984,12 @@ var LessonReplayCore = (function () {
   // set far above anything a byte-bounded recording can reach and never bites
   // first. Raising it is backward compatible; lowering it rejects lessons that
   // were saved perfectly well.
-  var LIMITS = Object.freeze({ duration: 4 * 60 * 60 * 1000, bytes: 8 * 1024 * 1024,
-    events: 18000, annotations: 12000, points: 100000, text: 65536 });
+  /* Wide enough that a whole lesson never fills them (v1.134.0): the capture
+     ticks 20 times a second and every scroll, zoom or stroke segment is an
+     event, so the old 18,000 events ran out after about a quarter of an hour
+     of writing and ended the recording before the last page. */
+  var LIMITS = Object.freeze({ duration: 8 * 60 * 60 * 1000, bytes: 32 * 1024 * 1024,
+    events: 300000, annotations: 12000, points: 100000, text: 65536 });
   var TYPES = ['pen', 'highlight', 'rect', 'ellipse', 'line', 'arrow', 'brace', 'text', 'ainote', 'video'];
   var NUMBERS = ['x', 'y', 'w', 'h', 'x1', 'y1', 'x2', 'y2', 'width', 'fontSize', 'rot', 'ts'];
   var WORDS = ['color', 'text', 'title', 'kind', 'dash', 'heads', 'grp', 'label', 'fontFamily', 'align', 'fill', 'modelLabel'];
@@ -9134,7 +9138,7 @@ var LessonReplayCore = (function () {
     var raw;
     try {
       raw = typeof value === 'string' ? value : JSON.stringify(value);
-      if (typeof raw !== 'string' || raw.length > LIMITS.bytes || bytes(raw) > LIMITS.bytes) bad('recording exceeds 8 MB');
+      if (typeof raw !== 'string' || raw.length > LIMITS.bytes || bytes(raw) > LIMITS.bytes) bad('recording exceeds 32 MB');
       value = JSON.parse(raw);
     } catch (error) { bad('invalid or oversized recording'); }
     keys(value, ['version', 'duration', 'initial', 'events']);
@@ -9178,7 +9182,7 @@ var LessonReplayCore = (function () {
     var timeline = { version: 1, duration: 0,
       initial: { annotations: annotations(baseline, false), view: view(initialView, false) }, events: [] };
     var s = state(timeline.initial), used = bytes(timeline) + 16, last = 0, closed = false;
-    if (used > LIMITS.bytes) bad('recording exceeds 8 MB');
+    if (used > LIMITS.bytes) bad('recording exceeds 32 MB');
     function clock(t) { return integer(Math.round(number(t, 0, LIMITS.duration)), last, LIMITS.duration); }
     function capture(t, list, currentView, options) {
       if (closed) bad('recording already finished');
@@ -9587,6 +9591,36 @@ var AnsKeyLive = (function () {
 // HTML, event handlers, and live widget frames never enter a recording.
 var LESSON_BACKGROUND_LIMIT = 8 * 1024 * 1024;
 var LESSON_BACKGROUND_MAX_PX = 1600;
+// One picture per page at the start, and one more every time a card changes.
+var LESSON_BACKGROUND_ENTRIES = 256;
+
+// The pictures after a change at `ms`: a page whose picture is the same keeps
+// its entry; one that changed ends at `ms` and the new one starts there.
+function lessonBackgroundsChange(list, next, ms) {
+  var out = (list || []).map(function (b) { return Object.assign({}, b); });
+  var open = {};
+  out.forEach(function (b) { if (b.to === undefined) open[b.page] = b; });
+  var pageNums = Object.keys(open).map(Number);
+  (next || []).forEach(function (b) { if (pageNums.indexOf(b.page) === -1) pageNums.push(b.page); });
+  pageNums.sort(function (a, b) { return a - b; }).forEach(function (page) {
+    var was = open[page], now = (next || []).find(function (b) { return b.page === page; });
+    if (was && now && was.data === now.data) return;
+    if (was) {
+      if ((was.from || 0) >= ms) out.splice(out.indexOf(was), 1);
+      else was.to = ms;
+    }
+    if (now) {
+      var entry = { page: now.page, x: now.x, y: now.y, w: now.w, h: now.h, data: now.data };
+      if (ms > 0) entry.from = ms;
+      out.push(entry);
+    }
+  });
+  return out;
+}
+// The pictures showing at `ms` of a replay.
+function lessonBackgroundsAt(list, ms) {
+  return (list || []).filter(function (b) { return (b.from || 0) <= ms && (b.to === undefined || ms < b.to); });
+}
 
 function lessonBackgroundAbort(signal) {
   if (signal && signal.aborted) throw new DOMException('Recording cancelled.', 'AbortError');
@@ -9744,12 +9778,15 @@ async function lessonCaptureBackgrounds(anns, pageInfos, signal) {
 
 function lessonValidateBackgrounds(value, pageInfos) {
   if (value === undefined) return [];
-  if (!Array.isArray(value) || value.length > 64 || JSON.stringify(value).length > LESSON_BACKGROUND_LIMIT) throw new Error('Invalid lesson pictures.');
-  var seen = new Set();
-  return value.map(function (b) {
-    if (!b || typeof b !== 'object' || Object.keys(b).some(function (k) { return ['page', 'x', 'y', 'w', 'h', 'data'].indexOf(k) === -1; })) throw new Error('Invalid lesson picture.');
+  if (!Array.isArray(value) || value.length > LESSON_BACKGROUND_ENTRIES || JSON.stringify(value).length > LESSON_BACKGROUND_LIMIT) throw new Error('Invalid lesson pictures.');
+  var seen = new Map();
+  var result = value.map(function (b) {
+    if (!b || typeof b !== 'object' || Object.keys(b).some(function (k) { return ['page', 'x', 'y', 'w', 'h', 'data', 'from', 'to'].indexOf(k) === -1; })) throw new Error('Invalid lesson picture.');
     var p = pageInfos.find(function (p) { return p.num === b.page; });
-    if (!p || seen.has(b.page) || b.x !== 0 || b.y !== 0 || b.w !== p.baseW || b.h !== p.baseH ||
+    var from = b.from === undefined ? 0 : b.from, to = b.to;
+    if (!Number.isInteger(from) || from < 0 || from > 8 * 60 * 60 * 1000 ||
+        (to !== undefined && (!Number.isInteger(to) || to <= from || to > 8 * 60 * 60 * 1000))) throw new Error('Invalid lesson picture time.');
+    if (!p || b.x !== 0 || b.y !== 0 || b.w !== p.baseW || b.h !== p.baseH ||
         typeof b.data !== 'string' || !/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(b.data) ||
         (b.data.length - 22) % 4 !== 0) throw new Error('Invalid lesson picture.');
     // Reject decompression bombs before an image is attached to the DOM. PNG
@@ -9759,9 +9796,21 @@ function lessonValidateBackgrounds(value, pageInfos) {
     function uint32(at) { return ((header.charCodeAt(at) * 16777216) + (header.charCodeAt(at + 1) << 16) + (header.charCodeAt(at + 2) << 8) + header.charCodeAt(at + 3)); }
     var width = uint32(16), height = uint32(20);
     if (header.slice(12, 16) !== 'IHDR' || !width || !height || width > LESSON_BACKGROUND_MAX_PX || height > LESSON_BACKGROUND_MAX_PX) throw new Error('Invalid lesson picture dimensions.');
-    seen.add(b.page);
-    return { page: b.page, x: 0, y: 0, w: b.w, h: b.h, data: b.data };
+    if (!seen.has(b.page)) seen.set(b.page, []);
+    seen.get(b.page).push({ from: from, to: to });
+    var out = { page: b.page, x: 0, y: 0, w: b.w, h: b.h, data: b.data };
+    if (b.from !== undefined) out.from = b.from;
+    if (to !== undefined) out.to = to;
+    return out;
   });
+  // A page shows one picture at a time: its times never overlap.
+  seen.forEach(function (spans) {
+    spans.sort(function (a, b) { return a.from - b.from; });
+    for (var i = 1; i < spans.length; i++) {
+      if (spans[i - 1].to === undefined || spans[i - 1].to > spans[i].from) throw new Error('Invalid lesson picture time.');
+    }
+  });
+  return result;
 }
 
 async function lessonTeachingPageJpeg(p, snapshot, backgrounds, signal) {
@@ -9802,19 +9851,19 @@ async function lessonTeachingPageJpeg(p, snapshot, backgrounds, signal) {
 // read a window at a time and never whole (see WINDOW).
 var LessonAudioFinalize = (function () {
   'use strict';
-  var MAX_BYTES = 64 * 1024 * 1024;
+  var MAX_BYTES = 256 * 1024 * 1024;
   // Must equal LESSON_VIDEO_LIMIT, the ceiling of a lesson recorded with the
   // camera. Repeated rather than read for MAX_MS's reason below, and checked
   // against the recorder's own literal by tools/recording-core-tests.mjs: a
   // finalizer that refuses a file the recorder was still allowed to write
   // throws away a whole video lesson at the moment it is being saved.
-  var MAX_VIDEO_BYTES = 512 * 1024 * 1024;
+  var MAX_VIDEO_BYTES = 1536 * 1024 * 1024;
   // Must equal LessonReplayCore.limits.duration. It is repeated rather than
   // read, because this finalizer is lifted out of the page and run on its own by
   // its own harness, where that core does not exist. A finalizer that refuses a
   // duration the recorder accepted throws the whole lesson away at save time, so
   // tools/recording-core-tests.mjs checks the two literals against each other.
-  var MAX_MS = 4 * 60 * 60 * 1000;
+  var MAX_MS = 8 * 60 * 60 * 1000;
   // Only element HEADERS are ever read — at most twelve bytes apiece — so the
   // file is taken a window at a time. Reading it whole held an hour of video in
   // memory, hundreds of megabytes on a school laptop, to look at a few hundred
@@ -11121,11 +11170,11 @@ window.addEventListener('pagehide', lessonCloseModal);
 
 /* ================= Synchronized lesson recording ================= */
 var lessonCapture = null, lessonPending = null, lessonPlayback = null, lessonOpening = null;
-var LESSON_AUDIO_LIMIT = 64 * 1024 * 1024;
+var LESSON_AUDIO_LIMIT = 256 * 1024 * 1024;   // about 6 hours of voice
 // A lesson recorded with the CAMERA. LessonAudioFinalize repeats this number as
 // its MAX_VIDEO_BYTES, and tools/recording-core-tests.mjs holds the two
-// literals together — about two hours at the bitrates in lessonSizeHint.
-var LESSON_VIDEO_LIMIT = 512 * 1024 * 1024;
+// literals together — about six hours at the bitrates in lessonSizeHint.
+var LESSON_VIDEO_LIMIT = 1536 * 1024 * 1024;
 // The recorder stops this far SHORT of its ceiling. The tick that sees the file
 // full can be a tick late, and MediaRecorder hands over one last chunk after
 // stop(); a file that lands over the finalizer's bound is refused at SAVE time,
@@ -11193,11 +11242,17 @@ function lessonCaptureTick() {
   var c = lessonCapture;
   if (!c || c.phase !== 'recording') return;
   if (!lessonContextOK(c)) { lessonStop('Recording stopped because the worksheet or account changed.'); return; }
-  if (lessonCardsChanged(c)) {
-    toast('Recording stopped because a picture or card changed. Finish arranging it, then record the next part.', 6000);
-    lessonStop(); return;
-  }
   var ms = Math.min(LessonReplayCore.limits.duration, Math.max(0, performance.now() - c.origin));
+  // 🖼 A picture or card that changes is painted again for the replay from
+  // this moment on; the recording carries on.
+  if (!c.cardsBusy && lessonCardsChanged(c)) lessonCardsRecapture(c, Math.round(ms));
+  $('lessonClock').textContent = recFmtTime(ms);
+  // Only the file itself being full ends a lesson on its own (hours away),
+  // and even then the captured portion is saved.
+  if (ms >= LessonReplayCore.limits.duration || c.bytes >= (c.limit || LESSON_AUDIO_LIMIT) - LESSON_BYTES_SLACK) {
+    lessonStop('The recording file is full. The captured lesson will be saved.'); return;
+  }
+  if (c.inkFull) return;
   try {
     var changed = !!(c.annotationsChanged || c.hadTransient || drawing || editingId);
     c.core.capture(ms, changed ? lessonSnapshot() : [], lessonView(), { annotationsChanged: changed, drawingId: drawing && drawing.ann && drawing.ann.id });
@@ -11206,9 +11261,31 @@ function lessonCaptureTick() {
     c.lastMs = ms;
     // ⏱ A stroke on a new question time-stamps the recording.
     if (typeof lessonStepsTick === 'function') { try { lessonStepsTick(c, ms); } catch (stepErr) { /* a step is never worth a recording */ } }
-    $('lessonClock').textContent = recFmtTime(ms);
-    if (ms >= LessonReplayCore.limits.duration || c.bytes >= (c.limit || LESSON_AUDIO_LIMIT) - LESSON_BYTES_SLACK) lessonStop('The recording reached its size limit. The captured portion will be saved.');
-  } catch (e) { lessonStop('The recording is full. The captured portion will be saved.'); }
+  } catch (e) {
+    // The writing record is full: the voice (and camera) keep recording until
+    // Stop, and the replay shows the writing as it was at this moment.
+    c.inkFull = true;
+    toast('The writing in this recording is full, so new writing will not replay. Your voice keeps recording until you press Stop.', 8000);
+  }
+}
+// 🖼 Cards and pictures are painted beneath the recorded ink. When one changes
+// mid-lesson they are painted again, and the replay switches to the new
+// picture at the moment of the change.
+function lessonCardsRecapture(c, ms) {
+  var state = lessonCardState();
+  c.cardsBusy = true;
+  Promise.resolve().then(function () { return lessonCaptureBackgrounds(annotations, pages, c.controller.signal); }).then(function (next) {
+    if (lessonCapture !== c || c.phase !== 'recording') return;
+    var merged = lessonBackgroundsChange(c.backgrounds || [], next, ms);
+    if (merged.length > LESSON_BACKGROUND_ENTRIES || JSON.stringify(merged).length > LESSON_BACKGROUND_LIMIT) {
+      throw new Error('The lesson pictures are full.');
+    }
+    c.backgrounds = merged;
+  }).catch(function (e) {
+    if (lessonCapture !== c || c.phase !== 'recording' || (e && e.name === 'AbortError') || c.cardsNoted) return;
+    c.cardsNoted = true;
+    toast('This change to the pictures will not show in the replay (' + ((e && e.message) || 'it could not be prepared') + '). The recording carries on.', 7000);
+  }).then(function () { c.cardState = state; c.cardsBusy = false; });
 }
 function lessonGuardChange() {
   if (lessonCapture || (lessonPending && lessonTeacher() && currentUser.uid === lessonPending.uid && currentDocId === lessonPending.docId)) {
@@ -11356,7 +11433,8 @@ async function lessonStart() {
         if (c.recorder.state !== 'inactive') c.recorder.stop();
         lessonRelease(c); return;
       }
-      if (lessonCardsChanged(c)) { lessonStop('Pictures changed while preparing. Start recording again.'); return; }
+      // Pictures that changed while preparing are painted again at 0:00 by
+      // the first tick, instead of the recording refusing to start.
       c.origin = performance.now();
       try { c.core = LessonReplayCore.createRecorder(lessonSnapshot(), lessonView()); }
       catch (e) { lessonStop('This worksheet has too much writing to record.'); return; }
@@ -11621,10 +11699,14 @@ function lessonReplayFrame() {
   var pb = lessonPlayback;
   if (!pb) return;
   if (pb.epoch !== wsEpoch) { lessonExitPlayback(); return; }
-  var state = pb.player.stateAt(Math.min(pb.duration, lessonMedia().currentTime * 1000));
-  if (state.annotationRevision !== pb.revision) {
+  var at = Math.min(pb.duration, lessonMedia().currentTime * 1000);
+  var state = pb.player.stateAt(at);
+  var shown = lessonBackgroundsAt(pb.backgrounds, at);
+  var shownKey = shown.map(function (b) { return pb.backgrounds.indexOf(b); }).join(',');
+  if (state.annotationRevision !== pb.revision || shownKey !== pb.shownKey) {
+    pb.shownKey = shownKey; pb.shownBackgrounds = shown;
     pb.overlays.forEach(function (svg) { svg.replaceChildren(); });
-    pb.backgrounds.forEach(function (b) { pb.overlays[b.page - 1].appendChild(el('image', { x: b.x, y: b.y, width: b.w, height: b.h, href: b.data })); });
+    shown.forEach(function (b) { pb.overlays[b.page - 1].appendChild(el('image', { x: b.x, y: b.y, width: b.w, height: b.h, href: b.data })); });
     state.annotations.forEach(function (a) {
       if (LESSON_TYPES.indexOf(a.type) === -1 || !pb.overlays[a.page - 1]) return;
       var copy = Object.assign({}, a, { id: 'lesson-replay-' + a.id, kw: [] });
@@ -12420,8 +12502,8 @@ function lessonExportDraw(job, t, dt) {
     ctx.fillRect(px, py, pw, ph);
     var raster = job.rasters[p.num];
     if (raster) ctx.drawImage(raster, px, py, pw, ph);
-    var card = job.cards[p.num];
-    if (card) ctx.drawImage(card, px, py, pw, ph);
+    var card = (job.cards[p.num] || []).find(function (c) { return c.from <= t && (c.to === undefined || t < c.to); });
+    if (card) ctx.drawImage(card.img, px, py, pw, ph);
     ctx.save();
     ctx.beginPath();
     ctx.rect(px, py, pw, ph);
@@ -12550,7 +12632,7 @@ async function lessonExportPrepare(job) {
   job.stack = lessonExportStack(job.infos);
   // The note cards and pictures, painted once, exactly as the replay shows them.
   var backgrounds = lessonValidateBackgrounds(manifest.backgrounds, pages);
-  for (var b of backgrounds) job.cards[b.page] = await lessonBackgroundImage(b.data, signal);
+  for (var b of backgrounds) (job.cards[b.page] = job.cards[b.page] || []).push({ from: b.from || 0, to: b.to, img: await lessonBackgroundImage(b.data, signal) });
   lessonExportAlive(job);
   // Only the pages the lesson ever shows, writes on or pans across.
   var wanted = new Set();
@@ -21480,7 +21562,7 @@ function aiViewSnapshot(options) {
   var records = needed.map(function (p) {
     // PDF page objects are immutable. Keep that exact object, never look up
     // the same page number after an await in a newly opened worksheet.
-    var background = replay && (replay.backgrounds || []).find(function (b) { return b.page === p.num; });
+    var background = replay && (replay.shownBackgrounds || replay.backgrounds || []).find(function (b) { return b.page === p.num; });
     var record = { ref: p, num: p.num, baseW: p.baseW, baseH: p.baseH, pdfPage: p.page, fallback: null,
       background: background ? background.data : null };
     if (!p.page && p.canvas && p.canvas.width && p.canvas.height) {
