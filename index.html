@@ -3482,6 +3482,37 @@
 .onlinePrintFrame { position:fixed; width:1px; height:1px; right:0; bottom:0; border:0; opacity:0; pointer-events:none; }
 @media print { .onlineNextCard { display:none !important; } }
 body.lessonPlaying .onlineNextCard { display:none !important; }
+/* ⏬ Lesson preload — a worksheet's recorded lessons, downloaded before they are needed */
+.lessonPreload { width:100%; padding:14px 16px 12px; border:1px solid var(--line); border-radius:16px; background:#fff; color:var(--ink); box-shadow:var(--shadow-modal); font-family:var(--font); animation:lessonPreloadIn .35s cubic-bezier(.34,1.56,.64,1); }
+.lessonPreload[hidden] { display:none; }
+@keyframes lessonPreloadIn { from { opacity:0; transform:translateY(10px) scale(.98); } to { opacity:1; transform:none; } }
+.lessonPreloadHead { display:flex; align-items:flex-start; gap:12px; }
+.lessonPreloadIcon { flex:none; width:36px; height:36px; border-radius:12px; display:grid; place-items:center; background:var(--accent); font-size:1.05rem; transition:background .3s ease; }
+.lessonPreload.is-done .lessonPreloadIcon { background:#C8E6C9; }
+.lessonPreload.is-error .lessonPreloadIcon { background:#FFCDD2; }
+.lessonPreloadText { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.lessonPreloadText b { font-size:.95rem; letter-spacing:.01em; }
+.lessonPreloadText span { font-size:.8rem; color:var(--ink-soft); line-height:1.45; }
+.lessonPreloadPct { flex:none; align-self:center; font-size:1.25rem; font-weight:700; font-variant-numeric:tabular-nums; color:#8A5A12; min-width:3.2em; text-align:right; }
+.lessonPreloadPct[hidden] { display:none; }
+.lessonPreloadClose { flex:none; border:none; background:none; cursor:pointer; font-size:.9rem; color:var(--ink-faint); padding:4px 6px; border-radius:8px; }
+.lessonPreloadClose:hover { background:#F3F2F0; }
+.lessonPreloadMeter { position:relative; height:10px; margin:12px 0 2px; border-radius:999px; background:#F3F2F0; overflow:hidden; }
+.lessonPreloadMeter[hidden] { display:none; }
+.lessonPreloadFill { position:absolute; inset:0 auto 0 0; width:0; border-radius:inherit; background:linear-gradient(90deg, var(--accent-strong), var(--accent-deep)); transition:width .25s ease; }
+.lessonPreload.is-done .lessonPreloadFill { background:var(--ok); }
+.lessonPreload.is-done .lessonPreloadPct { color:#2E7D32; }
+.lessonPreloadFoot { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:10px; }
+.lessonPreloadAlways { display:flex; align-items:center; gap:7px; font-size:.78rem; color:var(--ink-soft); cursor:pointer; }
+.lessonPreloadAlways[hidden] { display:none; }
+.lessonPreloadActions { display:flex; gap:8px; margin-left:auto; }
+.lessonPreloadBtn { padding:7px 14px; border-radius:10px; border:1px solid var(--line); background:#fff; font:inherit; font-size:.82rem; font-weight:600; color:var(--ink); cursor:pointer; box-shadow:var(--shadow-btn); transition:box-shadow .25s ease, transform .25s ease, background .2s ease; }
+.lessonPreloadBtn:hover { transform:translateY(-1px); box-shadow:var(--shadow-btn-hover); }
+.lessonPreloadBtn:active { transform:translateY(.5px); }
+.lessonPreloadBtn.primary { background:var(--accent); border-color:var(--accent-strong); }
+.lessonPreloadBtn[hidden] { display:none; }
+@media (max-width:600px) { .lessonPreloadFoot { flex-direction:column; align-items:stretch; } .lessonPreloadActions { margin-left:0; } .lessonPreloadBtn { flex:1; } }
+@media print { .lessonPreload { display:none !important; } }
 .lessonBar #lessonStopBtn { background:#a62639; color:#fff; border-color:#a62639; }
 .lessonBar .lessonInfo { flex:1 1 240px; font-size:13px; line-height:1.5; }
 /* The helper is a different thing from a recording, so it does not wear a red
@@ -4344,6 +4375,22 @@ video.mirror { transform:scaleX(-1); }
   <button id="playlistNow" hidden>Play it now</button>
   <button id="playlistNext" title="The next video" aria-label="Next video">⏭</button>
   <button id="playlistStop">Stop playlist</button>
+</div>
+<div class="lessonPreload" id="lessonPreload" hidden role="region" aria-label="Preload lesson videos">
+  <div class="lessonPreloadHead">
+    <span class="lessonPreloadIcon" id="lessonPreloadIcon" aria-hidden="true">⏬</span>
+    <div class="lessonPreloadText"><b id="lessonPreloadTitle">Preload this lesson?</b><span id="lessonPreloadSub" role="status" aria-live="polite"></span></div>
+    <span class="lessonPreloadPct" id="lessonPreloadPct" hidden>0%</span>
+    <button type="button" class="lessonPreloadClose" id="lessonPreloadClose" title="Close" aria-label="Close">✕</button>
+  </div>
+  <div class="lessonPreloadMeter" id="lessonPreloadMeter" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="lessonPreloadTitle"><div class="lessonPreloadFill" id="lessonPreloadFill"></div></div>
+  <div class="lessonPreloadFoot">
+    <label class="lessonPreloadAlways" id="lessonPreloadAlwaysRow"><input type="checkbox" id="lessonPreloadAlways"> Always preload lessons on this device</label>
+    <span class="lessonPreloadActions">
+      <button type="button" class="lessonPreloadBtn" id="lessonPreloadNo">Not now</button>
+      <button type="button" class="lessonPreloadBtn primary" id="lessonPreloadGo">Preload</button>
+    </span>
+  </div>
 </div>
 <div class="lessonPlayer" id="lessonPlayer" hidden role="region" aria-label="Lesson replay">
   <span id="lessonPlayerTitle" role="status"></span><button id="lessonExportBtn" hidden title="Make this lesson into a 1920 × 1080 video file — the page, your writing, your camera and your voice">⬇ 1080p video</button><button id="lessonPlayerClose">Close replay</button>
@@ -5331,7 +5378,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.132.0';
+var APP_VERSION = 'v1.133.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -11497,7 +11544,10 @@ function lessonAssetUrl(value) {
   return u.href;
 }
 async function lessonReadManifest(url, signal) {
-  var response = await fetch(lessonAssetUrl(url), { signal: signal });
+  var href = lessonAssetUrl(url);
+  // ⏬ A preloaded lesson reads its manifest from this device.
+  var local = typeof lessonPreloadResponse === 'function' ? await lessonPreloadResponse(url).catch(function () { return null; }) : null;
+  var response = local || await fetch(href, { signal: signal });
   if (!response.ok) throw new Error('The lesson could not be downloaded. Please retry.');
   var reader = response.body.getReader(), parts = [], size = 0;
   for (;;) {
@@ -11520,7 +11570,9 @@ async function lessonPlay(a) {
   $('lessonPlayer').hidden = false; $('lessonPlayerTitle').textContent = 'Loading lesson…';
   try {
     var audioUrl = lessonAssetUrl(a.url);
-    var result = await Promise.all([lessonReadManifest(a.lessonRecording.manifestUrl, controller.signal), lessonPdfHash()]);
+    var result = await Promise.all([lessonReadManifest(a.lessonRecording.manifestUrl, controller.signal), lessonPdfHash(),
+      // ⏬ The preloaded copy, when there is one: seeking it never waits for the network.
+      typeof lessonPreloadSrc === 'function' ? lessonPreloadSrc(a.url).catch(function () { return ''; }) : '']);
     if (controller.signal.aborted || epoch !== wsEpoch || id !== currentDocId) return;
     var manifest = result[0];
     if (manifest.version !== 1 || manifest.worksheetId !== id || manifest.pdfHash !== result[1] || manifest.pageCount !== pages.length) {
@@ -11546,7 +11598,8 @@ async function lessonPlay(a) {
     document.body.classList.add('lessonPlaying');
     // A video lesson plays in its own window over the page, and its video IS
     // the clock: the audio bar would be a second copy of the same sound.
-    var media = lessonMedia(); media.src = audioUrl;
+    var media = lessonMedia(); media.src = result[2] || audioUrl;
+    pb.local = !!result[2]; pb.remote = audioUrl;
     $('lessonAudio').hidden = video;
     if (video) lessonCamWinShow();
     $('lessonPlayerTitle').textContent = video ? 'Lesson replay · the writing follows the video' : 'Lesson replay · writing follows the audio';
@@ -11707,6 +11760,15 @@ $('lessonPlayerClose').addEventListener('click', lessonExitPlayback);
     if (lessonPlayback && lessonMedia() === media) { cancelAnimationFrame(lessonPlayback.raf); lessonPlaybackLoop(); }
   });
   media.addEventListener('error', function () {
+    // ⏬ A preloaded copy that will not play is dropped, and the lesson streams instead.
+    var pb = lessonPlayback;
+    if (pb && pb.local && pb.remote && lessonMedia() === media && media.getAttribute('src') !== pb.remote) {
+      pb.local = false;
+      if (typeof lessonPreloadForget === 'function' && pb.ann) lessonPreloadForget([pb.ann.url]).catch(function () {});
+      media.src = pb.remote;
+      var go = media.play(); if (go && go.catch) go.catch(function () {});
+      return;
+    }
     if (lessonPlayback && lessonMedia() === media) {
       $('lessonPlayerTitle').textContent = lessonPlayback.video ? 'Video unavailable. Close and try the lesson again.' : 'Audio unavailable. Close and try the lesson again.';
     }
@@ -31318,11 +31380,415 @@ async function openSavedDoc(id, data) {
     // ⏺ the first worksheet of a lesson asks whether to record it.
     if (typeof onlineWorksheetOpened === 'function') onlineWorksheetOpened(id, data);
     if (typeof lessonAutoAsk === 'function') lessonAutoAsk(id);
+    // ⏬ anyone but the teacher is offered the worksheet's recorded lessons first.
+    if (typeof lessonPreloadOffer === 'function') lessonPreloadOffer(id);
   } catch (e) {
     console.error(e);
     toast('Could not open: ' + (e.message || e));
   }
 }
+
+/* ================= ⏬ Lesson preload — a worksheet's recorded lessons, downloaded first ================= */
+/* A REPLAY THAT STREAMS STUTTERS WHERE STUDENTS NEED IT MOST. A recorded
+   lesson plays straight from Storage, so every tap on a question chip or drag
+   of the scrubber asks the network for a part of the file that has not arrived
+   yet, and the student watches a spinner. When anyone but the teacher opens a
+   worksheet that has recorded lessons, a card above the player offers to
+   download them first: Preload fetches every recording (its media and its
+   manifest) with a bar from 0 to 100%, keeps it on the device in Cache Storage
+   and from then on lessonPlay plays the local copy, so scrubbing and the ⏱
+   chips land instantly, on this visit and the next ones.
+
+   - Asked once per worksheet per visit; "Always preload lessons on this
+     device" skips the question from then on (never on a data-saver
+     connection, which is always asked).
+   - A lesson that is already playing when its download finishes switches to
+     the local copy at the same moment, playing or paused as it was.
+   - The device keeps at most LESSON_PRELOAD_BUDGET of lessons; the ones
+     preloaded longest ago are removed first. A browser without Cache Storage
+     keeps them in memory for the visit only.
+   - Cancel stops the download; files already finished stay. */
+var LESSON_PRELOAD_CACHE = 'polymath-lesson-media-v1';
+var LESSON_PRELOAD_PREF = 'anskeyLessonPreload';
+var LESSON_PRELOAD_INDEX = 'anskeyLessonPreloadIndex';
+var LESSON_PRELOAD_BUDGET = 2 * 1024 * 1024 * 1024;
+var lessonPreloadAskedFor = {};
+var lessonPreloadHeld = {};   // asset URL → { blob, url (object URL), doc }
+var lessonPreloadState = null; // what the card shows: { phase, doc, items, files, bytes, loaded, total, video, message }
+var lessonPreloadJob = null;
+var lessonPreloadHideTimer = 0;
+
+/* ---- Pure parts ---- */
+// Every recorded lesson on a worksheet, newest first and each once. Links that
+// are not this app's lesson files are skipped, never fetched.
+function lessonPreloadItems(list) {
+  var seen = {}, out = [];
+  (list || []).forEach(function (a) {
+    var r = a && a.lessonRecording;
+    if (!r || typeof a.url !== 'string' || typeof r.manifestUrl !== 'string' || seen[a.url]) return;
+    try { lessonAssetUrl(a.url); lessonAssetUrl(r.manifestUrl); } catch (e) { return; }
+    seen[a.url] = true;
+    out.push({ id: a.id, url: a.url, manifestUrl: r.manifestUrl, path: typeof r.audioPath === 'string' ? r.audioPath : '',
+      video: !!r.video, title: r.title || a.label || '', at: Number(a.ts) || 0, duration: Number(r.duration) || 0 });
+  });
+  return out.sort(function (x, y) { return y.at - x.at; });
+}
+// The files still to download for those lessons: the small manifests first,
+// so the bar's first steps are quick, then the media.
+function lessonPreloadFiles(items, have) {
+  var files = [];
+  items.forEach(function (item) { if (!have[item.manifestUrl]) files.push({ kind: 'manifest', url: item.manifestUrl, size: 0, item: item }); });
+  items.forEach(function (item) { if (!have[item.url]) files.push({ kind: 'media', url: item.url, path: item.path, size: 0, item: item }); });
+  return files;
+}
+function lessonPreloadPercent(loaded, total, done) {
+  if (done) return 100;
+  if (!(total > 0) || !(loaded > 0)) return 0;
+  return Math.max(0, Math.min(99, Math.floor(loaded / total * 100)));
+}
+// The bar of a running download. With every video's size known up front it
+// counts bytes; when Storage did not say, each file is an equal share and the
+// one downloading fills its share as it arrives. Either way it never goes back.
+function lessonPreloadJobPercent(job) {
+  var pct;
+  if (job.sized) pct = lessonPreloadPercent(job.loaded, job.total, false);
+  else {
+    var count = Math.max(1, job.fileCount || 0), part = Math.max(0, Math.min(1, job.fileFraction || 0));
+    pct = Math.max(0, Math.min(99, Math.floor((Math.min(count, job.filesDone || 0) + part) / count * 100)));
+  }
+  job.pct = Math.max(job.pct || 0, pct);
+  return job.pct;
+}
+function lessonPreloadSize(bytes) {
+  if (!(bytes > 0)) return '';
+  var mb = bytes / 1048576;
+  if (mb < 1) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+  if (mb < 10) return mb.toFixed(1) + ' MB';
+  if (mb < 1024) return Math.round(mb) + ' MB';
+  return (mb / 1024).toFixed(1) + ' GB';
+}
+// What the card says in each phase. Words only; lessonPreloadRender puts it on screen.
+function lessonPreloadView(s) {
+  var count = s.count || 0, noun = s.video ? 'video' : 'recording';
+  var lessons = count === 1 ? 'this lesson ' + noun : 'these ' + count + ' lesson ' + noun + 's';
+  var size = lessonPreloadSize(s.bytes);
+  if (s.phase === 'ask') {
+    return { title: 'Preload ' + lessons + '?', icon: '⏬',
+      sub: (size ? size + '. ' : '') + 'Jumping to any question or scrubbing will then load instantly.',
+      meter: false, pct: null, go: 'Preload', no: 'Not now', always: true };
+  }
+  if (s.phase === 'loading') {
+    var pct = typeof s.pct === 'number' ? s.pct : lessonPreloadPercent(s.loaded, s.total, false);
+    var got = lessonPreloadSize(s.loaded) || '0 MB', of = lessonPreloadSize(s.total);
+    return { title: 'Preloading ' + (count === 1 ? 'the lesson ' + noun : count + ' lesson ' + noun + 's') + '…', icon: '⏬',
+      sub: of ? got + ' of ' + of : (s.loaded > 0 ? got + ' so far' : 'Starting…'),
+      meter: true, pct: pct, go: '', no: 'Cancel', always: false };
+  }
+  if (s.phase === 'done') {
+    return { title: count === 1 ? 'Lesson ready to play instantly' : 'All ' + count + ' lessons ready to play instantly', icon: '✓',
+      sub: 'Saved on this device, so every question and scrub loads right away.',
+      meter: true, pct: 100, go: '', no: '', always: false };
+  }
+  var stopped = typeof s.pct === 'number' ? s.pct : lessonPreloadPercent(s.loaded, s.total, false);
+  return { title: 'Preload stopped', icon: '!', sub: s.message || 'The lessons could not be downloaded.',
+    meter: stopped > 0, pct: stopped, go: 'Try again', no: 'Close', always: false };
+}
+// Which earlier lessons to remove so `incoming` more bytes fit the budget:
+// the ones preloaded longest ago, never one of `keep`.
+function lessonPreloadEvictions(index, incoming, budget, keep) {
+  var total = incoming, out = [];
+  index.forEach(function (e) { total += Number(e.bytes) || 0; });
+  index.slice().sort(function (x, y) { return (Number(x.at) || 0) - (Number(y.at) || 0); }).forEach(function (e) {
+    if (total <= budget || (keep && keep[e.url])) return;
+    total -= Number(e.bytes) || 0; out.push(e.url);
+  });
+  return out;
+}
+
+/* ---- What this device has ---- */
+function lessonPreloadAlways() {
+  try { return localStorage.getItem(LESSON_PRELOAD_PREF) === 'always'; } catch (e) { return false; }
+}
+function lessonPreloadSaveData() {
+  try { return !!(navigator.connection && navigator.connection.saveData); } catch (e) { return false; }
+}
+function lessonPreloadIndex() {
+  try {
+    var list = JSON.parse(localStorage.getItem(LESSON_PRELOAD_INDEX) || '[]');
+    return Array.isArray(list) ? list.filter(function (e) { return e && typeof e.url === 'string'; }) : [];
+  } catch (e) { return []; }
+}
+function lessonPreloadSaveIndex(list) {
+  try { localStorage.setItem(LESSON_PRELOAD_INDEX, JSON.stringify(list)); } catch (e) {}
+}
+function lessonPreloadRemember(url, bytes, doc) {
+  var list = lessonPreloadIndex().filter(function (e) { return e.url !== url; });
+  list.push({ url: url, bytes: bytes, doc: doc, at: Date.now() });
+  lessonPreloadSaveIndex(list);
+}
+function lessonPreloadCache() {
+  try {
+    if (typeof caches === 'undefined' || !caches) return Promise.resolve(null);
+    return caches.open(LESSON_PRELOAD_CACHE).catch(function () { return null; });
+  } catch (e) { return Promise.resolve(null); }
+}
+async function lessonPreloadHave(urls) {
+  var have = {}, cache = await lessonPreloadCache();
+  await Promise.all(urls.map(async function (url) {
+    if (lessonPreloadHeld[url]) { have[url] = true; return; }
+    if (!cache) return;
+    var hit = await cache.match(url).catch(function () { return null; });
+    if (hit) have[url] = true;
+  }));
+  return have;
+}
+async function lessonPreloadForget(urls) {
+  if (!urls.length) return;
+  var cache = await lessonPreloadCache(), drop = {};
+  urls.forEach(function (url) {
+    drop[url] = true;
+    var held = lessonPreloadHeld[url];
+    if (held && !lessonPreloadInUse(url)) { if (held.url) { try { URL.revokeObjectURL(held.url); } catch (e) {} } delete lessonPreloadHeld[url]; }
+  });
+  if (cache) await Promise.all(urls.map(function (url) { return cache.delete(url).catch(function () {}); }));
+  lessonPreloadSaveIndex(lessonPreloadIndex().filter(function (e) { return !drop[e.url]; }));
+}
+function lessonPreloadInUse(url) {
+  var pb = lessonPlayback;
+  return !!(pb && pb.local && pb.ann && pb.ann.url === url);
+}
+// Object URLs of another worksheet's lessons are let go when a new one opens;
+// the files themselves stay in Cache Storage for next time.
+function lessonPreloadRelease(doc) {
+  Object.keys(lessonPreloadHeld).forEach(function (url) {
+    var held = lessonPreloadHeld[url];
+    if (held.doc === doc || lessonPreloadInUse(url)) return;
+    if (held.url) { try { URL.revokeObjectURL(held.url); } catch (e) {} }
+    delete lessonPreloadHeld[url];
+  });
+}
+
+/* ---- What lessonPlay and lessonReadManifest ask ---- */
+// The local copy of a lesson's media as a URL the player can seek instantly,
+// or '' when it has not been preloaded.
+async function lessonPreloadSrc(url) {
+  var held = lessonPreloadHeld[url];
+  if (held && held.url) return held.url;
+  var blob = held && held.blob;
+  if (!blob) {
+    var cache = await lessonPreloadCache();
+    var hit = cache && await cache.match(url).catch(function () { return null; });
+    if (!hit) return '';
+    blob = await hit.blob();
+  }
+  held = lessonPreloadHeld[url] = { blob: null, url: URL.createObjectURL(blob), doc: currentDocId };
+  return held.url;
+}
+// The local copy of a manifest as a Response, or null.
+async function lessonPreloadResponse(url) {
+  var held = lessonPreloadHeld[url];
+  if (held && held.blob) return new Response(held.blob);
+  var cache = await lessonPreloadCache();
+  return (cache && await cache.match(url).catch(function () { return null; })) || null;
+}
+// A lesson already playing from the network moves to its local copy without a
+// jump: same moment, still playing or still paused.
+async function lessonPreloadAdopt(url) {
+  var pb = lessonPlayback;
+  if (!pb || pb.local || !pb.ann || pb.ann.url !== url) return false;
+  var src = await lessonPreloadSrc(url).catch(function () { return ''; });
+  if (!src || lessonPlayback !== pb || pb.local) return false;
+  var media = lessonMedia(), at = media.currentTime || 0, playing = !media.paused;
+  pb.local = true;
+  var resume = function () {
+    media.removeEventListener('loadedmetadata', resume);
+    if (lessonPlayback !== pb) return;
+    try { media.currentTime = at; } catch (e) {}
+    if (playing) { var go = media.play(); if (go && go.catch) go.catch(function () {}); }
+  };
+  media.addEventListener('loadedmetadata', resume);
+  media.src = src;
+  return true;
+}
+
+/* ---- The card ---- */
+function lessonPreloadRender() {
+  var s = lessonPreloadState, card = $('lessonPreload');
+  if (!card) return;
+  if (!s) { card.hidden = true; return; }
+  var v = lessonPreloadView(s);
+  card.hidden = false;
+  ['ask', 'loading', 'done', 'error'].forEach(function (phase) { card.classList.toggle('is-' + phase, s.phase === phase); });
+  $('lessonPreloadTitle').textContent = v.title;
+  $('lessonPreloadSub').textContent = v.sub;
+  $('lessonPreloadIcon').textContent = v.icon;
+  $('lessonPreloadMeter').hidden = !v.meter;
+  $('lessonPreloadPct').hidden = v.pct === null || !v.meter;
+  if (v.pct !== null) {
+    $('lessonPreloadPct').textContent = v.pct + '%';
+    $('lessonPreloadFill').style.width = v.pct + '%';
+    $('lessonPreloadMeter').setAttribute('aria-valuenow', String(v.pct));
+  }
+  $('lessonPreloadGo').hidden = !v.go; $('lessonPreloadGo').textContent = v.go;
+  $('lessonPreloadNo').hidden = !v.no; $('lessonPreloadNo').textContent = v.no;
+  $('lessonPreloadAlwaysRow').hidden = !v.always;
+  if (v.always) $('lessonPreloadAlways').checked = lessonPreloadAlways();
+}
+function lessonPreloadClose() {
+  clearTimeout(lessonPreloadHideTimer);
+  if (lessonPreloadJob) { lessonPreloadJob.controller.abort(); lessonPreloadJob = null; }
+  lessonPreloadState = null;
+  lessonPreloadRender();
+}
+// The progress bar moves at most once a percent (and every half megabyte for
+// the size line), so a fast connection does not repaint on every chunk.
+function lessonPreloadProgress(job) {
+  var s = lessonPreloadState;
+  if (!s || lessonPreloadJob !== job) return;
+  s.loaded = job.loaded; s.total = job.sized ? job.total : 0;
+  var pct = s.pct = lessonPreloadJobPercent(job);
+  if (pct === job.shownPct && s.loaded - job.shownBytes < 524288) return;
+  job.shownPct = pct; job.shownBytes = s.loaded;
+  lessonPreloadRender();
+}
+
+/* ---- Asking ---- */
+// Called by openSavedDoc for every worksheet opened.
+function lessonPreloadOffer(id) {
+  if (!id || lessonPreloadAskedFor[id] || lessonTeacher()) return;
+  lessonPreloadRelease(id);
+  var items = lessonPreloadItems(annotations);
+  if (!items.length) return;
+  lessonPreloadAskedFor[id] = true;
+  if (lessonPreloadState && lessonPreloadState.doc !== id) lessonPreloadClose();
+  var urls = [];
+  items.forEach(function (item) { urls.push(item.manifestUrl, item.url); });
+  return lessonPreloadHave(urls).then(function (have) {
+    if (currentDocId !== id) return;
+    var files = lessonPreloadFiles(items, have);
+    if (!files.length) return;   // every lesson is already on this device
+    var wanted = items.filter(function (item) { return files.some(function (f) { return f.item === item; }); });
+    lessonPreloadState = { phase: 'ask', doc: id, items: wanted, files: files, count: wanted.length,
+      video: wanted.some(function (item) { return item.video; }), bytes: 0, loaded: 0, total: 0, message: '' };
+    if (lessonPreloadAlways() && !lessonPreloadSaveData()) return lessonPreloadStart();
+    lessonPreloadRender();
+    // The size, when Storage says it quickly; the question does not wait for it.
+    var asking = lessonPreloadState;
+    return lessonPreloadSizes(files).then(function () {
+      if (lessonPreloadState !== asking || asking.phase !== 'ask') return;
+      asking.bytes = lessonPreloadTotal(files);
+      lessonPreloadRender();
+    });
+  }).catch(function (e) { console.warn('Lesson preload check failed', e); });
+}
+function lessonPreloadTotal(files) {
+  return files.reduce(function (sum, f) { return sum + (Number(f.size) || 0); }, 0);
+}
+async function lessonPreloadSizes(files) {
+  if (typeof storage === 'undefined' || !storage) return;
+  await Promise.all(files.map(async function (f) {
+    if (f.kind !== 'media' || !f.path || f.size) return;
+    try {
+      var slow = new Promise(function (resolve, reject) { setTimeout(function () { reject(new Error('slow')); }, 4000); });
+      var meta = await Promise.race([storage.ref(f.path).getMetadata(), slow]);
+      f.size = Number(meta && meta.size) || 0;
+    } catch (e) {}
+  }));
+}
+
+/* ---- Downloading ---- */
+async function lessonPreloadStart() {
+  var s = lessonPreloadState;
+  if (!s || s.phase === 'loading' || s.phase === 'done') return;
+  clearTimeout(lessonPreloadHideTimer);
+  var job = lessonPreloadJob = { controller: new AbortController(), loaded: 0, total: 0, shownPct: -1, shownBytes: 0, doc: s.doc,
+    sized: false, pct: 0, fileCount: 0, filesDone: 0, fileFraction: 0 };
+  var have = await lessonPreloadHave(s.files.map(function (f) { return f.url; }));
+  var files = s.files = s.files.filter(function (f) { return !have[f.url]; });
+  s.phase = 'loading'; s.loaded = 0; s.total = 0; s.pct = 0; s.message = '';
+  lessonPreloadRender();
+  try {
+    await lessonPreloadSizes(files);
+    job.total = lessonPreloadTotal(files);
+    job.fileCount = files.length;
+    job.sized = files.every(function (f) { return f.kind !== 'media' || f.size > 0; });
+    var cache = await lessonPreloadCache();
+    if (lessonPreloadJob !== job) return;
+    // Room for them: our own oldest lessons go first, then the browser is asked.
+    var keep = {};
+    s.items.forEach(function (item) { keep[item.url] = true; keep[item.manifestUrl] = true; });
+    if (cache) await lessonPreloadForget(lessonPreloadEvictions(lessonPreloadIndex(), job.total, LESSON_PRELOAD_BUDGET, keep));
+    if (cache && job.total && navigator.storage && navigator.storage.estimate) {
+      var room = await navigator.storage.estimate().catch(function () { return null; });
+      if (room && room.quota && room.quota - (room.usage || 0) < job.total) {
+        throw new Error('This device does not have ' + lessonPreloadSize(job.total) + ' free for the lessons. The lessons still play online.');
+      }
+    }
+    for (var i = 0; i < files.length; i++) {
+      if (lessonPreloadJob !== job) return;
+      job.fileFraction = 0;
+      await lessonPreloadFetch(files[i], cache, job);
+      job.filesDone = i + 1; job.fileFraction = 0;
+      if (files[i].kind === 'media') await lessonPreloadAdopt(files[i].url);
+    }
+    if (lessonPreloadJob !== job) return;
+    lessonPreloadJob = null;
+    s.phase = 'done'; s.loaded = s.total = job.total; s.pct = 100;
+    lessonPreloadRender();
+    lessonPreloadHideTimer = setTimeout(function () { if (lessonPreloadState === s) { lessonPreloadState = null; lessonPreloadRender(); } }, 3200);
+  } catch (e) {
+    if (lessonPreloadJob !== job) return;   // cancelled, or another worksheet took over
+    job.controller.abort(); lessonPreloadJob = null;
+    s.phase = 'error'; s.pct = job.pct;
+    s.message = e && e.name === 'QuotaExceededError'
+      ? 'This device ran out of space for lesson videos. The lessons still play online.'
+      : (e && e.message) || 'The lessons could not be downloaded. Check the connection and try again.';
+    if (e && e.name === 'AbortError') s.message = 'The download was interrupted. Check the connection and try again.';
+    lessonPreloadRender();
+  }
+}
+// One file, streamed: one copy goes straight into Cache Storage, the other is
+// only counted for the bar, so a long video never sits whole in memory.
+async function lessonPreloadFetch(file, cache, job) {
+  var response = await fetch(lessonAssetUrl(file.url), { signal: job.controller.signal });
+  if (!response.ok || !response.body) throw new Error('A lesson could not be downloaded. Check the connection and try again.');
+  var length = Number(response.headers.get('Content-Length')) || 0;
+  if (length && length !== file.size) { job.total += length - (Number(file.size) || 0); file.size = length; }
+  var type = response.headers.get('Content-Type') || (file.kind === 'manifest' ? 'application/json' : 'application/octet-stream');
+  var branches = cache ? response.body.tee() : [null, response.body];
+  var parts = cache ? null : [];
+  var saving = cache ? cache.put(file.url, new Response(branches[0], { headers: { 'Content-Type': type } })) : Promise.resolve();
+  var reader = branches[1].getReader(), got = 0;
+  var counting = (async function () {
+    for (;;) {
+      var step = await reader.read();
+      if (step.done) break;
+      got += step.value.byteLength; job.loaded += step.value.byteLength;
+      if (parts) parts.push(step.value);
+      if (got > (Number(file.size) || 0)) { job.total += got - (Number(file.size) || 0); file.size = got; }
+      job.fileFraction = length ? got / length : 0;
+      lessonPreloadProgress(job);
+    }
+  })();
+  await Promise.all([saving, counting]);
+  if (length && got !== length) {
+    if (cache) await cache.delete(file.url).catch(function () {});
+    throw new Error('A lesson download was cut short. Check the connection and try again.');
+  }
+  if (parts) lessonPreloadHeld[file.url] = { blob: new Blob(parts, { type: type }), url: '', doc: job.doc };
+  lessonPreloadRemember(file.url, got, job.doc);
+}
+
+$('lessonPreloadGo').addEventListener('click', function () { lessonPreloadStart(); });
+$('lessonPreloadNo').addEventListener('click', lessonPreloadClose);
+$('lessonPreloadClose').addEventListener('click', lessonPreloadClose);
+$('lessonPreloadAlways').addEventListener('change', function () {
+  try {
+    if ($('lessonPreloadAlways').checked) localStorage.setItem(LESSON_PRELOAD_PREF, 'always');
+    else localStorage.removeItem(LESSON_PRELOAD_PREF);
+  } catch (e) {}
+});
+/* ================= End lesson preload ================= */
 
 /* ================= 🎓 Polymath Online — class sequences, releases and the next two ================= */
 /* The student portal at polymathlc.com.sg/online (polymathlc/cer, online/)
