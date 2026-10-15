@@ -38,6 +38,7 @@ jobs:
           PW: ${{ runner.temp }}/battle-browser/node_modules/playwright/index.mjs
           BATTLE_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots
           SNAP_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/shape-snap
+          QB_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/question-bank
         run: |
           node tools/wheel-check.mjs
           node tools/classroom-battle-browser-check.mjs
@@ -51,6 +52,7 @@ jobs:
           node tools/mission-animation-browser-check.mjs
           node tools/shape-snap-browser-check.mjs
           node tools/live-cams-check.mjs
+          node tools/question-bank-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
