@@ -121,6 +121,8 @@ test('guest membership authorizes start, sync, marks, assists and victory loot u
   state=(await battle(call,'Saturday',{id:aid(),type:'sync',heroes:party,encounterId:state.encounterId,expectedRevision:state.revision})).state;
   const help=await call(teacher,{type:'assist',classId:'Saturday',studentId:'visitor',helpedStudentId:'alex',action:{id:aid(),spinId:aid()}});assert.equal(help.hero.xp,6);state=help.state;
   const award=await call(teacher,wheelRequest(state,{studentId:'visitor',delta:1,heroes:party}));assert.equal(award.award.marks,8);assert.equal(db.data.get(profilePath('visitor')).hero.xp,18);assert.equal(db.data.get('students/visitor').slot,'Tuesday');state=award.state;
+  // A scaled enemy can no longer fall to one award, however large: bring it to its last hit.
+  state.bossHp=1;db.seed(classPath('Saturday'),state);
   const victory=await call(teacher,wheelRequest(state,{studentId:'visitor',delta:10000,heroes:party}));assert.equal(victory.state.status,'victory');assert.equal(victory.state.rewards.length,3);assert.ok(db.data.get(profilePath('visitor')).hero.inventory.length);assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);
   const historical=structuredClone(victory.state);assert.deepEqual((await visit('remove')).state,historical);
   await assert.rejects(call(teacher,wheelRequest(null,{studentId:'visitor',heroes:party})),/no longer in this lesson/);
@@ -167,7 +169,8 @@ test('visiting student wheel award and completing class bonus combine into one r
   const {db,call,mission}=missionSetup(0,.99);db.seed('students/visitor',{name:'Visitor',slot:'Tuesday',marks:7});
   await call(teacher,guestRequest('add'));await mission('turn',{expectedRevision:0});
   const party=[...heroes,C.heroFromStudent({id:'visitor',name:'Visitor'})];
-  const request=wheelRequest(null,{studentId:'visitor',delta:10000,heroes:party}),result=await call(teacher,request);
+  const opened=await begin(call,'Saturday',party);opened.bossHp=1;db.seed(classPath('Saturday'),opened);
+  const request=wheelRequest(opened,{studentId:'visitor',delta:10000,heroes:party}),result=await call(teacher,request);
   assert.equal(result.state.status,'victory');assert.equal(result.award.marks,10012);assert.equal(result.mission.lastPayout.awards.length,3);assert.equal(db.data.get('students/visitor').slot,'Tuesday');
   assert.equal((await call(teacher,request)).award.marks,10012);assert.equal([...db.data].filter(([p,v])=>p.startsWith('awards/')&&v.studentId==='visitor').length,2);
 });
@@ -629,9 +632,10 @@ test('bonus class points include the completing wheel award, preserve roster fie
   const {mission,call,db}=missionSetup(0,.99);
   db.seed('students/alex',{...db.data.get('students/alex'),id:'legacy-data-id',marks:9,notes:{keep:true}});
   db.seed('students/sam',{...db.data.get('students/sam'),marks:2});db.seed('students/elsewhere',{name:'Other',slot:'Elsewhere',marks:4});
-  await mission('turn',{expectedRevision:0});const request=wheelRequest(null,{delta:1000});
+  await mission('turn',{expectedRevision:0});
+  const opened=await begin(call);opened.bossHp=1;db.seed(classPath('Saturday'),opened);const request=wheelRequest(opened,{delta:1000});
   const results=await Promise.all([call(teacher,request),call(teacher,request)]);const result=results[0];
-  assert.equal(result.state.status,'victory');assert.equal(result.state.actionCount,1);assert.equal(result.state.combatLog.length,1);
+  assert.equal(result.state.status,'victory');assert.equal(result.state.actionCount,2);assert.equal(result.state.combatLog.length,1);
   assert.equal(result.mission.current.status,'complete');assert.equal(result.mission.lastPayout.awards.length,2);assert.equal(result.award.marks,1014);
   assert.equal(db.data.get('students/alex').marks,1014);assert.equal(db.data.get('students/alex').id,'legacy-data-id');assert.deepEqual(db.data.get('students/alex').notes,{keep:true});
   assert.equal(db.data.get('students/sam').marks,7);assert.equal(db.data.get('students/elsewhere').marks,4);
@@ -729,4 +733,11 @@ test('a failed new Quick fight rolls back the rotation together with points and 
   db.failNextCommit=true;await assert.rejects(call(teacher,request),/commit failed/);assert.deepEqual([...db.data],before);
   const saved=await call(teacher,request);assert.equal(saved.state.bossId,predicted.id);assert.equal(saved.state.bossRotation.seen.length,2);
   const repeat=await call(teacher,request);assert.equal(repeat.duplicate,true);assert.deepEqual(repeat.state.bossRotation,saved.state.bossRotation);assert.equal(repeat.award.marks,saved.award.marks);
+});
+
+test('a huge points award opens a scaled encounter but cannot defeat its enemy in one answer',async()=>{
+  const {call}=setup();
+  const result=await call(teacher,wheelRequest(null,{delta:10000}));
+  assert.equal(result.state.status,'active');assert.equal(result.state.enemyScalingVersion,C.ENEMY_SCALING_VERSION);assert.ok(result.state.enemyLevel>=1);
+  assert.ok(result.state.bossHp>0);assert.ok(result.state.bossMaxHp-result.state.bossHp<=Math.round(result.state.bossMaxHp*(C.ENEMY_SCALING.hitShare+C.ENEMY_SCALING.poisonShare)));
 });

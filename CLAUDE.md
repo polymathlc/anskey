@@ -155,6 +155,12 @@ Guidance for Claude when working in this repo.
 
 Run `node --test tools/online-tests.mjs` after touching any of it.
 
+## ⚔ Six-tier skill trees and enemies that scale with level (v1.142.0)
+
+- `BASE_LEVEL` / `BASE_COST` / `JOB_LEVEL` / `JOB_COST` in `battle-content.js`: every branch has six tiers (base levels 1,2,3,4,7,10; jobs 15,18,22,26,30,35). Tier 5 is a passive, tier 6 the apex. **Never change tiers 1–4's level or cost**: saved builds were paid for at those prices. Append new skills at the END of a branch, or `recipeFor`'s ordinals shift every later skill's animation.
+- `ENEMY_SCALING_VERSION` / `ENEMY_SCALING` / `enemyLevelFor` / `enemyScale` in `battle-core.js`. A start stores `enemyScalingVersion` and `enemyLevel` (fixed for the fight, leaning towards the strongest hero). HP, attack, armour and victory XP grow per level; at level 1 HP and attack equal the old formula. **`hitCap` (25% of max HP) bounds every hero action after points**, `poisonCap` (8%) bounds burns; `summon` is exempt. An encounter without the version has `hitCap` Infinity and plays as before, so never apply the cap by default or back-fill the version onto a running fight.
+- Tests that need a victory in one answer must set `bossHp=1` (or a huge `bossMaxHp` for exact damage). Run `node --test tools/enemy-scaling-tests.mjs`, the battle/advancement/skill-tree tests, `npm --prefix functions test`, `node tools/sync-hero-game.mjs`, and the skill-tree, classroom-battle and student-heroes browser checks. Deploy `ansKeyHeroes`.
+
 ## 🎰 The mission machine's reels (v1.130.0)
 
 `REEL_*` / `reelFaces` / `reelPos` / `startSpin` / `landSpin` / `spinTick` / `stopSpin` in `mission-machine.js`, the `.mmSlot` / `.mmStrip` / `.mmFace` CSS. A Turn (or a Retry of a pending turn) spins two reels over `OBJECTIVES` and `PRIZES`; they land only on `data.current` once the save answers with that request's mission id. **Presentation only**: the roll is still the server's, `blocked()` is unchanged (the battle controllers' lock), and only the panel's own buttons and the drawer label wait while it spins (the label says "spinning…" so the result is not revealed early). A refusal, an unconfirmed save, a mismatched mission or `destroy` calls `stopSpin`; reduced motion never spins. Positions are written by `requestAnimationFrame` into whatever `.mmStrip` exists, so a `render()` mid-spin is harmless. `REEL_ROW` must equal `.mmFace` height. Run `node tools/mission-slot-browser-check.mjs` with the mission checks.

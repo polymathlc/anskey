@@ -4,7 +4,8 @@
   else root.ClassroomSkillTree = factory(root.ClassroomBattleCore);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (Core) {
   'use strict';
-  var WIDTH = 840, HEIGHT = 850, mounts = new WeakMap();
+  // Six tiers per branch: the last node sits at 270 + 5 × 157 and needs room below it.
+  var WIDTH = 840, HEIGHT = 1170, mounts = new WeakMap();
   var palettes = ['#f3bc73', '#9dddc8', '#c3acff'];
   var paths = {
     Vanguard: 'Guard your allies', Berserker: 'Crushing damage', Sentinel: 'Rally and endure',
@@ -58,6 +59,8 @@
       return row.split('').map(function (value, x) { return value === '0' ? '' : '<rect x="' + (x + 2) + '" y="' + (y + 2) + '" width="1" height="1" fill="' + (value === '2' ? color : '#fff1c9') + '"/>'; }).join('');
     }).join('') + '</svg>';
   }
+  // Tier 4 was the old summit and keeps its frame; the apex (tier 6) is the new one.
+  function capstone(skill) { return skill.tier === 4 || skill.tier >= 6; }
   function treeSkills(hero, mode) { return Core.treeSkills ? Core.treeSkills(hero, mode) : Core.SKILL_TREES[roleKey(hero)]; }
   function jobInfo(hero) { return hero && hero.level >= 15 && Core.JOBS && Core.JOBS[hero.job] && Core.JOBS[hero.job].role === roleKey(hero) ? Core.JOBS[hero.job] : null; }
   function model(hero, mode) {
@@ -90,12 +93,12 @@
       var d = 'M ' + link.x1 + ' ' + link.y1 + ' L ' + link.x1 + ' ' + middle + ' L ' + link.x2 + ' ' + middle + ' L ' + link.x2 + ' ' + link.y2;
       return '<g class="hstLink hstLink-' + link.state + '" data-from="' + esc(link.from) + '" data-to="' + esc(link.to) + '" style="--hst-branch:' + palettes[link.branch % 3] + '"><path class="hstLinkShadow" d="' + d + '"/><path class="hstLinkStroke" d="' + d + '"/><rect x="' + (link.x2 - 3) + '" y="' + (middle - 3) + '" width="6" height="6"/></g>';
     }).join('');
-    return '<div class="hstMap" style="width:' + WIDTH + 'px;height:' + HEIGHT + 'px"><svg class="hstConnections" viewBox="0 0 ' + WIDTH + ' ' + HEIGHT + '" aria-hidden="true"><path class="hstRune" d="M420 0L825 400L420 800L15 400Z M420 48L777 400L420 752L63 400Z M420 0V810"/>' + connectors + '</svg>' +
+    return '<div class="hstMap" style="width:' + WIDTH + 'px;height:' + HEIGHT + 'px"><svg class="hstConnections" viewBox="0 0 ' + WIDTH + ' ' + HEIGHT + '" aria-hidden="true"><path class="hstRune" d="M420 0L825 560L420 1120L15 560Z M420 48L777 560L420 1072L63 560Z M420 0V1150"/>' + connectors + '</svg>' +
       '<div class="hstOrigin"><div class="hstOriginFrame">' + actor + '</div><strong>' + esc(role.name) + '</strong><span>CHOOSE YOUR PATH</span></div>' +
       graph.branches.map(function (branch, index) { return '<div class="hstBranch" style="left:' + (190 + index * 230) + 'px;--hst-branch:' + palettes[index % 3] + '"><strong>' + esc(branch) + '</strong><span>' + esc(paths[branch] || 'Explore this path') + '</span></div>'; }).join('') +
       graph.nodes.map(function (node) {
         var s = node.skill;
-        return '<button type="button" class="hstNode hstNode-' + node.state + (s.passive ? ' hstNode-passive' : '') + (s.tier === 4 ? ' hstNode-capstone' : '') + '" data-hst-node="' + esc(s.id) + '" data-state="' + node.state + '" aria-pressed="' + (selectedId === s.id) + '" aria-label="' + esc(s.name + ', ' + (s.passive ? 'passive' : 'active') + ', ' + node.state + ', level ' + s.level + ', ' + s.cost + ' skill points. ' + (node.state === 'locked' ? node.reason : 'Select for details.')) + '" style="left:' + node.x + 'px;top:' + node.y + 'px;--hst-branch:' + palettes[node.branch % 3] + '"><span class="hstNodeFrame">' + pixelIcon(s) + '<span class="hstNodeMark" aria-hidden="true">' + (node.state === 'learned' ? '✓' : node.state === 'available' ? '+' : '•') + '</span></span><strong class="hstNodeName">' + esc(s.name) + '</strong><span class="hstNodeMeta">' + (node.state === 'learned' ? 'LEARNED' : 'LV ' + s.level + ' · ' + s.cost + ' SP') + (s.passive ? ' · PASSIVE' : '') + '</span></button>';
+        return '<button type="button" class="hstNode hstNode-' + node.state + (s.passive ? ' hstNode-passive' : '') + (capstone(s) ? ' hstNode-capstone' : '') + (s.tier >= 6 ? ' hstNode-apex' : '') + '" data-hst-node="' + esc(s.id) + '" data-state="' + node.state + '" aria-pressed="' + (selectedId === s.id) + '" aria-label="' + esc(s.name + ', ' + (s.passive ? 'passive' : 'active') + ', ' + node.state + ', level ' + s.level + ', ' + s.cost + ' skill points. ' + (node.state === 'locked' ? node.reason : 'Select for details.')) + '" style="left:' + node.x + 'px;top:' + node.y + 'px;--hst-branch:' + palettes[node.branch % 3] + '"><span class="hstNodeFrame">' + pixelIcon(s) + '<span class="hstNodeMark" aria-hidden="true">' + (node.state === 'learned' ? '✓' : node.state === 'available' ? '+' : '•') + '</span></span><strong class="hstNodeName">' + esc(s.name) + '</strong><span class="hstNodeMeta">' + (node.state === 'learned' ? 'LEARNED' : 'LV ' + s.level + ' · ' + s.cost + ' SP') + (s.passive ? ' · PASSIVE' : '') + '</span></button>';
       }).join('') + '</div>';
   }
   function render(container, options) {
@@ -114,7 +117,7 @@
       var known = (h.learnedSkills || []).includes(skill.id), eligibility = Core.canLearn(h, skill.id), locked = settings.locked || pending || known || !eligibility.ok || typeof settings.onLearn !== 'function';
       var reason = known ? 'This skill is part of your hero’s training.' : settings.locked ? settings.lockedReason || 'Finish the current battle turn before changing your skills.' : eligibility.reason;
       stopPreview();
-      detail.innerHTML = '<div class="hstDetailIcon">' + pixelIcon(skill) + '</div><div class="hstDetailCopy"><span class="hstEyebrow">' + esc(skill.branch) + ' / TIER ' + skill.tier + (skill.tier === 4 ? ' / CAPSTONE' : '') + '</span><h4>' + esc(skill.name) + '</h4><p>' + esc(skill.description) + '</p><div class="hstFacts"><span>' + (skill.passive ? 'Always-on passive' : 'Active skill') + '</span><span>Level ' + skill.level + '</span><span>' + skill.cost + ' SP</span>' + (!skill.passive ? '<span>' + skill.mpCost + ' MP</span><span>' + skill.cooldown + ' turn cooldown</span>' : '') + '</div><p class="hstPrerequisite">' + (skill.requires.length ? 'Requires: ' + skill.requires.map(function (id) { return esc(Core.skillById(id).name); }).join(' + ') : 'Branch starting skill · no prerequisite') + '</p></div><div class="hstDetailAction"><button type="button" data-hst-learn="' + esc(skill.id) + '"' + (locked ? ' disabled' : '') + '>' + (pending ? 'Saving…' : known ? '✓ Learned' : 'Learn · ' + skill.cost + ' SP') + '</button><p>' + esc(reason || 'Unlock this skill permanently for your hero class.') + '</p></div>';
+      detail.innerHTML = '<div class="hstDetailIcon">' + pixelIcon(skill) + '</div><div class="hstDetailCopy"><span class="hstEyebrow">' + esc(skill.branch) + ' / TIER ' + skill.tier + (capstone(skill) ? ' / ' + (skill.tier >= 6 ? 'APEX' : 'CAPSTONE') : '') + '</span><h4>' + esc(skill.name) + '</h4><p>' + esc(skill.description) + '</p><div class="hstFacts"><span>' + (skill.passive ? 'Always-on passive' : 'Active skill') + '</span><span>Level ' + skill.level + '</span><span>' + skill.cost + ' SP</span>' + (!skill.passive ? '<span>' + skill.mpCost + ' MP</span><span>' + skill.cooldown + ' turn cooldown</span>' : '') + '</div><p class="hstPrerequisite">' + (skill.requires.length ? 'Requires: ' + skill.requires.map(function (id) { return esc(Core.skillById(id).name); }).join(' + ') : 'Branch starting skill · no prerequisite') + '</p></div><div class="hstDetailAction"><button type="button" data-hst-learn="' + esc(skill.id) + '"' + (locked ? ' disabled' : '') + '>' + (pending ? 'Saving…' : known ? '✓ Learned' : 'Learn · ' + skill.cost + ' SP') + '</button><p>' + esc(reason || 'Unlock this skill permanently for your hero class.') + '</p></div>';
       if (typeof window !== 'undefined' && window.ClassroomBattleAnimation && ClassroomBattleAnimation.previewSkill) {
         detail.insertAdjacentHTML('beforeend', '<div class="hstPreview"><div><span class="hstEyebrow">' + (skill.passive ? 'PASSIVE AURA' : 'SKILL ANIMATION') + '</span><button type="button" data-hst-preview>Replay preview</button></div><div class="cbaSkillPreview" aria-label="' + esc(skill.name) + ' animation preview"></div></div>');
         previewPlayer = ClassroomBattleAnimation.previewSkill(detail.querySelector('.cbaSkillPreview'), h, skill);

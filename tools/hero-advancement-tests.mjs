@@ -8,7 +8,7 @@ function hero(role='warrior',level=15) {
   h.xp=C.xpForLevel(level);h.level=level;h.skillPoints=100;
   return C.cleanHero(h,h);
 }
-function advanced(jobId,level=26) {return C.configureHero(hero(C.JOBS[jobId].role,level),{command:'advance',jobId});}
+function advanced(jobId,level=35) {return C.configureHero(hero(C.JOBS[jobId].role,level),{command:'advance',jobId});}
 let sequence=0;
 const id=()=>`progression-${String(++sequence).padStart(8,'0')}`;
 function stateWith(h,bossId='mossback') {
@@ -19,16 +19,16 @@ function stateWith(h,bossId='mossback') {
 const act=(s,type,more={})=>C.reduce(s,{id:id(),type,encounterId:s.encounterId,expectedRevision:s.revision,...more});
 function cast(s,skillId) {const selected=act(s,'select',{heroId:s.heroes[0].id});return act(selected,'answer',{turnId:selected.pending.id,outcome:'correct',command:'skill',skillId});}
 
-test('eight advanced jobs each have three independent four-tier branches and unique animation IDs',()=>{
+test('eight advanced jobs each have three independent six-tier branches and unique animation IDs',()=>{
   assert.equal(Object.keys(C.JOBS).length,8);
   const all=[...Object.values(C.SKILLS).flat(),...Object.values(C.JOB_SKILLS).flat()];
-  assert.equal(all.length,144);assert.equal(new Set(all.map(s=>s.animation)).size,144);
+  assert.equal(all.length,216);assert.equal(new Set(all.map(s=>s.animation)).size,216);
   roles.forEach(role=>assert.equal(C.jobsFor(hero(role)).length,2));
   for (const job of Object.values(C.JOBS)) {
-    const skills=C.JOB_TREES[job.id];assert.equal(skills.length,12);assert.equal(new Set(skills.map(s=>s.branch)).size,3);
+    const skills=C.JOB_TREES[job.id];assert.equal(skills.length,18);assert.equal(new Set(skills.map(s=>s.branch)).size,3);
     for (const skill of skills) {
-      assert.equal(skill.role,job.role);assert.equal(skill.job,job.id);assert.equal(skill.level,[15,18,22,26][skill.tier-1]);
-      assert.equal(skill.cost,[2,2,3,3][skill.tier-1]);assert.ok(skill.description && skill.animation && Object.keys(skill.effect).length>1);
+      assert.equal(skill.role,job.role);assert.equal(skill.job,job.id);assert.equal(skill.level,[15,18,22,26,30,35][skill.tier-1]);
+      assert.equal(skill.cost,[2,2,3,3,4,5][skill.tier-1]);assert.ok(skill.description && skill.animation && Object.keys(skill.effect).length>1);
       assert.equal(skill.requires.length,skill.tier===1?0:1);
       if(skill.tier>1){const parent=C.skillById(skill.requires[0]);assert.equal(parent.job,job.id);assert.equal(parent.branch,skill.branch);assert.equal(parent.tier,skill.tier-1);}
     }
@@ -46,12 +46,12 @@ test('advancement requires earned level 15 and the matching base class, preservi
   assert.deepEqual(next.inventory,before.inventory);assert.equal(next.hp,23);assert.equal(next.mp,7);
   assert.ok(next.learnedSkills.includes('warrior-power-strike'));assert.ok(next.learnedSkills.includes('paladin-radiant-cut'));
   assert.equal(C.canAdvance(next,'paladin').ok,false);
-  assert.equal(C.treeSkills(next).length,12);assert.equal(C.treeSkills(next,'base'),C.SKILLS.warrior);
-  assert.equal(C.skillsFor(next).length,24);
+  assert.equal(C.treeSkills(next).length,18);assert.equal(C.treeSkills(next,'base'),C.SKILLS.warrior);
+  assert.equal(C.skillsFor(next).length,36);
 });
 
 test('switching jobs keeps learned skills dormant and job bonuses cannot leak across base classes',()=>{
-  let h=advanced('paladin');h=C.configureHero(h,{command:'learn',skillId:'paladin-sun-forged'});
+  let h=advanced('paladin',26);h=C.configureHero(h,{command:'learn',skillId:'paladin-sun-forged'});
   const paladinDamage=h.stats.damage;
   h=C.configureHero(h,{command:'advance',jobId:'berserker'});
   assert.ok(h.learnedSkills.includes('paladin-sun-forged'));assert.ok(h.learnedSkills.includes('paladin-radiant-cut'));

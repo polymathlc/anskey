@@ -396,7 +396,7 @@
         el('cbBossImage').onerror = function () { el('cbBossArt').innerHTML = '<span class="cbMystery" aria-label="Boss artwork unavailable">♜</span>'; };
       }
       el('cbBoss').style.setProperty('--boss-color', b.color || '#8a6edb');
-      el('cbBossTag').textContent = ((Core.RARITIES[b.rarity] || Core.RARITIES.common || {}).name || 'Common') + ' · ' + b.playstyle + ' challenger'; el('cbBossName').textContent = b.name;
+      el('cbBossTag').textContent = ((Core.RARITIES[b.rarity] || Core.RARITIES.common || {}).name || 'Common') + ' · ' + b.playstyle + ' challenger'; el('cbBossName').textContent = b.name + (state.enemyLevel ? ' · LV ' + state.enemyLevel : '');
       el('cbBossStyle').textContent = b.description || b.playstyle;
       el('cbBossHp').textContent = state.bossHp + ' / ' + state.bossMaxHp;
       el('cbBossBar').style.width = Math.max(0, state.bossHp / state.bossMaxHp * 100) + '%';
