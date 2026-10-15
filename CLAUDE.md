@@ -2,6 +2,16 @@
 
 Guidance for Claude when working in this repo.
 
+## 📺 Recording the worksheet window (v1.137.0)
+
+- Search `📺 Record the worksheet window (v1.137.0)` (camera/mic section): `LESSON_SCREEN_PREF` / `LESSON_SCREEN_BPS` (2.5 Mbps) / `lessonScreenSupported` / `lessonScreenOn` / pure `lessonScreenCrop` + `lessonScreenFit` / `lessonScreenAsk` / `lessonScreenCompose` / `lessonScreenPaint` / `lessonScreenRelease`, plus `#lessonScreenSec` in the Record lesson window.
+- Why: a lesson was voice + camera + an INK timeline, so a bank question window and its sandboxed 🧩 app never reached it. Now the browser shares its own tab (getDisplayMedia, `preferCurrentTab`) and a canvas crops each frame to `#viewerArea`; `canvas.captureStream` is the lesson's video track beside the same mixed microphone. The camera, if chosen, is painted in the corner (never mirrored).
+- **`lessonScreenAsk()` is called before the first `await` in `lessonStart`** — getDisplayMedia needs the click. A share whose `displaySurface` is not `browser`, or whose shape is not the viewport's, is recorded whole with a toast.
+- While it records, `body.lessonScreenRec`: the bar stack and toasts move up over the toolbar, `#favBar` / `#toolbarToggleBtn` are hidden, and `.qbBack` is sized to the area from `--lsr-*` (set each frame).
+- `c.screenShot` outlives the release; `job.screen` / `lessonRecording.screen` flag the lesson (audio and camera lessons are unchanged). The replay uses `LESSON_SCREENWIN_SIZES`; the export draws the video full frame (`lessonExportScreen`) and rasterises no page.
+- 📐 Export camera size: `LESSON_EXPORT_SIZES` / `LESSON_EXPORT_SIZE_SCALE` (0.7 / 1 / 1.4), `lessonExportLayout(kind, camW, camH, size)`, `job.camSize`, `#lessonExportSizeRow` (`data-lx-size`), remembered in `LESSON_EXPORT_PREF.size`. Medium (or no size) must stay byte-identical to the old layout; `polymathlc/tutor` carries the export too, so port it there when touching it.
+- Run `node --test tools/lesson-screen-tests.mjs` and `node tools/screen-record-check.mjs` (new-headless Chromium, `--auto-accept-this-tab-capture`, lime toolbar must be absent and a magenta app frame present in the decoded file). It is in CI.
+
 ## 📚 Question bank from cer (v1.136.0)
 
 - `question-bank.js` / `question-bank.css` own the feature (`QuestionBank.create(env)`; pure helpers on `QuestionBank.pure`; `paintQuestion`; `drawQrOnPdf`). `question-apps.js` is **byte-identical to `polymathlc/cer`'s** (the tests compare them when cer is checked out beside this repo). `vendor/qrcode-generator.js` is cer's copy too. index.html holds only the glue after `liveCamsRoleChanged`, from `bankQ` to `bankQWorksheetChanged`. It also holds `#bankQBtn`, `#printQrBtn` and `<script>bankQInit();</script>`.

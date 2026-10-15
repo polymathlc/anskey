@@ -3569,6 +3569,22 @@ video.mirror { transform:scaleX(-1); }
 .lessonMeterFill { width:0%; height:100%; border-radius:999px; background:linear-gradient(90deg, #66BB6A, #43A047); transition:width 70ms linear; }
 .lessonMeterFill.hot { background:linear-gradient(90deg, #FFA726, #E53935); }
 .lessonMeterRow .btn { flex:0 0 auto; min-width:118px; justify-content:center; }
+/* 📺 Record the worksheet window (v1.137.0) */
+.lessonScreenRow { display:flex; align-items:flex-start; gap:12px; cursor:pointer; }
+.lessonScreenRow input { width:18px; height:18px; margin-top:1px; flex:0 0 auto; accent-color:var(--accent-deep); }
+.lessonScreenText { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.lessonScreenText em { font-style:normal; font-size:0.78rem; line-height:1.55; color:var(--ink-soft); }
+.lessonScreenSec.off .lessonScreenRow { cursor:default; opacity:0.6; }
+.lessonScreenSec.on { border-color:var(--accent-strong); background:#FFFBF4; }
+/* While the window is being recorded the recording's own bar and messages
+   move up over the toolbar — the part of the screen that is NOT in the
+   video — and a question window opens inside the recorded area only. */
+body.lessonScreenRec .barStack { top:10px; bottom:auto; }
+body.lessonScreenRec #toast { top:72px; bottom:auto; }
+/* The floating tool bars sit inside the worksheet area, so they would be in
+   the video: the main toolbar has every one of their tools. */
+body.lessonScreenRec #favBar, body.lessonScreenRec #toolbarToggleBtn { visibility:hidden !important; }
+body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--lsr-left, 0px); width:var(--lsr-w, 100vw); height:var(--lsr-h, 100vh); }
 .lessonDevHint { margin-top:10px; min-height:1.55em; font-size:0.76rem; line-height:1.55; color:var(--ink-faint); }
 .lessonDevHint.ok { color:#2E7D32; }
 .lessonDevHint.warn { color:#9A5B00; }
@@ -4349,6 +4365,17 @@ video.mirror { transform:scaleX(-1); }
         </label>
       </section>
 
+      <section class="lessonDev lessonScreenSec" id="lessonScreenSec" aria-labelledby="lessonScreenLabel">
+        <label class="lessonScreenRow">
+          <input type="checkbox" id="lessonScreen">
+          <span class="lessonScreenText">
+            <b class="lessonDevLabel" id="lessonScreenLabel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Record the worksheet window</b>
+            <em>As a video: the page and every question app you open, exactly as you use it. The toolbar is left out.</em>
+          </span>
+        </label>
+        <div class="lessonDevHint" id="lessonScreenHint" role="status" aria-live="polite">When you press Start, choose <b>This tab</b> in the box your browser shows.</div>
+      </section>
+
       <section class="lessonDev" aria-labelledby="lessonMicLabel">
         <div class="lessonDevHead">
           <label class="lessonDevLabel" id="lessonMicLabel" for="lessonMicSelect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg>Microphone</label>
@@ -4452,7 +4479,15 @@ video.mirror { transform:scaleX(-1); }
             <button type="button" class="lxSegBtn" data-lx-layout="page" role="radio" aria-checked="false">Page only</button>
           </div>
         </div>
-        <div class="lxRow">
+        <div class="lxRow" id="lessonExportSizeRow">
+          <span class="lxLabel">Video size</span>
+          <div class="lxSeg" role="radiogroup" aria-label="How big the camera video is in the export">
+            <button type="button" class="lxSegBtn" data-lx-size="small" role="radio" aria-checked="false">Small</button>
+            <button type="button" class="lxSegBtn" data-lx-size="medium" role="radio" aria-checked="false">Medium</button>
+            <button type="button" class="lxSegBtn" data-lx-size="large" role="radio" aria-checked="false">Large</button>
+          </div>
+        </div>
+        <div class="lxRow" id="lessonExportModeRow">
           <span class="lxLabel">Page</span>
           <div class="lxSeg" role="radiogroup" aria-label="How the page is framed">
             <button type="button" class="lxSegBtn" data-lx-mode="follow" role="radio" aria-checked="false">Follow my scrolling</button>
@@ -5392,7 +5427,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.136.0';
+var APP_VERSION = 'v1.137.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -10544,12 +10579,20 @@ var LESSON_CAM_PREF = 'polymath.lessonCamera';
 var LESSON_MIC_PREF = 'polymath.lessonMic';
 var LESSON_MIRROR_PREF = 'polymath.lessonMirror';
 var LESSON_CAMWIN_PREF = 'polymath.lessonCamWin';
+var LESSON_SCREEN_PREF = 'polymath.lessonScreen';
 // The one camera a browser lists before access is allowed: no id, no name.
 var LESSON_CAM_ANY = '__any__';
 var LESSON_AUDIO_BPS = 96000;
 // The camera is a face in a corner of the replay, so 360p at half a megabit is
 // plenty — and keeps an hour of it near 250 MB (see lessonSizeHint).
 var LESSON_VIDEO_BPS = 500000;
+// 📺 The worksheet window is TEXT and thin lines on white — a question app's
+// sliders and labels too — so it needs far more than a face in a corner does.
+// Up to 1080p at two and a half megabits keeps words sharp and an hour near
+// 1.1 GB, inside LESSON_VIDEO_LIMIT (see lessonSizeHint).
+var LESSON_SCREEN_BPS = 2500000;
+var LESSON_SCREEN_MAX_W = 1920, LESSON_SCREEN_MAX_H = 1080;
+var LESSON_SCREEN_FPS = 30;
 var LESSON_TEST_SECONDS = 4;
 // About -39 dBFS: somebody talking, never the room behind them.
 var LESSON_HEARD_LEVEL = 0.35;
@@ -10595,6 +10638,202 @@ function lessonPrefSet(key, value) {
   } catch (e) { /* kept in lessonPrefMemory, for this visit only */ }
 }
 function lessonMirrorOn() { return lessonPrefGet(LESSON_MIRROR_PREF) !== false; }
+
+/* ---- 📺 Record the worksheet window (v1.137.0) ----
+   A lesson recording was the voice, the camera and the INK — replayed over
+   the page from a timeline. Anything that is not ink never reached it: a
+   bank question's window, its 🧩 app running in a sandboxed frame, the
+   answers typed and the sliders dragged in it. For a video explainer that
+   is the whole point, so the window itself can be recorded now, as the
+   lesson's video track.
+
+   - THE BROWSER RECORDS ITS OWN TAB (getDisplayMedia, this tab offered
+     first) and the frames are CROPPED TO THE WORKSHEET AREA (#viewerArea)
+     on a canvas, so the header and the toolbar are never in the video.
+     The canvas is the one path that works in every browser that can share
+     a tab, and it is what lets the camera ride along in a corner.
+   - A QUESTION WINDOW OPENS INSIDE THE RECORDED AREA while it records
+     (body.lessonScreenRec, --lsr-* set from the area every frame), and the
+     recording's own bar and messages move up over the toolbar, outside it.
+   - IT IS ASKED FOR INSIDE THE TAP. getDisplayMedia needs the click that
+     started it, so lessonStart calls it before its first await.
+   - A SHARE OF SOMETHING ELSE IS RECORDED WHOLE AND SAID SO — a frame whose
+     shape is not this tab's cannot be cropped by this tab's numbers.
+   - Stop sharing, from the browser's own bar, ends and SAVES the lesson. */
+function lessonScreenSupported() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && window.isSecureContext &&
+    window.HTMLCanvasElement && HTMLCanvasElement.prototype.captureStream);
+}
+function lessonScreenOn() { return lessonScreenSupported() && lessonPrefGet(LESSON_SCREEN_PREF) === true; }
+// Which part of a captured frame is the worksheet area. Pure: the frame's
+// size, the tab's own viewport in CSS pixels and the area's rectangle in
+// the same. A frame whose shape is not the viewport's is not this tab (a
+// screen or another window was shared) and is used whole.
+function lessonScreenCrop(fw, fh, vw, vh, r) {
+  if (!(fw > 0 && fh > 0)) return null;
+  var whole = { sx: 0, sy: 0, sw: fw, sh: fh, self: false };
+  if (!(vw > 0 && vh > 0) || !r) return whole;
+  if (Math.abs(fw / fh - vw / vh) > 0.03 * (vw / vh)) return whole;
+  var k = fw / vw;
+  function clampTo(v, max) { return Math.max(0, Math.min(max, v)); }
+  var x0 = clampTo(r.left * k, fw), y0 = clampTo(r.top * k, fh);
+  var x1 = clampTo(r.right * k, fw), y1 = clampTo(r.bottom * k, fh);
+  if (x1 - x0 < 16 || y1 - y0 < 16) return whole;
+  x0 = Math.floor(x0); y0 = Math.floor(y0);
+  return { sx: x0, sy: y0, sw: Math.ceil(x1) - x0, sh: Math.ceil(y1) - y0, self: true };
+}
+// The video's own size: the cropped area, never upscaled, never past 1080p,
+// and even on both sides (H.264 refuses odd sizes).
+function lessonScreenFit(w, h, maxW, maxH) {
+  if (!(w > 0 && h > 0)) return { w: 2, h: 2 };
+  var k = Math.min(1, maxW / w, maxH / h);
+  return { w: Math.max(2, Math.round(w * k / 2) * 2), h: Math.max(2, Math.round(h * k / 2) * 2) };
+}
+function lessonScreenRender() {
+  var sec = $('lessonScreenSec'), box = $('lessonScreen'), hint = $('lessonScreenHint');
+  if (!sec || !box) return;
+  var can = lessonScreenSupported(), on = can && lessonScreenOn();
+  box.disabled = !can; box.checked = on;
+  sec.classList.toggle('off', !can); sec.classList.toggle('on', on);
+  if (hint) {
+    hint.className = 'lessonDevHint' + (can ? '' : ' warn');
+    hint.innerHTML = !can
+      ? 'This browser cannot record its own window — an iPad does not allow it. Use Chrome, Edge or Safari on a computer to record a question app.'
+      : on ? 'When you press Start, choose <b>This tab</b> in the box your browser shows. Everything below the toolbar is recorded, question windows and apps included.'
+      : 'Off: the replay shows your writing on the page. Turn this on to record a question window and its app as a video too.';
+  }
+}
+function lessonScreenChanged() {
+  var box = $('lessonScreen');
+  lessonPrefSet(LESSON_SCREEN_PREF, !!(box && box.checked && lessonScreenSupported()));
+  lessonScreenRender();
+  if (typeof lessonDevRenderSize === 'function') lessonDevRenderSize();
+}
+// Called INSIDE the Start tap, before anything is awaited.
+function lessonScreenAsk() {
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  return navigator.mediaDevices.getDisplayMedia({
+    // At the tab's own pixels: left to itself a browser may hand over a tab at
+    // a fraction of its size, and a question's words go soft in the video.
+    video: { displaySurface: 'browser', frameRate: { ideal: LESSON_SCREEN_FPS, max: LESSON_SCREEN_FPS }, cursor: 'always',
+      width: { ideal: Math.round((window.innerWidth || 1280) * dpr) }, height: { ideal: Math.round((window.innerHeight || 800) * dpr) } },
+    audio: false,
+    preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude'
+  });
+}
+function lessonScreenError(e) {
+  var name = e && e.name;
+  if (name === 'NotAllowedError' || name === 'AbortError') {
+    return 'The window was not shared, so the recording did not start. Choose “This tab” when your browser asks — or untick “Record the worksheet window” to record your voice and writing only.';
+  }
+  return 'The window could not be recorded (' + ((e && e.message) || name || 'unknown error') + '), so the recording did not start.';
+}
+function lessonScreenVars(r) {
+  var b = document.body;
+  if (!b || !b.style) return;
+  b.style.setProperty('--lsr-top', Math.round(r.top) + 'px');
+  b.style.setProperty('--lsr-left', Math.round(r.left) + 'px');
+  b.style.setProperty('--lsr-w', Math.round(r.width) + 'px');
+  b.style.setProperty('--lsr-h', Math.round(r.height) + 'px');
+}
+function lessonScreenVideo(stream) {
+  var v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.autoplay = true;
+  v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
+  // In the page (Safari plays nothing that is not) and invisible — and never
+  // inside the recorded area as anything more than a transparent pixel.
+  v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none;z-index:-1';
+  v.srcObject = stream;
+  document.body.appendChild(v);
+  var p = v.play && v.play(); if (p && p.catch) p.catch(function () {});
+  return v;
+}
+function lessonScreenReady(v, ms) {
+  return new Promise(function (resolve) {
+    var t0 = Date.now();
+    (function wait() {
+      if (v.videoWidth > 0 && v.videoHeight > 0) { resolve(true); return; }
+      if (Date.now() - t0 > ms) { resolve(false); return; }
+      setTimeout(wait, 40);
+    })();
+  });
+}
+// The shared tab, cropped to the worksheet area, with the camera (if any) in
+// the corner — painted onto a canvas whose stream is the lesson's video.
+async function lessonScreenCompose(c, display) {
+  var area = $('viewerArea');
+  var v = lessonScreenVideo(display);
+  var rec = c.screenRec = { display: display, video: v, cam: null, canvas: null, ctx: null, raf: 0, out: null, self: false, lastVars: '' };
+  if (!(await lessonScreenReady(v, 6000))) throw new Error('The shared window gave no picture, so the recording did not start.');
+  if (c.camStream) rec.cam = lessonScreenVideo(c.camStream);
+  // A screen or a window says what it is; only a TAB can be this tab.
+  var track = display.getVideoTracks()[0], settings = track && track.getSettings ? track.getSettings() : {};
+  rec.other = !!(settings.displaySurface && settings.displaySurface !== 'browser');
+  var first = lessonScreenCrop(v.videoWidth, v.videoHeight, window.innerWidth, window.innerHeight, rec.other ? null : area.getBoundingClientRect());
+  var size = lessonScreenFit(first.sw, first.sh, LESSON_SCREEN_MAX_W, LESSON_SCREEN_MAX_H);
+  var canvas = rec.canvas = document.createElement('canvas');
+  canvas.width = size.w; canvas.height = size.h;
+  rec.ctx = canvas.getContext('2d');
+  rec.self = first.self;
+  document.body.classList.add('lessonScreenRec');
+  function frame() {
+    if (c.screenRec !== rec) return;
+    lessonScreenPaint(rec, area);
+    rec.raf = requestAnimationFrame(frame);
+  }
+  lessonScreenPaint(rec, area);
+  rec.out = canvas.captureStream(LESSON_SCREEN_FPS);
+  rec.raf = requestAnimationFrame(frame);
+  // Remembered past the release: lessonFinish lets the share go before it
+  // files the lesson, and still has to know the window was its picture.
+  c.screenShot = true;
+  return rec;
+}
+function lessonScreenPaint(rec, area) {
+  var v = rec.video, ctx = rec.ctx, W = rec.canvas.width, H = rec.canvas.height;
+  var r = area.getBoundingClientRect();
+  var key = [r.top, r.left, r.width, r.height].map(Math.round).join(',');
+  if (key !== rec.lastVars) { rec.lastVars = key; lessonScreenVars(r); }
+  var cr = lessonScreenCrop(v.videoWidth, v.videoHeight, window.innerWidth, window.innerHeight, rec.other ? null : r);
+  ctx.fillStyle = '#12161A';
+  ctx.fillRect(0, 0, W, H);
+  if (cr) {
+    var k = Math.min(W / cr.sw, H / cr.sh), dw = cr.sw * k, dh = cr.sh * k;
+    try { ctx.drawImage(v, cr.sx, cr.sy, cr.sw, cr.sh, (W - dw) / 2, (H - dh) / 2, dw, dh); } catch (e) { /* no frame yet */ }
+  }
+  var cam = rec.cam;
+  if (cam && cam.videoWidth > 0 && cam.videoHeight > 0) {
+    // The camera in the corner, never mirrored — the recording never is.
+    var cw = Math.round(W * 0.22), ch = Math.round(cw * cam.videoHeight / cam.videoWidth);
+    var m = Math.round(W * 0.018), x = W - cw - m, y = H - ch - m, rad = Math.round(cw * 0.06);
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, cw, ch, rad); else ctx.rect(x, y, cw, ch);
+    ctx.clip();
+    try { ctx.drawImage(cam, x, y, cw, ch); } catch (e) {}
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, cw, ch, rad); else ctx.rect(x, y, cw, ch);
+    ctx.lineWidth = Math.max(2, Math.round(W / 640));
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+function lessonScreenRelease(c) {
+  var rec = c && c.screenRec;
+  if (!rec) return;
+  c.screenRec = null;
+  cancelAnimationFrame(rec.raf);
+  if (rec.display && rec.display.getTracks) rec.display.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
+  if (rec.out) rec.out.getTracks().forEach(function (t) { t.stop(); });
+  [rec.video, rec.cam].forEach(function (v) { if (v) { v.srcObject = null; v.remove(); } });
+  if (document.body) {
+    document.body.classList.remove('lessonScreenRec');
+    ['--lsr-top', '--lsr-left', '--lsr-w', '--lsr-h'].forEach(function (k) { document.body.style.removeProperty(k); });
+  }
+}
 // A remembered device is { id, label }. Anything else is no choice at all.
 function lessonDevWant(pref) {
   if (!pref || typeof pref !== 'object') return null;
@@ -10714,18 +10953,20 @@ function lessonDevChoice() {
     camera: !!cam,
     camId: cam === LESSON_CAM_ANY ? lessonDev.camId || '' : cam,
     micId: lessonDev.micValue || '',
-    mirror: lessonMirrorOn()
+    mirror: lessonMirrorOn(),
+    screen: lessonScreenOn()
   };
 }
 // What a minute costs, from the bitrates the recorder is really handed, and so
 // how long one recording runs before its file is full. A cap nobody can see is
 // a lesson that stops for no reason anybody can name.
-function lessonSizeHint(camera) {
-  var perMin = (LESSON_AUDIO_BPS + (camera ? LESSON_VIDEO_BPS : 0)) * 60 / 8 / 1048576;
-  var cap = (camera ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT) - LESSON_BYTES_SLACK;
+function lessonSizeHint(camera, screen) {
+  var perMin = (LESSON_AUDIO_BPS + (screen ? LESSON_SCREEN_BPS : camera ? LESSON_VIDEO_BPS : 0)) * 60 / 8 / 1048576;
+  var cap = (camera || screen ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT) - LESSON_BYTES_SLACK;
   var minutes = Math.floor(cap / 1048576 / perMin), halves = Math.round(minutes / 30) / 2;
   var run = minutes < 60 ? 'about ' + Math.max(5, Math.round(minutes / 5) * 5) + ' minutes'
     : 'about ' + (halves % 1 ? Math.floor(halves) + '½' : halves) + (halves === 1 ? ' hour' : ' hours');
+  if (screen) return 'Window recording on: about ' + Math.round(perMin * 10) / 10 + ' MB a minute, so one recording holds ' + run + '.';
   return (camera ? 'Camera on: about ' + Math.round(perMin * 10) / 10 + ' MB a minute'
     : 'Voice and writing only: under 1 MB a minute') + ', so one recording holds ' + run + '.';
 }
@@ -11067,7 +11308,7 @@ function lessonDevRenderMic() {
 }
 function lessonDevRenderSize() {
   var line = $('lessonSizeHint');
-  if (line) line.textContent = lessonSizeHint(!!lessonDev.camValue);
+  if (line) line.textContent = lessonSizeHint(!!lessonDev.camValue, lessonScreenOn());
 }
 
 /* ---- keeping the window in step ---- */
@@ -11178,6 +11419,7 @@ function lessonDevVisibility() {
 }
 function lessonOpenModal() {
   $('lessonModal').classList.add('open');
+  lessonScreenRender();
   lessonDevOpen();
   // 🏷 A guess at which question is on screen, offered in the title box.
   if (typeof lessonTitlePrefill === 'function') lessonTitlePrefill();
@@ -11193,6 +11435,7 @@ function lessonCloseModal() {
 $('lessonCamSelect').addEventListener('change', function () { lessonDevChooseCam($('lessonCamSelect').value); });
 $('lessonMicSelect').addEventListener('change', function () { lessonDevChooseMic($('lessonMicSelect').value); });
 $('lessonMirror').addEventListener('change', lessonDevMirrorChanged);
+if ($('lessonScreen')) $('lessonScreen').addEventListener('change', lessonScreenChanged);
 $('lessonTestBtn').addEventListener('click', lessonDevTestToggle);
 $('lessonCamRetry').addEventListener('click', lessonDevRetryCam);
 $('lessonMicRetry').addEventListener('click', lessonDevRetryMic);
@@ -11397,12 +11640,23 @@ async function lessonStart() {
   // The helper's replies cannot reach the file — they are never wired into the
   // recorder — but a speaker in the room reaches the microphone, and a teacher
   // who finds that out on playback has lost the lesson.
+  // 📺 The window can only be recorded where the browser lets a page share it.
+  if (choice.screen && !lessonScreenSupported()) { toast('This browser cannot record its own window. Untick “Record the worksheet window” to record your voice and writing.', 6000); return; }
   if (voiceOn()) toast('Voice AI is still listening. Its replies are never mixed into the recording — use headphones so the room microphone does not pick them up.', 8000);
   var spot = recDropSpot();
   var c = lessonCapture = { phase: 'starting', epoch: wsEpoch, uid: currentUser.uid, docId: currentDocId,
     user: currentUser, id: newAnnId(), controller: new AbortController(), chunks: [], bytes: 0, lastMs: 0,
     spot: { page: spot.page.num, x: spot.x, y: spot.y }, pageCount: pages.length,
-    camera: choice.camera, mirror: choice.mirror, limit: choice.camera ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT };
+    camera: choice.camera, mirror: choice.mirror, screen: !!choice.screen,
+    limit: choice.camera || choice.screen ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT };
+  // 📺 Asked for HERE, inside the tap, before anything is awaited: the browser
+  // only lets a click share a window, and the microphone's prompt or the
+  // AudioContext below would otherwise use that click up.
+  var screenAsk = null;
+  if (c.screen) {
+    try { screenAsk = lessonScreenAsk(); } catch (e) { screenAsk = Promise.reject(e); }
+    screenAsk.catch(function () { /* read below, where the start fails loudly */ });
+  }
   // 🏷 Which question it is for, read before the window closes — and 🎞 the
   // size of the viewer it is taught in, which the 1080p export needs to show
   // the same region of the page the teacher was looking at.
@@ -11421,6 +11675,16 @@ async function lessonStart() {
     c.audioCtx = new AudioCtx(); await c.audioCtx.resume();
     if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
     c.destination = c.audioCtx.createMediaStreamDestination();
+    if (screenAsk) {
+      lessonStatus('Choose “This tab” in the box your browser shows…');
+      var display;
+      try { display = await screenAsk; }
+      catch (e) { throw new Error(lessonScreenError(e)); }
+      // Held on the capture at once, so every way out below lets it go.
+      c.screenRec = { display: display };
+      if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
+      if (!display.getVideoTracks().length) throw new Error('The shared window gave no picture, so the recording did not start.');
+    }
     // The microphone the window chose, exactly — with the same processing the
     // window's sound test was heard through.
     var stream;
@@ -11443,23 +11707,37 @@ async function lessonStart() {
       cam.getVideoTracks().forEach(function (t) { t.onended = function () { if (lessonCapture === c) lessonStop('The camera disconnected. The captured portion will be saved.'); }; });
       lessonLiveCam(c);
     }
+    if (c.screenRec) {
+      lessonStatus('Getting the window ready…');
+      var shared = c.screenRec.display;
+      await lessonScreenCompose(c, shared);
+      if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
+      shared.getVideoTracks().forEach(function (t) {
+        t.onended = function () { if (lessonCapture === c) lessonStop('You stopped sharing the window. The captured portion will be saved.'); };
+      });
+      if (!c.screenRec.self) toast('Something other than this tab was shared, so all of it is being recorded. Choose “This tab” next time to record just the worksheet.', 8000);
+    }
     c.pdfHash = await lessonPdfHash();
     if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
     lessonStatus('Preparing the page pictures…'); c.cardState = lessonCardState();
     c.backgrounds = await lessonCaptureBackgrounds(annotations, pages, c.controller.signal);
     if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
-    var mime = recPickMime(c.camera), options = { audioBitsPerSecond: LESSON_AUDIO_BPS };
-    if (c.camera) options.videoBitsPerSecond = LESSON_VIDEO_BPS;
+    var mime = recPickMime(c.camera || c.screen), options = { audioBitsPerSecond: LESSON_AUDIO_BPS };
+    if (c.screenRec) options.videoBitsPerSecond = LESSON_SCREEN_BPS;
+    else if (c.camera) options.videoBitsPerSecond = LESSON_VIDEO_BPS;
     if (mime) options.mimeType = mime;
     // ONE file, so the picture and the voice can never drift apart: the
     // camera's own track beside the mixed microphone — the very audio an
     // audio-only lesson carries. Nothing else is ever added to either.
-    var recorded = c.camStream
-      ? new MediaStream(c.camStream.getVideoTracks().concat(c.destination.stream.getAudioTracks()))
+    // 📺 With the window recorded, the picture is the cropped window (the
+    // camera painted into its corner) and the sound is still only the mix.
+    var pictures = c.screenRec ? c.screenRec.out.getVideoTracks() : c.camStream ? c.camStream.getVideoTracks() : null;
+    var recorded = pictures
+      ? new MediaStream(pictures.concat(c.destination.stream.getAudioTracks()))
       : c.destination.stream;
     try { c.recorder = new MediaRecorder(recorded, options); }
     catch (e) {
-      if (!c.camStream) throw e;
+      if (!pictures) throw e;
       // A browser that refuses the codec it just claimed still records in its own.
       delete options.mimeType;
       c.recorder = new MediaRecorder(recorded, options);
@@ -11481,7 +11759,8 @@ async function lessonStart() {
       $('lessonStopBtn').textContent = 'Stop & save';
       var settings = stream.getAudioTracks()[0].getSettings();
       c.micStatus = settings.noiseSuppression === true ? 'Noise reduction on' : 'Noise reduction requested';
-      lessonStatus((c.camStream ? 'Recording you and your explanation · ' : 'Recording your explanation · ') + c.micStatus);
+      lessonStatus((c.screenRec ? (c.camStream ? 'Recording the window, you and your explanation · ' : 'Recording the window and your explanation · ')
+        : c.camStream ? 'Recording you and your explanation · ' : 'Recording your explanation · ') + c.micStatus);
     };
     c.recorder.start(1000);
   } catch (e) {
@@ -11502,6 +11781,9 @@ function lessonLiveCam(c) {
 }
 function lessonRelease(c) {
   clearInterval(c.timer); c.controller.abort();
+  // 📺 The shared window, its canvas and the body class go first: a share left
+  // running is the browser's "sharing this tab" bar left up over the class.
+  lessonScreenRelease(c);
   if (c.stream) c.stream.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
   if (c.camStream) {
     c.camStream.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
@@ -11530,17 +11812,21 @@ function lessonStop(message) {
 async function lessonFinish(c) {
   lessonRelease(c);
   if (lessonCapture === c) lessonCapture = null;
-  if (!c.core || !c.chunks.length) { lessonBar(false); toast(c.camStream ? 'Nothing was captured. Try recording again.' : 'No audio was captured. Try recording again.'); return; }
+  var shot = !!c.screenShot;
+  if (!c.core || !c.chunks.length) { lessonBar(false); toast(c.camStream || shot ? 'Nothing was captured. Try recording again.' : 'No audio was captured. Try recording again.'); return; }
   var timeline;
   try { timeline = c.core.finish(c.duration || c.lastMs); }
   catch (e) { lessonBar(false); toast('Could not finish the recording: ' + e.message, 6000); return; }
   var job = lessonPending = { id: c.id, uid: c.uid, docId: c.docId, epoch: c.epoch, spot: c.spot,
-    blob: new Blob(c.chunks, { type: c.recorder.mimeType || (c.camStream ? 'video/webm' : 'audio/webm') }),
+    blob: new Blob(c.chunks, { type: c.recorder.mimeType || (c.camStream || shot ? 'video/webm' : 'audio/webm') }),
     manifest: { version: 1, worksheetId: c.docId, pdfHash: c.pdfHash, pageCount: c.pageCount, timeline: timeline, backgrounds: c.backgrounds || [] },
     duration: timeline.duration };
   // Carried on the job, so a backup restored from this device next week still
   // knows it is a video — and is attached, played and labelled as one.
-  if (c.camStream) job.video = true;
+  if (c.camStream || shot) job.video = true;
+  // 📺 The window itself is the video: the replay shows it large and the
+  // 1080p export uses it as the picture.
+  if (shot) job.screen = true;
   // Both only when there is one, so an untitled lesson's job and manifest are
   // byte for byte what they always were.
   if (c.title) job.title = c.title;
@@ -11617,6 +11903,7 @@ async function lessonSavePending() {
       // what it always was. `audioPath` keeps its name for the same reason: it
       // is the media file, and readers of it already exist.
       if (job.video) attachment.lessonRecording.video = true;
+      if (job.screen) attachment.lessonRecording.screen = true;
       if (job.title) attachment.lessonRecording.title = job.title;
       var staged = annotations.some(function (a) { return a.id === job.id; }) ? annotations : annotations.concat([attachment]);
       var json = JSON.stringify(staged);
@@ -11684,6 +11971,8 @@ async function lessonPlay(a) {
   var controller = lessonOpening = new AbortController(), epoch = wsEpoch, id = currentDocId;
   var savedView = lessonView(), savedFitted = fittedWidth;
   var video = !!(a.lessonRecording && a.lessonRecording.video);
+  // 📺 A lesson that recorded the worksheet window plays it big.
+  var screen = video && !!a.lessonRecording.screen;
   $('lessonPlayer').hidden = false; $('lessonPlayerTitle').textContent = 'Loading lesson…';
   try {
     var audioUrl = lessonAssetUrl(a.url);
@@ -11703,7 +11992,7 @@ async function lessonPlay(a) {
     var player = LessonReplayCore.createPlayer(timeline);
     var pb = lessonPlayback = { player: player, view: savedView, fitted: savedFitted, epoch: epoch,
       backgrounds: lessonValidateBackgrounds(manifest.backgrounds, pages), overlays: [], revision: -1, viewKey: '', duration: manifest.timeline.duration,
-      video: video };
+      video: video, screen: screen };
     // Which lesson this is, for ⬇ 1080p — the teacher's, and nobody else's.
     pb.ann = a;
     $('lessonExportBtn').hidden = !lessonTeacher();
@@ -11719,7 +12008,8 @@ async function lessonPlay(a) {
     pb.local = !!result[2]; pb.remote = audioUrl;
     $('lessonAudio').hidden = video;
     if (video) lessonCamWinShow();
-    $('lessonPlayerTitle').textContent = video ? 'Lesson replay · the writing follows the video' : 'Lesson replay · writing follows the audio';
+    $('lessonPlayerTitle').textContent = screen ? 'Lesson replay · the window as it was recorded'
+      : video ? 'Lesson replay · the writing follows the video' : 'Lesson replay · writing follows the audio';
     lessonReplayFrame();
     // ⏱ One chip per question, tapped to jump the lesson there.
     if (typeof lessonStepsShow === 'function') lessonStepsShow(manifest.steps, manifest.timeline.duration);
@@ -11785,15 +12075,21 @@ function lessonExitPlayback() {
    opens in the corner above the bar, is dragged by its own bar, and comes in
    three sizes remembered on the device. */
 var LESSON_CAMWIN_SIZES = [200, 320, 480];
+// 📺 A recorded window is a whole screen of words, not a face: it needs room.
+var LESSON_SCREENWIN_SIZES = [480, 760, 1040];
+function lessonCamWinSizes() { return lessonPlayback && lessonPlayback.screen ? LESSON_SCREENWIN_SIZES : LESSON_CAMWIN_SIZES; }
 function lessonCamWinSizeIndex() {
   var i = lessonPrefGet(LESSON_CAMWIN_PREF);
   return i === 0 || i === 1 || i === 2 ? i : 1;
 }
 function lessonCamWinApplySize() {
   var win = $('lessonCamWin'), i = lessonCamWinSizeIndex(), room = Math.max(160, (window.innerWidth || 1024) - 32);
-  win.style.width = Math.min(LESSON_CAMWIN_SIZES[i], room) + 'px';
+  var sizes = lessonCamWinSizes();
+  win.style.width = Math.min(sizes[i], room) + 'px';
+  var title = win.querySelector('.lessonCamWinTitle');
+  if (title) title.textContent = lessonPlayback && lessonPlayback.screen ? 'The recorded window' : 'Lesson video';
   var btn = $('lessonCamWinSize');
-  if (btn) { btn.title = i < LESSON_CAMWIN_SIZES.length - 1 ? 'Bigger video' : 'Smaller video'; btn.setAttribute('aria-label', btn.title); }
+  if (btn) { btn.title = i < sizes.length - 1 ? 'Bigger video' : 'Smaller video'; btn.setAttribute('aria-label', btn.title); }
 }
 function lessonCamWinShow() {
   var win = $('lessonCamWin');
@@ -11824,7 +12120,7 @@ function lessonCamWinClamp() {
   lessonCamWinPlace(r.left, r.top);
 }
 function lessonCamWinCycle() {
-  lessonPrefSet(LESSON_CAMWIN_PREF, (lessonCamWinSizeIndex() + 1) % LESSON_CAMWIN_SIZES.length);
+  lessonPrefSet(LESSON_CAMWIN_PREF, (lessonCamWinSizeIndex() + 1) % lessonCamWinSizes().length);
   lessonCamWinApplySize();
   lessonCamWinClamp();
 }
@@ -12246,6 +12542,10 @@ var LESSON_EXPORT_FONT = "'Century Gothic', CenturyGothic, AppleGothic, 'Segoe U
 var LESSON_EXPORT_MARK = 'M22 16h14a11 11 0 0 1 0 22h-7v10h-7Z M29 23h7a4 4 0 0 1 0 8h-7Z';
 var LESSON_EXPORT_LAYOUTS = ['side', 'corner', 'page'];
 var LESSON_EXPORT_MODES = ['follow', 'page'];
+// 📐 How big the camera is inside the video (v1.137.0). Medium is the size it
+// always was, so an export left on the default is the same frame as before.
+var LESSON_EXPORT_SIZES = ['small', 'medium', 'large'];
+var LESSON_EXPORT_SIZE_SCALE = { small: 0.7, medium: 1, large: 1.4 };
 var lessonExportJob = null;
 
 /* What the file is written as. MP4 with H.264 and AAC first: it plays on every
@@ -12266,20 +12566,22 @@ function lessonExportMime() {
    wrote is ever under their face; `corner` puts the camera over the bottom
    right of a full-width page; `page` is the page alone. The camera keeps the
    shape it was recorded in — portrait from an iPad held upright included. */
-function lessonExportLayout(kind, camW, camH) {
+function lessonExportLayout(kind, camW, camH, size) {
   var W = LESSON_EXPORT_W, H = LESSON_EXPORT_H;
   var ratio = camW > 0 && camH > 0 ? camW / camH : 16 / 9;
+  var k = LESSON_EXPORT_SIZE_SCALE[size] || 1;
   if (kind === 'side') {
-    var side = LESSON_EXPORT_SIDE, pad = 28;
-    var cw = side - pad * 2, ch = Math.round(cw / ratio), tallest = Math.round(H * 0.56);
+    // The column grows with the camera, so the title under it still fits.
+    var side = Math.round(LESSON_EXPORT_SIDE * k), pad = 28;
+    var cw = side - pad * 2, ch = Math.round(cw / ratio), tallest = Math.round(H * (k > 1 ? 0.66 : 0.56));
     if (ch > tallest) { ch = tallest; cw = Math.round(ch * ratio); }
     return { kind: 'side', page: { x: 0, y: 0, w: W - side, h: H },
       cam: { x: W - side + Math.round((side - cw) / 2), y: pad, w: cw, h: ch },
       panel: { x: W - side, y: 0, w: side, h: H } };
   }
   if (kind === 'corner') {
-    var pw = 512, ph = Math.round(pw / ratio);
-    if (ph > 420) { ph = 420; pw = Math.round(ph * ratio); }
+    var pw = Math.round(512 * k), ph = Math.round(pw / ratio), most = Math.round(420 * k);
+    if (ph > most) { ph = most; pw = Math.round(ph * ratio); }
     return { kind: 'corner', page: { x: 0, y: 0, w: W, h: H },
       cam: { x: W - pw - 36, y: H - ph - 36, w: pw, h: ph }, panel: null };
   }
@@ -12380,7 +12682,8 @@ function lessonExportFileName(worksheet, label, mime) {
 function lessonExportPrefs() {
   var p = lessonPrefGet(LESSON_EXPORT_PREF) || {};
   return { layout: LESSON_EXPORT_LAYOUTS.indexOf(p.layout) >= 0 ? p.layout : 'side',
-    mode: LESSON_EXPORT_MODES.indexOf(p.mode) >= 0 ? p.mode : 'follow' };
+    mode: LESSON_EXPORT_MODES.indexOf(p.mode) >= 0 ? p.mode : 'follow',
+    size: LESSON_EXPORT_SIZES.indexOf(p.size) >= 0 ? p.size : 'medium' };
 }
 
 /* ---- Painting one frame ---- */
@@ -12512,7 +12815,22 @@ function lessonExportCaption(ctx, job, t) {
   lessonExportBrand(ctx, x + 28, y + h - 58, 40);
   ctx.restore();
 }
+// 📺 A lesson that recorded the worksheet window: that video, as large as
+// 1920 × 1080 holds it, with the title said once at the start.
+function lessonExportScreen(job, t) {
+  var ctx = job.ctx, v = job.media, vw = v.videoWidth || 0, vh = v.videoHeight || 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#12161A';
+  ctx.fillRect(0, 0, LESSON_EXPORT_W, LESSON_EXPORT_H);
+  if (vw && vh) {
+    var k = Math.min(LESSON_EXPORT_W / vw, LESSON_EXPORT_H / vh), dw = vw * k, dh = vh * k;
+    try { ctx.drawImage(v, (LESSON_EXPORT_W - dw) / 2, (LESSON_EXPORT_H - dh) / 2, dw, dh); } catch (e) { /* no frame yet */ }
+  }
+  lessonExportCaption(ctx, job, t);
+}
 function lessonExportDraw(job, t, dt) {
+  if (job.screen) { lessonExportScreen(job, t); return; }
   var ctx = job.ctx, L = job.layout, A = L.page;
   var state = job.player.stateAt(Math.max(0, Math.min(job.duration, t)));
   var target = lessonExportClamp(lessonExportTarget(state.view, job.stack, A, job.mode, job.viewport), job.stack, A);
@@ -12578,13 +12896,18 @@ function lessonExportUi(job) {
   $('lessonExportCancel').textContent = busy && phase !== 'loading' ? 'Stop' : phase === 'done' ? 'Close' : 'Cancel';
   $('lessonExportShare').hidden = !(phase === 'done' && job.file && navigator.canShare && lessonExportCanShare(job.file));
   $('lessonExportProgress').hidden = !(phase === 'exporting' || phase === 'finishing' || phase === 'starting' || phase === 'done');
-  document.querySelectorAll('#lessonExportModal [data-lx-layout], #lessonExportModal [data-lx-mode]').forEach(function (b) {
-    var on = b.hasAttribute('data-lx-layout') ? b.getAttribute('data-lx-layout') === job.layoutKind : b.getAttribute('data-lx-mode') === job.mode;
+  document.querySelectorAll('#lessonExportModal [data-lx-layout], #lessonExportModal [data-lx-mode], #lessonExportModal [data-lx-size]').forEach(function (b) {
+    var on = b.hasAttribute('data-lx-layout') ? b.getAttribute('data-lx-layout') === job.layoutKind
+      : b.hasAttribute('data-lx-size') ? b.getAttribute('data-lx-size') === job.camSize : b.getAttribute('data-lx-mode') === job.mode;
     b.classList.toggle('on', on);
     b.setAttribute('aria-checked', on ? 'true' : 'false');
     b.disabled = busy || phase === 'done';
   });
-  $('lessonExportLayoutRow').hidden = !job.video;
+  // 📺 A recorded window IS the frame: there is no page to lay out round it.
+  $('lessonExportLayoutRow').hidden = !job.video || !!job.screen;
+  if ($('lessonExportModeRow')) $('lessonExportModeRow').hidden = !!job.screen;
+  // 📐 The camera's size means something only when the camera is in the frame.
+  if ($('lessonExportSizeRow')) $('lessonExportSizeRow').hidden = !job.video || !!job.screen || job.layoutKind === 'page';
 }
 function lessonExportCanShare(file) {
   try { return !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { return false; }
@@ -12623,7 +12946,7 @@ async function lessonExportOpen(a) {
   lessonExitPlayback();
   var prefs = lessonExportPrefs(), video = !!a.lessonRecording.video;
   var job = lessonExportJob = { ann: a, phase: 'loading', epoch: wsEpoch, docId: currentDocId, uid: currentUser.uid,
-    controller: new AbortController(), video: video, layoutKind: video ? prefs.layout : 'page', mode: prefs.mode,
+    controller: new AbortController(), video: video, screen: video && !!a.lessonRecording.screen, layoutKind: video ? prefs.layout : 'page', mode: prefs.mode, camSize: prefs.size,
     rasters: {}, cards: {}, view: null, chunks: [], title: docName || 'Worksheet',
     subtitle: videoPillLabel(a).replace(/^Play /, ''), canvas: $('lessonExportCanvas'), media: lessonExportMediaNode() };
   job.subtitle = job.subtitle.charAt(0).toUpperCase() + job.subtitle.slice(1);
@@ -12669,6 +12992,15 @@ async function lessonExportPrepare(job) {
   job.viewport = lessonExportViewport(manifest.viewport);
   job.infos = pages.map(function (p) { return { num: p.num, baseW: p.baseW, baseH: p.baseH }; });
   job.stack = lessonExportStack(job.infos);
+  if (job.screen) {
+    // 📺 The recorded window is every frame of this video, so no page is
+    // rasterised and no card is painted for it.
+    lessonExportInfo('Getting the lesson video ready…');
+    await lessonExportLoadMedia(job, mediaUrl);
+    lessonExportAlive(job);
+    job.mediaDuration = Number.isFinite(job.media.duration) ? job.media.duration * 1000 : 0;
+    return;
+  }
   // The note cards and pictures, painted once, exactly as the replay shows them.
   var backgrounds = lessonValidateBackgrounds(manifest.backgrounds, pages);
   for (var b of backgrounds) (job.cards[b.page] = job.cards[b.page] || []).push({ from: b.from || 0, to: b.to, img: await lessonBackgroundImage(b.data, signal) });
@@ -12772,7 +13104,7 @@ function lessonExportLoadMedia(job, url) {
 // has loaded; the preview is redrawn whenever a choice changes.
 function lessonExportRelayout(job) {
   var kind = job.video ? job.layoutKind : 'page';
-  job.layout = lessonExportLayout(kind, job.media.videoWidth, job.media.videoHeight);
+  job.layout = lessonExportLayout(kind, job.media.videoWidth, job.media.videoHeight, job.camSize);
   job.view = null;
   if (job.player) lessonExportDraw(job, 0, 0);
 }
@@ -12781,7 +13113,8 @@ function lessonExportChoose(kind, value) {
   if (!job || !lessonTeacher() || job.phase !== 'ready') return;
   if (kind === 'layout' && LESSON_EXPORT_LAYOUTS.indexOf(value) >= 0) job.layoutKind = value;
   if (kind === 'mode' && LESSON_EXPORT_MODES.indexOf(value) >= 0) job.mode = value;
-  lessonPrefSet(LESSON_EXPORT_PREF, { layout: job.layoutKind, mode: job.mode });
+  if (kind === 'size' && LESSON_EXPORT_SIZES.indexOf(value) >= 0) job.camSize = value;
+  lessonPrefSet(LESSON_EXPORT_PREF, { layout: job.layoutKind, mode: job.mode, size: job.camSize });
   lessonExportRelayout(job);
   lessonExportUi(job);
 }
@@ -13053,8 +13386,10 @@ $('lessonExportCancel').addEventListener('click', function () { lessonExportClos
 $('lessonExportClose').addEventListener('click', function () { lessonExportClose(false); });
 $('lessonExportShare').addEventListener('click', lessonExportShare);
 $('lessonExportModal').addEventListener('click', function (e) {
-  var b = e.target.closest ? e.target.closest('[data-lx-layout], [data-lx-mode]') : null;
-  if (b) lessonExportChoose(b.hasAttribute('data-lx-layout') ? 'layout' : 'mode', b.getAttribute(b.hasAttribute('data-lx-layout') ? 'data-lx-layout' : 'data-lx-mode'));
+  var b = e.target.closest ? e.target.closest('[data-lx-layout], [data-lx-mode], [data-lx-size]') : null;
+  if (!b) return;
+  var kind = b.hasAttribute('data-lx-layout') ? 'layout' : b.hasAttribute('data-lx-size') ? 'size' : 'mode';
+  lessonExportChoose(kind, b.getAttribute('data-lx-' + kind));
 });
 // Every keystroke in the window stops there: a letter typed with it open
 // must not reach the one-letter tools behind it.

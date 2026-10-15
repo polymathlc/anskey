@@ -177,6 +177,20 @@ await page.click('[data-lx-layout="corner"]');
 const corner = await page.evaluate(() => ({ layout: lessonExportJob.layoutKind, remembered: JSON.parse(localStorage.getItem('polymath.lessonExport') || 'null'),
   on: document.querySelector('[data-lx-layout="corner"]').classList.contains('on') }));
 ok('a layout choice redraws the preview and is remembered', corner.layout === 'corner' && corner.on && corner.remembered && corner.remembered.layout === 'corner', JSON.stringify(corner));
+const camW = () => page.evaluate(() => ({ w: lessonExportJob.layout.cam.w, shown: !$('lessonExportSizeRow').hidden, size: lessonExportJob.camSize,
+  on: (document.querySelector('[data-lx-size].on') || {}).getAttribute ? document.querySelector('[data-lx-size].on').getAttribute('data-lx-size') : '' }));
+const mid = await camW();
+await page.click('[data-lx-size="large"]');
+const big = await camW();
+await page.click('[data-lx-size="small"]');
+const little = await camW();
+ok('📐 the video size row is shown, on Medium by default', mid.shown && mid.size === 'medium' && mid.on === 'medium', JSON.stringify(mid));
+ok('…Large makes the camera bigger and Small smaller, in the preview', big.w > mid.w && little.w < mid.w && little.on === 'small', JSON.stringify([little, mid, big]));
+ok('…and the choice is remembered', await page.evaluate(() => JSON.parse(localStorage.getItem('polymath.lessonExport')).size === 'small'));
+await shot(page, '1b-export-small-camera');
+await page.click('[data-lx-layout="page"]');
+ok('…and hidden for Page only, where there is no camera', await page.evaluate(() => $('lessonExportSizeRow').hidden));
+await page.evaluate(() => lessonExportChoose('size', 'medium'));
 await page.click('[data-lx-layout="side"]');
 
 console.log('\n🎞 Export runs in real time and writes one file');
