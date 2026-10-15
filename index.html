@@ -3662,6 +3662,7 @@ video.mirror { transform:scaleX(-1); }
 <link rel="stylesheet" href="mission-machine.css">
 <link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="lesson-guests.css">
+<link rel="stylesheet" href="live-cams.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="student-heroes.css">
 </head>
@@ -3979,6 +3980,10 @@ video.mirror { transform:scaleX(-1); }
     <button class="btn" id="wheelBtn" data-key="Z" title="Name wheel — call on every student once per round, and award marks from the wheel" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><circle cx="12" cy="13" r="1.6"/><line x1="12" y1="5" x2="12" y2="11.4"/><line x1="12" y1="14.6" x2="12" y2="21"/><line x1="4" y1="13" x2="10.4" y2="13"/><line x1="13.6" y1="13" x2="20" y2="13"/><path d="M10 2.6h4L12 6z" fill="currentColor"/></svg>
       <span class="btnLabel">Wheel</span>
+    </button>
+    <button class="btn" id="liveCamBtn" title="Live cams — see every student's camera live, so they can hold their answers up to it" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/><circle cx="9" cy="12" r="2.2"/></svg>
+      <span class="btnLabel">Live cams</span>
     </button>
     <button class="btn" id="classroomBattleBtn" title="Classroom boss battle — play with your class's pixel heroes" style="display:none">⚔️ <span class="btnLabel">Battle</span></button>
     <button class="btn" id="myHeroBtn" title="Choose your class, skills and treasure" style="display:none">✦ <span class="btnLabel">My Hero</span></button>
@@ -5378,7 +5383,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.134.0';
+var APP_VERSION = 'v1.135.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -29280,6 +29285,12 @@ function applyRewardVisibility() {
   if (wbtn) wbtn.style.display = show ? '' : 'none';
   var battleBtn = $('classroomBattleBtn');
   if (battleBtn) battleBtn.style.display = show ? '' : 'none';
+  var camBtn = $('liveCamBtn');
+  if (camBtn) camBtn.style.display = show ? '' : 'none';
+  // Live cams follow the role too: the teacher's window closes (switching
+  // every student's camera off) the moment the device is not the teacher's,
+  // and a student's own camera stops on an account change.
+  liveCamsRoleChanged();
   if (!show && window.ClassroomBattle) window.ClassroomBattle.close();
   if (!show) {
     $('rewardModal').classList.remove('open');
@@ -29287,6 +29298,69 @@ function applyRewardVisibility() {
     rwStudents = [];
   }
 }
+
+/* ================= 📹 Live cams — glue (the feature itself is live-cams.js) =================
+   Students tap "Share my camera" and hold their work up to it; the teacher
+   watches every camera live in one window. live-cams.js owns all of it —
+   the room, the signalling, the tiles, the student's card and preview.
+   This block only tells it who is using the device, where to put a frame
+   on the page, and which button is its own. live-cams.js loads at the foot
+   of the page, so `liveCams` stays null until liveCamsInit() runs there;
+   every call here is guarded for the moment before that. */
+var liveCams = null;
+
+function liveCamRole() {
+  // The teacher is the admin with the device in their own hands — the same
+  // test the wheel and the rewards use. Anyone else on a signed-in device,
+  // a device handed to a student, or a share-link visitor is a student.
+  if (wheelTeacher()) return 'teacher';
+  if (actingStudent) return 'student';
+  if (currentUser && !isAdmin(currentUser)) return 'student';
+  if (isSharedVisitor()) return 'student';
+  return 'none';
+}
+
+function liveCamUser() {
+  var name = actingStudent ? actingStudent.name
+    : (studentProfile && studentProfile.name) || (currentUser && currentUser.displayName) || '';
+  return {
+    uid: currentUser ? currentUser.uid : '',
+    name: name,
+    ws: (currentDocId || docName) ? { id: currentDocId || '', name: docName || '' } : null
+  };
+}
+
+function liveCamsInit() {
+  if (liveCams || !window.LiveCams) return liveCams;
+  liveCams = window.LiveCams.create({
+    db: db,
+    arrayUnion: function () {
+      var F = firebase.firestore.FieldValue;
+      return F.arrayUnion.apply(F, arguments);
+    },
+    role: liveCamRole,
+    user: liveCamUser,
+    toast: toast,
+    button: function () { return $('liveCamBtn'); },
+    attachFloatWin: attachFloatWin,
+    clampWinBox: clampWinBox,
+    raiseFloatWin: raiseFloatWin,
+    // 📌 on a tile puts that frame on the page through the SAME door a
+    // pasted picture uses, so it moves, locks, prints and saves like one.
+    putOnPage: function (blob) { return pasteImageOntoPage(blob); }
+  });
+  $('liveCamBtn').addEventListener('click', function () {
+    if (liveCamRole() !== 'teacher') return;   // hiding the button is never the lock
+    liveCams.toggle();
+  });
+  liveCams.roleChanged();
+  return liveCams;
+}
+
+function liveCamsRoleChanged() {
+  if (liveCams) liveCams.roleChanged();
+}
+/* ================= End live cams glue ================= */
 
 async function rwLoadStudents(force) {
   if (rwStudents.length && !force) return;
@@ -35827,6 +35901,8 @@ loadAiNotePrefs();
 <script src="mission-machine.js"></script>
 <script src="quick-battle.js"></script>
 <script src="student-heroes.js"></script>
+<script src="live-cams.js"></script>
+<script>liveCamsInit();</script>
 <script type="module">
 /* ================= Firebase AI Logic (Gemini) =================
    Gemini access for the AI text-box features. Uses the shared Polymath

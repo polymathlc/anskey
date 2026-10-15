@@ -2,6 +2,17 @@
 
 Guidance for Claude when working in this repo.
 
+## 📹 Live cams (v1.135.0)
+
+- `live-cams.js` / `live-cams.css` own the feature (`LiveCams.create(env)`, pure helpers on `LiveCams.pure`). index.html holds only the glue between `📹 Live cams — glue` and `End live cams glue` (`liveCamRole`, `liveCamUser`, `liveCamsInit`, `liveCamsRoleChanged`), the `#liveCamBtn` header button, and `<script>liveCamsInit();</script>` after the module's script tag.
+- Firestore: `liveCamRooms/main` = `{open, epoch, teacherUid, heartbeat, quality}`; `liveCamRooms/main/peers/{peerId}` = `{epoch, uid, name, ws, rev, offer, sc[], answer, arev, tc[], seen, snap, snapAt, wantSnap, restart}`. These sit under the shared rules' catch-all; no rules migration was made.
+- Firestore is only the signalling channel. Video goes over WebRTC (STUN only, `window.LIVE_CAM_ICE` overrides). When video does not connect within `RTC_TIMEOUT_MS`, or there is no RTCPeerConnection, the student writes a JPEG `snap` every `SNAP_MS` instead. Snapshots stop as soon as video connects.
+- ICE candidates are tagged with their negotiation `rev` (`packCandidate` / `unpackCandidates`). A candidate from an old negotiation must never reach a new connection.
+- Roles: teacher = `wheelTeacher()`. Student = an acting student, a signed-in non-admin, or a share-link visitor. Every teacher handler asks `teacherAllowed()`, and the glue's click handler asks again. `applyRewardVisibility` shows the button and calls `liveCamsRoleChanged()`.
+- The camera opens only from the student's Share tap. Every exit stops its tracks: Stop, the teacher closing the room or removing the tile, a stale room (`ROOM_STALE_MS` with no heartbeat), a role change, and pagehide. The teacher's view and the snapshots are never mirrored; only the student's own preview is (`.lcSelfVideo.mirror`). There is no audio.
+- 📌 on a tile passes a JPEG Blob to `pasteImageOntoPage`, so the frame becomes an ordinary pasted picture.
+- Run `node --test tools/live-cams-tests.mjs` and `node tools/live-cams-check.mjs`. The check puts a real teacher and a real student in one Chromium page with a fake camera, real WebRTC and an in-memory Firestore stand-in. It is also in CI.
+
 ## ⏺ Recording until Stop (v1.134.0)
 
 - Zhi Kai wants a recording to end only on Stop. `lessonCaptureTick` no longer stops for card changes or a full timeline. Remaining automatic stops:
