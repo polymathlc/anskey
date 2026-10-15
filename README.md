@@ -4,6 +4,27 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.137.0 — A lesson recording can record the worksheet window
+
+**Record a lesson** has a new switch: **📺 Record the worksheet window**. Turn
+it on and the recording is a real video of what you do in the app, the
+question windows and their 🧩 apps included, so it can be your video
+explainer.
+
+- **When you press Start, choose “This tab”** in the box your browser shows.
+  Everything below the toolbar is recorded: the page, your writing, a bank
+  question you open, the answers you type into it and the app you play with.
+- **The toolbar is left out.** The header, the toolbar and the floating tool
+  bars are not in the video. While it records, the recording bar sits up over
+  the toolbar, and a question window opens inside the recorded area.
+- **Your camera rides along** in the corner if you chose one, and your voice
+  is recorded exactly as before.
+- **The replay shows the recorded window large**, and **⬇ 1080p** turns it
+  into a 1920 × 1080 video file to share.
+- Stopping the share from the browser's own bar stops the lesson and saves it.
+- It needs Chrome, Edge or Safari on a computer. An iPad does not let a web
+  page record its own screen, so there the switch says so and stays off.
+
 ## v1.136.0 — Questions from the Science portal's question bank
 
 A new **Question bank** button (teacher only, beside the page tools) opens the
