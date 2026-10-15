@@ -40,6 +40,7 @@
 .hst .hstNode-passive .hstPixelIcon { transform:rotate(-45deg); width:37px; height:37px; }
 .hst .hstNode-passive .hstNodeMark { transform:rotate(-45deg); bottom:-7px; right:-7px; }
 .hst .hstNode-capstone .hstNodeFrame { border-color:#c1a777; box-shadow:0 0 0 3px #101319,0 0 0 5px #5d4933,inset 0 0 0 3px #11141c; }
+.hst .hstNode-apex .hstNodeFrame { border-color:#ffd88a; box-shadow:0 0 0 3px #101319,0 0 0 5px #8a6a32,0 0 14px 2px #ffcf7a55,inset 0 0 0 3px #11141c; }
 .hst .hstNodeMark { position:absolute; bottom:-8px; right:-8px; width:20px; height:20px; border:1px solid #736753; background:#171b22; color:#b9b3a4; font:bold 14px/18px ui-monospace,monospace; }
 .hst .hstNodeName { display:block; max-width:100%; margin-top:12px; padding:2px 5px; background:#101319eb; color:#dad8d2; font:600 12px/1.2 ui-sans-serif,system-ui,sans-serif; text-shadow:0 2px #000; }
 .hst .hstNodeMeta { display:block; padding:2px 4px; background:#101319e6; color:#9c9eaa; font:9px/1.5 ui-monospace,monospace; letter-spacing:.2px; }

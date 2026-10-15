@@ -45,15 +45,15 @@ test('four independent classes have useful distinct baseline stats and one start
   const state=start('goblin',supplied);assert.equal(state.heroes[0].stats.damage,w.stats.damage);assert.equal(state.heroes[0].level,1);assert.equal(state.heroes[0].inventory.length,2);
 });
 
-test('48 skills form three four-tier branches per class and all loot rarities have effects',()=>{
+test('72 skills form three six-tier branches per class and all loot rarities have effects',()=>{
   const ids=[];
-  for(const role of roles){const tree=C.SKILLS[role];assert.equal(tree.length,12);assert.equal(new Set(tree.map(s=>s.branch)).size,3);
-    for(const s of tree){ids.push(s.id);assert.equal(s.role,role);assert.ok(s.description);assert.ok(s.effect);assert.ok(s.level>=1 && s.level<=4);
+  for(const role of roles){const tree=C.SKILLS[role];assert.equal(tree.length,18);assert.equal(new Set(tree.map(s=>s.branch)).size,3);
+    for(const s of tree){ids.push(s.id);assert.equal(s.role,role);assert.ok(s.description);assert.ok(s.effect);assert.equal(s.level,[1,2,3,4,7,10][s.tier-1]);assert.equal(s.cost,[1,1,2,2,3,3][s.tier-1]);
       if(s.tier>1){assert.equal(s.requires.length,1);const parent=C.skillById(s.requires[0]);assert.equal(parent.branch,s.branch);assert.equal(parent.tier,s.tier-1);}
       assert.equal(s.effect.type,s.passive?'passive':'active');
     }
   }
-  assert.equal(new Set(ids).size,48);assert.equal(Object.keys(C.RARITIES).length,6);
+  assert.equal(new Set(ids).size,72);assert.equal(Object.keys(C.RARITIES).length,6);
   for(const rarity of Object.keys(C.RARITIES))assert.ok(Object.values(C.ITEMS).some(i=>i.rarity===rarity && Object.keys(i.effect).length));
 });
 
@@ -114,7 +114,8 @@ test('consumables are used once, target teammates, resurrect and never consume o
   assert.equal(answer(s,'warrior','incorrect',{command:'item',itemId:'bag:red-potion'}).heroes[0].inventory[0].quantity,2);
   assert.throws(()=>answer(s,'warrior','correct',{command:'item',itemId:'bag:fake'}),/consumable/);
   assert.throws(()=>answer(s,'warrior','correct',{command:'item',itemId:'bag:red-potion',targetId:'not-in-party'}),/teammate/);
-  const damaged=answer(grant(start(),'warrior','fire-flask'),'warrior','correct',{command:'item',itemId:'bag:fire-flask'});
+  const big=start();big.bossHp=big.bossMaxHp=100000;
+  const damaged=answer(grant(big,'warrior','fire-flask'),'warrior','correct',{command:'item',itemId:'bag:fire-flask'});
   assert.equal(damaged.lastEvent.damage,100);assert.ok(!damaged.heroes[0].inventory.some(i=>i.itemId==='fire-flask'));
 });
 
@@ -212,7 +213,7 @@ test('class and HP equipment toggles cannot heal wounded heroes or refill MP',()
 });
 
 test('Chronicle echoes consumables and Phoenix Crown rescues reflection damage once',()=>{
-  let s=equip(start('lich'),'warrior','chronicle');s.heroes[0].correctActions=2;
+  let s=equip(start('lich'),'warrior','chronicle');s.heroes[0].correctActions=2;s.bossHp=s.bossMaxHp=100000;
   s=answer(grant(s,'warrior','fire-flask'),'warrior','correct',{command:'item',itemId:'bag:fire-flask'});
   assert.ok(s.lastEvent.echo);assert.equal(s.lastEvent.damage,200);assert.equal(s.lastEvent.critical,false);
   let reflect=equip(start('crystalhoof',[heroes[0]]),'warrior','phoenix-crown');reflect.heroes[0].hp=1;

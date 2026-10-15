@@ -10,6 +10,16 @@
   const ROLE_KEYS = Object.keys(ROLES), ALL_SKILLS = [...Object.values(SKILLS).flat(),...Object.values(JOB_SKILLS).flat()];
   const BOSS_MAX_MP=60, BOSS_SKILL_MP=30, BOSS_ATTACK_MP=15;
   const ENEMY_HEALTH_VERSION=1;
+  // Enemies grow with the party. An encounter started since this rule existed
+  // carries enemyScalingVersion and its own enemyLevel, fixed at the start, so
+  // a hero levelling up mid-fight never changes the enemy under the class.
+  // Older encounters carry neither and play exactly as they always did.
+  const ENEMY_SCALING_VERSION=1;
+  const ENEMY_SCALING={hpPerLevel:.12,attackPerLevel:.04,armourPerLevel:.004,armourMax:.15,xpPerLevel:.04,
+    // No single correct answer can take more than this share of the enemy's
+    // health, however many points were awarded or how strong the skill was,
+    // so an enemy always needs several answers. Burns tick for less.
+    hitShare:.25,poisonShare:.08};
   const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, Number(n) || 0));
   const int = (n, lo, hi) => Math.round(clamp(n, lo, hi));
   const roleKey = key => key === 'healer' ? 'cleric' : Object.prototype.hasOwnProperty.call(ROLES,key) ? key : 'warrior';
@@ -56,6 +66,24 @@
     const rotation=bossRotationFor(previous),count=BOSSES.filter(b=>!b.legacy).length;
     if (rotation.seen.length>=count) {rotation.round++;rotation.seen=[];}
     rotation.seen.push(boss.id);return rotation;
+  }
+  // The enemy level leans towards the strongest hero, so one levelled-up
+  // student in a young class still meets an enemy that can stand a hit.
+  function enemyLevelFor(heroes) {
+    const levels=(heroes || []).map(h=>int(h.level || 1,1,50));
+    if (!levels.length) return 1;
+    const average=levels.reduce((a,b)=>a+b,0)/levels.length,highest=Math.max(...levels);
+    return int(Math.ceil((average+highest*2)/3),1,50);
+  }
+  function enemyScale(state) {
+    const scaled=!!state && state.enemyScalingVersion>=ENEMY_SCALING_VERSION,level=scaled?int(state.enemyLevel || 1,1,50):1;
+    return {scaled,level,
+      hp:1+ENEMY_SCALING.hpPerLevel*(level-1),
+      attack:1+ENEMY_SCALING.attackPerLevel*(level-1),
+      armour:scaled?Math.min(ENEMY_SCALING.armourMax,ENEMY_SCALING.armourPerLevel*(level-1)):0,
+      xp:1+ENEMY_SCALING.xpPerLevel*(level-1),
+      hitCap:scaled?Math.max(1,Math.round((state.bossMaxHp || 1)*ENEMY_SCALING.hitShare)):Infinity,
+      poisonCap:scaled?Math.max(1,Math.round((state.bossMaxHp || 1)*ENEMY_SCALING.poisonShare)):Infinity};
   }
   function xpForLevel(level) { return 75 * (int(level,1,50)-1) * int(level,1,50) / 2; }
   function levelForXp(xp) { let level=1; while (level<50 && xp>=xpForLevel(level+1)) level++; return level; }
@@ -249,18 +277,18 @@
     return {ok:true,reason:''};
   }
   function timingMultiplier(position) { return .55+clamp(position,0,1)*1.45; }
-  function rollReward(encounterId,heroId,boss) {
+  function rollReward(encounterId,heroId,boss,xpScale=1) {
     const seed=encounterId+':'+heroId, roll=randomUnit(seed+':rarity')*100;
     let sum=0, rarity='mythical';
     for (const key of Object.keys(RARITIES)) { sum+=RARITIES[key].weight; if (roll<sum) {rarity=key; break;} }
     const pool=Object.values(ITEMS).filter(i=>i.rarity===rarity), item=pool[Math.floor(randomUnit(seed+':item')*pool.length)];
-    return {heroId,itemId:item.id,instanceId:seed,rarity,name:item.name,description:item.description,xp:boss.rewardXp || 65};
+    return {heroId,itemId:item.id,instanceId:seed,rarity,name:item.name,description:item.description,xp:Math.round((boss.rewardXp || 65)*(Number.isFinite(xpScale) && xpScale>1?xpScale:1))};
   }
   function awardLoot(state,event) {
     if (state.lootAwarded) return;
     state.lootAwarded=true;
     state.rewards=state.heroes.map(hero=>{
-      const reward=rollReward(state.encounterId,hero.id,bossById(state.bossId));
+      const reward=rollReward(state.encounterId,hero.id,bossById(state.bossId),enemyScale(state).xp);
       const entry=hero.inventory.find(i=>i.itemId===reward.itemId);
       if (entry) entry.quantity=Math.min(999,entry.quantity+1);
       else hero.inventory.push({id:'bag:'+reward.itemId,itemId:reward.itemId,quantity:1});
@@ -301,7 +329,7 @@
     if (effect.shieldSelf) shield(hero,scaled(hero.stats.maxHp*effect.shieldSelf));
     if (effect.cleanse) (effect.healAll?state.heroes:[target]).forEach(h=>{if(h.weakened)supported(h,'cleanse',1);h.weakened=false;});
     if (effect.weakenBoss) {const before=state.bossWeakness || 0;state.bossWeakness=Math.max(before,effect.weakenBoss);afflicted('weaken',state.bossWeakness-before);}
-    if (effect.poison) {state.poison={turns:effect.poison,damage:scaled(hero.stats.damage*.35),heroId:hero.id};afflicted('poison',state.poison.damage);}
+    if (effect.poison) {state.poison={turns:effect.poison,damage:Math.min(enemyScale(state).poisonCap,scaled(hero.stats.damage*.35)),heroId:hero.id};afflicted('poison',state.poison.damage);}
     if (effect.haste) state.heroes.forEach(h=>{let turns=0;Object.keys(h.cooldowns).forEach(id=>{if(h.id!==hero.id || id!==event.skillId){const before=h.cooldowns[id];h.cooldowns[id]=Math.max(0,before-effect.haste);turns+=before-h.cooldowns[id];}});supported(h,'haste',turns);});
   }
   // Preserve the progress of an existing fight while applying this balance
@@ -411,9 +439,10 @@
       if (previous && action.expectedRevision!==previous.revision) fail('The class changed on another screen. Try again.');
       const heroes=roster(action.heroes,previous && normalizeState(previous)), boss=nextBoss(previous,action.spinId || action.id);
       heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=h.stats.maxMp;h.cooldowns={};h.shield=0;h.weakened=false;h.mythicalUsed=false;h.correctActions=0;});
-      const bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)/2));
+      const enemyLevel=enemyLevelFor(heroes),scale=enemyScale({enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel});
+      const bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)*scale.hp)/2));
       return {schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
-        enemyHealthVersion:ENEMY_HEALTH_VERSION,bossRotation:rotationAfterStart(previous,boss),
+        enemyHealthVersion:ENEMY_HEALTH_VERSION,enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,bossRotation:rotationAfterStart(previous,boss),
         bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
         bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)};
     }
@@ -486,10 +515,12 @@
         if (effect.power || effect.damage) {
           hero.correctActions++;
           event.critical=!!effect.power && (!!effect.guaranteedCrit || randomUnit(state.encounterId+':'+action.turnId)<hero.stats.critChance);
-          const armour=boss.defence*(1-Math.max(effect.pierce || 0,gear.pierce || 0));
+          const scale=enemyScale(state),armour=(boss.defence+scale.armour)*(1-Math.max(effect.pierce || 0,gear.pierce || 0));
           const echo=gear.echo && hero.correctActions%3===0?2:1;
           const raw=(effect.damage || hero.stats.damage*effect.power*(event.critical?hero.stats.critMultiplier:1)*(1-armour)*(hero.weakened?.7:1)*(state.guard && !gear.ignoreGuard?.6:1))*echo;
-          event.damage=Math.min(state.bossHp,Math.max(1,Math.round(raw))*points); event.echo=echo===2;
+          const dealt=Math.max(1,Math.round(raw))*points;
+          event.damage=Math.min(state.bossHp,dealt,scale.hitCap); event.echo=echo===2;
+          if (dealt>scale.hitCap && event.damage===scale.hitCap) event.capped=true;
           state.bossHp-=event.damage; state.guard=false;
           if (effect.leech || gear.leech) heal(hero,event.damage*((effect.leech || 0)+(gear.leech || 0)),event);
           if (gear.teamLeech) state.heroes.forEach(h=>heal(h,Math.round(h.stats.maxHp*gear.teamLeech)*points,event));
@@ -517,7 +548,7 @@
       Object.assign(event,{ultimate,manaBefore,manaAfter:state.bossMp,manaCost:ultimate?BOSS_SKILL_MP:0,manaRestored:ultimate?0:state.bossMp-manaBefore,move:ultimate?boss.ultimateName:boss.attackName,effect:boss.playstyle,timing,multiplier,zone:timing>=.85?'red':timing>=.55?'orange':'black'});
       targets.forEach(h=>{
         const scale=ultimate?1.4:boss.playstyle==='splash'?.6:1;
-        const raw=(18+h.stats.maxHp*.07)*boss.attackMultiplier*scale;
+        const raw=(18+h.stats.maxHp*.07)*boss.attackMultiplier*scale*enemyScale(state).attack;
         const defence=h.stats.defence*(boss.playstyle==='pierce'?.35:1),hits=!ultimate && boss.playstyle==='swift'?2:1;
         const beforeShield=Math.max(1,Math.round(Math.max(3,raw-defence*.65)*hits*multiplier*(1-state.bossWeakness)));
         const absorbed=Math.min(h.shield,beforeShield),damage=Math.min(h.hp,beforeShield-absorbed);
@@ -528,7 +559,7 @@
       if (!ultimate && boss.playstyle==='regenerate') {event.bossHealed=Math.min(state.bossMaxHp-state.bossHp,Math.round(state.bossMaxHp*.025));state.bossHp+=event.bossHealed;}
       if (boss.playstyle==='guard') state.guard=true;
       if (state.poison && state.poison.turns>0) {
-        event.poisonDamage=Math.min(state.bossHp,state.poison.damage);state.bossHp-=event.poisonDamage;state.poison.turns--;
+        event.poisonDamage=Math.min(state.bossHp,state.poison.damage,enemyScale(state).poisonCap);state.bossHp-=event.poisonDamage;state.poison.turns--;
         if (!state.poison.turns) state.poison=null;
       }
       state.bossTurns++;state.charge=ultimate?0:Math.min(boss.chargeMax,state.charge+1);return finish(state,event);
@@ -553,6 +584,6 @@
     const log=(previous?.combatLog || []).filter(row=>row.id!==action.id);
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
-  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,bossById,skillById,itemById,heroFromStudent,
+  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
     reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor};
 });

@@ -4,6 +4,17 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.142.0 — Deeper skill trees, and enemies that grow with the class
+
+- **Every skill branch is two tiers deeper**, for all four classes and all eight advanced jobs: 72 new skills, 216 in total.
+  - Base classes gain a **mastery passive at level 7** and an **apex skill at level 10** in each branch (3 SP each).
+  - Advanced jobs gain a **grandmaster passive at level 30** (4 SP) and an **apex skill at level 35** (5 SP) in each branch, such as Empyrean Judgement, Sanguine Ragnarok, Singularity Shot, Primordial Inferno, Stop the Clock and Written in the Stars.
+  - Apex skills have a gold-glow frame on the tree. Skills already learned keep their level and cost.
+- **Enemies now scale with the party's level.** A new encounter gets an enemy level, leaning towards the class's strongest hero, shown as **LV N** beside the enemy's name.
+  - Each level adds 12% health, 4% attack and a little armour (up to +15%), and victory experience rises 4% per level.
+  - **No single answer can take more than a quarter of an enemy's health**, however many points are awarded or how strong the skill is, and burns tick for at most 8%. An enemy always needs at least four correct answers. One-Punch Chung's summon still ends a fight at once.
+  - Fights already running when this was deployed finish under the old rules; the next enemy is scaled.
+
 ## v1.141.0 — The model suite is now the Bar Model Studio's drawing board
 
 - **Model suite** on the toolbar opens the drawing board from the Bar Model Studio (polymathlc.github.io/model) in a floating window. It is for drawing models only: there are no questions, no scenarios and no AI marking.

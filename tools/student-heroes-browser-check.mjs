@@ -79,7 +79,7 @@ try{
   await page.screenshot({path:path.join(output,'student-class-picker.png'),fullPage:true});
   await page.click('[data-sh-role="mage"]');await idle();await page.waitForSelector('#shTree');
   check('choosing a class preserves XP, inventory and roster identity',await page.evaluate(()=>__heroFixture.hero.role==='mage'&&__heroFixture.hero.xp===450&&__heroFixture.hero.inventory.length===3&&__heroFixture.hero.studentId==='ari'));
-  check('approved hero renders the connected twelve-node skill tree',await page.locator('#shTree [data-hst-node]').count()===12);
+  check('approved hero renders the connected eighteen-node skill tree',await page.locator('#shTree [data-hst-node]').count()===18);
   check('advanced jobs are visible but locked until level 15',await page.locator('[data-sh-job]').count()===2&&await page.locator('[data-sh-job]').evaluateAll(nodes=>nodes.every(n=>n.disabled))&&await page.locator('.shAdvanceLock').textContent().then(t=>t.includes('Reach level 15')));
   await page.click('[data-hst-node="mage-ice-lance"]');
   await page.locator('[data-hst-learn]').click();await idle();
@@ -122,7 +122,7 @@ try{
   const upgradeBefore=await page.evaluate(()=>({xp:__heroFixture.hero.xp,items:JSON.stringify(__heroFixture.hero.inventory),known:[...__heroFixture.hero.learnedSkills]}));
   await page.click('[data-sh-job="archmage"]');await idle();
   check('level 15 hero can choose an advanced job without losing XP, treasure or foundation skills',await page.evaluate(before=>__heroFixture.hero.job==='archmage'&&__heroFixture.hero.xp===before.xp&&JSON.stringify(__heroFixture.hero.inventory)===before.items&&before.known.every(id=>__heroFixture.hero.learnedSkills.includes(id)),upgradeBefore));
-  check('advanced hero opens its new twelve-skill tree by default',await page.locator('#shTree [data-hst-node]').count()===12&&await page.locator('#shTree .hstOrigin strong').textContent()==='Archmage'&&await page.locator('[data-hst-tree="job"]').getAttribute('aria-pressed')==='true');
+  check('advanced hero opens its new eighteen-skill tree by default',await page.locator('#shTree [data-hst-node]').count()===18&&await page.locator('#shTree .hstOrigin strong').textContent()==='Archmage'&&await page.locator('[data-hst-tree="job"]').getAttribute('aria-pressed')==='true');
   await page.locator('#shDialog').evaluate(node=>node.scrollTop=0);await page.screenshot({path:path.join(output,'student-job-upgrade-picker.png'),fullPage:true});
   await page.click('[data-hst-tree="base"]');
   check('foundation tree remains accessible with previously learned skills',await page.locator('[data-hst-node="mage-ice-lance"]').getAttribute('data-state')==='learned');
