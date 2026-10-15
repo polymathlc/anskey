@@ -46,7 +46,9 @@ await page.route('https://api.openai.com/v1/audio/transcriptions', async route =
   const name = (/filename="([^"]+)"/.exec(text) || [])[1] || '';
   const model = (/name="model"\r\n\r\n([^\r]+)/.exec(text) || [])[1] || '';
   const format = (/name="response_format"\r\n\r\n([^\r]+)/.exec(text) || [])[1] || '';
-  calls.push({ auth: req.headers().authorization, name, model, format, size: body.length, riff: text.includes('RIFF') && text.includes('WAVE') });
+  const language = (/name="language"\r\n\r\n([^\r]+)/.exec(text) || [])[1] || '';
+  const prompt = (/name="prompt"\r\n\r\n([^\r]+)/.exec(text) || [])[1] || '';
+  calls.push({ auth: req.headers().authorization, name, model, format, language, prompt, size: body.length, riff: text.includes('RIFF') && text.includes('WAVE') });
   await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({
     text: 'x', segments: [
       { start: 0.0, end: 1.4, text: ' First we find the total mass of the beaker and the water inside it.' },
@@ -121,10 +123,18 @@ const after = await page.evaluate(() => {
   const a = annotations.find(x => x.lessonRecording), r = a.lessonRecording;
   const file = Object.keys(window.__uploaded).find(k => k.endsWith('.captions.json'));
   return { made: !!(lessonPlayback && lessonPlayback.captions), cues: lessonPlayback && lessonPlayback.captions, url: r.captionsUrl, path: r.captionsPath, file,
+    lang: r.captionsLang,
     dirty, btn: $('lessonCaptionBtn').textContent, on: $('lessonCaptionBtn').classList.contains('on') };
 });
 ok('ChatGPT was asked, on the teacher\'s key, with the transcription model and timed segments',
    calls.length >= 1 && calls[0].auth === 'Bearer sk-test-key' && calls[0].model === 'whisper-1' && calls[0].format === 'verbose_json', JSON.stringify(calls));
+ok('…in English, always, with an English prompt (never left to guess Malay)',
+   calls.length >= 1 && calls.every(c => c.language === 'en' && /English/.test(c.prompt)), JSON.stringify(calls.map(c => [c.language, c.prompt])));
+ok('…and the lesson is stamped English', after.lang === 'en', JSON.stringify({ lang: after.lang }));
+const oldCc = await page.evaluate(async () => ({
+  none: await lessonCaptionLoad({ lessonRecording: { captionsUrl: 'https://firebasestorage.googleapis.com/x.json' } }),
+  ms: await lessonCaptionLoad({ lessonRecording: { captionsUrl: 'https://firebasestorage.googleapis.com/x.json', captionsLang: 'ms' } }) }));
+ok('older captions with no English stamp read as none, so they are remade', oldCc.none === null && oldCc.ms === null, JSON.stringify(oldCc));
 ok('…a long file is sent as a WAV the browser decoded', calls[0] && calls[0].riff && /\.wav$/.test(calls[0].name), JSON.stringify(calls[0]));
 ok('the captions are made and switched on', made && after.on && /^CC on$/.test(after.btn), JSON.stringify(after));
 ok('…split into short cues with times in milliseconds', after.cues && after.cues.length >= 2 && after.cues.every(c => c.t.length <= 84 && c.e > c.s) && after.cues[0].s === 0, JSON.stringify(after.cues));

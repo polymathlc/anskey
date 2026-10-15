@@ -170,6 +170,27 @@ test('only the teacher writes captions, on their own ChatGPT key, to OpenAI\'s t
   assert.match(fn('lessonCaptionBtnClick'), /lessonTeacher\(\)/);
 });
 
+test('captions are English, always, and unstamped ones are remade (v1.138.1)', () => {
+  assert.match(SECTION, /var LESSON_CAPTION_LANG = 'en';/);
+  const tr = fn('lessonCaptionTranscribe');
+  assert.match(tr, /form\.append\('language', LESSON_CAPTION_LANG\)/);
+  assert.match(tr, /LESSON_CAPTION_PROMPT/);
+  assert.match(SECTION, /var LESSON_CAPTION_PROMPT = '[^']*English[^']*';/);
+  const gen = fn('lessonCaptionGenerate');
+  assert.match(gen, /lang: LESSON_CAPTION_LANG/);
+  assert.match(gen, /captionsLang = LESSON_CAPTION_LANG/);
+  // A lesson captioned before the language was forced may be Malay: it reads
+  // as having none, so students never see it and the teacher can remake it.
+  assert.match(fn('lessonCaptionLoad'), /if \(!lessonCaptionUsable\(r\)\) return null;/);
+  const box2 = { LESSON_CAPTION_LANG: 'en' };
+  vm.createContext(box2);
+  vm.runInContext(fn('lessonCaptionUsable'), box2);
+  assert.equal(box2.lessonCaptionUsable({ captionsUrl: 'u', captionsLang: 'en' }), true);
+  assert.equal(box2.lessonCaptionUsable({ captionsUrl: 'u' }), false);
+  assert.equal(box2.lessonCaptionUsable({ captionsUrl: 'u', captionsLang: 'ms' }), false);
+  assert.equal(box2.lessonCaptionUsable(null), false);
+});
+
 test('the captions are a file beside the lesson, and the lesson points at it', () => {
   const gen = fn('lessonCaptionGenerate');
   assert.match(gen, /'\/lesson-' \+ docId \+ '-' \+ a\.id \+ '\.captions\.json'/);

@@ -5440,7 +5440,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.138.0';
+var APP_VERSION = 'v1.138.1';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -13463,6 +13463,14 @@ $('lessonExportBtn').addEventListener('click', function () {
      the replay's CC button and the export's Captions row. */
 var LESSON_CAPTION_PREF = 'polymath.lessonCaptions';
 var LESSON_CAPTION_MODEL = 'whisper-1';
+// 🇬🇧 v1.138.1: captions are ENGLISH, always. Left to guess, whisper heard a
+// Singapore classroom as Malay and wrote the lesson in Malay. The language is
+// sent with every piece, the prompt is English, and the file is stamped; a
+// lesson whose captions carry no stamp was made before this and may be Malay,
+// so it reads as having none and the teacher's ✨ button remakes it.
+var LESSON_CAPTION_LANG = 'en';
+var LESSON_CAPTION_PROMPT = 'An English lesson for primary school students in Singapore, transcribed in English.';
+function lessonCaptionUsable(r) { return !!(r && r.captionsUrl && r.captionsLang === LESSON_CAPTION_LANG); }
 var LESSON_CAPTION_DIRECT_MAX = 24 * 1024 * 1024;
 var LESSON_CAPTION_RATE = 16000;
 var LESSON_CAPTION_PIECE_S = 600;
@@ -13571,7 +13579,8 @@ async function lessonCaptionTranscribe(piece, key, prompt, signal) {
   form.append('model', LESSON_CAPTION_MODEL);
   form.append('response_format', 'verbose_json');
   form.append('timestamp_granularities[]', 'segment');
-  if (prompt) form.append('prompt', prompt.slice(0, 600));
+  form.append('language', LESSON_CAPTION_LANG);
+  form.append('prompt', (LESSON_CAPTION_PROMPT + (prompt ? ' ' + prompt : '')).slice(0, 600));
   var res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: form, signal: signal });
   if (!res.ok) {
@@ -13586,7 +13595,7 @@ async function lessonCaptionTranscribe(piece, key, prompt, signal) {
 var lessonCaptionCache = {};
 async function lessonCaptionLoad(a, signal) {
   var r = a && a.lessonRecording;
-  if (!r || !r.captionsUrl) return null;
+  if (!lessonCaptionUsable(r)) return null;
   if (lessonCaptionCache[r.captionsUrl]) return lessonCaptionCache[r.captionsUrl];
   var res = await fetch(lessonAssetUrl(r.captionsUrl), { signal: signal });
   if (!res.ok) throw new Error('The captions could not be downloaded.');
@@ -13625,6 +13634,7 @@ async function lessonCaptionGenerate(a, say) {
     var pieces = await lessonCaptionAudio(blob);
     alive();
     var prompt = [docName, a.lessonRecording.title].filter(Boolean).join(' — ');
+    if (prompt) prompt = 'Topic: ' + prompt + '.';
     var cues = [];
     for (var i = 0; i < pieces.length; i++) {
       say(pieces.length > 1 ? 'ChatGPT is writing the captions… ' + (i + 1) + ' of ' + pieces.length : 'ChatGPT is writing the captions…');
@@ -13635,12 +13645,13 @@ async function lessonCaptionGenerate(a, say) {
     if (!cues.length) throw new Error('ChatGPT heard no speech in this lesson.');
     say('Saving the captions…');
     var ref = storage.ref(STORAGE_DIR + '/lesson-' + docId + '-' + a.id + '.captions.json');
-    var body = JSON.stringify({ version: 1, model: LESSON_CAPTION_MODEL, cues: cues });
+    var body = JSON.stringify({ version: 1, model: LESSON_CAPTION_MODEL, lang: LESSON_CAPTION_LANG, cues: cues });
     await ref.put(new Blob([body], { type: 'application/json' }), { contentType: 'application/json', cacheControl: 'private,max-age=3600' });
     var url = await ref.getDownloadURL();
     alive();
     a.lessonRecording.captionsUrl = url;
     a.lessonRecording.captionsPath = ref.fullPath;
+    a.lessonRecording.captionsLang = LESSON_CAPTION_LANG;
     lessonCaptionCache[url] = cues;
     setDirty(true);
     if (typeof scheduleAutoSave === 'function') scheduleAutoSave();
@@ -13676,7 +13687,7 @@ function lessonCaptionSyncBtn() {
   var btn = $('lessonCaptionBtn'), pb = lessonPlayback;
   if (!btn) return;
   var has = !!(pb && pb.captions && pb.captions.length), teacher = lessonTeacher();
-  var loading = !!(pb && !pb.captionsTried && pb.ann && pb.ann.lessonRecording && pb.ann.lessonRecording.captionsUrl);
+  var loading = !!(pb && !pb.captionsTried && pb.ann && lessonCaptionUsable(pb.ann.lessonRecording));
   btn.hidden = !pb || !(has || teacher || loading);
   btn.disabled = !!lessonCaptionBusy || loading;
   if (loading) { btn.textContent = 'CC…'; btn.title = 'Loading the captions'; return; }
