@@ -80,7 +80,7 @@ try {
     function voiceCursorPoint() {return {page:1,x:400,y:600};}
     function aiNoteShortName(a) {return a.title || 'Card';}
     var button=document.createElement('button');button.id='aiShareViewBtn';document.body.appendChild(button);
-  ` + models.slice(0,models.indexOf('/* UI and worksheet operations.')) +
+  ` + models +
     cut('var aiScreenShare =', '/* ================= End live shared view for AI') +
     cut('function lessonSnapshot()', 'function lessonCaptureTick()') +
     cut('function annNoteMin(a)', '/* Corners of a possibly-rotated frame') +
