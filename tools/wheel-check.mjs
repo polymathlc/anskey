@@ -146,8 +146,10 @@ ok('minimised, only the title bar is left and it names the last pick', mini.h < 
 await page.click('#wheelMinBtn');
 
 // Reload: same class, same names, same position.
-await page.reload();
-await page.waitForTimeout(800);
+// Wait as long as the first load does: on a slow runner the app's own start-up
+// can land after a shorter wait and reset the register this check sets.
+await page.reload({ waitUntil: 'load' });
+await page.waitForTimeout(1000);
 await page.evaluate((cls) => {
   window.isAdmin = () => true; window.currentUser = { email: 'chungzhikai@gmail.com' };
   window.rwStudents = ['Ann', 'Ben', 'Cai', 'Dee', 'Eli'].map((n, i) => ({ id: 's' + i, name: n, slots: [cls], marks: 10 }));
