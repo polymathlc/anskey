@@ -54,6 +54,7 @@ jobs:
           node tools/live-cams-check.mjs
           node tools/question-bank-check.mjs
           node tools/screen-record-check.mjs
+          node tools/caption-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
