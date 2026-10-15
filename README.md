@@ -4,6 +4,23 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.138.0 — Captions on a lesson, written by ChatGPT
+
+- **CC on the replay bar.** On a lesson with no captions the teacher sees
+  ✨ Captions: one tap sends the lesson's sound to ChatGPT (OpenAI's
+  transcription model, on the key saved in AI Engine), and the captions come
+  back timed to the voice. After that the button is **CC on / CC off** for
+  everyone who watches, and the device remembers the choice.
+- **The captions are a file beside the lesson** (`…captions.json` in Storage),
+  so they are made once and every student and share-link visitor reads them
+  without anything being sent to ChatGPT again.
+- **⬇ 1080p has a Captions row: On / Off.** On draws the captions into the
+  video itself, near the bottom of the page. A lesson with no captions offers
+  ✨ Write captions with ChatGPT right there.
+- A long lesson is decoded in the browser and sent as ten-minute pieces, so a
+  lesson longer than OpenAI's 25 MB upload limit still gets captions.
+- Without a ChatGPT key it says to add one in AI Engine.
+
 ## v1.137.0 — A lesson recording can record the worksheet window
 
 **Record a lesson** has a new switch: **📺 Record the worksheet window**. Turn

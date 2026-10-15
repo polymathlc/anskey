@@ -3617,6 +3617,10 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 .lessonTitleRow input { width:100%; max-width:240px; font-family:var(--font); font-size:0.9rem; color:var(--ink); padding:9px 12px; border:1px solid var(--line); border-radius:var(--radius-sm); background:#fff; outline:none; transition:border-color .2s ease, box-shadow .2s ease; }
 .lessonTitleRow input:focus { border-color:var(--accent-strong); box-shadow:0 0 0 3px rgba(255,224,178,0.5); }
 /* ⬇ 1080p on the replay bar — the teacher's own. */
+#lessonCaptionBtn.on { background:#17324d; color:#fff; border-color:#17324d; }
+.lessonCaption { position:fixed; z-index:1095; left:50%; bottom:120px; transform:translateX(-50%); padding:8px 16px; border-radius:10px; background:rgba(12,16,20,0.84); color:#fff; font-size:1.02rem; font-weight:600; line-height:1.45; text-align:center; pointer-events:none; white-space:normal; }
+.lessonCaption[hidden] { display:none; }
+.lxCcMake { margin-left:auto; }
 #lessonExportBtn { background:#1f2a36; color:#fff; border-color:#1f2a36; font-weight:600; }
 #lessonExportBtn[hidden] { display:none; }
 /* 🎞 The export window: the frame itself as the preview, the two choices under
@@ -4434,11 +4438,12 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
   </div>
 </div>
 <div class="lessonPlayer" id="lessonPlayer" hidden role="region" aria-label="Lesson replay">
-  <span id="lessonPlayerTitle" role="status"></span><button id="lessonExportBtn" hidden title="Make this lesson into a 1920 × 1080 video file — the page, your writing, your camera and your voice">⬇ 1080p video</button><button id="lessonPlayerClose">Close replay</button>
+  <span id="lessonPlayerTitle" role="status"></span><button id="lessonCaptionBtn" hidden aria-pressed="false">CC</button><button id="lessonExportBtn" hidden title="Make this lesson into a 1920 × 1080 video file — the page, your writing, your camera and your voice">⬇ 1080p video</button><button id="lessonPlayerClose">Close replay</button>
   <audio id="lessonAudio" controls preload="metadata" aria-label="Lesson audio and timeline"></audio>
   <div class="lessonSteps" id="lessonSteps" hidden role="group" aria-label="Jump to a question"></div>
 </div>
 </div>
+<div class="lessonCaption" id="lessonCaption" hidden role="status" aria-live="polite"></div>
 <div class="lessonCamWin" id="lessonCamWin" hidden role="region" aria-label="Lesson video">
   <div class="lessonCamWinBar" id="lessonCamWinBar" title="Drag to move the video">
     <svg class="lessonCamWinGrip" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
@@ -4486,6 +4491,14 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
             <button type="button" class="lxSegBtn" data-lx-size="medium" role="radio" aria-checked="false">Medium</button>
             <button type="button" class="lxSegBtn" data-lx-size="large" role="radio" aria-checked="false">Large</button>
           </div>
+        </div>
+        <div class="lxRow" id="lessonExportCaptionRow">
+          <span class="lxLabel">Captions</span>
+          <div class="lxSeg" role="radiogroup" aria-label="Captions in the video" id="lessonExportCaptionSeg">
+            <button type="button" class="lxSegBtn" data-lx-cc="on" role="radio" aria-checked="false">On</button>
+            <button type="button" class="lxSegBtn" data-lx-cc="off" role="radio" aria-checked="false">Off</button>
+          </div>
+          <button type="button" class="lxSegBtn lxCcMake" id="lessonExportCaptionMake" hidden>✨ Write captions with ChatGPT</button>
         </div>
         <div class="lxRow" id="lessonExportModeRow">
           <span class="lxLabel">Page</span>
@@ -5427,7 +5440,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.137.0';
+var APP_VERSION = 'v1.138.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -11584,6 +11597,7 @@ function lessonRoleChanged() {
     // 🎞 An export is the teacher's, and never carries across to whoever
     // picks the device up next.
     if (typeof lessonExportDrop === 'function') lessonExportDrop();
+    if (typeof lessonCaptionCancel === 'function') lessonCaptionCancel();
     // The window's camera and microphone go with it: a preview must never
     // carry across to whoever picks the iPad up next.
     lessonCloseModal();
@@ -11996,6 +12010,8 @@ async function lessonPlay(a) {
     // Which lesson this is, for ⬇ 1080p — the teacher's, and nobody else's.
     pb.ann = a;
     $('lessonExportBtn').hidden = !lessonTeacher();
+    // 💬 Captions, when the lesson has them, load beside it.
+    if (typeof lessonCaptionReplayLoad === 'function') { lessonCaptionSyncBtn(); lessonCaptionReplayLoad(pb); }
     pages.forEach(function (p) {
       var svg = el('svg', { viewBox: '0 0 ' + p.baseW + ' ' + p.baseH });
       svg.classList.add('lessonReplayOverlay'); svg.setAttribute('aria-hidden', 'true');
@@ -12049,6 +12065,7 @@ function lessonReplayFrame() {
   }
   var key = JSON.stringify(state.view);
   if (key !== pb.viewKey) { lessonApplyView(state.view); pb.viewKey = key; }
+  if (typeof lessonCaptionShow === 'function') lessonCaptionShow(at);
 }
 function lessonPlaybackLoop() {
   if (!lessonPlayback) return;
@@ -12063,6 +12080,7 @@ function lessonExitPlayback() {
   $('lessonPlayer').hidden = true; document.body.classList.remove('lessonPlaying');
   if (typeof lessonStepsHide === 'function') lessonStepsHide();
   $('lessonExportBtn').hidden = true;
+  if (typeof lessonCaptionHide === 'function') lessonCaptionHide();
   // 🎬 A replay closed by the person watching ends the playlist it was part of.
   if (typeof lessonPlaylistExited === 'function') lessonPlaylistExited();
   if (!pb) return;
@@ -12828,6 +12846,7 @@ function lessonExportScreen(job, t) {
     try { ctx.drawImage(v, (LESSON_EXPORT_W - dw) / 2, (LESSON_EXPORT_H - dh) / 2, dw, dh); } catch (e) { /* no frame yet */ }
   }
   lessonExportCaption(ctx, job, t);
+  if (typeof lessonCaptionDraw === 'function') lessonCaptionDraw(ctx, job, t);
 }
 function lessonExportDraw(job, t, dt) {
   if (job.screen) { lessonExportScreen(job, t); return; }
@@ -12875,6 +12894,7 @@ function lessonExportDraw(job, t, dt) {
     if (L.cam) lessonExportCamera(ctx, job, L.cam);
     lessonExportCaption(ctx, job, t);
   }
+  if (typeof lessonCaptionDraw === 'function') lessonCaptionDraw(ctx, job, t);
 }
 
 /* ---- Getting a lesson ready ---- */
@@ -12896,9 +12916,10 @@ function lessonExportUi(job) {
   $('lessonExportCancel').textContent = busy && phase !== 'loading' ? 'Stop' : phase === 'done' ? 'Close' : 'Cancel';
   $('lessonExportShare').hidden = !(phase === 'done' && job.file && navigator.canShare && lessonExportCanShare(job.file));
   $('lessonExportProgress').hidden = !(phase === 'exporting' || phase === 'finishing' || phase === 'starting' || phase === 'done');
-  document.querySelectorAll('#lessonExportModal [data-lx-layout], #lessonExportModal [data-lx-mode], #lessonExportModal [data-lx-size]').forEach(function (b) {
+  document.querySelectorAll('#lessonExportModal [data-lx-layout], #lessonExportModal [data-lx-mode], #lessonExportModal [data-lx-size], #lessonExportModal [data-lx-cc]').forEach(function (b) {
     var on = b.hasAttribute('data-lx-layout') ? b.getAttribute('data-lx-layout') === job.layoutKind
-      : b.hasAttribute('data-lx-size') ? b.getAttribute('data-lx-size') === job.camSize : b.getAttribute('data-lx-mode') === job.mode;
+      : b.hasAttribute('data-lx-size') ? b.getAttribute('data-lx-size') === job.camSize
+      : b.hasAttribute('data-lx-cc') ? (b.getAttribute('data-lx-cc') === 'on') === !!job.cc : b.getAttribute('data-lx-mode') === job.mode;
     b.classList.toggle('on', on);
     b.setAttribute('aria-checked', on ? 'true' : 'false');
     b.disabled = busy || phase === 'done';
@@ -12907,6 +12928,13 @@ function lessonExportUi(job) {
   $('lessonExportLayoutRow').hidden = !job.video || !!job.screen;
   if ($('lessonExportModeRow')) $('lessonExportModeRow').hidden = !!job.screen;
   // 📐 The camera's size means something only when the camera is in the frame.
+  var hasCc = !!(job.captions && job.captions.length);
+  if ($('lessonExportCaptionSeg')) {
+    $('lessonExportCaptionSeg').hidden = !hasCc;
+    $('lessonExportCaptionMake').hidden = hasCc;
+    $('lessonExportCaptionMake').disabled = busy || phase !== 'ready' || !!job.ccMaking;
+    $('lessonExportCaptionMake').textContent = job.ccMaking ? job.ccMaking : '✨ Write captions with ChatGPT';
+  }
   if ($('lessonExportSizeRow')) $('lessonExportSizeRow').hidden = !job.video || !!job.screen || job.layoutKind === 'page';
 }
 function lessonExportCanShare(file) {
@@ -12947,6 +12975,7 @@ async function lessonExportOpen(a) {
   var prefs = lessonExportPrefs(), video = !!a.lessonRecording.video;
   var job = lessonExportJob = { ann: a, phase: 'loading', epoch: wsEpoch, docId: currentDocId, uid: currentUser.uid,
     controller: new AbortController(), video: video, screen: video && !!a.lessonRecording.screen, layoutKind: video ? prefs.layout : 'page', mode: prefs.mode, camSize: prefs.size,
+    cc: typeof lessonCaptionsOn === 'function' ? lessonCaptionsOn() : false, captions: null,
     rasters: {}, cards: {}, view: null, chunks: [], title: docName || 'Worksheet',
     subtitle: videoPillLabel(a).replace(/^Play /, ''), canvas: $('lessonExportCanvas'), media: lessonExportMediaNode() };
   job.subtitle = job.subtitle.charAt(0).toUpperCase() + job.subtitle.slice(1);
@@ -12975,6 +13004,8 @@ async function lessonExportOpen(a) {
 async function lessonExportPrepare(job) {
   var a = job.ann, signal = job.controller.signal;
   var mediaUrl = lessonAssetUrl(a.url);
+  // 💬 The lesson's captions, if it has any; an export without them is fine.
+  if (typeof lessonCaptionLoad === 'function') job.captions = await lessonCaptionLoad(a, signal).catch(function () { return null; });
   var result = await Promise.all([lessonReadManifest(a.lessonRecording.manifestUrl, signal), lessonPdfHash()]);
   lessonExportAlive(job);
   var manifest = result[0];
@@ -13114,6 +13145,10 @@ function lessonExportChoose(kind, value) {
   if (kind === 'layout' && LESSON_EXPORT_LAYOUTS.indexOf(value) >= 0) job.layoutKind = value;
   if (kind === 'mode' && LESSON_EXPORT_MODES.indexOf(value) >= 0) job.mode = value;
   if (kind === 'size' && LESSON_EXPORT_SIZES.indexOf(value) >= 0) job.camSize = value;
+  if (kind === 'cc' && (value === 'on' || value === 'off')) {
+    job.cc = value === 'on';
+    if (typeof lessonCaptionsSet === 'function') lessonCaptionsSet(job.cc);
+  }
   lessonPrefSet(LESSON_EXPORT_PREF, { layout: job.layoutKind, mode: job.mode, size: job.camSize });
   lessonExportRelayout(job);
   lessonExportUi(job);
@@ -13386,9 +13421,10 @@ $('lessonExportCancel').addEventListener('click', function () { lessonExportClos
 $('lessonExportClose').addEventListener('click', function () { lessonExportClose(false); });
 $('lessonExportShare').addEventListener('click', lessonExportShare);
 $('lessonExportModal').addEventListener('click', function (e) {
-  var b = e.target.closest ? e.target.closest('[data-lx-layout], [data-lx-mode], [data-lx-size]') : null;
+  if (e.target.closest && e.target.closest('#lessonExportCaptionMake') && typeof lessonExportMakeCaptions === 'function') { lessonExportMakeCaptions(); return; }
+  var b = e.target.closest ? e.target.closest('[data-lx-layout], [data-lx-mode], [data-lx-size], [data-lx-cc]') : null;
   if (!b) return;
-  var kind = b.hasAttribute('data-lx-layout') ? 'layout' : b.hasAttribute('data-lx-size') ? 'size' : 'mode';
+  var kind = b.hasAttribute('data-lx-layout') ? 'layout' : b.hasAttribute('data-lx-size') ? 'size' : b.hasAttribute('data-lx-cc') ? 'cc' : 'mode';
   lessonExportChoose(kind, b.getAttribute('data-lx-' + kind));
 });
 // Every keystroke in the window stops there: a letter typed with it open
@@ -13403,6 +13439,334 @@ $('lessonExportBtn').addEventListener('click', function () {
   if (pb && pb.ann) lessonExportOpen(pb.ann);
 });
 /* ================= End lesson export ================= */
+
+/* ================= 💬 Lesson captions (v1.138.0) ================= */
+/* Captions for a lesson recording, written by ChatGPT (OpenAI's speech-to-
+   text, on the teacher's own key — the same key the AI Engine dialog keeps)
+   and switched on or off in the replay and in the ⬇ 1080p export.
+
+   - ONE FILE PER LESSON, beside the media: `lesson-{doc}-{id}.captions.json`
+     under the same Storage folder, so the Storage rule that lets only the
+     teacher write a lesson covers it, and lessonAssetUrl reads it back.
+     The lesson's attachment carries `captionsUrl` / `captionsPath`; a
+     lesson without captions is byte for byte what it was.
+   - THE TEACHER MAKES THEM, ONCE. Students and share visitors read the
+     file and never call OpenAI. Every entry point asks lessonTeacher().
+   - A SMALL FILE GOES UP AS IT IS; a big one (a long lesson, a camera or a
+     window recording) is decoded on this device at 16 kHz mono and sent as
+     ten-minute WAV pieces, each well under the API's 25 MB, with every
+     piece's times moved by where it starts.
+   - THE SAVED CUES ARE CHECKED ON THE WAY IN (lessonCaptionClean): numbers
+     that are numbers, text that is text, in order, and a bounded count —
+     the file is read by every student who plays the lesson.
+   - ON or OFF is one switch on the device (LESSON_CAPTION_PREF), shared by
+     the replay's CC button and the export's Captions row. */
+var LESSON_CAPTION_PREF = 'polymath.lessonCaptions';
+var LESSON_CAPTION_MODEL = 'whisper-1';
+var LESSON_CAPTION_DIRECT_MAX = 24 * 1024 * 1024;
+var LESSON_CAPTION_RATE = 16000;
+var LESSON_CAPTION_PIECE_S = 600;
+var LESSON_CAPTION_CHARS = 84;
+var LESSON_CAPTION_MAX_CUES = 20000;
+var LESSON_CAPTION_FILE_LIMIT = 4 * 1024 * 1024;
+
+function lessonCaptionsOn() { return lessonPrefGet(LESSON_CAPTION_PREF) !== false; }
+function lessonCaptionsSet(on) { lessonPrefSet(LESSON_CAPTION_PREF, !!on); }
+
+// A long sentence becomes several cues of at most two short lines, each
+// given a share of the time by its length. Pure.
+function lessonCaptionSplit(text, s, e, max) {
+  max = max || LESSON_CAPTION_CHARS;
+  var words = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (!words.length || !(e > s)) return [];
+  var parts = [], cur = '';
+  words.forEach(function (w) {
+    var t = cur ? cur + ' ' + w : w;
+    if (cur && t.length > max) { parts.push(cur); cur = w; } else cur = t;
+  });
+  if (cur) parts.push(cur);
+  var total = parts.reduce(function (n, p) { return n + p.length; }, 0), at = s, out = [];
+  parts.forEach(function (p, i) {
+    var end = i === parts.length - 1 ? e : Math.round(at + (e - s) * p.length / total);
+    out.push({ s: Math.round(at), e: Math.round(end), t: p });
+    at = end;
+  });
+  return out;
+}
+// OpenAI's segments (seconds) → cues (milliseconds), moved by where the piece
+// starts. Pure.
+function lessonCaptionCues(segments, offsetMs) {
+  var out = [];
+  (Array.isArray(segments) ? segments : []).forEach(function (g) {
+    if (!g || typeof g.text !== 'string') return;
+    var s = Number(g.start) * 1000 + (offsetMs || 0), e = Number(g.end) * 1000 + (offsetMs || 0);
+    if (!isFinite(s) || !isFinite(e)) return;
+    out = out.concat(lessonCaptionSplit(g.text, s, Math.max(e, s + 400)));
+  });
+  return out;
+}
+// What a saved file is allowed to say. Anything else is no caption. Pure.
+function lessonCaptionClean(data) {
+  var list = data && Array.isArray(data.cues) ? data.cues : [];
+  var out = [], last = -1;
+  for (var i = 0; i < list.length && out.length < LESSON_CAPTION_MAX_CUES; i++) {
+    var c = list[i];
+    if (!c || typeof c.t !== 'string' || typeof c.s !== 'number' || typeof c.e !== 'number') continue;
+    if (!isFinite(c.s) || !isFinite(c.e) || c.s < 0 || c.e <= c.s || c.s < last) continue;
+    var t = c.t.replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, 300);
+    if (!t) continue;
+    out.push({ s: c.s, e: c.e, t: t });
+    last = c.s;
+  }
+  return out;
+}
+// The cue showing at a moment, or null. Pure (binary search).
+function lessonCaptionAt(cues, ms) {
+  if (!cues || !cues.length || !(ms >= 0)) return null;
+  var lo = 0, hi = cues.length - 1, hit = -1;
+  while (lo <= hi) {
+    var mid = (lo + hi) >> 1;
+    if (cues[mid].s <= ms) { hit = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return hit >= 0 && ms < cues[hit].e ? cues[hit] : null;
+}
+// 16-bit mono WAV of a piece of samples. Pure.
+function lessonCaptionWav(samples, rate) {
+  var n = samples.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  function str(o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+  str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, n * 2, true);
+  for (var i = 0; i < n; i++) {
+    var x = Math.max(-1, Math.min(1, samples[i] || 0));
+    v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+  }
+  return buf;
+}
+// The pieces OpenAI is sent: the file itself when it is small enough, or
+// the sound decoded here and cut into ten-minute WAVs.
+async function lessonCaptionAudio(blob) {
+  if (blob.size <= LESSON_CAPTION_DIRECT_MAX) {
+    return [{ blob: blob, name: 'lesson.' + recExt(blob.type || 'audio/webm'), offset: 0 }];
+  }
+  var Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!Ctx) throw new Error('This browser cannot prepare a long lesson for captions.');
+  var decoded = await new Ctx(1, 1, LESSON_CAPTION_RATE).decodeAudioData(await blob.arrayBuffer());
+  var len = decoded.length, chans = decoded.numberOfChannels, mono = new Float32Array(len);
+  for (var c = 0; c < chans; c++) {
+    var d = decoded.getChannelData(c);
+    for (var i = 0; i < len; i++) mono[i] += d[i] / chans;
+  }
+  var rate = decoded.sampleRate, step = LESSON_CAPTION_PIECE_S * rate, out = [];
+  for (var at = 0; at < len; at += step) {
+    out.push({ blob: new Blob([lessonCaptionWav(mono.subarray(at, Math.min(len, at + step)), rate)], { type: 'audio/wav' }),
+      name: 'lesson-' + out.length + '.wav', offset: Math.round(at / rate * 1000) });
+  }
+  return out;
+}
+async function lessonCaptionTranscribe(piece, key, prompt, signal) {
+  var form = new FormData();
+  form.append('file', piece.blob, piece.name);
+  form.append('model', LESSON_CAPTION_MODEL);
+  form.append('response_format', 'verbose_json');
+  form.append('timestamp_granularities[]', 'segment');
+  if (prompt) form.append('prompt', prompt.slice(0, 600));
+  var res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: form, signal: signal });
+  if (!res.ok) {
+    var why = '';
+    try { var j = await res.json(); why = j && j.error && j.error.message; } catch (e) {}
+    throw new Error('ChatGPT could not caption it (' + (why || 'HTTP ' + res.status) + ').');
+  }
+  var data = await res.json();
+  return lessonCaptionCues(data && data.segments, piece.offset);
+}
+// The lesson's captions, read once per lesson and kept for the visit.
+var lessonCaptionCache = {};
+async function lessonCaptionLoad(a, signal) {
+  var r = a && a.lessonRecording;
+  if (!r || !r.captionsUrl) return null;
+  if (lessonCaptionCache[r.captionsUrl]) return lessonCaptionCache[r.captionsUrl];
+  var res = await fetch(lessonAssetUrl(r.captionsUrl), { signal: signal });
+  if (!res.ok) throw new Error('The captions could not be downloaded.');
+  var text = await res.text();
+  if (text.length > LESSON_CAPTION_FILE_LIMIT) throw new Error('The captions file is too large.');
+  var cues = lessonCaptionClean(JSON.parse(text));
+  lessonCaptionCache[r.captionsUrl] = cues;
+  return cues;
+}
+// ✨ The teacher's: the lesson's sound to ChatGPT, the cues to Storage, the
+// file onto the lesson. `say` reports progress in words.
+var lessonCaptionBusy = null;
+async function lessonCaptionGenerate(a, say) {
+  say = say || function () {};
+  if (!lessonTeacher()) throw new Error('Only the teacher can make captions.');
+  if (!a || !a.lessonRecording) throw new Error('That button has no lesson recording.');
+  if (lessonCaptionBusy) throw new Error('Captions are already being made.');
+  var key = typeof getOpenAiKey === 'function' ? getOpenAiKey() : '';
+  if (!key) throw new Error('Add your ChatGPT (OpenAI) key in AI Engine first — captions are written by ChatGPT.');
+  var docId = currentDocId, epoch = wsEpoch, uid = currentUser && currentUser.uid;
+  var controller = lessonCaptionBusy = new AbortController();
+  function alive() {
+    if (controller.signal.aborted) throw Object.assign(new Error('Captions cancelled.'), { name: 'AbortError' });
+    if (!lessonTeacher() || currentDocId !== docId || wsEpoch !== epoch || !currentUser || currentUser.uid !== uid) {
+      throw new Error('The worksheet or the account changed, so the captions were not saved.');
+    }
+  }
+  try {
+    say('Downloading the lesson…');
+    var local = typeof lessonPreloadResponse === 'function' ? await lessonPreloadResponse(a.url).catch(function () { return null; }) : null;
+    var res = local || await fetch(lessonAssetUrl(a.url), { signal: controller.signal });
+    if (!res.ok) throw new Error('The lesson could not be downloaded.');
+    var blob = await res.blob();
+    alive();
+    say('Preparing the sound…');
+    var pieces = await lessonCaptionAudio(blob);
+    alive();
+    var prompt = [docName, a.lessonRecording.title].filter(Boolean).join(' — ');
+    var cues = [];
+    for (var i = 0; i < pieces.length; i++) {
+      say(pieces.length > 1 ? 'ChatGPT is writing the captions… ' + (i + 1) + ' of ' + pieces.length : 'ChatGPT is writing the captions…');
+      cues = cues.concat(await lessonCaptionTranscribe(pieces[i], key, prompt, controller.signal));
+      alive();
+    }
+    cues = lessonCaptionClean({ cues: cues });
+    if (!cues.length) throw new Error('ChatGPT heard no speech in this lesson.');
+    say('Saving the captions…');
+    var ref = storage.ref(STORAGE_DIR + '/lesson-' + docId + '-' + a.id + '.captions.json');
+    var body = JSON.stringify({ version: 1, model: LESSON_CAPTION_MODEL, cues: cues });
+    await ref.put(new Blob([body], { type: 'application/json' }), { contentType: 'application/json', cacheControl: 'private,max-age=3600' });
+    var url = await ref.getDownloadURL();
+    alive();
+    a.lessonRecording.captionsUrl = url;
+    a.lessonRecording.captionsPath = ref.fullPath;
+    lessonCaptionCache[url] = cues;
+    setDirty(true);
+    if (typeof scheduleAutoSave === 'function') scheduleAutoSave();
+    lessonCaptionsSet(true);
+    return cues;
+  } finally { if (lessonCaptionBusy === controller) lessonCaptionBusy = null; }
+}
+function lessonCaptionCancel() { if (lessonCaptionBusy) lessonCaptionBusy.abort(); }
+
+/* ---- in the replay ---- */
+function lessonCaptionShow(ms) {
+  var box = $('lessonCaption'), pb = lessonPlayback;
+  if (!box) return;
+  var cue = pb && pb.captions && lessonCaptionsOn() ? lessonCaptionAt(pb.captions, ms) : null;
+  var text = cue ? cue.t : '';
+  if (box.textContent !== text) box.textContent = text;
+  box.hidden = !text;
+  if (!text) return;
+  // Over the bottom of the video for a video lesson; above the player otherwise.
+  var win = $('lessonCamWin'), v = $('lessonVideo');
+  if (pb.video && win && !win.hidden && v) {
+    var r = v.getBoundingClientRect();
+    box.style.left = Math.round(r.left + r.width / 2) + 'px';
+    box.style.bottom = Math.round(window.innerHeight - r.bottom + 46) + 'px';
+    box.style.maxWidth = Math.round(Math.max(200, r.width - 24)) + 'px';
+  } else {
+    box.style.left = '50%';
+    box.style.bottom = (18 + ($('barStack').offsetHeight || 0) + 14) + 'px';
+    box.style.maxWidth = 'min(760px, calc(100vw - 32px))';
+  }
+}
+function lessonCaptionSyncBtn() {
+  var btn = $('lessonCaptionBtn'), pb = lessonPlayback;
+  if (!btn) return;
+  var has = !!(pb && pb.captions && pb.captions.length), teacher = lessonTeacher();
+  var loading = !!(pb && !pb.captionsTried && pb.ann && pb.ann.lessonRecording && pb.ann.lessonRecording.captionsUrl);
+  btn.hidden = !pb || !(has || teacher || loading);
+  btn.disabled = !!lessonCaptionBusy || loading;
+  if (loading) { btn.textContent = 'CC…'; btn.title = 'Loading the captions'; return; }
+  btn.classList.toggle('on', has && lessonCaptionsOn());
+  btn.textContent = lessonCaptionBusy ? 'Captions…' : has ? (lessonCaptionsOn() ? 'CC on' : 'CC off') : '✨ Captions';
+  btn.title = has ? (lessonCaptionsOn() ? 'Hide the captions' : 'Show the captions')
+    : 'Write captions for this lesson with ChatGPT';
+  btn.setAttribute('aria-pressed', has && lessonCaptionsOn() ? 'true' : 'false');
+}
+async function lessonCaptionReplayLoad(pb) {
+  try {
+    var cues = await lessonCaptionLoad(pb.ann);
+    if (lessonPlayback !== pb) return;
+    pb.captions = cues;
+  } catch (e) { /* a lesson plays perfectly well without its captions */ }
+  pb.captionsTried = true;
+  if (lessonPlayback === pb) { lessonCaptionSyncBtn(); lessonCaptionShow(lessonMedia().currentTime * 1000); }
+}
+async function lessonCaptionBtnClick() {
+  var pb = lessonPlayback;
+  if (!pb) return;
+  if (pb.captions && pb.captions.length) {
+    lessonCaptionsSet(!lessonCaptionsOn());
+  } else {
+    if (!lessonTeacher()) return;
+    try {
+      lessonCaptionSyncBtn();
+      var cues = await lessonCaptionGenerate(pb.ann, function (w) { if (lessonPlayback === pb) $('lessonPlayerTitle').textContent = w; });
+      if (lessonPlayback === pb) { pb.captions = cues; $('lessonPlayerTitle').textContent = 'Captions are ready, written by ChatGPT.'; }
+    } catch (e) {
+      if (!(e && e.name === 'AbortError')) toast((e && e.message) || 'The captions could not be made.', 7000);
+    }
+  }
+  lessonCaptionSyncBtn();
+  if (lessonPlayback === pb) lessonCaptionShow(lessonMedia().currentTime * 1000);
+}
+function lessonCaptionHide() {
+  var box = $('lessonCaption');
+  if (box) { box.hidden = true; box.textContent = ''; }
+  lessonCaptionSyncBtn();
+}
+
+/* ---- in the export ---- */
+// Burned into the frame, centred near the bottom of the page area, two lines
+// at most, lifted above the opening title card while it shows.
+function lessonCaptionDraw(ctx, job, t) {
+  if (!job || !job.cc || !job.captions || !job.captions.length) return;
+  var cue = lessonCaptionAt(job.captions, t);
+  if (!cue) return;
+  var A = job.screen || !job.layout ? { x: 0, y: 0, w: LESSON_EXPORT_W, h: LESSON_EXPORT_H } : job.layout.page;
+  var size = 40, lineH = 52, padX = 30, padY = 16;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.font = '600 ' + size + 'px ' + LESSON_EXPORT_FONT;
+  ctx.textBaseline = 'alphabetic';
+  var lines = lessonExportWrap(ctx, cue.t, Math.min(1500, A.w - 120), 2);
+  var w = 0;
+  lines.forEach(function (l) { w = Math.max(w, ctx.measureText(l).width); });
+  var bw = w + padX * 2, bh = lines.length * lineH + padY * 2;
+  var lift = (!job.layout || !job.layout.panel) && t < 5000 ? 230 : 0;
+  var x = A.x + (A.w - bw) / 2, y = A.y + A.h - 56 - bh - lift;
+  lessonExportRound(ctx, x, y, bw, bh, 14);
+  ctx.fillStyle = 'rgba(12,16,20,0.82)';
+  ctx.fill();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'center';
+  lines.forEach(function (l, i) { ctx.fillText(l, x + bw / 2, y + padY + (i + 1) * lineH - 14); });
+  ctx.restore();
+}
+// ✨ From the export window, before it starts: captions made, then drawn.
+async function lessonExportMakeCaptions() {
+  var job = lessonExportJob;
+  if (!job || !lessonTeacher() || job.phase !== 'ready' || job.ccMaking) return;
+  job.ccMaking = 'Starting…';
+  lessonExportUi(job);
+  try {
+    var cues = await lessonCaptionGenerate(job.ann, function (w) { if (lessonExportJob === job) { job.ccMaking = w; lessonExportUi(job); } });
+    if (lessonExportJob !== job) return;
+    job.captions = cues; job.cc = true;
+    lessonExportInfo('Captions are ready, written by ChatGPT. ' + lessonExportAbout(job));
+  } catch (e) {
+    if (lessonExportJob === job && !(e && e.name === 'AbortError')) lessonExportInfo((e && e.message) || 'The captions could not be made.', true);
+  } finally {
+    if (lessonExportJob === job) { job.ccMaking = ''; lessonExportUi(job); lessonExportDraw(job, Math.min(job.duration || 0, 6000), 0); }
+  }
+}
+$('lessonCaptionBtn').addEventListener('click', lessonCaptionBtnClick);
+/* ================= End lesson captions ================= */
+
 
 /* ================= 🎬 The worksheet's videos, one after another ================= */
 /* 🎬 EVERY VIDEO ON THE WORKSHEET, IN QUESTION ORDER, PLAYED END TO END.

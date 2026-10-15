@@ -2,6 +2,16 @@
 
 Guidance for Claude when working in this repo.
 
+## 💬 Lesson captions (v1.138.0)
+
+- The section is marked `💬 Lesson captions` … `End lesson captions` in index.html, right after the export section. `#lessonCaptionBtn` sits on the replay bar, `#lessonCaption` is the caption box (outside `.barStack`), and `#lessonExportCaptionRow` (`#lessonExportCaptionSeg`, `#lessonExportCaptionMake`) is in the export window.
+- Generation is the teacher's alone (`lessonCaptionGenerate` asks `lessonTeacher()`, and so does `lessonCaptionBtnClick`). It uses `getOpenAiKey()` and POSTs to `/v1/audio/transcriptions` with `LESSON_CAPTION_MODEL` (`whisper-1`), `verbose_json` and segment timestamps. A file up to `LESSON_CAPTION_DIRECT_MAX` is sent as it is; a bigger one is decoded with OfflineAudioContext at 16 kHz mono and sent as `LESSON_CAPTION_PIECE_S` WAV pieces, each shifted by its offset. A late result is dropped when the worksheet, epoch or account changed.
+- Saved to `STORAGE_DIR/lesson-{docId}-{annId}.captions.json` as `{version:1, model, cues:[{s,e,t}]}` (ms). The lesson gets `captionsUrl` / `captionsPath`; a lesson without them is unchanged. Reads go through `lessonAssetUrl` and `lessonCaptionClean` (bad cues dropped, text capped). The Storage rule already lets only the teacher write `pdf-annotator/lesson-*`, so no rules change was made.
+- The switch is `polymath.lessonCaptions` via `lessonPrefGet/Set`, default on, shared by the replay and the export.
+- The export section is cut out of the page by `tools/export-tests.mjs`, so `lessonExportDraw` and `lessonExportScreen` call `lessonCaptionDraw` behind `typeof` guards. Keep them.
+- Captions never touch the recorder: the section has no `getUserMedia` or media sources.
+- Run `node --test tools/lesson-caption-tests.mjs` and `node tools/caption-check.mjs` (real Chromium, the transcription endpoint routed; also in CI).
+
 ## 📺 Recording the worksheet window (v1.137.0)
 
 - Search `📺 Record the worksheet window (v1.137.0)` (camera/mic section): `LESSON_SCREEN_PREF` / `LESSON_SCREEN_BPS` (2.5 Mbps) / `lessonScreenSupported` / `lessonScreenOn` / pure `lessonScreenCrop` + `lessonScreenFit` / `lessonScreenAsk` / `lessonScreenCompose` / `lessonScreenPaint` / `lessonScreenRelease`, plus `#lessonScreenSec` in the Record lesson window.
