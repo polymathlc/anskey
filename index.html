@@ -14,7 +14,7 @@
      iOS 17.4+ and Android; the apple-mobile-web-app-capable tag covers the
      iPads still on older versions. -->
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="bar-models.css">
+<link rel="stylesheet" href="model-studio.css">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Polymath">
@@ -3809,7 +3809,7 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M7.5 9h5"/><path d="M7.5 12.5h9"/><path d="M7.5 16h6.5"/><path d="M16.6 5.6l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor" stroke="none"/></svg>
     </button>
   <div class="toolbarMenu" id="shapeTools">
-    <button class="btn" type="button" id="barModelBtn" aria-controls="barModelPanel" aria-expanded="false" title="Manual Singapore maths model suite — draw, cut, arrange and label without AI">
+    <button class="btn" type="button" id="barModelBtn" aria-controls="msModal" aria-expanded="false" title="Model suite — draw a bar model (bars, units, braces, arrows, labels) and put it on the page">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="6" rx="2" fill="#C8DDF2"/><rect x="2" y="14" width="9" height="6" rx="2" fill="#CBE8D5"/><rect x="13" y="14" width="9" height="6" rx="2" fill="#F8D6BB"/></svg>
       <span class="btnLabel">Model suite</span>
     </button>
@@ -4818,6 +4818,121 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
   </div>
 </div>
 
+<!-- ✏️ Model studio — polymathlc/model's drawing board, for drawing models only (v1.141.0) -->
+<div class="modalBack floatWin" id="msModal">
+  <div class="modalCard msCard" id="msCard" tabindex="-1">
+    <div class="modalHead" id="msHead" title="Drag to move — the worksheet stays live underneath">
+      <h2>Model suite</h2>
+      <div class="winBtns">
+        <button class="modalClose" id="msMinBtn" title="Minimise — the model is kept">–</button>
+        <button class="modalClose" id="msCloseBtn" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="modalBody msBody">
+      <div class="msStage">
+        <div class="toolbar" id="msToolbar" role="toolbar" aria-label="Drawing tools">
+          <button class="tool-btn tool-select" data-tool="select" type="button" title="Select &amp; move (V) — click a shape, drag a box round several, or Shift+click to add one. Ctrl+A selects all. Shift+drag keeps to one direction; Ctrl+drag duplicates.">
+            <svg viewBox="0 0 24 24"><rect x="2.5" y="2.5" width="19" height="19" rx="2" stroke-dasharray="3 2.6"/><path d="M9 8l6.5 15 2.4-5.9L24 15z" fill="currentColor" stroke="none" transform="scale(0.62) translate(6 3)"/></svg>
+            <span class="tool-label">Select</span>
+          </button>
+          <span class="toolbar-divider" aria-hidden="true"></span>
+          <button class="tool-btn active" data-tool="bar" type="button" title="Draw a bar — click and drag (B)">
+            <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1"/></svg>
+            <span class="tool-label">Bar</span>
+          </button>
+          <button class="tool-btn" data-tool="split" type="button" title="Split a bar into equal units — click a bar (S)">
+            <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M9 8v8M15 8v8"/></svg>
+            <span class="tool-label">Split</span>
+          </button>
+          <button class="tool-btn" data-tool="razor" type="button" title="Razor — a vertical cut: hover to preview the dotted line, click to break the bar in two at exactly that point (R). Shift+click cuts every bar the line crosses.">
+            <svg viewBox="0 0 24 24"><path d="M5 2.5h14l-3 8H8l-3-8z"/><path d="M9.2 5.6h5.6"/><path d="M12 13v8.5" stroke-dasharray="2.2 2.8"/></svg>
+            <span class="tool-label">Razor</span>
+          </button>
+          <button class="tool-btn" data-tool="shade" type="button" title="Shade / unshade a unit — click a unit (H)">
+            <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M5 16l6-8M9 16l6-8M13 16l6-8"/></svg>
+            <span class="tool-label">Shade</span>
+          </button>
+          <button class="tool-btn" data-tool="label" type="button" title="Add a text label — click anywhere (T)">
+            <svg viewBox="0 0 24 24"><path d="M5 5h14M12 5v14"/></svg>
+            <span class="tool-label">Label</span>
+          </button>
+          <button class="tool-btn" data-tool="brace" type="button" title="Brace with a value — drag across for horizontal, drag down for vertical (C)">
+            <svg viewBox="0 0 24 24"><path d="M4 8c0 3 2 3 8 3s8 0 8 3M4 8c0-2 1-3 3-3M20 14c0 2-1 3-3 3"/></svg>
+            <span class="tool-label">Brace</span>
+          </button>
+          <button class="tool-btn" data-tool="arrow" type="button" title="Draw a transfer arrow — drag from giver to receiver (A)">
+            <svg viewBox="0 0 24 24"><path d="M4 12h14M14 6l6 6-6 6"/></svg>
+            <span class="tool-label">Arrow</span>
+          </button>
+          <button class="tool-btn" data-tool="divider" type="button" title="Before / After divider line — click where it should go (D)">
+            <svg viewBox="0 0 24 24"><path d="M3 12h3M9 12h3M15 12h3M21 12h0" stroke-dasharray="1 3"/><path d="M3 12h18" stroke-dasharray="2 4"/></svg>
+            <span class="tool-label">Divider</span>
+          </button>
+          <button class="tool-btn" data-tool="dotted" type="button" title="Dotted equal line — drag between two parts that are equal (G)">
+            <svg viewBox="0 0 24 24"><path d="M3 9h18M3 15h18" stroke-dasharray="1.5 3.5" stroke-linecap="round"/></svg>
+            <span class="tool-label">Equal</span>
+          </button>
+          <button class="tool-btn" data-tool="align" type="button" title="Alignment guide — a faint grey dotted line showing that edges line up (L)">
+            <svg viewBox="0 0 24 24" opacity="0.55"><path d="M6 2v20" stroke-dasharray="1.5 3.5" stroke-linecap="round"/><path d="M18 2v20" stroke-dasharray="1.5 3.5" stroke-linecap="round"/></svg>
+            <span class="tool-label">Align</span>
+          </button>
+          <button class="tool-btn" data-tool="pen" type="button" title="Freehand pen — sketch anything by hand (P)">
+            <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+            <span class="tool-label">Pen</span>
+          </button>
+          <div class="toolbar-divider" role="separator"></div>
+          <button class="tool-btn" data-tool="eraser" type="button" title="Eraser — click an element to remove it (E)">
+            <svg viewBox="0 0 24 24"><path d="M19 20H8l-5-5 9-9 8 8-6 6z"/><path d="M7 11l6 6"/></svg>
+            <span class="tool-label">Erase</span>
+          </button>
+          <button class="tool-btn" id="msCopyBtn" type="button" title="Copy the selected element (Ctrl+C)">
+            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            <span class="tool-label">Copy</span>
+          </button>
+          <button class="tool-btn" id="msPasteBtn" type="button" title="Paste the copied element (Ctrl+V)">
+            <svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a2 2 0 012-2h2a2 2 0 012 2"/><path d="M9 12h6M9 16h6"/></svg>
+            <span class="tool-label">Paste</span>
+          </button>
+          <button class="tool-btn" id="msUndoBtn" type="button" title="Undo (Ctrl+Z)">
+            <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 016 6v1"/></svg>
+            <span class="tool-label">Undo</span>
+          </button>
+          <button class="tool-btn" id="msClearBtn" type="button" title="Clear the whole canvas">
+            <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>
+            <span class="tool-label">Clear</span>
+          </button>
+          <div class="toolbar-divider" role="separator"></div>
+          <div class="swatch-row" aria-label="Bar colour">
+            <button class="swatch active" data-color="#C8E6C9" style="background:#C8E6C9" type="button" title="Green bar" aria-label="Green"></button>
+            <button class="swatch" data-color="#BBDEFB" style="background:#BBDEFB" type="button" title="Blue bar" aria-label="Blue"></button>
+            <button class="swatch" data-color="#D1C4E9" style="background:#D1C4E9" type="button" title="Purple bar" aria-label="Purple"></button>
+            <button class="swatch" data-color="#FFE0B2" style="background:#FFE0B2" type="button" title="Orange bar" aria-label="Orange"></button>
+            <button class="swatch" data-color="#FFCDD2" style="background:#FFCDD2" type="button" title="Coral bar" aria-label="Coral"></button>
+            <button class="swatch" data-color="#FFFFFF" style="background:#FFFFFF" type="button" title="White bar" aria-label="White"></button>
+          </div>
+        </div>
+        <!-- Canvas -->
+        <div class="canvas-frame">
+          <svg id="msCanvas" viewBox="0 0 900 460" xmlns="http://www.w3.org/2000/svg" aria-label="Model drawing board">
+            <g id="msElements"></g>
+            <g id="msPreview"></g>
+            <g id="msSelection"></g>
+          </svg>
+          <div class="canvas-hint" id="msHint">Click and drag to draw your first bar</div>
+          <div class="selection-count" id="msSelCount" aria-live="polite"></div>
+          <div class="selection-actions" id="msSelActions" role="toolbar" aria-label="Actions for the selected shapes"></div>
+        </div>
+      </div>
+      <div class="msPinRow">
+        <span class="msPinNote" id="msPinNote">Draw the model, then put it on the page. It lands as a picture you can move, resize and lock, and ✎ Edit model opens it back up here.</span>
+        <button class="btn" id="msNewBtn" type="button" title="Start a new model — the board is cleared (Undo brings it back)">New model</button>
+        <button class="btn btnPrimary" id="msPinBtn" type="button" title="Put this model on the worksheet page you are looking at">📌 Put on page</button>
+      </div>
+    </div>
+    <div class="floatWinGrip" id="msGrip" title="Drag to resize"></div>
+  </div>
+</div>
+
 <div class="modalBack" id="videoModal">
   <div class="modalCard videoModalCard">
     <div class="modalHead">
@@ -5367,77 +5482,8 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 <div id="aiJobTray"></div>
 <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
 
-<section class="barModelPanel" id="barModelPanel" aria-labelledby="bmHeading" hidden>
-  <div class="bmPanelTop">
-    <div class="barModelHeading"><h2 id="bmHeading">Model suite</h2><button type="button" id="bmClose" aria-label="Close model suite">×</button></div>
-    <p class="bmManualBadge">Manual tools · no AI needed</p>
-    <nav class="bmSections" aria-label="Model suite sections">
-      <button type="button" data-bm-section="bmBuild">Build</button><button type="button" data-bm-section="bmCut">Cut</button><button type="button" data-bm-section="bmArrange">Arrange</button><button type="button" data-bm-section="bmTemplates">Templates</button>
-    </nav>
-    <p class="barModelStatus" id="bmStatus" role="status">Select a bar, or add a new model.</p>
-  </div>
-  <div id="bmEmpty" hidden><p>Build a Singapore maths model on a blank worksheet, or open a PDF.</p><button type="button" class="bmAction bmPrimary bmWide" data-bm-action="blank">Start a blank worksheet</button></div>
-  <div id="bmWorkspaceTools">
-  <fieldset id="bmBuild"><legend>Build &amp; label</legend>
-  <div class="barModelGrid">
-    <button type="button" class="bmAction bmPrimary" data-bm-action="draw" data-bm-mode="modelbar" aria-pressed="false">Draw a bar</button>
-    <button type="button" class="bmAction" data-bm-action="cut" data-bm-mode="modelcut" aria-pressed="false">✂ Cut at a point</button>
-    <button type="button" class="bmAction" data-bm-action="select" data-bm-mode="select" aria-pressed="false">Select / move</button>
-    <button type="button" class="bmAction" data-bm-action="lasso" data-bm-mode="lasso" aria-pressed="false">Lasso pieces</button>
-  </div>
-    <p class="bmHint">Draw directly on the page, or use Add bar to place one in view. Drag selected bars to move; drag a corner to resize.</p>
-    <label for="bmLabel">Quantity, name or unknown<input id="bmLabel" type="text" maxlength="80" value="?" placeholder="e.g. 24, Ali, 3 units or ?"></label>
-    <div class="barModelGrid"><label for="bmWidth">Width (points)<input id="bmWidth" type="number" min="12" max="2000" step="1" value="300"></label><label for="bmHeight">Height (points)<input id="bmHeight" type="number" min="12" max="500" step="1" value="42"></label></div>
-    <div class="bmPalette" role="group" aria-label="Pastel bar colour">
-      <button type="button" data-bm-fill="#C8DDF2" style="background:#C8DDF2" aria-label="Pastel blue" aria-pressed="true"></button>
-      <button type="button" data-bm-fill="#CBE8D5" style="background:#CBE8D5" aria-label="Pastel green" aria-pressed="false"></button>
-      <button type="button" data-bm-fill="#F8D6BB" style="background:#F8D6BB" aria-label="Pastel peach" aria-pressed="false"></button>
-      <button type="button" data-bm-fill="#DDD2F0" style="background:#DDD2F0" aria-label="Pastel lavender" aria-pressed="false"></button>
-      <button type="button" data-bm-fill="#F5D0D8" style="background:#F5D0D8" aria-label="Pastel pink" aria-pressed="false"></button>
-      <button type="button" data-bm-fill="#F4E7AF" style="background:#F4E7AF" aria-label="Pastel yellow" aria-pressed="false"></button>
-    </div>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="add">Add bar</button><button type="button" class="bmAction" data-bm-action="apply">Apply label &amp; size</button><button type="button" class="bmAction" data-bm-action="above">Brace above</button><button type="button" class="bmAction" data-bm-action="below">Brace below</button></div>
-  </fieldset>
-  <fieldset id="bmCut"><legend>Cut &amp; combine</legend>
-    <label for="bmParts">Equal parts / top-row units<input id="bmParts" type="number" min="2" max="20" step="1" value="3"></label>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="split">Split equally</button><button type="button" class="bmAction" data-bm-action="join">Join selected</button></div>
-    <label for="bmRatio">Ratio of piece widths<input id="bmRatio" type="text" value="2:3:1" maxlength="150" placeholder="e.g. 2:3:1"></label>
-    <button type="button" class="bmAction bmWide" data-bm-action="ratio-split">Split by ratio</button>
-    <label for="bmCutPercent">Cut position from the left (%)<input id="bmCutPercent" type="number" min="1" max="99" step="1" value="50"></label>
-    <button type="button" class="bmAction bmWide" data-bm-action="percent-cut">Cut at percentage</button>
-    <p class="bmHint">Select one bar to split. Its known quantity stays on a total brace; new pieces start as ?. Ungroup a template to select individual pieces.</p>
-  </fieldset>
-  <fieldset id="bmArrange"><legend>Select &amp; arrange</legend>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="select-model">Select whole model</button><button type="button" class="bmAction" data-bm-action="select-page-models">Select page models</button><button type="button" class="bmAction" data-bm-action="group">Group selection</button><button type="button" class="bmAction" data-bm-action="ungroup">Ungroup</button></div>
-    <p class="bmHint">Groups keep bars, braces and labels together. Ungroup to edit individual pieces. Double-click an outside label to edit its text.</p>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="align-left">Align left</button><button type="button" class="bmAction" data-bm-action="align-right">Align right</button><button type="button" class="bmAction" data-bm-action="align-top">Align top</button><button type="button" class="bmAction" data-bm-action="align-bottom">Align bottom</button><button type="button" class="bmAction" data-bm-action="equal-width">Equal width</button><button type="button" class="bmAction" data-bm-action="equal-height">Equal height</button></div>
-    <label for="bmGap">Gap between bars or groups (points)<input id="bmGap" type="number" min="0" max="500" step="1" value="12"></label>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="row">Arrange in a row</button><button type="button" class="bmAction" data-bm-action="stack">Stack vertically</button></div>
-    <label for="bmStep">Move by (points)<input id="bmStep" type="number" min="1" max="500" step="1" value="10"></label>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="nudge-left">← Move left</button><button type="button" class="bmAction" data-bm-action="nudge-right">Move right →</button><button type="button" class="bmAction" data-bm-action="nudge-up">↑ Move up</button><button type="button" class="bmAction" data-bm-action="nudge-down">Move down ↓</button><button type="button" class="bmAction" data-bm-action="duplicate-model">Duplicate model</button><button type="button" class="bmAction" data-bm-action="duplicate">Duplicate bars</button><button type="button" class="bmAction bmDanger" data-bm-action="delete">Delete selection</button></div>
-  </fieldset>
-  <fieldset id="bmTemplates"><legend>Ready-made models</legend>
-    <p class="bmHint">Templates use the width, height and pastel colour in Build. Parts and top-row units use the number in Cut. Each new model is grouped and editable.</p>
-    <label for="bmCompareUnits">Comparison: shorter-row units<input id="bmCompareUnits" type="number" min="1" max="19" step="1" value="2"></label>
-    <div class="barModelGrid"><button type="button" class="bmAction" data-bm-action="partwhole">Part–whole</button><button type="button" class="bmAction" data-bm-action="comparison">Comparison</button></div>
-    <label for="bmNumerator">Fraction: shaded parts<input id="bmNumerator" type="number" min="0" max="20" step="1" value="1"></label>
-    <button type="button" class="bmAction bmWide" data-bm-action="fraction">Create fraction model</button>
-    <div class="bmTemplateDivider">Two-row models</div>
-    <div class="barModelGrid"><label for="bmRowNameA">First row name<input id="bmRowNameA" type="text" maxlength="40" placeholder="A / Before"></label><label for="bmRowNameB">Second row name<input id="bmRowNameB" type="text" maxlength="40" placeholder="B / After"></label><label for="bmRowTotalA">First row total<input id="bmRowTotalA" type="text" maxlength="40" value="?"></label><label for="bmRowTotalB">Second row total<input id="bmRowTotalB" type="text" maxlength="40" value="?"></label><label for="bmRatioTemplateA">First ratio units<input id="bmRatioTemplateA" type="number" min="1" max="12" step="1" value="2"></label><label for="bmRatioTemplateB">Second ratio units<input id="bmRatioTemplateB" type="number" min="1" max="12" step="1" value="3"></label></div>
-    <button type="button" class="bmAction bmWide" data-bm-action="ratio">Create ratio model</button>
-    <div class="barModelGrid"><label for="bmBeforeParts">Before units<input id="bmBeforeParts" type="number" min="1" max="12" step="1" value="3"></label><label for="bmAfterParts">After units<input id="bmAfterParts" type="number" min="1" max="12" step="1" value="5"></label></div>
-    <button type="button" class="bmAction bmWide" data-bm-action="beforeafter">Create before &amp; after</button>
-    <div class="bmTemplateDivider">Equal groups</div>
-    <div class="barModelGrid"><label for="bmGroupCount">Number of groups<input id="bmGroupCount" type="number" min="1" max="12" step="1" value="3"></label><label for="bmGroupQuantity">Quantity per group<input id="bmGroupQuantity" type="text" maxlength="40" value="?"></label></div>
-    <button type="button" class="bmAction bmWide" data-bm-action="equalgroups">Create equal groups</button>
-  </fieldset>
-  <p class="bmHint">Your models use normal worksheet saving and PDF export. Rounded corners, pastel fills and labels are kept.</p>
-  <div class="bmHistory barModelGrid"><button type="button" class="bmAction" data-bm-action="undo">Undo</button><button type="button" class="bmAction" data-bm-action="redo">Redo</button></div>
-  </div>
-</section>
 <script src="bar-models.js"></script>
-<script src="model-suite.js"></script>
-<script src="model-templates.js"></script>
+<script src="model-studio.js"></script>
 <script src="shape-snap.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -5503,7 +5549,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.140.0';
+var APP_VERSION = 'v1.141.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -5957,7 +6003,7 @@ function isPalmTouch(e) {
   return e.pointerType === 'touch' && (e.width > PALM_CONTACT || e.height > PALM_CONTACT);
 }
 function isDrawTool(t) {
-  return t === 'modelbar' || t === 'modelcut' || t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
+  return t === 'pen' || t === 'highlight' || t === 'rect' || t === 'ellipse' ||
          t === 'line' || t === 'arrow' || t === 'brace' || t === 'text' || t === 'ai' || t === 'eraser' ||
          t === 'laser' || t === 'lasso' || t === 'penselect';
 }
@@ -7411,7 +7457,7 @@ function closeFloatingPanels() {
 /* ================= Annotation rendering ================= */
 function renderAllOverlays() {
   pages.forEach(renderOverlay);
-  if (typeof bmSync === 'function') bmSync();
+  if (typeof msOpen === 'function' && msOpen()) msSyncPinRow();
   if (typeof syncLineStyleCtl === 'function') syncLineStyleCtl();
   // 🎬 The playlist button says how many videos there are — a pill added,
   // erased, undone or pasted all come through here.
@@ -7674,6 +7720,10 @@ function renderPictureBar(p, a, box) {
       textActionButton(bar, '🧩 Show app', 'Open the question with its interactive app showing',
         function () { bankQOpen(a.id, true); });
     }
+  }
+  if (annModelStudio(a)) {
+    textActionButton(bar, '✎ Edit model', 'Open this model in the model suite — every bar is still a bar',
+      function () { msEditAttached(a.id); });
   }
   textActionButton(bar, locked ? '🔓 Unlock' : '🔒 Lock',
     locked
@@ -15470,7 +15520,6 @@ function setTool(t) {
   if (typeof syncFavActive === 'function') syncFavActive();
   if (typeof syncToolbarMenuState === 'function') syncToolbarMenuState();
   updateToolCursor();
-  if (typeof bmSync === 'function') bmSync();
 }
 
 function updateToolCursor() {
@@ -15712,7 +15761,6 @@ function attachOverlayHandlers(p) {
       return;
     }
 
-    if (tool === 'modelcut') { bmCutAt(e, p, pt); return; }
     if (tool === 'select' && editModeId && e.target.getAttribute && e.target.getAttribute('data-handle')) {
       resizingSel = { id: editModeId, handle: e.target.getAttribute('data-handle'), page: p, snapshot: snapshot(), moved: false, cx: e.clientX, cy: e.clientY };
       claimPointer(e);
@@ -15852,8 +15900,6 @@ function attachOverlayHandlers(p) {
     var now = Date.now();
     if (tool === 'pen' || tool === 'highlight') {
       ann = { id: newAnnId(), page: p.num, type: tool, color: color, width: strokeW, points: [pt], ts: now };
-    } else if (tool === 'modelbar') {
-      ann = bmDrawingStart(p, pt);
     } else if (tool === 'rect' || tool === 'ellipse') {
       ann = { id: newAnnId(), page: p.num, type: tool, color: color, width: strokeW, x: pt.x, y: pt.y, w: 0, h: 0, _sx: pt.x, _sy: pt.y, ts: now };
     } else if (tool === 'line' || tool === 'arrow' || tool === 'brace') {
@@ -16087,7 +16133,6 @@ function attachOverlayHandlers(p) {
     var a2 = drawing.ann;
     var tempNode = drawing.svgNode;
     drawing = null;
-    if (a2.type === 'rect' && a2.modelBar === true) { bmFinishDrawing(a2, p, tempNode); return; }
     if (a2.type === 'text') {
       if (tempNode && tempNode.parentNode) tempNode.parentNode.removeChild(tempNode);
       // Tap = default-width box (kept on the page); drag = exactly the box
@@ -27733,6 +27778,354 @@ function mmAiSyncBar() {
   mmSyncBar();
 })();
 
+/* ================= ✏️ Model suite — the model studio's glue (v1.141.0) =================
+   The model suite is polymathlc/model's drawing board (model-studio.js /
+   model-studio.css), in a floating window like the mindmap. It is for
+   DRAWING models only: no question, no scenario, no AI marking came across.
+
+   📌 Put on page turns the drawing into a FRAMELESS PICTURE — an `ainote` of
+   kind 'paste', the same thing Ctrl+V makes — so it moves, resizes, locks,
+   erases, lassoes, undoes, saves, prints and exports with no new annotation
+   type taught to any of the nine places a type would need. The drawing rides
+   along on `a.ms` ({ v: 1, el: [...] }), so ✎ Edit model on the picture's own
+   bar opens it back up here with every bar still a bar, and the next 📌
+   UPDATES that picture instead of stacking a second one on top of it.
+
+   Rules the mindmap taught, kept here:
+   · a model opened from a picture is written back to THAT picture, never to
+     the scratch board on this device — or the separate model kept there is
+     silently overwritten;
+   · a picture deleted while its model is open releases the model, rather than
+     leaving writes with nowhere to go;
+   · putting a model on the page is refused where the page is not the
+     teacher's to change (a student outside practice, revision, a lesson
+     replay), in the handler, not just by hiding a button.
+
+   Old worksheets keep their manual-suite bars: `modelBar` rectangles still
+   draw, print and export through bar-models.js, which is now only their
+   renderer. */
+var MS_BOARD_KEY = 'polymath.msBoard';     // this device's scratch model
+var MS_WIN_KEY = 'polymath.msWin';         // the window's box
+var MS_MIN_W = 520, MS_MIN_H = 420, MS_HEAD_ONLY_H = 60;
+var MS_DATA_VERSION = 1;
+var msWin = null, msWinMin = false, msSaveTimer = null;
+/* Which picture the open model belongs to — null for the scratch board. */
+var msAttachedId = null;
+
+function msApi() { return window.ModelStudio || null; }
+
+/* A pinned model's drawing, or null for an ordinary picture. */
+function annModelStudio(a) {
+  return annPastePic(a) && !!a.ms && typeof a.ms === 'object' && Array.isArray(a.ms.el) && a.ms.el.length > 0;
+}
+
+function msCanPin() {
+  return pages.length > 0 && !(isStudent() && !practiceMode) && !reviseMode && !lessonPlayback && !lessonOpening;
+}
+
+function msPinRefusal() {
+  if (!pages.length) return 'Open a worksheet — or add a blank page — first, then put the model on it.';
+  if (reviseMode) return 'Turn off revision mode to put a model on the page.';
+  if (lessonPlayback || lessonOpening) return 'Close the lesson replay to put a model on the page.';
+  return 'Putting a model on the worksheet is the teacher’s own — or start practising to draw on your copy.';
+}
+
+/* ---- The window ---- */
+
+function clampMsWin(b) { return clampWinBox(b, MS_MIN_W, MS_MIN_H, msWinMin ? MS_HEAD_ONLY_H : 0); }
+
+function defaultMsWin() {
+  var vw = window.innerWidth, vh = floatWinViewportH();
+  var w = Math.min(1000, Math.max(MS_MIN_W, vw - 40));
+  var h = Math.min(700, Math.max(MS_MIN_H, vh - 110));
+  return { x: Math.max(12, Math.round((vw - w) / 2)), y: 84, w: w, h: h };
+}
+
+function loadMsWinBox() {
+  try {
+    var v = JSON.parse(localStorage.getItem(MS_WIN_KEY) || 'null');
+    if (v && ['x', 'y', 'w', 'h'].every(function (k) { return isFinite(v[k]); })) return v;
+  } catch (e) {}
+  return null;
+}
+
+function saveMsWin() {
+  try { localStorage.setItem(MS_WIN_KEY, JSON.stringify(msWin)); } catch (e) {}
+}
+
+function applyMsWin() {
+  var c = $('msCard');
+  if (!c || !msWin) return;
+  c.style.left = msWin.x + 'px';
+  c.style.top = msWin.y + 'px';
+  c.style.width = msWin.w + 'px';
+  c.style.height = msWinMin ? 'auto' : msWin.h + 'px';
+}
+
+function setMsWinMin(on) {
+  msWinMin = !!on;
+  $('msModal').classList.toggle('winMin', msWinMin);
+  var b = $('msMinBtn');
+  b.textContent = msWinMin ? '▢' : '–';
+  b.title = msWinMin ? 'Open it back up' : 'Minimise — the model is kept';
+  if (msWin) { msWin = clampMsWin(msWin); applyMsWin(); }
+  if (!msWinMin && msApi()) msApi().refresh();
+}
+
+function msOpen() { return $('msModal').classList.contains('open'); }
+
+function msSyncPinRow() {
+  var pin = $('msPinBtn'), note = $('msPinNote');
+  if (!pin || !note) return;
+  var attached = msAttachedPic();
+  pin.textContent = attached ? '📌 Update on page' : '📌 Put on page';
+  pin.title = attached
+    ? 'Bring the model on page ' + attached.page + ' up to date with this drawing'
+    : 'Put this model on the worksheet page you are looking at';
+  pin.disabled = !msCanPin();
+  note.textContent = attached
+    ? 'Editing the model on page ' + attached.page + '. Changes are kept on it as you draw; 📌 redraws its picture, and closing does too.'
+    : (msCanPin()
+      ? 'Draw the model, then put it on the page. It lands as a picture you can move, resize and lock, and ✎ Edit model opens it back up here.'
+      : 'Draw a model here. ' + msPinRefusal());
+}
+
+function openModelStudio() {
+  var modal = $('msModal');
+  if (!msApi()) { toast('The model suite could not load — reload the page.'); return; }
+  if (modal.classList.contains('open')) { raiseFloatWin('msModal'); setMsWinMin(false); return; }
+  modal.classList.add('open');
+  raiseFloatWin('msModal');
+  $('barModelBtn').classList.add('active');
+  $('barModelBtn').setAttribute('aria-expanded', 'true');
+  msWin = clampMsWin(msWin || loadMsWinBox() || defaultMsWin());
+  applyMsWin();
+  setMsWinMin(false);
+  if (!msAttachedId) msLoadScratch();
+  msSyncPinRow();
+  setTimeout(function () { try { $('msCard').focus(); } catch (e) {} }, 30);
+}
+
+function closeModelStudio() {
+  if (!msOpen()) return;
+  var api = msApi();
+  if (api) api.settle();
+  msFlush();
+  var refresh = msRefreshAttachedPicture();
+  $('msModal').classList.remove('open');
+  $('barModelBtn').classList.remove('active');
+  $('barModelBtn').setAttribute('aria-expanded', 'false');
+  // The next open is the scratch board again; the picture already holds
+  // its model (and is being redrawn from it), so nothing is lost.
+  msAttachedId = null;
+  return refresh;
+}
+
+function toggleModelStudio() { msOpen() ? closeModelStudio() : openModelStudio(); }
+
+/* ---- Remembering the model ---- */
+
+function msLoadScratch() {
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(MS_BOARD_KEY) || 'null'); } catch (e) { saved = null; }
+  msAttachedId = null;
+  msApi().load(saved && Array.isArray(saved.el) ? saved.el : []);
+}
+
+function msAttachedPic() {
+  if (!msAttachedId) return null;
+  return annotations.find(function (x) { return x.id === msAttachedId && annPastePic(x); }) || null;
+}
+
+/* Written continuously, like the mindmap: a model opened from a picture goes
+   back onto THAT picture's `ms` (the picture itself is redrawn by 📌 and on
+   close — too slow for every stroke); otherwise it is this device's scratch
+   board. */
+function msFlush() {
+  clearTimeout(msSaveTimer);
+  var api = msApi();
+  if (!api) return;
+  if (msAttachedId) {
+    var att = msAttachedPic();
+    if (att) {
+      if (!api.isEmpty()) {
+        att.ms = { v: MS_DATA_VERSION, el: api.elements() };
+        if (msCanPin()) setDirty(true);
+      }
+    } else {
+      // The picture was deleted while its model was open: the model is an
+      // ordinary scratch board again rather than a write with nowhere to go.
+      msAttachedId = null;
+      msSyncPinRow();
+    }
+    return;
+  }
+  try {
+    localStorage.setItem(MS_BOARD_KEY, JSON.stringify({ v: MS_DATA_VERSION, el: api.elements() }));
+  } catch (e) {
+    toast('The model is too big to remember on this device — put it on the page to keep it.', 4200);
+  }
+}
+
+function msTouch() {
+  clearTimeout(msSaveTimer);
+  msSaveTimer = setTimeout(msFlush, 500);
+}
+
+/* The picture on the page brought back into step with its model. */
+function msRefreshAttachedPicture() {
+  var a = msAttachedPic(), api = msApi();
+  if (!a || !api || api.isEmpty()) return Promise.resolve(false);
+  var id = a.id, elements = api.elements();
+  // The picture is drawn from the board as it is NOW (msPicture renders
+  // synchronously); the elements are taken now too, because the board may
+  // hold a different model by the time the picture is ready.
+  return api.picture().then(function (shot) {
+    var still = annotations.find(function (x) { return x.id === id; });
+    if (!shot || !still) return false;
+    msApplyShot(still, shot, elements);
+    renderAllOverlays();
+    if (msCanPin()) setDirty(true);
+    return true;
+  }).catch(function (err) {
+    console.warn('Model picture could not be refreshed', err);
+    return false;
+  });
+}
+
+/* The picture keeps its place and its WIDTH, and takes the drawing's own
+   shape — so a model that grew a row grows downwards, not sideways off the
+   page. */
+function msApplyShot(a, shot, elements) {
+  var page = pages.find(function (p) { return p.num === a.page; });
+  var ratio = Math.max(0.05, shot.ratio || 1);
+  var w = a.w, h = round2(w / ratio);
+  if (page && h > page.baseH - 8) { h = page.baseH - 8; w = round2(h * ratio); }
+  a.src = shot.src;
+  a.ratio = round2(ratio);
+  a.w = round2(Math.max(PASTE_MIN_PX, w));
+  a.h = round2(Math.max(PASTE_MIN_PX, h));
+  if (page) {
+    a.x = round2(Math.max(0, Math.min(a.x, page.baseW - a.w)));
+    a.y = round2(Math.max(0, Math.min(a.y, page.baseH - a.h)));
+  }
+  a.ms = { v: MS_DATA_VERSION, el: elements };
+  a.ts = Date.now();
+}
+
+/* 📌 — put the model on the page you are looking at, or update the picture
+   it came from. One undo step either way. */
+async function msPinToPage() {
+  var api = msApi();
+  if (!api) return;
+  if (!msCanPin()) { toast(msPinRefusal(), 4200); return; }
+  api.settle();
+  if (api.isEmpty()) { toast('Draw a model first — pick Bar and drag on the board.'); return; }
+  var elements = api.elements();
+  var shot;
+  try { shot = await api.picture(); }
+  catch (err) { toast('The model could not be drawn as a picture.', 4000); return; }
+  if (!shot) { toast('Draw a model first — pick Bar and drag on the board.'); return; }
+  if (!msCanPin()) { toast(msPinRefusal(), 4200); return; }   // the page changed while it drew
+
+  var existing = msAttachedPic();
+  if (existing) {
+    pushUndo();
+    msApplyShot(existing, shot, elements);
+    selectedId = existing.id;
+    renderAllOverlays();
+    setDirty(true);
+    msSyncPinRow();
+    toast('The model on page ' + existing.page + ' is up to date.');
+    return existing.id;
+  }
+
+  var page = mmTargetPage();
+  if (!page) { toast(msPinRefusal(), 4000); return; }
+  var ratio = Math.max(0.05, shot.ratio || 1);
+  var step = annotations.filter(function (x) { return x.page === page.num && annPastePic(x); }).length;
+  var box = pastePicBox(page, ratio, step);
+  /* Roughly the size it was drawn at (the board is 900 wide and a page about
+     600), never wider than pastePicBox allows. */
+  var natural = Math.min(box.w, Math.max(PASTE_MIN_PX, shot.w * 2 / 3));
+  var w = round2(natural), h = round2(natural / ratio);
+  /* The scratch board is saved BEFORE the picture takes the model over — a
+     write still waiting on the timer would otherwise land on the picture
+     and the scratch board would be left as it was before this drawing. */
+  msFlush();
+  pushUndo();
+  var a = {
+    id: newAnnId(), page: page.num, type: 'ainote', kind: 'paste',
+    x: box.x, y: box.y, w: w, h: h, ratio: round2(ratio),
+    color: '#5DADE2', title: 'Model', text: '', src: shot.src,
+    ms: { v: MS_DATA_VERSION, el: elements }, ts: Date.now()
+  };
+  annotations.push(a);
+  msAttachedId = a.id;
+  selectedId = a.id;
+  renderAllOverlays();
+  setDirty(true);
+  msSyncPinRow();
+  toast('Model put on page ' + page.num + ' — drag it about, drag a corner to resize, or lock it in place.', 4200);
+  return a.id;
+}
+
+/* ✎ Edit model on a pinned picture — that model, back in the window. */
+function msEditAttached(id) {
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!annModelStudio(a)) return;
+  if (!msApi()) { toast('The model suite could not load — reload the page.'); return; }
+  if (msOpen()) { msApi().settle(); msFlush(); }
+  // The scratch board is already in localStorage under its own key, so
+  // the picture's model can take the window without losing it.
+  msAttachedId = a.id;
+  msApi().load(a.ms.el);
+  if (!msOpen()) openModelStudio();
+  else { raiseFloatWin('msModal'); setMsWinMin(false); }
+  msSyncPinRow();
+}
+
+/* New model: an empty board that belongs to no picture. Undo brings the
+   drawing back; the picture on the page keeps its own copy regardless. */
+function msNewModel() {
+  var api = msApi();
+  if (!api) return;
+  api.settle();
+  if (msAttachedId) {
+    // Leave the picture's model on the picture, and come back to this
+    // device's own board before clearing it.
+    msFlush();
+    msRefreshAttachedPicture();
+    msLoadScratch();
+  }
+  api.clear();
+  msFlush();
+  msSyncPinRow();
+}
+
+(function () {
+  $('barModelBtn').addEventListener('click', toggleModelStudio);
+  $('msCloseBtn').addEventListener('click', function () { closeModelStudio(); });
+  $('msMinBtn').addEventListener('click', function () { setMsWinMin(!msWinMin); });
+  $('msPinBtn').addEventListener('click', function () { msPinToPage(); });
+  $('msNewBtn').addEventListener('click', msNewModel);
+  $('msCard').addEventListener('pointerdown', function () { raiseFloatWin('msModal'); }, true);
+  attachFloatWin({
+    modal: 'msModal', card: 'msCard', head: 'msHead', grip: 'msGrip',
+    get: function () { return msWin; },
+    set: function (b) { msWin = b; },
+    clamp: clampMsWin, apply: applyMsWin, save: saveMsWin
+  });
+  window.addEventListener('resize', function () {
+    if (msOpen() && msWin) { msWin = clampMsWin(msWin); applyMsWin(); }
+  });
+  window.addEventListener('beforeunload', function () { if (msOpen()) msFlush(); });
+  if (msApi()) {
+    msApi().onChange(msTouch);
+    msApi().onEscape(function () { closeModelStudio(); });
+  }
+})();
+
 /* ================= Practice mode =================
    Students hide the worksheet's answers, write or type their own on the
    page, then select one and have Gemini mark it against the teacher's
@@ -29471,7 +29864,7 @@ var PRACTICE_TOOLBAR_IDS = ['toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn'];
 
 function applyRoleUI() {
-  if (typeof bmSync === 'function') bmSync();
+  if (typeof msOpen === 'function' && msOpen()) msSyncPinRow();
   if (typeof aiScreenSync === 'function') aiScreenSync();
   if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
   lessonRoleChanged();

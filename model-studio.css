@@ -1,0 +1,413 @@
+/* ✏️ Model studio — the bar-model drawing board (v1.141.0).
+   The styles are polymathlc/model's own, every selector scoped to #msCard
+   and the design tokens declared on it rather than on :root, so nothing
+   here reaches the worksheet and none of the worksheet's tokens reach in. */
+@font-face {
+  font-family: 'RobotoQuestion';
+  src: url('https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2') format('woff2');
+  unicode-range: U+003F;              /* the "?" character only */
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'RobotoQuestion';
+  src: url('https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4.woff2') format('woff2');
+  unicode-range: U+003F;
+  font-weight: 700;
+  font-style: normal;
+}
+
+#msCard {
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #FAFAFA;
+  --bg-tertiary: #F3F3F0;
+  --border-subtle: #E8E8E4;
+  --border-medium: #D4D4CF;
+
+  /* === Text === */
+  --text-primary: #1A1A1A;
+  --text-secondary: #5C5C5C;
+  --text-tertiary: #8A8A8A;
+  --text-inverse: #FFFFFF;
+
+  /* === Accent — Math: soft green === */
+  --accent-light: #C8E6C9;
+  --accent-base: #81C784;
+  --accent-dark: #66BB6A;
+  --accent-bg: #F1F8E9;
+  --accent-deep: #2E7D32;
+
+  /* === Bar palette (student colour-coding swatches) === */
+  --bar-green:  #C8E6C9;
+  --bar-blue:   #BBDEFB;
+  --bar-purple: #D1C4E9;
+  --bar-orange: #FFE0B2;
+  --bar-coral:  #FFCDD2;
+  --bar-white:  #FFFFFF;
+
+  /* === Shadows === */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-md: 0 2px 4px rgba(0,0,0,0.05), 0 6px 20px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 6px rgba(0,0,0,0.05), 0 10px 30px rgba(0,0,0,0.1);
+  --shadow-button: 0 1px 2px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-button-hover: 0 2px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.12);
+
+  /* === Spacing Scale === */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --space-2xl: 64px;
+
+  /* === Border Radius === */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  /* === Typography === */
+  --font-family: 'RobotoQuestion', 'Century Gothic', CenturyGothic, AppleGothic, sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-md: 1.125rem;
+  --font-size-lg: 1.5rem;
+  --font-size-xl: 2rem;
+  --font-size-2xl: 2.5rem;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.6;
+
+  /* === Transitions === */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+  --transition-slow: 0.4s ease;
+}
+#msCard .msBody {
+  display: flex; flex-direction: column; padding: 0; overflow: hidden;
+  background: var(--bg-tertiary); font-family: var(--font-family);
+}
+#msCard .msStage { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px 16px 16px; }
+#msCard .msStage .toolbar { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+#msCard .msPinRow {
+  flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 12px 22px 14px 16px; border-top: 1px solid var(--border-subtle); background: var(--bg-primary);
+}
+#msCard .msPinRow .msPinNote { flex: 1 1 220px; font-size: 12px; color: var(--text-secondary); line-height: 1.45; }
+#msCard .msPinRow .btn { white-space: nowrap; }
+#msCard .tool-btn .tool-label { pointer-events: none; }
+@media (max-width: 720px) {
+  #msCard .tool-btn .tool-label { display: none; }
+  #msCard .tool-btn { padding: 8px; }
+}
+
+#msCard .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-bottom: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-xs);
+}
+
+#msCard .tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+  white-space: nowrap;
+}
+
+#msCard .tool-btn svg {
+  width: 17px; height: 17px;
+  stroke: currentColor; fill: none;
+  stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+#msCard .tool-btn:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-xs);
+}
+
+#msCard .tool-btn.active {
+  background: var(--accent-light);
+  color: var(--text-primary);
+  border-color: var(--accent-dark);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Select is the one tool that acts on what you have already drawn
+   rather than adding something new, so it gets its own look and sits
+   apart from the drawing tools. It was getting lost among a dozen
+   lookalike chips. */
+#msCard .tool-btn.tool-select {
+  border-color: var(--border-medium);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+#msCard .tool-btn.tool-select:hover {
+  border-color: var(--accent-base);
+  background: var(--accent-bg);
+}
+#msCard .tool-btn.tool-select.active {
+  background: var(--accent-light);
+  border-color: var(--accent-dark);
+}
+
+#msCard .toolbar-divider {
+  width: 1px;
+  height: 26px;
+  background: var(--border-medium);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+#msCard .swatch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 2px;
+}
+
+#msCard .swatch {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-medium);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+  padding: 0;
+}
+#msCard .swatch:hover { transform: scale(1.15); }
+#msCard .swatch.active {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-base);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   9. CANVAS
+   ══════════════════════════════════════════════════════════════════ */
+#msCard .canvas-frame {
+  position: relative;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+#msCard #msCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;                /* pointer events own the gestures */
+  background-image:
+    linear-gradient(to right, rgba(0,0,0,0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0,0,0,0.028) 1px, transparent 1px);
+  background-size: 20px 20px;        /* faint dot-grid feel */
+  cursor: crosshair;
+}
+
+#msCard #msCanvas.tool-select { cursor: default; }
+#msCard #msCanvas.tool-eraser { cursor: not-allowed; }
+/* The razor's hotspot sits exactly on the vertical cut line drawn in the
+   cursor, so the blade you see is the blade that lands. */
+#msCard #msCanvas.tool-razor {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M14 11.5v15.5' stroke='%23E64A19' stroke-width='1.6' stroke-dasharray='2 3' stroke-linecap='round'/%3E%3Cpath d='M8 2.5h12l-2.6 8h-6.8L8 2.5z' fill='%23FFFFFF' stroke='%23E64A19' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M10.8 5.4h6.4' stroke='%23E64A19' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, crosshair;
+}
+
+#msCard .canvas-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  background: rgba(255,255,255,0.9);
+  border: 1px solid var(--border-subtle);
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  pointer-events: none;
+  transition: opacity var(--transition-base);
+  white-space: nowrap;
+  max-width: 92%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Floating action bar over the current selection. Bulk duplicate,
+   copy, delete and recolour used to be keyboard-only and therefore
+   invisible; this puts them where the selection is. */
+#msCard .selection-actions {
+  position: absolute;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--bg-primary, #FFFFFF);
+  border: 1px solid var(--border-medium, #D6D6D6);
+  border-radius: var(--radius-full, 999px);
+  box-shadow: var(--shadow-sm, 0 2px 10px rgba(0,0,0,0.13));
+  z-index: 6;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+}
+#msCard .selection-actions.visible { display: inline-flex; animation: msFadeInUp 0.16s ease both; }
+
+#msCard .selection-actions .sel-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #2E7D32;
+  padding: 0 4px 0 2px;
+}
+#msCard .sel-act-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: var(--radius-full, 999px);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s);
+}
+#msCard .sel-act-btn:hover {
+  background: var(--accent-bg, #F1F8F1);
+  border-color: var(--accent-base, #66BB6A);
+  color: var(--text-primary);
+}
+#msCard .sel-act-btn.danger:hover {
+  background: #FDECEA;
+  border-color: #E64A19;
+  color: #B33410;
+}
+#msCard .sel-act-btn svg {
+  width: 13px; height: 13px;
+  stroke: currentColor; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+#msCard .sel-act-sep {
+  width: 1px; height: 18px;
+  background: var(--border-medium, #D6D6D6);
+  flex-shrink: 0;
+}
+#msCard .sel-swatch {
+  width: 17px; height: 17px;
+  border-radius: 50%;
+  border: 2px solid var(--border-medium, #D6D6D6);
+  padding: 0;
+  cursor: pointer;
+  transition: transform var(--transition-fast, 0.15s), border-color var(--transition-fast, 0.15s);
+}
+#msCard .sel-swatch:hover { transform: scale(1.18); border-color: var(--accent-dark, #2E7D32); }
+
+/* Badge showing how many elements are in a multi-selection */
+#msCard .selection-count {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: #2E7D32;
+  background: rgba(200, 230, 201, 0.92);
+  border: 1px solid #2E7D32;
+  padding: 3px 11px;
+  border-radius: var(--radius-full);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+  white-space: nowrap;
+}
+#msCard .selection-count.visible { opacity: 1; }
+
+/* Floating text input for labels */
+#msCard .floating-input {
+  position: absolute;
+  z-index: 40;
+  font-family: var(--font-family);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border: 2px solid var(--accent-dark);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-md);
+  min-width: 90px;
+}
+
+/* Instruction bubble shown with the floating input so students know
+   how to finish typing (they often don't realise Enter commits). */
+#msCard .floating-input-hint {
+  position: absolute;
+  z-index: 40;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.96);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+#msCard .floating-input-hint kbd {
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--accent-deep);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-light);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* Split-units popover */
+#msCard .split-popover {
+  position: absolute;
+  z-index: 41;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: msScaleIn 0.18s ease;
+}
+#msCard .split-popover label { font-size: var(--font-size-xs); font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+#msCard .split-popover input {
+  width: 62px;
+  padding: 6px 8px;
+  font-size: 15px;
+  font-weight: 600;
+  border: 1.5px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  outline: none;
+  text-align: center;
+}
+#msCard .split-popover input:focus { border-color: var(--accent-dark); }
+
+
+@keyframes msFadeInUp { from { opacity: 0; transform: translate(-50%, -100%) translateY(6px); } to { opacity: 1; transform: translate(-50%, -100%); } }
+@keyframes msScaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }

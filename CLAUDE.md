@@ -2,6 +2,19 @@
 
 Guidance for Claude when working in this repo.
 
+## ✏️ The model suite is polymathlc/model's drawing board (v1.141.0)
+
+- `model-studio.js` / `model-studio.css` are the drawing engine of `polymathlc/model` (Bar Model Studio), **for drawing only**: no scenario, question, model answer or AI marking came across, and `tools/model-studio-tests.mjs` fails if any does.
+  - The engine section (`var GRID_SNAP` up to `THE WINDOW'S OWN WIRING`) is that app's own, line for line, except the documented port changes (`msQ` lookups, the pen hint, no scenario fields). The parity test compares them whenever `polymathlc/model` is checked out beside this repo (`../model` or `../polymathlc/model`). Port a fix to both.
+  - It lives in ONE closure (its plain names `snap`, `appState`, `performUndo`… must never meet the worksheet's globals). Elements are found inside `#msCard`, the CSS is scoped to `#msCard` with the tokens declared there, and every key pressed in the window stops there (`msRoot` keydown) so worksheet one-letter shortcuts never fire.
+  - The API is `window.ModelStudio` (`load`, `elements`, `isEmpty`, `picture`, `clean`, `settle`, `clear`, `tool`, `onChange`, `onEscape`, `refresh`).
+- The glue in index.html is `✏️ Model suite — the model studio's glue` (before Practice mode): `openModelStudio` / `closeModelStudio` / `msPinToPage` / `msEditAttached` / `msNewModel` / `msFlush` / `msRefreshAttachedPicture` / `msApplyShot` / `msCanPin` / `annModelStudio`, the `#msModal` floating window and `#barModelBtn` (the toolbar's Model suite button).
+- **A pinned model is an `ainote` of kind `'paste'` with `a.ms = {v:1, el:[…]}`**, a transparent PNG `src` and its `ratio`. Never add an annotation type for it: being a frameless pasted picture is what gives it move, resize, lock, erase, undo, save and both PDF paths. `renderPictureBar` adds ✎ Edit model for `annModelStudio(a)`.
+- A model opened from a picture is written back to THAT picture (`msAttachedId`), never to the scratch board (`polymath.msBoard` in localStorage); a deleted picture releases it. `msPinToPage` flushes the scratch board BEFORE the picture takes the model over, and `msRefreshAttachedPicture` takes the elements with the picture, because the board may hold another model by the time the picture is ready.
+- Pinning is refused in the handler (`msCanPin`: pages open, not a student outside practice, not revision, not a lesson replay). Drawing on the board is open to everyone.
+- The old manual suite (`model-suite.js`, `model-templates.js`, `bar-models.css`, the `modelbar` / `modelcut` tools and `#barModelPanel`) is gone. `bar-models.js` is now only the renderer for the `modelBar` rectangles older worksheets carry (`bmSvgContents`, `bmDrawOnCtx`, `bmDrawOnPdf`); keep it, or those bars vanish from old worksheets.
+- Run `node --test tools/model-studio-tests.mjs tools/bar-model-tests.mjs` and `node tools/model-studio-check.mjs` (real Chromium: draws, splits, shades, labels, braces, pins, edits, updates, undo, the student gate and the PDF; also in CI).
+
 ## 📱 Portrait for Instagram (v1.140.0)
 
 - Search `Portrait for Instagram (v1.140.0)` in the camera and mic section. The pieces:
@@ -300,18 +313,9 @@ later sign-in cannot undo migration. Preserve an explicit model choice. Run
 `node --test tools/ai-routing-tests.mjs` and the existing deadline, shared vision,
 voice and note suites after changing the engine bridge.
 
-## Manual model suite (v1.111.0)
+## Manual model suite (v1.111.0) — replaced in v1.141.0
 
-`bar-models.js` owns rendering, the panel, core cuts and `bmCommit`.
-`model-suite.js` owns manual selection, ratio/percentage cuts and arrangement;
-`model-templates.js` owns deterministic template layouts. These tools make no AI
-requests. The suite can start an ordinary blank worksheet via `addBlankPage`.
-All writes use the normal edit guards and one undo step. Replacements keep their
-layer order. Group operations include labels/braces and reject a locked member
-before writing. `modelObject` identifies related text/braces after ungrouping and
-is preserved by replay. Template unit lengths must match the supplied ratios;
-unknown quantities remain `?`. Run all model tests plus
-`tools/manual-suite-browser-check.mjs` for real UI and PDF export verification.
+The manual panel, its cut/arrange tools and templates were replaced by the model studio (see the v1.141.0 section). Only `bar-models.js`'s renderers remain, for the `modelBar` rectangles older worksheets carry; `modelObject` is still preserved by replay.
 
 ## Jev cursor placement (v1.108.0)
 

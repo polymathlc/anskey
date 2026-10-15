@@ -4,6 +4,17 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.141.0 — The model suite is now the Bar Model Studio's drawing board
+
+- **Model suite** on the toolbar opens the drawing board from the Bar Model Studio (polymathlc.github.io/model) in a floating window. It is for drawing models only: there are no questions, no scenarios and no AI marking.
+  - Tools: Select, Bar, Split, Razor, Shade, Label, Brace, Arrow, Divider, Equal, Align and Pen, plus Erase, Copy, Paste, Undo, Clear and six bar colours. The keyboard shortcuts are the model app's own (B bar, S split, R razor, H shade, T label, C brace, A arrow, D divider, G equal, L align, P pen, E erase, V select).
+  - Keys pressed while drawing stay in the window, so they never switch the worksheet's tools.
+- **📌 Put on page** puts the model on the page you are looking at as a frameless picture. Drag it, resize it from a corner, lock it, and it saves, prints and exports like any pasted picture.
+  - Select it and press **✎ Edit model** to open it back up with every bar still a bar. **📌 Update on page** then redraws that same picture.
+  - **New model** starts an empty board. Undo brings the last drawing back.
+  - The board you are working on is remembered on this device.
+- The old manual panel (draw, cut, join, arrange and the ready-made templates) has been removed. Bars it made on older worksheets still show, print and export as before.
+
 ## v1.140.0 — Portrait 9:16 recording for Instagram
 
 - With **Record the worksheet window** ticked, Record a lesson now has a **Frame** choice: **Whole worksheet area** or **Portrait 9:16 for Instagram**.
