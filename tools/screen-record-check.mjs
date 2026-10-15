@@ -57,6 +57,9 @@ async function launch(extra) {
 const browser = await launch(['--auto-accept-this-tab-capture', '--window-size=1100,820']);
 const ctx = await browser.newContext({ viewport: null, permissions: ['camera', 'microphone'] });
 const page = await ctx.newPage();
+// The real Firebase SDK, reached on a CI runner, would replace the stub below
+// and throw on it; served empty, the stub stands (as in question-bank-check).
+await page.route(/firebase-[a-z]+-compat\.js(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: '' }));
 await page.addInitScript(() => {
   const chain = () => new Proxy(function () { return chain(); }, {
     get: (t, k) => (k === 'then' ? undefined : chain()),
