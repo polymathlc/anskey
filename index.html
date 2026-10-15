@@ -3584,6 +3584,15 @@ body.lessonScreenRec #toast { top:72px; bottom:auto; }
 /* The floating tool bars sit inside the worksheet area, so they would be in
    the video: the main toolbar has every one of their tools. */
 body.lessonScreenRec #favBar, body.lessonScreenRec #toolbarToggleBtn { visibility:hidden !important; }
+/* 📱 Portrait for Instagram (v1.140.0): the outline sits just OUTSIDE the
+   frame, with a gap, and the worksheet outside it is dimmed — so it shows on
+   screen and is never in the video. Clipped to the worksheet area, so the
+   toolbar is never dimmed, and it never takes a tap. */
+.lessonFrameRow { margin-top:12px; padding-top:12px; border-top:1px solid var(--line, #E8E1D6); }
+.lessonFrameNote { margin-top:8px; font-size:0.76rem; line-height:1.55; color:var(--ink-faint); }
+.lessonFrameClip { position:fixed; z-index:900; overflow:hidden; pointer-events:none; }
+.lessonFrameGuide { position:absolute; box-sizing:border-box; border:3px solid transparent; border-radius:3px; pointer-events:none;
+  box-shadow:0 0 0 3px #F0A93A, 0 0 0 4px rgba(0,0,0,0.35), 0 0 0 9999px rgba(18,22,26,0.34); }
 body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--lsr-left, 0px); width:var(--lsr-w, 100vw); height:var(--lsr-h, 100vh); }
 .lessonDevHint { margin-top:10px; min-height:1.55em; font-size:0.76rem; line-height:1.55; color:var(--ink-faint); }
 .lessonDevHint.ok { color:#2E7D32; }
@@ -3629,6 +3638,7 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 .modalCard.lessonExportCard:focus { outline:none; }
 .lxStage { position:relative; aspect-ratio:16/9; border-radius:14px; overflow:hidden; background:#20262C; box-shadow:0 2px 10px rgba(0,0,0,0.12); }
 .lxStage canvas { display:block; width:100%; height:100%; }
+.lxStage.portrait { aspect-ratio:9/16; width:calc(min(58vh, 520px) * 0.5625); max-width:100%; margin:0 auto; }
 /* The export's own media: in the page, so every browser decodes it, and too
    small and too clear to see. */
 .lxStage video { position:absolute; left:0; top:0; width:2px; height:2px; opacity:0; pointer-events:none; }
@@ -4413,6 +4423,15 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
           </span>
         </label>
         <div class="lessonDevHint" id="lessonScreenHint" role="status" aria-live="polite">When you press Start, choose <b>This tab</b> in the box your browser shows.</div>
+        <div class="lessonFrameRow" id="lessonFrameRow" hidden>
+          <div class="lxRow"><span class="lxLabel">Frame</span>
+            <div class="lxSeg" role="radiogroup" aria-label="What part of the window the video shows">
+              <button type="button" class="lxSegBtn" data-lframe="area" role="radio" aria-checked="false">Whole worksheet area</button>
+              <button type="button" class="lxSegBtn" data-lframe="portrait" role="radio" aria-checked="false">Portrait 9:16 for Instagram</button>
+            </div>
+          </div>
+          <div class="lessonFrameNote" id="lessonFrameNote"></div>
+        </div>
       </section>
 
       <section class="lessonDev" aria-labelledby="lessonMicLabel">
@@ -5484,7 +5503,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.139.0';
+var APP_VERSION = 'v1.140.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -10707,6 +10726,7 @@ var LESSON_CAM_POSITIONS = ['tl', 'tr', 'bl', 'br', 'side'];
 var LESSON_CAM_SIZES = ['small', 'medium', 'large'];
 var LESSON_CAM_SIZE_SCALE = { small: 0.7, medium: 1, large: 1.4 };
 var LESSON_CAM_SIDE_FRACTION = 0.24;   // a window recording's own column, of the area's width
+var LESSON_CAM_TALL_SHARE = 0.42;      // a corner camera's width, of a TALL (portrait) picture's width
 function lessonCamLayoutClean(v) {
   if (!v || typeof v !== 'object') return null;
   var pos = LESSON_CAM_POSITIONS.indexOf(v.pos) >= 0 ? v.pos : '';
@@ -10729,7 +10749,8 @@ function lessonScreenCamBox(W, H, camW, camH, layout) {
     if (sh > tallest) { sh = tallest; sw = Math.round(sh * ratio); }
     return { col: col, x: W + Math.round((col - sw) / 2), y: m, w: sw, h: sh };
   }
-  var cw = Math.round(W * 0.22 * k), ch = Math.round(cw / ratio), most = Math.round(H * 0.6);
+  // A tall picture gives the camera a larger share of its narrow width.
+  var cw = Math.round(W * (H > W ? LESSON_CAM_TALL_SHARE : 0.22) * k), ch = Math.round(cw / ratio), most = Math.round(H * 0.6);
   if (ch > most) { ch = most; cw = Math.round(ch * ratio); }
   var left = L.pos === 'tl' || L.pos === 'bl', top = L.pos === 'tl' || L.pos === 'tr';
   return { col: 0, x: left ? m : W - cw - m, y: top ? m : H - ch - m, w: cw, h: ch };
@@ -10816,6 +10837,97 @@ function lessonScreenFit(w, h, maxW, maxH) {
   var k = Math.min(1, maxW / w, maxH / h);
   return { w: Math.max(2, Math.round(w * k / 2) * 2), h: Math.max(2, Math.round(h * k / 2) * 2) };
 }
+/* ---- 📱 Portrait for Instagram (v1.140.0) ----
+   A window recording takes the whole worksheet area, whatever shape the
+   browser happens to be. For a video posted to Instagram the teacher wants a
+   fixed PORTRAIT frame and to see, while they teach, where it is. So the
+   "Portrait 9:16" frame records only the largest 9:16 box centred in the
+   area, an outline is drawn round it on screen, and the 1080p export of
+   such a lesson is 1080 × 1920 (lessonExportDims).
+
+   - THE OUTLINE IS NEVER IN THE VIDEO. It is drawn LESSON_FRAME_GAP pixels
+     OUTSIDE the frame (a transparent border, then the shadow), and the
+     dimming beyond it is outside too. The crop takes the frame exactly.
+   - IT IS CLIPPED TO THE WORKSHEET AREA (.lessonFrameClip) and never takes a
+     tap, so the toolbar is never dimmed and the page can still be written on.
+   - A CAMERA IS ALWAYS IN A CORNER of a portrait video: a column beside a
+     9:16 frame would make it wider than Instagram shows, so "Own column" is
+     painted bottom right (lessonFrameLayout). The corner camera is a larger
+     share of a tall picture's width (lessonScreenCamBox).
+   - A share of something other than this tab is recorded whole, as before,
+     and gets no outline: its numbers are not this tab's.
+   - A question window opens inside the frame (--lsr-* follow the frame). */
+var LESSON_FRAME_PREF = 'polymath.lessonFrame';
+var LESSON_FRAMES = ['area', 'portrait'];
+var LESSON_FRAME_RATIO = 9 / 16;
+var LESSON_FRAME_MAX_W = 1080;
+var LESSON_FRAME_MAX_H = 1920;
+var LESSON_FRAME_GAP = 3;   // = the .lessonFrameGuide border width
+function lessonFrameClean(v) { return LESSON_FRAMES.indexOf(v) >= 0 ? v : 'area'; }
+function lessonFramePref() { return lessonFrameClean(lessonPrefGet(LESSON_FRAME_PREF)); }
+function lessonFrameOn() { return lessonScreenOn() && lessonFramePref() === 'portrait'; }
+// Pure: the largest box of `ratio` centred in the rectangle r, kept `gap`
+// pixels inside it so the outline round it still fits. Whole pixels.
+function lessonFrameRect(r, ratio, gap) {
+  if (!r || !(r.width > 0 && r.height > 0) || !(ratio > 0)) return null;
+  var g = Math.max(0, gap || 0);
+  var w = r.width - 2 * g, h = r.height - 2 * g;
+  if (w < 16 || h < 16) return null;
+  if (w / h > ratio) w = h * ratio; else h = w / ratio;
+  w = Math.floor(w); h = Math.floor(h);
+  var left = Math.round(r.left + (r.width - w) / 2), top = Math.round(r.top + (r.height - h) / 2);
+  return { left: left, top: top, width: w, height: h, right: left + w, bottom: top + h };
+}
+// Pure: where the camera goes in a portrait video — the chosen corner, and
+// bottom right for "own column", which a 9:16 picture has no room beside.
+function lessonFrameLayout(layout) {
+  if (!layout) return null;
+  return layout.pos === 'side' ? { pos: 'br', size: layout.size } : layout;
+}
+// What part of the window is the video's picture: the frame, or the area.
+function lessonScreenRegion(rec, r) {
+  if (!rec || !rec.frameRatio || !r) return r;
+  return lessonFrameRect(r, rec.frameRatio, LESSON_FRAME_GAP) || r;
+}
+function lessonFrameGuidePlace(rec, area, frame) {
+  if (!rec || !rec.guide) return;
+  var clip = rec.guide, box = clip.firstChild, g = LESSON_FRAME_GAP;
+  clip.style.left = Math.round(area.left) + 'px'; clip.style.top = Math.round(area.top) + 'px';
+  clip.style.width = Math.round(area.width) + 'px'; clip.style.height = Math.round(area.height) + 'px';
+  box.style.left = (frame.left - Math.round(area.left) - g) + 'px';
+  box.style.top = (frame.top - Math.round(area.top) - g) + 'px';
+  box.style.width = (frame.width + 2 * g) + 'px';
+  box.style.height = (frame.height + 2 * g) + 'px';
+}
+function lessonFrameGuideMake() {
+  var clip = document.createElement('div');
+  clip.className = 'lessonFrameClip'; clip.id = 'lessonFrameClip'; clip.setAttribute('aria-hidden', 'true');
+  var box = document.createElement('div');
+  box.className = 'lessonFrameGuide'; box.id = 'lessonFrameGuide';
+  clip.appendChild(box);
+  document.body.appendChild(clip);
+  return clip;
+}
+function lessonFrameRender() {
+  var row = $('lessonFrameRow');
+  if (!row) return;
+  var on = lessonScreenOn(), v = lessonFramePref();
+  row.hidden = !on;
+  row.querySelectorAll('[data-lframe]').forEach(function (b) {
+    var hit = b.getAttribute('data-lframe') === v;
+    b.classList.toggle('on', hit); b.setAttribute('aria-checked', hit ? 'true' : 'false');
+  });
+  var note = $('lessonFrameNote');
+  if (note) note.textContent = v === 'portrait'
+    ? 'Only a tall 9:16 box in the middle of the worksheet is recorded, and the 1080p export is portrait (1080 × 1920). An orange outline shows the box while you record; keep your writing inside it. The outline is not in the video. A camera goes in a corner.'
+    : 'The video is the shape of the worksheet area on your screen.';
+}
+function lessonFrameClick(e) {
+  var b = e.target.closest && e.target.closest('[data-lframe]');
+  if (!b || !lessonTeacher()) return;
+  lessonPrefSet(LESSON_FRAME_PREF, lessonFrameClean(b.getAttribute('data-lframe')));
+  lessonFrameRender();
+}
 function lessonScreenRender() {
   var sec = $('lessonScreenSec'), box = $('lessonScreen'), hint = $('lessonScreenHint');
   if (!sec || !box) return;
@@ -10829,6 +10941,7 @@ function lessonScreenRender() {
       : on ? 'When you press Start, choose <b>This tab</b> in the box your browser shows. Everything below the toolbar is recorded, question windows and apps included.'
       : 'Off: the replay shows your writing on the page. Turn this on to record a question window and its app as a video too.';
   }
+  lessonFrameRender();
 }
 function lessonScreenChanged() {
   var box = $('lessonScreen');
@@ -10896,16 +11009,29 @@ async function lessonScreenCompose(c, display) {
   // A screen or a window says what it is; only a TAB can be this tab.
   var track = display.getVideoTracks()[0], settings = track && track.getSettings ? track.getSettings() : {};
   rec.other = !!(settings.displaySurface && settings.displaySurface !== 'browser');
-  var first = lessonScreenCrop(v.videoWidth, v.videoHeight, window.innerWidth, window.innerHeight, rec.other ? null : area.getBoundingClientRect());
   // 📐 Where the camera goes, as chosen in the window. A column of its own
   // widens the video, so the area is fitted to leave room for it.
   rec.layout = rec.cam ? lessonCamLayoutClean(c.camLayout) : null;
+  // 📱 A portrait frame records a 9:16 box of the area — only from this tab —
+  // and its camera goes in a corner.
+  rec.frameRatio = !rec.other && lessonFrameClean(c.frame) === 'portrait' ? LESSON_FRAME_RATIO : 0;
+  var first = lessonScreenCrop(v.videoWidth, v.videoHeight, window.innerWidth, window.innerHeight,
+    rec.other ? null : lessonScreenRegion(rec, area.getBoundingClientRect()));
+  if (!first.self) rec.frameRatio = 0;
+  if (rec.frameRatio) rec.layout = lessonFrameLayout(rec.layout);
   var side = rec.layout && rec.layout.pos === 'side';
   var room = side ? 1 + LESSON_CAM_SIDE_FRACTION * (LESSON_CAM_SIZE_SCALE[rec.layout.size] || 1) : 1;
-  var size = lessonScreenFit(first.sw, first.sh, Math.floor(LESSON_SCREEN_MAX_W / room), LESSON_SCREEN_MAX_H);
+  var size = rec.frameRatio
+    ? lessonScreenFit(first.sw, first.sh, LESSON_FRAME_MAX_W, LESSON_FRAME_MAX_H)
+    : lessonScreenFit(first.sw, first.sh, Math.floor(LESSON_SCREEN_MAX_W / room), LESSON_SCREEN_MAX_H);
   rec.col = side ? lessonScreenCamBox(size.w, size.h, 0, 0, rec.layout).col : 0;
   var canvas = rec.canvas = document.createElement('canvas');
   canvas.width = size.w + rec.col; canvas.height = size.h;
+  if (rec.frameRatio) {
+    // Exactly 9:16 however the pixels rounded.
+    canvas.width = Math.max(2, Math.round(size.h * LESSON_FRAME_RATIO / 2) * 2);
+    rec.guide = lessonFrameGuideMake();
+  }
   rec.ctx = canvas.getContext('2d');
   rec.self = first.self;
   document.body.classList.add('lessonScreenRec');
@@ -10920,13 +11046,14 @@ async function lessonScreenCompose(c, display) {
   // Remembered past the release: lessonFinish lets the share go before it
   // files the lesson, and still has to know the window was its picture.
   c.screenShot = true;
+  if (rec.frameRatio) c.frameShot = true;
   return rec;
 }
 function lessonScreenPaint(rec, area) {
   var v = rec.video, ctx = rec.ctx, W = rec.canvas.width - (rec.col || 0), H = rec.canvas.height;
-  var r = area.getBoundingClientRect();
-  var key = [r.top, r.left, r.width, r.height].map(Math.round).join(',');
-  if (key !== rec.lastVars) { rec.lastVars = key; lessonScreenVars(r); }
+  var ar = area.getBoundingClientRect(), r = lessonScreenRegion(rec, ar);
+  var key = [ar.top, ar.left, ar.width, ar.height].map(Math.round).join(',');
+  if (key !== rec.lastVars) { rec.lastVars = key; lessonScreenVars(r); lessonFrameGuidePlace(rec, ar, r); }
   var cr = lessonScreenCrop(v.videoWidth, v.videoHeight, window.innerWidth, window.innerHeight, rec.other ? null : r);
   ctx.fillStyle = '#12161A';
   ctx.fillRect(0, 0, rec.canvas.width, H);
@@ -10963,6 +11090,7 @@ function lessonScreenRelease(c) {
   if (rec.display && rec.display.getTracks) rec.display.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
   if (rec.out) rec.out.getTracks().forEach(function (t) { t.stop(); });
   [rec.video, rec.cam].forEach(function (v) { if (v) { v.srcObject = null; v.remove(); } });
+  if (rec.guide) { rec.guide.remove(); rec.guide = null; }
   if (document.body) {
     document.body.classList.remove('lessonScreenRec');
     ['--lsr-top', '--lsr-left', '--lsr-w', '--lsr-h'].forEach(function (k) { document.body.style.removeProperty(k); });
@@ -11089,6 +11217,7 @@ function lessonDevChoice() {
     micId: lessonDev.micValue || '',
     mirror: lessonMirrorOn(),
     screen: lessonScreenOn(),
+    frame: lessonFrameOn() ? 'portrait' : 'area',
     camLayout: cam ? lessonCamLayoutPref() : null
   };
 }
@@ -11572,6 +11701,7 @@ $('lessonCamSelect').addEventListener('change', function () { lessonDevChooseCam
 $('lessonMicSelect').addEventListener('change', function () { lessonDevChooseMic($('lessonMicSelect').value); });
 $('lessonMirror').addEventListener('change', lessonDevMirrorChanged);
 if ($('lessonScreen')) $('lessonScreen').addEventListener('change', lessonScreenChanged);
+if ($('lessonFrameRow')) $('lessonFrameRow').addEventListener('click', lessonFrameClick);
 if ($('lessonCamLayoutRow')) $('lessonCamLayoutRow').addEventListener('click', lessonCamLayoutClick);
 $('lessonTestBtn').addEventListener('click', lessonDevTestToggle);
 $('lessonCamRetry').addEventListener('click', lessonDevRetryCam);
@@ -11786,6 +11916,7 @@ async function lessonStart() {
     user: currentUser, id: newAnnId(), controller: new AbortController(), chunks: [], bytes: 0, lastMs: 0,
     spot: { page: spot.page.num, x: spot.x, y: spot.y }, pageCount: pages.length,
     camera: choice.camera, mirror: choice.mirror, screen: !!choice.screen, camLayout: choice.camLayout || null,
+    frame: choice.screen && choice.frame === 'portrait' ? 'portrait' : 'area',
     limit: choice.camera || choice.screen ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT };
   // 📺 Asked for HERE, inside the tap, before anything is awaited: the browser
   // only lets a click share a window, and the microphone's prompt or the
@@ -11854,6 +11985,7 @@ async function lessonStart() {
         t.onended = function () { if (lessonCapture === c) lessonStop('You stopped sharing the window. The captured portion will be saved.'); };
       });
       if (!c.screenRec.self) toast('Something other than this tab was shared, so all of it is being recorded. Choose “This tab” next time to record just the worksheet.', 8000);
+      else if (c.screenRec.frameRatio) toast('Recording the portrait 9:16 frame. Keep your writing inside the orange outline; the outline is not in the video.', 7000);
     }
     c.pdfHash = await lessonPdfHash();
     if (lessonCapture !== c || !lessonContextOK(c)) throw new Error('Recording cancelled.');
@@ -11965,6 +12097,8 @@ async function lessonFinish(c) {
   // 📺 The window itself is the video: the replay shows it large and the
   // 1080p export uses it as the picture.
   if (shot) job.screen = true;
+  // 📱 Recorded in the portrait frame — said only when it was.
+  if (shot && c.frame === 'portrait' && c.frameShot) job.frame = 'portrait';
   // 📐 Where the camera goes in the video — only when a camera was really in it.
   if (c.camStream && c.camLayout) job.camLayout = { pos: c.camLayout.pos, size: c.camLayout.size };
   // Both only when there is one, so an untitled lesson's job and manifest are
@@ -12044,6 +12178,7 @@ async function lessonSavePending() {
       // is the media file, and readers of it already exist.
       if (job.video) attachment.lessonRecording.video = true;
       if (job.screen) attachment.lessonRecording.screen = true;
+      if (job.screen && job.frame === 'portrait') attachment.lessonRecording.frame = 'portrait';
       if (job.video && job.camLayout && typeof lessonCamLayoutClean === 'function' && lessonCamLayoutClean(job.camLayout)) attachment.lessonRecording.camLayout = lessonCamLayoutClean(job.camLayout);
       if (job.title) attachment.lessonRecording.title = job.title;
       var staged = annotations.some(function (a) { return a.id === job.id; }) ? annotations : annotations.concat([attachment]);
@@ -12133,7 +12268,7 @@ async function lessonPlay(a) {
     var player = LessonReplayCore.createPlayer(timeline);
     var pb = lessonPlayback = { player: player, view: savedView, fitted: savedFitted, epoch: epoch,
       backgrounds: lessonValidateBackgrounds(manifest.backgrounds, pages), overlays: [], revision: -1, viewKey: '', duration: manifest.timeline.duration,
-      video: video, screen: screen };
+      video: video, screen: screen, portrait: screen && a.lessonRecording.frame === 'portrait' };
     // Which lesson this is, for ⬇ 1080p — the teacher's, and nobody else's.
     pb.ann = a;
     $('lessonExportBtn').hidden = !lessonTeacher();
@@ -12222,7 +12357,12 @@ function lessonExitPlayback() {
 var LESSON_CAMWIN_SIZES = [200, 320, 480];
 // 📺 A recorded window is a whole screen of words, not a face: it needs room.
 var LESSON_SCREENWIN_SIZES = [480, 760, 1040];
-function lessonCamWinSizes() { return lessonPlayback && lessonPlayback.screen ? LESSON_SCREENWIN_SIZES : LESSON_CAMWIN_SIZES; }
+// 📱 A portrait recording is tall: narrower windows, so it fits the screen.
+var LESSON_PORTRAITWIN_SIZES = [240, 340, 440];
+function lessonCamWinSizes() {
+  if (lessonPlayback && lessonPlayback.portrait) return LESSON_PORTRAITWIN_SIZES;
+  return lessonPlayback && lessonPlayback.screen ? LESSON_SCREENWIN_SIZES : LESSON_CAMWIN_SIZES;
+}
 function lessonCamWinSizeIndex() {
   var i = lessonPrefGet(LESSON_CAMWIN_PREF);
   return i === 0 || i === 1 || i === 2 ? i : 1;
@@ -12668,6 +12808,12 @@ function lessonStepsSync() {
    writes a 1920 × 1080 video with sound in it. */
 var LESSON_EXPORT_W = 1920;
 var LESSON_EXPORT_H = 1080;
+// 📱 A lesson recorded in the portrait frame exports PORTRAIT, 1080 × 1920 —
+// the same pixels on their side, so it is still a 1080p file. Everything that
+// paints a window recording's frame asks this rather than the constants.
+function lessonExportDims(job) {
+  return job && job.portrait ? { w: LESSON_EXPORT_H, h: LESSON_EXPORT_W } : { w: LESSON_EXPORT_W, h: LESSON_EXPORT_H };
+}
 var LESSON_EXPORT_FPS = 30;
 // A page and a face at 1080p30. Mostly still, so 3 Mb/s is crisp — and it is
 // ~23 MB a minute, which an iPad can hold for a lesson.
@@ -12957,9 +13103,9 @@ function lessonExportCaption(ctx, job, t) {
   var sub = job.subtitle ? lessonExportWrap(ctx, job.subtitle, 760, 1) : [];
   var h = 36 + lines.length * 40 + sub.length * 34 + 70;
   // Never under the camera: with it in the bottom left, the card goes right.
-  var cam = job.layout && job.layout.cam;
-  var x = cam && cam.x < LESSON_EXPORT_W / 2 && cam.y > LESSON_EXPORT_H / 2 ? LESSON_EXPORT_W - 36 - 820 : 36;
-  var y = LESSON_EXPORT_H - 36 - h;
+  var cam = job.layout && job.layout.cam, D = lessonExportDims(job);
+  var x = cam && cam.x < D.w / 2 && cam.y > D.h / 2 ? D.w - 36 - 820 : 36;
+  var y = D.h - 36 - h;
   lessonExportRound(ctx, x, y, 820, h, 20);
   ctx.fillStyle = 'rgba(16,20,24,0.84)';
   ctx.fill();
@@ -12979,14 +13125,14 @@ function lessonExportCaption(ctx, job, t) {
 // 📺 A lesson that recorded the worksheet window: that video, as large as
 // 1920 × 1080 holds it, with the title said once at the start.
 function lessonExportScreen(job, t) {
-  var ctx = job.ctx, v = job.media, vw = v.videoWidth || 0, vh = v.videoHeight || 0;
+  var ctx = job.ctx, v = job.media, vw = v.videoWidth || 0, vh = v.videoHeight || 0, D = lessonExportDims(job);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#12161A';
-  ctx.fillRect(0, 0, LESSON_EXPORT_W, LESSON_EXPORT_H);
+  ctx.fillRect(0, 0, D.w, D.h);
   if (vw && vh) {
-    var k = Math.min(LESSON_EXPORT_W / vw, LESSON_EXPORT_H / vh), dw = vw * k, dh = vh * k;
-    try { ctx.drawImage(v, (LESSON_EXPORT_W - dw) / 2, (LESSON_EXPORT_H - dh) / 2, dw, dh); } catch (e) { /* no frame yet */ }
+    var k = Math.min(D.w / vw, D.h / vh), dw = vw * k, dh = vh * k;
+    try { ctx.drawImage(v, (D.w - dw) / 2, (D.h - dh) / 2, dw, dh); } catch (e) { /* no frame yet */ }
   }
   lessonExportCaption(ctx, job, t);
   if (typeof lessonCaptionDraw === 'function') lessonCaptionDraw(ctx, job, t);
@@ -13098,7 +13244,7 @@ function lessonExportProgress(done, total, words) {
 function lessonExportAbout(job) {
   var mins = recFmtTime(job.duration);
   return (job.recordedLayout ? 'Your camera is placed as you chose when recording. ' : '') +
-    '1920 × 1080 · ' + mins + ' long · about ' + lessonExportSizeText(lessonExportBytes(job.duration)) +
+    (job.portrait ? 'Portrait for Instagram, 1080 × 1920 · ' : '1920 × 1080 · ') + mins + ' long · about ' + lessonExportSizeText(lessonExportBytes(job.duration)) +
     '. It records in real time — ' + mins + ' — so keep this tab open and in front until it finishes.';
 }
 
@@ -13121,18 +13267,25 @@ async function lessonExportOpen(a) {
   var prefs = lessonExportPrefs(), video = !!a.lessonRecording.video;
   var start = lessonExportStartLayout(a.lessonRecording.camLayout, prefs);
   var job = lessonExportJob = { ann: a, phase: 'loading', epoch: wsEpoch, docId: currentDocId, uid: currentUser.uid,
-    controller: new AbortController(), video: video, screen: video && !!a.lessonRecording.screen, layoutKind: video ? start.layout : 'page', mode: prefs.mode, camSize: start.size, camPos: start.pos, recordedLayout: start.recorded,
+    controller: new AbortController(), video: video, screen: video && !!a.lessonRecording.screen,
+    portrait: video && !!a.lessonRecording.screen && a.lessonRecording.frame === 'portrait', layoutKind: video ? start.layout : 'page', mode: prefs.mode, camSize: start.size, camPos: start.pos, recordedLayout: start.recorded,
     cc: typeof lessonCaptionsOn === 'function' ? lessonCaptionsOn() : false, captions: null,
     rasters: {}, cards: {}, view: null, chunks: [], title: docName || 'Worksheet',
     subtitle: videoPillLabel(a).replace(/^Play /, ''), canvas: $('lessonExportCanvas'), media: lessonExportMediaNode() };
   job.subtitle = job.subtitle.charAt(0).toUpperCase() + job.subtitle.slice(1);
   job.ctx = job.canvas.getContext('2d');
+  // 📱 The canvas is the file's shape: portrait for a portrait lesson, and
+  // back to 1920 × 1080 for every other one.
+  var dims = lessonExportDims(job);
+  if (job.canvas.width !== dims.w) job.canvas.width = dims.w;
+  if (job.canvas.height !== dims.h) job.canvas.height = dims.h;
+  if ($('lessonExportStage')) $('lessonExportStage').classList.toggle('portrait', !!job.portrait);
   $('lessonExportModal').classList.add('open');
   try { $('lessonExportCard').focus({ preventScroll: true }); } catch (e) {}
   lessonExportUi(job);
   lessonExportProgress(0, 1, '');
   job.ctx.fillStyle = LESSON_EXPORT_DESK;
-  job.ctx.fillRect(0, 0, LESSON_EXPORT_W, LESSON_EXPORT_H);
+  job.ctx.fillRect(0, 0, dims.w, dims.h);
   lessonExportInfo('Getting the lesson ready…');
   try {
     await lessonExportPrepare(job);
@@ -13885,7 +14038,8 @@ function lessonCaptionDraw(ctx, job, t) {
   if (!job || !job.cc || !job.captions || !job.captions.length) return;
   var cue = lessonCaptionAt(job.captions, t);
   if (!cue) return;
-  var A = job.screen || !job.layout ? { x: 0, y: 0, w: LESSON_EXPORT_W, h: LESSON_EXPORT_H } : job.layout.page;
+  var D = typeof lessonExportDims === 'function' ? lessonExportDims(job) : { w: LESSON_EXPORT_W, h: LESSON_EXPORT_H };
+  var A = job.screen || !job.layout ? { x: 0, y: 0, w: D.w, h: D.h } : job.layout.page;
   var size = 40, lineH = 52, padX = 30, padY = 16;
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);

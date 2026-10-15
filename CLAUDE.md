@@ -2,6 +2,30 @@
 
 Guidance for Claude when working in this repo.
 
+## 📱 Portrait for Instagram (v1.140.0)
+
+- Search `Portrait for Instagram (v1.140.0)` in the camera and mic section. The pieces:
+  - Prefs and sizes: `LESSON_FRAME_PREF` (`polymath.lessonFrame`, 'area' | 'portrait'), `LESSON_FRAME_RATIO` (9/16), `LESSON_FRAME_GAP` and `LESSON_FRAME_MAX_W/H` (1080 × 1920).
+  - Pure helpers: `lessonFrameClean`, `lessonFrameRect` (the largest 9:16 box centred in the area), `lessonFrameLayout` (side → br) and `lessonScreenRegion`.
+  - The outline: `lessonFrameGuideMake` / `lessonFrameGuidePlace`.
+  - The window: `lessonFrameRender` / `lessonFrameClick` and `#lessonFrameRow` (`data-lframe`) inside `#lessonScreenSec`, shown only while the window is recorded.
+- **The outline is never in the video.**
+  - `.lessonFrameGuide` has a transparent border of exactly `LESSON_FRAME_GAP` px, and its shadows (the outline and the dimming) start outside that border.
+  - The crop takes `lessonFrameRect` exactly.
+  - Change the gap and the CSS border together.
+  - `.lessonFrameClip` clips to `#viewerArea` and has `pointer-events:none`, so the toolbar is never dimmed and the page can still be written on.
+- `--lsr-*` follow the frame, so a question window opens inside it.
+- A share that is not this tab is recorded whole, with no outline (`if (!first.self) rec.frameRatio = 0`).
+- A camera in a portrait video goes in a corner. `lessonScreenCamBox` gives a tall picture `LESSON_CAM_TALL_SHARE` of its width; wide pictures are unchanged.
+- How it is saved:
+  - `c.frameShot` marks a recording that really used the frame. `job.frame` and `lessonRecording.frame = 'portrait'` are set only then, so other lessons are byte-identical.
+  - The replay uses `LESSON_PORTRAITWIN_SIZES`.
+  - The export sets `job.portrait`, and `lessonExportDims(job)` gives 1080 × 1920. The canvas is resized in `lessonExportOpen` and set back for every other lesson.
+  - `lessonExportScreen`, `lessonExportCaption` and `lessonCaptionDraw` paint with those dims; the last asks behind a `typeof` guard.
+- Run:
+  - `node --test tools/lesson-frame-tests.mjs`
+  - `node tools/screen-record-check.mjs` (records in portrait, checks the outline is outside the frame and absent from the decoded file, and that the export is 1080 × 1920)
+
 ## 📐 You in the 1080p video (v1.139.0)
 
 - The pieces in the camera and mic section:
