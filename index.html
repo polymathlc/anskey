@@ -3663,6 +3663,7 @@ video.mirror { transform:scaleX(-1); }
 <link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="live-cams.css">
+<link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="student-heroes.css">
 </head>
@@ -3708,6 +3709,10 @@ video.mirror { transform:scaleX(-1); }
     <button class="btn" id="deletePageBtn" title="Delete the page you are looking at — everything written on it goes with it, and the pages after it move up.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
       <span class="btnLabel">Delete page</span>
+    </button>
+    <button class="btn" id="bankQBtn" title="Question bank — pick a question from the Science portal's bank and put it on this page, with its interactive app">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v15H5.5A1.5 1.5 0 0 1 4 17.5z"/><path d="M10 4h4.5A1.5 1.5 0 0 1 16 5.5V19h-6"/><path d="M16 7.2l2.9-.8a1.2 1.2 0 0 1 1.5.9l2 9.6a1.2 1.2 0 0 1-.9 1.4L18.6 19"/><line x1="6.5" y1="8" x2="7.8" y2="8"/><line x1="12.3" y1="8" x2="13.7" y2="8"/></svg>
+      <span class="btnLabel">Question bank</span>
     </button>
   </div>
   <div class="tSep"></div>
@@ -3962,6 +3967,10 @@ video.mirror { transform:scaleX(-1); }
     <button class="toolbarMenuItem btn" id="keyPdfBtn" title="Answer key — AI reads the blank worksheet (never the annotations) and downloads a full answer key with explanations">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><polyline points="14 4 14 10 20 10"/><polyline points="7.5 14.5 9.2 16.2 12.5 12.9"/><line x1="14.5" y1="15.5" x2="17.5" y2="15.5"/><line x1="7.5" y1="19" x2="17.5" y2="19"/></svg>
       <span class="btnLabel">Answer key PDF</span>
+    </button>
+    <button class="toolbarMenuItem btn" id="printQrBtn" type="button" aria-pressed="false" title="QR code on page 1 — every print and download carries a QR code in the top corner of the first page. Students scan it to open this worksheet in Ans Key, with every question and app on it.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+      <span class="btnLabel" id="printQrLabel">QR code on page 1: Off</span>
     </button>
     </div>
   </div>
@@ -5383,7 +5392,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.135.0';
+var APP_VERSION = 'v1.136.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6011,6 +6020,13 @@ function annLockedId(id) {
 }
 /* A pasted picture — the one annotation that is drawn with no frame at all. */
 function annPastePic(a) { return !!(a && a.type === 'ainote' && a.kind === 'paste'); }
+/* 📚 A question from the bank IS a pasted picture — the picture of the
+   question — that also carries the question itself on `bq`. Being the same
+   kind is what gets it move, resize, lock, erase-around, lasso, undo, save,
+   thumbnails and both PDF paths for free; `bq` is what lets it open. */
+function annBankQ(a) {
+  return annPastePic(a) && !!a.bq && typeof a.bq === 'object' && Array.isArray(a.bq.blocks) && a.bq.blocks.length > 0;
+}
 
 /* A CORNER DRAG KEEPS A PICTURE'S OWN SHAPE, and the scale is the drag
    PROJECTED ONTO THE SHAPE'S OWN DIAGONAL rather than whichever axis happens
@@ -6163,6 +6179,7 @@ async function loadPdf(bytes, name, contextCheck) {
   /* Closing a worksheet is moving on from its last page too, and the capture
      has to happen while that page and its annotations are still here. */
   try { autoLearnFlushCurrent(); } catch (e) {}
+  bankQWorksheetChanged();  // an open question belongs to the worksheet being left
   stopLivePresence(true); // the worksheet being left is no longer live
   unsubscribeOpenDoc();
   autoLearnReset(false);   // …but the page just flushed still has to be read
@@ -7502,6 +7519,10 @@ function renderEditChrome(p) {
     badge.textContent = sharesRow ? '✨ Type your question' : '✨ Type your question — click outside and ' + aiEngineName() + ' answers it';
   } else if (editingId === activeId) {
     badge.textContent = sharesRow ? '✏️ Editing' : '✏️ Editing text — click outside or press Esc to finish';
+  } else if (annBankQ(a)) {
+    badge.textContent = annLocked(a)
+      ? '📚 Question — locked in position'
+      : '📚 Question from the bank — drag to move, a corner to resize';
   } else if (annPastePic(a)) {
     badge.textContent = annLocked(a)
       ? '🔒 Locked in position — press 🔓 to move it again'
@@ -7530,6 +7551,14 @@ function renderPictureBar(p, a, box) {
   var bar = document.createElement('div');
   bar.className = 'aiBar';
   var locked = annLocked(a);
+  if (annBankQ(a)) {
+    textActionButton(bar, '▶ Open', 'Open the question — answer it, check it and see the model answer',
+      function () { bankQOpen(a.id, false); });
+    if (window.QuestionBank && window.QuestionBank.pure.hasApp(a.bq)) {
+      textActionButton(bar, '🧩 Show app', 'Open the question with its interactive app showing',
+        function () { bankQOpen(a.id, true); });
+    }
+  }
   textActionButton(bar, locked ? '🔓 Unlock' : '🔒 Lock',
     locked
       ? 'Unlock it — it can be dragged and resized again'
@@ -14544,6 +14573,28 @@ function attachOverlayHandlers(p) {
       if (nG) {
         e.preventDefault();
         handleAiNoteAction(nBtn.getAttribute('data-ainote-act'), nG.getAttribute('data-id'), p);
+        return;
+      }
+    }
+    /* 📚 A tap on a bank question OPENS it for a student or a share-link
+       visitor — the question on the page is a picture, and the window is
+       where it is answered and where its app is. Not while a drawing tool
+       is in hand in practice: writing beside the question is the point of
+       practising, and a pen landing on it must still be ink. The teacher's
+       tap falls through so the question selects, and its own bar opens it. */
+    var bqHost = e.target.closest ? e.target.closest('[data-bq]') : null;
+    if (bqHost) {
+      var bqG = bqHost.closest ? bqHost.closest('g[data-id]') : null;
+      var bqAnn = bqG && annotations.find(function (x) { return x.id === bqG.getAttribute('data-id'); });
+      // Only a bank question is asked anything more; every other picture
+      // goes on to the ordinary handlers untouched.
+      var bqTeacher = annBankQ(bqAnn) && !isStudent() && !isSharedVisitor();
+      // Someone who can write on the page (practising, revising, or a link
+      // that allows editing) writes on it with a drawing tool in hand.
+      var bqCanDraw = annBankQ(bqAnn) && (practiceMode || reviseMode || (isSharedVisitor() && !isStudent()));
+      if (annBankQ(bqAnn) && !bqTeacher && !(bqCanDraw && isDrawTool(tool))) {
+        e.preventDefault();
+        bankQOpen(bqAnn.id, false);
         return;
       }
     }
@@ -22889,6 +22940,9 @@ function stripCodeFence(s) {
 function pastePicNode(a) {
   var box = document.createElement('div');
   box.className = 'pastePic';
+  // No badge and no frame — this attribute is the only thing that marks a
+  // bank question, and it is only read by the tap that opens it.
+  if (annBankQ(a)) box.setAttribute('data-bq', '1');
   if (a.src) {
     var img = document.createElement('img');
     img.src = a.src;
@@ -26979,7 +27033,10 @@ function startPractice() {
   suspendPointerInput();
   commitActiveTextEdit();
   teacherAnswers = annotations;
-  annotations = [];
+  /* 📚 The bank's questions are the WORKSHEET, not the answers, so they stay
+     on the page to practise on — as locked copies, so nothing done while
+     practising moves the teacher's own, and endPractice simply drops them. */
+  annotations = bankQPracticeCopies(teacherAnswers);
   undoStack = []; redoStack = [];
   selectedId = null; editingId = null; editModeId = null;
   reviseMode = false; $('reviseToggle').checked = false;
@@ -28386,7 +28443,7 @@ function isStudent() {
 /* Download and the two Print buttons are deliberately NOT in this list:
    students may keep — and print — a copy of any worksheet they can already
    open, so those buttons stay for everyone. */
-var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'printQrBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
@@ -28399,6 +28456,7 @@ function applyRoleUI() {
   if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
   lessonRoleChanged();
   voiceRoleChanged();
+  bankQRoleChanged();
   if (typeof penSelectCancel === 'function') penSelectCancel();   // a path belongs to the role that started it
   var student = isStudent();
   var hideTools = student && !practiceMode; // practising students get drawing tools
@@ -29359,6 +29417,168 @@ function liveCamsInit() {
 
 function liveCamsRoleChanged() {
   if (liveCams) liveCams.roleChanged();
+}
+
+/* ================= 📚 Question bank — glue (the feature itself is question-bank.js) =================
+   The teacher picks a question from the Science portal's bank and it lands
+   on the page as a PICTURE of the question — an ordinary pasted picture
+   that also carries the question on `bq` (see annBankQ). Tapping it opens
+   the question in a window, answerable, with its interactive app behind
+   🧩 Show app. question-bank.js owns the picker, the window, the painting
+   and the QR code; this block says who is using the device, where a
+   question goes on the page, how a written answer is marked, and which
+   buttons are its own. question-bank.js loads at the foot of the page, so
+   `bankQ` stays null until bankQInit() runs there; every call here is
+   guarded for the moment before that. */
+var bankQ = null;
+var bankQRoleKey = '';
+var BANKQ_QR_PREF = 'anskeyPrintQr';
+var printQrOn = false;
+
+function bankQRole() {
+  if (wheelTeacher()) return 'teacher';
+  if (isSharedVisitor() || actingStudent || (currentUser && !isAdmin(currentUser))) return 'student';
+  return 'none';
+}
+
+/* Where the question goes: the page in view, centred, a little below the
+   top of what is on screen — so it lands where the teacher is looking
+   rather than at the top of a page scrolled half out of sight. */
+function bankQAddToPage(pic, snap) {
+  if (!wheelTeacher()) { toast('Adding questions from the bank is the teacher’s own.'); return 0; }
+  if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return 0; }
+  var page = mmTargetPage();
+  if (!pdfDoc || !page) { toast('Open a worksheet — or add a blank page — first.', 4000); return 0; }
+  if (!pic || !pic.src) return 0;
+  var r = page.wrap ? page.wrap.getBoundingClientRect() : null;
+  var anchorY = r ? Math.max(0, -r.top) / (scale || 1) + 24 : undefined;
+  var step = annotations.filter(function (x) { return x.page === page.num && annBankQ(x); }).length;
+  var box = window.QuestionBank.pure.placeOnPage(page.baseW, page.baseH, pic.ratio, step, anchorY);
+  pushUndo();
+  var a = {
+    id: newAnnId(), page: page.num, type: 'ainote', kind: 'paste',
+    x: box.x, y: box.y, w: box.w, h: box.h,
+    ratio: round2(Math.max(0.05, pic.ratio || 0.75)),
+    color: '#5DADE2', title: snap.title || 'Question', text: '', src: pic.src,
+    bq: snap, ts: Date.now()
+  };
+  annotations.push(a);
+  selectedId = a.id;
+  renderAllOverlays();
+  setDirty(true);
+  return page.num;
+}
+
+/* ✨ Mark my answer — a written answer marked against its model answer,
+   grounded like every other mark in the app. */
+var BANKQ_MARK_SYS = 'You are a fair, encouraging primary school science and maths teacher marking a student\'s ' +
+  'written answers against the model answers. Accept correct ideas in the student\'s own words. ' +
+  'Never reveal more than the model answer says. Reply with JSON only.';
+function bankQMark(prompt, q) {
+  var plain = window.QuestionBank ? window.QuestionBank.pure.questionPlain(q) : '';
+  return window.askGemini(prompt, {
+    system: BANKQ_MARK_SYS + (aiGrounding('mark', { q: plain }) || ''),
+    maxOutputTokens: 900, temperature: 0.2, json: true, timeoutMs: 45000
+  });
+}
+
+function bankQInit() {
+  if (bankQ || !window.QuestionBank) return bankQ;
+  bankQ = window.QuestionBank.create({
+    db: function () { return db; },
+    uid: function () { return currentUser ? currentUser.uid : ''; },
+    role: bankQRole,
+    toast: toast,
+    canAdd: function () {
+      if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return false; }
+      if (!pdfDoc) { toast('Open a worksheet — or add a blank page — first.', 4000); return false; }
+      return true;
+    },
+    addToPage: bankQAddToPage,
+    findAnnotation: function (id) {
+      return annotations.find(function (x) { return x.id === id; }) ||
+        (teacherAnswers || []).find(function (x) { return x.id === id; }) || null;
+    },
+    mark: function (prompt, q) { return typeof window.askGemini === 'function' ? bankQMark(prompt, q) : Promise.reject(new Error('AI is not ready')); },
+    aiName: function () { return aiEngineName(); }
+  });
+  $('bankQBtn').addEventListener('click', function () {
+    if (!wheelTeacher()) return;   // hiding the button is never the lock
+    bankQ.openPicker();
+  });
+  try { printQrOn = localStorage.getItem(BANKQ_QR_PREF) === '1'; } catch (e) { printQrOn = false; }
+  syncPrintQrBtn();
+  $('printQrBtn').addEventListener('click', function () {
+    if (!wheelTeacher()) return;
+    printQrOn = !printQrOn;
+    try { localStorage.setItem(BANKQ_QR_PREF, printQrOn ? '1' : '0'); } catch (e) {}
+    syncPrintQrBtn();
+    toast(printQrOn
+      ? '▦ QR code on — prints and downloads carry it on page 1, for students to scan.'
+      : 'QR code off — prints are back to the worksheet alone.');
+  });
+  bankQRoleKey = bankQIdentity();
+  return bankQ;
+}
+
+function syncPrintQrBtn() {
+  var b = $('printQrBtn');
+  if (!b) return;
+  b.setAttribute('aria-pressed', String(printQrOn));
+  b.classList.toggle('active', printQrOn);
+  var l = $('printQrLabel');
+  if (l) l.textContent = 'QR code on page 1: ' + (printQrOn ? 'On' : 'Off');
+}
+
+/* The link the QR code carries — the worksheet's share link, so it opens
+   without an account. Nothing is drawn rather than a code that leads
+   nowhere: an unsaved worksheet has no link yet, and a link switched off
+   turns every student away. */
+function printQrUrl() {
+  if (!printQrOn || !wheelTeacher()) return '';
+  if (!currentDocId) {
+    toast('Save the worksheet first — the QR code points to the saved copy. Printing without it.', 4500);
+    return '';
+  }
+  if (wsShare && wsShare.mode === 'off') {
+    toast('The share link is off, so the QR code would turn students away. Turn it on in Share — printing without it.', 5200);
+    return '';
+  }
+  return shareUrl(currentDocId);
+}
+
+function bankQOpen(id, withApp) {
+  if (!bankQ) return;
+  bankQ.openQuestion(id, !!withApp);
+}
+
+/* While practising, the bank's questions stay on the page as LOCKED copies:
+   nothing a student does while practising moves the teacher's own, and
+   endPractice puts the real annotations back and drops these. */
+function bankQPracticeCopies(list) {
+  return (list || []).filter(annBankQ).map(function (a) {
+    var c = JSON.parse(JSON.stringify(a));
+    c.locked = true;
+    return c;
+  });
+}
+
+/* Whose device it is: an answer typed into a question by one person is not
+   left for the next, and the teacher's picker does not stay open in a
+   student's hands. Asked on every applyRoleUI, acted on only when the
+   person really changed — applyRoleUI also runs for practice and sign-in. */
+function bankQIdentity() {
+  return bankQRole() + ':' + (currentUser ? currentUser.uid : '') + ':' + (actingStudent ? actingStudent.name || '' : '') +
+    ':' + (isSharedVisitor() ? 'shared' : '');
+}
+function bankQRoleChanged() {
+  var key = bankQIdentity();
+  if (key === bankQRoleKey) return;
+  bankQRoleKey = key;
+  if (bankQ) bankQ.roleChanged();
+}
+function bankQWorksheetChanged() {
+  if (bankQ) bankQ.worksheetChanged();
 }
 /* ================= End live cams glue ================= */
 
@@ -34359,6 +34579,13 @@ async function buildAnnotatedPdf(includeTs, opts) {
 
     });
 
+  /* 📚 The QR code on the first page — the worksheet's share link, drawn as
+     vector squares so it scans from a photocopy. */
+  if (opts.qr && window.QuestionBank && outDoc.getPageCount()) {
+    try { window.QuestionBank.drawQrOnPdf(outDoc, outDoc.getPage(0), opts.qr, PDFLib, font); }
+    catch (qrErr) { console.warn('The QR code could not be drawn', qrErr); }
+  }
+
   return outDoc.save();
 }
 
@@ -34368,7 +34595,7 @@ async function downloadAnnotated() {
   btn.disabled = true;
   toast('Preparing PDF…');
   try {
-    var outBytes = await buildAnnotatedPdf(false);
+    var outBytes = await buildAnnotatedPdf(false, { qr: printQrUrl() });
     var blob = new Blob([outBytes], { type: 'application/pdf' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -34420,8 +34647,11 @@ async function runPrint(kind) {
   var lab = printLabels();
   toast('Preparing ' + (answers ? lab.aToast : lab.qToast) + ' for printing…');
   try {
+    /* The bank's questions are part of the worksheet, so the questions-only
+       print keeps them — everything else written on the page goes. */
     var outBytes = await buildAnnotatedPdf(false, {
-      anns: answers ? answerAnnotations() : []
+      anns: answers ? answerAnnotations() : answerAnnotations().filter(annBankQ),
+      qr: printQrUrl()
     });
     printPdfBytes(outBytes, answers ? lab.aDone : lab.qDone);
   } catch (e) {
@@ -35903,6 +36133,10 @@ loadAiNotePrefs();
 <script src="student-heroes.js"></script>
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>
+<script src="vendor/qrcode-generator.js"></script>
+<script src="question-apps.js"></script>
+<script src="question-bank.js"></script>
+<script>bankQInit();</script>
 <script type="module">
 /* ================= Firebase AI Logic (Gemini) =================
    Gemini access for the AI text-box features. Uses the shared Polymath

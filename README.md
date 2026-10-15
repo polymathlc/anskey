@@ -4,6 +4,39 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.136.0 — Questions from the Science portal's question bank
+
+A new **Question bank** button (teacher only, beside the page tools) opens the
+question bank you built in the Science portal (`/cer`). Search it by words,
+topic or level, look at a question in full, and press **➕ Add to page**.
+
+- **On the page it is just the question.** There is no window, heading or
+  border round it, only the question itself as a clean picture. You can move
+  it, resize it from a corner, lock it, erase around it and print it like any
+  pasted picture.
+- **Select it and it shows you what it is.** A note under it says it is a
+  question from the bank, with **▶ Open**, **🧩 Show app**, 🔒 Lock and 🗑 Remove.
+- **▶ Open shows the whole question in a clean window** where it can be done:
+  - Pick an MCQ option.
+  - Fill in the blanks.
+  - Write the written answers.
+  - **✓ Check** marks the options and the blanks, then reveals the model
+    answers, the explanation and any answer diagrams.
+  - **✨ Mark** asks Chung GPT to mark the written answers, using your
+    teaching notes.
+- **🧩 Show app** runs the question's interactive app (the one attached to it
+  in the portal), with full functionality, inside the window.
+- **Students and share-link visitors tap the question to open it.** While
+  practising with a pen in hand, writing on it is still ink.
+- **QR code on the printout.** In *Print & PDF*, switch on **QR code on
+  page 1**. The first page of every print or download then gets a QR code
+  (top right) that opens this worksheet in Ans Key with all its questions and
+  apps. It needs the worksheet saved and its share link on; otherwise it says
+  so and prints without it.
+- The question is kept on the worksheet itself, so students see it even
+  without access to your bank. Editing it later in the portal does not change
+  worksheets that already use it.
+
 ## v1.135.0 — Live cams: students show their answers on camera
 
 A new **📹 Live cams** button (teacher only, beside the Wheel) opens a window

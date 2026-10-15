@@ -2,6 +2,19 @@
 
 Guidance for Claude when working in this repo.
 
+## 📚 Question bank from cer (v1.136.0)
+
+- `question-bank.js` / `question-bank.css` own the feature (`QuestionBank.create(env)`; pure helpers on `QuestionBank.pure`; `paintQuestion`; `drawQrOnPdf`). `question-apps.js` is **byte-identical to `polymathlc/cer`'s** (the tests compare them when cer is checked out beside this repo). `vendor/qrcode-generator.js` is cer's copy too. index.html holds only the glue after `liveCamsRoleChanged`, from `bankQ` to `bankQWorksheetChanged`. It also holds `#bankQBtn`, `#printQrBtn` and `<script>bankQInit();</script>`.
+- Bank: `users/{adminUid}/questions` (admin uid from `config/admin`). Only the teacher reads it.
+- **A bank question on the page is an `ainote` of kind `'paste'` with `a.bq`.** `src` is a JPEG painted from the question, and `bq` is a snapshot (`snapshotQuestion`; an app over `WIDGET_MAX_CHARS` is dropped with `tooBig`). `annBankQ(a)` is the one predicate. Never add an annotation type for it: being a frameless pasted picture is what gives it move, resize, lock, erase, undo, save and both PDF paths. Students and share visitors read the snapshot and never the bank, so no rules migration was made.
+- Opening it:
+  - The teacher selects it, and `renderPictureBar` adds ▶ Open and 🧩 Show app.
+  - For a student or share visitor, a tap in `pointerdown` opens it (the block after the AI-note buttons). With a drawing tool in hand while practising, revising or on an editable link, the tap is ink.
+  - `bankQPracticeCopies` keeps locked copies in practice mode. The questions-only print keeps bank questions (`answerAnnotations().filter(annBankQ)`).
+- The window's HTML goes through a whitelist sanitiser; no script or event handler from a question runs in the page. Apps run only in `QuestionApps.frame` (sandbox `allow-scripts`, CSP). ✨ Mark goes through `bankQMark`, grounded `aiGrounding('mark')` and teacher/student marking alike. Overlays stop keystrokes and close on Escape. `bankQRoleChanged` closes them only when the person changes (`bankQIdentity`), and `bankQWorksheetChanged` closes them on a new worksheet.
+- QR: `anskeyPrintQr` localStorage switch. `printQrUrl()` = `shareUrl(currentDocId)` only when saved and shared, otherwise a toast and no QR. `runPrint` and `downloadAnnotated` pass `qr`, and `buildAnnotatedPdf` draws it on page 1 as vector squares with a link annotation.
+- Run `node --test tools/question-bank-tests.mjs` and `node tools/question-bank-check.mjs` (real page in Chromium, fake bank; `PDF_LIB=` for offline pdf-lib). It is also in CI.
+
 ## 📹 Live cams (v1.135.0)
 
 - `live-cams.js` / `live-cams.css` own the feature (`LiveCams.create(env)`, pure helpers on `LiveCams.pure`). index.html holds only the glue between `📹 Live cams — glue` and `End live cams glue` (`liveCamRole`, `liveCamUser`, `liveCamsInit`, `liveCamsRoleChanged`), the `#liveCamBtn` header button, and `<script>liveCamsInit();</script>` after the module's script tag.
