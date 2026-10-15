@@ -22,6 +22,9 @@ explainer.
 - **The replay shows the recorded window large**, and **⬇ 1080p** turns it
   into a 1920 × 1080 video file to share.
 - Stopping the share from the browser's own bar stops the lesson and saves it.
+- **⬇ 1080p has a new Video size choice: Small, Medium or Large.** It sets how
+  big your camera video is inside the exported video, beside the page or in
+  the corner. Medium is the size it always was, and your choice is remembered.
 - It needs Chrome, Edge or Safari on a computer. An iPad does not let a web
   page record its own screen, so there the switch says so and stays off.
 

@@ -9,6 +9,7 @@ Guidance for Claude when working in this repo.
 - **`lessonScreenAsk()` is called before the first `await` in `lessonStart`** — getDisplayMedia needs the click. A share whose `displaySurface` is not `browser`, or whose shape is not the viewport's, is recorded whole with a toast.
 - While it records, `body.lessonScreenRec`: the bar stack and toasts move up over the toolbar, `#favBar` / `#toolbarToggleBtn` are hidden, and `.qbBack` is sized to the area from `--lsr-*` (set each frame).
 - `c.screenShot` outlives the release; `job.screen` / `lessonRecording.screen` flag the lesson (audio and camera lessons are unchanged). The replay uses `LESSON_SCREENWIN_SIZES`; the export draws the video full frame (`lessonExportScreen`) and rasterises no page.
+- 📐 Export camera size: `LESSON_EXPORT_SIZES` / `LESSON_EXPORT_SIZE_SCALE` (0.7 / 1 / 1.4), `lessonExportLayout(kind, camW, camH, size)`, `job.camSize`, `#lessonExportSizeRow` (`data-lx-size`), remembered in `LESSON_EXPORT_PREF.size`. Medium (or no size) must stay byte-identical to the old layout; `polymathlc/tutor` carries the export too, so port it there when touching it.
 - Run `node --test tools/lesson-screen-tests.mjs` and `node tools/screen-record-check.mjs` (new-headless Chromium, `--auto-accept-this-tab-capture`, lime toolbar must be absent and a magenta app frame present in the decoded file). It is in CI.
 
 ## 📚 Question bank from cer (v1.136.0)

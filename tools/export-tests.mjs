@@ -81,6 +81,24 @@ test('the three layouts put everything on a 1920 × 1080 frame, and the camera k
   assert.equal(c.lessonExportLayout('side', 0, 0).cam.w > 0, true, 'no camera size yet still lays out');
 });
 
+test('📐 the camera comes in three sizes, Medium is the old frame, and every size fits', () => {
+  const c = box();
+  for (const kind of ['side', 'corner']) {
+    const base = c.lessonExportLayout(kind, 640, 360);
+    assert.deepEqual(plain(c.lessonExportLayout(kind, 640, 360, 'medium')), plain(base), kind + ': medium is what it always was');
+    assert.deepEqual(plain(c.lessonExportLayout(kind, 640, 360, 'nonsense')), plain(base), kind + ': an unknown size is medium');
+    const small = c.lessonExportLayout(kind, 640, 360, 'small').cam, large = c.lessonExportLayout(kind, 640, 360, 'large').cam;
+    assert.ok(small.w < base.cam.w && base.cam.w < large.w, kind + ': small < medium < large');
+    for (const cam of [small, large]) {
+      assert.ok(cam.x >= 0 && cam.y >= 0 && cam.x + cam.w <= 1920 && cam.y + cam.h <= 1080, kind + ': inside the frame');
+      assert.ok(Math.abs(cam.w / cam.h - 16 / 9) < 0.01, kind + ': keeps its shape');
+    }
+  }
+  const tall = c.lessonExportLayout('side', 360, 640, 'large').cam;
+  assert.ok(tall.y + tall.h <= 1080, 'a large upright camera still fits');
+  assert.equal(c.lessonExportLayout('page', 640, 360, 'large').cam, null, 'page only stays page only');
+});
+
 test('pages stack one under another, centred on one axis, with a gap', () => {
   const c = box();
   const stack = c.lessonExportStack([{ num: 1, baseW: 600, baseH: 800 }, { num: 2, baseW: 800, baseH: 600 }]);
@@ -178,11 +196,11 @@ test('it says how big the file will be, and names it for the worksheet and the q
 
 test('the choices are remembered, and a stored value this build does not know falls back', () => {
   const c = box();
-  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'side', mode: 'follow' });
-  c.lessonPrefSet(c.LESSON_EXPORT_PREF, { layout: 'corner', mode: 'page' });
-  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'corner', mode: 'page' });
-  c.lessonPrefSet(c.LESSON_EXPORT_PREF, { layout: 'hologram', mode: 7 });
-  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'side', mode: 'follow' });
+  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'side', mode: 'follow', size: 'medium' });
+  c.lessonPrefSet(c.LESSON_EXPORT_PREF, { layout: 'corner', mode: 'page', size: 'large' });
+  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'corner', mode: 'page', size: 'large' });
+  c.lessonPrefSet(c.LESSON_EXPORT_PREF, { layout: 'hologram', mode: 7, size: 'huge' });
+  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'side', mode: 'follow', size: 'medium' });
 });
 
 test('MP4 is chosen when the browser writes it, WebM otherwise', () => {
