@@ -141,6 +141,20 @@ ok('the choice is remembered on this device', /fake_device/.test(preview.remembe
 ok('the size line now says what a minute with the camera costs', /^Camera on: about 4\.3 MB a minute/.test(preview.size), preview.size);
 await shot(page, '1-lesson-window');
 
+console.log('\n📐 The window chooses where the camera goes in the 1080p video');
+const layoutBefore = await page.evaluate(() => ({ shown: !$('lessonCamLayoutRow').hidden,
+  on: Array.from(document.querySelectorAll('#lessonCamLayoutRow .lxSegBtn.on')).map(b => b.dataset.lclSize || b.dataset.lclPos) }));
+ok('a camera shows the size and position choice, on its own column and medium', layoutBefore.shown && layoutBefore.on.includes('side') && layoutBefore.on.includes('medium'), JSON.stringify(layoutBefore));
+await page.click('[data-lcl-size="large"]');
+await page.click('[data-lcl-pos="tl"]');
+const layoutAfter = await page.evaluate(() => {
+  const map = $('lessonCamMap').getBoundingClientRect(), cam = $('lessonCamMapCam').getBoundingClientRect();
+  return { pref: localStorage.getItem('polymath.lessonCamLayout'), choice: lessonDevChoice().camLayout,
+    camLeft: cam.left - map.left, camTop: cam.top - map.top, camW: cam.width, mapW: map.width };
+});
+ok('large in the top left is remembered and read with the devices', /"tl"/.test(layoutAfter.pref || '') && layoutAfter.choice && layoutAfter.choice.pos === 'tl' && layoutAfter.choice.size === 'large', JSON.stringify(layoutAfter));
+ok('…and the little map puts the camera there', layoutAfter.camLeft < layoutAfter.mapW * 0.1 && layoutAfter.camTop < 20 && layoutAfter.camW > 0, JSON.stringify(layoutAfter));
+
 console.log('\n🔊 Test sound records a few seconds and plays them back');
 await page.click('#lessonTestBtn');
 const listening = await page.evaluate(() => $('lessonTestBtn').textContent);
@@ -198,6 +212,7 @@ ok('Stop saves it as a lesson on the page', saved && !!pill.a, JSON.stringify(pi
 ok('…flagged and labelled as a video lesson', pill.a && pill.a.lessonRecording.video === true && /^Play video lesson · 0:0[2-4]$/.test(pill.a.label), pill.a && pill.a.label);
 ok('…uploaded as a video file', /^video\//.test(pill.type || '') && pill.size > 5000, pill.media + ' ' + pill.type + ' ' + pill.size);
 ok('the camera and the microphone are both let go', pill.live === 0, 'live tracks: ' + pill.live);
+ok('…and the lesson carries the layout it was recorded with', pill.a && pill.a.lessonRecording.camLayout && pill.a.lessonRecording.camLayout.pos === 'tl' && pill.a.lessonRecording.camLayout.size === 'large', JSON.stringify(pill.a && pill.a.lessonRecording.camLayout));
 
 const file = await page.evaluate(async () => {
   const media = Object.keys(window.__uploaded).find(k => !k.endsWith('.json'));
@@ -211,6 +226,16 @@ const file = await page.evaluate(async () => {
 });
 ok('the saved file plays as video, with a FINITE duration', Number.isFinite(file.duration) && file.duration > 2 && file.w === 640, JSON.stringify(file));
 ok('…and it seeks', Math.abs(file.seeked - 1.5) < 0.3, String(file.seeked));
+
+console.log('\n⬇ The 1080p export opens on the recorded layout');
+await page.evaluate(() => lessonExportOpen(annotations.find(x => x.lessonRecording)));
+await page.waitForFunction(() => lessonExportJob && lessonExportJob.phase !== 'loading', null, { timeout: 15000 }).catch(() => {});
+const xj = await page.evaluate(() => { const j = lessonExportJob || {};
+  const r = { kind: j.layoutKind, pos: j.camPos, size: j.camSize, recorded: !!j.recordedLayout,
+    posOn: (document.querySelector('#lessonExportPosRow .lxSegBtn.on') || {}).dataset, posShown: !$('lessonExportPosRow').hidden };
+  r.posOn = r.posOn ? r.posOn.lxPos : null; lessonExportClose(true); return r; });
+ok('…in a corner, top left, large', xj.kind === 'corner' && xj.pos === 'tl' && xj.size === 'large' && xj.recorded, JSON.stringify(xj));
+ok('…with the corner shown in its window', xj.posShown && xj.posOn === 'tl', JSON.stringify(xj));
 
 console.log('\n▶ The replay plays the video in its own window, and the writing follows it');
 await page.evaluate(() => lessonPlay(annotations.find(x => x.lessonRecording)));

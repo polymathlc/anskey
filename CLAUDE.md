@@ -2,6 +2,27 @@
 
 Guidance for Claude when working in this repo.
 
+## 📐 You in the 1080p video (v1.139.0)
+
+- The pieces in the camera and mic section:
+  - `LESSON_CAMLAYOUT_PREF` (`polymath.lessonCamLayout`), `LESSON_CAM_POSITIONS` (tl/tr/bl/br/side) and `LESSON_CAM_SIZES` / `LESSON_CAM_SIZE_SCALE`. These must equal the export's `LESSON_EXPORT_CORNERS` + side, `LESSON_EXPORT_SIZES` and `LESSON_EXPORT_SIZE_SCALE`.
+  - `lessonCamLayoutClean`, `lessonCamLayoutPref` (default side/medium), `lessonScreenCamBox`, `lessonCamLayoutRender` and `lessonCamLayoutClick`.
+  - In the Record lesson window: `#lessonCamLayoutRow` (`data-lcl-size` / `data-lcl-pos`) and `#lessonCamMap`.
+- `lessonDevChoice` reads `camLayout` only with a camera. `lessonFinish` puts it on the job, and the attachment carries `lessonRecording.camLayout` only for a video lesson. A lesson without it is byte-identical to before.
+- Export:
+  - `lessonExportStartLayout(recorded, prefs)` makes a camera lesson open on its recorded layout (`job.recordedLayout`). The teacher can still change it.
+  - `lessonExportLayout(kind, camW, camH, size, pos)` takes a corner `pos`, plus `#lessonExportPosRow` (`data-lx-pos`) and `LESSON_EXPORT_PREF.pos`.
+  - **Medium bottom-right (or no size/pos) must stay byte-identical to the old layout.**
+  - The opening card and `lessonCaptionDraw` move away from a bottom-left or bottom camera.
+- A WINDOW recording bakes the layout into its video:
+  - `lessonScreenCompose` widens the canvas by `rec.col` for side.
+  - `lessonScreenPaint` paints the camera at `lessonScreenCamBox`. It is never mirrored.
+- `polymathlc/tutor` carries the export; port there when touching it.
+- Run:
+  - `node --test tools/lesson-camlayout-tests.mjs tools/export-tests.mjs`
+  - `node tools/camera-check.mjs` (records large/top left and checks the attachment and the export window)
+  - `node tools/screen-record-check.mjs`
+
 ## 💬 Lesson captions (v1.138.0)
 
 - The section is marked `💬 Lesson captions` … `End lesson captions` in index.html, right after the export section. `#lessonCaptionBtn` sits on the replay bar, `#lessonCaption` is the caption box (outside `.barStack`), and `#lessonExportCaptionRow` (`#lessonExportCaptionSeg`, `#lessonExportCaptionMake`) is in the export window.
