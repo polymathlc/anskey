@@ -4,6 +4,16 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.139.0 — Choose where you appear in the video when recording
+
+- **Record a lesson** has a new **You in the 1080p video** box under the camera preview. It shows only when a camera is chosen.
+  - **Size:** Small, Medium or Large.
+  - **Position:** Top left, Top right, Bottom left, Bottom right, or Own column on the right.
+  - A small map shows where you will sit. The choice is remembered on this device. The default is your own column, medium.
+- The lesson keeps that choice, and **⬇ 1080p** opens on it. The export window can still change it. It now also has a **Corner** row, so the corner camera can go in any of the four corners.
+- When you record the worksheet window, your camera is painted where you chose as it records. The own-column choice adds a dark column beside the window. The export shows that video as it is.
+- Older lessons, and lessons without a camera, export exactly as before.
+
 ## v1.138.1 — Captions are always English
 
 - Captions came out in Malay because the transcription was left to guess the language. Every request now says English (`language: en`), with an English prompt, so a Singapore classroom is never heard as Malay again.

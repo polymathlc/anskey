@@ -196,11 +196,38 @@ test('it says how big the file will be, and names it for the worksheet and the q
 
 test('the choices are remembered, and a stored value this build does not know falls back', () => {
   const c = box();
-  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'side', mode: 'follow', size: 'medium' });
-  c.lessonPrefSet(c.LESSON_EXPORT_PREF, { layout: 'corner', mode: 'page', size: 'large' });
-  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'corner', mode: 'page', size: 'large' });
-  c.lessonPrefSet(c.LESSON_EXPORT_PREF, { layout: 'hologram', mode: 7, size: 'huge' });
-  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'side', mode: 'follow', size: 'medium' });
+  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'side', mode: 'follow', size: 'medium', pos: 'br' });
+  c.lessonPrefSet(c.LESSON_EXPORT_PREF, { layout: 'corner', mode: 'page', size: 'large', pos: 'tl' });
+  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'corner', mode: 'page', size: 'large', pos: 'tl' });
+  c.lessonPrefSet(c.LESSON_EXPORT_PREF, { layout: 'hologram', mode: 7, size: 'huge', pos: 'middle' });
+  assert.deepEqual(JSON.parse(JSON.stringify(c.lessonExportPrefs())), { layout: 'side', mode: 'follow', size: 'medium', pos: 'br' });
+});
+
+test('📐 the corner camera goes in any of the four corners, bottom right being the old one', () => {
+  const c = box();
+  const base = plain(c.lessonExportLayout('corner', 640, 360, 'medium'));
+  assert.deepEqual(plain(c.lessonExportLayout('corner', 640, 360, 'medium', 'br')), base, 'bottom right is what it always was');
+  assert.deepEqual(plain(c.lessonExportLayout('corner', 640, 360, 'medium', 'nowhere')), base, 'an unknown corner is bottom right');
+  for (const size of ['small', 'medium', 'large']) {
+    const at = pos => c.lessonExportLayout('corner', 640, 360, size, pos).cam;
+    const tl = at('tl'), tr = at('tr'), bl = at('bl'), br = at('br');
+    assert.equal(tl.x, 36); assert.equal(tl.y, 36);
+    assert.equal(tr.x + tr.w, 1920 - 36); assert.equal(tr.y, 36);
+    assert.equal(bl.x, 36); assert.equal(bl.y + bl.h, 1080 - 36);
+    assert.equal(br.x + br.w, 1920 - 36); assert.equal(br.y + br.h, 1080 - 36);
+    for (const cam of [tl, tr, bl, br]) assert.equal(cam.w, br.w, size + ': every corner is the same size');
+  }
+  assert.deepEqual(plain(c.lessonExportLayout('side', 640, 360, 'large', 'tl')), plain(c.lessonExportLayout('side', 640, 360, 'large')), 'a corner means nothing to the column');
+});
+
+test('📐 the export starts on the layout the lesson was recorded with', () => {
+  const c = box();
+  const prefs = { layout: 'page', pos: 'br', size: 'small', mode: 'follow' };
+  assert.deepEqual(plain(c.lessonExportStartLayout({ pos: 'tl', size: 'large' }, prefs)), { layout: 'corner', pos: 'tl', size: 'large', recorded: true });
+  assert.deepEqual(plain(c.lessonExportStartLayout({ pos: 'side', size: 'small' }, prefs)), { layout: 'side', pos: 'br', size: 'small', recorded: true });
+  assert.deepEqual(plain(c.lessonExportStartLayout(undefined, prefs)), { layout: 'page', pos: 'br', size: 'small', recorded: false }, 'an older lesson: the remembered choice');
+  assert.deepEqual(plain(c.lessonExportStartLayout({ pos: 'moon', size: 'large' }, prefs)).recorded, false, 'a bad stored layout is ignored');
+  assert.deepEqual(plain(c.lessonExportStartLayout({ pos: 'tl', size: 'giant' }, prefs)).recorded, false);
 });
 
 test('MP4 is chosen when the browser writes it, WebM otherwise', () => {

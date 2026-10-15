@@ -3634,6 +3634,17 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 .lxStage video { position:absolute; left:0; top:0; width:2px; height:2px; opacity:0; pointer-events:none; }
 .lxOptions { margin-top:20px; display:flex; flex-direction:column; gap:14px; }
 .lxRow { display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; }
+/* 📐 You in the 1080p video — chosen in the Record lesson window (v1.139.0). */
+.lessonCamLayout { margin-top:14px; padding:14px 16px; border:1px solid var(--line); border-radius:14px; background:#FBFAF8; }
+.lessonCamLayout[hidden] { display:none; }
+.lessonCamLayoutHead { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:baseline; font-size:0.86rem; margin-bottom:12px; }
+.lessonCamLayoutHead em { color:var(--muted, #6B7280); font-style:normal; font-size:0.8rem; }
+.lessonCamLayoutBody { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+.lessonCamLayoutPick { flex:1 1 260px; display:flex; flex-direction:column; gap:10px; }
+.lessonCamMap { position:relative; flex:0 0 auto; width:160px; aspect-ratio:16/9; border-radius:8px; background:#20262C; overflow:hidden; }
+.lessonCamMapPage { position:absolute; background:#F4F1EA; border-radius:2px; }
+.lessonCamMapCam { position:absolute; background:#F0A93A; border:2px solid #fff; border-radius:4px; box-sizing:border-box; }
+.lessonCamMapCam[hidden] { display:none; }
 .lxRow[hidden] { display:none; }
 .lxLabel { min-width:70px; font-size:0.84rem; font-weight:bold; color:var(--ink); }
 .lxSeg { display:inline-flex; flex-wrap:wrap; gap:8px; }
@@ -4367,6 +4378,30 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
           <input type="checkbox" id="lessonMirror" checked>
           <span>Mirror my preview <em>— the recording itself is never mirrored</em></span>
         </label>
+        <div class="lessonCamLayout" id="lessonCamLayoutRow" hidden>
+          <div class="lessonCamLayoutHead"><b>You in the 1080p video</b><em>— the export follows this</em></div>
+          <div class="lessonCamLayoutBody">
+            <div class="lessonCamLayoutPick">
+              <div class="lxRow"><span class="lxLabel">Size</span>
+                <div class="lxSeg" role="radiogroup" aria-label="Camera size in the video">
+                  <button type="button" class="lxSegBtn" data-lcl-size="small" role="radio" aria-checked="false">Small</button>
+                  <button type="button" class="lxSegBtn" data-lcl-size="medium" role="radio" aria-checked="false">Medium</button>
+                  <button type="button" class="lxSegBtn" data-lcl-size="large" role="radio" aria-checked="false">Large</button>
+                </div>
+              </div>
+              <div class="lxRow"><span class="lxLabel">Position</span>
+                <div class="lxSeg" role="radiogroup" aria-label="Camera position in the video">
+                  <button type="button" class="lxSegBtn" data-lcl-pos="tl" role="radio" aria-checked="false">Top left</button>
+                  <button type="button" class="lxSegBtn" data-lcl-pos="tr" role="radio" aria-checked="false">Top right</button>
+                  <button type="button" class="lxSegBtn" data-lcl-pos="bl" role="radio" aria-checked="false">Bottom left</button>
+                  <button type="button" class="lxSegBtn" data-lcl-pos="br" role="radio" aria-checked="false">Bottom right</button>
+                  <button type="button" class="lxSegBtn" data-lcl-pos="side" role="radio" aria-checked="false">Own column on the right</button>
+                </div>
+              </div>
+            </div>
+            <div class="lessonCamMap" id="lessonCamMap" aria-hidden="true"><div class="lessonCamMapPage" id="lessonCamMapPage"></div><div class="lessonCamMapCam" id="lessonCamMapCam"></div></div>
+          </div>
+        </div>
       </section>
 
       <section class="lessonDev lessonScreenSec" id="lessonScreenSec" aria-labelledby="lessonScreenLabel">
@@ -4479,9 +4514,18 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
         <div class="lxRow" id="lessonExportLayoutRow">
           <span class="lxLabel">Camera</span>
           <div class="lxSeg" role="radiogroup" aria-label="Where the camera goes">
-            <button type="button" class="lxSegBtn" data-lx-layout="side" role="radio" aria-checked="false">Beside the page</button>
-            <button type="button" class="lxSegBtn" data-lx-layout="corner" role="radio" aria-checked="false">In the corner</button>
+            <button type="button" class="lxSegBtn" data-lx-layout="side" role="radio" aria-checked="false">Own column on the right</button>
+            <button type="button" class="lxSegBtn" data-lx-layout="corner" role="radio" aria-checked="false">In a corner</button>
             <button type="button" class="lxSegBtn" data-lx-layout="page" role="radio" aria-checked="false">Page only</button>
+          </div>
+        </div>
+        <div class="lxRow" id="lessonExportPosRow">
+          <span class="lxLabel">Corner</span>
+          <div class="lxSeg" role="radiogroup" aria-label="Which corner the camera goes in">
+            <button type="button" class="lxSegBtn" data-lx-pos="tl" role="radio" aria-checked="false">Top left</button>
+            <button type="button" class="lxSegBtn" data-lx-pos="tr" role="radio" aria-checked="false">Top right</button>
+            <button type="button" class="lxSegBtn" data-lx-pos="bl" role="radio" aria-checked="false">Bottom left</button>
+            <button type="button" class="lxSegBtn" data-lx-pos="br" role="radio" aria-checked="false">Bottom right</button>
           </div>
         </div>
         <div class="lxRow" id="lessonExportSizeRow">
@@ -5440,7 +5484,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.138.1';
+var APP_VERSION = 'v1.139.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -10652,6 +10696,76 @@ function lessonPrefSet(key, value) {
 }
 function lessonMirrorOn() { return lessonPrefGet(LESSON_MIRROR_PREF) !== false; }
 
+/* ---- 📐 Where the camera goes in the video (v1.139.0) ----
+   Chosen in the Record lesson window, carried on the lesson as
+   `lessonRecording.camLayout = {pos, size}`, and followed by the 1080p export
+   (a camera lesson) or painted into the recording itself (a window
+   recording, whose video IS the export's picture). Only a lesson that really
+   had a camera carries it, so every other lesson is what it always was. */
+var LESSON_CAMLAYOUT_PREF = 'polymath.lessonCamLayout';
+var LESSON_CAM_POSITIONS = ['tl', 'tr', 'bl', 'br', 'side'];
+var LESSON_CAM_SIZES = ['small', 'medium', 'large'];
+var LESSON_CAM_SIZE_SCALE = { small: 0.7, medium: 1, large: 1.4 };
+var LESSON_CAM_SIDE_FRACTION = 0.24;   // a window recording's own column, of the area's width
+function lessonCamLayoutClean(v) {
+  if (!v || typeof v !== 'object') return null;
+  var pos = LESSON_CAM_POSITIONS.indexOf(v.pos) >= 0 ? v.pos : '';
+  var size = LESSON_CAM_SIZES.indexOf(v.size) >= 0 ? v.size : '';
+  return pos && size ? { pos: pos, size: size } : null;
+}
+function lessonCamLayoutPref() {
+  return lessonCamLayoutClean(lessonPrefGet(LESSON_CAMLAYOUT_PREF)) || { pos: 'side', size: 'medium' };
+}
+// Where the camera sits on a WINDOW recording, in the canvas's pixels. Pure.
+// W × H is the worksheet area; a column of its own is `col` more on the right.
+// Medium in the bottom right is the corner it always was.
+function lessonScreenCamBox(W, H, camW, camH, layout) {
+  var L = lessonCamLayoutClean(layout) || { pos: 'br', size: 'medium' };
+  var k = LESSON_CAM_SIZE_SCALE[L.size] || 1, ratio = camW > 0 && camH > 0 ? camW / camH : 16 / 9;
+  var m = Math.round(W * 0.018);
+  if (L.pos === 'side') {
+    var col = Math.max(2, Math.round(W * LESSON_CAM_SIDE_FRACTION * k / 2) * 2);
+    var sw = col - m * 2, sh = Math.round(sw / ratio), tallest = Math.round(H * 0.66);
+    if (sh > tallest) { sh = tallest; sw = Math.round(sh * ratio); }
+    return { col: col, x: W + Math.round((col - sw) / 2), y: m, w: sw, h: sh };
+  }
+  var cw = Math.round(W * 0.22 * k), ch = Math.round(cw / ratio), most = Math.round(H * 0.6);
+  if (ch > most) { ch = most; cw = Math.round(ch * ratio); }
+  var left = L.pos === 'tl' || L.pos === 'bl', top = L.pos === 'tl' || L.pos === 'tr';
+  return { col: 0, x: left ? m : W - cw - m, y: top ? m : H - ch - m, w: cw, h: ch };
+}
+// The little 16:9 picture in the window: the same arithmetic the export uses.
+function lessonCamLayoutRender() {
+  var row = $('lessonCamLayoutRow');
+  if (!row) return;
+  row.hidden = !lessonDev.camValue;
+  var L = lessonCamLayoutPref();
+  row.querySelectorAll('[data-lcl-size], [data-lcl-pos]').forEach(function (b) {
+    var on = b.hasAttribute('data-lcl-size') ? b.getAttribute('data-lcl-size') === L.size : b.getAttribute('data-lcl-pos') === L.pos;
+    b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  var page = $('lessonCamMapPage'), cam = $('lessonCamMapCam');
+  if (!page || !cam || typeof lessonExportLayout !== 'function') return;
+  var lay = lessonExportLayout(L.pos === 'side' ? 'side' : 'corner', 16, 9, L.size, L.pos === 'side' ? 'br' : L.pos);
+  function put(el, r) {
+    el.style.left = (r.x / LESSON_EXPORT_W * 100) + '%'; el.style.top = (r.y / LESSON_EXPORT_H * 100) + '%';
+    el.style.width = (r.w / LESSON_EXPORT_W * 100) + '%'; el.style.height = (r.h / LESSON_EXPORT_H * 100) + '%';
+  }
+  put(page, { x: lay.page.x + 6, y: lay.page.y + 40, w: lay.page.w - 12, h: lay.page.h - 40 });
+  if (lay.cam) put(cam, lay.cam);
+}
+function lessonCamLayoutClick(e) {
+  var b = e.target && e.target.closest ? e.target.closest('[data-lcl-size], [data-lcl-pos]') : null;
+  if (!b || !lessonTeacher()) return;
+  var L = lessonCamLayoutPref();
+  if (b.hasAttribute('data-lcl-size')) L.size = b.getAttribute('data-lcl-size');
+  else L.pos = b.getAttribute('data-lcl-pos');
+  L = lessonCamLayoutClean(L);
+  if (!L) return;
+  lessonPrefSet(LESSON_CAMLAYOUT_PREF, L);
+  lessonCamLayoutRender();
+}
+
 /* ---- 📺 Record the worksheet window (v1.137.0) ----
    A lesson recording was the voice, the camera and the INK — replayed over
    the page from a timeline. Anything that is not ink never reached it: a
@@ -10783,9 +10897,15 @@ async function lessonScreenCompose(c, display) {
   var track = display.getVideoTracks()[0], settings = track && track.getSettings ? track.getSettings() : {};
   rec.other = !!(settings.displaySurface && settings.displaySurface !== 'browser');
   var first = lessonScreenCrop(v.videoWidth, v.videoHeight, window.innerWidth, window.innerHeight, rec.other ? null : area.getBoundingClientRect());
-  var size = lessonScreenFit(first.sw, first.sh, LESSON_SCREEN_MAX_W, LESSON_SCREEN_MAX_H);
+  // 📐 Where the camera goes, as chosen in the window. A column of its own
+  // widens the video, so the area is fitted to leave room for it.
+  rec.layout = rec.cam ? lessonCamLayoutClean(c.camLayout) : null;
+  var side = rec.layout && rec.layout.pos === 'side';
+  var room = side ? 1 + LESSON_CAM_SIDE_FRACTION * (LESSON_CAM_SIZE_SCALE[rec.layout.size] || 1) : 1;
+  var size = lessonScreenFit(first.sw, first.sh, Math.floor(LESSON_SCREEN_MAX_W / room), LESSON_SCREEN_MAX_H);
+  rec.col = side ? lessonScreenCamBox(size.w, size.h, 0, 0, rec.layout).col : 0;
   var canvas = rec.canvas = document.createElement('canvas');
-  canvas.width = size.w; canvas.height = size.h;
+  canvas.width = size.w + rec.col; canvas.height = size.h;
   rec.ctx = canvas.getContext('2d');
   rec.self = first.self;
   document.body.classList.add('lessonScreenRec');
@@ -10803,22 +10923,23 @@ async function lessonScreenCompose(c, display) {
   return rec;
 }
 function lessonScreenPaint(rec, area) {
-  var v = rec.video, ctx = rec.ctx, W = rec.canvas.width, H = rec.canvas.height;
+  var v = rec.video, ctx = rec.ctx, W = rec.canvas.width - (rec.col || 0), H = rec.canvas.height;
   var r = area.getBoundingClientRect();
   var key = [r.top, r.left, r.width, r.height].map(Math.round).join(',');
   if (key !== rec.lastVars) { rec.lastVars = key; lessonScreenVars(r); }
   var cr = lessonScreenCrop(v.videoWidth, v.videoHeight, window.innerWidth, window.innerHeight, rec.other ? null : r);
   ctx.fillStyle = '#12161A';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, rec.canvas.width, H);
+  if (rec.col) { ctx.fillStyle = '#171C21'; ctx.fillRect(W, 0, rec.col, H); }
   if (cr) {
     var k = Math.min(W / cr.sw, H / cr.sh), dw = cr.sw * k, dh = cr.sh * k;
     try { ctx.drawImage(v, cr.sx, cr.sy, cr.sw, cr.sh, (W - dw) / 2, (H - dh) / 2, dw, dh); } catch (e) { /* no frame yet */ }
   }
   var cam = rec.cam;
   if (cam && cam.videoWidth > 0 && cam.videoHeight > 0) {
-    // The camera in the corner, never mirrored — the recording never is.
-    var cw = Math.round(W * 0.22), ch = Math.round(cw * cam.videoHeight / cam.videoWidth);
-    var m = Math.round(W * 0.018), x = W - cw - m, y = H - ch - m, rad = Math.round(cw * 0.06);
+    // The camera where the window put it, never mirrored — the recording never is.
+    var box = lessonScreenCamBox(W, H, cam.videoWidth, cam.videoHeight, rec.layout);
+    var cw = box.w, ch = box.h, x = box.x, y = box.y, rad = Math.round(cw * 0.06);
     ctx.save();
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(x, y, cw, ch, rad); else ctx.rect(x, y, cw, ch);
@@ -10967,7 +11088,8 @@ function lessonDevChoice() {
     camId: cam === LESSON_CAM_ANY ? lessonDev.camId || '' : cam,
     micId: lessonDev.micValue || '',
     mirror: lessonMirrorOn(),
-    screen: lessonScreenOn()
+    screen: lessonScreenOn(),
+    camLayout: cam ? lessonCamLayoutPref() : null
   };
 }
 // What a minute costs, from the bitrates the recorder is really handed, and so
@@ -11292,6 +11414,7 @@ function lessonDevRenderCam() {
   var retry = $('lessonCamRetry'); if (retry) retry.hidden = !(s.camValue && s.camState === 'error');
   var row = $('lessonMirrorRow'); if (row) row.hidden = !s.camValue;
   var box = $('lessonMirror'); if (box) box.checked = lessonMirrorOn();
+  lessonCamLayoutRender();
 }
 function lessonDevRenderMic() {
   var s = lessonDev, t = s.test, text = '', tone = '';
@@ -11449,6 +11572,7 @@ $('lessonCamSelect').addEventListener('change', function () { lessonDevChooseCam
 $('lessonMicSelect').addEventListener('change', function () { lessonDevChooseMic($('lessonMicSelect').value); });
 $('lessonMirror').addEventListener('change', lessonDevMirrorChanged);
 if ($('lessonScreen')) $('lessonScreen').addEventListener('change', lessonScreenChanged);
+if ($('lessonCamLayoutRow')) $('lessonCamLayoutRow').addEventListener('click', lessonCamLayoutClick);
 $('lessonTestBtn').addEventListener('click', lessonDevTestToggle);
 $('lessonCamRetry').addEventListener('click', lessonDevRetryCam);
 $('lessonMicRetry').addEventListener('click', lessonDevRetryMic);
@@ -11661,7 +11785,7 @@ async function lessonStart() {
   var c = lessonCapture = { phase: 'starting', epoch: wsEpoch, uid: currentUser.uid, docId: currentDocId,
     user: currentUser, id: newAnnId(), controller: new AbortController(), chunks: [], bytes: 0, lastMs: 0,
     spot: { page: spot.page.num, x: spot.x, y: spot.y }, pageCount: pages.length,
-    camera: choice.camera, mirror: choice.mirror, screen: !!choice.screen,
+    camera: choice.camera, mirror: choice.mirror, screen: !!choice.screen, camLayout: choice.camLayout || null,
     limit: choice.camera || choice.screen ? LESSON_VIDEO_LIMIT : LESSON_AUDIO_LIMIT };
   // 📺 Asked for HERE, inside the tap, before anything is awaited: the browser
   // only lets a click share a window, and the microphone's prompt or the
@@ -11841,6 +11965,8 @@ async function lessonFinish(c) {
   // 📺 The window itself is the video: the replay shows it large and the
   // 1080p export uses it as the picture.
   if (shot) job.screen = true;
+  // 📐 Where the camera goes in the video — only when a camera was really in it.
+  if (c.camStream && c.camLayout) job.camLayout = { pos: c.camLayout.pos, size: c.camLayout.size };
   // Both only when there is one, so an untitled lesson's job and manifest are
   // byte for byte what they always were.
   if (c.title) job.title = c.title;
@@ -11918,6 +12044,7 @@ async function lessonSavePending() {
       // is the media file, and readers of it already exist.
       if (job.video) attachment.lessonRecording.video = true;
       if (job.screen) attachment.lessonRecording.screen = true;
+      if (job.video && job.camLayout && typeof lessonCamLayoutClean === 'function' && lessonCamLayoutClean(job.camLayout)) attachment.lessonRecording.camLayout = lessonCamLayoutClean(job.camLayout);
       if (job.title) attachment.lessonRecording.title = job.title;
       var staged = annotations.some(function (a) { return a.id === job.id; }) ? annotations : annotations.concat([attachment]);
       var json = JSON.stringify(staged);
@@ -12564,6 +12691,8 @@ var LESSON_EXPORT_MODES = ['follow', 'page'];
 // always was, so an export left on the default is the same frame as before.
 var LESSON_EXPORT_SIZES = ['small', 'medium', 'large'];
 var LESSON_EXPORT_SIZE_SCALE = { small: 0.7, medium: 1, large: 1.4 };
+// 📐 Which corner (v1.139.0). Bottom right is the corner it always was.
+var LESSON_EXPORT_CORNERS = ['tl', 'tr', 'bl', 'br'];
 var lessonExportJob = null;
 
 /* What the file is written as. MP4 with H.264 and AAC first: it plays on every
@@ -12584,7 +12713,7 @@ function lessonExportMime() {
    wrote is ever under their face; `corner` puts the camera over the bottom
    right of a full-width page; `page` is the page alone. The camera keeps the
    shape it was recorded in — portrait from an iPad held upright included. */
-function lessonExportLayout(kind, camW, camH, size) {
+function lessonExportLayout(kind, camW, camH, size, pos) {
   var W = LESSON_EXPORT_W, H = LESSON_EXPORT_H;
   var ratio = camW > 0 && camH > 0 ? camW / camH : 16 / 9;
   var k = LESSON_EXPORT_SIZE_SCALE[size] || 1;
@@ -12600,8 +12729,9 @@ function lessonExportLayout(kind, camW, camH, size) {
   if (kind === 'corner') {
     var pw = Math.round(512 * k), ph = Math.round(pw / ratio), most = Math.round(420 * k);
     if (ph > most) { ph = most; pw = Math.round(ph * ratio); }
+    var left = pos === 'tl' || pos === 'bl', top = pos === 'tl' || pos === 'tr';
     return { kind: 'corner', page: { x: 0, y: 0, w: W, h: H },
-      cam: { x: W - pw - 36, y: H - ph - 36, w: pw, h: ph }, panel: null };
+      cam: { x: left ? 36 : W - pw - 36, y: top ? 36 : H - ph - 36, w: pw, h: ph }, panel: null };
   }
   return { kind: 'page', page: { x: 0, y: 0, w: W, h: H }, cam: null, panel: null };
 }
@@ -12701,7 +12831,17 @@ function lessonExportPrefs() {
   var p = lessonPrefGet(LESSON_EXPORT_PREF) || {};
   return { layout: LESSON_EXPORT_LAYOUTS.indexOf(p.layout) >= 0 ? p.layout : 'side',
     mode: LESSON_EXPORT_MODES.indexOf(p.mode) >= 0 ? p.mode : 'follow',
-    size: LESSON_EXPORT_SIZES.indexOf(p.size) >= 0 ? p.size : 'medium' };
+    size: LESSON_EXPORT_SIZES.indexOf(p.size) >= 0 ? p.size : 'medium',
+    pos: LESSON_EXPORT_CORNERS.indexOf(p.pos) >= 0 ? p.pos : 'br' };
+}
+// 📐 What the export starts on: the layout the lesson was RECORDED with, when
+// it carries one, or the export's own remembered choice for an older lesson.
+function lessonExportStartLayout(recorded, prefs) {
+  var r = recorded && typeof recorded === 'object' ? recorded : null;
+  var pos = r && (LESSON_EXPORT_CORNERS.indexOf(r.pos) >= 0 || r.pos === 'side') ? r.pos : '';
+  var size = r && LESSON_EXPORT_SIZES.indexOf(r.size) >= 0 ? r.size : '';
+  if (!pos || !size) return { layout: prefs.layout, pos: prefs.pos, size: prefs.size, recorded: false };
+  return { layout: pos === 'side' ? 'side' : 'corner', pos: pos === 'side' ? prefs.pos : pos, size: size, recorded: true };
 }
 
 /* ---- Painting one frame ---- */
@@ -12816,7 +12956,10 @@ function lessonExportCaption(ctx, job, t) {
   var lines = lessonExportWrap(ctx, job.title, 760, 2);
   var sub = job.subtitle ? lessonExportWrap(ctx, job.subtitle, 760, 1) : [];
   var h = 36 + lines.length * 40 + sub.length * 34 + 70;
-  var x = 36, y = LESSON_EXPORT_H - 36 - h;
+  // Never under the camera: with it in the bottom left, the card goes right.
+  var cam = job.layout && job.layout.cam;
+  var x = cam && cam.x < LESSON_EXPORT_W / 2 && cam.y > LESSON_EXPORT_H / 2 ? LESSON_EXPORT_W - 36 - 820 : 36;
+  var y = LESSON_EXPORT_H - 36 - h;
   lessonExportRound(ctx, x, y, 820, h, 20);
   ctx.fillStyle = 'rgba(16,20,24,0.84)';
   ctx.fill();
@@ -12916,9 +13059,10 @@ function lessonExportUi(job) {
   $('lessonExportCancel').textContent = busy && phase !== 'loading' ? 'Stop' : phase === 'done' ? 'Close' : 'Cancel';
   $('lessonExportShare').hidden = !(phase === 'done' && job.file && navigator.canShare && lessonExportCanShare(job.file));
   $('lessonExportProgress').hidden = !(phase === 'exporting' || phase === 'finishing' || phase === 'starting' || phase === 'done');
-  document.querySelectorAll('#lessonExportModal [data-lx-layout], #lessonExportModal [data-lx-mode], #lessonExportModal [data-lx-size], #lessonExportModal [data-lx-cc]').forEach(function (b) {
+  document.querySelectorAll('#lessonExportModal [data-lx-layout], #lessonExportModal [data-lx-mode], #lessonExportModal [data-lx-size], #lessonExportModal [data-lx-pos], #lessonExportModal [data-lx-cc]').forEach(function (b) {
     var on = b.hasAttribute('data-lx-layout') ? b.getAttribute('data-lx-layout') === job.layoutKind
       : b.hasAttribute('data-lx-size') ? b.getAttribute('data-lx-size') === job.camSize
+      : b.hasAttribute('data-lx-pos') ? b.getAttribute('data-lx-pos') === job.camPos
       : b.hasAttribute('data-lx-cc') ? (b.getAttribute('data-lx-cc') === 'on') === !!job.cc : b.getAttribute('data-lx-mode') === job.mode;
     b.classList.toggle('on', on);
     b.setAttribute('aria-checked', on ? 'true' : 'false');
@@ -12936,6 +13080,7 @@ function lessonExportUi(job) {
     $('lessonExportCaptionMake').textContent = job.ccMaking ? job.ccMaking : '✨ Write captions with ChatGPT';
   }
   if ($('lessonExportSizeRow')) $('lessonExportSizeRow').hidden = !job.video || !!job.screen || job.layoutKind === 'page';
+  if ($('lessonExportPosRow')) $('lessonExportPosRow').hidden = !job.video || !!job.screen || job.layoutKind !== 'corner';
 }
 function lessonExportCanShare(file) {
   try { return !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { return false; }
@@ -12952,7 +13097,8 @@ function lessonExportProgress(done, total, words) {
 }
 function lessonExportAbout(job) {
   var mins = recFmtTime(job.duration);
-  return '1920 × 1080 · ' + mins + ' long · about ' + lessonExportSizeText(lessonExportBytes(job.duration)) +
+  return (job.recordedLayout ? 'Your camera is placed as you chose when recording. ' : '') +
+    '1920 × 1080 · ' + mins + ' long · about ' + lessonExportSizeText(lessonExportBytes(job.duration)) +
     '. It records in real time — ' + mins + ' — so keep this tab open and in front until it finishes.';
 }
 
@@ -12973,8 +13119,9 @@ async function lessonExportOpen(a) {
   // be a second copy of the same voice.
   lessonExitPlayback();
   var prefs = lessonExportPrefs(), video = !!a.lessonRecording.video;
+  var start = lessonExportStartLayout(a.lessonRecording.camLayout, prefs);
   var job = lessonExportJob = { ann: a, phase: 'loading', epoch: wsEpoch, docId: currentDocId, uid: currentUser.uid,
-    controller: new AbortController(), video: video, screen: video && !!a.lessonRecording.screen, layoutKind: video ? prefs.layout : 'page', mode: prefs.mode, camSize: prefs.size,
+    controller: new AbortController(), video: video, screen: video && !!a.lessonRecording.screen, layoutKind: video ? start.layout : 'page', mode: prefs.mode, camSize: start.size, camPos: start.pos, recordedLayout: start.recorded,
     cc: typeof lessonCaptionsOn === 'function' ? lessonCaptionsOn() : false, captions: null,
     rasters: {}, cards: {}, view: null, chunks: [], title: docName || 'Worksheet',
     subtitle: videoPillLabel(a).replace(/^Play /, ''), canvas: $('lessonExportCanvas'), media: lessonExportMediaNode() };
@@ -13135,7 +13282,7 @@ function lessonExportLoadMedia(job, url) {
 // has loaded; the preview is redrawn whenever a choice changes.
 function lessonExportRelayout(job) {
   var kind = job.video ? job.layoutKind : 'page';
-  job.layout = lessonExportLayout(kind, job.media.videoWidth, job.media.videoHeight, job.camSize);
+  job.layout = lessonExportLayout(kind, job.media.videoWidth, job.media.videoHeight, job.camSize, job.camPos);
   job.view = null;
   if (job.player) lessonExportDraw(job, 0, 0);
 }
@@ -13145,11 +13292,12 @@ function lessonExportChoose(kind, value) {
   if (kind === 'layout' && LESSON_EXPORT_LAYOUTS.indexOf(value) >= 0) job.layoutKind = value;
   if (kind === 'mode' && LESSON_EXPORT_MODES.indexOf(value) >= 0) job.mode = value;
   if (kind === 'size' && LESSON_EXPORT_SIZES.indexOf(value) >= 0) job.camSize = value;
+  if (kind === 'pos' && LESSON_EXPORT_CORNERS.indexOf(value) >= 0) job.camPos = value;
   if (kind === 'cc' && (value === 'on' || value === 'off')) {
     job.cc = value === 'on';
     if (typeof lessonCaptionsSet === 'function') lessonCaptionsSet(job.cc);
   }
-  lessonPrefSet(LESSON_EXPORT_PREF, { layout: job.layoutKind, mode: job.mode, size: job.camSize });
+  lessonPrefSet(LESSON_EXPORT_PREF, { layout: job.layoutKind, mode: job.mode, size: job.camSize, pos: job.camPos });
   lessonExportRelayout(job);
   lessonExportUi(job);
 }
@@ -13422,9 +13570,9 @@ $('lessonExportClose').addEventListener('click', function () { lessonExportClose
 $('lessonExportShare').addEventListener('click', lessonExportShare);
 $('lessonExportModal').addEventListener('click', function (e) {
   if (e.target.closest && e.target.closest('#lessonExportCaptionMake') && typeof lessonExportMakeCaptions === 'function') { lessonExportMakeCaptions(); return; }
-  var b = e.target.closest ? e.target.closest('[data-lx-layout], [data-lx-mode], [data-lx-size], [data-lx-cc]') : null;
+  var b = e.target.closest ? e.target.closest('[data-lx-layout], [data-lx-mode], [data-lx-size], [data-lx-pos], [data-lx-cc]') : null;
   if (!b) return;
-  var kind = b.hasAttribute('data-lx-layout') ? 'layout' : b.hasAttribute('data-lx-size') ? 'size' : b.hasAttribute('data-lx-cc') ? 'cc' : 'mode';
+  var kind = b.hasAttribute('data-lx-layout') ? 'layout' : b.hasAttribute('data-lx-size') ? 'size' : b.hasAttribute('data-lx-pos') ? 'pos' : b.hasAttribute('data-lx-cc') ? 'cc' : 'mode';
   lessonExportChoose(kind, b.getAttribute('data-lx-' + kind));
 });
 // Every keystroke in the window stops there: a letter typed with it open
@@ -13750,6 +13898,9 @@ function lessonCaptionDraw(ctx, job, t) {
   var bw = w + padX * 2, bh = lines.length * lineH + padY * 2;
   var lift = (!job.layout || !job.layout.panel) && t < 5000 ? 230 : 0;
   var x = A.x + (A.w - bw) / 2, y = A.y + A.h - 56 - bh - lift;
+  // 📐 Lifted clear of a camera in a bottom corner it would otherwise cover.
+  var cam = !job.screen && job.layout && !job.layout.panel ? job.layout.cam : null;
+  if (cam && cam.y > LESSON_EXPORT_H / 2 && x < cam.x + cam.w && x + bw > cam.x) y = Math.min(y, cam.y - 20 - bh);
   lessonExportRound(ctx, x, y, bw, bh, 14);
   ctx.fillStyle = 'rgba(12,16,20,0.82)';
   ctx.fill();
