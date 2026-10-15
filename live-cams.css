@@ -1,0 +1,245 @@
+/* =====================================================================
+   📹 Live cams — the teacher's window of tiles, the student's invitation
+   card and the student's own small preview. Uses the app's tokens
+   (--bg, --ink, --line, --radius…) so it reads as part of the same app.
+   ===================================================================== */
+
+/* ---------- Teacher window ---------- */
+.lcWin .lcCard { display: flex; flex-direction: column; background: var(--bg, #fff); }
+.lcWin .lcHead h2 { font-size: 16px; }
+.lcWin .lcBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 22px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.lcBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--line, #ececea);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--bg-viewer, #f3f2f0);
+}
+.lcDot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--ink-faint, #8a8a84);
+  flex: 0 0 auto;
+}
+.lcDot.on { background: var(--danger, #e53935); animation: lcPulse 1.6s ease-in-out infinite; }
+.lcSummary { flex: 1 1 160px; font-size: 13px; color: var(--ink-soft, #55554f); line-height: 1.4; }
+.lcQuality { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft, #55554f); }
+.lcQuality select {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #ececea);
+  background: var(--bg, #fff);
+  color: var(--ink, #1a1a1a);
+}
+.lcHint { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-soft, #55554f); max-width: 620px; }
+
+.lcStage { display: block; }
+.lcStage[hidden] { display: none; }
+.lcGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-content: start;
+}
+.lcGrid.lcStrip .lcTile .lcCap .lcWs,
+.lcGrid.lcStrip .lcTile .lcBtns { display: none; }
+.lcGrid.lcStrip .lcMedia { aspect-ratio: 4 / 3; }
+
+.lcTile {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line, #ececea);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--bg, #fff);
+  box-shadow: var(--shadow-card, none);
+  overflow: hidden;
+  min-width: 0;
+}
+.lcTile.lcBig .lcMedia { aspect-ratio: auto; height: clamp(240px, 52vh, 640px); }
+.lcMedia {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #111;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.lcTile.lcBig .lcMedia { cursor: zoom-out; }
+/* One tile alone in a wide window would be taller than the window, with its
+   name and buttons scrolled out of sight: the picture is capped and the
+   frame letterboxes inside it. */
+.lcGrid .lcMedia { max-height: min(50vh, 460px); }
+.lcVideo, .lcSnap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: 50% 50%;
+  transition: transform 0.2s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.lcVideo[hidden], .lcSnap[hidden] { display: none; }
+.lcWaiting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  color: #d8d8d4;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lcWaiting[hidden] { display: none; }
+
+.lcCap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+  font-size: 13px;
+}
+.lcState {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--ink-faint, #8a8a84);
+}
+.lc-live .lcState { background: var(--ok, #43a047); }
+.lc-snap .lcState { background: var(--accent-deep, #e8a54b); }
+.lc-failed .lcState { background: var(--danger, #e53935); }
+.lc-stale .lcState { background: var(--ink-faint, #8a8a84); }
+.lc-stale .lcMedia { opacity: 0.5; }
+.lcName { font-weight: 700; color: var(--ink, #1a1a1a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lcWs { flex: 1 1 auto; color: var(--ink-faint, #8a8a84); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lcBtns { display: inline-flex; gap: 2px; flex: 0 0 auto; margin-left: auto; }
+.lcBtn {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft, #55554f);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.lcBtn:hover, .lcBtn:focus-visible { background: var(--bg-viewer, #f3f2f0); color: var(--ink, #1a1a1a); }
+.lcBtnDanger:hover { color: var(--danger, #e53935); }
+
+.lcEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-soft, #55554f);
+}
+.lcEmpty[hidden] { display: none; }
+.lcEmptyIcon { font-size: 34px; }
+.lcEmptyTitle { font-weight: 700; color: var(--ink, #1a1a1a); }
+.lcEmptyText { font-size: 13px; line-height: 1.55; max-width: 360px; }
+
+/* ---------- Student invitation ---------- */
+.lcInvite {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: min(560px, calc(100vw - 32px));
+  padding: 18px 20px;
+  border-radius: var(--radius, 14px);
+  background: var(--bg, #fff);
+  color: var(--ink, #1a1a1a);
+  border: 1px solid var(--line, #ececea);
+  box-shadow: 0 20px 52px rgba(20, 20, 18, 0.22), 0 0 0 1px rgba(20, 20, 18, 0.05);
+}
+.lcInvite[hidden] { display: none; }
+.lcInvite.lcIn { animation: lcRise 0.28s ease-out; }
+.lcInviteIcon { font-size: 30px; flex: 0 0 auto; }
+.lcInviteText { flex: 1 1 260px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lcInviteTitle { font-weight: 700; font-size: 15px; line-height: 1.35; }
+.lcInviteSub { font-size: 13px; line-height: 1.5; color: var(--ink-soft, #55554f); }
+.lcNameRow { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; font-size: 12px; color: var(--ink-soft, #55554f); }
+.lcNameRow[hidden] { display: none; }
+.lcNameRow input {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #ececea);
+  color: var(--ink, #1a1a1a);
+  background: var(--bg, #fff);
+}
+.lcInviteBtns { display: flex; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+
+/* ---------- Student's own preview ---------- */
+.lcSelf {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 120;
+  width: min(300px, calc(100vw - 32px));
+  border-radius: var(--radius, 14px);
+  background: var(--bg, #fff);
+  color: var(--ink, #1a1a1a);
+  border: 1px solid var(--line, #ececea);
+  box-shadow: 0 20px 52px rgba(20, 20, 18, 0.22);
+  overflow: hidden;
+}
+.lcSelf[hidden] { display: none; }
+.lcSelfHead { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line, #ececea); }
+.lcRec { width: 9px; height: 9px; border-radius: 50%; background: var(--danger, #e53935); animation: lcPulse 1.6s ease-in-out infinite; flex: 0 0 auto; }
+.lcSelfTitle { flex: 1 1 auto; font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+.lcSelfMin { border: none; background: transparent; font: inherit; font-size: 16px; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; color: var(--ink-soft, #55554f); }
+.lcSelfMin:hover { background: var(--bg-viewer, #f3f2f0); }
+.lcSelfBody { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.lcSelf.lcSelfSmall .lcSelfBody { display: none; }
+.lcSelfMedia { position: relative; aspect-ratio: 4 / 3; background: #111; border-radius: 10px; overflow: hidden; }
+.lcSelfVideo { width: 100%; height: 100%; object-fit: cover; }
+.lcSelfVideo.mirror { transform: scaleX(-1); }
+.lcSelfStatus { font-size: 12px; line-height: 1.45; color: var(--ink-soft, #55554f); }
+.lcSelfStatus.lc-live { color: var(--ok, #43a047); font-weight: 700; }
+.lcSelfStatus.lc-snap { color: var(--accent-deep, #e8a54b); }
+.lcSelfRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
+.lcSelfRow select { font: inherit; font-size: 12px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line, #ececea); max-width: 100%; }
+.lcSelfRow select[hidden] { display: none; }
+.lcMirror { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft, #55554f); }
+.lcStopBtn { width: 100%; justify-content: center; }
+
+@keyframes lcPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes lcRise { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .lcDot.on, .lcRec { animation: none; }
+  .lcInvite.lcIn { animation: none; }
+  .lcVideo, .lcSnap { transition: none; }
+}
+@media (max-width: 560px) {
+  .lcInvite { bottom: 12px; padding: 16px; }
+  .lcInviteBtns { width: 100%; }
+  .lcInviteBtns .btn { flex: 1 1 0; justify-content: center; }
+  .lcSelf { right: 12px; bottom: 12px; width: min(240px, calc(100vw - 24px)); }
+}

@@ -4,6 +4,44 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.135.0 — Live cams: students show their answers on camera
+
+A new **📹 Live cams** button (teacher only, beside the Wheel) opens a window
+of live camera tiles — one per student — so the class can hold their working
+up to the camera and you can read it from your screen.
+
+- **Students choose to share.** While the window is open, every signed-in
+  student (and a device handed to a student) sees a card: *"Your teacher is
+  looking at answers live — Share my camera"*. The camera opens only when they
+  tap it. A share-link visitor is asked for their name first.
+- **Their camera goes off by itself** when you close the window, when you
+  remove their tile, when they press Stop, when they sign out or close the
+  page, and when your tab stops responding for more than about a minute.
+- **The video goes straight from the student's browser to yours** (WebRTC),
+  with the database used only to connect the two. On a network that blocks
+  that, the student's device falls back to sending a picture every second and
+  a half, so you still see the work. Each tile says which: *Live* or
+  *Snapshots*.
+- **On each tile:** tap the picture (or ⤢) to see it big, ⟳ to turn a camera
+  held sideways, 📌 to put that frame on the worksheet page (it lands as an
+  ordinary pasted picture you can move, lock and print), ⬇ to save it, ↻ to
+  reconnect, ✕ to switch that student's camera off.
+- **Quality:** *Normal* by default; *Sharp* sends more detail for small
+  handwriting at the cost of more of the class's internet.
+- What you see is never mirrored, so writing held up to the camera reads the
+  right way round. The student's own small preview is mirrored like a mirror
+  (they can switch that off), and a back camera is never mirrored.
+- Nothing is recorded or saved unless you press 📌 or ⬇. The camera carries no
+  sound.
+
+Data: one room document `liveCamRooms/main` (open, epoch, heartbeat, quality)
+and one document per sharing student under `liveCamRooms/main/peers`
+(name, worksheet, WebRTC offer/answer and candidates, or the latest snapshot).
+Closing the window clears them.
+
+Run `node --test tools/live-cams-tests.mjs` and `node tools/live-cams-check.mjs`
+(real Chromium, fake camera, real WebRTC) after touching it.
+
 ## v1.134.0 — A lesson records until you press Stop
 
 A recording no longer ends by itself partway through a lesson.
