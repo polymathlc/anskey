@@ -4,6 +4,11 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.138.1 — Captions are always English
+
+- Captions came out in Malay because the transcription was left to guess the language. Every request now says English (`language: en`), with an English prompt, so a Singapore classroom is never heard as Malay again.
+- The captions file and the lesson are stamped English. A lesson captioned before this has no stamp and may be Malay, so it now reads as having no captions: students see none, and the teacher's ✨ Captions button (or ✨ Write captions in the export window) remakes them in English.
+
 ## v1.138.0 — Captions on a lesson, written by ChatGPT
 
 - **CC on the replay bar.** On a lesson with no captions the teacher sees
