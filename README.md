@@ -4,6 +4,15 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.140.0 — Portrait 9:16 recording for Instagram
+
+- With **Record the worksheet window** ticked, Record a lesson now has a **Frame** choice: **Whole worksheet area** or **Portrait 9:16 for Instagram**.
+- Portrait records only a tall 9:16 box in the middle of the worksheet.
+  - While you record, an orange outline shows the box and the worksheet outside it is dimmed. The outline is never in the video.
+  - A question window opens inside the box.
+  - A camera goes in the corner you chose. "Own column" goes bottom right, because a portrait video has no room beside it.
+- The replay shows a portrait lesson in a tall, narrow window. **⬇ 1080p** exports it as a 1080 × 1920 portrait video, ready for Instagram.
+
 ## v1.139.0 — Choose where you appear in the video when recording
 
 - **Record a lesson** has a new **You in the 1080p video** box under the camera preview. It shows only when a camera is chosen.

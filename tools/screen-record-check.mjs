@@ -260,6 +260,82 @@ ok('…and the frame it paints is the recorded window', exp.magenta > 1000, JSON
 await shot(page, '4-export');
 await page.evaluate(() => lessonExportClose(true));
 
+console.log('\n📱 Portrait 9:16 for Instagram: an outline on screen, never in the video');
+await page.evaluate(() => { annotations = annotations.filter(a => !a.lessonRecording); window.__uploaded = {}; lessonOpenModal(); });
+await page.waitForFunction(() => lessonDev.micState === 'live', null, { timeout: 8000 }).catch(() => {});
+const frameRow = await page.evaluate(() => ({ shown: !$('lessonFrameRow').hidden,
+  on: (document.querySelector('#lessonFrameRow .lxSegBtn.on') || {}).dataset }));
+ok('with the window recorded, the Frame choice shows, on the whole area', frameRow.shown && frameRow.on && frameRow.on.lframe === 'area', JSON.stringify(frameRow));
+await page.click('[data-lframe="portrait"]');
+const picked = await page.evaluate(() => ({ pref: localStorage.getItem('polymath.lessonFrame'), choice: lessonDevChoice().frame, note: $('lessonFrameNote').textContent }));
+ok('Portrait is remembered and read by Start', /portrait/.test(picked.pref || '') && picked.choice === 'portrait' && /9:16/.test(picked.note), JSON.stringify(picked));
+await shot(page, '5-portrait-window');
+await page.click('#lessonStartBtn');
+await page.waitForFunction(() => lessonCapture && lessonCapture.phase === 'recording', null, { timeout: 15000 }).catch(() => {});
+await page.waitForTimeout(400);
+const pr = await page.evaluate(() => {
+  const c = lessonCapture, rec = c && c.screenRec;
+  const area = $('viewerArea').getBoundingClientRect(), g = $('lessonFrameGuide'), clip = $('lessonFrameClip');
+  const gr = g && g.getBoundingClientRect(), cr = clip && clip.getBoundingClientRect();
+  const f = lessonFrameRect(area, 9 / 16, LESSON_FRAME_GAP);
+  return { phase: c && c.phase, ratio: rec && rec.frameRatio, size: rec && [rec.canvas.width, rec.canvas.height],
+    frame: f, guide: gr && { left: gr.left, top: gr.top, w: gr.width, h: gr.height },
+    clip: cr && { left: Math.round(cr.left), top: Math.round(cr.top), w: Math.round(cr.width), h: Math.round(cr.height) },
+    area: { left: Math.round(area.left), top: Math.round(area.top), w: Math.round(area.width), h: Math.round(area.height) },
+    pe: g && getComputedStyle(clip).pointerEvents, lsrW: document.body.style.getPropertyValue('--lsr-w') };
+});
+ok('it records a 9:16 picture', pr.phase === 'recording' && pr.ratio === 9 / 16 && pr.size && Math.abs(pr.size[0] / pr.size[1] - 9 / 16) < 0.01, JSON.stringify(pr));
+ok('the outline sits just outside the frame, a gap away', pr.guide && pr.frame && Math.abs(pr.guide.left + 3 - pr.frame.left) < 1 && Math.abs(pr.guide.w - 6 - pr.frame.width) < 1 && Math.abs(pr.guide.h - 6 - pr.frame.height) < 1, JSON.stringify([pr.guide, pr.frame]));
+ok('…clipped to the worksheet area, and it never takes a tap', JSON.stringify(pr.clip) === JSON.stringify(pr.area) && pr.pe === 'none', JSON.stringify([pr.clip, pr.area, pr.pe]));
+ok('a question window would open inside the frame', pr.lsrW === pr.frame.width + 'px', pr.lsrW + ' vs ' + pr.frame.width);
+await page.waitForTimeout(2600);
+await shot(page, '6-portrait-recording');
+await page.evaluate(() => lessonStop());
+const psaved = await page.waitForFunction(() => !lessonCapture && !lessonPending && annotations.some(a => a.lessonRecording), null, { timeout: 20000 }).then(() => true).catch(() => false);
+const ppill = await page.evaluate(() => ({ rec: (annotations.find(x => x.lessonRecording) || {}).lessonRecording, guide: !!$('lessonFrameClip') }));
+ok('Stop saves it flagged as portrait, and the outline goes', psaved && ppill.rec && ppill.rec.screen === true && ppill.rec.frame === 'portrait' && !ppill.guide, JSON.stringify(ppill));
+const ppx = await page.evaluate(async () => {
+  const media = Object.keys(window.__uploaded).find(k => !k.endsWith('.json'));
+  const v = document.createElement('video'); v.muted = true;
+  v.src = URL.createObjectURL(window.__uploaded[media]);
+  await new Promise(r => { v.onloadedmetadata = r; v.onerror = r; setTimeout(r, 6000); });
+  v.currentTime = 1.6;
+  await new Promise(r => { v.onseeked = r; setTimeout(r, 4000); });
+  const cnv = document.createElement('canvas'); cnv.width = v.videoWidth; cnv.height = v.videoHeight;
+  const g = cnv.getContext('2d'); g.drawImage(v, 0, 0);
+  const d = g.getImageData(0, 0, cnv.width, cnv.height).data;
+  let amber = 0, white = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i] > 215 && d[i + 1] > 140 && d[i + 1] < 195 && d[i + 2] < 100) amber++;
+    if (d[i] > 245 && d[i + 1] > 245 && d[i + 2] > 245) white++;
+  }
+  return { w: v.videoWidth, h: v.videoHeight, amber, white, total: d.length / 4 };
+});
+ok('the saved file is portrait 9:16', ppx.h > ppx.w && Math.abs(ppx.w / ppx.h - 9 / 16) < 0.02, JSON.stringify(ppx));
+ok('…shows the page, and the orange outline is NOT in it', ppx.white > ppx.total * 0.2 && ppx.amber < ppx.total * 0.001, JSON.stringify(ppx));
+await page.evaluate(() => lessonPlay(annotations.find(x => x.lessonRecording)));
+await page.waitForFunction(() => lessonPlayback && $('lessonVideo').currentTime > 0.3, null, { timeout: 10000 }).catch(() => {});
+const prep = await page.evaluate(() => ({ portrait: lessonPlayback && lessonPlayback.portrait, width: $('lessonCamWin').getBoundingClientRect().width }));
+ok('the replay shows it in a tall, narrow window', prep.portrait === true && prep.width === 340, JSON.stringify(prep));
+await page.evaluate(() => lessonExitPlayback());
+await page.evaluate(() => lessonExportOpen(annotations.find(x => x.lessonRecording)));
+await page.waitForFunction(() => lessonExportJob && (lessonExportJob.phase === 'ready' || lessonExportJob.phase === 'failed'), null, { timeout: 20000 }).catch(() => {});
+const pexp = await page.evaluate(async () => {
+  const job = lessonExportJob;
+  job.media.currentTime = 1.6;
+  await new Promise(r => { job.media.onseeked = r; setTimeout(r, 4000); });
+  lessonExportDraw(job, 6000, 0);
+  const d = job.ctx.getImageData(0, 0, job.canvas.width, job.canvas.height).data;
+  let white = 0;
+  for (let i = 0; i < d.length; i += 16) if (d[i] > 245 && d[i + 1] > 245 && d[i + 2] > 245) white++;
+  return { phase: job.phase, portrait: job.portrait, w: job.canvas.width, h: job.canvas.height,
+    stage: $('lessonExportStage').classList.contains('portrait'), about: $('lessonExportInfo') ? $('lessonExportInfo').textContent : '', white, total: d.length / 16 };
+});
+ok('the 1080p export is portrait, 1080 × 1920', pexp.phase === 'ready' && pexp.portrait === true && pexp.w === 1080 && pexp.h === 1920 && pexp.stage, JSON.stringify(pexp));
+ok('…and the recording fills it', pexp.white > pexp.total * 0.2, JSON.stringify(pexp));
+await shot(page, '7-portrait-export');
+await page.evaluate(() => lessonExportClose(true));
+
 ok('no uncaught error anywhere along the way', errors.length === 0, errors.join('\n      '));
 await browser.close();
 
