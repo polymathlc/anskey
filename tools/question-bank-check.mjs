@@ -51,6 +51,9 @@ if (process.env.PDF_LIB) {
   const body = fs.readFileSync(process.env.PDF_LIB);
   await page.route('**/pdf-lib.min.js', r => r.fulfill({ status: 200, contentType: 'application/javascript', body }));
 }
+// The fixture owns Firebase; the real SDK loaded from the network over the
+// stand-in throws inside its own startup (as wheel-check / live-cams-check).
+await page.route(/firebase-[a-z]+-compat\.js(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: '' }));
 await page.addInitScript(() => {
   const chain = () => new Proxy(function () { return chain(); }, {
     get: (t, k) => (k === 'then' ? undefined : chain()),
