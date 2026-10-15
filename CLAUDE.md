@@ -13,6 +13,7 @@ Guidance for Claude when working in this repo.
   - `bankQPracticeCopies` keeps locked copies in practice mode. The questions-only print keeps bank questions (`answerAnnotations().filter(annBankQ)`).
 - The window's HTML goes through a whitelist sanitiser; no script or event handler from a question runs in the page. Apps run only in `QuestionApps.frame` (sandbox `allow-scripts`, CSP). ✨ Mark goes through `bankQMark`, grounded `aiGrounding('mark')` and teacher/student marking alike. Overlays stop keystrokes and close on Escape. `bankQRoleChanged` closes them only when the person changes (`bankQIdentity`), and `bankQWorksheetChanged` closes them on a new worksheet.
 - QR: `anskeyPrintQr` localStorage switch. `printQrUrl()` = `shareUrl(currentDocId)` only when saved and shared, otherwise a toast and no QR. `runPrint` and `downloadAnnotated` pass `qr`, and `buildAnnotatedPdf` draws it on page 1 as vector squares with a link annotation.
+- 🔢 The portal's `qno` (cer v1.433.0; given once, never changed) rides on the snapshot (`KEEP_Q`). It is shown as `#123` (`qnoChip`/`.qbNo`, and `bankQNoText` on the selected question's badge). `filterQuestions` reads `qnoQuery`: `#123` finds that question only, while a bare `123` ranks it first and still searches words. Keep this in step with cer's `qNoParseToken`.
 - Run `node --test tools/question-bank-tests.mjs` and `node tools/question-bank-check.mjs` (real page in Chromium, fake bank; `PDF_LIB=` for offline pdf-lib). It is also in CI.
 
 ## 📹 Live cams (v1.135.0)

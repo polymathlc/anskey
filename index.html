@@ -6027,6 +6027,11 @@ function annPastePic(a) { return !!(a && a.type === 'ainote' && a.kind === 'past
 function annBankQ(a) {
   return annPastePic(a) && !!a.bq && typeof a.bq === 'object' && Array.isArray(a.bq.blocks) && a.bq.blocks.length > 0;
 }
+/* 🔢 " #123" when the question carries the portal's number, '' otherwise. */
+function bankQNoText(a) {
+  var n = a && a.bq && a.bq.qno;
+  return typeof n === 'number' && Math.floor(n) === n && n > 0 ? ' #' + n : '';
+}
 
 /* A CORNER DRAG KEEPS A PICTURE'S OWN SHAPE, and the scale is the drag
    PROJECTED ONTO THE SHAPE'S OWN DIAGONAL rather than whichever axis happens
@@ -7521,8 +7526,8 @@ function renderEditChrome(p) {
     badge.textContent = sharesRow ? '✏️ Editing' : '✏️ Editing text — click outside or press Esc to finish';
   } else if (annBankQ(a)) {
     badge.textContent = annLocked(a)
-      ? '📚 Question — locked in position'
-      : '📚 Question from the bank — drag to move, a corner to resize';
+      ? '📚 Question' + bankQNoText(a) + ' — locked in position'
+      : '📚 Question' + bankQNoText(a) + ' from the bank — drag to move, a corner to resize';
   } else if (annPastePic(a)) {
     badge.textContent = annLocked(a)
       ? '🔒 Locked in position — press 🔓 to move it again'

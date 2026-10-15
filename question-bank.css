@@ -411,3 +411,11 @@
 /* A student's tap opens a bank question, so the pointer says it can be
    tapped — the only hint there is, and it is not drawn on the page. */
 body.studentMode .pastePic[data-bq] { cursor: pointer; }
+
+/* 🔢 The question's number from the portal (#123). */
+.qbNo {
+  display: inline-block; margin-right: 8px; padding: 0 8px; border-radius: 999px;
+  font: 600 0.78em/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; vertical-align: 0.1em;
+  background: rgba(37, 99, 235, 0.10); color: #1d4ed8; border: 1px solid rgba(37, 99, 235, 0.25);
+  user-select: all; white-space: nowrap;
+}

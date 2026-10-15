@@ -33,6 +33,11 @@ topic or level, look at a question in full, and press **➕ Add to page**.
   (top right) that opens this worksheet in Ans Key with all its questions and
   apps. It needs the worksheet saved and its share link on; otherwise it says
   so and prints without it.
+- **Question numbers.** Every question in the portal now has its own number
+  (#123), shown in the picker, on the window and on the selected question.
+  Type **#123** in the picker's search to find exactly that question (a bare
+  123 puts it first and still searches the words). The same #123 finds it in
+  the portal.
 - The question is kept on the worksheet itself, so students see it even
   without access to your bank. Editing it later in the portal does not change
   worksheets that already use it.

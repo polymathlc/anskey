@@ -322,6 +322,24 @@
     });
     return out;
   }
+  /* 🔢 The question's number from the portal (`qno`, shown as #123). The
+     portal gives every question one and never changes it, so "#123" typed
+     here finds exactly the question "#123" finds there. */
+  function qnoOf(q) {
+    var n = q && q.qno;
+    return typeof n === 'number' && Math.floor(n) === n && n > 0 && n < 1e9 ? n : 0;
+  }
+  function qnoLabel(q) { var n = qnoOf(q); return n ? '#' + n : ''; }
+  // "#123" / "Q#123" asks for that number and nothing else; a bare "123"
+  // puts that number first and still searches the words.
+  function qnoChip(q) {
+    var l = qnoLabel(q);
+    return l ? '<span class="qbNo" title="Question number in the bank. Search ' + l + ' to find it here or in the Science portal.">' + l + '</span>' : '';
+  }
+  function qnoQuery(query) {
+    var m = /^\s*(q?\s*#)?\s*(\d{1,9})\s*$/i.exec(String(query == null ? '' : query));
+    return m ? { n: Number(m[2]), only: !!m[1] } : null;
+  }
   function questionTitle(q) {
     var t = String((q && q.title) || '').trim();
     if (t) return t;
@@ -346,7 +364,8 @@
   }
   function filterQuestions(list, opts) {
     opts = opts || {};
-    var words = searchWords(opts.query);
+    var num = qnoQuery(opts.query);
+    var words = num && num.only ? [] : searchWords(opts.query);
     var topic = String(opts.topic || '');
     var only = String(opts.only || '');
     var out = (list || []).filter(function (q) {
@@ -355,6 +374,8 @@
       if (only === 'app' && !hasApp(q)) return false;
       if (only === 'mcq' && !isMcq(q)) return false;
       if (only === 'open' && !hasOpenAnswer(q)) return false;
+      if (num && qnoOf(q) === num.n) return true;
+      if (num && num.only) return false;
       if (!words.length) return true;
       var hay = q._qbHay || (q._qbHay = questionHaystack(q));
       for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) < 0) return false;
@@ -365,8 +386,9 @@
       var t = questionTitle(q).toLowerCase();
       return words.every(function (w) { return t.indexOf(w) >= 0; }) ? 1 : 0;
     };
+    var numHit = function (q) { return num && qnoOf(q) === num.n ? 1 : 0; };
     return out.sort(function (a, b) {
-      return (titleHit(b) - titleHit(a)) ||
+      return (numHit(b) - numHit(a)) || (titleHit(b) - titleHit(a)) ||
         (toMillis(b.updatedAt || b.createdAt) - toMillis(a.updatedAt || a.createdAt)) ||
         questionTitle(a).localeCompare(questionTitle(b));
     });
@@ -381,7 +403,7 @@
      edited afterwards without the worksheet changing under the class — and
      a slim one: editor state stays behind, and an app too large to ride
      along inside every auto-save travels as its published link instead. */
-  var KEEP_Q = ['id', 'title', 'topic', 'topic2', 'category', 'level', 'mcqLabels', 'answerKeyImage'];
+  var KEEP_Q = ['id', 'qno', 'title', 'topic', 'topic2', 'category', 'level', 'mcqLabels', 'answerKeyImage'];
   function snapshotQuestion(q, owner) {
     var out = { v: 1 };
     KEEP_Q.forEach(function (k) {
@@ -1522,7 +1544,7 @@
             '<button type="button" class="qbClose" data-qb="close" aria-label="Close">✕</button>' +
           '</div>' +
           '<div class="qbFilters">' +
-            '<input type="search" class="qbSearch" placeholder="Search the bank — a word, a topic…" aria-label="Search questions" autocomplete="off" spellcheck="false">' +
+            '<input type="search" class="qbSearch" placeholder="Search the bank — a word, a topic, or #123…" aria-label="Search questions" autocomplete="off" spellcheck="false">' +
             '<select class="qbTopic" aria-label="Topic"><option value="">All topics</option></select>' +
             '<div class="qbChips" role="group" aria-label="Kind">' +
               '<button type="button" data-qb-only="" class="on">All</button>' +
@@ -1588,7 +1610,7 @@
           var kind = (hasApp(q) ? '<span class="qbTag qbTagApp" title="Has an interactive app">🧩 App</span>' : '') +
             (isMcq(q) ? '<span class="qbTag qbTagSoft">MCQ</span>' : '');
           return '<button type="button" class="qbRow' + (String(q.id) === pick.sel ? ' sel' : '') + '" role="option" data-qid="' + escapeHtml(q.id) + '">' +
-            '<span class="qbRowTitle">' + escapeHtml(questionTitle(q)) + '</span>' +
+            '<span class="qbRowTitle">' + qnoChip(q) + escapeHtml(questionTitle(q)) + '</span>' +
             '<span class="qbRowMeta">' + tags + kind + '</span></button>';
         }).join('');
     }
@@ -1608,7 +1630,7 @@
       var tags = questionTopics(q).map(function (t) { return '<span class="qbTag">' + escapeHtml(t) + '</span>'; }).join('') +
         (q.category ? '<span class="qbTag qbTagSoft">' + escapeHtml(q.category) + '</span>' : '');
       pane.innerHTML =
-        '<div class="qbPrevHead"><h3>' + escapeHtml(questionTitle(q)) + '</h3><div class="qbRowMeta">' + tags + '</div></div>' +
+        '<div class="qbPrevHead"><h3>' + qnoChip(q) + escapeHtml(questionTitle(q)) + '</h3><div class="qbRowMeta">' + tags + '</div></div>' +
         '<div class="qbPrevBody qbQ">' + questionHtml(q, null, { readOnly: true }) + '</div>' +
         '<div class="qbPrevFoot">' +
           (hasApp(q) ? '<span class="qbAppNote">🧩 Comes with an interactive app — Show app opens it.</span>' : '<span></span>') +
@@ -1720,7 +1742,7 @@
       win.innerHTML =
         '<div class="qbWin" tabindex="-1">' +
           '<div class="qbHead">' +
-            '<div class="qbHeadTitle"><span class="qbIcon">📝</span><div><h2>' + escapeHtml(questionTitle(q)) + '</h2>' +
+            '<div class="qbHeadTitle"><span class="qbIcon">📝</span><div><h2>' + qnoChip(q) + escapeHtml(questionTitle(q)) + '</h2>' +
             (tags ? '<div class="qbRowMeta">' + tags + '</div>' : '') + '</div></div>' +
             '<button type="button" class="qbClose" data-qb="close" aria-label="Close">✕</button>' +
           '</div>' +
@@ -1896,6 +1918,7 @@
       widgetBlocks: widgetBlocks, hasApp: hasApp, isMcq: isMcq, hasOpenAnswer: hasOpenAnswer,
       questionPlain: questionPlain, questionTopics: questionTopics, questionTitle: questionTitle,
       searchWords: searchWords, filterQuestions: filterQuestions, allTopics: allTopics,
+      qnoOf: qnoOf, qnoLabel: qnoLabel, qnoQuery: qnoQuery,
       snapshotQuestion: snapshotQuestion, validSnapshot: validSnapshot, safeUrl: safeUrl, imageUrl: imageUrl,
       placeOnPage: placeOnPage, qrPlacement: qrPlacement, qrMatrix: qrMatrix, qrRuns: qrRuns,
       scoreLine: scoreLine, parseJsonLoose: parseJsonLoose, markState: markState, openItems: openItems,

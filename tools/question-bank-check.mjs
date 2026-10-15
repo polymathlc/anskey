@@ -73,7 +73,7 @@ await page.evaluate(() => {
     '<script>document.getElementById("s").oninput=function(e){document.getElementById("v").textContent=e.target.value;};' +
     'document.getElementById("t").setAttribute("data-ran","yes");</script>';
   const BANK = {
-    q1: { id: 'q1', title: 'Magnets and iron', topic: 'Magnets', category: 'Multiple Choice Question', updatedAt: 3,
+    q1: { id: 'q1', qno: 41, title: 'Magnets and iron', topic: 'Magnets', category: 'Multiple Choice Question', updatedAt: 3,
       blocks: [
         { id: 'b1', type: 'text', content: '<p>Which material is <b>attracted</b> to a magnet?</p><img src="x" onerror="window.__pwned=1"><script>window.__pwned=2</script>' },
         { id: 'b2', type: 'mcq', correctId: 'o2', options: [
@@ -81,14 +81,14 @@ await page.evaluate(() => {
         { id: 'b3', type: 'explanation', content: 'Iron is a magnetic material.' },
         { id: 'b4', type: 'widget', title: 'Magnet lab', height: 300, html: APP }
       ] },
-    q2: { id: 'q2', title: 'Water cycle words', topic: 'Water', updatedAt: 2,
+    q2: { id: 'q2', qno: 4, title: 'Water cycle words', topic: 'Water', updatedAt: 2,
       blocks: [
         { id: 'c1', type: 'text', content: 'Fill in the blanks.', part: 'a', marks: 2 },
         { id: 'c2', type: 'fillblank', text: 'Water [[evaporates]] when heated and [[condenses]] when cooled.' },
         { id: 'c3', type: 'table', cols: 2, rows: 2, data: { 0: { 0: 'State', 1: 'Example' }, 1: { 0: 'Gas', 1: 'Steam' } } },
         { id: 'c4', type: 'answer', part: 'b', claim: 'The puddle dried up.', evidence: 'It was sunny.', reasoning: 'Heat makes water evaporate.' }
       ] },
-    q3: { id: 'q3', title: 'Plant parts', topic: 'Plants', updatedAt: 1,
+    q3: { id: 'q3', qno: 412, title: 'Plant parts', topic: 'Plants', updatedAt: 1,
       blocks: [{ id: 'd1', type: 'text', content: 'Name the part that takes in water.' }, { id: 'd2', type: 'plainanswer', content: 'The roots.' }] }
   };
   const snap = (obj) => ({ exists: !!obj, data: () => obj && JSON.parse(JSON.stringify(obj)) });
@@ -142,7 +142,7 @@ console.log('\n📚 The picker');
 await page.evaluate(() => $('bankQBtn').click());
 await page.waitForSelector('.qbPick .qbRow', { timeout: 5000 }).catch(() => {});
 const listed = await page.evaluate(() => ({
-  rows: Array.from(document.querySelectorAll('.qbPick .qbRow .qbRowTitle')).map(n => n.textContent),
+  rows: Array.from(document.querySelectorAll('.qbPick .qbRow .qbRowTitle')).map(n => n.textContent.replace(/^#\d+/, '')),
   preview: (document.querySelector('.qbPreview') || {}).innerText || '',
   appTag: !!document.querySelector('.qbRow .qbTagApp'),
   onPage: document.querySelectorAll('.pastePic').length,
@@ -154,8 +154,14 @@ ok('…marking the question that has an app', listed.appTag);
 ok('nothing of a question shows until one is picked', /Pick a question/.test(listed.preview) && listed.onPage === 0, listed.preview);
 
 await page.fill('.qbSearch', 'evaporates');
-const searched = await page.evaluate(() => Array.from(document.querySelectorAll('.qbRow .qbRowTitle')).map(n => n.textContent));
+const searched = await page.evaluate(() => Array.from(document.querySelectorAll('.qbRow .qbRowTitle')).map(n => n.textContent.replace(/^#\d+/, '')));
 ok('search reads the question’s own words, not just its title', searched.length === 1 && searched[0] === 'Water cycle words', JSON.stringify(searched));
+await page.fill('.qbSearch', '#4');
+const byNo = await page.evaluate(() => Array.from(document.querySelectorAll('.qbRow')).map(n => n.getAttribute('data-qid') + ':' + ((n.querySelector('.qbNo') || {}).textContent || '')));
+ok('🔢 "#4" finds question #4 and nothing else (not #41, not #412)', byNo.length === 1 && byNo[0] === 'q2:#4', JSON.stringify(byNo));
+await page.fill('.qbSearch', '412');
+const bare = await page.evaluate(() => Array.from(document.querySelectorAll('.qbRow')).map(n => n.getAttribute('data-qid')));
+ok('🔢 a bare number puts that question first', bare[0] === 'q3', JSON.stringify(bare));
 await page.fill('.qbSearch', 'zzzz nothing');
 ok('a search that matches nothing says so', /No question matches/.test(await page.innerText('.qbList')));
 await page.fill('.qbSearch', '');
@@ -227,7 +233,7 @@ const bar = await page.evaluate(() => {
   };
 });
 ok('its bar offers ▶ Open and 🧩 Show app beside Lock and Remove', /Open/.test(bar.bar) && /Show app/.test(bar.bar) && /Lock/.test(bar.bar) && /Remove/.test(bar.bar), bar.bar);
-ok('…and the badge names it as a bank question', /Question from the bank/.test(bar.badge), bar.badge);
+ok('…and the badge names it as a bank question, with its number', /Question #41 from the bank/.test(bar.badge), bar.badge);
 await shot('selected');
 await page.evaluate(() => {
   const btn = Array.from(pages[0].wrap.querySelectorAll('.aiBar button')).find(b => /Open/.test(b.textContent));

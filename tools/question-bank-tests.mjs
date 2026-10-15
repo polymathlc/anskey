@@ -301,3 +301,26 @@ test('the version is bumped', () => {
   const v = html.match(/var APP_VERSION = 'v(\d+)\.(\d+)\.(\d+)'/);
   assert.ok(v && (+v[1] > 1 || +v[2] >= 136), v && v[0]);
 });
+
+test('🔢 the portal’s question number travels, shows and is searched exactly', () => {
+  const bank = [
+    { id: 'a', qno: 12, title: 'Heat flow', blocks: [{ type: 'text', content: 'A cup at 123 degrees' }] },
+    { id: 'b', qno: 123, title: 'Magnets', blocks: [{ type: 'text', content: 'Two magnets' }] },
+    { id: 'c', title: 'No number yet', blocks: [{ type: 'text', content: 'Plants' }] },
+  ];
+  assert.equal(P.qnoLabel(bank[1]), '#123');
+  assert.equal(P.qnoLabel(bank[2]), '');
+  assert.equal(P.qnoOf({ qno: '5' }), 0, 'only a real number counts');
+  assert.deepEqual(plain(P.qnoQuery('#123')), { n: 123, only: true });
+  assert.deepEqual(plain(P.qnoQuery('Q#7')), { n: 7, only: true });
+  assert.deepEqual(plain(P.qnoQuery(' 123 ')), { n: 123, only: false });
+  assert.equal(P.qnoQuery('heat 12'), null);
+  const ids = query => P.filterQuestions(bank, { query }).map(q => q.id);
+  assert.deepEqual(ids('#12'), ['a'], '#12 never finds #123');
+  assert.deepEqual(ids('#123'), ['b']);
+  assert.deepEqual(ids('#999'), []);
+  assert.deepEqual(ids('123'), ['b', 'a'], 'a bare number puts that question first, then the words');
+  assert.equal(P.snapshotQuestion(bank[1]).qno, 123, 'the number rides on the annotation');
+  assert.match(html, /function bankQNoText\(a\)/);
+  assert.match(html, /'📚 Question' \+ bankQNoText\(a\)/);
+});
