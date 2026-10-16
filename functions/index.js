@@ -4,6 +4,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getAppCheck } = require('firebase-admin/app-check');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getStorage } = require('firebase-admin/storage');
 const { onRequest } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
@@ -16,6 +17,7 @@ const { createJevProvider } = require('./jev-provider');
 const { createJevService, createJevRepository } = require('./jev-service');
 const { createHeroService } = require('./hero-service');
 const { createHeroRepository } = require('./hero-repository');
+const { createLessonComposeService } = require('./lesson-compose');
 
 initializeApp();
 const heroService = createHeroService({
@@ -59,3 +61,15 @@ exports.ansKeyLiveCleanup = onSchedule({
   timeZone: 'Asia/Singapore', timeoutSeconds: 180, maxInstances: 1,
   memory: '256MiB', retryCount: 3, minBackoffSeconds: 10, maxBackoffSeconds: 60
 }, service.sweep);
+
+// ☁ A lesson uploaded while it was being recorded is joined here into one file
+// with Cloud Storage's own compose, so the teacher's tab only has to send the
+// last few seconds after Stop. The bytes never pass through this function.
+const lessonCompose = createLessonComposeService({
+  auth: getAuth(), appCheck: getAppCheck(), bucket: getStorage().bucket('mathgen--app.firebasestorage.app'),
+  report: code => logger.warn(code)
+});
+exports.ansKeyLessonCompose = onRequest({
+  region: 'us-central1', timeoutSeconds: 120, maxInstances: 3,
+  concurrency: 10, memory: '256MiB', invoker: 'public'
+}, lessonCompose.handler);

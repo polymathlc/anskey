@@ -376,7 +376,7 @@ test('opening another worksheet lets go of the last one\'s object URLs, but not 
 test('the replay and the worksheet opening are wired to the preload, guarded', () => {
   assert.match(html, /if \(typeof lessonPreloadOffer === 'function'\) lessonPreloadOffer\(id\);/);
   assert.match(html, /typeof lessonPreloadSrc === 'function' \? lessonPreloadSrc\(a\.url\)/);
-  assert.match(html, /media\.src = result\[2\] \|\| audioUrl;/);
+  assert.match(html, /chosen = result\[2\] \|\| audioUrl;/);
   assert.match(html, /typeof lessonPreloadResponse === 'function' \? await lessonPreloadResponse\(url\)/);
   assert.match(html, /<div class="lessonPreload" id="lessonPreload" hidden/);
   assert.ok(html.indexOf('id="lessonPreload"') < html.indexOf('id="lessonPlayer"'), 'the card sits above the player');

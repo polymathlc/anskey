@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 
 const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const begin = page.indexOf('var LessonMp4Finalize = (function () {');
-const endMark = 'return { finalize: finalize };\n})();';
+const endMark = 'return { finalize: finalize, plan: plan };\n})();';
 const end = page.indexOf(endMark, begin);
 assert.ok(begin >= 0 && end > begin, 'The page ships the MP4 finalizer.');
 const context = vm.createContext({ Uint8Array, DataView, Blob, Number, Math, Error, Object, String });
@@ -309,7 +309,8 @@ test('a file past what 32-bit offsets can address is left fragmented rather than
 
 test('the source of the media is only ever sliced, never read into memory', () => {
   const source = page.slice(begin, end);
-  assert.ok(/blob\.slice\(c\.at, c\.at \+ c\.len\)/.test(source), 'The samples are attached as Blob slices.');
+  assert.ok(/ranges: chunks\.map\(function \(c\) \{ return \[c\.at, c\.at \+ c\.len\]; \}\)/.test(source), 'The plan names the samples as ranges of the original.');
+  assert.ok(/blob\.slice\(r\[0\], r\[1\]\)/.test(source), 'The samples are attached as Blob slices.');
   assert.equal(/blob\.arrayBuffer\(\)/.test(source), false, 'The whole recording is never read at once.');
   assert.equal(/MediaRecorder|createMediaElementSource|AudioContext/.test(source), false, 'The finalizer has no business with the recorder or audio graph.');
 });
