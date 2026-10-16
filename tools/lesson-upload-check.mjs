@@ -43,6 +43,9 @@ const browser = await chromium.launch({ args: [
   '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
 const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, permissions: ['camera', 'microphone'] });
 const page = await ctx.newPage();
+// The real Firebase scripts would replace the stand-in below (the network on CI
+// reaches the CDN), so they are answered empty here, as the caption check does.
+await page.route(/firebase-[a-z]+-compat\.js(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: '' }));
 await page.addInitScript(() => {
   const chain = () => new Proxy(function () { return chain(); }, {
     get: (t, k) => (k === 'then' ? undefined : chain()),
