@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const source = (process.env.ANSKEY_AUDIO_SOURCE ? readFileSync(process.env.ANSKEY_AUDIO_SOURCE, 'utf8') : page).replace(/\r\n/g, '\n');
 const begin = source.indexOf('var LessonAudioFinalize = (function () {');
-const endMark = 'return { finalize: finalize };\n})();';
+const endMark = 'return { finalize: finalize, plan: plan };\n})();';
 const end = source.indexOf(endMark, begin);
 assert.ok(begin >= 0 && end > begin, 'The page ships the recording audio finalizer.');
 const context = vm.createContext({ Uint8Array, DataView, Blob, Number, Math, Error });

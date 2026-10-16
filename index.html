@@ -3440,7 +3440,7 @@
 /* ONE fixed column holds both bars. The recording bar and the voice helper
    bar can be up at the same time — they are independent features now — and two
    separately positioned bars at bottom:18px would sit on top of each other. */
-.barStack { position:fixed; z-index:1100; bottom:18px; left:50%; transform:translateX(-50%); width:min(680px,calc(100vw - 24px)); display:flex; flex-direction:column; gap:10px; pointer-events:none; }
+.barStack { position:fixed; z-index:1100; bottom:18px; left:0; right:0; margin:0 auto; width:min(680px,calc(100vw - 24px)); display:flex; flex-direction:column; gap:10px; pointer-events:none; }
 .barStack > * { pointer-events:auto; }
 .lessonBar,.lessonPlayer { width:100%; padding:12px 16px; border:1px solid #c8d8e5; border-radius:16px; background:#fff; color:#17324d; box-shadow:0 8px 40px #172b4d30; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .lessonBar[hidden],.lessonPlayer[hidden] { display:none; }
@@ -3528,7 +3528,37 @@ body.lessonPlaying .onlineNextCard { display:none !important; }
 @keyframes recGlyphPulse { 0%, 100% { opacity:1; } 50% { opacity:0.3; } }
 @media (prefers-reduced-motion: reduce) { #lessonRecordBtn.active .recGlyphDot { animation:none; } }
 #lessonClock { font-variant-numeric:tabular-nums; font-weight:700; }
+/* ⏺ The recording pill (v1.143.0). While a lesson records — and while its
+   last seconds save — the recording bar is a small pill in the bottom-left
+   corner: a red dot, the clock, how much is already in the cloud and a Stop
+   button. Nothing else; the full bar comes back only when a save needs the
+   teacher (Retry, Download, Discard). The stack is no longer TRANSLATED, so a
+   fixed child is placed against the screen rather than against the stack. */
+.lessonRecDot { display:none; width:9px; height:9px; border-radius:50%; background:#E53935; flex:0 0 auto; animation:recGlyphPulse 1.4s ease-in-out infinite; }
+.lessonUpLive { font-size:12px; font-weight:600; color:#2b6a8f; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.lessonUpLive[hidden] { display:none; }
+.lessonBar.mini { position:fixed; left:12px; bottom:12px; z-index:1101; width:auto; max-width:calc(100vw - 24px); padding:4px 4px 4px 12px; gap:8px; flex-wrap:nowrap; border-radius:999px; box-shadow:0 4px 16px #172b4d2e; font-size:13px; }
+.lessonBar.mini .lessonRecDot { display:inline-block; }
+.lessonBar.mini .lessonInfo { display:none; }
+/* The question being recorded is still marked in the lesson's steps; the pill
+   only has room for what the teacher glances at. */
+.lessonBar.mini .lessonStepNow { display:none; }
+.lessonBar.mini .lessonLiveCam { width:48px; border-radius:6px; }
+.lessonBar.mini button { padding:4px 11px; border-radius:999px; font-size:12px; line-height:1.4; }
+.lessonBar.mini.saving { padding-right:14px; }
+.lessonBar.mini.saving .lessonRecDot { background:#2b6a8f; animation:none; }
+.lessonBar.mini.saving .lessonInfo { display:block; flex:0 1 auto; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+.lessonBar.mini.saving #lessonUpLive { display:none; }
+@media (prefers-reduced-motion: reduce) { .lessonRecDot { animation:none; } }
 .lessonPlayer audio { width:100%; height:40px; }
+/* ⏩ How much of the lesson has loaded (v1.143.0) */
+.lessonLoad { width:100%; display:flex; align-items:center; gap:12px; transition:opacity .4s ease; }
+.lessonLoad[hidden] { display:none; }
+.lessonLoad.done { opacity:.55; }
+.lessonLoadMeter { flex:1 1 auto; height:6px; border-radius:999px; background:#e6eef4; overflow:hidden; }
+.lessonLoadFill { width:0; height:100%; border-radius:999px; background:linear-gradient(90deg,#4f9fd1,#2b6a8f); transition:width .25s ease; }
+.lessonLoadPct { flex:0 0 auto; min-width:7.5em; text-align:right; font-size:12px; font-weight:600; color:#2b6a8f; font-variant-numeric:tabular-nums; white-space:nowrap; }
+@media (prefers-reduced-motion: reduce) { .lessonLoadFill, .lessonLoad { transition:none; } }
 #lessonPlayerTitle { flex:1; font-size:13px; font-weight:600; }
 .lessonReplayOverlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:25; }
 .lessonReplayText { white-space:pre-wrap; overflow-wrap:break-word; line-height:1.35; font-family:var(--font); min-height:1.2em; padding:3px 5px; border-radius:4px; }
@@ -3580,6 +3610,8 @@ video.mirror { transform:scaleX(-1); }
    move up over the toolbar — the part of the screen that is NOT in the
    video — and a question window opens inside the recorded area only. */
 body.lessonScreenRec .barStack { top:10px; bottom:auto; }
+/* The pill moves into the toolbar's corner, which is never in the video. */
+body.lessonScreenRec .lessonBar.mini { top:8px; bottom:auto; left:auto; right:12px; }
 body.lessonScreenRec #toast { top:72px; bottom:auto; }
 /* The floating tool bars sit inside the worksheet area, so they would be in
    the video: the main toolbar has every one of their tools. */
@@ -4462,8 +4494,9 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
   <button id="voiceStopBtn">Stop Voice AI</button>
 </div>
 <div class="lessonBar" id="lessonBar" hidden role="region" aria-label="Lesson recording">
+  <span class="lessonRecDot" id="lessonRecDot" aria-hidden="true"></span>
   <video class="lessonLiveCam" id="lessonLiveCam" muted playsinline autoplay hidden aria-label="Your camera, as it is being recorded"></video>
-  <span id="lessonClock">0:00</span><div class="lessonInfo" id="lessonStatus" role="status" aria-live="polite"></div>
+  <span id="lessonClock">0:00</span><span class="lessonUpLive" id="lessonUpLive" hidden title="How much of the recording is already saved in the cloud"></span><div class="lessonInfo" id="lessonStatus" role="status" aria-live="polite"></div>
   <span class="lessonStepNow" id="lessonStepNow" hidden></span>
   <button id="lessonStopBtn">Stop &amp; save</button><button id="lessonRetryBtn" hidden>Retry save</button>
   <button id="lessonDownloadBtn" hidden>Download backup</button><button id="lessonDismissBtn" hidden>Discard</button>
@@ -4493,6 +4526,10 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 </div>
 <div class="lessonPlayer" id="lessonPlayer" hidden role="region" aria-label="Lesson replay">
   <span id="lessonPlayerTitle" role="status"></span><button id="lessonCaptionBtn" hidden aria-pressed="false">CC</button><button id="lessonExportBtn" hidden title="Make this lesson into a 1920 × 1080 video file — the page, your writing, your camera and your voice">⬇ 1080p video</button><button id="lessonPlayerClose">Close replay</button>
+  <div class="lessonLoad" id="lessonLoad" hidden>
+    <div class="lessonLoadMeter" id="lessonLoadMeter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="How much of the lesson has loaded"><div class="lessonLoadFill" id="lessonLoadFill"></div></div>
+    <span class="lessonLoadPct" id="lessonLoadPct" aria-hidden="true">Loading lesson · 0%</span>
+  </div>
   <audio id="lessonAudio" controls preload="metadata" aria-label="Lesson audio and timeline"></audio>
   <div class="lessonSteps" id="lessonSteps" hidden role="group" aria-label="Jump to a question"></div>
 </div>
@@ -5549,7 +5586,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.142.0';
+var APP_VERSION = 'v1.143.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -10143,9 +10180,14 @@ var LessonAudioFinalize = (function () {
     else invalid();
     return out;
   }
-  async function finalize(blob, durationMs) {
+  // ☁ The rewrite as a PLAN: the finished file is `head` followed by the
+  // original from `cut` to its end. Only the first bytes ever change (the Info
+  // element sits in the first megabyte), which is what lets a lesson that was
+  // uploaded while it recorded send just its new head after Stop. A file this
+  // leaves alone is `{ head: [], cut: 0 }`.
+  async function plan(blob, durationMs) {
     if (!blob || typeof blob.arrayBuffer !== 'function') invalid();
-    if (!/webm/i.test(blob.type)) return blob;
+    if (!/webm/i.test(blob.type)) return { head: [], cut: 0 };
     var ceiling = /^video\//i.test(blob.type) ? MAX_VIDEO_BYTES : MAX_BYTES;
     if (!blob.size || blob.size > ceiling || !Number.isFinite(durationMs) ||
         durationMs <= 0 || durationMs > MAX_MS || typeof blob.slice !== 'function') invalid();
@@ -10209,10 +10251,9 @@ var LessonAudioFinalize = (function () {
     if (!info || !Number.isFinite(scale) || scale <= 0) invalid();
     if (duration) {
       if (duration.size !== 4 && duration.size !== 8) invalid();
-      if (Number.isFinite(oldDuration) && oldDuration > 0) return blob;
+      if (Number.isFinite(oldDuration) && oldDuration > 0) return { head: [], cut: 0 };
       if (checksum) invalid();
-      return new Blob([blob.slice(0, duration.body), durationBytes(durationMs * 1000000 / scale, duration.size),
-        blob.slice(duration.end)], { type: blob.type });
+      return { head: [blob.slice(0, duration.body), durationBytes(durationMs * 1000000 / scale, duration.size)], cut: duration.end };
     }
     // Browser streaming files have no positional indexes. Refuse to shift an
     // indexed or checksummed foreign container rather than corrupt its offsets.
@@ -10226,10 +10267,15 @@ var LessonAudioFinalize = (function () {
       var segmentSize = sizeBytes(segment.size + delta, segment.sizeLength);
       pieces.push(blob.slice(0, segment.sizeAt), segmentSize, blob.slice(segment.body, info.sizeAt));
     } else pieces.push(blob.slice(0, info.sizeAt));
-    pieces.push(infoSize, blob.slice(info.body, info.end), added, blob.slice(info.end));
-    return new Blob(pieces, { type: blob.type });
+    pieces.push(infoSize, blob.slice(info.body, info.end), added);
+    return { head: pieces, cut: info.end };
   }
-  return { finalize: finalize };
+  async function finalize(blob, durationMs) {
+    var p = await plan(blob, durationMs);
+    if (!p.head.length && !p.cut) return blob;
+    return new Blob(p.head.concat([blob.slice(p.cut)]), { type: blob.type });
+  }
+  return { finalize: finalize, plan: plan };
 })();
 
 /* ================= Seekable lesson video (MP4) ================= */
@@ -10610,8 +10656,13 @@ var LessonMp4Finalize = (function () {
     if (total !== expected) fail('the sample count changed');
   }
 
-  async function finalize(blob) {
-    if (!blob || !blob.size || blob.size > LIMIT) return blob;
+  // ☁ The rebuild as a PLAN: the finished file is `head` (ftyp, the new moov
+  // and the mdat header) followed by `ranges` of the original, in order — the
+  // recorder's sample bytes and nothing else. `null` means "leave it alone".
+  // A lesson uploaded while it recorded sends exactly those ranges as it goes,
+  // so after Stop only the head and the last seconds are left to send.
+  async function plan(blob) {
+    if (!blob || !blob.size || blob.size > LIMIT) return null;
     var top = await scan(blob), moovTop = null, typeTop = null, fragments = [];
     top.forEach(function (box) {
       if (box.type === 'moov' && !moovTop) moovTop = box;
@@ -10619,10 +10670,10 @@ var LessonMp4Finalize = (function () {
       else if (box.type === 'moof' && !box.clipped) fragments.push(box);
     });
     // Already a plain MP4 (no fragments), or not an MP4 at all: leave it alone.
-    if (!moovTop || !fragments.length || moovTop.clipped) return blob;
+    if (!moovTop || !fragments.length || moovTop.clipped) return null;
     var moovBuf = new Uint8Array(await blob.slice(moovTop.start, moovTop.end).arrayBuffer());
     var info = analyse(moovBuf, moovTop.header);
-    if (!info.fragmented || !info.order.length) return blob;
+    if (!info.fragmented || !info.order.length) return null;
 
     var chunks = [], state = { next: null, truncated: false };
     for (var f = 0; f < fragments.length && !state.truncated; f++) {
@@ -10631,7 +10682,7 @@ var LessonMp4Finalize = (function () {
       readFragment(raw, moof.header, moof.start, info, blob.size, chunks, state);
     }
     var tracks = info.order.filter(function (t) { return t.size.length; });
-    if (!tracks.length) return blob;
+    if (!tracks.length) return null;
 
     // Every time below is in the track's own ticks until it is converted.
     var earliest = Infinity, movieDur = 0, samples = 0;
@@ -10654,18 +10705,24 @@ var LessonMp4Finalize = (function () {
     var payload = chunks.reduce(function (sum, c) { return sum + c.len; }, 0);
     var first = moovBytes(moovBuf, moovTop.header, info, movieDur, 0, chunks);
     var base = ftyp.length + first.length + 8;
-    if (base + payload > LIMIT) return blob;
+    if (base + payload > LIMIT) return null;
     var moov = moovBytes(moovBuf, moovTop.header, info, movieDur, base, chunks);
     if (moov.length !== first.length) fail('the index changed size');
     checked(moov, 8, samples);
 
-    var pieces = [ftyp, moov, words([payload + 8]), ascii('mdat')];
-    chunks.forEach(function (c) { pieces.push(blob.slice(c.at, c.at + c.len)); });
+    var head = [ftyp, moov, words([payload + 8]), ascii('mdat')];
+    return { head: head, ranges: chunks.map(function (c) { return [c.at, c.at + c.len]; }), size: base + payload };
+  }
+  async function finalize(blob) {
+    var p = await plan(blob);
+    if (!p) return blob;
+    var pieces = p.head.slice();
+    p.ranges.forEach(function (r) { pieces.push(blob.slice(r[0], r[1])); });
     var out = new Blob(pieces, { type: blob.type });
-    if (out.size !== base + payload) fail('the size is wrong');
+    if (out.size !== p.size) fail('the size is wrong');
     return out;
   }
-  return { finalize: finalize };
+  return { finalize: finalize, plan: plan };
 })();
 
 /* ================= Lesson camera and microphone ================= */
@@ -11799,9 +11856,22 @@ function lessonCardsChanged(c) {
 function lessonContextOK(c) {
   return lessonTeacher() && currentDocId === c.docId && wsEpoch === c.epoch && currentUser.uid === c.uid;
 }
-function lessonStatus(text) { $('lessonStatus').textContent = text; }
+function lessonStatus(text) {
+  $('lessonStatus').textContent = text;
+  // The pill hides the words; they are still a hover away.
+  $('lessonBar').title = text || '';
+}
+// ⏺ Small while recording and while saving on its own; the full bar only when
+// the teacher has something to do about the save.
+function lessonBarMode() {
+  var bar = $('lessonBar'), job = lessonPending;
+  var saving = !lessonCapture && !!(job && job.saving && !job.error);
+  bar.classList.toggle('mini', !!lessonCapture || saving);
+  bar.classList.toggle('saving', saving);
+}
 function lessonBar(show) {
   $('lessonBar').hidden = !show;
+  lessonBarMode();
   // The toolbar's red dot pulses while a lesson is going down, so the one
   // record button says whether it is recording without a word on it.
   $('lessonRecordBtn').classList.toggle('active', !!lessonCapture);
@@ -11846,6 +11916,9 @@ function lessonCaptureTick() {
   // this moment on; the recording carries on.
   if (!c.cardsBusy && lessonCardsChanged(c)) lessonCardsRecapture(c, Math.round(ms));
   $('lessonClock').textContent = recFmtTime(ms);
+  // ☁ How much of it is already in the cloud, beside the clock.
+  var upText = lessonUpLive(c), upNode = $('lessonUpLive');
+  if (upNode && upNode.textContent !== upText) { upNode.textContent = upText; upNode.hidden = !upText; }
   // Only the file itself being full ends a lesson on its own (hours away),
   // and even then the captured portion is saved.
   if (ms >= LessonReplayCore.limits.duration || c.bytes >= (c.limit || LESSON_AUDIO_LIMIT) - LESSON_BYTES_SLACK) {
@@ -12062,7 +12135,12 @@ async function lessonStart() {
       delete options.mimeType;
       c.recorder = new MediaRecorder(recorded, options);
     }
-    c.recorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) { c.chunks.push(ev.data); c.bytes += ev.data.size; } };
+    c.recorder.ondataavailable = function (ev) {
+      if (!ev.data || !ev.data.size) return;
+      c.chunks.push(ev.data); c.bytes += ev.data.size;
+      // ☁ The finished bytes go up while the lesson is still being taught.
+      lessonUpFeed(c, ev.data.type);
+    };
     c.recorder.onerror = function () { if (lessonCapture === c) lessonStop('The browser stopped recording. Saving the captured portion.'); };
     c.recorder.onstop = function () { lessonFinish(c); };
     c.recorder.onstart = function () {
@@ -12082,6 +12160,7 @@ async function lessonStart() {
       lessonStatus((c.screenRec ? (c.camStream ? 'Recording the window, you and your explanation · ' : 'Recording the window and your explanation · ')
         : c.camStream ? 'Recording you and your explanation · ' : 'Recording your explanation · ') + c.micStatus);
     };
+    lessonUpBegin(c);
     c.recorder.start(1000);
   } catch (e) {
     lessonRelease(c);
@@ -12158,9 +12237,16 @@ async function lessonFinish(c) {
   // ⏱ The question-by-question steps, only when there are any.
   if (c.steps && c.steps.length) job.manifest.steps = c.steps.slice();
   if (typeof lessonStepsLive === 'function') lessonStepsLive(null);
-  try { await lessonRecovery('put', job.uid + '/' + job.docId, job); job.backedUp = true; }
-  catch (e) { job.backedUp = false; }
-  if (lessonContextOK(job)) await lessonSavePending(); else lessonPendingUI();
+  // ☁ What already went up while recording: no more pieces from here on, but
+  // one still in flight is waited for by the save.
+  if (c.up) { c.up.stopped = true; job.up = c.up; }
+  // The device's copy is written BESIDE the save, not before it: an hour of
+  // video takes a while to write, and the cloud does not need to wait for it.
+  // The record is built now, as plain data; the save deletes it only once it
+  // has been written.
+  job.backup = lessonRecovery('put', job.uid + '/' + job.docId, lessonJobRecord(job))
+    .then(function () { job.backedUp = true; }, function () { job.backedUp = false; });
+  if (lessonContextOK(job)) await lessonSavePending(); else { await job.backup; lessonPendingUI(); }
 }
 // Wide enough for its own words: a pill sized for "Play lesson · 9:59" cut the
 // end off a video lesson's label, or any lesson past an hour.
@@ -12179,35 +12265,377 @@ function lessonUpload(ref, blob, meta, job) {
   }
   return task;
 }
+/* ================= ☁ Upload while recording (v1.143.0) =================
+   A lesson used to upload only after Stop: an hour of video sat in the tab
+   and the teacher watched "Uploading… 12%" with the class waiting to go
+   home. Now the recording goes up IN PIECES while the lesson is still being
+   taught — `lesson-{docId}-{id}.part-0001`, `-0002`, … a few megabytes each —
+   and after Stop only the head (the file's first bytes, which are rewritten
+   once its length is known) and the last few seconds are left. The cloud
+   (`ansKeyLessonCompose`) joins the pieces into the one file every reader
+   already uses, without the bytes passing back through anything.
+
+   - THE PIECES ARE THE FINISHED FILE'S OWN BYTES. A WebM's finisher only ever
+     rewrites its first megabyte (LessonAudioFinalize.plan), so its pieces
+     are the recording from LESSON_UP_HEAD on. An MP4's finisher keeps the
+     recorder's sample bytes and drops everything else (LessonMp4Finalize.plan),
+     so its pieces are the `mdat` contents, read off the stream as they arrive.
+   - IT PROVES THE JOIN BEFORE ASKING FOR IT. `lessonUpLocate` checks that what
+     went up is exactly a run of the finished file's bytes; anything else — a
+     piece that failed, a file the finisher reads differently, the service not
+     answering — falls back to uploading the whole file the old way, which
+     still works exactly as it did. The pieces are a head start, never a risk.
+   - IT NEVER WAITS ON THE LESSON. Pieces go up one at a time in the
+     background, retrying a dropped connection, and a piece that will not go
+     simply stops the streaming; nothing about the recording changes.
+   - A TAB CLOSED BEFORE THE LAST SECONDS WENT UP is finished the next time the
+     teacher opens the worksheet (`lessonResumePending`), from the copy kept
+     on this device, sending only what is not already in the cloud. */
+var LESSON_UP_PART = 4 * 1024 * 1024;
+// A WebM's Info element always sits inside its first megabyte (the finisher
+// refuses one that does not), so nothing at or past this point is ever
+// rewritten and it can go up while the lesson is still recording.
+var LESSON_UP_HEAD = 1280 * 1024;
+var LESSON_UP_ENDPOINT = 'https://us-central1-mathgen--app.cloudfunctions.net/ansKeyLessonCompose';
+var LESSON_UP_RETRY_MS = [2000, 6000, 15000, 30000];
+// Below the service's MAX_PARTS (900), with room for the head and the rest.
+var LESSON_UP_MAX_PARTS = 880;
+
+/* ---- pure: byte ranges of the original recording ---- */
+// Adjacent ranges joined, empty ones dropped. Ranges are [start, end) pairs.
+function lessonUpMerge(ranges) {
+  var out = [];
+  (ranges || []).forEach(function (r) {
+    if (!r || !(r[1] > r[0])) return;
+    var last = out[out.length - 1];
+    if (last && last[1] === r[0]) last[1] = r[1];
+    else out.push([r[0], r[1]]);
+  });
+  return out;
+}
+function lessonUpBytes(ranges) {
+  return (ranges || []).reduce(function (sum, r) { return sum + Math.max(0, r[1] - r[0]); }, 0);
+}
+// The finished file's payload is the plan's ranges laid end to end; this is
+// the part of it from byte `from` to byte `to`, as ranges of the original.
+function lessonUpSlice(ranges, from, to) {
+  var out = [], at = 0;
+  for (var i = 0; i < ranges.length && at < to; i++) {
+    var r = ranges[i], len = r[1] - r[0], s = Math.max(from, at), e = Math.min(to, at + len);
+    if (e > s) out.push([r[0] + (s - at), r[0] + (e - at)]);
+    at += len;
+  }
+  return lessonUpMerge(out);
+}
+// Where, in the finished file's payload, the bytes that went up begin — or -1
+// when they are not exactly one unbroken run of it. That is the whole proof a
+// join is safe: the head before it and the rest after it are then all that is
+// missing, and the pieces in between are already right.
+function lessonUpLocate(planRanges, upRanges) {
+  var plan = lessonUpMerge(planRanges), up = lessonUpMerge(upRanges);
+  if (!plan.length || !up.length) return -1;
+  var first = up[0][0], at = 0, start = -1;
+  for (var i = 0; i < plan.length; i++) {
+    if (first >= plan[i][0] && first < plan[i][1]) { start = at + first - plan[i][0]; break; }
+    at += plan[i][1] - plan[i][0];
+  }
+  if (start < 0) return -1;
+  var want = lessonUpSlice(plan, start, start + lessonUpBytes(up));
+  if (want.length !== up.length) return -1;
+  for (var k = 0; k < up.length; k++) if (want[k][0] !== up[k][0] || want[k][1] !== up[k][1]) return -1;
+  return start;
+}
+function lessonUpPartName(prefix, index) { return prefix + '.part-' + String(index).padStart(4, '0'); }
+// How much of what has been recorded is already in the cloud, 0–100.
+function lessonUpPercent(sent, recorded) {
+  if (!(recorded > 0)) return 0;
+  return Math.max(0, Math.min(100, Math.floor(100 * sent / recorded)));
+}
+
+/* ---- while the lesson records ---- */
+function lessonUpBegin(c) {
+  c.up = null;
+  if (typeof storage === 'undefined' || !storage || typeof storage.ref !== 'function') return;
+  c.up = { kind: '', type: '', prefix: STORAGE_DIR + '/lesson-' + c.docId + '-' + c.id, parts: [], pending: [],
+    scan: 0, head: -1, sent: 0, next: 1, chain: Promise.resolve(), scanning: false, off: false };
+}
+// Called with every chunk the recorder hands over.
+function lessonUpFeed(c, chunkType) {
+  var up = c.up;
+  if (!up || up.off || up.stopped) return;
+  if (!up.type) {
+    up.type = (c.recorder && c.recorder.mimeType) || chunkType || '';
+    up.kind = /mp4/i.test(up.type) ? 'mp4' : /webm/i.test(up.type) ? 'webm' : '';
+    if (!up.kind) { up.off = true; return; }
+    if (up.kind === 'mp4') up.head = 0;
+  }
+  if (up.scanning) { up.again = true; return; }
+  up.scanning = true;
+  lessonUpScan(c).catch(function () { up.off = true; }).then(function () {
+    up.scanning = false;
+    lessonUpQueue(c);
+    if (up.again && !up.off) { up.again = false; lessonUpFeed(c); }
+  });
+}
+// Finds the bytes that are already final: from LESSON_UP_HEAD on for a WebM,
+// each complete `mdat`'s contents for an MP4.
+async function lessonUpScan(c) {
+  var up = c.up;
+  if (up.kind === 'webm') {
+    if (up.head < 0) {
+      if (c.bytes < LESSON_UP_HEAD) return;
+      up.head = up.scan = c.bytes;
+      return;
+    }
+    if (c.bytes > up.scan) { up.pending.push([up.scan, c.bytes]); up.scan = c.bytes; }
+    return;
+  }
+  var blob = new Blob(c.chunks), size = blob.size, guard = 0;
+  while (size - up.scan >= 8) {
+    if (++guard > 20000) throw new Error('Too many boxes');
+    var view = new DataView(await blob.slice(up.scan, Math.min(size, up.scan + 16)).arrayBuffer());
+    var length = view.getUint32(0), header = 8;
+    var type = String.fromCharCode(view.getUint8(4), view.getUint8(5), view.getUint8(6), view.getUint8(7));
+    if (length === 1) {
+      if (view.byteLength < 16) break;
+      length = view.getUint32(8) * 4294967296 + view.getUint32(12); header = 16;
+    }
+    // A box "to the end of the file" or a size smaller than its own header is
+    // a stream this does not understand: stop streaming, keep recording.
+    if (length < header) throw new Error('A box this cannot read');
+    if (up.scan + length > size) break;   // not all of it is here yet
+    if (type === 'mdat' && length > header) up.pending.push([up.scan + header, up.scan + length]);
+    up.scan += length;
+  }
+}
+function lessonUpQueue(c) {
+  var up = c.up;
+  if (!up || up.off || up.stopped) return;
+  var waiting = lessonUpBytes(up.pending);
+  while (waiting >= LESSON_UP_PART && up.next < LESSON_UP_MAX_PARTS) {
+    var take = [], n = 0;
+    while (up.pending.length && n < LESSON_UP_PART) { var r = up.pending.shift(); take.push(r); n += r[1] - r[0]; }
+    var part = { i: up.next++, ranges: lessonUpMerge(take), bytes: n, done: false };
+    up.parts.push(part); waiting -= n;
+    lessonUpSend(c, part);
+  }
+}
+// One piece at a time, in order: the join needs an unbroken run, and a
+// lesson's upload must never fight the lesson for the connection.
+function lessonUpSend(c, part) {
+  var up = c.up;
+  up.chain = up.chain.then(async function () {
+    if (up.off) return;
+    var all = new Blob(c.chunks), type = up.type;
+    var blob = new Blob(part.ranges.map(function (r) { return all.slice(r[0], r[1]); }), { type: type });
+    for (var attempt = 0; ; attempt++) {
+      try {
+        await lessonUpPut(lessonUpPartName(up.prefix, part.i), blob, type);
+        part.done = true; up.sent += part.bytes;
+        return;
+      } catch (e) {
+        if (attempt >= LESSON_UP_RETRY_MS.length) { up.off = true; return; }
+        await new Promise(function (r) { setTimeout(r, LESSON_UP_RETRY_MS[attempt]); });
+        if (up.off) return;
+      }
+    }
+  }).catch(function () { up.off = true; });
+}
+// One object up, its progress reported as bytes so far.
+function lessonUpPut(path, blob, type, onProgress) {
+  var task = storage.ref(path).put(blob, { contentType: type || 'application/octet-stream' });
+  if (onProgress && task && typeof task.on === 'function') {
+    task.on('state_changed', function (snap) { if (snap) onProgress(snap.bytesTransferred || 0); }, function () {});
+  }
+  return task;
+}
+// The percentage the recording pill shows beside the clock.
+function lessonUpLive(c) {
+  var up = c && c.up;
+  if (!up || up.off || !up.sent) return '';
+  return '☁ ' + lessonUpPercent(up.sent, c.bytes) + '%';
+}
+
+/* ---- after Stop ---- */
+// The finished file as a plan: `head` and then `ranges` of the original.
+async function lessonMediaPlan(raw, durationMs) {
+  if (/webm/i.test(raw.type)) {
+    var w = await LessonAudioFinalize.plan(raw, durationMs);
+    return { head: w.head, ranges: [[w.cut, raw.size]] };
+  }
+  if (/mp4/i.test(raw.type)) {
+    var m = await LessonMp4Finalize.plan(raw);
+    return m ? { head: m.head, ranges: m.ranges } : null;
+  }
+  return null;
+}
+// The whole-file route's finisher: a WebM gets its length, an MP4 its index —
+// moved to the front, so a student's player can start and jump at once
+// instead of reading the lesson from the top. An MP4 the indexer cannot read
+// goes up exactly as it was recorded, which still plays.
+async function lessonFinalizeMedia(blob, durationMs) {
+  if (/mp4/i.test(blob.type)) {
+    try { return await LessonMp4Finalize.finalize(blob); } catch (e) { return blob; }
+  }
+  return LessonAudioFinalize.finalize(blob, durationMs);
+}
+async function lessonUpCompose(job, count, bytes, type) {
+  var user = currentUser, appCheck = window.liveAppCheckToken;
+  if (!user || typeof appCheck !== 'function') throw new Error('Cloud joining is not available.');
+  var tokens = await Promise.all([user.getIdToken(), appCheck()]);
+  var res = await fetch(LESSON_UP_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tokens[0], 'X-Firebase-AppCheck': tokens[1] },
+    body: JSON.stringify({ type: 'compose', docId: job.docId, id: job.id, ext: recExt(type), parts: count, contentType: type, bytes: bytes })
+  });
+  var data = await res.json().catch(function () { return null; });
+  if (!res.ok || !data || !data.url || !data.path) throw new Error((data && data.error && data.error.message) || 'The lesson could not be joined in the cloud.');
+  return data;
+}
+// Sends what is left and asks the cloud to join it. True when the lesson's
+// file is in the cloud (job.audioUrl and job.audioPath set); false when the
+// whole-file upload should run instead. It never throws for that reason —
+// the old route is always there behind it.
+async function lessonUpFinish(job, raw, onSending) {
+  var up = job.up;
+  if (!up || !up.prefix || !raw || !raw.size) return false;
+  if (up.chain) { try { await up.chain; } catch (e) {} }
+  var done = [];
+  for (var k = 0; k < up.parts.length && up.parts[k].done && up.parts[k].i === k + 1; k++) done.push(up.parts[k]);
+  // Nothing went up: one whole upload is just as quick as a head and a rest.
+  if (!done.length) return false;
+  var type = raw.type || up.type;
+  var plan = await lessonMediaPlan(raw, job.duration);
+  if (!plan) return false;
+  var upRanges = [];
+  done.forEach(function (p) { upRanges = upRanges.concat(p.ranges); });
+  var at = lessonUpLocate(plan.ranges, upRanges);
+  if (at < 0) return false;
+  var sent = lessonUpBytes(upRanges), total = lessonUpBytes(plan.ranges);
+  var head = new Blob(plan.head.concat(lessonUpSlice(plan.ranges, 0, at).map(function (r) { return raw.slice(r[0], r[1]); })), { type: type });
+  var restRanges = lessonUpSlice(plan.ranges, at + sent, total);
+  var rest = restRanges.length ? new Blob(restRanges.map(function (r) { return raw.slice(r[0], r[1]); }), { type: type }) : null;
+  var count = done.length + 1 + (rest ? 1 : 0);
+  var bytes = head.size + sent + (rest ? rest.size : 0);
+  // What is left to send, counted for the pill: usually a few seconds.
+  var toSend = head.size + (rest ? rest.size : 0), base = 0;
+  var report = function (n) {
+    if (lessonPending !== job) return;
+    lessonStatus('Saving · ' + lessonUpPercent(sent + base + n, bytes) + '%');
+  };
+  report(0);
+  var first = rest ? lessonUpPut(lessonUpPartName(up.prefix, done.length + 1), rest, type, report)
+    : lessonUpPut(lessonUpPartName(up.prefix, 0), head, type, report);
+  if (typeof onSending === 'function') onSending();
+  await first;
+  if (rest) { base += rest.size; await lessonUpPut(lessonUpPartName(up.prefix, 0), head, type, report); }
+  base += head.size;
+  if (lessonPending === job) lessonStatus('Saving · joining the lesson in the cloud…');
+  var joined = await lessonUpCompose(job, count, bytes, type);
+  job.audioPath = joined.path; job.audioUrl = lessonAssetUrl(joined.url);
+  // Pieces sent after one that failed were never part of the join.
+  up.parts.slice(done.length).forEach(function (p) { if (p.done && p.i >= count) lessonUpDelete(lessonUpPartName(up.prefix, p.i)); });
+  return true;
+}
+// After a whole-file upload, any pieces that went up are only clutter.
+function lessonUpDiscard(job) {
+  var up = job && job.up;
+  if (!up || !up.prefix || !up.parts.some(function (p) { return p.done; })) return;
+  var top = Math.max(up.next || 1, up.parts.length + 2);
+  for (var i = 0; i <= top; i++) lessonUpDelete(lessonUpPartName(up.prefix, i));
+}
+// Best effort, and never a reason for a save to fail: a piece left behind
+// costs a little storage and nothing else.
+function lessonUpDelete(path) {
+  try {
+    var ref = storage.ref(path), done = ref && typeof ref.delete === 'function' ? ref.delete() : null;
+    if (done && typeof done.catch === 'function') done.catch(function () {});
+  } catch (e) {}
+}
+// What goes into this device's backup: plain data only, built NOW — the
+// backup is written a moment later, by which time the job may be saving.
+function lessonJobRecord(job) {
+  var out = {};
+  Object.keys(job).forEach(function (k) {
+    if (k === 'saving' || k === 'error' || k === 'backup' || k === 'up' || k === 'raw') return;
+    out[k] = job[k];
+  });
+  if (job.up && job.up.prefix) {
+    out.up = { kind: job.up.kind, type: job.up.type, prefix: job.up.prefix, next: job.up.next,
+      parts: job.up.parts.map(function (p) { return { i: p.i, ranges: p.ranges.map(function (r) { return [r[0], r[1]]; }), bytes: p.bytes, done: !!p.done }; }) };
+  }
+  return out;
+}
+// ☁ A recording whose last seconds never reached the cloud — the tab was
+// closed straight after Stop — is finished the next time the teacher opens
+// its worksheet, without them having to press anything.
+async function lessonResumePending(id) {
+  if (!id || !lessonTeacher() || lessonCapture || lessonPending) return;
+  var uid = currentUser.uid, epoch = wsEpoch, saved;
+  try { saved = await lessonRecovery('get', uid + '/' + id); } catch (e) { return; }
+  if (!saved || id !== currentDocId || epoch !== wsEpoch || !lessonTeacher() || uid !== currentUser.uid || lessonCapture || lessonPending) return;
+  saved.epoch = epoch; lessonPending = saved;
+  lessonPendingUI();
+  lessonSavePending();
+}
+/* ================= End upload while recording ================= */
 function lessonPendingUI() {
   if (!lessonPending || !lessonTeacher() || currentUser.uid !== lessonPending.uid) { lessonBar(false); return; }
   lessonBar(true); $('lessonStopBtn').hidden = true;
   $('lessonRetryBtn').hidden = $('lessonDownloadBtn').hidden = $('lessonDismissBtn').hidden = false;
   $('lessonRetryBtn').disabled = !!lessonPending.saving;
   $('lessonClock').textContent = recFmtTime(lessonPending.duration);
-  lessonStatus(lessonPending.error || 'Recording ready to save. Keep this tab open until it is attached.');
+  $('lessonUpLive').hidden = true;
+  lessonStatus(lessonPending.error || (lessonPending.saving ? 'Saving…' : 'Recording ready to save.'));
+  lessonBarMode();
 }
 async function lessonSavePending() {
   var job = lessonPending;
   if (!job || job.saving) return;
   if (lessonTeacher() && currentUser.uid === job.uid && currentDocId === job.docId) job.epoch = wsEpoch;
   if (!lessonContextOK(job)) { lessonPendingUI(); lessonStatus('Return to the original worksheet as the teacher to save this recording.'); return; }
-  job.saving = true; lessonPendingUI(); lessonStatus(job.video ? 'Uploading the lesson video…' : 'Uploading the lesson…');
+  job.saving = true; job.error = ''; lessonPendingUI(); lessonStatus('Saving…');
   try {
-    if (!job.audioFinalized) { job.blob = await LessonAudioFinalize.finalize(job.blob, job.duration); job.audioFinalized = true; }
     if (await lessonPdfHash() !== job.manifest.pdfHash) throw new Error('The PDF changed. Download this recording before recording a new lesson.');
     if (!lessonContextOK(job)) throw new Error('Return to the original worksheet to finish saving.');
     var prefix = STORAGE_DIR + '/lesson-' + job.docId + '-' + job.id;
+    // The manifest goes up BESIDE the media rather than after it: it can be
+    // megabytes of page pictures, and it never depended on the media.
+    // It starts once the media is on its way, so the media is always first.
+    var manifestStep = null;
+    var startManifest = function () {
+      if (manifestStep) return manifestStep;
+      manifestStep = job.manifestUrl ? Promise.resolve() : (async function () {
+        var manifestRef = storage.ref(prefix + '.json');
+        await manifestRef.put(new Blob([JSON.stringify(job.manifest)], { type: 'application/json' }), { contentType: 'application/json', cacheControl: 'private,max-age=3600' });
+        job.manifestUrl = await manifestRef.getDownloadURL(); job.manifestPath = manifestRef.fullPath;
+      })();
+      manifestStep.catch(function () {});
+      return manifestStep;
+    };
+    // ☁ Most of it went up while recording: send the rest and join it.
+    // Anything that stops that route falls back to the whole upload below.
+    if (!job.raw) job.raw = job.blob;
+    if (!job.audioUrl && job.up && !job.upFailed) {
+      try { if (!await lessonUpFinish(job, job.raw, startManifest)) job.upFailed = true; }
+      catch (e) {
+        // Offline, the whole upload would fail too: say so and keep the
+        // pieces for the retry. Anything else is the join itself failing,
+        // and the whole upload goes ahead at once.
+        if (navigator.onLine === false) throw e;
+        job.upFailed = true;
+      }
+    }
     if (!job.audioUrl) {
+      if (!job.audioFinalized) { job.blob = await lessonFinalizeMedia(job.raw, job.duration); job.audioFinalized = true; }
       var audioRef = storage.ref(prefix + '.' + recExt(job.blob.type));
-      await lessonUpload(audioRef, job.blob, { contentType: job.blob.type, cacheControl: 'private,max-age=3600' }, job);
+      var mediaTask = lessonUpload(audioRef, job.blob, { contentType: job.blob.type, cacheControl: 'private,max-age=3600' }, job);
+      startManifest();
+      await mediaTask;
       job.audioUrl = await audioRef.getDownloadURL(); job.audioPath = audioRef.fullPath;
+      if (job.up) lessonUpDiscard(job);
     }
-    if (!job.manifestUrl) {
-      var manifestRef = storage.ref(prefix + '.json');
-      await manifestRef.put(new Blob([JSON.stringify(job.manifest)], { type: 'application/json' }), { contentType: 'application/json', cacheControl: 'private,max-age=3600' });
-      job.manifestUrl = await manifestRef.getDownloadURL(); job.manifestPath = manifestRef.fullPath;
-    }
+    await startManifest();
     if (!lessonContextOK(job)) throw new Error('Return to the original worksheet to finish saving.');
     // Serialize with normal auto-save, then leave later edits queued normally.
     var waited = 0;
@@ -12239,6 +12667,7 @@ async function lessonSavePending() {
         renderAllOverlays(); setDirty(JSON.stringify(annotations) !== json);
       }
     } finally { autoSaveInFlight = false; if (dirty || autoSaveQueued) { autoSaveQueued = false; scheduleAutoSave(); } }
+    if (job.backup) await job.backup;
     await lessonRecovery('delete', job.uid + '/' + job.docId).catch(function () {});
     if (lessonPending === job) lessonPending = null;
     lessonBar(false);
@@ -12262,7 +12691,10 @@ async function lessonDismissPending() {
   var job = lessonPending;
   if (!job || job.saving || !lessonTeacher() || currentUser.uid !== job.uid) return;
   if (!confirm('Discard this unsaved recording? Download a copy first if you want to keep it.')) return;
+  if (job.backup) await job.backup;
   await lessonRecovery('delete', job.uid + '/' + job.docId).catch(function () {});
+  // ☁ Pieces that went up while it recorded go with it.
+  if (job.up) lessonUpDiscard(job);
   lessonPending = null; lessonBar(false);
 }
 
@@ -12273,16 +12705,19 @@ function lessonAssetUrl(value) {
       !decodeURIComponent(u.pathname).split('/o/')[1].startsWith(STORAGE_DIR + '/lesson-')) throw new Error('Invalid lesson attachment.');
   return u.href;
 }
-async function lessonReadManifest(url, signal) {
+async function lessonReadManifest(url, signal, onProgress) {
   var href = lessonAssetUrl(url);
   // ⏬ A preloaded lesson reads its manifest from this device.
   var local = typeof lessonPreloadResponse === 'function' ? await lessonPreloadResponse(url).catch(function () { return null; }) : null;
   var response = local || await fetch(href, { signal: signal });
   if (!response.ok) throw new Error('The lesson could not be downloaded. Please retry.');
   var reader = response.body.getReader(), parts = [], size = 0;
+  // ⏩ How far along it is, for the loading bar, when the size is known.
+  var expected = Number(response.headers && response.headers.get ? response.headers.get('content-length') : 0) || 0;
   for (;;) {
     var result = await reader.read(); if (result.done) break;
     size += result.value.byteLength;
+    if (onProgress && expected > 0) { try { onProgress(Math.min(1, size / expected)); } catch (e) {} }
     if (size > LessonReplayCore.limits.bytes + LESSON_BACKGROUND_LIMIT + 4096) { await reader.cancel(); throw new Error('This lesson is too large to replay.'); }
     parts.push(result.value);
   }
@@ -12300,11 +12735,24 @@ async function lessonPlay(a) {
   // 📺 A lesson that recorded the worksheet window plays it big.
   var screen = video && !!a.lessonRecording.screen;
   $('lessonPlayer').hidden = false; $('lessonPlayerTitle').textContent = 'Loading lesson…';
+  // ⏩ The bar under the title says how much has loaded, as a percentage.
+  var load = lessonLoadBegin(a, video ? $('lessonVideo') : $('lessonAudio'));
   try {
     var audioUrl = lessonAssetUrl(a.url);
-    var result = await Promise.all([lessonReadManifest(a.lessonRecording.manifestUrl, controller.signal), lessonPdfHash(),
-      // ⏬ The preloaded copy, when there is one: seeking it never waits for the network.
-      typeof lessonPreloadSrc === 'function' ? lessonPreloadSrc(a.url).catch(function () { return ''; }) : '']);
+    // ⏬ The preloaded copy, when there is one: seeking it never waits for the network.
+    var localSrc = typeof lessonPreloadSrc === 'function' ? lessonPreloadSrc(a.url).catch(function () { return ''; }) : Promise.resolve('');
+    // ⏩ The media starts downloading NOW, beside the manifest, instead of
+    // waiting for megabytes of page pictures to arrive first.
+    localSrc.then(function (local) {
+      if (lessonOpening !== controller || controller.signal.aborted || lessonLoad !== load) return;
+      load.local = !!local;
+      load.media.preload = 'auto';
+      load.src = load.media.src = local || audioUrl;
+    });
+    var result = await Promise.all([lessonReadManifest(a.lessonRecording.manifestUrl, controller.signal, function (f) {
+      if (lessonLoad === load) { load.manifest = f; lessonLoadRender(); }
+    }), lessonPdfHash(), localSrc]);
+    if (lessonLoad === load) { load.manifest = 1; lessonLoadRender(); }
     if (controller.signal.aborted || epoch !== wsEpoch || id !== currentDocId) return;
     var manifest = result[0];
     if (manifest.version !== 1 || manifest.worksheetId !== id || manifest.pdfHash !== result[1] || manifest.pageCount !== pages.length) {
@@ -12332,8 +12780,13 @@ async function lessonPlay(a) {
     document.body.classList.add('lessonPlaying');
     // A video lesson plays in its own window over the page, and its video IS
     // the clock: the audio bar would be a second copy of the same sound.
-    var media = lessonMedia(); media.src = result[2] || audioUrl;
+    var media = lessonMedia(), chosen = result[2] || audioUrl;
+    // Already downloading since the lesson was tapped: setting it again would
+    // throw away what has arrived and start over.
+    if (!(lessonLoad === load && load.src === chosen && load.media === media)) { media.preload = 'auto'; media.src = chosen; }
     pb.local = !!result[2]; pb.remote = audioUrl;
+    // A local copy that failed before the replay existed streams instead.
+    if (pb.local && media.error) { pb.local = false; media.src = audioUrl; }
     $('lessonAudio').hidden = video;
     if (video) lessonCamWinShow();
     $('lessonPlayerTitle').textContent = screen ? 'Lesson replay · the window as it was recorded'
@@ -12348,6 +12801,87 @@ async function lessonPlay(a) {
     if (!controller.signal.aborted) { lessonExitPlayback(); toast(e.message || 'Could not play this lesson.', 6000); }
   } finally { if (lessonOpening === controller) lessonOpening = null; }
 }
+/* ================= ⏩ The lesson loading bar (v1.143.0) =================
+   A student tapping a lesson used to see "Loading lesson…" and nothing else
+   while the whole manifest (page pictures and all) came down, and only THEN
+   did the video start downloading. Now the video starts downloading the
+   moment the lesson is tapped, beside the manifest, and a bar under the title
+   says how far along it is:
+   - OPENING: "Loading lesson · 42%" — the manifest's bytes and the first few
+     seconds of the video, which is what the lesson needs before it can play.
+   - PLAYING: "Loaded 63%" — how much of the whole lesson is on this device,
+     so a student can see whether jumping ahead will have to wait. It fades
+     away at 100%, and a preloaded lesson is 100% from the start. */
+var LESSON_LOAD_START_MS = 4000;
+var LESSON_LOAD_TICK_MS = 250;
+var lessonLoad = null;
+// The media's downloaded time: what is ahead of the playhead in its own range,
+// and the total of every range, both in milliseconds.
+function lessonLoadBuffered(media) {
+  var out = { ahead: 0, total: 0 };
+  var ranges = media && media.buffered, at = (media && media.currentTime) || 0;
+  if (!ranges) return out;
+  for (var i = 0; i < ranges.length; i++) {
+    var s = ranges.start(i), e = ranges.end(i);
+    if (!(e > s)) continue;
+    out.total += (e - s) * 1000;
+    if (at >= s - 0.25 && at <= e) out.ahead = Math.max(out.ahead, (e - at) * 1000);
+  }
+  return out;
+}
+// Pure. The percentage the bar shows, never above 100 and never 100 until it
+// really is all there.
+function lessonLoadPercent(st) {
+  var duration = st.durationMs > 0 ? st.durationMs : 0;
+  if (st.phase === 'playing') {
+    if (st.local) return 100;
+    if (!duration) return st.ready ? 100 : 0;
+    if (st.bufferedMs >= duration - 500) return 100;
+    return Math.max(0, Math.min(99, Math.floor(100 * st.bufferedMs / duration)));
+  }
+  var manifest = Math.max(0, Math.min(1, st.manifest || 0));
+  var need = Math.min(LESSON_LOAD_START_MS, duration || LESSON_LOAD_START_MS);
+  var media = st.local || st.ready ? 1 : Math.max(0, Math.min(1, need > 0 ? st.aheadMs / need : 0));
+  if (manifest >= 1 && media >= 1) return 100;
+  return Math.max(0, Math.min(99, Math.floor(100 * (0.35 * manifest + 0.65 * media))));
+}
+function lessonLoadBegin(a, media) {
+  lessonLoadEnd();
+  var rec = a && a.lessonRecording;
+  var load = lessonLoad = { ann: a, media: media, manifest: 0, local: false, phase: 'opening', done: false,
+    durationMs: rec && rec.duration > 0 ? rec.duration : 0, timer: 0, hideAt: 0 };
+  load.timer = setInterval(lessonLoadRender, LESSON_LOAD_TICK_MS);
+  $('lessonLoad').hidden = false;
+  $('lessonLoad').classList.remove('done');
+  lessonLoadRender();
+  return load;
+}
+function lessonLoadRender() {
+  var load = lessonLoad;
+  if (!load) return;
+  var media = load.media, buffered = lessonLoadBuffered(media);
+  var ready = !!(media && media.readyState >= 3);
+  // The replay exists and its media can play: from here the bar counts the
+  // whole lesson, not the opening.
+  if (load.phase === 'opening' && lessonPlayback && lessonPlayback.ann === load.ann && load.manifest >= 1 && ready) load.phase = 'playing';
+  var pct = lessonLoadPercent({ phase: load.phase, manifest: load.manifest, aheadMs: buffered.ahead, bufferedMs: buffered.total,
+    durationMs: load.durationMs, local: load.local || !!(lessonPlayback && lessonPlayback.ann === load.ann && lessonPlayback.local), ready: ready });
+  $('lessonLoadFill').style.width = pct + '%';
+  $('lessonLoadMeter').setAttribute('aria-valuenow', String(pct));
+  $('lessonLoadPct').textContent = (load.phase === 'playing' ? 'Loaded ' : 'Loading lesson · ') + pct + '%';
+  if (load.phase === 'playing' && pct >= 100) {
+    if (!load.hideAt) { load.hideAt = Date.now() + 1500; $('lessonLoad').classList.add('done'); }
+    else if (Date.now() >= load.hideAt) { clearInterval(load.timer); load.timer = 0; $('lessonLoad').hidden = true; }
+  }
+}
+function lessonLoadEnd() {
+  var load = lessonLoad;
+  lessonLoad = null;
+  if (load && load.timer) clearInterval(load.timer);
+  var node = $('lessonLoad');
+  if (node) { node.hidden = true; node.classList.remove('done'); }
+}
+/* ================= End lesson loading bar ================= */
 // The clock the writing follows: the lesson's own video when it was recorded
 // with the camera, its audio otherwise. Everything that reads the time asks
 // this, so the two can never be followed at once.
@@ -12386,6 +12920,7 @@ function lessonPlaybackLoop() {
 }
 function lessonExitPlayback() {
   if (lessonOpening) { lessonOpening.abort(); lessonOpening = null; }
+  lessonLoadEnd();
   var pb = lessonPlayback; lessonPlayback = null;
   ['lessonAudio', 'lessonVideo'].forEach(function (key) { var m = $(key); m.pause(); m.removeAttribute('src'); m.load(); });
   $('lessonAudio').hidden = false; lessonCamWinHide();
@@ -33168,6 +33703,8 @@ async function openSavedDoc(id, data) {
     // 🎓 A class worksheet moves its class along and shows the next two;
     // ⏺ the first worksheet of a lesson asks whether to record it.
     if (typeof onlineWorksheetOpened === 'function') onlineWorksheetOpened(id, data);
+    // ☁ A lesson whose last seconds never reached the cloud finishes saving now.
+    if (typeof lessonResumePending === 'function') lessonResumePending(id);
     if (typeof lessonAutoAsk === 'function') lessonAutoAsk(id);
     // ⏬ anyone but the teacher is offered the worksheet's recorded lessons first.
     if (typeof lessonPreloadOffer === 'function') lessonPreloadOffer(id);

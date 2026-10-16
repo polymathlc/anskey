@@ -4,6 +4,19 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.143.0 — Lessons upload while you teach, load faster for students, and a small record pill
+
+- **A lesson now uploads while it is being recorded.** It goes up in small pieces as you teach, so when you press Stop only the last few seconds are left to send. The cloud then joins the pieces into one video.
+  - The pill shows **☁ 74%** beside the clock: how much of the recording is already saved in the cloud.
+  - After Stop the pill says **Saving · 96%**, usually for a few seconds, then the lesson's button appears on the page.
+  - If the tab is closed before that finishes, the lesson finishes saving by itself the next time you open that worksheet, from the copy kept on this device.
+  - If the cloud cannot join the pieces, the whole file uploads the old way, so a lesson is never lost to the new route.
+- **Students' videos load faster, with a progress bar and percentage.**
+  - The video starts downloading the moment the lesson is tapped, at the same time as the page pictures. It used to wait for the page pictures first.
+  - New lessons are saved with their index at the front of the file, so a player can start at once and jump straight to any question instead of reading from the beginning. Lessons recorded before this update still play as before.
+  - Under the replay title a bar shows **Loading lesson · 42%** until the lesson can play, then **Loaded 63%**: how much of the whole lesson is on the device. It fades away at 100%.
+- **The recording bar is a small pill in the bottom-left corner** while you record: a red dot, the clock, the cloud percentage and Stop & save. Hover over it for the full status. When recording the worksheet window it sits in the top-right corner of the toolbar instead, so it is never in the video. The full bar only comes back if a save needs you (Retry, Download, Discard).
+
 ## v1.142.0 — Deeper skill trees, and enemies that grow with the class
 
 - **Every skill branch is two tiers deeper**, for all four classes and all eight advanced jobs: 72 new skills, 216 in total.

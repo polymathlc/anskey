@@ -15,6 +15,37 @@ Guidance for Claude when working in this repo.
 - The old manual suite (`model-suite.js`, `model-templates.js`, `bar-models.css`, the `modelbar` / `modelcut` tools and `#barModelPanel`) is gone. `bar-models.js` is now only the renderer for the `modelBar` rectangles older worksheets carry (`bmSvgContents`, `bmDrawOnCtx`, `bmDrawOnPdf`); keep it, or those bars vanish from old worksheets.
 - Run `node --test tools/model-studio-tests.mjs tools/bar-model-tests.mjs` and `node tools/model-studio-check.mjs` (real Chromium: draws, splits, shades, labels, braces, pins, edits, updates, undo, the student gate and the PDF; also in CI).
 
+## ☁ Upload while recording, ⏩ the loading bar and ⏺ the record pill (v1.143.0)
+
+- **Upload while recording.** The section is marked `☁ Upload while recording (v1.143.0)` … `End upload while recording` (just before `lessonPendingUI`).
+  - Recording side: `lessonUpBegin` runs before `recorder.start`, and `lessonUpFeed` / `lessonUpScan` / `lessonUpQueue` / `lessonUpSend` run on every chunk.
+  - Pieces are `lesson-{docId}-{id}.part-NNNN`, one at a time, at least `LESSON_UP_PART` each.
+  - **A piece is the finished file's own bytes.** For a WebM, that is everything from `LESSON_UP_HEAD` on (`LessonAudioFinalize.plan` only rewrites the first megabyte). For an MP4, it is the `mdat` contents (`LessonMp4Finalize.plan` keeps only the sample bytes).
+  - Both finishers expose `plan` (head + ranges of the original). `finalize` is built on `plan` and its output is byte-identical to before.
+  - After Stop: `lessonUpFinish` proves the join with `lessonUpLocate` (the uploaded pieces must be one unbroken run of the plan's payload). It then sends part 0 (the head) and the rest, and POSTs `ansKeyLessonCompose` (`LESSON_UP_ENDPOINT`, ID token + App Check).
+  - **Any refusal returns false and the old whole-file upload runs** (`lessonFinalizeMedia`, then `lessonUpDiscard` clears the pieces). Never make the streamed route the only route.
+- **The cloud join** is `functions/lesson-compose.js`, exported as `ansKeyLessonCompose` and deployed by `deploy-functions.yml` on merge.
+  - It is teacher-only, and it builds names from validated ids only.
+  - It composes in batches of 32, checks the expected byte total, sets contentType, cacheControl and a download token, deletes the pieces, and answers a retry with the existing file.
+  - Tests: `functions/test/lesson-compose.test.js`.
+- **MP4 lessons are now indexed** (`LessonMp4Finalize`, moov first) before saving, on both routes. An MP4 the indexer refuses goes up as recorded.
+- **Saving:**
+  - The device backup is written beside the save (`job.backup`, from `lessonJobRecord(job)`, plain data built synchronously). The save awaits it before deleting it.
+  - The manifest uploads once the media has started (`startManifest`), so the media is always the first put.
+  - `lessonResumePending(id)` (from `openSavedDoc`, before `lessonAutoAsk`) finishes a backed-up lesson automatically.
+- **⏩ Loading bar.** The section is marked `⏩ The lesson loading bar (v1.143.0)` … `End lesson loading bar`.
+  - `lessonPlay` sets the media `src` (preload `auto`) as soon as `lessonPreloadSrc` answers, before the manifest is awaited, and never resets it to the same `src` (`load.src`).
+  - `lessonReadManifest(url, signal, onProgress)` reports bytes when Content-Length is known.
+  - `lessonLoadPercent` is pure. OPENING is 35% manifest + 65% of the first `LESSON_LOAD_START_MS`. PLAYING is the buffered share of the whole lesson. It is never 100 until true.
+  - `#lessonLoad` / `#lessonLoadMeter` / `#lessonLoadPct` are inside `#lessonPlayer`, and `lessonExitPlayback` calls `lessonLoadEnd`.
+- **⏺ Record pill.**
+  - `lessonBarMode()` gives `#lessonBar` `.mini` while recording and while saving on its own (`.saving`). It shows the dot `#lessonRecDot`, the clock, `#lessonUpLive` (☁ %) and Stop. The status text moves to the bar's `title`.
+  - `.barStack` is no longer `transform`ed, so the fixed pill is placed against the screen. In `body.lessonScreenRec` the pill is in the top-right corner, outside the recorded area.
+- Run:
+  - `node --test tools/lesson-upload-tests.mjs` (ffmpeg MP4 + Chrome-shaped WebM, streamed, joined and compared byte for byte)
+  - `npm --prefix functions test`
+  - `node tools/lesson-upload-check.mjs` (real Chromium recording, join == finished file, ffprobe/decode, loading bar, fallback, pill size and corner; in CI)
+
 ## 📱 Portrait for Instagram (v1.140.0)
 
 - Search `Portrait for Instagram (v1.140.0)` in the camera and mic section. The pieces:
