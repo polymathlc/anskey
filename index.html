@@ -3771,6 +3771,7 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="battle-adventure.css">
 <link rel="stylesheet" href="student-heroes.css">
+<link rel="stylesheet" href="compact-wheel.css">
 </head>
 <body>
 
@@ -5358,14 +5359,14 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 </div>
 
 <!-- The name wheel: a window like the calculator. Drag the title bar to move
-     it, the corner to resize it, – to fold it down to its title bar. The
+     it, the corner to resize it, – for compact name slots and battle. The
      worksheet stays live underneath. -->
 <div class="modalBack floatWin" id="wheelModal">
   <div class="modalCard whCard" id="wheelCard" tabindex="-1">
     <div class="modalHead" id="wheelHead" title="Drag to move — the worksheet stays live underneath">
       <h2 id="wheelTitle">🎡 Name wheel</h2>
       <div class="winBtns">
-        <button class="modalClose" id="wheelMinBtn" title="Minimise — keeps your place in the round">–</button>
+        <button class="modalClose" id="wheelMinBtn" title="Minimise to name slots" aria-label="Minimise to name slots">–</button>
         <button class="modalClose" id="wheelCloseBtn" title="Close">✕</button>
       </div>
     </div>
@@ -5627,7 +5628,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.145.0';
+var APP_VERSION = 'v1.146.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32146,11 +32147,13 @@ function wheelSegmentAt(angle, n) {
 var WHEEL_STORE = 'polymath.wheel:';
 var WHEEL_CLASS_KEY = 'polymath.wheelClass';
 var WHEEL_WIN_KEY = 'polymath.wheelWin.pixel.v1';
+var WHEEL_COMPACT_WIN_KEY = 'polymath.wheelCompactWin.v1';
 var WHEEL_MIN_W = 300, WHEEL_MIN_H = 380;
 var WHEEL_COLORS = ['#FFD8A8', '#B8E0D2', '#C9D6FF', '#F7C6D9', '#E4D4F4', '#FFF1A8', '#BFE3F2', '#D5E8B0'];
 var WHEEL_AMOUNTS = [1, 2, 5, 10];
 
 var wheelWin = null;          // {x, y, w, h}
+var wheelCompactWin = null;   // independent from the full wheel's geometry
 var wheelMin = false;
 var wheelClass = '';
 var wheelState = null;
@@ -32342,6 +32345,7 @@ function wheelSpin() {
     var e = 1 - Math.pow(1 - k, 4);
     wheelAngle = from + (to - from) * e;
     wheelDraw();
+    if (window.CompactWheel) CompactWheel.frame(k);
     if (k < 1) { wheelRaf = requestAnimationFrame(frame); return; }
     wheelRaf = 0;
     wheelLanded();
@@ -32365,6 +32369,7 @@ function wheelStopSpin() {
   if (wheelRaf) { cancelAnimationFrame(wheelRaf); wheelRaf = 0; }
   wheelSpinning = false;
   wheelSegs = null;
+  if (window.CompactWheel) CompactWheel.stop();
 }
 
 /* ---- The rest of the window ---- */
@@ -32438,6 +32443,7 @@ function wheelRender() {
   wheelRenderResult();
   wheelRenderTitle();
   if (window.LessonGuests) LessonGuests.renderButtons();
+  if (window.CompactWheel) CompactWheel.refresh();
 }
 
 function wheelRenderResult() {
@@ -32598,7 +32604,7 @@ function wheelSetClass(cls) {
 }
 
 /* ---- The window ---- */
-function clampWheelWin(b) { return clampWinBox(b, WHEEL_MIN_W, WHEEL_MIN_H, wheelMin ? 56 : 0); }
+function clampWheelWin(b) { return clampWinBox(b, wheelMin ? 320 : WHEEL_MIN_W, wheelMin ? (window.innerWidth < 420 ? 300 : 280) : WHEEL_MIN_H); }
 
 function defaultWheelWin() {
   var vw = window.innerWidth, vh = floatWinViewportH();
@@ -32607,25 +32613,27 @@ function defaultWheelWin() {
   return { x: Math.max(12, Math.round((vw - w) / 2)), y: Math.max(12, Math.round((vh - h) / 2)), w: w, h: h };
 }
 
-function loadWheelWinBox() {
+function loadWheelWinBox(key) {
   try {
-    var v = JSON.parse(localStorage.getItem(WHEEL_WIN_KEY) || 'null');
+    var v = JSON.parse(localStorage.getItem(key || WHEEL_WIN_KEY) || 'null');
     if (v && ['x', 'y', 'w', 'h'].every(function (k) { return isFinite(v[k]); })) return v;
   } catch (e) {}
   return null;
 }
 
 function saveWheelWin() {
-  try { localStorage.setItem(WHEEL_WIN_KEY, JSON.stringify(wheelWin)); } catch (e) {}
+  try { localStorage.setItem(wheelMin ? WHEEL_COMPACT_WIN_KEY : WHEEL_WIN_KEY, JSON.stringify(wheelMin ? wheelCompactWin : wheelWin)); } catch (e) {}
 }
 
 function applyWheelWin() {
   var c = $('wheelCard');
-  if (!c || !wheelWin) return;
-  c.style.left = wheelWin.x + 'px';
-  c.style.top = wheelWin.y + 'px';
-  c.style.width = wheelWin.w + 'px';
-  c.style.height = wheelMin ? 'auto' : wheelWin.h + 'px';
+  var box = wheelMin ? wheelCompactWin : wheelWin;
+  if (!c || !box) return;
+  c.style.left = box.x + 'px';
+  c.style.top = box.y + 'px';
+  c.style.width = box.w + 'px';
+  c.style.height = box.h + 'px';
+  c.style.setProperty('--cw-height', box.h + 'px');
   wheelFit();
 }
 
@@ -32634,9 +32642,14 @@ function setWheelMin(on) {
   $('wheelModal').classList.toggle('winMin', wheelMin);
   var b = $('wheelMinBtn');
   b.textContent = wheelMin ? '▢' : '–';
-  b.title = wheelMin ? 'Open it back up' : 'Minimise — keeps your place in the round';
-  if (wheelWin) { wheelWin = clampWheelWin(wheelWin); applyWheelWin(); }
+  b.title = wheelMin ? 'Restore full wheel' : 'Minimise to name slots';
+  b.setAttribute('aria-label', b.title);
+  if (wheelMin) {
+    wheelCompactWin = clampWheelWin(wheelCompactWin || loadWheelWinBox(WHEEL_COMPACT_WIN_KEY) || {x:wheelWin ? wheelWin.x : 12,y:wheelWin ? wheelWin.y : 12,w:620,h:280});
+  } else if (wheelWin) wheelWin = clampWheelWin(wheelWin);
+  applyWheelWin();
   wheelRenderTitle();
+  if (window.CompactWheel) CompactWheel.refresh();
 }
 
 function wheelIsOpen() { return $('wheelModal').classList.contains('open'); }
@@ -32711,8 +32724,8 @@ $('wheelCard').addEventListener('keydown', function (e) {
 
 attachFloatWin({
   modal: 'wheelModal', card: 'wheelCard', head: 'wheelHead', grip: 'wheelGrip',
-  get: function () { return wheelWin; },
-  set: function (b) { wheelWin = clampWheelWin(b); },
+  get: function () { return wheelMin ? wheelCompactWin : wheelWin; },
+  set: function (b) { if (wheelMin) wheelCompactWin = clampWheelWin(b); else wheelWin = clampWheelWin(b); },
   clamp: clampWheelWin, apply: applyWheelWin, save: saveWheelWin
 });
 if (window.ResizeObserver) new ResizeObserver(function () { wheelFit(); }).observe($('wheelStage'));
@@ -38515,6 +38528,7 @@ loadAiNotePrefs();
 <script src="battle-display.js"></script>
 <script src="mission-machine.js"></script>
 <script src="quick-battle.js"></script>
+<script src="compact-wheel.js"></script>
 <script src="student-heroes.js"></script>
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>

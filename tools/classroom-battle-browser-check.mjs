@@ -180,7 +180,7 @@ try {
   await page.click('#cbSkip'); await settle();
   await page.evaluate(()=>{__battleState().bossHp=1;__battleState().heroes[4].hp=0;__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
   await spin(); await page.click('#cbCorrect'); await settle();
-  check('victory awards a personal treasure to every hero including fallen allies',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbReward').length===16&&!document.getElementById('cbLoot').hidden));
+  check('victory awards a personal treasure to every hero including fallen allies',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===__battleState().heroes.length*(__battleState().adventure?.kind==='chest'?2:1)&&document.querySelectorAll('.cbReward').length===__battleState().rewards.length&&!document.getElementById('cbLoot').hidden));
   const rewards=await page.evaluate(()=>JSON.stringify(__battleState().rewards));
   await page.locator('#cbLoot').scrollIntoViewIfNeeded(); await page.waitForTimeout(200);
   await page.screenshot({path:path.join(output,'pixel-victory-loot.png'),fullPage:true});

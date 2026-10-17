@@ -129,6 +129,7 @@
     if (!allowed()) { if (window.toast) toast('Sign in as a teacher to open a classroom battle.'); return; }
     if (opened) return;
     if (window.QuickBattle) QuickBattle.close();
+    if (window.setWheelMin) setWheelMin(false);
     mount(); previousFocus = document.activeElement;
     opened = true; el('classroomBattle').hidden = false; document.body.classList.add('cbOpen');
     wheelParent = el('wheelModal').parentNode; wheelNext = el('wheelModal').nextSibling;

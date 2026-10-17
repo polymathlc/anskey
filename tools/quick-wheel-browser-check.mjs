@@ -154,6 +154,7 @@ async function wheelLayout() {
   });
 }
 try {
+  if (!process.env.COMPACT_ONLY) {
   await setup();
   await page.waitForFunction(() => document.querySelector('#wheelMission [data-mm=turn]') && !document.querySelector('#wheelMission [data-mm=turn]').disabled);
   const desktopLayout = await wheelLayout();
@@ -228,13 +229,17 @@ try {
   check('a lost server reply keeps the original award available for retry',await page.evaluate(prior=>__battleState().revision===prior.revision+1&&document.getElementById('wheelSpinBtn').disabled&&!document.querySelector('.cbaPlaying'),beforeLost));
   await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   check('retry after a committed award does not repeat damage, XP or points',await page.evaluate(({id,prior})=>__awardCalls.at(-1).action.id===id&&__battleState().revision===prior.revision+1&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===prior.marks+3&&__battleDocuments['students/'+wheelStudent(wheelState.names[wheelWinnerIdx]).id].marks===prior.marks+3,{id:lostId,prior:beforeLost}));
-  await page.evaluate(()=>{const s=__battleState();s.bossHp=1;s.heroes.forEach(h=>h.hp=h.stats.maxHp);__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
+  // Earlier seeded enemies can already be defeated by the award checks.
+  // Start an active fixture before arranging a guaranteed finishing attack.
+  await page.evaluate(()=>{const old=__battleState(),s=ClassroomBattleCore.reduce(old,{type:'start',id:'treasure-fixture',expectedRevision:old.revision,heroes:old.heroes,bossId:ClassroomBattleCore.nextBoss(old,'treasure-fixture').id});s.bossHp=1;s.heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=0;});const ref='classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science');__battleDocuments[ref]=s;__battleNotify(ref);});
   const waitingVictory=await page.evaluate(()=>JSON.stringify(__battleState()));
   await spin();
   check('selecting the next student leaves the existing enemy and party unchanged',await page.evaluate(old=>JSON.stringify(__battleState())===old,waitingVictory));
   await award();
   // The treasure grid renders a frame after the saved victory, so it is waited for rather than read at once.
-  check('awarded final hit shows an animated chest and saved personal treasure for every hero',await page.waitForFunction(()=>__battleState().status==='victory'&&__battleState().rewards.length===__battleState().heroes.length*(__battleState().adventure?.kind==='chest'?2:1)&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===__battleState().rewards.length&&document.querySelectorAll('.cbQuickTreasure .cbItemIcon[role=img]').length===__battleState().rewards.length,null,{timeout:15000}).then(()=>true,()=>false));
+  const treasureReady = await page.waitForFunction(()=>__battleState().status==='victory'&&__battleState().rewards.length===__battleState().heroes.length*(__battleState().adventure?.kind==='chest'?2:1)&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===__battleState().rewards.length&&document.querySelectorAll('.cbQuickTreasure .cbItemIcon[role=img]').length===__battleState().rewards.length,null,{timeout:15000}).then(()=>true,()=>false);
+  if (!treasureReady) console.log('Treasure diagnostic', await page.evaluate(() => ({status:__battleState().status,hp:__battleState().bossHp,event:__battleState().lastEvent,rewards:__battleState().rewards.length,chests:document.querySelectorAll('.cbQuickTreasure .cbChest').length,tiles:document.querySelectorAll('.cbQuickTreasure .cbReward').length,icons:document.querySelectorAll('.cbQuickTreasure .cbItemIcon[role=img]').length})));
+  check('awarded final hit shows an animated chest and saved personal treasure for every hero',treasureReady);
   await scrollWheelToTop();
   const victoryLayout = await wheelLayout();
   check('a full class treasure grid keeps the compact wheel usable beside the quest, without overflow', victoryLayout.wheel.width >= 200 && victoryLayout.wheelVisible && victoryLayout.overflow.length === 0);
@@ -321,7 +326,7 @@ try {
   await page.waitForFunction(()=>!document.querySelector('#wheelMission [data-source=teacher]').disabled);
   const beforeChung=await page.evaluate(()=>__battleState().bossHp);
   await page.click('#wheelMission [data-source=teacher]');await page.waitForFunction(()=>__battleState().status==='victory'&&!document.getElementById('wheelSpinBtn').disabled);
-  check('wheel teacher help settles one-hit damage and all treasure immediately',await page.evaluate(hp=>__battleState().lastEvent.type==='summon'&&__battleState().lastEvent.damage===hp&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===16&&document.querySelector('.cbQuickEnemy').textContent.includes('HP 0/'),beforeChung));
+  check('wheel teacher help settles one-hit damage and all treasure immediately',await page.evaluate(hp=>__battleState().lastEvent.type==='summon'&&__battleState().lastEvent.damage===hp&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===__battleState().rewards.length&&__battleState().rewards.length===__battleState().heroes.length*(__battleState().adventure?.kind==='chest'?2:1)&&document.querySelector('.cbQuickEnemy').textContent.includes('HP 0/'),beforeChung));
   check('wheel damage log retains named attacks, replies and the finishing summon',await page.evaluate(()=>{const log=document.getElementById('wheelQuickLog');return log.textContent.includes('One-Punch Chung')&&log.querySelectorAll('[data-combat-id]').length===__battleState().combatLog.length&&__battleState().combatLog.length>1;}));
   await page.evaluate(()=>{const old=__battleState(),ref='classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science');__battleDocuments[ref]=ClassroomBattleCore.reduce(old,{type:'start',id:'race-summon-target',expectedRevision:old.revision,heroes:old.heroes,bossId:old.bossId});__battleNotify(ref);__replaceSummonReply=true;window.__lateChungPlays=0;const original=ClassroomBattleAnimation.playChung;ClassroomBattleAnimation.playChung=function(...args){__lateChungPlays++;return original(...args);};});
   await page.waitForFunction(()=>!document.querySelector('#wheelMission [data-source=teacher]').disabled);await page.click('#wheelMission [data-source=teacher]');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled&&!document.querySelector('.mmRolling'));
@@ -352,6 +357,75 @@ try {
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(saved => { wheelWin = clampWheelWin(saved); applyWheelWin(); }, savedWindow);
+  }
+
+  // Compact mode is a view of the real picker and atomic award controls.
+  if (process.env.COMPACT_ONLY) { await page.goto(file); await page.waitForFunction(() => !!window.CompactWheel); }
+  await page.evaluate(() => { closeWheel(); localStorage.clear(); sessionStorage.clear(); });
+  await setup();
+  const fullBox = await page.evaluate(() => { window.__originalDuel = document.getElementById('wheelQuickDuel'); window.__originalAward = document.getElementById('wheelAward'); return {...wheelWin}; });
+  await page.click('#wheelMinBtn');
+  check('minimise opens a small rectangle with name slots left and the original hero/boss duel right', await page.evaluate(() => {
+    const card = document.getElementById('wheelCard').getBoundingClientRect(), slot = document.getElementById('cwStrip').getBoundingClientRect(), duel = document.getElementById('wheelQuickDuel').getBoundingClientRect();
+    return card.width === 620 && card.height === 280 && !document.getElementById('wheelCompact').hidden && slot.right < duel.left && document.getElementById('wheelQuickDuel') === __originalDuel && document.getElementById('wheelAward') === __originalAward;
+  }));
+  const compactHead = await page.locator('#wheelHead').boundingBox();
+  await page.mouse.move(compactHead.x + 70, compactHead.y + 16); await page.mouse.down();
+  await page.mouse.move(compactHead.x + 170, compactHead.y + 116, { steps: 6 }); await page.mouse.up();
+  check('compact title-bar dragging saves its own position without changing the full window', await page.evaluate(full => JSON.stringify(wheelWin) === JSON.stringify(full) && wheelCompactWin.y !== full.y && JSON.parse(localStorage.getItem(WHEEL_COMPACT_WIN_KEY)).y === wheelCompactWin.y, fullBox));
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.click('#cwSpin');
+  const rolling = await page.evaluate(() => ({ id:wheelState.lastSpinId, name:wheelState.last.n, transform:document.getElementById('cwStrip').style.transform, state:JSON.stringify(__battleState()), marks:rwStudents.map(s=>s.marks) }));
+  await page.waitForTimeout(120);
+  check('name slots visibly roll while the winner is already persisted and combat waits for points', await page.evaluate(old => wheelSpinning && document.querySelectorAll('.cwFace').length > 40 && document.getElementById('cwStrip').style.transform !== old.transform && wheelState.lastSpinId === old.id && JSON.stringify(__battleState()) === old.state && JSON.stringify(rwStudents.map(s=>s.marks)) === JSON.stringify(old.marks), rolling));
+  await page.click('#wheelMinBtn');
+  check('restoring during a turn returns the original duel to the full layout without a new pick', await page.evaluate(old => !wheelMin && document.getElementById('wheelQuickDuel').parentNode.id === 'wheelQuickFight' && wheelState.lastSpinId === old.id, rolling));
+  await page.click('#wheelMinBtn');
+  await page.waitForFunction(() => !wheelSpinning && !document.getElementById('cwSpin').disabled);
+  check('the reel settles on the canonical selected name and shows that hero and the previewed boss', await page.evaluate(old => document.querySelector('.cwFace').textContent === old.name && document.querySelector('#cwBattle .cbQuickHero strong').textContent === old.name && !!document.querySelector('#cwBattle .cbQuickEnemy [data-boss-id], #cwBattle .cbQuickEnemy[data-boss-id]') && wheelState.lastSpinId === old.id, rolling));
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.screenshot({ path:path.join(output,'compact-wheel-desktop.png'), fullPage:true });
+  await page.click('#cwAwards button:nth-child(2)');
+  await page.waitForFunction(() => __awardCalls.length === 1 && !document.getElementById('cwSpin').disabled);
+  check('compact point buttons use one canonical award and immediately update live HP/MP', await page.evaluate(() => __awardCalls[0].delta === 2 && wheelGiven === 2 && __battleState().actionCount === 1 && document.querySelector('#cwBattle .cbQuickEnemy [aria-label$="HP"]').getAttribute('aria-valuenow') === String(__battleState().bossHp)));
+  await page.click('#cwSpin');
+  const reducedReel = await page.locator('#cwStrip').getAttribute('style');
+  await page.waitForTimeout(100);
+  check('reduced-motion mode holds the final name still while the saved turn settles', await page.locator('#cwStrip').getAttribute('style') === reducedReel);
+  await page.waitForFunction(() => !wheelSpinning && !document.getElementById('cwSpin').disabled);
+  check('compact turns preserve the no-repeat round', await page.evaluate(old => wheelState.last.n !== old.name && wheelState.names.filter(n=>n.done).length === 2, rolling));
+  const beforeMiniRetry = await page.evaluate(() => { __loseAwardReply = true; return {rev:__battleState().revision,marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks}; });
+  await page.click('#cwAwards button:nth-child(1)');
+  await page.waitForFunction(() => !document.getElementById('wheelQuickRetry').hidden && !document.getElementById('wheelQuickRetry').disabled);
+  check('a compact award with a lost reply displays the existing retry and blocks another turn', await page.evaluate(() => document.getElementById('wheelQuickRetry').parentNode.id === 'cwFeedback' && document.getElementById('cwSpin').disabled));
+  await page.click('#wheelQuickRetry'); await page.waitForFunction(() => !document.getElementById('cwSpin').disabled);
+  check('compact retry confirms the same receipt without duplicate points or damage', await page.evaluate(old => __battleState().revision === old.rev + 1 && wheelStudent(wheelState.names[wheelWinnerIdx]).marks === old.marks + 1 && __awardCalls.at(-1).action.id === __awardCalls.at(-2).action.id, beforeMiniRetry));
+  for (const width of [390,320]) {
+    await page.setViewportSize({width,height:700});
+    await page.waitForFunction(() => document.getElementById('wheelCard').getBoundingClientRect().right <= innerWidth);
+    await page.screenshot({path:path.join(output,'compact-wheel-'+width+'.png'),fullPage:true});
+    check(width + 'px compact picker and both combatants fit onscreen with usable point buttons', await page.evaluate(() => {
+      const card=document.getElementById('wheelCard').getBoundingClientRect();
+      const nodes=[...document.querySelectorAll('#cwSpin, #cwAwards button, #cwAwards input, #cwBattle .cbQuickHero, #cwBattle .cbQuickEnemy')];
+      const main=document.querySelector('.cwMain').getBoundingClientRect(),awards=document.getElementById('cwAwards').getBoundingClientRect();
+      return card.left>=0&&card.right<=innerWidth&&card.bottom<=innerHeight&&main.bottom<=awards.top&&nodes.every(n=>{const r=n.getBoundingClientRect();return r.width>0&&r.left>=card.left&&r.right<=card.right+1&&r.top>=card.top&&r.bottom<=card.bottom;})&&[...document.querySelectorAll('#cwAwards button')].every(n=>{const r=n.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===n;});
+    }));
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  await page.click('#wheelMinBtn');
+  check('restoring returns the full window geometry and original award controls', await page.evaluate(full => JSON.stringify(wheelWin) === JSON.stringify(full) && document.getElementById('wheelAward').parentNode.id === 'wheelResult' && document.getElementById('wheelQuickDuel') === __originalDuel, fullBox));
+  await page.click('#wheelMinBtn');
+  await page.evaluate(() => ClassroomBattle.open());
+  check('manual Battle restores the full wheel and its original nodes before mounting', await page.evaluate(() => ClassroomBattle.isOpen() && !wheelMin && document.getElementById('wheelCompact').hidden && document.getElementById('wheelQuickDuel').parentNode.id === 'wheelQuickFight'));
+  await page.evaluate(() => ClassroomBattle.close());
+  await page.click('#wheelBtn'); await page.waitForFunction(() => !document.getElementById('wheelSpinBtn').disabled);
+  await page.click('#wheelQuickToggle'); await page.click('#wheelMinBtn');
+  await page.click('#cwSpin'); await page.waitForFunction(() => !wheelSpinning);
+  check('with Quick fight off the compact reel still selects names and explains the empty battle panel', await page.evaluate(() => !document.getElementById('cwBattleEmpty').hidden && document.getElementById('cwBattleEmpty').textContent.includes('Quick fight is off') && document.querySelector('.cwFace').textContent === wheelState.last.n));
+  await page.click('#cwSpin');
+  const interruptedPick = await page.evaluate(() => wheelState.lastSpinId);
+  await page.click('#wheelCloseBtn');
+  check('closing mid-turn stops the reel and returns moved controls while preserving the persisted pick', await page.evaluate(id => !wheelIsOpen() && !wheelSpinning && wheelState.lastSpinId === id && document.getElementById('wheelAward').parentNode.id === 'wheelResult' && document.getElementById('wheelQuickDuel').parentNode.id === 'wheelQuickFight', interruptedPick));
   check('quick wheel raises no application exceptions',errors.length===0);
   console.log('\n'+checks+' quick wheel browser checks passed. Screenshots: '+output);
 } finally { await browser.close(); }
