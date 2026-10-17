@@ -3,6 +3,15 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.145.0 — 📸 Snip & pin the answer key
+
+- **Snip & pin** (toolbar, or **Shift+A**): drag over any part of the worksheet — usually the worked answer — and it is pinned in a small window that floats over the page. The window stays where it is while you scroll on to the next question, so the class can keep copying.
+- Drag the title bar to move it. Drag the bottom-right corner to make it bigger or smaller; it keeps its shape.
+- 🙈 hides the answer behind a cover while the window stays put; tap the cover (or 👁) to reveal it again. – minimises it to its title bar (or double-tap the title bar), ▢ opens it back up, and ✕ closes it.
+- Several snips can be pinned at once, from any page. They are kept on this device, so they come back after a reload or when you open another worksheet.
+- The picture is drawn fresh from the page itself, with your writing and cards on it, at a sharpness that stays clear when the window is enlarged. Nothing on top of the page (toolbars, messages, other pins) is ever in it.
+- Pins are the teacher's only. They leave the screen when a student signs in, "Practise as" starts or a share link is opened, and come back for the teacher. They are never saved into the worksheet or printed.
+
 ## v1.144.0 — Pixel adventures, branching builds and party synergies
 
 - The wheel and manual arena now show the party walking through four generated pixel-art worlds: Emerald Trail, Moonfall Ruins, Crystal Hollows and Ember Highlands. All 12 classes have male/female walking frames. Scenery moves during travel and stops for encounters; motion can be paused and respects reduced-motion preferences.
