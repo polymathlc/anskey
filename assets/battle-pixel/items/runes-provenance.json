@@ -1,0 +1,460 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "tool": "image_gen.imagegen",
+  "assets": [
+    {
+      "sheet": "runes-1",
+      "file": "assets/battle-pixel/items/runes-1.png",
+      "bytes": 2063607,
+      "sha256": "cef9e8fd77db195037131435c76233c58d52a3d51a7c55a859b962e5b353a574",
+      "width": 1254,
+      "height": 1254,
+      "columns": 4,
+      "rows": 4,
+      "prompt": "Use case: stylized-concept. Asset type: production pixel-art inventory sprite atlas for a fantasy classroom adventure game. Create ONE square transparent PNG atlas, exactly a 4-column by 4-row regular grid of 16 separate rune-stone icons, equal cell sizes and equal centres, no borders or text. Crisp colourful 16-bit RPG pixel art, hard pixel edges, chunky readable silhouettes, limited colour ramps, subtle dark outline, no photorealism, no smooth painterly rendering. Each icon must fit inside the central 70% of its cell with transparent padding and no pixels crossing cell boundaries. Front three-quarter view carved magical stones with glowing abstract symbols. Row 1 left to right: red-orange Ember fire rune; cyan-blue Frost ice rune; yellow-violet Storm lightning rune; green-brown Earth rune. Row 2: turquoise Tide water rune; pale mint Gale wind rune; white-gold Radiance sun rune; violet-black Umbral shadow rune. Row 3: bright green Bloom nature rune; acid-green Venom rune; magenta Arcane star rune; silver-grey Iron physical rune. Row 4 are exceptionally rare UNIQUE runes, more ornate with tiny gold fittings but same size: crimson-gold Phoenix rune; blue-silver Winterheart rune; white-gold Worldspark rune; purple-gold Eclipse rune. No words, letters, numbers, captions, interface, grid lines, floor or background. All 16 cells occupied by exactly one rune. Transparent background.",
+      "transparentBackground": true,
+      "nativePngUnchanged": true,
+      "visualReview": "passed"
+    },
+    {
+      "sheet": "uniques-1",
+      "file": "assets/battle-pixel/items/uniques-1.png",
+      "bytes": 2552904,
+      "sha256": "78a4bbe94de4169e162e9b12e9c1cc082b6215798fd3df31f6df46788cf30518",
+      "width": 1254,
+      "height": 1254,
+      "columns": 4,
+      "rows": 4,
+      "prompt": "Use case: stylized-concept. Asset type: production pixel-art UNIQUE treasure inventory sprite atlas for a fantasy classroom adventure game. Create ONE square transparent PNG atlas with exactly a 4-column by 4-row regular grid, 16 independent item icons, equal cell sizes and equal centres, no borders or text. Match colourful classic 16-bit RPG inventory art: crisp hard pixel edges, chunky silhouettes, dark outlines, limited palette ramps, tiny magical accents, polished but readable at 48 pixels. Each item fits inside central 70% of its cell with generous transparent padding, no touching between cells and no background. Row 1 left to right: gold celestial crown with a teal star; crimson-gold phoenix breastplate; violet thunder gauntlets; jade ancient greaves. Row 2: violet riftwalker boots; radiant gold sun amulet; dark purple eclipse ring; blue-gold constellation ring. Row 3: orange-red dragonfire sword; blue-white glacial shield; violet-gold comet staff; silver-cyan winter spellbook. Row 4: emerald storm bow; a small luminous gold-white nine-tailed fox pet; a gold-red elixir chalice; an ornate blue-violet bottled fallen star. Distinct one-of-a-kind legendary designs, each item different. No words, letters, numbers, captions, grid lines, cards, characters or interface. Exactly one object per cell. True transparent background.",
+      "transparentBackground": true,
+      "nativePngUnchanged": true,
+      "visualReview": "passed"
+    }
+  ],
+  "items": [
+    {
+      "id": "rune-ember",
+      "name": "Ember Rune",
+      "type": "rune",
+      "rarity": "common",
+      "art": {
+        "sheet": "runes-1",
+        "col": 0,
+        "row": 0,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-frost",
+      "name": "Frost Rune",
+      "type": "rune",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "runes-1",
+        "col": 1,
+        "row": 0,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-storm",
+      "name": "Storm Rune",
+      "type": "rune",
+      "rarity": "rare",
+      "art": {
+        "sheet": "runes-1",
+        "col": 2,
+        "row": 0,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-earth",
+      "name": "Earth Rune",
+      "type": "rune",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "runes-1",
+        "col": 3,
+        "row": 0,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-tide",
+      "name": "Tide Rune",
+      "type": "rune",
+      "rarity": "uncommon",
+      "art": {
+        "sheet": "runes-1",
+        "col": 0,
+        "row": 1,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-gale",
+      "name": "Gale Rune",
+      "type": "rune",
+      "rarity": "epic",
+      "art": {
+        "sheet": "runes-1",
+        "col": 1,
+        "row": 1,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-radiance",
+      "name": "Radiance Rune",
+      "type": "rune",
+      "rarity": "legendary",
+      "art": {
+        "sheet": "runes-1",
+        "col": 2,
+        "row": 1,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-umbral",
+      "name": "Umbral Rune",
+      "type": "rune",
+      "rarity": "mythical",
+      "art": {
+        "sheet": "runes-1",
+        "col": 3,
+        "row": 1,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-bloom",
+      "name": "Bloom Rune",
+      "type": "rune",
+      "rarity": "rare",
+      "art": {
+        "sheet": "runes-1",
+        "col": 0,
+        "row": 2,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-venom",
+      "name": "Venom Rune",
+      "type": "rune",
+      "rarity": "epic",
+      "art": {
+        "sheet": "runes-1",
+        "col": 1,
+        "row": 2,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-arcane",
+      "name": "Arcane Rune",
+      "type": "rune",
+      "rarity": "mythical",
+      "art": {
+        "sheet": "runes-1",
+        "col": 2,
+        "row": 2,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-iron",
+      "name": "Iron Rune",
+      "type": "rune",
+      "rarity": "common",
+      "art": {
+        "sheet": "runes-1",
+        "col": 3,
+        "row": 2,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-phoenix",
+      "name": "Phoenix Rune",
+      "type": "rune",
+      "rarity": "unique",
+      "art": {
+        "sheet": "runes-1",
+        "col": 0,
+        "row": 3,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-winterheart",
+      "name": "Winterheart Rune",
+      "type": "rune",
+      "rarity": "unique",
+      "art": {
+        "sheet": "runes-1",
+        "col": 1,
+        "row": 3,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-worldspark",
+      "name": "Worldspark Rune",
+      "type": "rune",
+      "rarity": "unique",
+      "art": {
+        "sheet": "runes-1",
+        "col": 2,
+        "row": 3,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "rune-eclipse",
+      "name": "Eclipse Rune",
+      "type": "rune",
+      "rarity": "unique",
+      "art": {
+        "sheet": "runes-1",
+        "col": 3,
+        "row": 3,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-astral-crown",
+      "name": "Astral Crown",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 0,
+        "row": 0,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-phoenix-heart",
+      "name": "Phoenix Heart",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 1,
+        "row": 0,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-tempest-grips",
+      "name": "Tempest Grips",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 2,
+        "row": 0,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-worldroot-greaves",
+      "name": "Worldroot Greaves",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 3,
+        "row": 0,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-riftwalker-boots",
+      "name": "Riftwalker Boots",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 0,
+        "row": 1,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-sun-promise",
+      "name": "Sun’s Promise",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 1,
+        "row": 1,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-nightfall-band",
+      "name": "Nightfall Band",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 2,
+        "row": 1,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-constellation-band",
+      "name": "Constellation Band",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 3,
+        "row": 1,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-wyrmflame",
+      "name": "Wyrmflame",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 0,
+        "row": 2,
+        "columns": 4,
+        "rows": 4,
+        "frame": {
+          "x": 0,
+          "y": 600,
+          "width": 314,
+          "height": 302,
+          "atlasWidth": 1254,
+          "atlasHeight": 1254
+        }
+      }
+    },
+    {
+      "id": "unique-winter-aegis",
+      "name": "Winter Aegis",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 1,
+        "row": 2,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-comet-spire",
+      "name": "Comet Spire",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 2,
+        "row": 2,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-winter-codex",
+      "name": "Winter Codex",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 3,
+        "row": 2,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-skybreaker",
+      "name": "Skybreaker",
+      "type": "equipment",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 0,
+        "row": 3,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-dawnfox",
+      "name": "Dawnfox",
+      "type": "pet",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 1,
+        "row": 3,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-elixir-of-dawn",
+      "name": "Elixir of Dawn",
+      "type": "consumable",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 2,
+        "row": 3,
+        "columns": 4,
+        "rows": 4
+      }
+    },
+    {
+      "id": "unique-bottled-star",
+      "name": "Bottled Star",
+      "type": "consumable",
+      "rarity": "unique",
+      "art": {
+        "sheet": "uniques-1",
+        "col": 3,
+        "row": 3,
+        "columns": 4,
+        "rows": 4
+      }
+    }
+  ]
+}

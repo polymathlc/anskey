@@ -4109,5 +4109,65 @@
     }
   ];
   ARMORY_ITEMS.forEach(entry=>{ITEMS[entry.id]=entry;});
-  return {ROLES,SKILLS,SKILL_TREES:SKILLS,BASE_LEVEL,BASE_COST,JOB_LEVEL,JOB_COST,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS};
+  // Unique is the rarest tier. Existing IDs, stats and relative tier order stay stable.
+  RARITIES.common.weight=44.9;
+  RARITIES.unique={name:'Unique',weight:.1,color:'#ffb965'};
+  const ITEM_SKILLS=[];
+  function relicSkill(id,name,damageType,mpCost,cooldown,effect,description) {
+    const skill={id:'relic-'+id,name,damageType,mpCost,cooldown,effect:{type:'active',...effect},description,
+      itemSkill:true,passive:false,requires:[],cost:0,level:1,branch:'Relics',icon:'✦'};
+    ITEM_SKILLS.push(skill);return skill.id;
+  }
+  const tempest=relicSkill('tempest-grasp','Tempest Grasp','lightning',24,3,{power:1.8,expose:{elemental:{amount:.2,turns:3}}},'Lightning that opens an elemental defence break for your party.');
+  const nightfall=relicSkill('nightfall','Nightfall Spear','shadow',22,3,{power:1.9,leech:.2},'A shadow strike that returns some damage as health.');
+  const dragon=relicSkill('dragon-breath','Dragon Breath','fire',28,4,{power:2.2,burn:.22},'Dragonfire burns the enemy for three enemy turns.');
+  const comet=relicSkill('cometfall','Cometfall','arcane',32,4,{power:2.5,pierce:.3},'An arcane comet pierces enemy armour.');
+  const winter=relicSkill('winter-veil','Winter Veil','ice',25,3,{power:1.5,shield:.12,weakenBoss:.2},'Ice damage, a party ward and a weaker next enemy attack.');
+  const volley=relicSkill('storm-volley','Storm Volley','lightning',24,3,{power:1.9,expose:{physical:{amount:.18,turns:3}}},'Lightning arrows leave an opening for physical allies.');
+  const nova=relicSkill('worldspark','Worldspark Nova','arcane',34,5,{power:2.6,expose:{physical:{amount:.15,turns:3},elemental:{amount:.15,turns:3}}},'A rare rune opens both physical and elemental defences.');
+  const starfall=relicSkill('starfall','Starfall','arcane',30,4,{power:2.1,manaAll:5},'A fallen star strikes and restores party mana. Permanently granted by a unique elixir.');
+  const dawn={id:'relic-dawn-aura',name:'Dawn Aura',itemSkill:true,permanent:true,passive:true,requires:[],cost:0,level:1,branch:'Relics',mpCost:0,cooldown:0,
+    description:'Permanently grants +20 maximum HP, +8 healing and 2 party mana on damaging answers.',effect:{type:'passive',passive:{maxHp:20,healing:8,teamMana:2}}};
+  ITEM_SKILLS.push(dawn);
+  const RUNE_DEFINITIONS=[
+    ['ember','Ember','common','fire',{burn:.18},'Damaging answers burn for 18% of attack over each of three enemy turns.'],
+    ['frost','Frost','uncommon','ice',{frost:.12},'Damaging answers weaken the next enemy attack by 12%.'],
+    ['storm','Storm','rare','lightning',{elementalBreak:.08},'Damaging answers lower elemental defence by 8% for two allied damaging actions.'],
+    ['earth','Earth','legendary','earth',{defence:5,selfWard:.05},'Grants +5 defence and a 5% self ward on each correct answer.'],
+    ['tide','Tide','uncommon','water',{maxMp:12,manaRegen:2},'Grants +12 maximum MP and restores 2 MP on each correct answer.'],
+    ['gale','Gale','epic','wind',{critChance:.05,physicalBonus:.06},'Grants +5% critical chance and +6% physical damage.'],
+    ['radiance','Radiance','legendary','holy',{healing:8,teamMana:2},'Grants +8 healing and restores 2 party MP on damaging answers.'],
+    ['umbral','Umbral','mythical','shadow',{leech:.1},'Damaging answers return 10% of damage as health.'],
+    ['bloom','Bloom','rare','nature',{healing:5,teamLeech:.015},'Grants +5 healing and heals the party for 1.5% maximum HP on damaging answers.'],
+    ['venom','Venom','epic','nature',{venom:.2},'Damaging answers apply venom for three enemy turns.'],
+    ['arcane','Arcane','mythical','arcane',{maxMp:18,elementalPierce:.1},'Grants +18 maximum MP and 10% elemental armour piercing.'],
+    ['iron','Iron','common','physical',{physicalBonus:.08,physicalPierce:.05},'Grants +8% physical damage and 5% physical armour piercing.'],
+    ['phoenix','Phoenix','unique','fire',{burn:.25,revive:true},'Phoenix Rebirth: burning strikes and one party revival per encounter.'],
+    ['winterheart','Winterheart','unique','ice',{frost:.2,selfWard:.07},'Heart of Winter: weaken the next enemy attack and gain a 7% self ward.'],
+    ['worldspark','Worldspark','unique','arcane',{elementalBonus:.12},'Worldspark: grants Worldspark Nova while socketed.',nova],
+    ['eclipse','Eclipse','unique','shadow',{leech:.15,echo:true},'Eclipse Echo: leech health and echo every third damaging answer.']
+  ];
+  RUNE_DEFINITIONS.forEach((r,i)=>{const [id,name,rarity,element,effect,description,grantSkill]=r;ITEMS['rune-'+id]={id:'rune-'+id,name:name+' Rune',type:'rune',rarity,element,effect,description:description+' In a weapon, the first rune sets normal-attack damage type.',
+    ...(grantSkill?{grantSkill}:{}),passiveName:rarity==='unique'?name+' Resonance':undefined,icon:'◆',collection:'runes',art:{sheet:'runes-1',col:i%4,row:Math.floor(i/4),columns:4,rows:4}};});
+  const UNIQUE_DEFINITIONS=[
+    ['astral-crown','Astral Crown','helm',{maxMp:24,critChance:.08,manaRegen:3},'Astral Foresight: +24 MP, +8% critical chance and 3 MP per correct answer.'],
+    ['phoenix-heart','Phoenix Heart','torso',{maxHp:45,revive:true,teamLeech:.025},'Phoenix Rebirth: one party revival per encounter and 2.5% party healing on damaging answers.'],
+    ['tempest-grips','Tempest Grips','gloves',{damage:8},'Grants Tempest Grasp and +8 attack.',tempest],
+    ['worldroot-greaves','Worldroot Greaves','legs',{defence:9,selfWard:.08},'Rooted Guardian: +9 defence and an 8% self ward each correct answer.'],
+    ['riftwalker-boots','Riftwalker Boots','boots',{defence:4,selfHaste:1},'Rift Step: each correct answer reduces your other skill cooldowns by one extra turn.'],
+    ['sun-promise','Sun’s Promise','amulet',{healing:12,teamMana:3},'Sunlit Covenant: +12 healing and 3 party MP on damaging answers.'],
+    ['nightfall-band','Nightfall Band','ring1',{maxMp:15},'Grants Nightfall Spear and +15 MP.',nightfall],
+    ['constellation-band','Constellation Band','ring2',{critChance:.07,echo:true},'Constellation Echo: +7% critical chance; every third damaging answer echoes.'],
+    ['wyrmflame','Wyrmflame','mainHand',{damage:16,burn:.22},'Grants Dragon Breath; damaging answers burn.',dragon],
+    ['winter-aegis','Winter Aegis','offHand',{defence:14,selfWard:.1,ignoreGuard:true},'Absolute Winter: +14 defence, a 10% self ward and attacks ignore enemy guard.'],
+    ['comet-spire','Comet Spire','mainHand',{damage:14,elementalBonus:.12},'Grants Cometfall and +12% elemental damage.',comet],
+    ['winter-codex','Winter Codex','offHand',{maxMp:28,healing:6},'Grants Winter Veil, +28 MP and +6 healing.',winter],
+    ['skybreaker','Skybreaker','mainHand',{damage:13,critChance:.06},'Grants Storm Volley and +6% critical chance.',volley],
+    ['dawnfox','Dawnfox','pet',{teamLeech:.025,teamMana:2},'Dawn Companion: heals the party for 2.5% maximum HP and restores 2 party MP on damaging answers.'],
+    ['elixir-of-dawn','Elixir of Dawn','consumable',{heal:.35},'Permanently teaches Dawn Aura to its drinker. A hero can learn this gift once.',dawn.id],
+    ['bottled-star','Bottled Star','consumable',{mana:35},'Permanently teaches Starfall to its drinker. A hero can learn this gift once.',starfall]
+  ];
+  UNIQUE_DEFINITIONS.forEach((r,i)=>{const [id,name,slot,effect,description,grantSkill]=r,type=slot==='pet'?'pet':slot==='consumable'?'consumable':'equipment';ITEMS['unique-'+id]={id:'unique-'+id,name,type,slot:type==='equipment'?slot:undefined,rarity:'unique',effect,description,
+    ...(grantSkill?{[type==='consumable'?'giftSkill':'grantSkill']:grantSkill}:{passiveName:name}),icon:'✦',collection:'uniques',art:{sheet:'uniques-1',col:i%4,row:Math.floor(i/4),columns:4,rows:4,...(i===8?{frame:{x:0,y:600,width:314,height:302,atlasWidth:1254,atlasHeight:1254}}:{})}};});
+  return {ROLES,SKILLS,SKILL_TREES:SKILLS,BASE_LEVEL,BASE_COST,JOB_LEVEL,JOB_COST,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS,ITEM_SKILLS};
 });

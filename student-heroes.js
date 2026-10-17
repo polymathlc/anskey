@@ -41,6 +41,19 @@
     catch (e) { if (alive(token)) error(e.message || 'Unable to save. Please try again.'); }
     finally { if (alive(token)) setBusy(false); }
   }
+  function openSocketWorkshop(button) {
+    var token=epoch,id=model && model.hero && model.hero.id;
+    if(!id || !window.ClassroomBattleDisplay)return;
+    function locked(){return !alive(token) || busy || !model || !!model.activeEncounter || !model.hero || model.hero.id!==id;}
+    ClassroomBattleDisplay.openSockets({entryId:button.dataset.socketItem,slot:button.dataset.socketSlot,
+      getHero:function(){return alive(token) && model && model.hero;},locked:locked,
+      dispatch:async function(values){
+        if(locked())throw new Error('Finish or end the encounter before changing sockets.');
+        setBusy(true);
+        try {var result=await api(Object.assign({type:'configure'},values));if(alive(token)){model=Object.assign({},model,result);renderHero();schedule();}}
+        finally{if(alive(token))setBusy(false);}
+      }});
+  }
   function renderClaim() {
     if (model.status === 'pending') {
       content('<div class="shWelcome"><span class="shEyebrow">CLAIM REQUEST SENT</span><h2>Your adventure is almost ready</h2><p>Your teacher will check your name before linking your account.</p><div class="shPending"><strong>' + esc(model.claim.name) + '</strong><span>Lesson slot · ' + esc(model.claim.lessonSlot) + '</span></div><p>Your existing XP, skills and treasure stay with your character.</p><button class="btn" data-sh-action="cancelClaim">Cancel this request</button></div>');
@@ -89,7 +102,7 @@
       var item = Core.itemById(entry.itemId);
       if (!item) return '';
       var rarity = Core.RARITIES[item.rarity] || {}, loadout=Core.loadoutFor(hero), slot = Object.keys(loadout).find(function(key){return loadout[key]===entry.id;}) || Core.equipmentSlot(item), equipped = Object.values(loadout).includes(entry.id);
-      return '<article class="shItem" data-rarity="' + esc(item.rarity) + '">' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.itemIcon(item) : '') + '<span class="shEyebrow">' + esc(rarity.name || item.rarity) + ' · ' + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot || 'Consumable') + ' · ×' + esc(entry.quantity) + '</span><h3>' + esc(item.name) + '</h3><p>' + esc(item.description) + '</p>' + (item.type === 'consumable' ? '<span class="shHint">Use during battle</span>' : '<button class="btn" data-sh-equip="' + esc(entry.id) + '" data-sh-equip-slot="' + esc(slot) + '"' + (locked || equipped ? ' disabled' : '') + '>' + (equipped ? 'Equipped in ' : 'Equip to ') + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot) + '</button>') + '</article>';
+      return '<article class="shItem" data-rarity="' + esc(item.rarity) + '">' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.itemIcon(item) : '') + '<span class="shEyebrow">' + esc(rarity.name || item.rarity) + ' · ' + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot || 'Consumable') + ' · ×' + esc(entry.quantity) + '</span><h3>' + esc(item.name) + '</h3><p>' + esc(item.description) + '</p>' + (item.type === 'rune' ? '<span class="shHint">Socket into weapons, armour or jewellery.</span>' : item.type === 'consumable' ? '<span class="shHint">Use during battle</span>' : '<button class="btn" data-sh-equip="' + esc(entry.id) + '" data-sh-equip-slot="' + esc(slot) + '"' + (locked || equipped ? ' disabled' : '') + '>' + (equipped ? 'Equipped in ' : 'Equip to ') + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot) + '</button>') + (window.ClassroomBattleDisplay?ClassroomBattleDisplay.socketSummary(entry)+ClassroomBattleDisplay.socketButton(entry,equipped?slot:null,locked):'') + '</article>';
     }).join('') : '<p>Your next victory brings new treasure.</p>') + '</div></section><details class="shChange"><summary>Change Hero class</summary>' + classCards(hero, false, locked) + '</details>'));
     if (!first && window.ClassroomSkillTree) tree = window.ClassroomSkillTree.render(el('shTree'), { hero: hero, locked: locked, lockedReason: 'Finish or end the active encounter before learning skills.', onLearn: async function (skillId) { await mutate({type:'configure',command:'learn',skillId:skillId}); } });
   }
@@ -119,6 +132,7 @@
     } catch (e) { if (alive(token) && requestId === refreshId) { error(e.message || 'Unable to load heroes. Please refresh.'); schedule(); } }
   }
   function close() {
+    if(window.ClassroomBattleDisplay)ClassroomBattleDisplay.closeSockets();
     if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(el('shBody'));
     epoch++; mode = ''; model = catalog = null; busy = false; stopPoll(); cleanupTree();
     el('shDialog').close(); el('shBody').textContent = ''; error('');
@@ -151,6 +165,7 @@
   el('shRefresh').addEventListener('click', function () { if (!busy) refresh(true); });
   el('shBody').addEventListener('click', function (event) {
     var target = event.target.closest('button'); if (!target || target.disabled || busy) return;
+    if(target.dataset.socketItem){openSocketWorkshop(target);return;}
     if (target.dataset.shClaim) mutate({type:'claim',studentId:target.dataset.shClaim,lessonSlot:chosenSlot});
     else if (target.dataset.shAction) mutate({type:target.dataset.shAction});
     else if (target.dataset.shGender) mutate({type:'configure',command:'appearance',gender:target.dataset.shGender,id:window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)});

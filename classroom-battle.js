@@ -103,6 +103,7 @@
     el('cbJournalClose').addEventListener('click', function () { closeJournal(); });
     node.addEventListener('click', function (e) {
       var tab = e.target.closest('[data-menu]'), option = e.target.closest('[data-command]'), hero = e.target.closest('[data-inspect]'), appearance = e.target.closest('[data-cb-gender]'), advance = e.target.closest('[data-advance]'), learn = e.target.closest('[data-learn]'), equip = e.target.closest('[data-equip]'), remove = e.target.closest('[data-cb-remove-slot]');
+      var socket=e.target.closest('[data-socket-item]');if(socket && !socket.disabled) openSocketWorkshop(socket);
       if (tab) { menu = tab.dataset.menu; commandId = ''; renderCommands(); }
       if (option) { commandId = option.dataset.command; renderCommands(); }
       if (hero) { inspectId = hero.dataset.inspect; el('cbHeroPanel').hidden = false; renderJournal(); el('cbJournalClose').focus(); }
@@ -123,7 +124,7 @@
       } else if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
     });
   }
-  function closeJournal() { if (journalTree) journalTree.destroy(); journalTree = null; el('cbHeroPanel').hidden = true; var node = heroNode(inspectId); if (node) node.focus(); }
+  function closeJournal() { if(window.ClassroomBattleDisplay)ClassroomBattleDisplay.closeSockets(); if (journalTree) journalTree.destroy(); journalTree = null; el('cbHeroPanel').hidden = true; var node = heroNode(inspectId); if (node) node.focus(); }
 
   async function open() {
     if (!allowed()) { if (window.toast) toast('Sign in as a teacher to open a classroom battle.'); return; }
@@ -149,6 +150,7 @@
     store = null; classReady = false; pendingProfiles = 0; synced = ''; busy = false; selectionInFlight = false;
   }
   function close() {
+    if(window.ClassroomBattleDisplay)ClassroomBattleDisplay.closeSockets();
     if (!opened) return;
     if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(el('classroomBattle'));
     opened = false; detach(); closeWheel();
@@ -287,6 +289,14 @@
     if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(container);
     container.querySelectorAll('img.cbAvatar').forEach(function (img) { img.onerror = function () { img.alt = 'Hero sprite unavailable'; }; });
   }
+  function openSocketWorkshop(button) {
+    var hero=inspectedHero(),id=hero && hero.id;
+    if(!hero || !window.ClassroomBattleDisplay)return;
+    function locked(){return !opened || !allowed() || !state || busy || missionBusy() || guestsBusy() || !!timing || !!window.wheelSpinning || !!state.pending || inspectedHero()?.id!==id;}
+    ClassroomBattleDisplay.openSockets({entryId:button.dataset.socketItem,slot:button.dataset.socketSlot,
+      getHero:function(){return state && state.heroes.find(function(h){return h.id===id;});},locked:locked,
+      dispatch:async function(values){if(locked())throw new Error('Finish the current turn before changing sockets.');return act(Object.assign({type:'sync',heroId:id},values));}});
+  }
   async function journalAction(values) {
     var h = inspectedHero(); if (!h || busy || guestsBusy() || timing || window.wheelSpinning || state && state.pending && values.command !== 'appearance') return;
     if (values.command === 'advance' && state && state.status === 'active') { showError(new Error('Finish or end this encounter before upgrading a job.')); return; }
@@ -302,7 +312,7 @@
     if (!h) html = '<p>Spin the wheel to call a hero. Choose a command before marking a correct answer.</p>';
     else if (menu === 'attack') html = '<p><strong>Normal attack</strong> · ' + h.stats.damage + ' power · restores 10 MP. A correct answer rallies a resting hero.</p>';
     else if (menu === 'skill') {
-      var skills = (Core.skillsFor ? Core.skillsFor(h) : Core.SKILL_TREES[roleOf(h)] || []).filter(function (s) { return (h.learnedSkills || []).includes(s.id) && s.effect.type !== 'passive'; });
+      var skills = Core.availableSkills(h);
       html = skills.map(function (s) { var cooldown = (h.cooldowns || {})[s.id] || 0, unavailable = cooldown > 0 || (h.mp || 0) < s.mpCost; return button('<span class="cbPixelIcon">' + pixelIcon(s) + '</span><span><strong>' + esc(s.name) + '</strong><small>' + esc(s.description) + '</small><small>' + s.mpCost + ' MP' + (cooldown ? ' · wait ' + cooldown + ' turns' : '') + '</small></span>', 'data-command="' + esc(s.id) + '" aria-pressed="' + (commandId === s.id) + '"', locked || unavailable); }).join('') || '<p>No active skills learned. Click this hero to explore their skill tree.</p>';
     } else {
       html = (h.inventory || []).filter(function (entry) { return itemInfo(entry).type === 'consumable' && entry.quantity > 0; }).map(function (entry) { var item = itemInfo(entry); return button((window.ClassroomBattleDisplay ? ClassroomBattleDisplay.itemIcon(item) : '<span class="cbPixelIcon">◆</span>') + '<span><strong>' + esc(item.name) + ' ×' + entry.quantity + '</strong><small>' + esc(item.description) + '</small></span>', 'data-command="' + esc(entry.id) + '" aria-pressed="' + (commandId === entry.id) + '"', locked); }).join('') || '<p>No consumables left. Defeat enemies to find more treasure.</p>';
@@ -339,7 +349,7 @@
     if (journalTree) journalTree.destroy(); journalTree = null;
     el('cbJournalBody').innerHTML = '<div class="cbJournalSummary">' + avatar(h) + '<div><strong>LEVEL ' + (h.level || 1) + ' · ' + (h.xp || 0) + ' XP</strong><p>' + (h.skillPoints || 0) + ' skill points · ' + (h.mp || 0) + '/' + (h.stats.maxMp || 0) + ' MP</p><label>Hero class <select id="cbRoleChoice"' + (locked ? ' disabled' : '') + '>' + Object.keys(roleText).map(function (key) { return '<option value="' + key + '"' + (key === roleOf(h) ? ' selected' : '') + '>' + roleText[key].name + '</option>'; }).join('') + '</select></label><p>Learned skills stay with their class. Switching classes keeps your XP, skill points and treasure.</p><p>ATK ' + h.stats.damage + ' · DEF ' + h.stats.defence + ' · HP ' + h.stats.maxHp + '</p></div></div>' +
       (locked ? '<p class="cbJournalNotice">' + (!state ? 'Start an encounter to begin character progression.' : 'Finish the current turn before changing skills or equipment.') + '</p>' : '') +
-      journalAppearance(h) + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.equipmentPanel(h,{prefix:'cb',portrait:avatar(h),locked:locked}) : '') + journalAdvancement(h, locked) + '<h4>Skill tree <span>6 foundation paths · branching mastery</span></h4><div id="cbSkillGraph"></div><h4>Treasure bag <span>10 equipment slots + 1 pet</span></h4><p>Equipment bonuses combine. Treasure automatically upgrades each slot by rarity.</p><div class="cbInventory">' + inventory.map(function (entry) { var item = itemInfo(entry), loadout=Core.loadoutFor(h), slot=Object.keys(loadout).find(function(key){return loadout[key]===entry.id;}) || Core.equipmentSlot(item), equipped = Object.values(loadout).includes(entry.id); return '<article class="cbLootItem cbRarity-' + esc(item.rarity) + '">' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.itemIcon(item) : '<span class="cbPixelIcon">◆</span>') + '<div><small>' + esc(item.rarity).toUpperCase() + ' · ' + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot || 'Consumable') + '</small><strong>' + esc(item.name) + (entry.quantity > 1 ? ' ×' + entry.quantity : '') + '</strong><p>' + esc(item.description) + '</p>' + (item.type === 'consumable' ? '<small>Use from the Items command on a correct answer.</small>' : button(equipped ? '✓ Equipped / remove' : 'Equip to ' + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot), 'data-equip="' + (equipped ? '' : esc(entry.id)) + '" data-equip-slot="' + esc(slot) + '"', locked)) + '</div></article>'; }).join('') + '</div>';
+      journalAppearance(h) + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.equipmentPanel(h,{prefix:'cb',portrait:avatar(h),locked:locked}) : '') + journalAdvancement(h, locked) + '<h4>Skill tree <span>6 foundation paths · branching mastery</span></h4><div id="cbSkillGraph"></div><h4>Treasure bag <span>10 equipment slots + 1 pet</span></h4><p>Equipment bonuses combine. Treasure automatically upgrades each slot by rarity.</p><div class="cbInventory">' + inventory.map(function (entry) { var item = itemInfo(entry), loadout=Core.loadoutFor(h), slot=Object.keys(loadout).find(function(key){return loadout[key]===entry.id;}) || Core.equipmentSlot(item), equipped = Object.values(loadout).includes(entry.id); return '<article class="cbLootItem cbRarity-' + esc(item.rarity) + '">' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.itemIcon(item) : '<span class="cbPixelIcon">◆</span>') + '<div><small>' + esc(item.rarity).toUpperCase() + ' · ' + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot || 'Consumable') + '</small><strong>' + esc(item.name) + (entry.quantity > 1 ? ' ×' + entry.quantity : '') + '</strong><p>' + esc(item.description) + '</p>' + (item.type === 'rune' ? '<small>Socket into weapons, armour or jewellery.</small>' : item.type === 'consumable' ? '<small>Use from the Items command on a correct answer.</small>' : button(equipped ? '✓ Equipped / remove' : 'Equip to ' + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot), 'data-equip="' + (equipped ? '' : esc(entry.id)) + '" data-equip-slot="' + esc(slot) + '"', locked)) + (window.ClassroomBattleDisplay?ClassroomBattleDisplay.socketSummary(entry)+ClassroomBattleDisplay.socketButton(entry,equipped?slot:null,locked):'') + '</div></article>'; }).join('') + '</div>';
     if (window.ClassroomSkillTree) journalTree = window.ClassroomSkillTree.render(el('cbSkillGraph'), { hero: h, locked: locked, onLearn: function (skillId) { return journalAction({ command: 'learn', skillId: skillId }); } });
     bindAvatarFailures(el('cbJournalBody'));
   }

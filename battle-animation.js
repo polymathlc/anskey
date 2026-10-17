@@ -57,6 +57,7 @@
     var count=/twin/.test(id)?2:/rampage|pack|volley|barrage|rain|storm|constellation/.test(id)?Math.min(4,tier+1):1;
     var travel=/arrow|shot|piercer|pounce|fang|dive|flight|rush|charge/.test(id)?'projectile':/meteor|rain|falling|talons/.test(id)?'fall':/cyclone|vortex|time|warp|moment|rewind/.test(id)?'orbit':'burst';
     if(skill && skill.passive) travel='aura';
+    if(skill && skill.itemSkill)family=({fire:'fire',ice:'blizzard',lightning:'lightning',arcane:'arcane',shadow:'phantom',holy:'radiant',physical:'slash',earth:'shockwave',water:'ice',wind:'volley',nature:'thorns'})[skill.damageType] || family;
     return {id:id,family:family,count:count,trajectory:travel,duration:540+(ordinal%12)*17,interval:65+(ordinal%5)*19,
       scale:0.84+tier*0.085+(ordinal%3)*0.025,spread:12+(ordinal%7)*3,tilt:(ordinal%9-4)*5,
       accent:ordinal%4,passive:!!(skill && skill.passive),effect:effect};
@@ -104,6 +105,7 @@
     if(hero && hero.isChung) return 'chung-punch';
     var role = roleName(hero && hero.role), skill = skillById(event.skillId);
     if (event.itemId === 'fire-flask' || event.itemId === 'starbomb') return 'fire';
+    if(event.infused)return ({fire:'fire',ice:'ice',lightning:'lightning',arcane:'arcane',shadow:'phantom',holy:'radiant',physical:'slash',earth:'shockwave',water:'ice',wind:'volley',nature:'thorns'})[event.damageType] || 'arcane';
     if (skill) return recipeFor(hero,skill).family;
     if (role === 'ranger') return 'arrow';
     if (role === 'mage') {

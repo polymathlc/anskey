@@ -152,8 +152,19 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         if (!actor.isTeacher && (!profile?.claim || profile.claim.uid !== actor.uid || profile.claim.status !== 'approved' || account?.status !== 'approved')) deny('approval_required','Your teacher needs to approve this claim first.',403);
         if (!profile) profile = migrateHero(student,docs(await tx.get(classes)));
         const appearance=body.command==='appearance';
+        const socketChange=body.command==='socket' || body.command==='unsocket';
+        let socketRef=null,socketReceipt=null,socketRequest=null;
+        if(socketChange){
+          if(typeof body.id!=='string' || !/^[A-Za-z0-9_-]{8,100}$/.test(body.id))deny('invalid_action','Socket changes require a saved action ID.',400);
+          socketRequest={command:body.command,itemId:body.itemId ?? null,socketIndex:body.socketIndex ?? null,runeId:body.runeId ?? null,slot:body.slot ?? null};
+          socketRef=profileRef.collection('sockets').doc(body.id);socketReceipt=docData(await tx.get(socketRef));
+          if(socketReceipt){
+            if(socketReceipt.uid!==actor.uid || JSON.stringify(socketReceipt.request)!==JSON.stringify(socketRequest))deny('socket_changed','That socket action was already saved with different details. Refresh your hero.');
+            return {...view(profile,student),hero:cleanHero(profile.hero,student,profile),revision:profile.revision || 0,duplicate:true};
+          }
+        }
         if (profile.activeEncounter && !appearance) deny('encounter_active','Finish or end the active encounter before changing your hero.');
-        if (!['class','advance','learn','equip','appearance'].includes(body.command)) deny('invalid_command','Choose a hero class, job advancement, skill, equipment or appearance.',400);
+        if (!['class','advance','learn','equip','appearance','socket','unsocket'].includes(body.command)) deny('invalid_command','Choose a hero class, job advancement, skill, equipment or appearance.',400);
         let appearanceRef=null,appearanceReceipt=null,activeRef=null,activeState=null;
         if (appearance) {
           if (body.gender!=='male' && body.gender!=='female') deny('invalid_command','Choose a male or female hero appearance.',400);
@@ -185,6 +196,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
           activeState.revision=(activeState.revision || 0)+1;activeState.updatedAt=clock;
           tx.set(activeRef,activeState);
         }
+        if (socketRef) tx.set(socketRef,{uid:actor.uid,request:socketRequest,createdAt:clock});
         if (appearanceRef) tx.set(appearanceRef,{uid:actor.uid,gender:body.gender,createdAt:clock});
         tx.set(profileRef,profile); return {...view(profile,student),hero:profile.hero,revision:profile.revision,...(appearance && actor.isTeacher ? {state:activeState} : {})};
       }

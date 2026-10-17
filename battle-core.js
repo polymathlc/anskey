@@ -5,9 +5,10 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(BOSSES, CONTENT) {
   'use strict';
   const { ROLES, SKILLS, JOBS, JOB_SKILLS, ITEMS, RARITIES } = CONTENT;
+  const ITEM_SKILLS=CONTENT.ITEM_SKILLS || [];
   const EQUIPMENT_SLOTS = CONTENT.EQUIPMENT_SLOTS || Object.fromEntries(['helm','torso','gloves','legs','boots','amulet','ring1','ring2','mainHand','offHand','pet'].map(key=>[key,{name:key}]));
   const SLOT_KEYS = Object.keys(EQUIPMENT_SLOTS);
-  const ROLE_KEYS = Object.keys(ROLES), ALL_SKILLS = [...Object.values(SKILLS).flat(),...Object.values(JOB_SKILLS).flat()];
+  const ROLE_KEYS = Object.keys(ROLES), ALL_SKILLS = [...Object.values(SKILLS).flat(),...Object.values(JOB_SKILLS).flat(),...ITEM_SKILLS];
   const BOSS_MAX_MP=60, BOSS_SKILL_MP=30, BOSS_ATTACK_MP=15;
   const ENEMY_HEALTH_VERSION=1;
   // Enemies grow with the party. An encounter started since this rule existed
@@ -30,9 +31,9 @@
   function itemById(id) { return ITEMS[id] || null; }
   function activeJob(hero) { const job=JOBS[hero.job]; return job && job.role===hero.role && hero.level>=15 ? job : null; }
   function jobsFor(hero) { return Object.values(JOBS).filter(j=>j.role===roleKey(hero.role)); }
-  function skillsFor(hero) { const job=activeJob(hero); return [...(SKILLS[roleKey(hero.role)] || []),...(job?JOB_SKILLS[job.id]:[])]; }
+  function skillsFor(hero) { const job=activeJob(hero); return [...(SKILLS[roleKey(hero.role)] || []),...(job?JOB_SKILLS[job.id]:[]),...grantedSkills(hero)]; }
   function treeSkills(hero,mode='job') { const job=activeJob(hero); return mode==='base' || !job ? SKILLS[roleKey(hero.role)] : JOB_SKILLS[job.id]; }
-  function activeSkill(hero,skill) { return skill && skill.role===hero.role && (!skill.job || (activeJob(hero)?.id===skill.job && hero.level>=skill.level)); }
+  function activeSkill(hero,skill) { if (skill?.itemSkill) return grantedSkills(hero).some(s=>s.id===skill.id); return skill && skill.role===hero.role && (!skill.job || (activeJob(hero)?.id===skill.job && hero.level>=skill.level)); }
   function canAdvance(hero,jobId) {
     const job=JOBS[jobId];
     if (!job || job.role!==hero.role) return {ok:false,reason:'Choose an advanced job for this hero’s base class.'};
@@ -60,13 +61,16 @@
   // Presentation reads this same build profile; it never invents a combat bonus.
   function buildFor(hero) {
     const result={physicalBonus:0,elementalBonus:0,physicalPierce:0,elementalPierce:0,exposureBonus:0,element:null};
-    (hero.learnedSkills || []).map(skillById).filter(s=>activeSkill(hero,s) && s.passive).forEach(s=>{
+    (hero.learnedSkills || []).map(skillById).filter(s=>s && !s.itemSkill && activeSkill(hero,s) && s.passive).forEach(s=>{
       const p=s.effect.passive;
       Object.keys(result).filter(k=>k!=='element').forEach(k=>{if(Number.isFinite(p[k]))result[k]+=p[k];});
       if (p.attackElement) result.element=p.attackElement;
     });
-    result.basicType=result.element && result.elementalBonus>result.physicalBonus ? result.element :
-      result.physicalBonus>0 ? 'physical' : result.element || (hero.role==='mage'?'arcane':hero.role==='cleric'?'holy':'physical');
+    const gear=equipmentEffect(hero);
+    Object.keys(result).filter(k=>k!=='element').forEach(k=>{if(Number.isFinite(gear[k]))result[k]+=gear[k];});
+    const infused=weaponElement(hero);
+    result.basicType=infused || (result.element && result.elementalBonus>result.physicalBonus ? result.element :
+      result.physicalBonus>0 ? 'physical' : result.element || (hero.role==='mage'?'arcane':hero.role==='cleric'?'holy':'physical'));
     return result;
   }
   function damageTypeFor(hero,skill) {
@@ -162,14 +166,80 @@
     const ids=Object.values(hero.loadout);
     hero.equipped=ids.includes(hero.equipped)?hero.equipped:(hero.loadout.mainHand || ids[0] || null);
   }
+  // Socket metadata belongs to a saved inventory entry, never to the catalogue.
+  function socketable(item) { return item?.type==='equipment'; }
+  function socketsFor(entry) {
+    if (!entry || !socketable(itemById(entry.itemId)) || entry.socketVersion!==1 || !Array.isArray(entry.sockets)) return [];
+    return entry.sockets.slice(0,3).map(id=>itemById(id)?.type==='rune'?id:null);
+  }
+  function socketRoll(seed,item) {
+    if (!socketable(item)) return undefined;
+    const roll=randomUnit(seed+':sockets');
+    return Array(roll<.5?0:roll<.85?1:roll<.97?2:3).fill(null);
+  }
+  function addInventory(hero,itemId,quantity=1,sockets) {
+    const item=itemById(itemId),hasSockets=socketable(item) && Array.isArray(sockets);
+    const id='bag:'+itemId+(hasSockets?':s'+sockets.length:'');
+    let entry=hero.inventory.find(i=>i.id===id);
+    if (entry) entry.quantity=Math.min(999,entry.quantity+quantity);
+    else {entry={id,itemId,quantity:Math.min(999,quantity),...(hasSockets?{socketVersion:1,sockets:[...sockets]}:{})};hero.inventory.push(entry);}
+    return entry;
+  }
+  function equippedTraits(hero) {
+    return equippedEntries(hero).flatMap(entry=>[itemById(entry.itemId),...socketsFor(entry).filter(Boolean).map(itemById)]).filter(Boolean);
+  }
+  function grantedSkills(hero) {
+    const gifts=new Set((hero.giftSkills || []).filter(id=>Object.values(ITEMS).some(item=>item.giftSkill===id)));
+    equippedTraits(hero).forEach(item=>{if(item.grantSkill)gifts.add(item.grantSkill);});
+    return ITEM_SKILLS.filter(skill=>gifts.has(skill.id));
+  }
+  function weaponElement(hero) {
+    const loadout=loadoutFor(hero);
+    for (const slot of ['mainHand','offHand']) {
+      const entry=(hero.inventory || []).find(i=>i.id===loadout[slot]);
+      const rune=socketsFor(entry).find(Boolean);if(rune)return itemById(rune).element;
+    }
+    return null;
+  }
+  function configureSockets(hero,action) {
+    if (typeof action.id!=='string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(action.id)) fail('Socket changes require a saved action ID.');
+    let entry=hero.inventory.find(i=>i.id===action.itemId && i.quantity>0);
+    const sockets=socketsFor(entry),index=action.socketIndex;
+    if (!sockets.length) fail('This item has no sockets. Find equipment with sockets in treasure.');
+    if (!Number.isInteger(index) || index<0 || index>=sockets.length) fail('Choose a socket on this item.');
+    if (action.slot!==undefined && (!SLOT_KEYS.includes(action.slot) || hero.loadout[action.slot]!==entry.id)) fail('That equipment slot changed. Reopen the item.');
+    if (action.command==='socket') {
+      if (sockets[index]) fail('Remove the existing rune before inserting another.');
+      const rune=hero.inventory.find(i=>i.id===action.runeId && i.quantity>0);
+      if (itemById(rune?.itemId)?.type!=='rune') fail('Choose a rune owned by this hero.');
+      // Split just one copy. Two equipped rings must never share the inserted rune.
+      if (entry.quantity>1 || !/^runed:/.test(entry.id)) {
+        const source=entry;source.quantity--;
+        entry={id:'runed:'+action.id,itemId:source.itemId,quantity:1,socketVersion:1,sockets:[...sockets]};
+        if(hero.inventory.some(i=>i.id===entry.id))fail('This socket action was already used. Refresh your hero.');
+        hero.inventory.push(entry);
+        const slot=action.slot || Object.keys(hero.loadout).find(key=>hero.loadout[key]===source.id);
+        if(slot)hero.loadout[slot]=entry.id;
+        if(hero.equipped===source.id)hero.equipped=entry.id;
+      }
+      entry.sockets[index]=rune.itemId;rune.quantity--;
+      hero.inventory=hero.inventory.filter(i=>i.quantity>0);
+    } else {
+      if (!sockets[index]) fail('This socket is already empty.');
+      addInventory(hero,sockets[index]);entry.sockets[index]=null;
+    }
+    syncLoadout(hero);
+  }
   function equipmentEffect(hero) {
-    const result={};
-    equippedEntries(hero).forEach(entry=>Object.entries(itemById(entry.itemId).effect || {}).forEach(([key,value])=>{
+    const result={},effects=equippedTraits(hero).map(item=>item.effect || {});
+    grantedSkills(hero).filter(s=>s.passive).forEach(s=>effects.push(s.effect.passive));
+    effects.forEach(effect=>Object.entries(effect).forEach(([key,value])=>{
       if (typeof value==='boolean') result[key]=!!result[key] || value;
       else if (Number.isFinite(value)) result[key]=(Number(result[key]) || 0)+value;
     }));
-    // Fractional combat mechanics stay bounded even with all eleven slots.
-    for (const [key,maximum] of Object.entries({pierce:1,leech:.75,teamLeech:.3,critChance:.85})) {
+    // Fractional combat mechanics stay bounded with eleven slots and their runes.
+    for (const [key,maximum] of Object.entries({pierce:1,leech:.75,teamLeech:.3,critChance:.85,physicalBonus:1,elementalBonus:1,
+      physicalPierce:.75,elementalPierce:.75,burn:.6,venom:.6,frost:.35,selfWard:.25,elementalBreak:.3,selfHaste:1})) {
       if (result[key]!==undefined) result[key]=clamp(result[key],0,maximum);
     }
     return result;
@@ -179,7 +249,7 @@
     const stats = { maxHp:role.hp+(level-1)*9, damage:role.power+(level-1)*3, defence:role.defence+(level-1),
       healing:role.healing+(hero.role==='cleric'?(level-1)*2:0), maxMp:role.mp+(level-1)*3,
       critChance:role.crit, critMultiplier:1.6, attacks:role.attacks };
-    const bonuses = [equipmentEffect(hero),activeJob(hero)?.bonuses || {}, ...(hero.learnedSkills || []).map(skillById).filter(s=>activeSkill(hero,s) && s.passive).map(s=>s.effect.passive)];
+    const bonuses = [equipmentEffect(hero),activeJob(hero)?.bonuses || {}, ...(hero.learnedSkills || []).map(skillById).filter(s=>s && !s.itemSkill && activeSkill(hero,s) && s.passive).map(s=>s.effect.passive)];
     bonuses.forEach(b => Object.keys(stats).forEach(k => { if (Number.isFinite(b[k])) stats[k]+=b[k]; }));
     stats.critChance = clamp(stats.critChance,0,.85); stats.critMultiplier=clamp(stats.critMultiplier,1,3);
     return stats;
@@ -212,12 +282,18 @@
     hero.xp=int(hero.xp,0,xpForLevel(50)); hero.level=levelForXp(hero.xp);
     if (!activeJob(hero)) delete hero.job;
     hero.skillPoints=int(hero.skillPoints,0,150);
-    hero.learnedSkills=[...new Set((hero.learnedSkills || []).filter(id=>!!skillById(id)))];
+    hero.learnedSkills=[...new Set((hero.learnedSkills || []).filter(id=>skillById(id) && !skillById(id).itemSkill))];
     if (!hero.learnedSkills.includes(SKILLS[hero.role][0].id)) hero.learnedSkills.push(SKILLS[hero.role][0].id);
+    const gifts=[...new Set((hero.giftSkills || []).filter(id=>Object.values(ITEMS).some(item=>item.giftSkill===id)))];
+    if(gifts.length)hero.giftSkills=gifts;else delete hero.giftSkills;
     const oldInventory=hero.inventory || [],inventory=new Map(),ids=new Map();
     oldInventory.filter(i=>i && itemById(i.itemId) && i.quantity>0).forEach(i=>{
-      const id='bag:'+i.itemId,existing=inventory.get(id);ids.set(i.id,id);
-      inventory.set(id,{id,itemId:i.itemId,quantity:int((existing?.quantity || 0)+int(i.quantity,1,999),1,999)});
+      const sockets=socketsFor(i),versioned=socketable(itemById(i.itemId)) && i.socketVersion===1;
+      const filled=sockets.some(Boolean),instance=filled || versioned && /^runed:[a-zA-Z0-9_-]{8,100}$/.test(i.id);
+      const id=instance?i.id:'bag:'+i.itemId+(versioned?':s'+sockets.length:'');
+      const existing=inventory.get(id);ids.set(i.id,id);
+      inventory.set(id,{id,itemId:i.itemId,quantity:instance?1:int((existing?.quantity || 0)+int(i.quantity,1,999),1,999),
+        ...(versioned?{socketVersion:1,sockets}:{})});
     });
     hero.inventory=[...inventory.values()];
     if (hero.loadout && typeof hero.loadout==='object') hero.loadout=Object.fromEntries(Object.entries(hero.loadout).map(([slot,id])=>[slot,ids.get(id)||id]));
@@ -263,9 +339,10 @@
         hero.loadout[slot]=entry.id;hero.equipped=entry.id;
       }
       syncLoadout(hero);
-    } else fail('Unknown hero command.');
+    } else if (action.command==='socket' || action.command==='unsocket') configureSockets(hero,action);
+    else fail('Unknown hero command.');
     refreshStats(hero);
-    if (action.command==='class' || action.command==='equip' || action.command==='advance') hero.hp=Math.min(hpBefore,hero.stats.maxHp);
+    if (action.command==='class' || action.command==='equip' || action.command==='advance' || action.command==='socket' || action.command==='unsocket') hero.hp=Math.min(hpBefore,hero.stats.maxHp);
     return hero;
   }
   function roster(heroes, priorState) {
@@ -307,10 +384,10 @@
     hero.hp=Math.min(hp,hero.stats.maxHp);hero.mp=Math.min(mp,hero.stats.maxMp);
     return changed[changed.length-1];
   }
-  function availableSkills(hero) { return skillsFor(hero).filter(s=>activeSkill(hero,s) && !s.passive && (hero.learnedSkills || []).includes(s.id)); }
+  function availableSkills(hero) { return skillsFor(hero).filter(s=>activeSkill(hero,s) && !s.passive && (s.itemSkill || (hero.learnedSkills || []).includes(s.id))); }
   function canLearn(hero, id) {
     const skill=skillById(id);
-    if (!skill || skill.role!==hero.role || (skill.job && activeJob(hero)?.id!==skill.job)) return {ok:false,reason:'Choose a skill from this hero’s active class or advanced job.'};
+    if (!skill || skill.itemSkill || skill.role!==hero.role || (skill.job && activeJob(hero)?.id!==skill.job)) return {ok:false,reason:'Choose a skill from this hero’s active class or advanced job.'};
     if ((hero.learnedSkills || []).includes(id)) return {ok:false,reason:'Already learned.'};
     if (hero.level<skill.level) return {ok:false,reason:'Requires level '+skill.level+'.'};
     const missing=skill.requires.filter(required=>!(hero.learnedSkills || []).includes(required));
@@ -324,16 +401,14 @@
     let sum=0, rarity='mythical';
     for (const key of Object.keys(RARITIES)) { sum+=RARITIES[key].weight; if (roll<sum) {rarity=key; break;} }
     const pool=Object.values(ITEMS).filter(i=>i.rarity===rarity), item=pool[Math.floor(randomUnit(seed+':item')*pool.length)];
-    return {heroId,itemId:item.id,instanceId:seed,rarity,name:item.name,description:item.description,xp:Math.round((boss.rewardXp || 65)*(Number.isFinite(xpScale) && xpScale>1?xpScale:1))};
+    return {heroId,itemId:item.id,instanceId:seed,rarity,name:item.name,description:item.description,...(socketable(item)?{sockets:socketRoll(seed,item)}:{}),xp:Math.round((boss.rewardXp || 65)*(Number.isFinite(xpScale) && xpScale>1?xpScale:1))};
   }
   function awardLoot(state,event) {
     if (state.lootAwarded) return;
     state.lootAwarded=true;
     state.rewards=state.heroes.map(hero=>{
       const reward=rollReward(state.encounterId,hero.id,bossById(state.bossId),enemyScale(state).xp);
-      const entry=hero.inventory.find(i=>i.itemId===reward.itemId);
-      if (entry) entry.quantity=Math.min(999,entry.quantity+1);
-      else hero.inventory.push({id:'bag:'+reward.itemId,itemId:reward.itemId,quantity:1});
+      addInventory(hero,reward.itemId,1,reward.sockets);
       addXp(hero,reward.xp);
       const equipped=autoEquip(hero); if (equipped) {reward.autoEquipped=equipped;reward.autoEquippedName=itemById(equipped).name;}
       return reward;
@@ -342,9 +417,9 @@
     // It is inside the same immutable victory receipt as ordinary treasure.
     if (state.adventure?.kind==='chest') state.heroes.forEach(hero=>{
       const seed=state.encounterId+':'+hero.id+':road-chest',pool=Object.values(ITEMS).filter(i=>['rare','epic','legendary','mythical'].includes(i.rarity));
-      const item=pool[Math.floor(randomUnit(seed)*pool.length)],entry=hero.inventory.find(i=>i.itemId===item.id);
-      if(entry)entry.quantity=Math.min(999,entry.quantity+1);else hero.inventory.push({id:'bag:'+item.id,itemId:item.id,quantity:1});
-      const reward={heroId:hero.id,itemId:item.id,instanceId:seed,rarity:item.rarity,name:item.name,description:item.description,xp:0,source:'road-chest'};
+      const item=pool[Math.floor(randomUnit(seed)*pool.length)],sockets=socketRoll(seed,item);
+      addInventory(hero,item.id,1,sockets);
+      const reward={heroId:hero.id,itemId:item.id,instanceId:seed,rarity:item.rarity,name:item.name,description:item.description,...(sockets?{sockets}:{}),xp:0,source:'road-chest'};
       const equipped=autoEquip(hero);if(equipped){reward.autoEquipped=equipped;reward.autoEquippedName=itemById(equipped).name;}
       state.rewards.push(reward);
     });
@@ -386,10 +461,26 @@
       if (!['physical','elemental'].includes(channel)) return;
       const before=state.exposures[channel] || {amount:0,turns:0};
       const amount=Math.max(before.amount,clamp(value.amount,0,.5)),turns=Math.max(before.turns,int(value.turns,1,6));
-      state.exposures[channel]={amount,turns,heroId:hero.id};
+      state.exposures[channel]={amount,turns,heroId:!before.heroId || clamp(value.amount,0,.5)>=before.amount?hero.id:before.heroId};
       if(amount>before.amount || turns>before.turns)(event.afflicted || (event.afflicted=[])).push({effect:channel+' defence break',amount,turns,heroId:hero.id});
     });
     if (effect.haste) state.heroes.forEach(h=>{let turns=0;Object.keys(h.cooldowns).forEach(id=>{if(h.id!==hero.id || id!==event.skillId){const before=h.cooldowns[id];h.cooldowns[id]=Math.max(0,before-effect.haste);turns+=before-h.cooldowns[id];}});supported(h,'haste',turns);});
+  }
+  function relicSupport(state,hero,gear,effect,event) {
+    support(state,hero,{shieldSelf:gear.selfWard || 0},event,hero);
+    if(gear.selfHaste){let turns=0;Object.keys(hero.cooldowns).forEach(id=>{if(id!==event.skillId){const before=hero.cooldowns[id];hero.cooldowns[id]=Math.max(0,before-gear.selfHaste);turns+=before-hero.cooldowns[id];}});
+      if(turns)(event.supported || (event.supported=[])).push({heroId:hero.id,effect:'haste',amount:turns});}
+    if (!event.damage) return;
+    const weaken=Math.min(.35,gear.frost || 0);
+    if(weaken)support(state,hero,{weakenBoss:weaken},event,hero);
+    if(gear.elementalBreak)support(state,hero,{expose:{elemental:{amount:gear.elementalBreak,turns:2}}},event,hero);
+    state.ailments=state.ailments || {};
+    for(const [type,amount] of [['burn',Math.max(gear.burn || 0,effect.burn || 0)],['venom',gear.venom || 0]]) {
+      if(!amount)continue;
+      const prior=state.ailments[type],damage=Math.min(enemyScale(state).poisonCap,Math.max(1,Math.round(hero.stats.damage*amount)));
+      state.ailments[type]={turns:Math.max(prior?.turns || 0,3),damage:Math.max(prior?.damage || 0,damage),heroId:!prior || damage>=prior.damage?hero.id:prior.heroId};
+      (event.afflicted || (event.afflicted=[])).push({effect:type,amount:damage});
+    }
   }
   // Preserve the progress of an existing fight while applying this balance
   // change once. A living enemy keeps at least 1 HP when halving odd values.
@@ -431,7 +522,7 @@
     state.heroArchive=state.heroArchive || {}; state.rewards=state.rewards || [];state.combatLog=(state.combatLog || []).slice(-40);
     if (state.lootAwarded===undefined) state.lootAwarded=state.status!=='active';
     state.bossWeakness=state.bossWeakness || 0; state.poison=state.poison || null;
-    state.exposures=state.exposures || {};
+    state.exposures=state.exposures || {};state.ailments=state.ailments || {};
     state.bossMaxMp=BOSS_MAX_MP;state.bossMp=state.bossMp===undefined?BOSS_MAX_MP:int(state.bossMp,0,BOSS_MAX_MP);
     return state;
   }
@@ -512,7 +603,7 @@
       return {schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
         enemyHealthVersion:ENEMY_HEALTH_VERSION,enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,bossRotation:rotationAfterStart(previous,boss),adventure,exposures:{},
         bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
-        bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)};
+        bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,ailments:{},exposures:{},rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)};
     }
     if (!previous || action.encounterId!==previous.encounterId) fail('This encounter has changed. Reload its latest progress.');
     const state=normalizeState(previous), boss=bossById(state.bossId);
@@ -562,7 +653,7 @@
         if (!target) fail('Choose a teammate in this encounter.');
         if (event.command==='skill') {
           skill=skillById(action.skillId);
-          if (!activeSkill(hero,skill) || skill.passive || !hero.learnedSkills.includes(skill.id)) fail('Learn that active skill first.');
+          if (!activeSkill(hero,skill) || skill.passive || (!skill.itemSkill && !hero.learnedSkills.includes(skill.id))) fail('Learn that active skill first.');
           if ((hero.cooldowns[skill.id] || 0)>0) fail('That skill is cooling down. Use another command.');
           if (hero.mp<skill.mpCost) fail('Not enough MP. Attack to recover MP or use an Ether.');
           effect=skill.effect; event.skillId=skill.id; event.move=skill.name;
@@ -570,7 +661,9 @@
           itemEntry=hero.inventory.find(i=>i.id===action.itemId && i.quantity>0);
           const item=itemEntry && itemById(itemEntry.itemId);
           if (!item || item.type!=='consumable') fail('Choose a consumable from this hero’s inventory.');
+          if(item.giftSkill && (hero.giftSkills || []).includes(item.giftSkill)) fail('This hero already knows that unique gift. Save it for another adventure.');
           effect=item.effect; event.itemId=item.id; event.move=item.name;
+          if(item.giftSkill){hero.giftSkills=[...(hero.giftSkills || []),item.giftSkill];refreshStats(hero);event.giftSkill=item.giftSkill;}
         } else if (event.command!=='attack') fail('Choose Attack, Skills or Items.');
         if (hero.hp<=0) heal(hero,hero.stats.maxHp*.25,event);
         Object.keys(hero.cooldowns).forEach(id=>{hero.cooldowns[id]=Math.max(0,hero.cooldowns[id]-1);});
@@ -587,7 +680,7 @@
           const armour=Math.max(-.5,(boss.defence+scale.armour)*(1-Math.max(effect.pierce || 0,gear.pierce || 0,Math.min(.75,build[channel+'Pierce'])))-(broken?exposure.amount:0));
           const echo=gear.echo && hero.correctActions%3===0?2:1;
           const raw=(effect.damage || hero.stats.damage*effect.power*(event.critical?hero.stats.critMultiplier:1)*(1-armour)*(hero.weakened?.7:1)*(state.guard && !gear.ignoreGuard?.6:1))*echo*(1+build[channel+'Bonus'])*(broken?1+build.exposureBonus:1);
-          event.damageType=damageType;event.synergy=broken?{channel,amount:exposure.amount,sourceHeroId:exposure.heroId}:null;
+          event.damageType=damageType;event.infused=event.command==='attack' && !!weaponElement(hero);event.synergy=broken?{channel,amount:exposure.amount,sourceHeroId:exposure.heroId}:null;
           Object.keys(state.exposures).forEach(key=>{if(--state.exposures[key].turns<=0)delete state.exposures[key];});
           const dealt=Math.max(1,Math.round(raw))*points;
           event.damage=Math.min(state.bossHp,dealt,scale.hitCap); event.echo=echo===2;
@@ -602,6 +695,7 @@
           }
         }
         support(state,hero,effect,event,target,points);
+        relicSupport(state,hero,gear,effect,event);
         adventureDiscovery(state,hero,event);
         hero.weakened=false; state.correctCount++; addXp(hero,12);
       }
@@ -635,6 +729,12 @@
         event.poisonDamage=Math.min(state.bossHp,state.poison.damage,enemyScale(state).poisonCap);state.bossHp-=event.poisonDamage;state.poison.turns--;
         if (!state.poison.turns) state.poison=null;
       }
+      let remaining=enemyScale(state).poisonCap-(event.poisonDamage || 0);
+      Object.entries(state.ailments || {}).forEach(([type,ailment])=>{
+        const damage=Math.min(state.bossHp,remaining,Math.max(0,ailment.damage));state.bossHp-=damage;remaining-=damage;
+        if(damage)(event.ailmentTicks || (event.ailmentTicks=[])).push({effect:type,amount:damage,heroId:ailment.heroId});
+        if(--ailment.turns<=0)delete state.ailments[type];
+      });
       state.bossTurns++;state.charge=ultimate?0:Math.min(boss.chargeMax,state.charge+1);return finish(state,event);
     }
     fail('Unknown battle action.');
@@ -643,13 +743,13 @@
   function combatLogEntry(state,event) {
     const names=new Map(state.heroes.map(h=>[h.id,h.name])),enemyName=bossById(state.bossId).name;
     const named=rows=>(rows || []).map(row=>({...row,name:names.get(row.heroId)||'Hero'}));
-    const enemy=event.enemy?{actorName:enemyName,move:event.enemy.move,targets:named(event.enemy.targets),healed:named(event.enemy.healed),bossHealed:event.enemy.bossHealed||0,poisonDamage:event.enemy.poisonDamage||0}:null;
+    const enemy=event.enemy?{actorName:enemyName,move:event.enemy.move,targets:named(event.enemy.targets),healed:named(event.enemy.healed),bossHealed:event.enemy.bossHealed||0,poisonDamage:event.enemy.poisonDamage||0,ailmentTicks:copy(event.enemy.ailmentTicks||[])}:null;
     // Auto events already combine their recipient arrays; retain only the
     // hero phase here, with the separately saved enemy reply nested below.
     const withoutEnemy=(rows,other)=>{const result=[...(rows||[])];for(const row of other||[]){const i=result.findLastIndex(x=>JSON.stringify(x)===JSON.stringify(row));if(i>=0)result.splice(i,1);}return result;};
     return {id:event.id,encounterId:state.encounterId,type:event.type,actorName:event.actorName || (event.type==='boss'?enemyName:names.get(event.heroId)||'Hero'),heroId:event.heroId||null,enemyName,
-      move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,damageType:event.damageType||null,synergy:copy(event.synergy||null),discovery:event.discovery||null,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
-      targets:named(withoutEnemy(event.targets,event.enemy?.targets)),healed:named(withoutEnemy(event.healed,event.enemy?.healed)),supported:named(event.supported),afflicted:copy(event.afflicted||[]),enemy,bossHealed:event.bossHealed||0,poisonDamage:event.poisonDamage||0};
+      move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,damageType:event.damageType||null,infused:!!event.infused,giftSkill:event.giftSkill||null,synergy:copy(event.synergy||null),discovery:event.discovery||null,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
+      targets:named(withoutEnemy(event.targets,event.enemy?.targets)),healed:named(withoutEnemy(event.healed,event.enemy?.healed)),supported:named(event.supported),afflicted:copy(event.afflicted||[]),enemy,bossHealed:event.bossHealed||0,poisonDamage:event.poisonDamage||0,ailmentTicks:copy(event.ailmentTicks||[])};
   }
   function reduce(previous,action) {
     const next=apply(previous,action);
@@ -657,6 +757,6 @@
     const log=(previous?.combatLog || []).filter(row=>row.id!==action.id);
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
-  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
+  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
     reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor,adventureFor,ADVENTURE_RATES,ADVENTURE_BIOMES,buildFor,damageTypeFor};
 });

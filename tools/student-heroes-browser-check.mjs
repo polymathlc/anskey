@@ -44,10 +44,16 @@ try{
       if(action.type==='approve'){data.claim.status='approved';return {};}
       if(action.type==='unlink'||action.type==='reject'){data.claim=null;return {};}
       if(action.type==='configure'){
+        if(['socket','unsocket'].includes(action.command)){
+          data.socketReceipts=data.socketReceipts || new Set();
+          if(data.socketReceipts.has(action.id))return {hero:structuredClone(data.hero),duplicate:true};
+          if(data.socketDelay)await new Promise(resolve=>data.socketRelease=resolve);
+        }
         if(data.active && action.command!=='appearance')throw new Error('Finish the encounter first.');
         if(action.command==='appearance' && data.appearanceDelay)await new Promise(resolve=>data.appearanceRelease=resolve);
         if(action.command==='appearance' && data.appearanceFail)throw new Error('Appearance save failed. Try again.');
         data.hero=Core.configureHero(data.hero,action);if(action.command==='class')data.hero.classChosen=true;
+        if(['socket','unsocket'].includes(action.command)){data.socketReceipts.add(action.id);if(data.socketFailAfterCommit){data.socketFailAfterCommit=false;throw new Error('Connection lost after saving. Retry to confirm.');}}
         return {hero:data.hero};
       }
       throw new Error('Unknown fixture request');
@@ -98,8 +104,35 @@ try{
   check('removing one slot preserves the other gear and pet',await page.evaluate(before=>{const now=ClassroomBattleCore.loadoutFor(__heroFixture.hero);return !now.helm&&now.torso===before.torso&&now.pet===before.pet&&__heroFixture.calls.at(-2)?.slot==='helm';},loadoutBefore));
   await page.locator('.cbEquipment').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'student-equipment-slots.png'),fullPage:true});
   await page.screenshot({path:path.join(output,'student-my-hero.png'),fullPage:true});
+  // Real shared equipment dropdown + workshop, including a committed-but-lost response.
+  await page.evaluate(()=>{const C=ClassroomBattleCore,h=__heroFixture.hero;const gear=C.addInventory(h,'unique-wyrmflame',2,[null,null]);C.addInventory(h,'rune-worldspark',2);C.addInventory(h,'rune-frost');__heroFixture.hero=C.configureHero(h,{command:'equip',itemId:gear.id,slot:'mainHand'});});
+  await page.click('#shRefresh');await page.waitForFunction(()=>document.querySelector('[data-equipment-slot="mainHand"]').textContent.includes('Wyrmflame'));
+  await page.locator('[data-equipment-slot="mainHand"] summary').click();
+  check('clicking equipped gear opens its dropdown with Socket runes',await page.locator('[data-equipment-slot="mainHand"] details').evaluate(d=>d.open)&&await page.locator('[data-equipment-slot="mainHand"] [data-socket-item]').isVisible());
+  await page.locator('[data-equipment-slot="mainHand"] [data-socket-item]').click();
+  check('rune workshop shows both saved sockets and owned rune choices',await page.locator('.cbSocketDialog').evaluate(d=>d.open)&&await page.locator('.cbSocketRow').count()===2&&await page.locator('[data-socket-choice="0"] option').count()===3);
+  await page.selectOption('[data-socket-choice="0"]','bag:rune-worldspark');
+  await page.evaluate(()=>{__heroFixture.socketDelay=true;});await page.click('[data-socket-insert="0"]');await page.waitForFunction(()=>!!__heroFixture.socketRelease);
+  check('socket saves show progress and block repeated insert clicks',await page.locator('.cbSocketDialog').getAttribute('aria-busy')==='true'&&await page.locator('[data-socket-insert]').evaluateAll(ns=>ns.every(n=>n.disabled)));
+  await page.evaluate(()=>{__heroFixture.socketDelay=false;__heroFixture.socketRelease();});await page.waitForSelector('[data-socket-remove="0"]');
+  check('one copy changes and its new unique skill becomes available',await page.evaluate(()=>{const C=ClassroomBattleCore,h=__heroFixture.hero;return h.inventory.find(i=>i.id==='bag:unique-wyrmflame:s2').quantity===1&&h.inventory.find(i=>i.itemId==='rune-worldspark').quantity===1&&C.availableSkills(h).some(s=>s.id==='relic-worldspark');}));
+  await page.screenshot({path:path.join(output,'rune-workshop-desktop.png'),fullPage:true});
+  await page.click('[data-socket-close]');await page.click('#shRefresh');await page.waitForFunction(()=>document.querySelector('[data-equipment-slot="mainHand"]').textContent.includes('Wyrmflame'));
+  await page.locator('[data-equipment-slot="mainHand"] summary').click();await page.locator('[data-equipment-slot="mainHand"] [data-socket-item]').click();
+  check('refresh restores the saved rune name and generated icon',await page.locator('.cbSocketRow').first().textContent().then(t=>t.includes('Worldspark Rune'))&&await page.locator('.cbSocketRune .cbItemIcon').first().getAttribute('style').then(t=>t.includes('runes-1.png')));
+  await page.evaluate(()=>{__heroFixture.socketFailAfterCommit=true;});await page.click('[data-socket-remove="0"]');await page.waitForSelector('[data-socket-retry]');
+  const failedSocketId=await page.evaluate(()=>__heroFixture.calls.at(-1).id);
+  check('uncertain saves keep the workshop open with an explicit retry',await page.locator('[data-socket-status]').textContent().then(t=>t.includes('Connection lost')));
+  await page.click('[data-socket-retry]');await page.waitForSelector('[data-socket-choice="0"]');
+  check('retry reuses the immutable action and returns one rune without duplicating it',await page.evaluate(id=>{const h=__heroFixture.hero;return __heroFixture.calls.at(-1).id===id&&h.inventory.find(i=>i.itemId==='rune-worldspark').quantity===2&&!ClassroomBattleCore.availableSkills(h).some(s=>s.id==='relic-worldspark');},failedSocketId));
+  await page.setViewportSize({width:390,height:844});
+  check('mobile rune workshop and controls fit the viewport',await page.locator('.cbSocketDialog').evaluate(d=>d.scrollWidth<=d.clientWidth+2&&d.getBoundingClientRect().right<=innerWidth)&&await page.locator('.cbSocketRow select').evaluateAll(ns=>ns.every(n=>n.getBoundingClientRect().right<=innerWidth)));
+  await page.screenshot({path:path.join(output,'rune-workshop-mobile.png'),fullPage:true});await page.keyboard.press('Escape');
+  check('Escape closes the workshop and returns to My Hero',await page.locator('.cbSocketDialog').count()===0&&await page.locator('#shDialog').evaluate(d=>d.open));
+  await page.setViewportSize({width:1360,height:980});
   await page.evaluate(()=>{__heroFixture.active={classId:'Science Saturday 11am',encounterId:'battle-one'};});
   await page.click('#shRefresh');await page.waitForSelector('.shLock');
+  check('live encounter blocks socket menus',await page.locator('[data-socket-item]').evaluateAll(ns=>ns.every(n=>n.disabled)));
   check('live encounter blocks student build changes',await page.locator('[data-sh-role]').evaluateAll(nodes=>nodes.every(n=>n.disabled))&&await page.locator('[data-sh-equip]').evaluateAll(nodes=>nodes.every(n=>n.disabled)));
   const activeAppearanceBefore=await page.evaluate(()=>JSON.stringify({...__heroFixture.hero,gender:undefined}));
   await page.click('[data-sh-gender="male"]');await idle();

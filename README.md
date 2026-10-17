@@ -3,6 +3,15 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.147.0 — Rune sockets and unique treasure
+
+- Added 16 rune types with generated pixel-art icons: fire, frost, lightning, earth, water, wind, holy, shadow, nature, venom, arcane and physical effects, plus four unique runes. Runes can burn, weaken, break elemental defence, restore mana, heal, ward, pierce armour or unlock a special skill.
+- Newly dropped weapons, armour and jewellery roll 0–3 sockets (50% / 35% / 12% / 3%). The saved roll stays with that item; existing equipment keeps its original state. Click equipped gear to open its dropdown, then choose **Socket runes**. The workshop also opens from the treasure bag in My Hero and the teacher journal. Inserting changes one copy, and removing returns the rune to the bag.
+- The first occupied rune socket in the main hand, then the off hand, determines normal-attack damage type. Class skills retain their own elements. Worn rune effects combine with physical/elemental builds and party defence breaks; their actual effects and damage are saved in combat history.
+- Added the **Unique** rarity (0.1%, rarer than Mythical), with 20 unique treasures across every equipment slot, pets, consumables and runes. Unique gear can grant active moves such as Dragon Breath, Cometfall and Winter Veil, or special passives such as revival, echo and cooldown haste. Unique elixirs permanently teach Dawn Aura or Starfall once per hero.
+- Socket changes use canonical ownership, battle locks and immutable save receipts. Stacked copies and two equipped rings cannot duplicate a socketed rune. Equipping or changing sockets never heals or refills mana. Burn, venom and class poison share the encounter's damage-over-time cap.
+- Both new 4×4 transparent sprite sheets use the original ImageGen PNGs. Full prompts, checksums and tile mappings are in `assets/battle-pixel/items/runes-provenance.json`.
+
 ## v1.146.1 — Remembered points in the mini wheel
 
 - The minimised wheel now has one small **Points** field and a **+** button. Enter an amount and tap **+** (or press Enter) to give it to the selected student.
