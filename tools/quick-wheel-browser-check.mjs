@@ -229,9 +229,9 @@ try {
   check('a lost server reply keeps the original award available for retry',await page.evaluate(prior=>__battleState().revision===prior.revision+1&&document.getElementById('wheelSpinBtn').disabled&&!document.querySelector('.cbaPlaying'),beforeLost));
   await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   check('retry after a committed award does not repeat damage, XP or points',await page.evaluate(({id,prior})=>__awardCalls.at(-1).action.id===id&&__battleState().revision===prior.revision+1&&wheelStudent(wheelState.names[wheelWinnerIdx]).marks===prior.marks+3&&__battleDocuments['students/'+wheelStudent(wheelState.names[wheelWinnerIdx]).id].marks===prior.marks+3,{id:lostId,prior:beforeLost}));
-  // Force a damaging basic attack for this treasure assertion: a seeded
-  // encounter may otherwise choose a support skill even with the boss at 1 HP.
-  await page.evaluate(()=>{const s=__battleState();s.bossHp=1;s.heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=0;});__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
+  // Earlier seeded enemies can already be defeated by the award checks.
+  // Start an active fixture before arranging a guaranteed finishing attack.
+  await page.evaluate(()=>{const old=__battleState(),s=ClassroomBattleCore.reduce(old,{type:'start',id:'treasure-fixture',expectedRevision:old.revision,heroes:old.heroes,bossId:ClassroomBattleCore.nextBoss(old,'treasure-fixture').id});s.bossHp=1;s.heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=0;});const ref='classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science');__battleDocuments[ref]=s;__battleNotify(ref);});
   const waitingVictory=await page.evaluate(()=>JSON.stringify(__battleState()));
   await spin();
   check('selecting the next student leaves the existing enemy and party unchanged',await page.evaluate(old=>JSON.stringify(__battleState())===old,waitingVictory));
