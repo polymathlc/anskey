@@ -12,6 +12,12 @@ The catalogue has 312 skills: 30 per base class and 24 per advanced job. The ori
 
 After core/content changes run `node tools/sync-hero-game.mjs`, syntax checks, all application/server tests and the wheel, manual, quick, student, tree, adventure, mission and animation browser checks. `tools/adventure-browser-check.mjs` covers scrolling, pause, rare discoveries, debuff source/duration, dependency highlighting, responsive layouts and reduced motion.
 
+## Compact wheel (v1.146.0)
+
+`compact-wheel.js` / `.css` show a name reel and the existing Quick fight duel when `wheelMin` is on. The reel consumes the pick and progress from `wheelSpin`; it never draws another random winner, resolves combat or awards points. The original duel, award and retry nodes move into the compact panel and return to comment anchors on restore/close. Keep their identity and canonical handlers intact, including ongoing battle animations.
+
+`wheelCompactWin` / `polymath.wheelCompactWin.v1` store the compact box independently of the full `wheelWin`. Clamp the whole rectangle inside the viewport; manual Battle restores the full wheel before mounting it. Generic minimised-window rules still hide `.whBody`. Browser coverage is in the existing wheel and Quick fight checks; reel math is in `tools/compact-wheel-tests.mjs`.
+
 ## 📸 Snip and pin (v1.145.0)
 
 - Search `📸 Snip and pin (v1.145.0)` (CSS and the JS section before `Toolbar tooltips`). `#snipBtn` (Shift+A, in `TEACHER_TOOLBAR_IDS`), `#snipLayer` (the drag layer over `#viewerArea`) and `#snipPins` (fixed, z 94: under real modals and float windows). Pure helpers sit between `📸 Snip pure (start)` / `(end)` and are cut out by `tools/snip-pin-tests.mjs`.

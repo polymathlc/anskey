@@ -141,8 +141,8 @@ ok('the window cannot shrink past a usable size', after.w >= 260 && after.h >= 3
 await page.click('#wheelSpinBtn');
 await page.waitForFunction(() => !wheelSpinning);
 await page.click('#wheelMinBtn');
-const mini = await page.evaluate(() => ({ h: $('wheelCard').getBoundingClientRect().height, t: $('wheelTitle').textContent }));
-ok('minimised, only the title bar is left and it names the last pick', mini.h < 90 && mini.t !== '🎡 Name wheel', JSON.stringify(mini));
+const mini = await page.evaluate(() => ({ h: $('wheelCard').getBoundingClientRect().height, w: $('wheelCard').getBoundingClientRect().width, t: $('wheelTitle').textContent, slot: !$('wheelCompact').hidden, body: getComputedStyle(document.querySelector('.whBody')).display }));
+ok('minimised wheel shows compact name slots and keeps the selected name', mini.h >= 250 && mini.h <= 300 && mini.w <= 620 && mini.slot && mini.body === 'none' && mini.t !== '🎡 Name wheel', JSON.stringify(mini));
 await page.click('#wheelMinBtn');
 
 // Reload: same class, same names, same position.

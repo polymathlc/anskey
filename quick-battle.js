@@ -183,6 +183,7 @@
     if (q.on && window.ClassroomBattleDisplay && !q.error) el('wheelQuickStatus').textContent += ' · ' + ClassroomBattleDisplay.rotation(s);
     el('wheelQuickStatus').classList.toggle('cbQuickError', !!q.error);
     if (q.on) el('wheelHeroPreview').hidden = true;
+    if (window.CompactWheel) CompactWheel.refresh();
   }
   function enemyMp(state) { return Number.isFinite(state.bossMp) ? state.bossMp : Core.BOSS_MAX_MP || 60; }
   function bars(name, hp, maxHp, mp, maxMp) {

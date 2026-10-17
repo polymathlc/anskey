@@ -3,6 +3,13 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.146.0 — A movable mini wheel with name slots
+
+- Tap **–** in the wheel window for a small floating rectangle. Drag its title bar anywhere on screen; the worksheet stays usable underneath.
+- The left side becomes a mission-style name reel: names roll and slow down until the selected student settles in the centre. **Turn** calls the next student using the same no-repeat round.
+- The right side shows the selected hero and boss, with live HP/MP and battle animations. Point buttons remain available below, including retry if an award needs confirmation.
+- Tap **▢** to restore the full wheel. Compact and full windows remember their own positions, and switching during a turn preserves the selection and fight.
+
 ## v1.145.0 — 📸 Snip & pin the answer key
 
 - **Snip & pin** (toolbar, or **Shift+A**): drag over any part of the worksheet — usually the worked answer — and it is pinned in a small window that floats over the page. The window stays where it is while you scroll on to the next question, so the class can keep copying.
