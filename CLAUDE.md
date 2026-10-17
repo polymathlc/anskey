@@ -2,11 +2,21 @@
 
 Guidance for Claude when working in this repo.
 
+## Rune sockets and unique items (v1.147.0)
+
+The shared catalogue contains 270 items, including 16 runes and 20 unique treasures. Unique rarity is 0.1%; common is 44.9%, and the other original weights are unchanged. `ITEM_SKILLS` are granted by actual worn gear/socket sources or validated consumable `giftSkills`, never by forging `learnedSkills`. Foundation and job trees remain at 312 learnable skills. Quick and manual combat use `availableSkills`.
+
+New equipment loot saves `socketVersion:1` and 0–3 `sockets`; legacy entries never reroll. Empty variants stack by item ID and socket count. Inserting splits/renames exactly one copy to `runed:<action ID>` and moves only its selected worn slot. Filled entries have quantity one. Empty runed instances retain their ID after removal. `addInventory` must never merge a new drop into a filled entry. Rings still require an owned copy for each slot. Socket changes cap HP/MP without healing.
+
+The shared display owns the native equipment dropdown and rune workshop. It dispatches changes only through the existing teacher battle store or owned student API. Socket configuration IDs are mandatory, with immutable per-profile `sockets` receipts; acknowledge identical retries before encounter/revision checks, reject different payloads/actors, and never replay an older insert after removal. Teacher sync uses its existing immutable action receipts and blocks pending turns; student changes remain locked for active encounters. Closing/account changes cancel presentation and use existing API lifecycle guards.
+
+Burn/venom use saved `ailments`, strongest damage and longest duration, three enemy turns, with one combined cap shared with class poison. Extra rune wards, haste, weakness and defence breaks do not scale with awarded points. Main-hand then off-hand first occupied sockets set normal attack element; armour/jewellery effects do not infuse attacks. Unique consumables grant their permanent gift once to the drinker. Generated native PNGs and prompts are recorded in `runes-provenance.json`. Coverage is in `tools/rune-tests.mjs`, server repository tests and the student/manual browser checks.
+
 ## Pixel adventure and build synergies (v1.144.0)
 
 `battle-adventure.js/css` is presentation only. It reads saved `state.adventure` and `state.exposures`; scrolling, walking and pause controls never dispatch combat. The wheel and manual arena both render it. Keep the mission dock first in the wheel sidebar. `adventureFor` in the shared core deterministically records the next checkpoint and 74/18/6/2 enemy/event/chest/uber roll, never rerolling on render or reload. Old active encounters have no adventure modifier and retain their health.
 
-Roadside blessings resolve once on the first correct answer without points scaling. Rare chest bonuses are part of the existing immutable victory payout; never grant them from presentation. Uber empowerment is saved with the encounter and respects ordinary hit caps. Defence breaks apply after the casting hit, use the strongest amount/longest duration rather than additive stacking, and last for allied damaging actions only. Support, incorrect answers and boss turns preserve duration. Damage type and synergy source are recorded in the saved log. `buildFor` reads active-class/job passives only.
+Roadside blessings resolve once on the first correct answer without points scaling. Rare chest bonuses are part of the existing immutable victory payout; never grant them from presentation. Uber empowerment is saved with the encounter and respects ordinary hit caps. Defence breaks apply after the casting hit, use the strongest amount/longest duration rather than additive stacking, and last for allied damaging actions only. Support, incorrect answers and boss turns preserve duration. Damage type and synergy source are recorded in the saved log. `buildFor` combines active-class/job passives with worn gear/rune bonuses; weapon socket infusion determines the normal-attack element.
 
 The catalogue has 312 skills: 30 per base class and 24 per advanced job. The original first 18 nodes in each tree are unchanged. New convergence prerequisites form a DAG; ultimate builds fit within the level-50 SP budget. The graph measures its dimensions from actual branches and tiers and separates same-tier forks. Generated scenery and walking atlases use small pixel-preserving runtime exports; provenance retains original generation hashes and full prompts. Existing animation and boss PNGs remain unchanged.
 

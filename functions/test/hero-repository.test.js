@@ -741,3 +741,51 @@ test('a huge points award opens a scaled encounter but cannot defeat its enemy i
   assert.equal(result.state.status,'active');assert.equal(result.state.enemyScalingVersion,C.ENEMY_SCALING_VERSION);assert.ok(result.state.enemyLevel>=1);
   assert.ok(result.state.bossHp>0);assert.ok(result.state.bossMaxHp-result.state.bossHp<=Math.round(result.state.bossMaxHp*(C.ENEMY_SCALING.hitShare+C.ENEMY_SCALING.poisonShare)));
 });
+
+function seedSocketBag(db) {
+ const profile=db.data.get(profilePath('alex'));
+ const gear=C.addInventory(profile.hero,'unique-wyrmflame',2,[null,null]);C.addInventory(profile.hero,'rune-worldspark',2);
+ profile.hero=C.configureHero(profile.hero,{command:'equip',slot:'mainHand',itemId:gear.id});db.seed(profilePath('alex'),profile);
+ return gear.id;
+}
+test('socket configure is owned, transactional, idempotent and cannot reuse a receipt with new details',async()=>{
+ const {db,call}=setup();await claim(call);const itemId=seedSocketBag(db);
+ const request={type:'configure',command:'socket',id:aid(),itemId,runeId:'bag:rune-worldspark',socketIndex:0,slot:'mainHand'};
+ const before=structuredClone(db.data.get(profilePath('alex')));
+ await assert.rejects(call(pupil('intruder'),{...request,studentId:'alex'}));assert.deepEqual(db.data.get(profilePath('alex')),before);
+ const responses=await Promise.all([call(pupil('one'),request),call(pupil('one'),request),call(pupil('one'),request)]);
+ assert.equal(responses.filter(r=>r.duplicate).length,2);
+ let hero=db.data.get(profilePath('alex')).hero;
+ assert.equal(hero.inventory.find(i=>i.itemId==='rune-worldspark').quantity,1);assert.equal(hero.inventory.filter(i=>i.itemId==='unique-wyrmflame').length,2);
+ assert.equal(C.socketsFor(hero.inventory.find(i=>i.id===hero.loadout.mainHand))[0],'rune-worldspark');
+ await assert.rejects(call(pupil('one'),{...request,socketIndex:1}),/different details/);
+ const remove={type:'configure',command:'unsocket',id:aid(),itemId:hero.loadout.mainHand,socketIndex:0};
+ await call(pupil('one'),remove);await call(pupil('one'),remove);hero=db.data.get(profilePath('alex')).hero;
+ assert.equal(hero.inventory.find(i=>i.itemId==='rune-worldspark').quantity,2);
+ // Replaying the old insert only acknowledges its save; it must not undo removal.
+ assert.equal((await call(pupil('one'),request)).duplicate,true);assert.equal(C.socketsFor(db.data.get(profilePath('alex')).hero.inventory.find(i=>i.id===hero.loadout.mainHand))[0],null);
+});
+test('socket configure rolls back failed commits and rejects stale revisions without losing runes',async()=>{
+ const {db,call}=setup();await claim(call);const itemId=seedSocketBag(db),before=structuredClone(db.data.get(profilePath('alex')));
+ const request={type:'configure',command:'socket',id:aid(),itemId,runeId:'bag:rune-worldspark',socketIndex:0};
+ db.failNextCommit=true;await assert.rejects(call(pupil('one'),request),/commit failed/);assert.deepEqual(db.data.get(profilePath('alex')),before);
+ await assert.rejects(call(pupil('one'),{...request,expectedRevision:9999}),/changed on another screen/);assert.deepEqual(db.data.get(profilePath('alex')),before);
+ await call(pupil('one'),request);assert.equal(db.data.get(profilePath('alex')).hero.inventory.find(i=>i.itemId==='rune-worldspark').quantity,1);
+});
+test('active encounters block new student socket mutations but acknowledge an already committed retry',async()=>{
+ const {db,call}=setup();await claim(call);const itemId=seedSocketBag(db);
+ const request={type:'configure',command:'socket',id:aid(),itemId,runeId:'bag:rune-worldspark',socketIndex:0,slot:'mainHand'};
+ await call(pupil('one'),request);const state=await begin(call),profile=db.data.get(profilePath('alex'));
+ assert.equal((await call(pupil('one'),request)).duplicate,true);
+ await assert.rejects(call(pupil('one'),{type:'configure',command:'unsocket',id:aid(),itemId:profile.hero.loadout.mainHand,socketIndex:0}),/active encounter/);
+ assert.ok(C.availableSkills(state.heroes.find(h=>h.studentId==='alex')).some(s=>s.id==='relic-worldspark'));
+});
+test('teacher socket changes use canonical battle receipts and preserve HP and encounter progress',async()=>{
+ const {db,call}=setup();await claim(call);seedSocketBag(db);let state=await begin(call),h=state.heroes.find(h=>h.studentId==='alex');
+ const request={type:'sync',command:'socket',id:aid(),heroId:h.id,itemId:h.loadout.mainHand,runeId:'bag:rune-worldspark',socketIndex:0,slot:'mainHand',encounterId:state.encounterId,expectedRevision:state.revision};
+ const result=await battle(call,'Saturday',request),retry=await battle(call,'Saturday',request);h=result.state.heroes.find(h=>h.studentId==='alex');
+ assert.equal(h.hp,state.heroes[0].hp);assert.equal(result.state.bossHp,state.bossHp);assert.equal(retry.state.revision,result.state.revision);
+ assert.equal(db.data.get(profilePath('alex')).hero.inventory.find(i=>i.itemId==='rune-worldspark').quantity,1);
+ state=result.state;const selected=(await battle(call,'Saturday',{type:'select',id:aid(),turnId:aid(),heroId:h.id,encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ await assert.rejects(battle(call,'Saturday',{...request,id:aid(),command:'unsocket',runeId:undefined,itemId:h.loadout.mainHand,expectedRevision:selected.revision}),/selected answer/);
+});

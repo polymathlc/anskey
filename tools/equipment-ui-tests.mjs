@@ -22,7 +22,7 @@ test('character loadout shows every gear slot and pet with slot-specific control
 });
 test('all ring and pet atlas coordinates render without malformed CSS or unsanctioned paths',()=>{
   for(const item of Object.values(Core.ITEMS).filter(item=>item.slot==='ring1'||item.slot==='ring2'||item.type==='pet')){
-    const html=display.itemIcon(item);assert.ok(!html.includes('cbItemUnknown'),item.id);assert.match(html,/background-size:500%/);
+    const html=display.itemIcon(item);assert.ok(!html.includes('cbItemUnknown'),item.id);assert.ok(html.includes('background-size:'+(item.art.columns || 5)*100+'%'));
   }
   for(const art of [{sheet:'gear-ring1',col:5,row:0,columns:5,rows:4},{sheet:'pets',col:0,row:6,columns:5,rows:6},{sheet:'../secret',col:0,row:0,columns:5,rows:6}]) assert.match(display.itemIcon({art}),/cbItemUnknown/);
 });

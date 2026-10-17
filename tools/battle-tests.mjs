@@ -53,7 +53,7 @@ test('120 base skills preserve the original three six-tier branches and add thre
       assert.equal(s.effect.type,s.passive?'passive':'active');
     }
   }
-  assert.equal(new Set(ids).size,72);assert.equal(Object.keys(C.RARITIES).length,6);
+  assert.equal(new Set(ids).size,72);assert.equal(Object.keys(C.RARITIES).length,7);
   for(const rarity of Object.keys(C.RARITIES))assert.ok(Object.values(C.ITEMS).some(i=>i.rarity===rarity && Object.keys(i.effect).length));
 });
 
@@ -169,7 +169,7 @@ test('all heroes including KO heroes receive deterministic independent loot exac
   assert.equal(won.heroes[1].hp,0);assert.throws(()=>C.reduce(won,action),/finished/);
   const synced=apply(won,'sync',{heroes});assert.equal(synced.rewards.length,4);assert.equal(synced.heroes.reduce((n,h)=>n+h.inventory.reduce((a,i)=>a+i.quantity,0),0),16);
   const rarities=new Set();for(let i=0;i<10000;i++)rarities.add(C.rollReward('loot-distribution','hero-'+i,C.bossById('goblin')).rarity);
-  assert.equal(rarities.size,6);
+  assert.equal(rarities.size,7);
 });
 
 test('XP, learned skills, class, gear and inventory persist across encounters and roster edits',()=>{
