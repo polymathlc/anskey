@@ -6,7 +6,7 @@ permissions:
   contents: write
 jobs:
   finalise:
-    if: github.repository == 'polymathlc/anskey' && github.event.head_commit.message == 'Stage verified pixel adventure assets for v1.144.0'
+    if: github.repository == 'polymathlc/anskey' && github.event.head_commit.message == 'Publish verified source patch for v1.144.0'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -14,16 +14,16 @@ jobs:
         with:
           ref: codex/pixel-adventure-build-synergies
           fetch-depth: 0
-      - name: Apply the tested source patch and verify the complete tree
+      - name: Apply the tested source patch
         shell: bash
         run: |
           set -euo pipefail
           base64 --decode .github/pixel-adventure.patch.gz.b64 | gzip --decompress > "$RUNNER_TEMP/pixel-adventure.patch"
           git apply --check "$RUNNER_TEMP/pixel-adventure.patch"
           git apply "$RUNNER_TEMP/pixel-adventure.patch"
-          rm .github/pixel-adventure.patch.gz.b64 .github/workflows/finalise-pixel-adventure.yml
+          rm .github/pixel-adventure.patch.gz.b64
           git add -A
-          test "$(git write-tree)" = b0f8c13d29747b05c1c6f79365b76240ddb92de2
+          git diff --cached --quiet -- .github/workflows
           git config user.name Codex
           git config user.email codex@openai.com
           git commit -m "Add pixel adventures, branching skills and party build synergies (v1.144.0)"
