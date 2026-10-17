@@ -3,6 +3,12 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.147.1 — Sound and picture stay together in long lesson videos
+
+- Fixed lesson recordings whose voice ran ahead of the picture, worse the longer the lesson went on. Chrome records a lesson as an MP4 in fragments, and each fragment says where it really starts. When the video was made seekable before upload, those start times were ignored, so the small gap between fragments (about 30 ms of sound each time) was dropped again and again. After a few hours the voice was several seconds ahead of the writing on screen.
+- The seekable copy now starts every fragment at its own recorded time. A rebuilt Chromium recording has exactly the same packet times as the original file, for both the voice and the picture.
+- Applies to new recordings and the 1080p export. Lessons saved before this version keep their drift; record them again to fix them.
+
 ## v1.147.0 — Rune sockets and unique treasure
 
 - Added 16 rune types with generated pixel-art icons: fire, frost, lightning, earth, water, wind, holy, shadow, nature, venom, arcane and physical effects, plus four unique runes. Runes can burn, weaken, break elemental defence, restore mana, heal, ward, pierce armour or unlock a special skill.

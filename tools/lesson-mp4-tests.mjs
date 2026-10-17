@@ -355,3 +355,43 @@ test('a real fragmented recording decodes to the same frames and is seekable', {
     assert.ok(readFileSync(join(dir, 'seek.png')).length > 100, 'A jump to 3.2 s produces a picture.');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+/* 🎚 v1.147.1: every fragment's own tfdt is the truth. Chrome ends each
+   fragment's last sample a little short of where the next fragment starts
+   (audio ~30 ms, every fragment); a flat stts built from the durations alone
+   closed every gap and the sound ran further and further ahead of the picture. */
+test('a gap between fragments is kept: each fragment starts at its own tfdt', async () => {
+  const video = (n, first) => ({ id: 1, tfdt: first, sizes: Array(n).fill(300),
+    durations: Array(n).fill(1000), sync: Array.from({ length: n }, (_, i) => i === 0) });
+  const audio = (n, first) => ({ id: 2, tfdt: first, sizes: Array(n).fill(90),
+    durations: Array(n).fill(1024), sync: Array(n).fill(true) });
+  // Audio: each fragment starts 1500 ticks (~31 ms) after the last one ended;
+  // the video's second fragment starts one frame late, its third one tick EARLY.
+  const input = recording({ fragments: [
+    { runs: [video(30, 0), audio(47, 0)] },
+    { runs: [video(30, 31000), audio(47, 47 * 1024 + 1500)] },
+    { runs: [video(15, 60999), audio(23, 94 * 1024 + 3000)] }
+  ] });
+  const plain = readPlain(await bytesOf(await finalize(input.blob)));
+  const [v, a] = plain.tracks;
+  const starts = d => d.reduce((acc, x) => (acc.push(acc[acc.length - 1] + x), acc), [0]);
+  const as = starts(a.durations), vs = starts(v.durations);
+  assert.equal(as[47], 47 * 1024 + 1500, 'the second audio fragment starts where its tfdt says');
+  assert.equal(as[94], 94 * 1024 + 3000, 'and the third');
+  assert.equal(vs[30], 31000, 'a late video fragment keeps its gap');
+  assert.equal(vs[60], 60999, 'an early one takes the tick back from the sample before it');
+  assert.equal(a.mdhd, 117 * 1024 + 3000, 'the gaps count towards the track\'s length');
+  assert.ok(a.durations.every(d => d > 0) && v.durations.every(d => d > 0));
+});
+
+test('a real Chromium recording keeps every packet time after the rebuild (MP4_SAMPLE=a recorded file)', { skip: !process.env.MP4_SAMPLE }, async () => {
+  const src = readFileSync(process.env.MP4_SAMPLE);
+  const dir = mkdtempSync(join(tmpdir(), 'mp4sync-'));
+  try {
+    const out = join(dir, 'fixed.mp4');
+    writeFileSync(out, await bytesOf(await finalize(new Blob([src], { type: 'video/mp4' }))));
+    const pts = (f, s) => spawnSync('ffprobe', ['-v', 'error', '-select_streams', s, '-show_entries', 'packet=pts_time', '-of', 'csv=p=0', f]).stdout.toString();
+    assert.equal(pts(out, 'a'), pts(process.env.MP4_SAMPLE, 'a'));
+    assert.equal(pts(out, 'v'), pts(process.env.MP4_SAMPLE, 'v'));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
