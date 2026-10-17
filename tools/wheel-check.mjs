@@ -10,7 +10,8 @@
      node tools/wheel-check.mjs
      PW=/path/to/playwright/index.mjs node tools/wheel-check.mjs
    ===================================================================== */
-import { pathToFileURL } from 'node:url';
+import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 
 const PW = process.env.PW || '/opt/node22/lib/node_modules/playwright/index.mjs';
@@ -20,7 +21,20 @@ catch (e) {
   console.log('wheel-check: no Playwright at ' + PW + ' — skipped.');
   process.exit(0);
 }
-const FILE = pathToFileURL(path.resolve(process.argv[2] || 'index.html')).href;
+// Use the same stable HTTP origin as the deployed app. Persistence on file:
+// URLs is browser-dependent and can lose its storage area on reload in CI.
+const entry = path.resolve(process.argv[2] || 'index.html'), root = path.dirname(entry);
+const types = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.png':'image/png', '.json':'application/json' };
+const server = http.createServer((req,res) => {
+  try {
+    const file = path.resolve(root, '.' + decodeURIComponent(new URL(req.url,'http://localhost').pathname));
+    if (!file.startsWith(root + path.sep)) { res.writeHead(403); res.end(); return; }
+    const data = fs.readFileSync(file);
+    res.writeHead(200, {'Content-Type':types[path.extname(file)] || 'application/octet-stream'}); res.end(data);
+  } catch (_) { if (!res.headersSent) res.writeHead(404); res.end(); }
+});
+await new Promise(resolve => server.listen(0,'127.0.0.1',resolve)); server.unref();
+const FILE = 'http://127.0.0.1:' + server.address().port + '/' + path.basename(entry);
 let pass = 0, fail = 0;
 const ok = (name, cond, note) => {
   if (cond) { pass++; console.log('  ✓ ' + name); }
@@ -158,7 +172,7 @@ await page.evaluate((cls) => {
 await page.click('#wheelBtn');
 await page.waitForFunction(() => wheelState && wheelState.names.length);
 const again = await page.evaluate(() => wheelState.names.map(n => n.n).join());
-ok('after a reload the names are the ones left, not re-seeded from the register', again === 'Cai,Dee,Eli,Zoe', again);
+ok('after a reload the names are the ones left, not re-seeded from the register', again === 'Cai,Dee,Eli,Zoe', JSON.stringify(await page.evaluate(() => ({names:wheelState.names.map(n=>n.n),cls:wheelClass,stored:localStorage.getItem(wheelStoreKey(wheelClass))}))));
 
 // A new lesson day clears the calls, keeps the names.
 await page.evaluate(() => {
@@ -182,5 +196,6 @@ ok('Escape closes the window', await page.evaluate(() => !wheelIsOpen()));
 ok('no script errors along the way', errors.length === 0, errors.join('\n      '));
 
 await browser.close();
+server.close();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
