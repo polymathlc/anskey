@@ -124,3 +124,9 @@ test('Quick fight selects an owned unique move and keeps points-scaled hits and 
  assert.equal(next.lastEvent.skillId,chosen.skillId);assert.ok(next.lastEvent.damage<=C.enemyScale(next).hitCap);assert.ok(next.lastEvent.enemy);assert.ok(next.heroes[0].mp<h.mp);
  assert.ok((next.lastEvent.enemy.poisonDamage || 0)+(next.lastEvent.enemy.ailmentTicks || []).reduce((n,t)=>n+t.amount,0)<=C.enemyScale(next).poisonCap);
 });
+
+test('a weaker rune break preserves the source of a stronger party defence break',()=>{
+ let h=hero();const gear=own(h,'bronze-blade',[null]);h=equip(h,gear,'mainHand');h=insert(h,gear,own(h,'rune-storm'),0,'mainHand');
+ const state=encounter(h);state.exposures.elemental={amount:.3,turns:4,heroId:'student:cleric-ally'};
+ const next=answer(state,{command:'attack'});assert.equal(next.exposures.elemental.amount,.3);assert.equal(next.exposures.elemental.turns,3);assert.equal(next.exposures.elemental.heroId,'student:cleric-ally');
+});

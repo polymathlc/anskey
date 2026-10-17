@@ -461,7 +461,7 @@
       if (!['physical','elemental'].includes(channel)) return;
       const before=state.exposures[channel] || {amount:0,turns:0};
       const amount=Math.max(before.amount,clamp(value.amount,0,.5)),turns=Math.max(before.turns,int(value.turns,1,6));
-      state.exposures[channel]={amount,turns,heroId:hero.id};
+      state.exposures[channel]={amount,turns,heroId:!before.heroId || clamp(value.amount,0,.5)>=before.amount?hero.id:before.heroId};
       if(amount>before.amount || turns>before.turns)(event.afflicted || (event.afflicted=[])).push({effect:channel+' defence break',amount,turns,heroId:hero.id});
     });
     if (effect.haste) state.heroes.forEach(h=>{let turns=0;Object.keys(h.cooldowns).forEach(id=>{if(h.id!==hero.id || id!==event.skillId){const before=h.cooldowns[id];h.cooldowns[id]=Math.max(0,before-effect.haste);turns+=before-h.cooldowns[id];}});supported(h,'haste',turns);});
