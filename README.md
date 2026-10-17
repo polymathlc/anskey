@@ -3,6 +3,12 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.146.1 — Remembered points in the mini wheel
+
+- The minimised wheel now has one small **Points** field and a **+** button. Enter an amount and tap **+** (or press Enter) to give it to the selected student.
+- The amount stays filled in after awards, turns, restoring the full wheel, closing and reloading. It is remembered on this device. Whole numbers from 1 to 10,000 are supported.
+- Points use the existing reward and Quick fight service, including safe retries. The full wheel retains its preset and custom controls.
+
 ## v1.146.0 — A movable mini wheel with name slots
 
 - Tap **–** in the wheel window for a small floating rectangle. Drag its title bar anywhere on screen; the worksheet stays usable underneath.

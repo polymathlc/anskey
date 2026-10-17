@@ -1,4 +1,4 @@
-/* A compact view of the existing picker. Reels never select names or resolve combat. */
+/* Compact presentation: saved picks, live battle and canonical point awards. */
 (function(root,factory){
   if(typeof module==='object'&&module.exports)module.exports=factory(null);
   else root.CompactWheel=factory(root);
@@ -12,6 +12,39 @@
     return {faces:faces,target:faces.length-2};
   }
   function offset(value,target){var k=Math.max(0,Math.min(1,Number(value)||0));return CENTER-(1+(target-1)*(1-Math.pow(1-k,4)))*ROW;}
+  var POINTS_KEY='polymath.wheelCompactPoints.v1',pointsDraft='1';
+  function pointAmount(value){
+    if(typeof value!=='string'&&typeof value!=='number')return null;
+    var amount=Number(value);
+    return Number.isSafeInteger(amount)&&amount>=1&&amount<=10000?amount:null;
+  }
+  if(root)try{var saved=pointAmount(root.localStorage.getItem(POINTS_KEY));if(saved!==null)pointsDraft=String(saved);}catch(_){}
+  function renderAward(award,student,busy){
+    var controls=root.document.createElement('div');controls.className='cwPointControls';
+    var label=root.document.createElement('label');label.htmlFor='cwPoints';label.textContent='Points';
+    var input=root.document.createElement('input');input.id='cwPoints';input.type='number';input.min='1';input.max='10000';input.step='1';input.inputMode='numeric';input.value=pointsDraft;input.disabled=busy;input.setAttribute('aria-label','Points to give');
+    var button=root.document.createElement('button');button.id='cwGive';button.type='button';button.className='rwAmount btnPrimary';button.textContent='+';
+    function sync(){
+      pointsDraft=input.value;var amount=pointAmount(pointsDraft);
+      input.setCustomValidity(amount===null?'Enter a whole number from 1 to 10,000.':'');
+      button.disabled=!!busy||amount===null;
+      button.title=amount===null?'Enter points to give':'Give '+amount+' point'+(amount===1?'':'s')+' to '+student.name;
+      button.setAttribute('aria-label',button.title);
+      if(amount!==null)try{root.localStorage.setItem(POINTS_KEY,String(amount));}catch(_){}
+    }
+    function give(){
+      if(button.disabled||!root.wheelMin||!root.wheelIsOpen())return;
+      var amount=pointAmount(input.value);if(amount===null)return;
+      root.wheelGive(amount);
+    }
+    input.addEventListener('input',sync);input.addEventListener('change',sync);
+    input.addEventListener('keydown',function(event){if(event.key==='Enter'){event.preventDefault();give();}});
+    button.addEventListener('click',give);sync();
+    controls.append(label,input,button);
+    var note=root.document.createElement('div');note.className='whAwardNote';
+    note.textContent=(student.marks||0)+((student.marks||0)===1?' mark':' marks')+' now'+(root.wheelGiven?' · +'+root.wheelGiven+' from this turn':'');
+    award.replaceChildren(controls,note);
+  }
   function el(id){return root.document.getElementById(id);}
   function move(id,target){
     var node=el(id);if(!node||!target)return;
@@ -28,7 +61,12 @@
     el('cwSpin').addEventListener('click',function(){if(!el('wheelSpinBtn').disabled)root.wheelSpin();});
     if(root.MutationObserver)new root.MutationObserver(syncButton).observe(el('wheelSpinBtn'),{attributes:true,attributeFilter:['disabled']});
   }
-  function syncButton(){if(mounted)el('cwSpin').disabled=el('wheelSpinBtn').disabled||!root.wheelTeacher();}
+  function syncButton(){
+    if(!mounted)return;
+    var teacher=root.wheelTeacher();el('cwSpin').disabled=el('wheelSpinBtn').disabled||!teacher;
+    var input=el('cwPoints'),button=el('cwGive');
+    if(input&&button)button.disabled=input.disabled||!teacher||pointAmount(input.value)===null;
+  }
   function paintFaces(faces){var strip=el('cwStrip');strip.replaceChildren();faces.forEach(function(name){var face=root.document.createElement('strong');face.className='cwFace';face.textContent=name;strip.appendChild(face);});}
   function frame(k){progress=k;if(!mounted||!root.wheelMin||!root.wheelSpinning||!plan)return;if(root.matchMedia('(prefers-reduced-motion: reduce)').matches)k=1;el('cwStrip').style.transform='translateY('+offset(k,plan.target)+'px)';}
   function refresh(){
@@ -54,5 +92,5 @@
     }
   }
   function stop(){progress=0;plan=null;restore();if(mounted)el('wheelCompact').hidden=true;}
-  return {refresh:refresh,frame:frame,stop:stop,reelPlan:reelPlan,offset:offset};
+  return {refresh:refresh,frame:frame,stop:stop,reelPlan:reelPlan,offset:offset,renderAward:renderAward,pointAmount:pointAmount};
 });

@@ -5628,7 +5628,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.146.0';
+var APP_VERSION = 'v1.146.1';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32467,6 +32467,10 @@ function wheelRenderResult() {
     return;
   }
   var busy = !!rwAwarding[student.id] || !!(window.QuickBattle && QuickBattle.blocksAward()) || !!(window.wheelGuestsBusy && wheelGuestsBusy());
+  if (wheelMin && window.CompactWheel) {
+    CompactWheel.renderAward(award, student, busy);
+    return;
+  }
   WHEEL_AMOUNTS.forEach(function (n) {
     var b = document.createElement('button');
     b.className = 'rwAmount';
@@ -32648,6 +32652,7 @@ function setWheelMin(on) {
     wheelCompactWin = clampWheelWin(wheelCompactWin || loadWheelWinBox(WHEEL_COMPACT_WIN_KEY) || {x:wheelWin ? wheelWin.x : 12,y:wheelWin ? wheelWin.y : 12,w:620,h:280});
   } else if (wheelWin) wheelWin = clampWheelWin(wheelWin);
   applyWheelWin();
+  wheelRenderResult();
   wheelRenderTitle();
   if (window.CompactWheel) CompactWheel.refresh();
 }
