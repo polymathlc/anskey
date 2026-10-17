@@ -12,6 +12,15 @@ The catalogue has 312 skills: 30 per base class and 24 per advanced job. The ori
 
 After core/content changes run `node tools/sync-hero-game.mjs`, syntax checks, all application/server tests and the wheel, manual, quick, student, tree, adventure, mission and animation browser checks. `tools/adventure-browser-check.mjs` covers scrolling, pause, rare discoveries, debuff source/duration, dependency highlighting, responsive layouts and reduced motion.
 
+## 📸 Snip and pin (v1.145.0)
+
+- Search `📸 Snip and pin (v1.145.0)` (CSS and the JS section before `Toolbar tooltips`). `#snipBtn` (Shift+A, in `TEACHER_TOOLBAR_IDS`), `#snipLayer` (the drag layer over `#viewerArea`) and `#snipPins` (fixed, z 94: under real modals and float windows). Pure helpers sit between `📸 Snip pure (start)` / `(end)` and are cut out by `tools/snip-pin-tests.mjs`.
+- **A pin is never an annotation.** No `annotations.push`, undo, dirty flag or print; `@media print` hides it. It lives in `localStorage` `polymath.snipPins.v1` (`SNIP_MAX_PINS`) and deliberately survives a worksheet change.
+- **The picture is painted, not grabbed:** each page under the snip goes through `aiViewPaintPage` at the sharpness `snipOutScale` asks for, then is cropped with `snipPagePart`. Never use getDisplayMedia here.
+- **The teacher's only:** every handler asks `snipTeacher()`; `applyRoleUI` calls `snipRoleChanged`, which removes every pin from the screen for anyone else (storage is kept for the teacher's return).
+- Resize projects the corner drag onto the body's diagonal (`snipResizeW`), so the snip's ratio is kept and no corner is dead. `SNIP_HEAD_H` must equal `.snipHead` height.
+- Run `node --test tools/snip-pin-tests.mjs` and `node tools/snip-pin-check.mjs` (real Chromium: drag pins the right part, stays put on scroll, resize/move/hide/minimise/close, reload, student role, phone; in CI).
+
 ## ✏️ The model suite is polymathlc/model's drawing board (v1.141.0)
 
 - `model-studio.js` / `model-studio.css` are the drawing engine of `polymathlc/model` (Bar Model Studio), **for drawing only**: no scenario, question, model answer or AI marking came across, and `tools/model-studio-tests.mjs` fails if any does.

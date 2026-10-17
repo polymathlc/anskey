@@ -3729,6 +3729,37 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 #playlistBar button:disabled { opacity:0.45; cursor:default; }
 #playlistBar button[hidden] { display:none; }
 @media print { .barStack,.lessonBar,.lessonPlayer,#lessonModal,.lessonCamWin,#lessonExportModal,.playlistPanel { display:none!important; } }
+/* ================= 📸 Snip and pin (v1.145.0) =================
+   A part of the worksheet, snipped and pinned in a window that floats over
+   the page and STAYS while the page scrolls under it, so the class keeps
+   copying the answer while the teacher moves on. See `📸 Snip and pin`. */
+#snipPins { position:fixed; inset:0; z-index:94; pointer-events:none; }
+#snipPins > .snipPin { pointer-events:auto; }
+.snipPin { position:absolute; display:flex; flex-direction:column; background:#fff; border:1px solid #c9d6e2; border-radius:14px; box-shadow:0 10px 36px #172b4d38; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; }
+.snipHead { display:flex; align-items:center; gap:6px; height:38px; flex:none; padding:0 6px 0 12px; background:#f3f7fa; border-bottom:1px solid #dde6ee; cursor:grab; }
+.snipPin.dragging .snipHead { cursor:grabbing; }
+.snipTitle { flex:1; min-width:0; font-size:0.8rem; font-weight:600; color:#17324d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.snipHead button { flex:none; width:30px; height:28px; padding:0; border:1px solid transparent; border-radius:8px; background:transparent; color:#17324d; font:inherit; font-size:0.9rem; line-height:1; cursor:pointer; }
+.snipHead button:hover { background:#e4edf4; border-color:#d3dfe9; }
+.snipBody { position:relative; flex:1; min-height:0; background:#fff; }
+.snipBody img { display:block; width:100%; height:100%; object-fit:contain; pointer-events:none; -webkit-user-drag:none; }
+.snipCover { position:absolute; inset:0; display:none; align-items:center; justify-content:center; gap:8px; padding:12px; background:repeating-linear-gradient(135deg,#eef3f7 0 12px,#e6edf3 12px 24px); color:#37526b; font-size:0.85rem; font-weight:600; text-align:center; cursor:pointer; }
+.snipPin.concealed .snipCover { display:flex; }
+.snipPin.concealed .snipBody img { visibility:hidden; }
+.snipPin.minimised { height:auto !important; }
+.snipPin.minimised .snipBody, .snipPin.minimised .snipGrip { display:none; }
+.snipPin.minimised .snipHead { border-bottom:0; }
+.snipGrip { position:absolute; right:0; bottom:0; width:26px; height:26px; cursor:nwse-resize; touch-action:none; background:linear-gradient(135deg,transparent 0 52%,#9fb3c6 52% 58%,transparent 58% 68%,#9fb3c6 68% 74%,transparent 74%); }
+#snipLayer { position:fixed; z-index:96; cursor:crosshair; touch-action:none; background:rgba(23,50,77,0.08); }
+#snipLayer[hidden] { display:none; }
+#snipLayer .snipBox { position:absolute; display:none; border:2px dashed #1f6feb; border-radius:4px; box-shadow:0 0 0 9999px rgba(23,50,77,0.28); pointer-events:none; }
+#snipLayer.drawing { background:transparent; }
+#snipLayer.drawing .snipBox { display:block; }
+#snipLayer .snipHint { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; max-width:calc(100% - 32px); padding:10px 12px 10px 18px; border-radius:14px; background:#17324d; color:#fff; font-size:0.85rem; line-height:1.4; box-shadow:0 8px 28px #172b4d40; cursor:default; }
+#snipLayer.drawing .snipHint { display:none; }
+#snipLayer .snipHint button { flex:none; padding:7px 12px; border:0; border-radius:9px; background:#ffffff26; color:#fff; font:inherit; cursor:pointer; }
+@media print { #snipPins, #snipLayer { display:none !important; } }
+
 </style>
 <link rel="stylesheet" href="classroom-battle.css">
 <link rel="stylesheet" href="battle-animation.css">
@@ -3787,6 +3818,10 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
     <button class="btn" id="bankQBtn" title="Question bank — pick a question from the Science portal's bank and put it on this page, with its interactive app">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v15H5.5A1.5 1.5 0 0 1 4 17.5z"/><path d="M10 4h4.5A1.5 1.5 0 0 1 16 5.5V19h-6"/><path d="M16 7.2l2.9-.8a1.2 1.2 0 0 1 1.5.9l2 9.6a1.2 1.2 0 0 1-.9 1.4L18.6 19"/><line x1="6.5" y1="8" x2="7.8" y2="8"/><line x1="12.3" y1="8" x2="13.7" y2="8"/></svg>
       <span class="btnLabel">Question bank</span>
+    </button>
+    <button class="btn" id="snipBtn" data-key="Shift+A" title="Snip and pin — drag over part of the page and it stays pinned on screen while you move on, so the class can keep copying it">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M12 8.5v5"/><path d="M9.5 11.5l2.5 2.5 2.5-2.5"/><line x1="9" y1="16.5" x2="15" y2="16.5"/></svg>
+      <span class="btnLabel">Snip &amp; pin</span>
     </button>
   </div>
   <div class="tSep"></div>
@@ -5515,6 +5550,11 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
   </div>
 </div>
 
+<div id="snipPins" aria-live="polite"></div>
+<div id="snipLayer" hidden>
+  <div class="snipHint"><span>📸 Drag over the part you want to pin. It stays on screen while you scroll.</span><button type="button" id="snipCancelBtn">Cancel</button></div>
+  <div class="snipBox"></div>
+</div>
 <div id="toast"></div>
 <!-- Cards being made in the background, one chip each -->
 <div id="aiJobTray"></div>
@@ -5587,7 +5627,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.144.0';
+var APP_VERSION = 'v1.145.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -30392,7 +30432,7 @@ function isStudent() {
 /* Download and the two Print buttons are deliberately NOT in this list:
    students may keep — and print — a copy of any worksheet they can already
    open, so those buttons stay for everyone. */
-var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'printQrBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'printQrBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
@@ -30407,6 +30447,7 @@ function applyRoleUI() {
   voiceRoleChanged();
   bankQRoleChanged();
   if (typeof penSelectCancel === 'function') penSelectCancel();   // a path belongs to the role that started it
+  if (typeof snipRoleChanged === 'function') snipRoleChanged();   // a pinned answer is the teacher's alone
   var student = isStudent();
   var hideTools = student && !practiceMode; // practising students get drawing tools
   document.body.classList.toggle('studentMode', hideTools);
@@ -37653,6 +37694,12 @@ document.addEventListener('keydown', function (e) {
     if (voiceTeacher()) voiceToggle();
     return;
   }
+  // Shift+A snips part of the page and pins it — plain A is the arrow tool.
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+    if (snipTeacher()) snipStart();
+    return;
+  }
   // An unfinished Pen-select path owns Enter, Esc, Backspace / Delete and undo
   // until it is closed or cancelled — for whoever is holding the tool.
   if (typeof penSelectKey === 'function' && penSelectKey(e)) return;
@@ -37711,6 +37758,392 @@ document.addEventListener('keydown', function (e) {
     }
   }
 });
+
+/* ================= 📸 Snip and pin (v1.145.0) =================
+   The teacher drags over part of the worksheet — usually the worked answer —
+   and it is pinned in a small window that floats over the page. The window is
+   `position: fixed`, so it STAYS where it is while the page scrolls on to the
+   next question, and the class can go on copying from it. It can be resized
+   (keeping its shape), hidden and revealed, minimised to its title bar, moved
+   and closed. Several can be pinned at once.
+
+   - THE PICTURE IS PAINTED, NOT SCREEN-GRABBED. Each page under the snip is
+     painted afresh by `aiViewPaintPage` (the PDF page plus every annotation,
+     note card and pasted picture on it) at the sharpness the snip needs, and
+     cropped to the snip. No screen-share prompt, and nothing on top of the
+     page (a toolbar, a toast, another pin) is ever in the picture.
+   - A PIN IS NEVER AN ANNOTATION. It is not saved with the worksheet, never
+     printed, never undone. It belongs to this device and survives a reload
+     (`SNIP_STORE` in localStorage); it also deliberately survives opening
+     another worksheet, because last week's answer is a thing a teacher pins.
+   - IT IS THE TEACHER'S. The button is in TEACHER_TOOLBAR_IDS and every
+     handler asks `snipTeacher()` again. A pin is an answer key, so when the
+     person changes (a student signs in, "Practise as", a share link) every
+     pin leaves the screen (`snipRoleChanged`, from `applyRoleUI`) and comes
+     back only for the teacher.
+   - THE SHAPE IS THE SNIP'S. A corner drag scales the window along its own
+     diagonal (the same projection `picFitRatio` uses), so a pinned answer is
+     never squashed and no corner is ever dead. */
+var SNIP_STORE = 'polymath.snipPins.v1';
+var SNIP_MAX_PINS = 8;
+var SNIP_HEAD_H = 38;          // = .snipHead height
+var SNIP_MIN_W = 170;          // room for the title and its three buttons
+var SNIP_MIN_DRAG_PX = 12;     // a smaller drag is a tap, not a snip
+var SNIP_OUT_MAX_PX = 2000;    // the longest side of a pinned picture
+var SNIP_QUALITY = 0.92;
+var snipPins = [];             // [{id, src, ratio, x, y, w, label, hidden, min}]
+var snipLayerOn = false, snipDragState = null, snipBusy = false, snipShown = false, snipSeq = 0;
+
+/* ---- 📸 Snip pure (start) ---- */
+function snipNormRect(x0, y0, x1, y1) {
+  return { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+}
+function snipIntersect(a, b) {
+  var x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
+  var r = Math.min(a.x + a.w, b.x + b.w), btm = Math.min(a.y + a.h, b.y + b.h);
+  if (r - x <= 0 || btm - y <= 0) return null;
+  return { x: x, y: y, w: r - x, h: btm - y };
+}
+/* Where one page sits inside a snip: `src` in page units (what to crop from
+   the painted page) and `dst` in snip pixels (where it lands). */
+function snipPagePart(snip, pageRect, baseW, baseH) {
+  var hit = snipIntersect(snip, pageRect);
+  if (!hit) return null;
+  var kx = baseW / pageRect.w, ky = baseH / pageRect.h;
+  return {
+    src: { x: (hit.x - pageRect.x) * kx, y: (hit.y - pageRect.y) * ky, w: hit.w * kx, h: hit.h * ky },
+    dst: { x: hit.x - snip.x, y: hit.y - snip.y, w: hit.w, h: hit.h }
+  };
+}
+/* Output pixels per snip pixel: at least the screen's own density (and 2,
+   so text stays crisp when the window is enlarged), never past the cap. */
+function snipOutScale(w, h, dpr) {
+  var want = Math.max(2, Math.min(3, dpr || 1));
+  return Math.max(0.25, Math.min(want, SNIP_OUT_MAX_PX / Math.max(1, w, h)));
+}
+/* The window's box: `w` decides everything, the body keeps the snip's
+   ratio, and the whole window stays on screen. */
+function snipClampBox(b, ratio, vw, vh) {
+  var pad = 8;
+  var maxW = Math.max(SNIP_MIN_W, Math.min(vw - pad * 2, (vh - pad * 2 - SNIP_HEAD_H) * ratio));
+  var w = Math.max(SNIP_MIN_W, Math.min(b.w, maxW));
+  var h = SNIP_HEAD_H + w / ratio;
+  return {
+    x: Math.round(Math.max(pad, Math.min(b.x, vw - w - pad))),
+    y: Math.round(Math.max(pad, Math.min(b.y, vh - Math.min(h, vh - pad * 2) - pad))),
+    w: Math.round(w)
+  };
+}
+/* A corner drag, projected onto the body's own diagonal: it answers to
+   either axis and is exact on a true diagonal. */
+function snipResizeW(startW, ratio, dx, dy) {
+  var W = startW, H = startW / ratio;
+  return W + (dx * W + dy * H) / Math.sqrt(W * W + H * H) * (W / Math.sqrt(W * W + H * H));
+}
+/* A new pin opens at the right of the worksheet, stepped down for each pin
+   already up so none lands exactly on another. */
+function snipDefaultBox(snipW, snipH, area, n) {
+  var ratio = snipW / Math.max(1, snipH);
+  var w = Math.max(SNIP_MIN_W, Math.min(snipW, 480, area.w * 0.45));
+  var step = (n % 6) * 28;
+  return { x: area.x + area.w - w - 20 - step, y: area.y + 16 + step, w: w, ratio: ratio };
+}
+function snipCleanPin(v) {
+  if (!v || typeof v.src !== 'string' || v.src.indexOf('data:image/') !== 0) return null;
+  var ratio = +v.ratio;
+  if (!isFinite(ratio) || ratio <= 0.02 || ratio > 50) return null;
+  return {
+    id: String(v.id || ('snip' + Date.now())).slice(0, 40), src: v.src, ratio: ratio,
+    x: isFinite(v.x) ? +v.x : 40, y: isFinite(v.y) ? +v.y : 80, w: isFinite(v.w) ? +v.w : 320,
+    label: String(v.label || 'Pinned').slice(0, 60), hidden: !!v.hidden, min: !!v.min
+  };
+}
+/* ---- 📸 Snip pure (end) ---- */
+
+function snipTeacher() {
+  return typeof isAdmin === 'function' && isAdmin(currentUser) && !actingStudent &&
+    !(typeof isSharedVisitor === 'function' && isSharedVisitor());
+}
+
+function snipSave() {
+  try { localStorage.setItem(SNIP_STORE, JSON.stringify(snipPins)); return true; }
+  catch (e) {
+    if (!snipSave.warned) { snipSave.warned = true; toast('📌 Pinned, but too big to keep after a reload — close an older pin to make room'); }
+    return false;
+  }
+}
+function snipLoad() {
+  try {
+    var list = JSON.parse(localStorage.getItem(SNIP_STORE) || '[]');
+    return Array.isArray(list) ? list.map(snipCleanPin).filter(Boolean).slice(-SNIP_MAX_PINS) : [];
+  } catch (e) { return []; }
+}
+
+/* ---- The snip itself ---- */
+function snipViewerBox() {
+  var r = $('viewerArea').getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height };
+}
+function snipStart() {
+  if (!snipTeacher()) return;
+  if (snipBusy) return;
+  if (!pages || !pages.length) { toast('Open a worksheet first, then snip the part you want to pin'); return; }
+  if (snipLayerOn) { snipCancel(); return; }
+  if (editingId && typeof commitActiveTextEdit === 'function') commitActiveTextEdit();
+  if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
+  var box = snipViewerBox(), layer = $('snipLayer');
+  layer.style.left = box.x + 'px'; layer.style.top = box.y + 'px';
+  layer.style.width = box.w + 'px'; layer.style.height = box.h + 'px';
+  layer.classList.remove('drawing');
+  layer.hidden = false;
+  snipLayerOn = true;
+  $('snipBtn').classList.add('active');
+}
+function snipCancel() {
+  snipLayerOn = false; snipDragState = null;
+  var layer = $('snipLayer');
+  layer.hidden = true; layer.classList.remove('drawing');
+  $('snipBtn').classList.remove('active');
+}
+function snipDrawBox() {
+  var d = snipDragState, layer = $('snipLayer');
+  if (!d) return;
+  var lr = layer.getBoundingClientRect();
+  var r = snipNormRect(d.x0, d.y0, d.x1, d.y1);
+  var b = layer.querySelector('.snipBox');
+  b.style.left = (r.x - lr.left) + 'px'; b.style.top = (r.y - lr.top) + 'px';
+  b.style.width = r.w + 'px'; b.style.height = r.h + 'px';
+}
+async function snipCapture(rect) {
+  var out = null, parts = [];
+  pages.forEach(function (p) {
+    var el = p.svg || p.canvas || p.wrap;
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    var part = snipPagePart(rect, { x: r.left, y: r.top, w: r.width, h: r.height }, p.baseW, p.baseH);
+    if (part) parts.push({ p: p, part: part, screenW: r.width });
+  });
+  if (!parts.length) throw new Error('Drag over the worksheet page itself to pin part of it');
+  var k = snipOutScale(rect.w, rect.h, window.devicePixelRatio);
+  out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(rect.w * k));
+  out.height = Math.max(1, Math.round(rect.h * k));
+  var ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, out.width, out.height);
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].p, part = parts[i].part;
+    var record = { ref: p, num: p.num, baseW: p.baseW, baseH: p.baseH, pdfPage: p.page, fallback: null, background: null };
+    if (!p.page && p.canvas && p.canvas.width && p.canvas.height) record.fallback = p.canvas;
+    // Painted only as sharp as this snip needs: output pixels per page unit.
+    var perUnit = k * parts[i].screenW / p.baseW;
+    var painted = await aiViewPaintPage(record, annotations, null, Math.ceil(Math.max(p.baseW, p.baseH) * perUnit));
+    try {
+      var fx = painted.width / p.baseW, fy = painted.height / p.baseH;
+      ctx.drawImage(painted, part.src.x * fx, part.src.y * fy, part.src.w * fx, part.src.h * fy,
+        part.dst.x * k, part.dst.y * k, part.dst.w * k, part.dst.h * k);
+    } finally { painted.width = painted.height = 0; }
+  }
+  try { return { src: out.toDataURL('image/jpeg', SNIP_QUALITY), page: parts[0].p.num }; }
+  finally { out.width = out.height = 0; }
+}
+async function snipFinish(rect) {
+  snipCancel();
+  if (!snipTeacher() || rect.w < SNIP_MIN_DRAG_PX || rect.h < SNIP_MIN_DRAG_PX) return;
+  snipBusy = true;
+  var epoch = typeof wsEpoch !== 'undefined' ? wsEpoch : null;
+  try {
+    var shot = await snipCapture(rect);
+    if (!snipTeacher() || (epoch !== null && epoch !== wsEpoch)) return;   // the person or worksheet changed meanwhile
+    var box = snipDefaultBox(rect.w, rect.h, snipViewerBox(), snipPins.length);
+    snipSeq = Math.max(snipSeq, snipPins.length) + 1;
+    var pin = snipCleanPin({ id: 'snip' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      src: shot.src, ratio: box.ratio, x: box.x, y: box.y, w: box.w,
+      label: '📌 Answer · page ' + shot.page, hidden: false, min: false });
+    snipPins.push(pin);
+    while (snipPins.length > SNIP_MAX_PINS) snipRemove(snipPins[0].id, true);
+    snipRenderPin(pin);
+    snipSave();
+    toast('📌 Pinned — it stays on screen while you move on');
+  } catch (e) {
+    toast(e && e.message ? e.message : 'That part of the page could not be pinned');
+  } finally { snipBusy = false; }
+}
+
+/* ---- The pinned windows ---- */
+function snipPinEl(id) { return document.querySelector('#snipPins > .snipPin[data-id="' + id + '"]'); }
+function snipApply(pin) {
+  var el = snipPinEl(pin.id);
+  if (!el) return;
+  var b = snipClampBox(pin, pin.ratio, window.innerWidth, floatWinViewportH());
+  pin.x = b.x; pin.y = b.y; pin.w = b.w;
+  el.style.left = b.x + 'px'; el.style.top = b.y + 'px';
+  el.style.width = (pin.min ? Math.min(b.w, 260) : b.w) + 'px';
+  el.style.height = pin.min ? 'auto' : Math.round(SNIP_HEAD_H + b.w / pin.ratio) + 'px';
+  el.classList.toggle('concealed', !!pin.hidden);
+  el.classList.toggle('minimised', !!pin.min);
+  var hb = el.querySelector('[data-snip="hide"]'), mb = el.querySelector('[data-snip="min"]');
+  hb.textContent = pin.hidden ? '👁' : '🙈';
+  hb.title = pin.hidden ? 'Reveal the answer' : 'Hide the answer (the window stays)';
+  mb.textContent = pin.min ? '▢' : '–';
+  mb.title = pin.min ? 'Open it back up' : 'Minimise to its title bar';
+}
+function snipRenderPin(pin) {
+  var host = $('snipPins');
+  var el = document.createElement('div');
+  el.className = 'snipPin';
+  el.dataset.id = pin.id;
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', 'Pinned snip');
+  el.innerHTML =
+    '<div class="snipHead" title="Drag to move · double-tap to minimise">' +
+      '<span class="snipTitle"></span>' +
+      '<button type="button" data-snip="hide"></button>' +
+      '<button type="button" data-snip="min"></button>' +
+      '<button type="button" data-snip="close" title="Close this pin">✕</button>' +
+    '</div>' +
+    '<div class="snipBody"><img alt="Pinned part of the worksheet" draggable="false">' +
+      '<div class="snipCover" data-snip="reveal">🙈 Hidden — tap to reveal</div></div>' +
+    '<div class="snipGrip" title="Drag to resize"></div>';
+  el.querySelector('.snipTitle').textContent = pin.label;
+  el.querySelector('img').src = pin.src;
+  host.appendChild(el);
+  snipWire(el, pin);
+  snipApply(pin);
+}
+function snipFind(id) { return snipPins.find(function (p) { return p.id === id; }); }
+function snipRemove(id, quiet) {
+  snipPins = snipPins.filter(function (p) { return p.id !== id; });
+  var el = snipPinEl(id);
+  if (el) el.remove();
+  if (!quiet) snipSave();
+}
+function snipToggle(id, field) {
+  var pin = snipFind(id);
+  if (!pin || !snipTeacher()) return;
+  pin[field] = !pin[field];
+  snipApply(pin);
+  snipSave();
+}
+function snipWire(el, pin) {
+  var head = el.querySelector('.snipHead'), grip = el.querySelector('.snipGrip');
+  var mode = null, ptr = null, sx = 0, sy = 0, start = null, lastTap = 0;
+  el.addEventListener('pointerdown', function () {
+    if (el.nextSibling) el.parentNode.appendChild(el);   // the pin last touched is on top
+  }, true);
+  el.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-snip]');
+    if (!b || !snipTeacher()) return;
+    var act = b.getAttribute('data-snip');
+    if (act === 'close') snipRemove(pin.id);
+    else if (act === 'hide' || act === 'reveal') snipToggle(pin.id, 'hidden');
+    else if (act === 'min') snipToggle(pin.id, 'min');
+  });
+  function begin(e, m) {
+    if (e.button > 0) return;
+    if (m === 'move' && e.target.closest('button')) return;
+    mode = m; ptr = e.pointerId; sx = e.clientX; sy = e.clientY;
+    start = { x: pin.x, y: pin.y, w: pin.w };
+    e.preventDefault(); e.stopPropagation();
+    try { e.currentTarget.setPointerCapture(ptr); } catch (_) {}
+    el.classList.add('dragging');
+    if (m === 'move') {
+      var now = Date.now();
+      if (now - lastTap < 320) { mode = null; el.classList.remove('dragging'); lastTap = 0; snipToggle(pin.id, 'min'); return; }
+      lastTap = now;
+    }
+  }
+  function drag(e) {
+    if (!mode || e.pointerId !== ptr) return;
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    if (mode === 'move') { pin.x = start.x + dx; pin.y = start.y + dy; }
+    else pin.w = snipResizeW(start.w, pin.ratio, dx, dy);
+    snipApply(pin);
+    e.preventDefault();
+  }
+  function finish(e) {
+    if (!mode || (e && e.pointerId != null && e.pointerId !== ptr)) return;
+    mode = null; ptr = null;
+    el.classList.remove('dragging');
+    snipSave();
+  }
+  head.addEventListener('pointerdown', function (e) { begin(e, 'move'); });
+  grip.addEventListener('pointerdown', function (e) { begin(e, 'size'); });
+  [head, grip].forEach(function (n) {
+    n.addEventListener('pointermove', drag);
+    n.addEventListener('pointerup', finish);
+    n.addEventListener('pointercancel', finish);
+    n.addEventListener('lostpointercapture', finish);
+  });
+}
+function snipShowAll() {
+  if (snipShown) return;
+  snipShown = true;
+  snipPins = snipLoad();
+  snipPins.forEach(snipRenderPin);
+}
+function snipHideAll() {
+  snipShown = false;
+  snipPins = [];
+  $('snipPins').innerHTML = '';
+}
+/* Called from applyRoleUI: a pin is an answer key, so it is on screen for the
+   teacher and for nobody else. The pins stay in storage for the teacher's
+   return; only the screen is cleared. */
+function snipRoleChanged() {
+  if (snipLayerOn && !snipTeacher()) snipCancel();
+  if (snipTeacher()) snipShowAll(); else snipHideAll();
+}
+
+/* ---- 📸 Snip wiring ---- */
+(function () {
+  var layer = $('snipLayer');
+  $('snipBtn').addEventListener('click', function () {
+    if (!snipTeacher()) return;
+    snipStart();
+  });
+  $('snipCancelBtn').addEventListener('click', function (e) { e.stopPropagation(); snipCancel(); });
+  $('snipCancelBtn').addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+  layer.addEventListener('pointerdown', function (e) {
+    if (!snipLayerOn || snipDragState || e.button > 0 || e.target.closest('.snipHint')) return;
+    e.preventDefault();
+    snipDragState = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY };
+    try { layer.setPointerCapture(e.pointerId); } catch (_) {}
+    layer.classList.add('drawing');
+    snipDrawBox();
+  });
+  layer.addEventListener('pointermove', function (e) {
+    var d = snipDragState;
+    if (!d || e.pointerId !== d.id) return;
+    var b = snipViewerBox();
+    d.x1 = Math.max(b.x, Math.min(b.x + b.w, e.clientX));
+    d.y1 = Math.max(b.y, Math.min(b.y + b.h, e.clientY));
+    snipDrawBox();
+    e.preventDefault();
+  });
+  function end(e, keep) {
+    var d = snipDragState;
+    if (!d || e.pointerId !== d.id) return;
+    var r = snipNormRect(d.x0, d.y0, d.x1, d.y1);
+    snipDragState = null;
+    if (keep) snipFinish(r); else snipCancel();
+  }
+  layer.addEventListener('pointerup', function (e) { end(e, true); });
+  layer.addEventListener('pointercancel', function (e) { end(e, false); });
+  // The page can still be scrolled to the part to snip while the layer is up.
+  layer.addEventListener('wheel', function (e) {
+    $('viewerArea').scrollBy({ left: e.deltaX, top: e.deltaY });
+    e.preventDefault();
+  }, { passive: false });
+  // Escape leaves snip mode before any worksheet shortcut can see it.
+  window.addEventListener('keydown', function (e) {
+    if (!snipLayerOn) return;
+    e.stopImmediatePropagation();
+    if (e.key === 'Escape') { e.preventDefault(); snipCancel(); }
+  }, true);
+  function reflow() { snipPins.forEach(snipApply); if (snipLayerOn) snipCancel(); }
+  window.addEventListener('resize', reflow);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', reflow);
+})();
 
 /* ================= Toolbar tooltips =================
    Instant tooltips on hover for every toolbar button, showing what the
