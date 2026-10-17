@@ -8,7 +8,7 @@ const window={ClassroomBattleCore:Core,ClassroomBattleContent:Content};
 vm.runInNewContext(fs.readFileSync(new URL('../battle-animation.js',import.meta.url),'utf8'),{window});
 const Animation=window.ClassroomBattleAnimation,skills=Object.values(Core.SKILLS).flat().concat(Object.values(Core.JOB_SKILLS).flat());
 
-test('all 216 skills have distinct animation choreography beyond their names and mechanical effects',()=>{
+test('all 312 skills have distinct animation choreography beyond their names and mechanical effects',()=>{
   const signatures=new Set();
   for(const skill of skills){
     const recipe=Animation.recipeFor({role:skill.role,job:skill.job},skill);
@@ -17,7 +17,7 @@ test('all 216 skills have distinct animation choreography beyond their names and
     assert.ok(recipe.count>=1&&recipe.count<=4);assert.equal(recipe.passive,skill.passive);
     const key=JSON.stringify(choreography);assert.ok(!signatures.has(key),'distinct visible recipe for '+id);signatures.add(key);
   }
-  assert.equal(signatures.size,216);
+  assert.equal(signatures.size,312);
 });
 test('creature and elemental skills use their generated visual families',()=>{
   const cases={'beastmaster-wolf-pounce':'spirit-wolf','beastmaster-hawk-dive':'spirit-hawk','beastmaster-phoenix-flight':'spirit-phoenix','beastmaster-worldtree-embrace':'grove','archmage-frost-nova':'blizzard','archmage-eruption':'meteor','chronomancer-rewind-wounds':'time'};

@@ -1,0 +1,145 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "assets": [
+    {
+      "id": "forest",
+      "file": "assets/battle-pixel/adventure/forest.png",
+      "sha256": "a77ddaeccb74eb9472b3b4550f0dc28b5af0c094a77c3d9cdb5b92887008a59f",
+      "sourceSha256": "dc84f6c67ab75bf3a79af2192740fa0828177559cf4b8139ea468882c50ab22f",
+      "width": 640,
+      "height": 360,
+      "columns": 1,
+      "rows": 1,
+      "prompt": "Use case: stylized-concept. Asset type: production background for a side-scrolling classroom adventure game. Generate one wide landscape 16:9 pixel-art environment: sunlit emerald forest, distant blue mountains, small mossy ruins, warm shafts of light, a level earthy trail across the lower quarter. Authentic polished 16-bit pixel art, crisp pixel clusters and deliberate stepped edges, rich atmospheric layers with distant scenery above and a wide unobstructed playable lane at the bottom. Camera strictly side-on, horizon across frame, terrain flat so separate existing student character sprites can walk over it. Environment only. No characters, no enemies, no chests, no text, no labels, no UI, no border, no watermark. Compose the left and right edges with similar height and palette for smooth repeated horizontal scrolling. Child-friendly fantasy adventure.",
+      "transparentBackground": false,
+      "nativePngUnchanged": false,
+      "visualReview": "passed",
+      "export": {
+        "kernel": "nearest",
+        "paletteColours": 128,
+        "transparentBackgroundPreserved": false,
+        "purpose": "Small pixel-art game asset; original generated source retained separately."
+      }
+    },
+    {
+      "id": "ruins",
+      "file": "assets/battle-pixel/adventure/ruins.png",
+      "sha256": "012d502cac243d771106346e7845d8adb6d8e8a5d215af9e6dc9b7c96069280e",
+      "sourceSha256": "a1407e790a91a9ddad60346ba86caed3231fb5fff9f45e4fc2ddb1d2d73cfc94",
+      "width": 640,
+      "height": 360,
+      "columns": 1,
+      "rows": 1,
+      "prompt": "Use case: stylized-concept. Asset type: production background for a side-scrolling classroom adventure game. Generate one wide landscape 16:9 pixel-art environment: moonlit floating stone ruins, teal crystals, distant castle silhouettes, purple twilight sky, a level ancient flagstone trail across the lower quarter. Authentic polished 16-bit pixel art, crisp pixel clusters and deliberate stepped edges, rich atmospheric layers with distant scenery above and a wide unobstructed playable lane at the bottom. Camera strictly side-on, horizon across frame, terrain flat so separate existing student character sprites can walk over it. Environment only. No characters, no enemies, no chests, no text, no labels, no UI, no border, no watermark. Compose the left and right edges with similar height and palette for smooth repeated horizontal scrolling. Child-friendly fantasy adventure.",
+      "transparentBackground": false,
+      "nativePngUnchanged": false,
+      "visualReview": "passed",
+      "export": {
+        "kernel": "nearest",
+        "paletteColours": 128,
+        "transparentBackgroundPreserved": false,
+        "purpose": "Small pixel-art game asset; original generated source retained separately."
+      }
+    },
+    {
+      "id": "cavern",
+      "file": "assets/battle-pixel/adventure/cavern.png",
+      "sha256": "e0e4b3bc312cf32320a56b20fceaa36c6bc052ae6edee680f6906302e6e6b639",
+      "sourceSha256": "2a9cff5b28ca2aa5669451f02107c32ffd7e46160f761abb292b89d96e372a80",
+      "width": 640,
+      "height": 360,
+      "columns": 1,
+      "rows": 1,
+      "prompt": "Use case: stylized-concept. Asset type: production background for a side-scrolling classroom adventure game. Generate one wide landscape 16:9 pixel-art environment: glowing underground crystal cavern, luminous cyan and violet crystals, distant subterranean lake, a level rocky trail across the lower quarter. Authentic polished 16-bit pixel art, crisp pixel clusters and deliberate stepped edges, rich atmospheric layers with distant scenery above and a wide unobstructed playable lane at the bottom. Camera strictly side-on, horizon across frame, terrain flat so separate existing student character sprites can walk over it. Environment only. No characters, no enemies, no chests, no text, no labels, no UI, no border, no watermark. Compose the left and right edges with similar height and palette for smooth repeated horizontal scrolling. Child-friendly fantasy adventure.",
+      "transparentBackground": false,
+      "nativePngUnchanged": false,
+      "visualReview": "passed",
+      "export": {
+        "kernel": "nearest",
+        "paletteColours": 128,
+        "transparentBackgroundPreserved": false,
+        "purpose": "Small pixel-art game asset; original generated source retained separately."
+      }
+    },
+    {
+      "id": "volcano",
+      "file": "assets/battle-pixel/adventure/volcano.png",
+      "sha256": "003d6d5431fe4945627b75a838accd5e620d524703a93744589d9dc2a3d88e61",
+      "sourceSha256": "befa4260acefc40d3173ab918f95565354099f69fca099f6df9ac94d2efb8680",
+      "width": 640,
+      "height": 360,
+      "columns": 1,
+      "rows": 1,
+      "prompt": "Use case: stylized-concept. Asset type: production background for a side-scrolling classroom adventure game. Generate one wide landscape 16:9 pixel-art environment: ember volcanic highlands, distant lava falls and basalt towers, amber dusk sky, a level dark basalt trail across the lower quarter. Authentic polished 16-bit pixel art, crisp pixel clusters and deliberate stepped edges, rich atmospheric layers with distant scenery above and a wide unobstructed playable lane at the bottom. Camera strictly side-on, horizon across frame, terrain flat so separate existing student character sprites can walk over it. Environment only. No characters, no enemies, no chests, no text, no labels, no UI, no border, no watermark. Compose the left and right edges with similar height and palette for smooth repeated horizontal scrolling. Child-friendly fantasy adventure.",
+      "transparentBackground": false,
+      "nativePngUnchanged": false,
+      "visualReview": "passed",
+      "export": {
+        "kernel": "nearest",
+        "paletteColours": 128,
+        "transparentBackgroundPreserved": false,
+        "purpose": "Small pixel-art game asset; original generated source retained separately."
+      }
+    },
+    {
+      "id": "walk-base",
+      "file": "assets/battle-pixel/adventure/walk-base.png",
+      "sha256": "043de97e7dd8caf20dba333ae2778b4aa03e972c7e9110a4f21e122f317eaa4c",
+      "sourceSha256": "ab289c7c8b75c53141c5a89167f0d156aa5a91b5c70e30b15fa25d47bbbc80b3",
+      "width": 384,
+      "height": 768,
+      "columns": 4,
+      "rows": 8,
+      "prompt": "Use case: stylized-concept. Production pixel-art walking sprite atlas for an adventure game, exactly FOUR columns and EIGHT rows in a regular grid, each cell identically sized. Transparent background throughout. The eight rows top to bottom are: 1: male warrior in orange steel armour; 2: female warrior in orange steel armour; 3: male ranger in green cloak and bow; 4: female ranger in green cloak and bow; 5: male mage in violet robes; 6: female mage in violet robes; 7: male cleric in ivory and gold robes; 8: female cleric in ivory and gold robes. Each row shows the same single cute small chibi fantasy hero in FOUR consecutive side-view WALKING frames facing RIGHT: left foot forward, feet passing, right foot forward, feet passing. Show actual walking legs and swinging arms, never attack poses. Consistent face, clothing, equipment and height across each row. Consistent polished 16-bit pixel-art style, crisp stepped outlines, visible boots. Keep every entire character well inside their own cell with generous transparent padding and each row's feet on the same baseline; no clipping, no overlap, no shadows outside cell, no grid lines, no labels, no text, no watermark. All 32 cells filled, four columns by eight rows, no extra rows or columns. Wide enough cells for the full walking stride.",
+      "transparentBackground": true,
+      "nativePngUnchanged": false,
+      "visualReview": "passed",
+      "export": {
+        "kernel": "nearest",
+        "paletteColours": 128,
+        "transparentBackgroundPreserved": true,
+        "purpose": "Small pixel-art game asset; original generated source retained separately."
+      }
+    },
+    {
+      "id": "walk-martial",
+      "file": "assets/battle-pixel/adventure/walk-martial.png",
+      "sha256": "ad82049850beb3cbd94aa97a11728900b1904ea9564c8e97f41f34ad89d9b09c",
+      "sourceSha256": "608f2936497eadab0b0d05ae3347d9221725a7e7ca367883d65a2569f55199fb",
+      "width": 512,
+      "height": 768,
+      "columns": 4,
+      "rows": 8,
+      "prompt": "Use case: stylized-concept. Production pixel-art walking sprite atlas for an adventure game, exactly FOUR columns and EIGHT rows in a regular grid, each cell identically sized. Transparent background throughout. The eight rows top to bottom are: 1: male paladin in golden armour; 2: female paladin in golden armour; 3: male berserker in crimson armour; 4: female berserker in crimson armour; 5: male sharpshooter in cyan woodland armour with bow; 6: female sharpshooter in cyan woodland armour with bow; 7: male beastmaster in emerald cloak with leaf details; 8: female beastmaster in emerald cloak with leaf details. Each row shows the same single cute small chibi fantasy hero in FOUR consecutive side-view WALKING frames facing RIGHT: left foot forward, feet passing, right foot forward, feet passing. Show actual walking legs and swinging arms, never attack poses. Consistent face, clothing, equipment and height across each row. Consistent polished 16-bit pixel-art style, crisp stepped outlines, visible boots. Keep every entire character well inside their own cell with generous transparent padding and each row's feet on the same baseline; no clipping, no overlap, no shadows outside cell, no grid lines, no labels, no text, no watermark. All 32 cells filled, four columns by eight rows, no extra rows or columns. Wide enough cells for the full walking stride.",
+      "transparentBackground": true,
+      "nativePngUnchanged": false,
+      "visualReview": "passed",
+      "export": {
+        "kernel": "nearest",
+        "paletteColours": 128,
+        "transparentBackgroundPreserved": true,
+        "purpose": "Small pixel-art game asset; original generated source retained separately."
+      }
+    },
+    {
+      "id": "walk-mystic",
+      "file": "assets/battle-pixel/adventure/walk-mystic.png",
+      "sha256": "44243daeffd395344d61c076bd1a19b75ed89508cb4157b126615909cbc5796f",
+      "sourceSha256": "c9119ad32411c5c30242350b6d0fb46973d2040ac14c49166d4ba69d3bd7838a",
+      "width": 384,
+      "height": 768,
+      "columns": 4,
+      "rows": 8,
+      "prompt": "Use case: stylized-concept. Production pixel-art walking sprite atlas for an adventure game, exactly FOUR columns and EIGHT rows in a regular grid, each cell identically sized. Transparent background throughout. The eight rows top to bottom are: 1: male archmage in purple robes and pointed hat; 2: female archmage in purple robes and pointed hat; 3: male chronomancer in turquoise robes; 4: female chronomancer in turquoise robes; 5: male hierophant in white and gold sacred robes; 6: female hierophant in white and gold sacred robes; 7: male oracle in lavender and pink star robes; 8: female oracle in lavender and pink star robes. Each row shows the same single cute small chibi fantasy hero in FOUR consecutive side-view WALKING frames facing RIGHT: left foot forward, feet passing, right foot forward, feet passing. Show actual walking legs and swinging arms, never attack poses. Consistent face, clothing, equipment and height across each row. Consistent polished 16-bit pixel-art style, crisp stepped outlines, visible boots. Keep every entire character well inside their own cell with generous transparent padding and each row's feet on the same baseline; no clipping, no overlap, no shadows outside cell, no grid lines, no labels, no text, no watermark. All 32 cells filled, four columns by eight rows, no extra rows or columns. Wide enough cells for the full walking stride.",
+      "transparentBackground": true,
+      "nativePngUnchanged": false,
+      "visualReview": "passed",
+      "export": {
+        "kernel": "nearest",
+        "paletteColours": 128,
+        "transparentBackgroundPreserved": true,
+        "purpose": "Small pixel-art game asset; original generated source retained separately."
+      }
+    }
+  ]
+}

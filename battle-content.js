@@ -336,6 +336,48 @@
     ['tidal-moon','Tidal Moon',0,0,'Passive: +30 healing and +55 maximum HP.',{passive:{healing:30,maxHp:55}},'✚'],
     ['full-moon-miracle','Full Moon Miracle',80,6,'Deal 380% damage, restore all allies to full HP, shield for 45% HP and restore 20 MP each.',{power:3.8,healAll:1,shield:.45,manaAll:20}]
   ]);
+  // New forks are additive: saved skills keep their IDs, costs and prerequisites.
+  // A physical, elemental or hybrid route is available to EVERY base class.
+  const SPECIALISATIONS = {
+    warrior:{physical:'Steel Discipline',elemental:'Runeblade',hybrid:'Battle Alchemy',element:'fire',names:['Sundering Edge','Steel Temper','Executioner','Worldsplitter','Ember Slash','Rune Attunement','Flameheart','Solar Rupture','Battle Catalyst','Runic Guard','Twin Discipline','Eclipse Breaker']},
+    ranger:{physical:'Huntmaster',elemental:'Storm Arrows',hybrid:'Wild Covenant',element:'lightning',names:['Marked Prey','Draw Strength','Perfect Aim','Horizon Breaker','Spark Arrow','Storm Attunement','Thunderheart','Tempest Rain','Pack Signal','Storm Shelter','Twin Discipline','Primal Tempest']},
+    mage:{physical:'Spellblade',elemental:'Elementalist',hybrid:'Prismatic Arts',element:'ice',names:['Force Blade','Blade Attunement','Gravity Edge','Rift Cleaver','Prismatic Bolt','Elemental Attunement','Winterheart','Prismatic Cataclysm','Resonance','Prism Shelter','Twin Discipline','Cosmic Convergence']},
+    cleric:{physical:'Judicator',elemental:'Hexweaver',hybrid:'Covenant',element:'holy',names:['Fracture Armour','Judicator Training','Crushing Verdict','Heavenly Hammer','Expose Elements','Hex Attunement','Radiant Heart','Daybreak Seal','Shared Weakness','Covenant Ward','Twin Discipline','Grand Absolution']}
+  };
+  function forkSkill(list, owner, branchName, suffix, name, tier, level, cost, requires, effect, description, mpCost=0, cooldown=0, damageType=null) {
+    list.push({id:owner+'-'+suffix,role:JOBS[owner]?.role || owner,...(JOBS[owner]?{job:owner}:{}),branch:branchName,
+      name,tier,level,cost,requires,mpCost,cooldown,description,damageType,passive:!!effect.passive,
+      effect:{...effect,type:effect.passive?'passive':'active'},icon:damageType==='physical'?'⚔':'✦',animation:owner+'-'+suffix});
+  }
+  Object.entries(SPECIALISATIONS).forEach(([role,design])=>{
+    const list=SKILLS[role], old=list.slice(), names=design.names, id=s=>role+'-'+s;
+    const add=(branch,suffix,index,tier,level,cost,requires,effect,description,mp=0,cd=0,type=null)=>forkSkill(list,role,branch,suffix,names[index],tier,level,cost,requires,effect,description,mp,cd,type);
+    const physicalDebuff={physical:{amount:.30,turns:4}}, elementalDebuff={elemental:{amount:.30,turns:4}};
+    add(design.physical,'physical-opening',0,3,3,2,[old[1].id],{power:1.6,...(role==='cleric'?{expose:physicalDebuff}:{})},role==='cleric'?'Deal 160% physical damage and lower enemy physical defence by 30% for the next 4 allied damaging actions.':'Deal 160% physical damage. Exploits physical defence breaks.',14,1,'physical');
+    add(design.physical,'physical-training',1,5,7,3,[id('physical-opening')],{passive:{physicalBonus:.18}},'Passive: +18% physical damage. Basic attacks become physical.');
+    add(design.physical,'physical-mastery',2,7,15,4,[id('physical-training'),old[3].id],{passive:{physicalBonus:.22,physicalPierce:.15}},'Passive: +22% physical damage and ignore 15% of physical defence.');
+    add(design.physical,'physical-apex',3,9,26,5,[id('physical-mastery'),old[5].id],{power:4.8,expose:{physical:{amount:.25,turns:4}}},'Deal 480% physical damage and lower physical defence by 25% for 4 allied damaging actions.',52,4,'physical');
+    add(design.elemental,'elemental-opening',4,3,3,2,[old[6].id],{power:1.6,...(role==='cleric'?{expose:elementalDebuff}:{})},role==='cleric'?'Deal 160% holy damage and lower ALL elemental defences by 30% for the next 4 allied damaging actions.':'Deal 160% '+design.element+' damage. Exploits elemental defence breaks.',16,1,design.element);
+    add(design.elemental,'elemental-training',5,5,7,3,[id('elemental-opening')],{passive:{elementalBonus:.18,attackElement:design.element}},'Passive: +18% elemental damage. Basic attacks become '+design.element+' unless physical training is stronger.');
+    add(design.elemental,'elemental-mastery',6,7,15,4,[id('elemental-training'),old[9].id],{passive:{elementalBonus:.22,elementalPierce:.15}},'Passive: +22% elemental damage and ignore 15% of elemental defence.');
+    add(design.elemental,'elemental-apex',7,9,26,5,[id('elemental-mastery'),old[11].id],{power:4.8,expose:{elemental:{amount:.25,turns:4}}},'Deal 480% '+design.element+' damage and lower elemental defences by 25% for 4 allied damaging actions.',56,4,design.element);
+    add(design.hybrid,'shared-weakness',8,4,5,2,[id('physical-opening'),id('elemental-opening')],{power:1,expose:{physical:{amount:.20,turns:4},elemental:{amount:.20,turns:4}}},'Deal 100% damage and lower physical AND elemental defences by 20% for 4 allied damaging actions. Teammates share the opening.',22,2,design.element);
+    add(design.hybrid,'covenant-ward',9,6,12,3,[id('shared-weakness'),old[12].id],{shield:.22,manaAll:10},'Shield every ally for 22% HP and restore 10 MP. A support action does not consume defence breaks.',30,3);
+    add(design.hybrid,'twin-discipline',10,8,22,4,[id('covenant-ward'),id('physical-training'),id('elemental-training')],{passive:{physicalBonus:.12,elementalBonus:.12,exposureBonus:.15}},'Passive: +12% physical and elemental damage; +15% damage against the matching defence break.');
+    add(design.hybrid,'convergence-apex',11,10,35,6,[id('twin-discipline'),id('physical-apex'),id('elemental-apex')],{power:5.8,healAll:.15,expose:{physical:{amount:.35,turns:5},elemental:{amount:.35,turns:5}}},'Deal 580% adaptive damage, heal the party for 15% HP and lower both defences by 35% for 5 allied damaging actions. Uses your strongest damage discipline.',72,5,'adaptive');
+  });
+  // Advanced jobs gain their own branching keystones. They require independent
+  // paths within that job rather than silently changing a saved legacy skill.
+  Object.entries(JOB_SKILLS).forEach(([job,list])=>{
+    const old=list.slice(), type=SPECIALISATIONS[JOBS[job].role].element, id=s=>job+'-'+s;
+    const add=(suffix,name,tier,level,cost,requires,effect,description,mp=0,cd=0,channel=null)=>forkSkill(list,job,'Ascendant Arts',suffix,name,tier,level,cost,requires,effect,description,mp,cd,channel);
+    add('steel-keystone','Steel Keystone',7,36,4,[old[3].id,old[7].id],{passive:{physicalBonus:.20,physicalPierce:.10}},'Passive: +20% physical damage and ignore 10% physical defence.');
+    add('elemental-keystone','Elemental Keystone',7,36,4,[old[9].id,old[13].id],{passive:{elementalBonus:.20,elementalPierce:.10,attackElement:type}},'Passive: +20% elemental damage and ignore 10% elemental defence.');
+    add('steel-ascension','Steel Ascension',8,40,5,[id('steel-keystone'),old[5].id],{power:5.2,expose:{physical:{amount:.35,turns:4}}},'Deal 520% physical damage and lower physical defence by 35% for 4 allied damaging actions.',65,4,'physical');
+    add('elemental-ascension','Elemental Ascension',8,40,5,[id('elemental-keystone'),old[11].id],{power:5.2,expose:{elemental:{amount:.35,turns:4}}},'Deal 520% '+type+' damage and lower elemental defences by 35% for 4 allied damaging actions.',68,4,type);
+    add('party-resonance','Party Resonance',9,45,5,[id('steel-keystone'),id('elemental-keystone'),old[17].id],{passive:{physicalBonus:.12,elementalBonus:.12,exposureBonus:.20}},'Passive: +12% to both damage disciplines; +20% damage against the matching defence break.');
+    add('worldweaver','Worldweaver',10,50,7,[id('steel-ascension'),id('elemental-ascension'),id('party-resonance')],{power:6.5,healAll:.2,shield:.2,expose:{physical:{amount:.40,turns:5},elemental:{amount:.40,turns:5}}},'Deal 650% adaptive damage, heal and shield the party for 20% HP and lower both defences by 40% for 5 allied damaging actions.',90,6,'adaptive');
+  });
   const RARITIES = {
     common:{name:'Common',color:'#c6d0dc',weight:45}, uncommon:{name:'Uncommon',color:'#85dfa1',weight:27},
     rare:{name:'Rare',color:'#83c7ff',weight:16}, epic:{name:'Epic',color:'#be9aff',weight:8},

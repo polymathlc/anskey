@@ -45,10 +45,10 @@ test('four independent classes have useful distinct baseline stats and one start
   const state=start('goblin',supplied);assert.equal(state.heroes[0].stats.damage,w.stats.damage);assert.equal(state.heroes[0].level,1);assert.equal(state.heroes[0].inventory.length,2);
 });
 
-test('72 skills form three six-tier branches per class and all loot rarities have effects',()=>{
+test('120 base skills preserve the original three six-tier branches and add three build paths',()=>{
   const ids=[];
-  for(const role of roles){const tree=C.SKILLS[role];assert.equal(tree.length,18);assert.equal(new Set(tree.map(s=>s.branch)).size,3);
-    for(const s of tree){ids.push(s.id);assert.equal(s.role,role);assert.ok(s.description);assert.ok(s.effect);assert.equal(s.level,[1,2,3,4,7,10][s.tier-1]);assert.equal(s.cost,[1,1,2,2,3,3][s.tier-1]);
+  for(const role of roles){const tree=C.SKILLS[role];assert.equal(tree.length,30);assert.equal(new Set(tree.map(s=>s.branch)).size,6);
+    for(const s of tree.slice(0,18)){ids.push(s.id);assert.equal(s.role,role);assert.ok(s.description);assert.ok(s.effect);assert.equal(s.level,[1,2,3,4,7,10][s.tier-1]);assert.equal(s.cost,[1,1,2,2,3,3][s.tier-1]);
       if(s.tier>1){assert.equal(s.requires.length,1);const parent=C.skillById(s.requires[0]);assert.equal(parent.branch,s.branch);assert.equal(parent.tier,s.tier-1);}
       assert.equal(s.effect.type,s.passive?'passive':'active');
     }
@@ -86,7 +86,7 @@ test('skill learning enforces prerequisites, levels, points, passive effects and
   assert.equal(C.canLearn(h,'warrior-earthshatter').ok,false);
   assert.throws(()=>apply(s,'sync',{command:'learn',heroId:h.id,skillId:'warrior-iron-will'}),/level 2/);
   h.xp=C.xpForLevel(4);h.level=4;h.skillPoints=8;
-  assert.throws(()=>apply(s,'sync',{command:'learn',heroId:h.id,skillId:'warrior-earthshatter'}),/preceding/);
+  assert.throws(()=>apply(s,'sync',{command:'learn',heroId:h.id,skillId:'warrior-earthshatter'}),/Requires Shield Wall/);
   s=apply(s,'sync',{command:'learn',heroId:h.id,skillId:'warrior-iron-will'});
   assert.equal(s.heroes[0].skillPoints,7);assert.equal(s.heroes[0].stats.defence,C.ROLES.warrior.defence+3+4);
   assert.throws(()=>answer(s,'warrior','correct',{command:'skill',skillId:'warrior-iron-will'}),/Learn/);

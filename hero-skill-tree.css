@@ -53,6 +53,13 @@
 .hst .hstNode-available .hstNodeMark { background:#7c5d27; border-color:#e2c28b; color:#fff0bd; }
 .hst .hstNode[aria-pressed="true"] .hstNodeFrame, .hst .hstNode:hover .hstNodeFrame { border-color:#fff3ca; box-shadow:0 0 0 3px #101319,0 0 0 5px #d6bb83,0 0 25px #efd6a544; }
 .hst .hstNode[aria-pressed="true"] .hstNodeName { color:#ffe6ac; }
+.hst .hstNode-required .hstNodeFrame { border-color:#8edcff; box-shadow:0 0 0 4px #284d65; }
+.hst .hstLink-required .hstLinkStroke { stroke:#a9e6ff; stroke-width:4; opacity:1; }
+.hst .hstBuild { display:flex; flex-wrap:wrap; gap:8px 16px; padding:14px 18px; border-bottom:1px solid #423c37; background:#17202b; font:11px/1.6 system-ui,sans-serif; color:#bfcddd; }
+.hst .hstBuild strong { color:#ffda94; letter-spacing:1px; }
+.hst .hstBuild p { flex-basis:100%; margin:0; color:#aeb8c5; }
+.hst .hstSynergy { padding:10px 12px; border-left:3px solid #8edcff; background:#172936; }
+.hst .hstDamageType { text-transform:capitalize; color:#a9e6ff; }
 .hst button:focus-visible, .hst .hstViewport:focus-visible { outline:3px solid #aadeff; outline-offset:5px; }
 .hst .hstNode:focus-visible { outline-offset:4px; }
 .hst .hstLegend { display:flex; gap:15px; flex-wrap:wrap; padding:12px 18px; border-top:1px solid #3b352e; border-bottom:1px solid #3b352e; color:#b4b8c2; background:#181b22; font:10px/1.5 ui-sans-serif,system-ui,sans-serif; }

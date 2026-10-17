@@ -2,6 +2,16 @@
 
 Guidance for Claude when working in this repo.
 
+## Pixel adventure and build synergies (v1.144.0)
+
+`battle-adventure.js/css` is presentation only. It reads saved `state.adventure` and `state.exposures`; scrolling, walking and pause controls never dispatch combat. The wheel and manual arena both render it. Keep the mission dock first in the wheel sidebar. `adventureFor` in the shared core deterministically records the next checkpoint and 74/18/6/2 enemy/event/chest/uber roll, never rerolling on render or reload. Old active encounters have no adventure modifier and retain their health.
+
+Roadside blessings resolve once on the first correct answer without points scaling. Rare chest bonuses are part of the existing immutable victory payout; never grant them from presentation. Uber empowerment is saved with the encounter and respects ordinary hit caps. Defence breaks apply after the casting hit, use the strongest amount/longest duration rather than additive stacking, and last for allied damaging actions only. Support, incorrect answers and boss turns preserve duration. Damage type and synergy source are recorded in the saved log. `buildFor` reads active-class/job passives only.
+
+The catalogue has 312 skills: 30 per base class and 24 per advanced job. The original first 18 nodes in each tree are unchanged. New convergence prerequisites form a DAG; ultimate builds fit within the level-50 SP budget. The graph measures its dimensions from actual branches and tiers and separates same-tier forks. Generated scenery and walking atlases use small pixel-preserving runtime exports; provenance retains original generation hashes and full prompts. Existing animation and boss PNGs remain unchanged.
+
+After core/content changes run `node tools/sync-hero-game.mjs`, syntax checks, all application/server tests and the wheel, manual, quick, student, tree, adventure, mission and animation browser checks. `tools/adventure-browser-check.mjs` covers scrolling, pause, rare discoveries, debuff source/duration, dependency highlighting, responsive layouts and reduced motion.
+
 ## ✏️ The model suite is polymathlc/model's drawing board (v1.141.0)
 
 - `model-studio.js` / `model-studio.css` are the drawing engine of `polymathlc/model` (Bar Model Studio), **for drawing only**: no scenario, question, model answer or AI marking came across, and `tools/model-studio-tests.mjs` fails if any does.

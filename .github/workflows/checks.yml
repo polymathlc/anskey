@@ -44,6 +44,7 @@ jobs:
           node tools/wheel-check.mjs
           node tools/classroom-battle-browser-check.mjs
           node tools/hero-skill-tree-browser-check.mjs
+          node tools/adventure-browser-check.mjs
           node tools/student-heroes-browser-check.mjs
           node tools/quick-wheel-browser-check.mjs
           node tools/lesson-guests-browser-check.mjs

@@ -1,0 +1,39 @@
+/* The adventure is scenery; canonical combat continues in the controls below. */
+.advScene { position:relative; isolation:isolate; min-height:246px; overflow:hidden; border:2px solid #56664b; border-radius:9px; background:#182c2a; color:#fff4d5; font-family:ui-monospace,monospace; }
+.advBackdrop { position:absolute; inset:0; z-index:-3; background-position:0 70%; background-size:auto 100%; background-repeat:repeat-x; image-rendering:pixelated; animation:advScroll 32s linear infinite; animation-play-state:paused; }
+.advMist { position:absolute; inset:0; z-index:-2; background:linear-gradient(#091527a6,transparent 36%,transparent 64%,#061320e8); pointer-events:none; }
+.advTrail { position:absolute; left:-100%; right:0; bottom:23%; height:10px; z-index:-1; opacity:.3; background:repeating-linear-gradient(90deg,transparent 0 35px,#ffde9b 36px 41px,transparent 42px 85px); animation:advTrack 2s linear infinite; animation-play-state:paused; }
+.advHeading { display:flex; align-items:center; gap:8px; padding:10px 12px; font-size:9px; text-shadow:1px 2px #07131f; }
+.advHeading > span { flex:1; letter-spacing:1px; }
+.advHeading > strong { font-size:9px; white-space:nowrap; }
+.advScene .advHeading button { flex:none; width:28px; height:28px; min-height:28px; padding:0; border:1px solid #b8c4ac; background:#0c202cda; border-radius:4px; color:#ffe2a0; cursor:pointer; }
+.advParty { display:flex; align-items:flex-end; gap:0; position:absolute; bottom:24%; left:3%; width:67%; max-width:620px; }
+.advTraveller { display:flex; flex-direction:column; align-items:center; width:clamp(30px,9%,64px); min-width:0; position:relative; }
+.advWalk { display:block; width:clamp(44px,7vw,76px); aspect-ratio:var(--adv-aspect,1); flex-shrink:0; background-repeat:no-repeat; background-size:400% 800%; background-position:0 var(--adv-row); image-rendering:pixelated; filter:drop-shadow(0 3px 1px #071124b3); animation:advWalkFrames .68s steps(1,end) infinite; animation-delay:calc(var(--adv-index)*-.11s); animation-play-state:paused; }
+.advName { display:block; position:absolute; bottom:100%; max-width:64px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#fff4d5; padding:2px 4px; background:#071725c9; font:bold 8px/1.3 ui-monospace,monospace; }
+.advRoadObject { position:absolute; right:5%; bottom:26%; width:70px; height:76px; display:grid; place-items:center; }
+.advRoadObject > .cbEnemySprite,.advRoadObject > img { width:80px; height:80px; object-fit:contain; image-rendering:pixelated; }
+.advRoadObject > .cbChest { transform:scale(.8); }
+.advShrine { display:grid; place-items:center; width:46px; height:65px; border:4px solid #71e6d5; color:#c9fff2; font-size:42px; background:#124d63; box-shadow:0 0 24px #5affd4aa,inset 0 0 10px #cbfff2; clip-path:polygon(50% 0,100% 25%,85% 100%,15% 100%,0 25%); }
+.advCaption { position:absolute; bottom:0; left:0; right:0; padding:10px 12px; background:#091624dc; border-top:1px solid #dcd9aa42; }
+.advCaption strong { font-size:11px; color:#ffe2a0; }
+.advCaption p { margin:5px 0 0; font:10px/1.45 system-ui,sans-serif; color:#d5e2de; }
+.advMore { position:absolute; left:8px; bottom:39%; font-size:8px; padding:3px 5px; background:#0c202cd9; }
+.advBreaks { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+.advBreak { padding:5px 8px; background:#28394b; border:1px solid #9ac6e5; border-radius:4px; color:#caebff; font:10px/1.4 system-ui,sans-serif; text-transform:capitalize; }
+.advBreak-physical { border-color:#e9b78e; color:#ffdcbb; }
+.advUber { border-color:#ef94d6; box-shadow:inset 0 0 30px #e645ba4d; }
+.advUber .advCaption strong { color:#ffade9; }
+.advTravelling .advBackdrop,.advTravelling .advWalk,.advTravelling .advTrail { animation-play-state:running; }
+.advTravelling .advRoadObject { animation:advApproach 3.5s steps(20,end) infinite; }
+.advPaused *, .advPaused .advBackdrop, .advPaused .advWalk, .advPaused .advTrail { animation-play-state:paused!important; }
+.advScene button:focus-visible { outline:3px solid #c2e9ff; outline-offset:2px; }
+#wheelAdventure { margin:10px 0; }
+#cbAdventure { margin:10px 0 18px; }
+#cbAdventure .advScene { min-height:280px; }
+@keyframes advScroll { from { background-position:0 70%; } to { background-position:-960px 70%; } }
+@keyframes advTrack { to { transform:translateX(-85px); } }
+@keyframes advWalkFrames { 0%,100% { background-position:0 var(--adv-row); } 25% { background-position:33.333333% var(--adv-row); } 50% { background-position:66.666667% var(--adv-row); } 75% { background-position:100% var(--adv-row); } }
+@keyframes advApproach { 0% { transform:translateX(120px); opacity:0; } 30% { opacity:1; } 80%,100% { transform:translateX(0); opacity:1; } }
+@media(max-width:500px) { .advScene { min-height:232px; } .advHeading { padding:8px; font-size:8px; gap:5px; } .advHeading > span { letter-spacing:0; } .advCaption { padding:8px; } .advCaption strong { font-size:10px; } .advParty { width:68%; } .advWalk { width:46px; } }
+@media(prefers-reduced-motion:reduce) { .advScene *, .advTravelling .advBackdrop,.advTravelling .advWalk,.advTravelling .advTrail { animation:none!important; } .advRoadObject { transform:none!important; opacity:1!important; } }

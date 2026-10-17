@@ -24,6 +24,7 @@
     if (el('wheelQuickFight')) return;
     var box = document.createElement('section'); box.id = 'wheelQuickFight'; box.className = 'cbQuick';
     box.innerHTML = '<label class="cbQuickToggle"><input id="wheelQuickToggle" type="checkbox"><span>Quick fight<small>Spin → award points → fight · +1 point = 1× power</small></span></label><div id="wheelQuickDuel" class="cbQuickDuel" aria-label="Quick fight duel"></div><p id="wheelQuickStatus" class="cbQuickStatus" role="status" aria-live="polite"></p><div id="wheelQuickAssist"></div><div id="wheelQuickLog"></div><button id="wheelQuickRetry" type="button" class="rwAmount" hidden></button>';
+    box.querySelector('.cbQuickToggle').insertAdjacentHTML('afterend','<div id="wheelAdventure"></div>');
     var side = el('wheelSide');
     if (side) side.appendChild(box); else document.querySelector('#wheelModal .whSpinRow').insertAdjacentElement('afterend', box);
     var mission = document.createElement('section'); mission.id='wheelMissionDock'; mission.className='whMissionDock';
@@ -146,6 +147,10 @@
     if (window.wheelRestoreSelection) wheelRestoreSelection();
   }
   function render(force) {
+    if(el('wheelAdventure')) {
+      el('wheelAdventure').hidden=!q.on;
+      if(q.on&&window.ClassroomAdventure)ClassroomAdventure.render(el('wheelAdventure'),shown(),shown()?shown().heroes:roster(),{travelling:!!window.wheelSpinning,compact:true});
+    }
     if (!el('wheelQuickFight')) return;
     restoreSelection();
     el('wheelQuickFight').hidden = manual() || !visible();
@@ -172,7 +177,7 @@
       var teammates = heroes.filter(function (hero) { return hero.id !== h.id && affected.has(hero.id); });
       if (teammates.length) el('wheelQuickDuel').innerHTML += '<div class="cbaParty" aria-label="Teammates affected by this turn">' + teammates.map(function (hero) { return '<div class="cbaRecipient" data-cba-hero-id="' + esc(hero.id) + '">' + avatar(hero, true) + '<strong>' + esc(hero.name) + '</strong></div>'; }).join('') + '</div>';
     }
-    if (s && s.status === 'victory' && q.on) el('wheelQuickDuel').innerHTML += '<div class="cbQuickTreasure"><span class="cbChest" aria-label="Opening treasure chest" role="img"></span><div class="cbQuickSpoils"><h4>Treasure for all ' + s.rewards.length + ' heroes</h4>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.treasure(s) : '') + '</div></div>';
+    if (s && s.status === 'victory' && q.on) el('wheelQuickDuel').innerHTML += '<div class="cbQuickTreasure"><span class="cbChest" aria-label="Opening treasure chest" role="img"></span><div class="cbQuickSpoils"><h4>Treasure for all ' + s.heroes.length + ' heroes</h4>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.treasure(s) : '') + '</div></div>';
     if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(el('wheelQuickDuel'));
     el('wheelQuickStatus').textContent = !q.on ? 'Name wheel only. Turn on Quick fight to battle when points are awarded.' : q.error || (!q.cls ? 'Choose a Lesson slot to enable battles for points.' : q.loading ? 'Loading the saved encounter…' : q.busy ? 'Saving answer…' : window.wheelSpinning ? 'Choosing your champion…' : summary(s));
     if (q.on && window.ClassroomBattleDisplay && !q.error) el('wheelQuickStatus').textContent += ' · ' + ClassroomBattleDisplay.rotation(s);

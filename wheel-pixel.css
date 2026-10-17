@@ -5,6 +5,7 @@
 #wheelHead .modalClose { color:#dbe4ff; border-radius:2px; }
 #wheelCard .whBody { display:grid; grid-template-columns:minmax(240px,.7fr) minmax(0,1.6fr); grid-auto-rows:max-content; align-content:start; align-items:start; gap:20px; padding:18px 20px 26px; min-height:0; overflow:auto; background:radial-gradient(ellipse at 25% 30%,#233356 0,transparent 65%),#10192e; }
 .whMain,.whSide { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.whSide .whMissionDock { order:-1; }
 .whLesson { display:grid; gap:6px; }
 .whLesson>label { color:#b4c8ed; font:700 10px/1.4 ui-monospace,monospace; letter-spacing:.13em; text-transform:uppercase; }
 #wheelCard .whSelect,#wheelCard .whAddRow input { border:2px solid #6578a0; border-radius:2px; background:#17233d; color:#f0f3ff; min-width:0; }
