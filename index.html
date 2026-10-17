@@ -5628,7 +5628,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.147.0';
+var APP_VERSION = 'v1.147.1';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -10476,7 +10476,7 @@ var LessonMp4Finalize = (function () {
           hasEdts: !!dig(buf, box, ['edts']),
           dur: [], size: [], cts: [], sync: [], runs: [], offsets: [],
           nonSync: false, hasCts: false, start: 0, seenStart: false,
-          total: 0, mediaDur: 0, movieDur: 0, gap: 0, edts: null
+          total: 0, mediaDur: 0, movieDur: 0, gap: 0, edts: null, decoded: 0
         };
         if (!track.scale) fail('a track with no timescale');
         info.tracks[id] = track; info.byAt[box.start] = track; info.order.push(track);
@@ -10485,6 +10485,29 @@ var LessonMp4Finalize = (function () {
     if (!info.movieScale) fail('a movie with no timescale');
     if (info.hasSamples) info.fragmented = false;
     return info;
+  }
+
+  /* ---- 🎚 every fragment's own clock (v1.147.1) ----
+     Each `moof` says, in its `tfdt`, the decode time its first sample REALLY
+     has. The recorder's sample durations do not add up to it: Chrome gives
+     the last sample of a fragment a length a little short of where the next
+     fragment starts (an audio track ~20–30 ms short, every fragment), and a
+     track that stalled (a busy laptop, a lost audio buffer) jumps forward.
+     A flat `stts` built from the durations alone closed every one of those
+     gaps, so each track lost time at its own rate and the sound ran further
+     and further AHEAD of the picture — seconds into a lesson, a quarter of a
+     minute after a few hours. The gap is given back to the sample before it,
+     which is exactly where the fragmented file had it. A fragment that starts
+     EARLY shortens that sample (never below one tick); what it could not
+     take shows up as a smaller gap at the next fragment, which is measured
+     against the clock as it now stands, so it is never paid twice. */
+  function lessonMp4Resync(track, when) {
+    var delta = when - (track.start + track.decoded);
+    if (!delta) return;
+    var last = track.dur.length - 1, next = track.dur[last] + delta;
+    if (next < 1) next = 1;
+    track.decoded += next - track.dur[last];
+    track.dur[last] = next;
   }
 
   /* ---- one `moof`: where each sample really is ---- */
@@ -10534,9 +10557,10 @@ var LessonMp4Finalize = (function () {
         state.next = cursor;
         return;
       }
-      if (decode && !track.seenStart) {
-        track.start = buf[decode.body] ? v.getUint32(decode.body + 4) * TWO32 + v.getUint32(decode.body + 8) : v.getUint32(decode.body + 4);
-        track.seenStart = true;
+      if (decode) {
+        var when = buf[decode.body] ? v.getUint32(decode.body + 4) * TWO32 + v.getUint32(decode.body + 8) : v.getUint32(decode.body + 4);
+        if (!track.seenStart) { track.start = when; track.seenStart = true; }
+        else if (track.dur.length) lessonMp4Resync(track, when);
       }
       trun.forEach(function (box) {
         if (state.truncated) return;
@@ -10556,6 +10580,7 @@ var LessonMp4Finalize = (function () {
           if (start + bytes + size > fileSize) { state.truncated = true; break; }
           var sync = !(sflags & NON_SYNC);
           track.dur.push(dur); track.size.push(size); track.cts.push(cts); track.sync.push(sync);
+          track.decoded += dur;
           if (!sync) track.nonSync = true;
           if (cts) track.hasCts = true;
           bytes += size; taken++;
