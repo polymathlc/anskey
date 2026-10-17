@@ -401,6 +401,7 @@ try {
   await page.fill('#cwPoints','7');
   for (const value of ['', '0', '-1', '1.5', '10001']) {
     await page.fill('#cwPoints',value); await page.press('#cwPoints','Enter');
+    await page.evaluate(() => QuickBattle.render());
     check('invalid compact amount '+JSON.stringify(value)+' cannot award points', await page.evaluate(() => document.getElementById('cwGive').disabled && __awardCalls.length===0 && localStorage.getItem('polymath.wheelCompactPoints.v1')==='7'));
   }
   await page.fill('#cwPoints','7');

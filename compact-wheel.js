@@ -61,7 +61,12 @@
     el('cwSpin').addEventListener('click',function(){if(!el('wheelSpinBtn').disabled)root.wheelSpin();});
     if(root.MutationObserver)new root.MutationObserver(syncButton).observe(el('wheelSpinBtn'),{attributes:true,attributeFilter:['disabled']});
   }
-  function syncButton(){if(mounted)el('cwSpin').disabled=el('wheelSpinBtn').disabled||!root.wheelTeacher();}
+  function syncButton(){
+    if(!mounted)return;
+    var teacher=root.wheelTeacher();el('cwSpin').disabled=el('wheelSpinBtn').disabled||!teacher;
+    var input=el('cwPoints'),button=el('cwGive');
+    if(input&&button)button.disabled=input.disabled||!teacher||pointAmount(input.value)===null;
+  }
   function paintFaces(faces){var strip=el('cwStrip');strip.replaceChildren();faces.forEach(function(name){var face=root.document.createElement('strong');face.className='cwFace';face.textContent=name;strip.appendChild(face);});}
   function frame(k){progress=k;if(!mounted||!root.wheelMin||!root.wheelSpinning||!plan)return;if(root.matchMedia('(prefers-reduced-motion: reduce)').matches)k=1;el('cwStrip').style.transform='translateY('+offset(k,plan.target)+'px)';}
   function refresh(){
