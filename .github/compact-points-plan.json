@@ -1,0 +1,37 @@
+[
+  {
+    "path": "index.html",
+    "changes": [
+      [
+        "var APP_VERSION = 'v1.146.0';",
+        "var APP_VERSION = 'v1.146.1';"
+      ],
+      [
+        "  var busy = !!rwAwarding[student.id] || !!(window.QuickBattle && QuickBattle.blocksAward()) || !!(window.wheelGuestsBusy && wheelGuestsBusy());\n  WHEEL_AMOUNTS.forEach",
+        "  var busy = !!rwAwarding[student.id] || !!(window.QuickBattle && QuickBattle.blocksAward()) || !!(window.wheelGuestsBusy && wheelGuestsBusy());\n  if (wheelMin && window.CompactWheel) {\n    CompactWheel.renderAward(award, student, busy);\n    return;\n  }\n  WHEEL_AMOUNTS.forEach"
+      ],
+      [
+        "  applyWheelWin();\n  wheelRenderTitle();\n  if (window.CompactWheel) CompactWheel.refresh();\n}",
+        "  applyWheelWin();\n  wheelRenderResult();\n  wheelRenderTitle();\n  if (window.CompactWheel) CompactWheel.refresh();\n}"
+      ]
+    ]
+  },
+  {
+    "path": "README.md",
+    "changes": [
+      [
+        "## v1.146.0 — A movable mini wheel with name slots",
+        "## v1.146.1 — Remembered points in the mini wheel\n\n- The minimised wheel now has one small **Points** field and a **+** button. Enter an amount and tap **+** (or press Enter) to give it to the selected student.\n- The amount stays filled in after awards, turns, restoring the full wheel, closing and reloading. It is remembered on this device. Whole numbers from 1 to 10,000 are supported.\n- Points use the existing reward and Quick fight service, including safe retries. The full wheel retains its preset and custom controls.\n\n## v1.146.0 — A movable mini wheel with name slots"
+      ]
+    ]
+  },
+  {
+    "path": "CLAUDE.md",
+    "changes": [
+      [
+        "## 📸 Snip and pin (v1.145.0)",
+        "Compact points (v1.146.1): `CompactWheel.renderAward` builds one amount input and a + button inside the existing `#wheelAward`. It delegates to `wheelGive`, preserving its role, selection, busy and receipt checks. Valid whole-number amounts (1–10,000) persist in `polymath.wheelCompactPoints.v1`; an invalid draft never replaces the last saved amount. `setWheelMin` rerenders result controls on mode changes so the full wheel retains its presets/custom input. The Quick fight browser check uses an HTTP origin for reliable reload persistence and covers input validation, Enter, double clicks, retries and ordinary rewards.\n\n## 📸 Snip and pin (v1.145.0)"
+      ]
+    ]
+  }
+]

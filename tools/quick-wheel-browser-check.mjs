@@ -2,6 +2,7 @@
 // Firebase is a persistent local transaction fixture; credentials are never required.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -23,7 +24,19 @@ await page.addInitScript(() => {
     return animate.call(this, frames, options);
   };
 });
-const file = pathToFileURL(path.resolve('index.html')).href;
+// A stable web origin makes remembered preferences and reloads match production.
+const root = path.resolve('.');
+const types = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml','.json':'application/json'};
+const server = http.createServer((req,res) => {
+  try {
+    const file = path.resolve(root, '.' + decodeURIComponent(new URL(req.url,'http://localhost').pathname));
+    if (!file.startsWith(root + path.sep)) { res.writeHead(403); res.end(); return; }
+    const data = fs.readFileSync(file);
+    res.writeHead(200, {'Content-Type':types[path.extname(file)] || 'application/octet-stream'}); res.end(data);
+  } catch (_) { if (!res.headersSent) res.writeHead(404); res.end(); }
+});
+await new Promise(resolve => server.listen(0,'127.0.0.1',resolve)); server.unref();
+const file = 'http://127.0.0.1:' + server.address().port + '/index.html';
 const output = path.resolve(process.env.BATTLE_SCREENSHOTS || '../battle-validation');
 fs.mkdirSync(output, { recursive: true });
 let checks = 0;
@@ -384,22 +397,39 @@ try {
   await page.waitForFunction(() => !wheelSpinning && !document.getElementById('cwSpin').disabled);
   check('the reel settles on the canonical selected name and shows that hero and the previewed boss', await page.evaluate(old => document.querySelector('.cwFace').textContent === old.name && document.querySelector('#cwBattle .cbQuickHero strong').textContent === old.name && !!document.querySelector('#cwBattle .cbQuickEnemy [data-boss-id], #cwBattle .cbQuickEnemy[data-boss-id]') && wheelState.lastSpinId === old.id, rolling));
   await page.emulateMedia({reducedMotion:'reduce'});
+  check('compact points use just one small field and one + button, starting at 1', await page.evaluate(() => document.querySelectorAll('#cwAwards input').length===1 && document.querySelectorAll('#cwAwards button').length===1 && document.getElementById('cwGive').textContent==='+' && document.getElementById('cwPoints').value==='1'));
+  await page.fill('#cwPoints','7');
+  for (const value of ['', '0', '-1', '1.5', '10001']) {
+    await page.fill('#cwPoints',value); await page.press('#cwPoints','Enter');
+    check('invalid compact amount '+JSON.stringify(value)+' cannot award points', await page.evaluate(() => document.getElementById('cwGive').disabled && __awardCalls.length===0 && localStorage.getItem('polymath.wheelCompactPoints.v1')==='7'));
+  }
+  await page.fill('#cwPoints','7');
   await page.screenshot({ path:path.join(output,'compact-wheel-desktop.png'), fullPage:true });
-  await page.click('#cwAwards button:nth-child(2)');
+  if(process.env.COMPACT_PREVIEW)console.log('COMPACT_PREVIEW_PNG '+(await page.locator('#wheelCard').screenshot()).toString('base64'));
+  await page.evaluate(() => { const button=document.getElementById('cwGive'); button.click(); button.click(); });
   await page.waitForFunction(() => __awardCalls.length === 1 && !document.getElementById('cwSpin').disabled);
-  check('compact point buttons use one canonical award and immediately update live HP/MP', await page.evaluate(() => __awardCalls[0].delta === 2 && wheelGiven === 2 && __battleState().actionCount === 1 && document.querySelector('#cwBattle .cbQuickEnemy [aria-label$="HP"]').getAttribute('aria-valuenow') === String(__battleState().bossHp)));
+  check('compact + sends the entered amount once and immediately updates live HP/MP', await page.evaluate(() => __awardCalls[0].delta === 7 && wheelGiven === 7 && __battleState().actionCount === 1 && document.getElementById('cwPoints').value==='7' && document.querySelector('#cwBattle .cbQuickEnemy [aria-label$="HP"]').getAttribute('aria-valuenow') === String(__battleState().bossHp)));
   await page.click('#cwSpin');
   const reducedReel = await page.locator('#cwStrip').getAttribute('style');
   await page.waitForTimeout(100);
   check('reduced-motion mode holds the final name still while the saved turn settles', await page.locator('#cwStrip').getAttribute('style') === reducedReel);
   await page.waitForFunction(() => !wheelSpinning && !document.getElementById('cwSpin').disabled);
   check('compact turns preserve the no-repeat round', await page.evaluate(old => wheelState.last.n !== old.name && wheelState.names.filter(n=>n.done).length === 2, rolling));
+  check('turning to another student retains the entered amount', await page.inputValue('#cwPoints')==='7');
   const beforeMiniRetry = await page.evaluate(() => { __loseAwardReply = true; return {rev:__battleState().revision,marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks}; });
-  await page.click('#cwAwards button:nth-child(1)');
+  await page.click('#cwGive');
   await page.waitForFunction(() => !document.getElementById('wheelQuickRetry').hidden && !document.getElementById('wheelQuickRetry').disabled);
-  check('a compact award with a lost reply displays the existing retry and blocks another turn', await page.evaluate(() => document.getElementById('wheelQuickRetry').parentNode.id === 'cwFeedback' && document.getElementById('cwSpin').disabled));
+  check('a compact award with a lost reply displays the existing retry and blocks another turn', await page.evaluate(() => document.getElementById('wheelQuickRetry').parentNode.id === 'cwFeedback' && document.getElementById('cwSpin').disabled && document.getElementById('cwPoints').disabled && document.getElementById('cwGive').disabled));
   await page.click('#wheelQuickRetry'); await page.waitForFunction(() => !document.getElementById('cwSpin').disabled);
-  check('compact retry confirms the same receipt without duplicate points or damage', await page.evaluate(old => __battleState().revision === old.rev + 1 && wheelStudent(wheelState.names[wheelWinnerIdx]).marks === old.marks + 1 && __awardCalls.at(-1).action.id === __awardCalls.at(-2).action.id, beforeMiniRetry));
+  check('compact retry confirms the same receipt without duplicate points or damage', await page.evaluate(old => __battleState().revision === old.rev + 1 && wheelStudent(wheelState.names[wheelWinnerIdx]).marks === old.marks + 7 && __awardCalls.at(-1).action.id === __awardCalls.at(-2).action.id, beforeMiniRetry));
+  const beforeEnter = await page.evaluate(() => ({calls:__awardCalls.length,marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks}));
+  await page.fill('#cwPoints','5'); await page.press('#cwPoints','Enter');
+  await page.waitForFunction(old => __awardCalls.length===old.calls+1 && !document.getElementById('cwSpin').disabled,beforeEnter);
+  check('Enter gives the entered amount through the same canonical award',await page.evaluate(old => __awardCalls.at(-1).delta===5 && wheelStudent(wheelState.names[wheelWinnerIdx]).marks===old.marks+5,beforeEnter));
+  await setup(); await page.click('#wheelMinBtn');
+  await page.waitForSelector('#cwPoints');
+  check('reload remembers the amount without awarding anything automatically',await page.evaluate(() => document.getElementById('cwPoints').value==='5' && __awardCalls.length===0));
+  await page.evaluate(() => {window.__originalDuel=document.getElementById('wheelQuickDuel');window.__originalAward=document.getElementById('wheelAward');});
   for (const width of [390,320]) {
     await page.setViewportSize({width,height:700});
     await page.waitForFunction(() => document.getElementById('wheelCard').getBoundingClientRect().right <= innerWidth);
@@ -413,8 +443,9 @@ try {
   }
   await page.setViewportSize({width:1440,height:1000});
   await page.click('#wheelMinBtn');
-  check('restoring returns the full window geometry and original award controls', await page.evaluate(full => JSON.stringify(wheelWin) === JSON.stringify(full) && document.getElementById('wheelAward').parentNode.id === 'wheelResult' && document.getElementById('wheelQuickDuel') === __originalDuel, fullBox));
+  check('restoring returns the full window geometry and original award controls', await page.evaluate(full => JSON.stringify(wheelWin) === JSON.stringify(full) && document.getElementById('wheelAward').parentNode.id === 'wheelResult' && document.getElementById('wheelQuickDuel') === __originalDuel && document.getElementById('wheelAward')===__originalAward && document.querySelectorAll('#wheelAward button').length===5 && [...document.querySelectorAll('#wheelAward button')].at(-1).textContent==='Give', fullBox));
   await page.click('#wheelMinBtn');
+  check('restoring and minimising again retains the compact amount',await page.inputValue('#cwPoints')==='5');
   await page.evaluate(() => ClassroomBattle.open());
   check('manual Battle restores the full wheel and its original nodes before mounting', await page.evaluate(() => ClassroomBattle.isOpen() && !wheelMin && document.getElementById('wheelCompact').hidden && document.getElementById('wheelQuickDuel').parentNode.id === 'wheelQuickFight'));
   await page.evaluate(() => ClassroomBattle.close());
@@ -422,10 +453,14 @@ try {
   await page.click('#wheelQuickToggle'); await page.click('#wheelMinBtn');
   await page.click('#cwSpin'); await page.waitForFunction(() => !wheelSpinning);
   check('with Quick fight off the compact reel still selects names and explains the empty battle panel', await page.evaluate(() => !document.getElementById('cwBattleEmpty').hidden && document.getElementById('cwBattleEmpty').textContent.includes('Quick fight is off') && document.querySelector('.cwFace').textContent === wheelState.last.n));
+  await page.evaluate(() => { window.__ordinaryAwards=[];window.__ordinaryAward=rwAwardMarks;rwAwardMarks=async(student,points)=>{student.marks+=points;__ordinaryAwards.push(points);}; });
+  await page.click('#cwGive');await page.waitForFunction(() => __ordinaryAwards.length===1);
+  check('the remembered + amount also reaches ordinary rewards when Quick fight is off',await page.evaluate(() => __ordinaryAwards[0]===5 && document.getElementById('cwPoints').value==='5' && wheelGiven===5));
+  await page.evaluate(() => {rwAwardMarks=__ordinaryAward;});
   await page.click('#cwSpin');
   const interruptedPick = await page.evaluate(() => wheelState.lastSpinId);
   await page.click('#wheelCloseBtn');
   check('closing mid-turn stops the reel and returns moved controls while preserving the persisted pick', await page.evaluate(id => !wheelIsOpen() && !wheelSpinning && wheelState.lastSpinId === id && document.getElementById('wheelAward').parentNode.id === 'wheelResult' && document.getElementById('wheelQuickDuel').parentNode.id === 'wheelQuickFight', interruptedPick));
   check('quick wheel raises no application exceptions',errors.length===0);
   console.log('\n'+checks+' quick wheel browser checks passed. Screenshots: '+output);
-} finally { await browser.close(); }
+} finally { await browser.close(); server.close(); }
