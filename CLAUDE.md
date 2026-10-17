@@ -18,6 +18,8 @@ After core/content changes run `node tools/sync-hero-game.mjs`, syntax checks, a
 
 `wheelCompactWin` / `polymath.wheelCompactWin.v1` store the compact box independently of the full `wheelWin`. Clamp the whole rectangle inside the viewport; manual Battle restores the full wheel before mounting it. Generic minimised-window rules still hide `.whBody`. Browser coverage is in the existing wheel and Quick fight checks; reel math is in `tools/compact-wheel-tests.mjs`.
 
+Compact points (v1.146.1): `CompactWheel.renderAward` builds one amount input and a + button inside the existing `#wheelAward`. It delegates to `wheelGive`, preserving its role, selection, busy and receipt checks. Valid whole-number amounts (1–10,000) persist in `polymath.wheelCompactPoints.v1`; an invalid draft never replaces the last saved amount. `setWheelMin` rerenders result controls on mode changes so the full wheel retains its presets/custom input. The Quick fight browser check uses an HTTP origin for reliable reload persistence and covers input validation, Enter, double clicks, retries and ordinary rewards.
+
 ## 📸 Snip and pin (v1.145.0)
 
 - Search `📸 Snip and pin (v1.145.0)` (CSS and the JS section before `Toolbar tooltips`). `#snipBtn` (Shift+A, in `TEACHER_TOOLBAR_IDS`), `#snipLayer` (the drag layer over `#viewerArea`) and `#snipPins` (fixed, z 94: under real modals and float windows). Pure helpers sit between `📸 Snip pure (start)` / `(end)` and are cut out by `tools/snip-pin-tests.mjs`.
