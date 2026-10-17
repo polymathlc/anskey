@@ -48,6 +48,47 @@
     hash = Math.imul(hash,0x846ca68b); hash ^= hash >>> 16;
     return (hash >>> 0) / 4294967296;
   }
+  const ADVENTURE_RATES={uber:.02,chest:.06,event:.18,enemy:.74};
+  const ADVENTURE_BIOMES=['forest','ruins','cavern','volcano'];
+  function adventureFor(previous,seed) {
+    const step=int((previous?.adventure?.step || 0)+1,1,1000000), roll=randomUnit(seed+':road');
+    const kind=roll<.02?'uber':roll<.08?'chest':roll<.26?'event':'enemy';
+    const events=['guardian-shrine','mana-spring','travelling-smith'];
+    return {version:1,step,biome:ADVENTURE_BIOMES[Math.floor((step-1)/4)%4],kind,
+      eventId:kind==='event'?events[Math.floor(randomUnit(seed+':event')*events.length)]:null,resolved:false};
+  }
+  // Presentation reads this same build profile; it never invents a combat bonus.
+  function buildFor(hero) {
+    const result={physicalBonus:0,elementalBonus:0,physicalPierce:0,elementalPierce:0,exposureBonus:0,element:null};
+    (hero.learnedSkills || []).map(skillById).filter(s=>activeSkill(hero,s) && s.passive).forEach(s=>{
+      const p=s.effect.passive;
+      Object.keys(result).filter(k=>k!=='element').forEach(k=>{if(Number.isFinite(p[k]))result[k]+=p[k];});
+      if (p.attackElement) result.element=p.attackElement;
+    });
+    result.basicType=result.element && result.elementalBonus>result.physicalBonus ? result.element :
+      result.physicalBonus>0 ? 'physical' : result.element || (hero.role==='mage'?'arcane':hero.role==='cleric'?'holy':'physical');
+    return result;
+  }
+  function damageTypeFor(hero,skill) {
+    const build=buildFor(hero);
+    if (!skill) return build.basicType;
+    if (skill.damageType==='adaptive') return build.elementalBonus>build.physicalBonus ? build.element || 'arcane' : 'physical';
+    if (skill.damageType) return skill.damageType;
+    const name=skill.id+' '+skill.branch;
+    if (/fire|flame|magma|volcan|ember|inferno|pyro|solar/i.test(name)) return 'fire';
+    if (/ice|frost|winter|glaci|zero/i.test(name)) return 'ice';
+    if (/thunder|lightning|storm|tempest/i.test(name)) return 'lightning';
+    return hero.role==='mage'?'arcane':hero.role==='cleric'?'holy':'physical';
+  }
+  function adventureDiscovery(state,hero,event) {
+    const road=state.adventure;
+    if (!road || road.resolved) return;
+    road.resolved=true;
+    if (road.kind!=='event') return;
+    const effects={'guardian-shrine':{shield:.15},'mana-spring':{manaAll:18},'travelling-smith':{expose:{physical:{amount:.15,turns:4},elemental:{amount:.15,turns:4}}}};
+    support(state,hero,effects[road.eventId] || effects['guardian-shrine'],event,hero);
+    event.discovery=road.eventId;
+  }
   function bossRotationFor(previous) {
     const playable=new Set(BOSSES.filter(b=>!b.legacy).map(b=>b.id)),saved=previous?.bossRotation;
     const rotation={version:1,round:int(saved?.round || 1,1,1000000),seen:[...new Set((Array.isArray(saved?.seen)?saved.seen:[]).filter(id=>playable.has(id)))]};
@@ -78,10 +119,10 @@
   function enemyScale(state) {
     const scaled=!!state && state.enemyScalingVersion>=ENEMY_SCALING_VERSION,level=scaled?int(state.enemyLevel || 1,1,50):1;
     return {scaled,level,
-      hp:1+ENEMY_SCALING.hpPerLevel*(level-1),
-      attack:1+ENEMY_SCALING.attackPerLevel*(level-1),
+      hp:(1+ENEMY_SCALING.hpPerLevel*(level-1))*(state?.adventure?.kind==='uber'?1.8:1),
+      attack:(1+ENEMY_SCALING.attackPerLevel*(level-1))*(state?.adventure?.kind==='uber'?1.25:1),
       armour:scaled?Math.min(ENEMY_SCALING.armourMax,ENEMY_SCALING.armourPerLevel*(level-1)):0,
-      xp:1+ENEMY_SCALING.xpPerLevel*(level-1),
+      xp:(1+ENEMY_SCALING.xpPerLevel*(level-1))*(state?.adventure?.kind==='uber'?1.6:1),
       hitCap:scaled?Math.max(1,Math.round((state.bossMaxHp || 1)*ENEMY_SCALING.hitShare)):Infinity,
       poisonCap:scaled?Math.max(1,Math.round((state.bossMaxHp || 1)*ENEMY_SCALING.poisonShare)):Infinity};
   }
@@ -272,7 +313,8 @@
     if (!skill || skill.role!==hero.role || (skill.job && activeJob(hero)?.id!==skill.job)) return {ok:false,reason:'Choose a skill from this hero’s active class or advanced job.'};
     if ((hero.learnedSkills || []).includes(id)) return {ok:false,reason:'Already learned.'};
     if (hero.level<skill.level) return {ok:false,reason:'Requires level '+skill.level+'.'};
-    if (!skill.requires.every(required=>(hero.learnedSkills || []).includes(required))) return {ok:false,reason:'Learn the preceding branch skill first.'};
+    const missing=skill.requires.filter(required=>!(hero.learnedSkills || []).includes(required));
+    if (missing.length) return {ok:false,reason:'Requires '+missing.map(id=>skillById(id)?.name || id).join(' + ')+'.'};
     if (hero.skillPoints<skill.cost) return {ok:false,reason:'Requires '+skill.cost+' skill points.'};
     return {ok:true,reason:''};
   }
@@ -295,6 +337,16 @@
       addXp(hero,reward.xp);
       const equipped=autoEquip(hero); if (equipped) {reward.autoEquipped=equipped;reward.autoEquippedName=itemById(equipped).name;}
       return reward;
+    });
+    // The rare roadside chest adds one guaranteed rare-or-better item per hero.
+    // It is inside the same immutable victory receipt as ordinary treasure.
+    if (state.adventure?.kind==='chest') state.heroes.forEach(hero=>{
+      const seed=state.encounterId+':'+hero.id+':road-chest',pool=Object.values(ITEMS).filter(i=>['rare','epic','legendary','mythical'].includes(i.rarity));
+      const item=pool[Math.floor(randomUnit(seed)*pool.length)],entry=hero.inventory.find(i=>i.itemId===item.id);
+      if(entry)entry.quantity=Math.min(999,entry.quantity+1);else hero.inventory.push({id:'bag:'+item.id,itemId:item.id,quantity:1});
+      const reward={heroId:hero.id,itemId:item.id,instanceId:seed,rarity:item.rarity,name:item.name,description:item.description,xp:0,source:'road-chest'};
+      const equipped=autoEquip(hero);if(equipped){reward.autoEquipped=equipped;reward.autoEquippedName=itemById(equipped).name;}
+      state.rewards.push(reward);
     });
     event.rewards=state.rewards;
   }
@@ -330,6 +382,13 @@
     if (effect.cleanse) (effect.healAll?state.heroes:[target]).forEach(h=>{if(h.weakened)supported(h,'cleanse',1);h.weakened=false;});
     if (effect.weakenBoss) {const before=state.bossWeakness || 0;state.bossWeakness=Math.max(before,effect.weakenBoss);afflicted('weaken',state.bossWeakness-before);}
     if (effect.poison) {state.poison={turns:effect.poison,damage:Math.min(enemyScale(state).poisonCap,scaled(hero.stats.damage*.35)),heroId:hero.id};afflicted('poison',state.poison.damage);}
+    if (effect.expose) Object.entries(effect.expose).forEach(([channel,value])=>{
+      if (!['physical','elemental'].includes(channel)) return;
+      const before=state.exposures[channel] || {amount:0,turns:0};
+      const amount=Math.max(before.amount,clamp(value.amount,0,.5)),turns=Math.max(before.turns,int(value.turns,1,6));
+      state.exposures[channel]={amount,turns,heroId:hero.id};
+      if(amount>before.amount || turns>before.turns)(event.afflicted || (event.afflicted=[])).push({effect:channel+' defence break',amount,turns,heroId:hero.id});
+    });
     if (effect.haste) state.heroes.forEach(h=>{let turns=0;Object.keys(h.cooldowns).forEach(id=>{if(h.id!==hero.id || id!==event.skillId){const before=h.cooldowns[id];h.cooldowns[id]=Math.max(0,before-effect.haste);turns+=before-h.cooldowns[id];}});supported(h,'haste',turns);});
   }
   // Preserve the progress of an existing fight while applying this balance
@@ -372,6 +431,7 @@
     state.heroArchive=state.heroArchive || {}; state.rewards=state.rewards || [];state.combatLog=(state.combatLog || []).slice(-40);
     if (state.lootAwarded===undefined) state.lootAwarded=state.status!=='active';
     state.bossWeakness=state.bossWeakness || 0; state.poison=state.poison || null;
+    state.exposures=state.exposures || {};
     state.bossMaxMp=BOSS_MAX_MP;state.bossMp=state.bossMp===undefined?BOSS_MAX_MP:int(state.bossMp,0,BOSS_MAX_MP);
     return state;
   }
@@ -390,6 +450,13 @@
       if (e.shield && state.heroes.some(h=>h.hp>0 && h.shield<h.stats.maxHp*.1)) score+=1+e.shield;
       if (e.weakenBoss) score+=e.weakenBoss;
       if (e.poison && !state.poison) score+=.3;
+      const build=buildFor(hero),channel=damageTypeFor(hero,skill)==='physical'?'physical':'elemental';
+      score*=1+build[channel+'Bonus'];
+      if (state.exposures[channel]?.turns>0) score*=1+state.exposures[channel].amount+build.exposureBonus;
+      if (e.expose) Object.entries(e.expose).forEach(([type,value])=>{
+        const ready=state.heroes.filter(h=>h.hp>0 && h.id!==hero.id && (availableSkills(h).some(s=>damageTypeFor(h,s)==='physical'?type==='physical':type==='elemental') || (buildFor(h).basicType==='physical'?type==='physical':type==='elemental'))).length;
+        if(ready && (!state.exposures[type] || state.exposures[type].turns<=1))score+=2+Math.min(3,ready)*value.amount;
+      });
       return {skill,score};
     }).sort((a,b)=>b.score-a.score || a.skill.id.localeCompare(b.skill.id));
     return rated.length && rated[0].score>1 ? {command:'skill',skillId:rated[0].skill.id} : {command:'attack'};
@@ -439,10 +506,11 @@
       if (previous && action.expectedRevision!==previous.revision) fail('The class changed on another screen. Try again.');
       const heroes=roster(action.heroes,previous && normalizeState(previous)), boss=nextBoss(previous,action.spinId || action.id);
       heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=h.stats.maxMp;h.cooldowns={};h.shield=0;h.weakened=false;h.mythicalUsed=false;h.correctActions=0;});
-      const enemyLevel=enemyLevelFor(heroes),scale=enemyScale({enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel});
+      const adventure=adventureFor(previous,action.spinId || action.id);
+      const enemyLevel=enemyLevelFor(heroes),scale=enemyScale({enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,adventure});
       const bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)*scale.hp)/2));
       return {schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
-        enemyHealthVersion:ENEMY_HEALTH_VERSION,enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,bossRotation:rotationAfterStart(previous,boss),
+        enemyHealthVersion:ENEMY_HEALTH_VERSION,enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,bossRotation:rotationAfterStart(previous,boss),adventure,exposures:{},
         bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
         bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)};
     }
@@ -511,13 +579,16 @@
         const restore=(h,amount)=>{const actual=restoreMana(h,amount);if(actual>0)(event.supported||(event.supported=[])).push({heroId:h.id,effect:'mana',amount:actual});};
         if (event.command==='attack') restore(hero,10);
         restore(hero,gear.manaRegen || 0);
-        support(state,hero,effect,event,target,points);
         if (effect.power || effect.damage) {
           hero.correctActions++;
           event.critical=!!effect.power && (!!effect.guaranteedCrit || randomUnit(state.encounterId+':'+action.turnId)<hero.stats.critChance);
-          const scale=enemyScale(state),armour=(boss.defence+scale.armour)*(1-Math.max(effect.pierce || 0,gear.pierce || 0));
+          const scale=enemyScale(state),build=buildFor(hero),damageType=damageTypeFor(hero,skill),channel=damageType==='physical'?'physical':'elemental';
+          const exposure=state.exposures[channel],broken=!!(exposure && exposure.turns>0);
+          const armour=Math.max(-.5,(boss.defence+scale.armour)*(1-Math.max(effect.pierce || 0,gear.pierce || 0,Math.min(.75,build[channel+'Pierce'])))-(broken?exposure.amount:0));
           const echo=gear.echo && hero.correctActions%3===0?2:1;
-          const raw=(effect.damage || hero.stats.damage*effect.power*(event.critical?hero.stats.critMultiplier:1)*(1-armour)*(hero.weakened?.7:1)*(state.guard && !gear.ignoreGuard?.6:1))*echo;
+          const raw=(effect.damage || hero.stats.damage*effect.power*(event.critical?hero.stats.critMultiplier:1)*(1-armour)*(hero.weakened?.7:1)*(state.guard && !gear.ignoreGuard?.6:1))*echo*(1+build[channel+'Bonus'])*(broken?1+build.exposureBonus:1);
+          event.damageType=damageType;event.synergy=broken?{channel,amount:exposure.amount,sourceHeroId:exposure.heroId}:null;
+          Object.keys(state.exposures).forEach(key=>{if(--state.exposures[key].turns<=0)delete state.exposures[key];});
           const dealt=Math.max(1,Math.round(raw))*points;
           event.damage=Math.min(state.bossHp,dealt,scale.hitCap); event.echo=echo===2;
           if (dealt>scale.hitCap && event.damage===scale.hitCap) event.capped=true;
@@ -530,6 +601,8 @@
             hero.hp-=damage;event.targets.push({heroId:hero.id,damage});event.effect='reflect';
           }
         }
+        support(state,hero,effect,event,target,points);
+        adventureDiscovery(state,hero,event);
         hero.weakened=false; state.correctCount++; addXp(hero,12);
       }
       state.pending=null; return finish(state,event);
@@ -575,7 +648,7 @@
     // hero phase here, with the separately saved enemy reply nested below.
     const withoutEnemy=(rows,other)=>{const result=[...(rows||[])];for(const row of other||[]){const i=result.findLastIndex(x=>JSON.stringify(x)===JSON.stringify(row));if(i>=0)result.splice(i,1);}return result;};
     return {id:event.id,encounterId:state.encounterId,type:event.type,actorName:event.actorName || (event.type==='boss'?enemyName:names.get(event.heroId)||'Hero'),heroId:event.heroId||null,enemyName,
-      move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
+      move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,damageType:event.damageType||null,synergy:copy(event.synergy||null),discovery:event.discovery||null,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
       targets:named(withoutEnemy(event.targets,event.enemy?.targets)),healed:named(withoutEnemy(event.healed,event.enemy?.healed)),supported:named(event.supported),afflicted:copy(event.afflicted||[]),enemy,bossHealed:event.bossHealed||0,poisonDamage:event.poisonDamage||0};
   }
   function reduce(previous,action) {
@@ -585,5 +658,5 @@
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
   return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
-    reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor};
+    reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor,adventureFor,ADVENTURE_RATES,ADVENTURE_BIOMES,buildFor,damageTypeFor};
 });

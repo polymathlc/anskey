@@ -234,7 +234,7 @@ try {
   check('selecting the next student leaves the existing enemy and party unchanged',await page.evaluate(old=>JSON.stringify(__battleState())===old,waitingVictory));
   await award();
   // The treasure grid renders a frame after the saved victory, so it is waited for rather than read at once.
-  check('awarded final hit shows an animated chest and saved personal treasure for every hero',await page.waitForFunction(()=>__battleState().status==='victory'&&__battleState().rewards.length===16&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===16&&document.querySelectorAll('.cbQuickTreasure .cbItemIcon[role=img]').length===16,null,{timeout:15000}).then(()=>true,()=>false));
+  check('awarded final hit shows an animated chest and saved personal treasure for every hero',await page.waitForFunction(()=>__battleState().status==='victory'&&__battleState().rewards.length===__battleState().heroes.length*(__battleState().adventure?.kind==='chest'?2:1)&&document.querySelectorAll('.cbQuickTreasure .cbChest').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===__battleState().rewards.length&&document.querySelectorAll('.cbQuickTreasure .cbItemIcon[role=img]').length===__battleState().rewards.length,null,{timeout:15000}).then(()=>true,()=>false));
   await scrollWheelToTop();
   const victoryLayout = await wheelLayout();
   check('a full class treasure grid keeps the compact wheel usable beside the quest, without overflow', victoryLayout.wheel.width >= 200 && victoryLayout.wheelVisible && victoryLayout.overflow.length === 0);

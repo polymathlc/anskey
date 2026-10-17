@@ -35,7 +35,7 @@ try {
   await page.goto('http://skill-tree.test/');
   await page.evaluate(()=>{window.__previews=[];window.__previewEnds=[];const preview=ClassroomBattleAnimation.previewSkill;if(preview)ClassroomBattleAnimation.previewSkill=function(container,hero,skill){const stamp=__previews.length;__previews.push({skillId:skill.id,passive:skill.passive});const player=preview.call(this,container,hero,skill);player.finished.then(result=>__previewEnds.push({stamp,...result}));return player;};});
   await setup();
-  check('eighteen skill buttons, three branches and all dependency edges render', await page.evaluate(() => document.querySelectorAll('[data-hst-node]').length === 18 && document.querySelectorAll('.hstBranch').length === 3 && document.querySelectorAll('.hstLink').length === 18));
+  check('30 skill buttons, six branches and all dependency edges render', await page.evaluate(() => document.querySelectorAll('[data-hst-node]').length === 30 && document.querySelectorAll('.hstBranch').length === 6 && document.querySelectorAll('.hstLink').length === 40));
   await page.click('[data-hst-node="mage-frozen-core"]');
   check('locked passive explains its level requirement and prerequisite', await page.evaluate(() => document.querySelector('[data-hst-learn]').disabled && document.querySelector('.hstDetail').textContent.includes('Ice Lance') && document.querySelector('.hstDetail').textContent.includes('Always-on passive') && document.querySelector('.hstDetail').textContent.includes('Requires level 2')));
   check('passive skills preview their own generated aura when inspected',await page.evaluate(()=>__previews.at(-1)?.skillId==='mage-frozen-core'&&__previews.at(-1)?.passive&&!!document.querySelector('.cbaSkillPreview .cbaHero')));
@@ -62,10 +62,11 @@ try {
   await page.click('[data-hst-node="mage-frozen-core"]');
   await page.click('[data-hst-learn]');
   check('failed save explains error without marking a skill learned', await page.evaluate(() => document.querySelector('.hstError').textContent === 'Save unavailable' && document.querySelector('[data-hst-node="mage-frozen-core"]').dataset.state === 'available' && !document.querySelector('[data-hst-learn]').disabled));
+  const zoomBefore=await page.locator('.hstZoom output').textContent();
   await page.click('[data-hst-zoom="in"]');
-  check('zoom control enlarges the map inside its scroll container', await page.evaluate(() => parseInt(document.querySelector('.hstZoom output').textContent, 10) > 100 && document.querySelector('.hstViewport').scrollWidth > document.querySelector('.hstViewport').clientWidth));
+  check('zoom control enlarges the map inside its scroll container', await page.evaluate(before => parseInt(document.querySelector('.hstZoom output').textContent, 10) > parseInt(before,10) && document.querySelector('.hstViewport').scrollWidth > document.querySelector('.hstViewport').clientWidth,zoomBefore));
   await page.click('[data-hst-zoom="fit"]');
-  check('fit shows all six skill tiers inside the viewport', await page.evaluate(() => { const v = document.querySelector('.hstViewport'); return v.scrollHeight === v.clientHeight; }));
+  check('fit shows all ten skill tiers inside the viewport', await page.evaluate(() => { const v = document.querySelector('.hstViewport'); return v.scrollHeight === v.clientHeight; }));
   await page.click('[data-hst-node="mage-meteor"]');
   await page.screenshot({ path: path.join(output, 'hero-skill-constellation-desktop.png'), fullPage: true });
   for (const role of ['warrior', 'ranger', 'cleric']) {
@@ -75,7 +76,7 @@ try {
   for (const job of ['paladin','berserker','sharpshooter','beastmaster','archmage','chronomancer','hierophant','oracle']) {
     const role=await page.evaluate(id=>ClassroomBattleCore.JOBS[id].role,job);
     await setup(role,{job,gender:'female',level:15,xp:7500,skillPoints:30});
-    check(job+' opens its advanced tree with distinct connected skills',await page.evaluate(id=>document.querySelectorAll('[data-hst-node]').length===18&&[...document.querySelectorAll('[data-hst-node]')].every(n=>ClassroomBattleCore.skillById(n.dataset.hstNode).job===id)&&document.querySelector('[data-hst-tree="job"]').getAttribute('aria-pressed')==='true',job));
+    check(job+' opens its advanced tree with distinct connected skills',await page.evaluate(id=>document.querySelectorAll('[data-hst-node]').length===24&&[...document.querySelectorAll('[data-hst-node]')].every(n=>ClassroomBattleCore.skillById(n.dataset.hstNode).job===id)&&document.querySelector('[data-hst-tree="job"]').getAttribute('aria-pressed')==='true',job));
     check(job+' uses female appearance in the advanced map and skill preview',await page.evaluate(id=>document.querySelector('.hstOrigin [data-cba-sheet]').dataset.cbaSheet===id+'-genders'&&document.querySelector('.hstOrigin [data-cba-gender]').dataset.cbaGender==='female'&&document.querySelector('.cbaSkillPreview [data-cba-gender]').dataset.cbaGender==='female',job));
     await page.click('[data-hst-tree="base"]');
     check(job+' foundation toggle keeps original class training accessible',await page.evaluate(role=>[...document.querySelectorAll('[data-hst-node]')].every(n=>n.dataset.hstNode.startsWith(role+'-'))&&document.querySelector('[data-hst-tree="base"]').getAttribute('aria-pressed')==='true',role));

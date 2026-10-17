@@ -19,14 +19,14 @@ function stateWith(h,bossId='mossback') {
 const act=(s,type,more={})=>C.reduce(s,{id:id(),type,encounterId:s.encounterId,expectedRevision:s.revision,...more});
 function cast(s,skillId) {const selected=act(s,'select',{heroId:s.heroes[0].id});return act(selected,'answer',{turnId:selected.pending.id,outcome:'correct',command:'skill',skillId});}
 
-test('eight advanced jobs each have three independent six-tier branches and unique animation IDs',()=>{
+test('eight advanced jobs preserve their branches and gain branching ascendant arts with unique animations',()=>{
   assert.equal(Object.keys(C.JOBS).length,8);
   const all=[...Object.values(C.SKILLS).flat(),...Object.values(C.JOB_SKILLS).flat()];
-  assert.equal(all.length,216);assert.equal(new Set(all.map(s=>s.animation)).size,216);
+  assert.equal(all.length,312);assert.equal(new Set(all.map(s=>s.animation)).size,312);
   roles.forEach(role=>assert.equal(C.jobsFor(hero(role)).length,2));
   for (const job of Object.values(C.JOBS)) {
-    const skills=C.JOB_TREES[job.id];assert.equal(skills.length,18);assert.equal(new Set(skills.map(s=>s.branch)).size,3);
-    for (const skill of skills) {
+    const skills=C.JOB_TREES[job.id];assert.equal(skills.length,24);assert.equal(new Set(skills.map(s=>s.branch)).size,4);
+    for (const skill of skills.slice(0,18)) {
       assert.equal(skill.role,job.role);assert.equal(skill.job,job.id);assert.equal(skill.level,[15,18,22,26,30,35][skill.tier-1]);
       assert.equal(skill.cost,[2,2,3,3,4,5][skill.tier-1]);assert.ok(skill.description && skill.animation && Object.keys(skill.effect).length>1);
       assert.equal(skill.requires.length,skill.tier===1?0:1);
@@ -46,8 +46,8 @@ test('advancement requires earned level 15 and the matching base class, preservi
   assert.deepEqual(next.inventory,before.inventory);assert.equal(next.hp,23);assert.equal(next.mp,7);
   assert.ok(next.learnedSkills.includes('warrior-power-strike'));assert.ok(next.learnedSkills.includes('paladin-radiant-cut'));
   assert.equal(C.canAdvance(next,'paladin').ok,false);
-  assert.equal(C.treeSkills(next).length,18);assert.equal(C.treeSkills(next,'base'),C.SKILLS.warrior);
-  assert.equal(C.skillsFor(next).length,36);
+  assert.equal(C.treeSkills(next).length,24);assert.equal(C.treeSkills(next,'base'),C.SKILLS.warrior);
+  assert.equal(C.skillsFor(next).length,54);
 });
 
 test('switching jobs keeps learned skills dormant and job bonuses cannot leak across base classes',()=>{
@@ -76,7 +76,7 @@ test('advanced skill prerequisites, levels and points are enforced without losin
   assert.equal(C.canLearn(h,'archmage-living-flame').ok,false);
   assert.throws(()=>C.configureHero(h,{command:'learn',skillId:'archmage-living-flame'}),/level 18/);
   h.xp=C.xpForLevel(26);h=C.cleanHero(h,h);
-  assert.throws(()=>C.configureHero(h,{command:'learn',skillId:'archmage-sun-collapse'}),/preceding/);
+  assert.throws(()=>C.configureHero(h,{command:'learn',skillId:'archmage-sun-collapse'}),/Requires Eruption/);
   for(const skillId of ['archmage-living-flame','archmage-eruption','archmage-sun-collapse'])h=C.configureHero(h,{command:'learn',skillId});
   assert.equal(h.skillPoints,92);assert.ok(C.availableSkills(h).some(s=>s.id==='mage-firebolt'));
   assert.ok(C.availableSkills(h).some(s=>s.id==='archmage-sun-collapse'));
@@ -86,12 +86,12 @@ test('advanced skill prerequisites, levels and points are enforced without losin
 
 test('every advanced active skill executes real effects and spends its configured mana',()=>{
   for(const job of Object.values(C.JOBS)) {
-    let h=advanced(job.id);h.learnedSkills.push(...C.JOB_SKILLS[job.id].map(s=>s.id));h=C.cleanHero(h,h);
+    let h=advanced(job.id,50);h.learnedSkills.push(...C.JOB_SKILLS[job.id].map(s=>s.id));h=C.cleanHero(h,h);
     for(const skill of C.JOB_SKILLS[job.id].filter(s=>!s.passive)) {
       const s=stateWith(h);s.heroes[0].hp=1;s.heroes[0].mp=s.heroes[0].stats.maxMp;s.heroes[0].weakened=true;
       s.heroes[0].cooldowns['dummy-skill']=5;
       const next=cast(s,skill.id),event=next.lastEvent,after=next.heroes[0];
-      assert.equal(event.skillId,skill.id);assert.equal(after.mp,Math.min(after.stats.maxMp,s.heroes[0].mp-skill.mpCost+(skill.effect.manaAll || 0)));
+      assert.equal(event.skillId,skill.id);assert.equal(after.mp,Math.min(after.stats.maxMp,s.heroes[0].mp-skill.mpCost+(skill.effect.manaAll || 0)+(event.discovery==='mana-spring'?18:0)));
       assert.equal(after.cooldowns[skill.id],skill.cooldown);
       if(skill.effect.power)assert.ok(event.damage>0,skill.id);
       if(skill.effect.healAll)assert.ok(event.healed.some(e=>e.amount>0),skill.id);

@@ -9,19 +9,19 @@ const hero = (role, changes = {}) => ({ ...Core.heroFromStudent({ id: 'test', na
 test('every hero class renders the real skill dependencies, including three starting paths', () => {
   for (const role of Object.keys(Core.ROLES)) {
     const graph = Tree.model(hero(role));
-    assert.equal(graph.nodes.length, 18);
-    assert.equal(graph.branches.length, 3);
-    assert.equal(graph.links.length, 18);
+    assert.equal(graph.nodes.length, 30);
+    assert.equal(graph.branches.length, 6);
+    assert.equal(graph.links.length, 40);
     assert.equal(graph.links.filter(link => link.from === 'hero').length, 3);
     assert.deepEqual(graph.nodes.map(node => node.skill.id), Core.SKILL_TREES[role].map(skill => skill.id));
     for (const link of graph.links.filter(link => link.from !== 'hero')) {
       assert.ok(Core.skillById(link.to).requires.includes(link.from));
       assert.ok(link.y2 > link.y1, 'prerequisite is placed before its dependent skill');
     }
-    assert.equal(new Set(graph.nodes.map(node => node.x + ',' + node.y)).size, 18);
+    assert.equal(new Set(graph.nodes.map(node => node.x + ',' + node.y)).size, 30);
     const markup = Tree.graphMarkup(hero(role));
-    assert.equal((markup.match(/data-hst-node=/g) || []).length, 18);
-    assert.equal((markup.match(/data-to=/g) || []).length, 18);
+    assert.equal((markup.match(/data-hst-node=/g) || []).length, 30);
+    assert.equal((markup.match(/data-to=/g) || []).length, 40);
     assert.ok(markup.includes('assets/battle-pixel/' + role + '.png'));
   }
 });
@@ -68,16 +68,16 @@ test('render data never mutates the hero or skill definitions', () => {
 });
 
 
-test('advanced jobs open a distinct eighteen-node tree while foundation skills remain available', () => {
+test('advanced jobs open a distinct 24-node tree while foundation skills remain available', () => {
   for (const job of Object.values(Core.JOBS)) {
     const h = { ...hero(job.role), level: 15, xp: Core.xpForLevel(15), skillPoints: 40, job: job.id };
     const graph = Tree.model(h);
     assert.equal(graph.job.id, job.id);
-    assert.equal(graph.nodes.length, 18);
-    assert.equal(graph.branches.length, 3);
+    assert.equal(graph.nodes.length, 24);
+    assert.equal(graph.branches.length, 4);
     assert.equal(graph.links.filter(link => link.from === 'hero').length, 3);
     assert.ok(graph.nodes.every(node => node.skill.job === job.id));
-    assert.deepEqual([...new Set(graph.nodes.map(node => node.skill.level))], [15, 18, 22, 26, 30, 35]);
+    assert.deepEqual([...new Set(graph.nodes.map(node => node.skill.level))], [15, 18, 22, 26, 30, 35,36,40,45,50]);
     assert.equal(graph.nodes.filter(node => node.state === 'available').length, 3);
     assert.equal(Tree.model(h, 'base').job, null);
     assert.deepEqual(Tree.model(h, 'base').nodes.map(node => node.skill.id), Core.SKILL_TREES[job.role].map(skill => skill.id));
@@ -101,7 +101,7 @@ test('six tiers fit inside the map, and the apex is marked apart from the old ca
     const graph = Tree.model(h), markup = Tree.graphMarkup(h);
     const height = Number(markup.match(/height:(\d+)px/)[1]);
     assert.ok(graph.nodes.every(node => node.y + 90 < height), job.id + ' keeps its lowest node on the map');
-    assert.equal((markup.match(/hstNode-apex/g) || []).length, 3);
-    assert.equal((markup.match(/hstNode-capstone/g) || []).length, 6);
+    assert.equal((markup.match(/hstNode-apex/g) || []).length, 9);
+    assert.equal((markup.match(/hstNode-capstone/g) || []).length, 12);
   }
 });

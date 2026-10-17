@@ -16,7 +16,7 @@ test('all playable enemies start at half their former HP for small and large cla
     delete previous.bossId;
     const state=C.reduce(previous,{type:'start',id:id(),expectedRevision:previous.revision,heroes:party(count)});
     const former=Math.round(Math.max(200,state.heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*enemy.hpMultiplier);
-    assert.equal(state.bossMaxHp,Math.ceil(former/2),`${enemy.id}, ${count} heroes`);
+    assert.equal(state.bossMaxHp,Math.ceil(Math.round(former*C.enemyScale(state).hp)/2),`${enemy.id}, ${count} heroes (including rare uber empowerment)`);
     assert.equal(state.bossHp,state.bossMaxHp);
     assert.equal(state.enemyHealthVersion,1);
   }

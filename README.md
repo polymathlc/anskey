@@ -3,6 +3,15 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.144.0 — Pixel adventures, branching builds and party synergies
+
+- The wheel and manual arena now show the party walking through four generated pixel-art worlds: Emerald Trail, Moonfall Ruins, Crystal Hollows and Ember Highlands. All 12 classes have male/female walking frames. Scenery moves during travel and stops for encounters; motion can be paused and respects reduced-motion preferences.
+- Each saved checkpoint rolls an enemy (74%), a roadside blessing before the fight (18%), a guarded rare chest (6%) or an empowered uber boss (2%). Blessings activate on the first correct answer. Chest victories give each hero one additional rare-or-better item. Uber bosses have 1.8× HP, 1.25× attack and 1.6× victory XP. Existing active fights retain their health and progress.
+- Added 96 skills, bringing the catalogue to 312. Every foundation class now has 30 skills across six paths; each advanced job has 24 skills. Physical, elemental and hybrid paths converge through multiple prerequisites, with the strongest moves depending on several fully developed paths. Existing skills and learned builds remain valid.
+- Clerics can break physical or elemental defence for teammates. All classes can specialise in physical or elemental damage, or combine them. The scene, skill details and saved combat log identify defence breaks, their source, remaining damaging actions and actual synergy use. Support and incorrect answers preserve break duration.
+- Trees expand to fit the real dependency graph, highlight all prerequisites, show current build bonuses, and support zoom, overview and keyboard navigation.
+- Generated art and full prompts are recorded in `assets/battle-pixel/adventure/provenance.json`. Small nearest-neighbour game exports preserve pixel edges and sprite transparency. New rules are included in `functions/hero-game` and use the existing canonical receipts and deployment workflow.
+
 
 ## v1.143.0 — Lessons upload while you teach, load faster for students, and a small record pill
 

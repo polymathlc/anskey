@@ -39,7 +39,7 @@ test('Chung defeats every enemy, ignores guard, clears pending and awards ordina
     const before=start(null,boss.id);before.guard=true;before.pending={id:id(),heroId:hero.id};const snapshot=structuredClone(before);
     const state=C.reduce(before,{type:'summon',id:id(),encounterId:before.encounterId,expectedRevision:before.revision,source:'teacher'});
     assert.equal(state.status,'victory');assert.equal(state.bossHp,0);assert.equal(state.lastEvent.damage,before.bossHp);assert.equal(state.pending,null);
-    assert.equal(state.rewards.length,1);assert.equal(state.heroes[0].xp,boss.rewardXp||65);assert.deepEqual(before,snapshot);
+    assert.equal(state.rewards.length,before.adventure?.kind==='chest'?2:1);assert.equal(state.heroes[0].xp,Math.round((boss.rewardXp||65)*C.enemyScale(before).xp));assert.deepEqual(before,snapshot);
     assert.throws(()=>C.reduce(state,{type:'summon',id:id(),encounterId:state.encounterId,expectedRevision:state.revision,source:'teacher'}),/finished/);
   }
 });

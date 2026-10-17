@@ -36,7 +36,7 @@
   function treasure(state) {
     return '<div class="cbRewardGrid" aria-label="Treasure received by every student">' + (state.rewards || []).map(function (reward) {
       var hero = (state.heroes || []).find(function (h) { return h.id === reward.heroId; }), item = Core.itemById(reward.itemId);
-      return '<article class="cbReward cbRarity-' + esc(reward.rarity) + '">' + itemIcon(item) + '<strong>' + esc(hero ? hero.name : 'Hero') + '</strong><span>' + esc(reward.name) + '</span><small>' + esc(reward.rarity).toUpperCase() + ' · +' + Number(reward.xp || 0) + ' XP</small><p>' + esc(reward.description || item && item.description) + '</p>' + (reward.autoEquippedName ? '<small class="cbEquippedNote">Auto-equipped: ' + esc(reward.autoEquippedName) + '</small>' : '') + '</article>';
+      return '<article class="cbReward cbRarity-' + esc(reward.rarity) + '">' + itemIcon(item) + '<strong>' + esc(hero ? hero.name : 'Hero') + '</strong><span>' + esc(reward.name) + '</span><small>' + esc(reward.rarity).toUpperCase() + (reward.source==='road-chest'?' · ROAD CHEST BONUS':'') + ' · +' + Number(reward.xp || 0) + ' XP</small><p>' + esc(reward.description || item && item.description) + '</p>' + (reward.autoEquippedName ? '<small class="cbEquippedNote">Auto-equipped: ' + esc(reward.autoEquippedName) + '</small>' : '') + '</article>';
     }).join('') + '</div>';
   }
   function log(state) {
@@ -44,10 +44,13 @@
     if (!rows.length) return '<section class="cbDamageLog" aria-label="Damage log"><h4>Damage log</h4><p>Saved attacks, healing and enemy replies appear here.</p></section>';
     function effects(row) {
       var parts=[];
+      if(row.damageType)parts.push(esc(row.damageType)+' damage');
+      if(row.synergy){var setter=(state.heroes||[]).find(function(h){return h.id===row.synergy.sourceHeroId;});parts.push('TEAM SYNERGY · '+esc(row.synergy.channel)+' defence break'+(setter?' by '+esc(setter.name):''));}
+      if(row.discovery)parts.push('Roadside blessing: '+esc(row.discovery.replace(/-/g,' ')));
       (row.targets || []).forEach(function (r) { parts.push(esc(r.name || 'Hero') + ' −' + Number(r.damage || 0) + ' HP' + (r.absorbed ? ' · ' + Number(r.absorbed) + ' blocked' : '')); });
       (row.healed || []).forEach(function (r) { parts.push(esc(r.name || 'Hero') + ' +' + Number(r.amount || 0) + ' HP'); });
       (row.supported || []).forEach(function (r) { parts.push(esc(r.name || 'Hero') + ' · ' + esc(r.effect) + ' +' + Number(r.amount || 0)); });
-      (row.afflicted || []).forEach(function (r) { parts.push(esc(r.effect) + ' ' + Number(r.amount || 0)); });
+      (row.afflicted || []).forEach(function (r) { parts.push(esc(r.effect) + ' ' + (r.turns?Math.round(Number(r.amount||0)*100)+'% · '+r.turns+' damaging actions':Number(r.amount || 0))); });
       if (row.poisonDamage) parts.push('Poison: −' + Number(row.poisonDamage) + ' enemy HP');
       if (row.bossHealed) parts.push('Enemy +' + Number(row.bossHealed) + ' HP');
       return parts.length ? '<small>' + parts.join(' · ') + '</small>' : '';

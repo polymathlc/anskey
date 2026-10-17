@@ -4,9 +4,8 @@
   else root.ClassroomSkillTree = factory(root.ClassroomBattleCore);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (Core) {
   'use strict';
-  // Six tiers per branch: the last node sits at 270 + 5 × 157 and needs room below it.
   var WIDTH = 840, HEIGHT = 1170, mounts = new WeakMap();
-  var palettes = ['#f3bc73', '#9dddc8', '#c3acff'];
+  var palettes = ['#f3bc73', '#9dddc8', '#c3acff', '#ffad92', '#8edcff', '#f3b4ee'];
   var paths = {
     Vanguard: 'Guard your allies', Berserker: 'Crushing damage', Sentinel: 'Rally and endure',
     Marksman: 'Precision and criticals', Wildwood: 'Poison and restoration', Shadowstep: 'Evasion and ambush',
@@ -40,6 +39,12 @@
   function roleKey(hero) { return hero && Core.ROLES[hero.role] ? hero.role : 'warrior'; }
   function iconType(skill) {
     var e = skill.effect || {}, p = e.passive || {}, id = (skill.id || '') + ' ' + (skill.branch || '').toLowerCase();
+    if (e.expose) return 'fracture';
+    if (p.exposureBonus) return 'link';
+    if (p.physicalBonus || skill.damageType === 'physical') return 'sword';
+    if (skill.damageType === 'lightning') return 'bolt';
+    if (skill.damageType === 'ice') return 'frost';
+    if (skill.damageType === 'fire') return 'flame';
     if (e.haste || /time|chron/.test(id)) return 'clock';
     if (e.shield || e.shieldSelf || p.defence) return 'shield';
     if (e.cleanse) return 'wing';
@@ -53,6 +58,9 @@
     if (e.weakenBoss && skill.role === 'ranger' || /spirit|beast|pack/.test(id)) return 'wing';
     return { warrior: 'sword', ranger: 'arrow', mage: 'star', cleric: 'star' }[skill.role] || 'star';
   }
+  masks.fracture=['011111111110','012222222210','012221222210','012212222210','001221222100','001212222100','000121221000','000112210000','000012100000','000001000000','000000000000','000000000000'];
+  masks.link=['001110000000','012221000000','122112100000','121012210000','012101221000','001210122100','000121012210','000012101221','000001211221','000000122210','000000011100','000000000000'];
+  masks.bolt=['000000111100','000001222100','000012221000','000122210000','001222111100','012222222100','001112221000','000012210000','000122100000','001221000000','012100000000','011000000000'];
   function pixelIcon(skill) {
     var mask = masks[iconType(skill)], color = (Core.JOBS && Core.JOBS[skill.job] || Core.ROLES[skill.role] || Core.ROLES.mage).color;
     return '<svg class="hstPixelIcon" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">' + mask.map(function (row, y) {
@@ -68,8 +76,9 @@
     skills.forEach(function (s) { if (branches.indexOf(s.branch) < 0) branches.push(s.branch); });
     var learned = new Set(hero.learnedSkills || []);
     var nodes = skills.map(function (skill) {
-      var branch = branches.indexOf(skill.branch), base = 190 + branch * 230, direction = branch - 1;
-      var x = base + direction * (skill.tier % 2 === 0 ? 37 : 0);
+      var branch = branches.indexOf(skill.branch), base = 190 + branch * 230, direction = branch < 3 ? branch - 1 : 0;
+      var siblings=skills.filter(function(s){return s.branch===skill.branch && s.tier===skill.tier;});
+      var x = base + (siblings.length>1 ? (siblings.indexOf(skill)-(siblings.length-1)/2)*190 : direction * (skill.tier % 2 === 0 ? 37 : 0));
       var availability = Core.canLearn(hero, skill.id);
       return { skill: skill, x: x, y: 270 + (skill.tier - 1) * 157, branch: branch,
         state: learned.has(skill.id) ? 'learned' : availability.ok ? 'available' : 'locked', reason: availability.reason };
@@ -79,11 +88,12 @@
       (node.skill.requires.length ? node.skill.requires : ['hero']).forEach(function (id) {
         var prior = nodes.find(function (n) { return n.skill.id === id; });
         if (id !== 'hero' && !prior) return;
-        links.push({ from: id, to: node.skill.id, x1: prior ? prior.x : 420, y1: prior ? prior.y : 170,
+        links.push({ from: id, to: node.skill.id, x1: prior ? prior.x : (Math.max(WIDTH,branches.length*230+150)/2), y1: prior ? prior.y : 170,
           x2: node.x, y2: node.y, state: node.state, branch: node.branch });
       });
     });
-    return { role: role, job: job, branches: branches, nodes: nodes, links: links };
+    return { role: role, job: job, branches: branches, nodes: nodes, links: links,
+      width:Math.max(WIDTH,branches.length*230+150),height:Math.max(HEIGHT,270+(Math.max.apply(null,skills.map(function(s){return s.tier;}))-1)*157+140) };
   }
   function graphMarkup(hero, selectedId, mode) {
     var graph = model(hero, mode), role = graph.job || Core.ROLES[graph.role];
@@ -91,23 +101,24 @@
     var connectors = graph.links.map(function (link) {
       var middle = link.from === 'hero' ? 180 : link.y1 + (link.y2 - link.y1) * .52;
       var d = 'M ' + link.x1 + ' ' + link.y1 + ' L ' + link.x1 + ' ' + middle + ' L ' + link.x2 + ' ' + middle + ' L ' + link.x2 + ' ' + link.y2;
-      return '<g class="hstLink hstLink-' + link.state + '" data-from="' + esc(link.from) + '" data-to="' + esc(link.to) + '" style="--hst-branch:' + palettes[link.branch % 3] + '"><path class="hstLinkShadow" d="' + d + '"/><path class="hstLinkStroke" d="' + d + '"/><rect x="' + (link.x2 - 3) + '" y="' + (middle - 3) + '" width="6" height="6"/></g>';
+      return '<g class="hstLink hstLink-' + link.state + '" data-from="' + esc(link.from) + '" data-to="' + esc(link.to) + '" style="--hst-branch:' + palettes[link.branch % palettes.length] + '"><path class="hstLinkShadow" d="' + d + '"/><path class="hstLinkStroke" d="' + d + '"/><rect x="' + (link.x2 - 3) + '" y="' + (middle - 3) + '" width="6" height="6"/></g>';
     }).join('');
-    return '<div class="hstMap" style="width:' + WIDTH + 'px;height:' + HEIGHT + 'px"><svg class="hstConnections" viewBox="0 0 ' + WIDTH + ' ' + HEIGHT + '" aria-hidden="true"><path class="hstRune" d="M420 0L825 560L420 1120L15 560Z M420 48L777 560L420 1072L63 560Z M420 0V1150"/>' + connectors + '</svg>' +
-      '<div class="hstOrigin"><div class="hstOriginFrame">' + actor + '</div><strong>' + esc(role.name) + '</strong><span>CHOOSE YOUR PATH</span></div>' +
-      graph.branches.map(function (branch, index) { return '<div class="hstBranch" style="left:' + (190 + index * 230) + 'px;--hst-branch:' + palettes[index % 3] + '"><strong>' + esc(branch) + '</strong><span>' + esc(paths[branch] || 'Explore this path') + '</span></div>'; }).join('') +
+    return '<div class="hstMap" style="width:' + graph.width + 'px;height:' + graph.height + 'px"><svg class="hstConnections" viewBox="0 0 ' + graph.width + ' ' + graph.height + '" aria-hidden="true"><path class="hstRune" d="M420 0L825 560L420 1120L15 560Z M420 48L777 560L420 1072L63 560Z M420 0V1150"/>' + connectors + '</svg>' +
+      '<div class="hstOrigin" style="left:' + graph.width/2 + 'px"><div class="hstOriginFrame">' + actor + '</div><strong>' + esc(role.name) + '</strong><span>CHOOSE YOUR PATH</span></div>' +
+      graph.branches.map(function (branch, index) { return '<div class="hstBranch" style="left:' + (190 + index * 230) + 'px;--hst-branch:' + palettes[index % palettes.length] + '"><strong>' + esc(branch) + '</strong><span>' + esc(paths[branch] || (branch==='Ascendant Arts'?'Merge paths to ascend':'Specialise or combine paths')) + '</span></div>'; }).join('') +
       graph.nodes.map(function (node) {
         var s = node.skill;
-        return '<button type="button" class="hstNode hstNode-' + node.state + (s.passive ? ' hstNode-passive' : '') + (capstone(s) ? ' hstNode-capstone' : '') + (s.tier >= 6 ? ' hstNode-apex' : '') + '" data-hst-node="' + esc(s.id) + '" data-state="' + node.state + '" aria-pressed="' + (selectedId === s.id) + '" aria-label="' + esc(s.name + ', ' + (s.passive ? 'passive' : 'active') + ', ' + node.state + ', level ' + s.level + ', ' + s.cost + ' skill points. ' + (node.state === 'locked' ? node.reason : 'Select for details.')) + '" style="left:' + node.x + 'px;top:' + node.y + 'px;--hst-branch:' + palettes[node.branch % 3] + '"><span class="hstNodeFrame">' + pixelIcon(s) + '<span class="hstNodeMark" aria-hidden="true">' + (node.state === 'learned' ? '✓' : node.state === 'available' ? '+' : '•') + '</span></span><strong class="hstNodeName">' + esc(s.name) + '</strong><span class="hstNodeMeta">' + (node.state === 'learned' ? 'LEARNED' : 'LV ' + s.level + ' · ' + s.cost + ' SP') + (s.passive ? ' · PASSIVE' : '') + '</span></button>';
+        return '<button type="button" class="hstNode hstNode-' + node.state + (s.passive ? ' hstNode-passive' : '') + (capstone(s) ? ' hstNode-capstone' : '') + (s.tier >= 6 ? ' hstNode-apex' : '') + '" data-hst-node="' + esc(s.id) + '" data-state="' + node.state + '" aria-pressed="' + (selectedId === s.id) + '" aria-label="' + esc(s.name + ', ' + (s.passive ? 'passive' : 'active') + ', ' + node.state + ', level ' + s.level + ', ' + s.cost + ' skill points. ' + (node.state === 'locked' ? node.reason : 'Select for details.')) + '" style="left:' + node.x + 'px;top:' + node.y + 'px;--hst-branch:' + palettes[node.branch % palettes.length] + '"><span class="hstNodeFrame">' + pixelIcon(s) + '<span class="hstNodeMark" aria-hidden="true">' + (node.state === 'learned' ? '✓' : node.state === 'available' ? '+' : '•') + '</span></span><strong class="hstNodeName">' + esc(s.name) + '</strong><span class="hstNodeMeta">' + (node.state === 'learned' ? 'LEARNED' : 'LV ' + s.level + ' · ' + s.cost + ' SP') + (s.passive ? ' · PASSIVE' : '') + '</span></button>';
       }).join('') + '</div>';
   }
   function render(container, options) {
     if (!container || typeof container.addEventListener !== 'function') throw new Error('A skill tree container is required.');
     if (mounts.has(container)) mounts.get(container).destroy();
-    var settings = Object.assign({}, options), treeMode = 'job', previewPlayer = null, selected = '', zoom = 1, pending = false, disposed = false, error = '', drawnRole = '', hasZoomed = false;
+    var settings = Object.assign({}, options), treeMode = 'job', previewPlayer = null, selected = '', zoom = 1, pending = false, disposed = false, error = '', drawnRole = '', hasZoomed = false, mapWidth=WIDTH,mapHeight=HEIGHT;
     var observer;
     container.innerHTML = '<section class="hst" aria-label="Hero skill tree"><header class="hstHeader"><div><span class="hstEyebrow">THE PATH YOU FORGE</span><h3>Skill constellation</h3><p class="hstProgress"></p></div><div class="hstPoints" aria-label="Available skill points"></div></header><div class="hstTreeChoice" role="group" aria-label="Skill tree path" hidden></div><div class="hstToolbar"><p>Follow the connected paths. Select a skill to explore its power.</p><div class="hstZoom" role="group" aria-label="Skill tree zoom"><button type="button" data-hst-zoom="out" aria-label="Zoom out">−</button><output aria-label="Zoom level">100%</output><button type="button" data-hst-zoom="in" aria-label="Zoom in">+</button><button type="button" data-hst-zoom="fit">Fit</button></div></div><div class="hstViewport" tabindex="0" role="region" aria-label="Skill map. Scroll to explore; use arrow keys between focused skills."><div class="hstMapSpace"></div></div><div class="hstLegend"><span class="hstLegendLearned">Learned</span><span class="hstLegendAvailable">Ready to learn</span><span class="hstLegendLocked">Locked</span><span>◇ Passive · ◆ Active</span></div><div class="hstDetail" aria-live="polite"></div><p class="hstError" role="alert" hidden></p></section>';
     var tree = container.querySelector('.hst'), viewport = tree.querySelector('.hstViewport'), space = tree.querySelector('.hstMapSpace'), detail = tree.querySelector('.hstDetail');
+    tree.querySelector('.hstHeader').insertAdjacentHTML('afterend','<div class="hstBuild" aria-label="Current build and team synergy"></div>');
     function hero() { return settings.hero; }
     function currentSkill() { return treeSkills(hero(), treeMode).find(function (s) { return s.id === selected; }); }
     function stopPreview() { if (previewPlayer && previewPlayer.cancel) previewPlayer.cancel(); previewPlayer = null; if (typeof window !== 'undefined' && window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(detail); }
@@ -123,22 +134,30 @@
         previewPlayer = ClassroomBattleAnimation.previewSkill(detail.querySelector('.cbaSkillPreview'), h, skill);
       }
       tree.querySelectorAll('[data-hst-node]').forEach(function (node) { node.setAttribute('aria-pressed', String(node.dataset.hstNode === selected)); });
+      tree.querySelectorAll('[data-hst-node]').forEach(function(node){node.classList.toggle('hstNode-required',skill.requires.includes(node.dataset.hstNode));});
+      tree.querySelectorAll('.hstLink').forEach(function(link){link.classList.toggle('hstLink-required',link.dataset.to===selected);});
+      var channel=Core.damageTypeFor(h,skill);
+      detail.querySelector('.hstFacts').insertAdjacentHTML('beforeend',skill.passive?'':'<span class="hstDamageType">'+esc(channel)+' damage</span>');
+      detail.querySelector('.hstDetailCopy').insertAdjacentHTML('beforeend','<p class="hstSynergy">'+(skill.effect.expose?'Team setup: allies using the matching damage type exploit this defence break. Support actions preserve its duration.':'Build synergy: physical skills exploit armour breaks; fire, ice, lightning, holy and arcane skills exploit elemental breaks.')+'</p>');
       var alert = tree.querySelector('.hstError'); alert.textContent = error; alert.hidden = !error;
     }
     function applyZoom(center) {
-      var oldWidth = parseFloat(space.style.width) || WIDTH, ratio = (viewport.scrollLeft + viewport.clientWidth / 2) / oldWidth;
-      space.style.width = WIDTH * zoom + 'px'; space.style.height = HEIGHT * zoom + 'px';
+      var oldWidth = parseFloat(space.style.width) || mapWidth, ratio = (viewport.scrollLeft + viewport.clientWidth / 2) / oldWidth;
+      space.style.width = mapWidth * zoom + 'px'; space.style.height = mapHeight * zoom + 'px';
       var map = space.querySelector('.hstMap'); if (map) map.style.transform = 'scale(' + zoom + ')';
       tree.querySelector('.hstZoom output').textContent = Math.round(zoom * 100) + '%';
-      if (center) viewport.scrollLeft = Math.max(0, WIDTH * zoom / 2 - viewport.clientWidth / 2);
-      else viewport.scrollLeft = Math.max(0, ratio * WIDTH * zoom - viewport.clientWidth / 2);
-      tree.querySelector('[data-hst-zoom="out"]').disabled = zoom <= .5;
+      if (center) viewport.scrollLeft = Math.max(0, mapWidth * zoom / 2 - viewport.clientWidth / 2);
+      else viewport.scrollLeft = Math.max(0, ratio * mapWidth * zoom - viewport.clientWidth / 2);
+      tree.querySelector('[data-hst-zoom="out"]').disabled = zoom <= .25;
       tree.querySelector('[data-hst-zoom="in"]').disabled = zoom >= 1.4;
     }
-    function fit() { zoom = Math.max(.5, Math.min(1, (viewport.clientWidth - 16) / WIDTH, (viewport.clientHeight - 16) / HEIGHT)); applyZoom(true); viewport.scrollTop = 0; }
+    function fit() { zoom = Math.max(.25, Math.min(1, (viewport.clientWidth - 16) / mapWidth, (viewport.clientHeight - 16) / mapHeight)); applyZoom(true); viewport.scrollTop = 0; }
     function draw() {
       if (disposed || !hero()) return;
       var h = hero(), role = roleKey(h), job = jobInfo(h), identity = role + ':' + (job && job.id || '') + ':' + treeMode, fresh = drawnRole !== identity;
+      var dimensions=model(h,treeMode);mapWidth=dimensions.width;mapHeight=dimensions.height;
+      var build=Core.buildFor(h);
+      tree.querySelector('.hstBuild').innerHTML='<strong>YOUR BUILD</strong><span>Physical +'+Math.round(build.physicalBonus*100)+'%</span><span>Elemental +'+Math.round(build.elementalBonus*100)+'%</span><span>Basic attack: '+esc(build.basicType)+'</span><span>Defence-break bonus +'+Math.round(build.exposureBonus*100)+'%</span><p>Follow several branches to unlock convergence skills. Highlighted lines show every prerequisite for the selected skill.</p>';
       if (!currentSkill()) selected = treeSkills(h, treeMode)[0].id;
       var choices = tree.querySelector('.hstTreeChoice'); choices.hidden = !job;
       choices.innerHTML = job ? '<button type="button" data-hst-tree="job" aria-pressed="' + (treeMode !== 'base') + '">' + esc(job.name) + ' skills</button><button type="button" data-hst-tree="base" aria-pressed="' + (treeMode === 'base') + '">' + esc(Core.ROLES[role].name) + ' foundation</button><p>Both trees stay available. Learned foundation skills still work after your upgrade.</p>' : '';
@@ -150,7 +169,7 @@
       if (typeof window !== 'undefined' && window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(space);
       space.innerHTML = graphMarkup(h, selected, treeMode); drawnRole = identity;
       if (typeof window !== 'undefined' && window.ClassroomBattleAnimation) window.ClassroomBattleAnimation.mount(space);
-      if (!hasZoomed && fresh) zoom = Math.max(.78, Math.min(1, (viewport.clientWidth - 16) / WIDTH));
+      if (!hasZoomed && fresh) zoom = Math.max(.5, Math.min(1, (viewport.clientWidth - 16) / mapWidth));
       applyZoom(fresh); showDetail();
       if (focusId) { var focus = Array.from(tree.querySelectorAll('[data-hst-node]')).find(function (node) { return node.dataset.hstNode === focusId; }); if (focus) focus.focus({ preventScroll: true }); }
     }
@@ -161,7 +180,7 @@
       if (choice && tree.contains(choice) && !pending) { treeMode = choice.dataset.hstTree; selected = ''; error = ''; draw(); return; }
       var node = event.target.closest('[data-hst-node]'), learn = event.target.closest('[data-hst-learn]'), zoomControl = event.target.closest('[data-hst-zoom]');
       if (node && tree.contains(node)) { selected = node.dataset.hstNode; error = ''; showDetail(); return; }
-      if (zoomControl && tree.contains(zoomControl)) { hasZoomed = true; if (zoomControl.dataset.hstZoom === 'fit') fit(); else { zoom = Math.max(.5, Math.min(1.4, Math.round((zoom + (zoomControl.dataset.hstZoom === 'in' ? .15 : -.15)) * 100) / 100)); applyZoom(); } return; }
+      if (zoomControl && tree.contains(zoomControl)) { hasZoomed = true; if (zoomControl.dataset.hstZoom === 'fit') fit(); else { zoom = Math.max(.25, Math.min(1.4, Math.round((zoom + (zoomControl.dataset.hstZoom === 'in' ? .15 : -.15)) * 100) / 100)); applyZoom(); } return; }
       if (!learn || !tree.contains(learn) || pending || settings.locked || learn.disabled || typeof settings.onLearn !== 'function') return;
       var skillId = learn.dataset.hstLearn;
       if (!Core.canLearn(hero(), skillId).ok) return;
@@ -176,8 +195,8 @@
       var source = event.target.closest('[data-hst-node]');
       if (!source || !tree.contains(source) || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
       var graph = model(hero(), treeMode), current = graph.nodes.find(function (n) { return n.skill.id === source.dataset.hstNode; }), target;
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') target = graph.nodes.find(function (n) { return n.branch === current.branch + (event.key === 'ArrowLeft' ? -1 : 1) && n.skill.tier === current.skill.tier; });
-      else target = graph.nodes.find(function (n) { return n.branch === current.branch && n.skill.tier === current.skill.tier + (event.key === 'ArrowUp' ? -1 : 1); });
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') target = graph.nodes.filter(function(n){return n.skill.id!==current.skill.id && (event.key==='ArrowLeft'?n.x<current.x:n.x>current.x);}).sort(function(a,b){return Math.abs(a.y-current.y)*4+Math.abs(a.x-current.x)-(Math.abs(b.y-current.y)*4+Math.abs(b.x-current.x));})[0];
+      else target = graph.nodes.filter(function(n){return n.branch===current.branch && (event.key==='ArrowUp'?n.y<current.y:n.y>current.y);}).sort(function(a,b){return Math.abs(a.y-current.y)-Math.abs(b.y-current.y) || Math.abs(a.x-current.x)-Math.abs(b.x-current.x);})[0];
       event.preventDefault();
       if (target) { selected = target.skill.id; showDetail(); var button = Array.from(tree.querySelectorAll('[data-hst-node]')).find(function (n) { return n.dataset.hstNode === selected; }); button.focus({ preventScroll: true }); button.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
     }
@@ -185,7 +204,7 @@
     var api = { update: function (next) { settings = Object.assign({}, settings, next); draw(); }, destroy: function () { disposed = true; stopPreview(); if (typeof window !== 'undefined' && window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(space); if (observer) observer.disconnect(); container.removeEventListener('click', click); container.removeEventListener('keydown', keydown); mounts.delete(container); } };
     mounts.set(container, api); draw();
     var ViewResizeObserver = tree.ownerDocument.defaultView && tree.ownerDocument.defaultView.ResizeObserver;
-    if (ViewResizeObserver) { observer = new ViewResizeObserver(function () { if (!hasZoomed) { zoom = Math.max(.78, Math.min(1, (viewport.clientWidth - 16) / WIDTH)); applyZoom(true); } }); observer.observe(viewport); }
+    if (ViewResizeObserver) { observer = new ViewResizeObserver(function () { if (!hasZoomed) { zoom = Math.max(.5, Math.min(1, (viewport.clientWidth - 16) / mapWidth)); applyZoom(true); } }); observer.observe(viewport); }
     return api;
   }
   return { render: render, model: model, graphMarkup: graphMarkup, pixelIcon: pixelIcon };

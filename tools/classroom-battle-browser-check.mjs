@@ -120,7 +120,7 @@ try {
   check('teacher journal renders ten named equipment slots and one pet slot',await page.locator('[data-equipment-slot]').count()===11&&await page.locator('[data-equipment-slot="pet"]').count()===1);
   await page.selectOption('#cbRoleChoice', 'mage'); await settle();
   check('class changes are saved locally to the classroom hero', await page.evaluate(() => __battleState().heroes[0].role === 'mage'));
-  check('skill tree has 18 nodes and three visible branching columns', await page.locator('.hstNode').count() === 18);
+  check('skill tree has 30 nodes and six visible branching columns', await page.locator('.hstNode').count() === 30);
   await page.click('[data-hst-node="mage-ice-lance"]'); await page.click('[data-hst-learn="mage-ice-lance"]'); await settle();
   check('learning a skill spends points and persists the prerequisite root', await page.evaluate(() => __battleState().heroes[0].learnedSkills.includes('mage-ice-lance')));
   await page.screenshot({ path:path.join(output,'pixel-skill-tree.png'),fullPage:true });
