@@ -44,6 +44,9 @@ async function open(viewport) {
     });
     window.pdfjsLib = chain(); window.firebase = chain(); window.grecaptcha = chain();
   });
+  /* On CI the real Firebase scripts load over the stand-in above and throw on
+     their own; answer them empty, as the snip, caption and upload checks do. */
+  await page.route(/firebase-[a-z]+-compat\.js(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: '' }));
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(FILE);
