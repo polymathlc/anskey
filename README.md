@@ -3,6 +3,16 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.148.0 — Students can see where everything is
+
+- **A start-here bar for students.** Right under the toolbar, in orange, a signed-in student now sees the three things they came for: 📚 **My worksheets**, a green ✏️ **Practise this worksheet** and a purple ▶ **Watch lesson video** (with how many videos the worksheet has). With nothing open it says “👋 Start here”; on a worksheet with no video it says so instead of leaving a gap.
+- **Practice is one tap.** It used to be two menus deep or on a side panel. While practising, the bar shows 📋 Mark all my answers, ✨ Check one answer and 👁 Stop — show answers. Every button uses the same code as the existing controls.
+- **Videos are hard to miss.** The video button glows gently, one video plays straight away and several open the list. The purple ▶ buttons on the page pulse softly for students. Reduced-motion settings turn the glow off.
+- **Every icon says its name** for a student: Worksheets, Videos, Calculator, Pages, Side panel, Full screen, Ask AI, Fit page, and while practising Pencil, Text, Eraser, Undo and the rest. Print & PDF, Notes & practice and My PDFs keep their words too. On a phone the icons stay small so the bar fits.
+- **❓ What do the buttons do?** walks through every button on the student's screen, one at a time, with a ring round it and a card saying what it does. It opens by itself the first time a student signs in (after the level and subject form), and the button brings it back any time.
+- The empty page for a student now has 📚 Pick a worksheet, ❓ Show me the buttons and three short steps, instead of a “Start with a blank page” button they could not use.
+- The teacher's screen is unchanged.
+
 ## v1.147.1 — Sound and picture stay together in long lesson videos
 
 - Fixed lesson recordings whose voice ran ahead of the picture, worse the longer the lesson went on. Chrome records a lesson as an MP4 in fragments, and each fragment says where it really starts. When the video was made seekable before upload, those start times were ignored, so the small gap between fragments (about 30 ms of sound each time) was dropped again and again. After a few hours the voice was several seconds ahead of the writing on screen.

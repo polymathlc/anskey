@@ -2402,6 +2402,12 @@
   }
   #emptyState h1 { font-size: 1.7rem; letter-spacing: 0.01em; margin-bottom: 14px; }
   #emptyState p { color: var(--ink-soft); font-size: 0.98rem; line-height: 1.6; margin-bottom: 28px; }
+  .emptyStudent { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+  .emptyStudent[hidden] { display: none; }
+  .emptyStudent .btn { font-size: 0.95rem; padding: 12px 22px; }
+  .emptySteps { flex: 1 1 100%; margin: 22px auto 0; padding: 18px 22px 18px 40px; max-width: 420px; text-align: left; background: #FFF8EE; border-radius: var(--radius-sm); color: var(--ink-soft); font-size: 0.9rem; line-height: 1.6; }
+  .emptySteps li + li { margin-top: 8px; }
+  .emptySteps b { color: var(--ink); }
   #dropHint { margin-top: 20px; font-size: 0.8rem; color: var(--ink-faint); }
   #viewerArea.dragOver::after {
     content: 'Drop PDF to open';
@@ -3760,6 +3766,99 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 #snipLayer .snipHint button { flex:none; padding:7px 12px; border:0; border-radius:9px; background:#ffffff26; color:#fff; font:inherit; cursor:pointer; }
 @media print { #snipPins, #snipLayer { display:none !important; } }
 
+/* ================= 🧭 Start here — the student's bar, labels and tour (v1.148.0) =================
+   A student opened the app to a toolbar of bare icons, with Practice two
+   menus deep and the lesson videos a small purple glyph that only appears
+   once a worksheet has one. Everything here is for `body.studentView` (any
+   student role) and nobody else. */
+#studentBar { flex:0 0 auto; padding:10px 16px; background:linear-gradient(180deg,#FFF8EE,#FFF3E0); border-bottom:1px solid #F3DDBB; }
+#studentBar[hidden] { display:none; }
+body.immersive #studentBar, body.lessonScreenRec #studentBar { display:none; }
+.sbRow { display:flex; align-items:center; flex-wrap:wrap; gap:10px; max-width:1180px; margin:0 auto; }
+.sbHello { font-size:0.86rem; font-weight:700; color:#8A5A12; margin-right:4px; white-space:nowrap; }
+.sbBtn { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:8px 16px; border:1.5px solid #E7CFA6; border-radius:999px; background:#fff; color:var(--ink); font:inherit; font-size:0.86rem; font-weight:700; line-height:1.2; cursor:pointer; white-space:nowrap; box-shadow:var(--shadow-btn); transition:transform .15s ease, box-shadow .15s ease, background .15s ease; }
+.sbBtn[hidden], .sbStatus[hidden], .sbNote[hidden] { display:none; }
+.sbBtn:hover { transform:translateY(-1px); box-shadow:var(--shadow-btn-hover); }
+.sbBtn:active { transform:none; }
+.sbBtn:focus-visible { outline:3px solid #1E88E5; outline-offset:2px; }
+.sbIcon { font-size:1.05rem; line-height:1; }
+.sbWorksheets { border-color:#90CAF9; background:#E3F2FD; color:#0D47A1; }
+.sbPractice { border-color:#2E7D32; background:#43A047; color:#fff; }
+.sbPractice:hover { background:#388E3C; }
+.sbMark { border-color:#2E7D32; background:#43A047; color:#fff; }
+.sbStop { border-color:#CFCFC9; background:#FAFAF8; }
+.sbVideo { border-color:#5E35B1; background:linear-gradient(135deg,#42A5F5,#7E57C2); color:#fff; }
+.sbVideo .sbIcon { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,0.28); font-size:0.7rem; }
+.sbCount { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 6px; border-radius:999px; background:#fff; color:#5E35B1; font-size:0.78rem; }
+.sbCount:empty { display:none; }
+.sbVideo.sbCall { animation:sbGlow 2.4s ease-in-out infinite; }
+@keyframes sbGlow { 0%,100% { box-shadow:var(--shadow-btn), 0 0 0 0 rgba(126,87,194,0.45); } 50% { box-shadow:var(--shadow-btn), 0 0 0 7px rgba(126,87,194,0); } }
+.sbStatus { display:inline-flex; align-items:center; min-height:40px; padding:8px 14px; border-radius:999px; background:#E8F5E9; color:#1B5E20; font-size:0.86rem; font-weight:700; white-space:nowrap; }
+.sbNote { font-size:0.82rem; color:var(--ink-faint); white-space:nowrap; }
+.sbSpacer { flex:1 1 auto; }
+.sbGuide { border-color:#E7CFA6; background:#FFFDF8; color:#8A5A12; }
+@media (max-width: 720px) {
+  #studentBar { padding:8px 10px; }
+  .sbRow { gap:8px; }
+  .sbHello, .sbSpacer { display:none; }
+  .sbBtn { min-height:38px; padding:7px 13px; font-size:0.82rem; flex:0 0 auto; }
+}
+
+/* Every icon a student can reach says its own name. A tooltip needs a hover,
+   and an iPad has none. */
+body.studentView .toolBtn[data-label] { width:auto; min-width:28px; padding:0 9px 0 7px; gap:5px; }
+body.studentView .toolBtn[data-label]::after { content:attr(data-label); font-size:0.74rem; font-weight:700; letter-spacing:0.01em; white-space:nowrap; color:inherit; }
+body.studentView #burgerBtn { background:#E3F2FD; border-color:#90CAF9; color:#0D47A1; height:34px; padding:0 12px 0 9px; }
+body.studentView #playlistBtn { background:linear-gradient(135deg,#42A5F5,#7E57C2); color:#fff; border-color:#5E35B1; }
+body.studentView #playlistBtn .plCount { position:static; background:#fff; color:#5E35B1; margin-left:2px; }
+body.studentView #lessonMenuBtn .btnLabel::before { content:'✏️ '; }
+/* The toolbar hides a button's words below 1300px so a teacher's forty tools
+   fit in two rows. A student has a handful, and needs the words more. */
+body.studentView #toolbar .btn > .btnLabel { display:inline; }
+/* On a phone the header has no room for it — 📚 My worksheets in the bar is
+   the same door, with its name on it. */
+@media (max-width: 520px) {
+  body.studentView #burgerBtn { width:32px; padding:0; }
+  body.studentView #burgerBtn::after { content:none; }
+}
+/* A phone has room for the bar or for a name on every icon, not both: the
+   bar keeps its words and the ❓ tour names the icons one by one. */
+@media (max-width: 640px) {
+  body.studentView #toolbar .toolBtn[data-label] { width:32px; padding:0; }
+  body.studentView #toolbar .toolBtn[data-label]::after { content:none; }
+  .sbGuide span:last-child { display:none; }
+  .sbGuide::after { content:'Help'; }
+}
+
+/* A video on the page calls for a tap, for a student. */
+body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
+@keyframes sbPill { 0%,100% { box-shadow:0 1px 2px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.22), 0 0 0 0 rgba(126,87,194,0.55); } 50% { box-shadow:0 1px 2px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.22), 0 0 0 6px rgba(126,87,194,0); } }
+
+/* The tour: a spotlight ring on one button at a time and a card that says
+   what it does. */
+#stuTour { position:fixed; inset:0; z-index:1200; pointer-events:auto; }
+#stuTour[hidden] { display:none; }
+#stuTour .stRing { position:fixed; border-radius:14px; box-shadow:0 0 0 4px #FFB74D, 0 0 0 9999px rgba(20,20,18,0.55); transition:left .25s ease, top .25s ease, width .25s ease, height .25s ease; pointer-events:none; }
+#stuTour .stRing.stNone { box-shadow:0 0 0 9999px rgba(20,20,18,0.55); width:0 !important; height:0 !important; }
+#stuTour .stCard { position:fixed; width:min(360px, calc(100vw - 32px)); padding:22px 22px 18px; background:#fff; border-radius:16px; box-shadow:var(--shadow-modal); animation:fadeUp .25s ease both; }
+#stuTour .stStep { font-size:0.74rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--accent-deep); margin-bottom:8px; }
+#stuTour .stTitle { font-size:1.1rem; font-weight:700; margin-bottom:8px; line-height:1.3; }
+#stuTour .stText { font-size:0.9rem; line-height:1.6; color:var(--ink-soft); margin-bottom:18px; }
+#stuTour .stDots { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:16px; }
+#stuTour .stDot { width:7px; height:7px; border-radius:50%; background:#E6E3DD; }
+#stuTour .stDot.on { background:var(--accent-deep); }
+#stuTour .stBtns { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+#stuTour .stBtns .stSkip { margin-right:auto; }
+#stuTour .stBtns button { min-height:38px; padding:8px 16px; border-radius:10px; border:1px solid var(--line); background:#fff; font:inherit; font-size:0.85rem; font-weight:700; cursor:pointer; }
+#stuTour .stBtns .stNext { background:var(--ink); color:#fff; border-color:var(--ink); }
+#stuTour .stBtns .stSkip { border-color:transparent; background:transparent; color:var(--ink-faint); }
+#stuTour .stBtns button:focus-visible { outline:3px solid #1E88E5; outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) {
+  .sbVideo.sbCall, body.studentView .videoAnnBtn { animation:none; }
+  #stuTour .stRing, #stuTour .stCard { transition:none; animation:none; }
+}
+@media print { #studentBar, #stuTour { display:none !important; } }
+
 </style>
 <link rel="stylesheet" href="classroom-battle.css">
 <link rel="stylesheet" href="battle-animation.css">
@@ -3776,7 +3875,7 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
 <body>
 
 <header class="polymath-header">
-  <button class="toolBtn" id="burgerBtn" data-key="Q" title="All questions — show / hide the list">
+  <button class="toolBtn" id="burgerBtn" data-label="Worksheets" data-key="Q" title="All questions — show / hide the list">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
   </button>
   <span class="polymath-logo" id="brandLogo" role="img" aria-label="Polymath Learning Centre">
@@ -3865,10 +3964,10 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
       </div>
     </div>
     <div id="expandedTools" hidden></div>
-    <button class="toolBtn popularTool popularPen" data-tool="pen" data-key="P" title="Pencil" aria-label="Pencil">
+    <button class="toolBtn popularTool popularPen" data-tool="pen" data-key="P" data-label="Pencil" title="Pencil" aria-label="Pencil">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
     </button>
-    <button class="toolBtn popularTool popularText" data-tool="text" data-key="T" title="Text box" aria-label="Text box">
+    <button class="toolBtn popularTool popularText" data-tool="text" data-key="T" data-label="Text" title="Text box" aria-label="Text box">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
     </button>
     <button class="toolBtn" data-tool="ai" data-key="G" data-ai-title="AI answer box — draw a box, type your question, and {ai} writes the answer" title="AI answer box — draw a box, type your question, and Chung GPT writes the answer">
@@ -3938,16 +4037,16 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
   </div>
     </div>
   </div>
-    <button class="toolBtn popularTool popularKeyword" data-tool="keyword" data-key="K" title="Mark keywords — click words in a text box" aria-label="Mark keywords">
+    <button class="toolBtn popularTool popularKeyword" data-tool="keyword" data-key="K" data-label="Keywords" title="Mark keywords — click words in a text box" aria-label="Mark keywords">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M15 7l3 3"/><path d="M18 4l2 2"/></svg>
     </button>
     <button class="toolBtn" data-tool="video" data-key="U" title="Video solution button — click a spot on the page, paste a video link, students tap it to watch">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M10 9.2v5.6l5.2-2.8z" fill="currentColor" stroke="none"/></svg>
     </button>
-    <button class="toolBtn" data-tool="eraser" data-key="E" title="Eraser — drag across ink to erase it">
+    <button class="toolBtn" data-tool="eraser" data-key="E" data-label="Eraser" title="Eraser — drag across ink to erase it">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7l-4-4a2 2 0 0 1 0-2.8l9.6-9.6a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L13.4 19"/><path d="M8.6 8.6l6.8 6.8"/></svg>
     </button>
-    <button class="toolBtn" data-tool="laser" data-key="X" title="Laser pointer — strokes fade away by themselves, nothing is saved">
+    <button class="toolBtn" data-tool="laser" data-key="X" data-label="Laser" title="Laser pointer — strokes fade away by themselves, nothing is saved">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l8.5-8.5"/><circle cx="14" cy="10" r="2.6"/><path d="M14 3.5v2.2"/><path d="M20.5 10h-2.2"/><path d="M18.6 5.4l-1.6 1.6"/><path d="M18.6 14.6l-1.6-1.6"/></svg>
     </button>
   </div>
@@ -3982,19 +4081,19 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
   <div class="tSep"></div>
 
   <div class="tGroup">
-    <button class="toolBtn" id="undoBtn" data-key="Ctrl+Z" title="Undo">
+    <button class="toolBtn" id="undoBtn" data-label="Undo" data-key="Ctrl+Z" title="Undo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>
     </button>
-    <button class="toolBtn" id="redoBtn" data-key="Ctrl+Y" title="Redo">
+    <button class="toolBtn" id="redoBtn" data-label="Redo" data-key="Ctrl+Y" title="Redo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>
     </button>
-    <button class="toolBtn" id="deleteBtn" data-key="Del" title="Delete selected">
+    <button class="toolBtn" id="deleteBtn" data-label="Delete" data-key="Del" title="Delete selected">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
     </button>
     <button class="btn" id="aiQuestionFocusBtn" type="button" aria-pressed="false" title="Drag a box around the exact question for all AI modes">◎ AI focus</button>
     <button class="btn" id="aiQuestionFocusClear" type="button" hidden title="Clear the question focus">Clear focus</button>
     <button class="btn" id="aiShareViewBtn" type="button" aria-pressed="false" title="Share this app tab with AI to include live widgets and floating windows in each request">▣ Share view</button>
-    <button class="toolBtn" id="askPageBtn" title="Ask AI about this page — opens a conversation about what is on screen">
+    <button class="toolBtn" id="askPageBtn" data-label="Ask AI" title="Ask AI about this page — opens a conversation about what is on screen">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.5 9.5 0 0 1-3-.5L3 21l1.6-4.2A8.2 8.2 0 0 1 3.6 11.5 8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/><path d="M9.2 9.3a2.8 2.8 0 0 1 5.5.7c0 1.9-2.8 2.8-2.8 2.8"/><line x1="12" y1="16.5" x2="12" y2="16.5"/></svg>
     </button>
   </div>
@@ -4008,20 +4107,20 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
     <button class="toolBtn" id="zoomInBtn" data-key="+" title="Zoom in">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></svg>
     </button>
-    <button class="toolBtn" id="fitBtn" data-key="F" title="Fit to width">
+    <button class="toolBtn" id="fitBtn" data-label="Fit page" data-key="F" title="Fit to width">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 4 4 4 4 9"/><polyline points="15 4 20 4 20 9"/><polyline points="9 20 4 20 4 15"/><polyline points="15 20 20 20 20 15"/></svg>
     </button>
   </div>
   <div class="tSep"></div>
 
   <div class="tGroup">
-    <button class="toolBtn" id="focusBtn" title="Hide / show the top banner — more space for screensharing">
+    <button class="toolBtn" id="focusBtn" data-label="Hide banner" title="Hide / show the top banner — more space for screensharing">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
     </button>
-    <button class="toolBtn" id="stylusBtn" data-key="D" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
+    <button class="toolBtn" id="stylusBtn" data-label="Pencil only" data-key="D" title="Pencil-only mode — Apple Pencil draws, fingers scroll, palms are ignored">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
     </button>
-    <button class="toolBtn" id="nextTwoBtn" data-key="C" title="Up next — the class's next two worksheets, ready to open, download and print" style="display:none">
+    <button class="toolBtn" id="nextTwoBtn" data-label="Up next" data-key="C" title="Up next — the class's next two worksheets, ready to open, download and print" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><polyline points="10 12 13 15 10 18"/></svg>
     </button>
     <button class="toolBtn" id="lessonRecordBtn" data-key="Shift+R" title="Record a lesson — your camera, voice, pencil strokes, typed text and page position, replayed together" style="display:none">
@@ -4032,23 +4131,23 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
       title="Talk to Jev — format or duplicate selected objects, point to add shapes or answers, or ask a question.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="3" width="6" height="10.5" rx="3"/><path d="M3 11a6.5 6.5 0 0 0 13 0"/><line x1="9.5" y1="17.5" x2="9.5" y2="21"/><path d="M18.5 2.5l1.1 2.4 2.4 1.1-2.4 1.1-1.1 2.4-1.1-2.4-2.4-1.1 2.4-1.1z" fill="currentColor" stroke-width="1"/></svg>
     </button>
-    <button class="toolBtn" id="playlistBtn" style="display:none" aria-haspopup="dialog" aria-expanded="false" title="Play every video on this worksheet, one after another">
+    <button class="toolBtn" id="playlistBtn" data-label="Videos" style="display:none" aria-haspopup="dialog" aria-expanded="false" title="Play every video on this worksheet, one after another">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="6" x2="13.5" y2="6"/><line x1="3.5" y1="11" x2="13.5" y2="11"/><line x1="3.5" y1="16" x2="9.5" y2="16"/><path d="M14.5 13.2v7l5.5-3.5z" fill="currentColor"/></svg>
       <span class="plCount"></span>
     </button>
     <button class="toolBtn" id="codeWinBtn" data-key="J" title="Code window — paste HTML and it runs in a window you can show the class">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8.5 8 4.5 12 8.5 16"/><polyline points="15.5 8 19.5 12 15.5 16"/><line x1="13.5" y1="5.5" x2="10.5" y2="18.5"/></svg>
     </button>
-    <button class="toolBtn" id="calcBtn" data-key="K" title="Calculator — fractions, powers and roots, in a window you can drag anywhere">
+    <button class="toolBtn" id="calcBtn" data-label="Calculator" data-key="K" title="Calculator — fractions, powers and roots, in a window you can drag anywhere">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="16" height="19" rx="2.5"/><rect x="7" y="5.5" width="10" height="3.5" rx="1"/><line x1="8.2" y1="13" x2="8.2" y2="13"/><line x1="12" y1="13" x2="12" y2="13"/><line x1="15.8" y1="13" x2="15.8" y2="13"/><line x1="8.2" y1="17.5" x2="8.2" y2="17.5"/><line x1="12" y1="17.5" x2="12" y2="17.5"/><line x1="15.8" y1="17.5" x2="15.8" y2="17.5"/></svg>
     </button>
-    <button class="toolBtn" id="thumbToggleBtn" data-key="N" title="Show / hide page thumbnails — drag the panel edge to resize them">
+    <button class="toolBtn" id="thumbToggleBtn" data-label="Pages" data-key="N" title="Show / hide page thumbnails — drag the panel edge to resize them">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/><rect x="5.4" y="7" width="2.4" height="3.2"/><rect x="5.4" y="13" width="2.4" height="3.2"/></svg>
     </button>
-    <button class="toolBtn" id="sideToggleBtn" data-key="W" title="Show / hide worksheet panel">
+    <button class="toolBtn" id="sideToggleBtn" data-label="Side panel" data-key="W" title="Show / hide worksheet panel">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9.5" y1="4" x2="9.5" y2="20"/></svg>
     </button>
-    <button class="toolBtn" id="fsBtn" data-key="Shift+F" title="Full screen — hide the banner and toolbar">
+    <button class="toolBtn" id="fsBtn" data-label="Full screen" data-key="Shift+F" title="Full screen — hide the banner and toolbar">
       <svg class="fsEnter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M10 20H4v-6"/><line x1="20" y1="4" x2="13.5" y2="10.5"/><line x1="4" y1="20" x2="10.5" y2="13.5"/></svg>
       <svg class="fsExit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10h-6V4"/><path d="M4 14h6v6"/><line x1="14" y1="10" x2="20.5" y2="3.5"/><line x1="10" y1="14" x2="3.5" y2="20.5"/></svg>
     </button>
@@ -4135,6 +4234,40 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
     <button class="btn" id="docsBtn" data-key="M" title="Open a previously saved PDF">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span class="btnLabel">My PDFs</span>
+    </button>
+  </div>
+</div>
+
+<!-- 🧭 Start here — the student's own bar (v1.148.0). Search `STUDENT START-HERE BAR`. -->
+<div id="studentBar" hidden role="region" aria-label="Start here">
+  <div class="sbRow">
+    <span class="sbHello" id="sbHello">👋 Start here</span>
+    <button type="button" class="sbBtn sbWorksheets" id="sbWorksheetsBtn" title="Open the list of worksheets for your level and subject">
+      <span class="sbIcon" aria-hidden="true">📚</span><span>My worksheets</span>
+    </button>
+    <button type="button" class="sbBtn sbPractice" id="sbPracticeBtn" title="Hide the answers and try this worksheet yourself — then get your answers marked">
+      <span class="sbIcon" aria-hidden="true">✏️</span><span>Practise this worksheet</span>
+    </button>
+    <span class="sbStatus" id="sbPracticing" hidden>✏️ Practising — the answers are hidden</span>
+    <button type="button" class="sbBtn sbMark" id="sbMarkAllBtn" hidden title="Mark every answer you have written and get a report">
+      <span class="sbIcon" aria-hidden="true">📋</span><span>Mark all my answers</span>
+    </button>
+    <button type="button" class="sbBtn" id="sbCheckBtn" hidden title="Mark just the answer you wrote last">
+      <span class="sbIcon" aria-hidden="true">✨</span><span>Check one answer</span>
+    </button>
+    <button type="button" class="sbBtn sbStop" id="sbStopBtn" hidden title="Stop practising and show the answers again">
+      <span class="sbIcon" aria-hidden="true">👁</span><span>Stop — show answers</span>
+    </button>
+    <button type="button" class="sbBtn sbVideo" id="sbVideosBtn" hidden aria-haspopup="dialog" title="Watch your teacher explain the questions on this worksheet">
+      <span class="sbIcon" aria-hidden="true">▶</span><span class="sbVideoWords">Watch lesson video</span><span class="sbCount" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="sbBtn sbVideo" id="sbRecordingBtn" hidden title="Watch the recording of this lesson">
+      <span class="sbIcon" aria-hidden="true">▶</span><span>Watch lesson recording</span>
+    </button>
+    <span class="sbNote" id="sbNoVideo" hidden>🎬 No video for this worksheet yet</span>
+    <span class="sbSpacer"></span>
+    <button type="button" class="sbBtn sbGuide" id="sbGuideBtn" title="A quick tour of every button and what it does">
+      <span class="sbIcon" aria-hidden="true">❓</span><span>What do the buttons do?</span>
     </button>
   </div>
 </div>
@@ -4256,6 +4389,15 @@ body.lessonScreenRec .qbBack { inset:auto; top:var(--lsr-top, 0px); left:var(--l
        stamped onto the PDF itself.</p>
     <button class="btn btnPrimary" id="emptyUploadBtn" style="font-size:0.95rem; padding: 12px 26px;">Choose a PDF</button>
     <button class="btn" id="emptyBlankBtn" style="font-size:0.95rem; padding: 12px 26px;">Start with a blank page</button>
+    <div class="emptyStudent" id="emptyStudent" hidden>
+      <button class="btn btnPrimary" id="emptyWorksheetsBtn" type="button">📚 Pick a worksheet</button>
+      <button class="btn" id="emptyGuideBtn" type="button">❓ Show me the buttons</button>
+      <ol class="emptySteps">
+        <li><b>📚 Pick a worksheet</b> for your level and subject.</li>
+        <li><b>✏️ Practise it</b> — the answers hide, you write yours, and they get marked.</li>
+        <li><b>▶ Watch the lesson video</b> to hear your teacher explain each question.</li>
+      </ol>
+    </div>
     <div id="dropHint">…or drag &amp; drop a PDF anywhere on this page. A picture dropped or pasted with <b>Ctrl+V</b> lands on the page you are looking at.</div>
   </div>
   <div id="pagesContainer"></div>
@@ -5628,7 +5770,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.147.1';
+var APP_VERSION = 'v1.148.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -8853,6 +8995,7 @@ function renderVideoCard() {
     $('videoRemoveBtn').style.display = has ? 'inline-flex' : 'none';
     $('videoUrlInput').value = wsMeta.videoUrl || '';
   }
+  if (typeof studentBarSync === 'function') studentBarSync();
 }
 
 function formatOffset(sec) {
@@ -14810,6 +14953,7 @@ function lessonPlaylistSync() {
     if (badge) badge.textContent = n > 1 ? String(n) : '';
   }
   if (!n && !$('playlistPanel').hidden) lessonPlaylistClosePanel();
+  if (typeof studentBarSync === 'function') studentBarSync();
 }
 
 /* ---- The list ---- */
@@ -14857,7 +15001,7 @@ function lessonPlaylistRenderPanel() {
 function lessonPlaylistOutside(e) {
   var panel = $('playlistPanel');
   if (panel.hidden) return;
-  if (panel.contains(e.target) || (e.target.closest && e.target.closest('#playlistBtn'))) return;
+  if (panel.contains(e.target) || (e.target.closest && e.target.closest('#playlistBtn, #sbVideosBtn'))) return;
   lessonPlaylistClosePanel();
 }
 function lessonPlaylistOpenPanel() {
@@ -29040,6 +29184,7 @@ function updatePracticeCard() {
   $('practiceIntro').style.display = practiceMode ? 'none' : '';
   $('practiceActive').style.display = practiceMode ? '' : 'none';
   if (typeof syncToolbarMenuState === 'function') syncToolbarMenuState();
+  if (typeof studentBarSync === 'function') studentBarSync();
 }
 
 function startPractice() {
@@ -29083,6 +29228,324 @@ function endPractice() {
   renderAllOverlays();
   updatePracticeCard();
   toast('Answers shown again.');
+}
+
+/* ================= 🧭 STUDENT START-HERE BAR (v1.148.0) =================
+   "It's not immediately obvious for students where each button is and what
+   the buttons do." A student signed in to a toolbar of bare icons: Practice
+   sat inside the Notes & practice dropdown and on a side panel that starts
+   closed on a phone, and the lesson videos were a small purple glyph that
+   only appears once a worksheet has one. The bar puts the three things a
+   student came for in one row under the toolbar — pick a worksheet,
+   practise it, watch its video — and ❓ walks through every other button.
+
+   - `studentBarModel` is PURE and is the one place the bar decides what it
+     shows, so `tools/student-guide-tests.mjs` can pin every state without a
+     page.
+   - The bar never does anything of its own: every button calls the very
+     function the existing control calls (`startPractice`, `checkAllAnswers`,
+     `checkAnswer`, `endPractice`, `lessonPlaylistStart`,
+     `lessonPlaylistTogglePanel`, `openVideoModal`, `toggleQuestionsDrawer`),
+     so a guard on any of those still holds here. A second way to start
+     practice that skipped `lessonGuardChange` would be a hole, not a button.
+   - It is a STUDENT's bar (`isStudent()`), refused for the teacher at render
+     and again in every handler: the teacher's toolbar has its own controls.
+   - While practising the teacher's answers — video pills included — are
+     parked in `teacherAnswers`, so the video button goes away until practice
+     ends instead of opening a playlist of nothing. */
+function studentBarModel(st) {
+  var m = { show: false, hello: '', worksheets: false, practice: false, practising: false,
+    videos: 0, videoWords: '', recording: false, noVideo: false, guide: false };
+  if (!st || !st.student) return m;
+  m.show = true;
+  m.guide = true;
+  m.worksheets = !st.shared;              // a share link is one worksheet, with no list behind it
+  if (!st.worksheet) {
+    m.hello = st.shared ? '👋 Opening your worksheet…' : '👋 Start here';
+    return m;
+  }
+  if (st.practising) {
+    m.practising = true;
+    return m;
+  }
+  m.hello = 'This worksheet:';
+  m.practice = !!st.hasAnswers;
+  m.videos = Math.max(0, Math.floor(Number(st.videos) || 0));
+  m.videoWords = m.videos === 1 ? 'Watch the lesson video' : 'Watch lesson videos';
+  m.recording = !!st.recording;
+  m.noVideo = !m.videos && !m.recording;
+  return m;
+}
+
+function studentBarState() {
+  var parked = practiceMode ? (teacherAnswers || []) : annotations;
+  var open = !!(pdfDoc && pages.length);
+  return {
+    student: isStudent(),
+    shared: isSharedVisitor(),
+    worksheet: open,
+    practising: !!practiceMode,
+    hasAnswers: practiceMode ? !!(teacherAnswers && teacherAnswers.length) : annotations.length > 0,
+    videos: open && typeof lessonPlaylistItems === 'function' ? lessonPlaylistItems(parked).length : 0,
+    recording: !!(wsMeta && wsMeta.videoUrl)
+  };
+}
+
+function studentBarSync() {
+  var bar = $('studentBar');
+  if (!bar) return;
+  var m = studentBarModel(studentBarState());
+  document.body.classList.toggle('studentView', m.show);
+  var was = bar.hidden;
+  bar.hidden = !m.show;
+  if (!m.show) { if (!was && typeof placeToolbarToggle === 'function') placeToolbarToggle(); return; }
+  var show = function (id, on) { var e = $(id); if (e) e.hidden = !on; };
+  $('sbHello').textContent = m.hello;
+  show('sbHello', !!m.hello);
+  show('sbWorksheetsBtn', m.worksheets);
+  show('sbPracticeBtn', m.practice);
+  show('sbPracticing', m.practising);
+  show('sbMarkAllBtn', m.practising);
+  show('sbCheckBtn', m.practising);
+  show('sbStopBtn', m.practising);
+  show('sbVideosBtn', m.videos > 0);
+  show('sbRecordingBtn', m.recording);
+  show('sbNoVideo', m.noVideo);
+  show('sbGuideBtn', m.guide);
+  var vb = $('sbVideosBtn');
+  vb.querySelector('.sbVideoWords').textContent = m.videoWords;
+  vb.querySelector('.sbCount').textContent = m.videos > 1 ? String(m.videos) : '';
+  vb.classList.toggle('sbCall', m.videos > 0);
+  $('sbRecordingBtn').classList.toggle('sbCall', m.recording && !m.videos);
+  vb.title = m.videos === 1 ? 'Watch your teacher explain this worksheet'
+    : 'All ' + m.videos + ' videos on this worksheet — pick one, or play them all in order';
+  // The bar pushes the page down, and the floating Hide toolbar button is
+  // placed against the top of the page.
+  if (typeof placeToolbarToggle === 'function') placeToolbarToggle();
+}
+
+function studentBarOpenWorksheets() {
+  if (!isStudent()) return;
+  if (!$('qDrawer').classList.contains('open')) toggleQuestionsDrawer();
+}
+function studentBarVideos() {
+  if (!isStudent()) return;
+  if (practiceMode) { toast('Stop practising first — the videos come back with the answers.'); return; }
+  var n = lessonPlaylistItems(annotations).length;
+  if (!n) { toast('There are no videos on this worksheet yet.'); return; }
+  // One video plays straight away — a list of one is a tap for nothing. The
+  // tap is what lets the browser play its sound, so it starts inside it.
+  if (n === 1) lessonPlaylistStart(0);
+  else lessonPlaylistTogglePanel();
+}
+$('sbWorksheetsBtn').addEventListener('click', studentBarOpenWorksheets);
+$('sbPracticeBtn').addEventListener('click', function () { if (isStudent() && !practiceMode) startPractice(); });
+$('sbMarkAllBtn').addEventListener('click', function () { if (isStudent() && practiceMode) checkAllAnswers(); });
+$('sbCheckBtn').addEventListener('click', function () { if (isStudent() && practiceMode) checkAnswer(); });
+$('sbStopBtn').addEventListener('click', function () { if (isStudent() && practiceMode) endPractice(); });
+$('sbVideosBtn').addEventListener('click', studentBarVideos);
+$('sbRecordingBtn').addEventListener('click', function () { if (isStudent()) openVideoModal(); });
+$('sbGuideBtn').addEventListener('click', function () { if (isStudent()) studentGuideOpen(); });
+
+/* ================= ❓ THE BUTTON TOUR (v1.148.0) =================
+   One button at a time: a ring round it, everything else dimmed, and a card
+   saying what it does. Steps whose button is not on screen for this student
+   are left out, except the two the user asked to be unmissable — practice
+   and the videos — which say where they WILL appear instead.
+
+   - It opens by itself ONCE per signed-in student per device
+     (`STUDENT_GUIDE_KEY` + uid), and only when no other window is asking
+     something (the level/subject form comes first). Never for the teacher,
+     a device handed over with "Practise as" or a share-link visitor.
+   - ❓ What do the buttons do? brings it back any time.
+   - Keys stop at the tour, or a letter pressed on the card fires a one-letter
+     tool shortcut under it. Esc closes, ←/→ step.
+   - `studentGuidePlace` is PURE: below the button when it fits, above when
+     not, centred when neither, and always on screen. */
+var STUDENT_GUIDE_KEY = 'polymath.studentGuide.v1';
+var STUDENT_GUIDE_STEPS = [
+  { title: 'Welcome to Polymath! 👋',
+    text: 'This quick tour shows you where each button is and what it does. It takes under a minute — tap Next.' },
+  { sel: ['#sbWorksheetsBtn', '#burgerBtn'], title: '📚 Your worksheets',
+    text: 'All the worksheets for your level and subject. Tap here, then tap a worksheet to open it.' },
+  { sel: ['#sbPracticeBtn', '#sbPracticing'], always: true, title: '✏️ Practise a worksheet',
+    text: 'Hides your teacher’s answers so you can try every question yourself. Write with the pencil, then tap 📋 Mark all my answers to get each answer marked with feedback. Tap 👁 Stop to see the answers again.',
+    away: 'Open a worksheet first. A green ✏️ Practise this worksheet button then appears in the orange bar at the top of the screen.' },
+  { sel: ['#sbVideosBtn', '#sbRecordingBtn', '#playlistBtn'], always: true, title: '▶ Lesson videos',
+    text: 'Watch your teacher explain the questions. Purple ▶ buttons on the page play the video for that question too.',
+    away: 'When your teacher has recorded a lesson, a purple ▶ Watch lesson video button appears in the orange bar at the top, and purple ▶ buttons appear beside the questions on the page.' },
+  { sel: ['#lessonMenuBtn'], title: '✏️ Notes & practice',
+    text: 'Practice is in this menu too, with the Mindmap board for drawing your own mind maps.' },
+  { sel: ['#docsBtn'], title: '📂 My PDFs', text: 'Worksheets you have saved or opened before.' },
+  { sel: ['#askPageBtn'], title: '💬 Ask AI',
+    text: 'Stuck on a question? Ask {ai} about what is on your screen and it explains, step by step.' },
+  { sel: ['#calcBtn'], title: '🧮 Calculator',
+    text: 'A calculator with fractions, powers and roots, in a window you can drag anywhere.' },
+  { sel: ['#printMenuBtn'], title: '🖨 Print & PDF', text: 'Print the worksheet, or download it as a PDF.' },
+  { sel: ['#thumbToggleBtn'], title: '🗂 Pages', text: 'Small pictures of every page. Tap one to jump straight to it.' },
+  { sel: ['#sideToggleBtn'], title: '📌 Side panel',
+    text: 'Keyword revision, practice and the lesson recording all live in the side panel.' },
+  { sel: ['#zoomInBtn', '#fitBtn'], title: '🔍 Zoom', text: 'Make the page bigger or smaller. Fit page makes it fit your screen again.' },
+  { sel: ['#fsBtn'], title: '⛶ Full screen', text: 'Hide everything except the worksheet. Tap Exit full screen to come back.' },
+  { sel: ['#appsBtn'], title: '🧭 Apps', text: 'Every other Polymath app. You stay signed in.' },
+  { sel: ['#sbGuideBtn'], title: 'Need this again?',
+    text: 'Tap ❓ What do the buttons do? any time to see this tour again. Have fun learning!' }
+];
+
+function studentGuidePlace(r, card, view) {
+  var gap = 14, pad = 16;
+  var w = Math.min(card.w, view.w - pad * 2), h = card.h;
+  if (!r) return { left: Math.round((view.w - w) / 2), top: Math.max(pad, Math.round((view.h - h) / 2)), side: 'centre' };
+  var left = Math.round(r.left + r.width / 2 - w / 2);
+  left = Math.max(pad, Math.min(view.w - w - pad, left));
+  if (r.bottom + gap + h <= view.h - pad) return { left: left, top: Math.round(r.bottom + gap), side: 'below' };
+  if (r.top - gap - h >= pad) return { left: left, top: Math.round(r.top - gap - h), side: 'above' };
+  return { left: Math.round((view.w - w) / 2), top: Math.max(pad, Math.round((view.h - h) / 2)), side: 'centre' };
+}
+
+function studentGuideShown(el) {
+  if (!el || el.hidden) return false;
+  var r = el.getBoundingClientRect();
+  if (!(r.width > 0 && r.height > 0)) return false;
+  var cs = getComputedStyle(el);
+  return cs.visibility !== 'hidden' && cs.display !== 'none';
+}
+
+function studentGuideResolve() {
+  var out = [];
+  STUDENT_GUIDE_STEPS.forEach(function (st) {
+    var target = null;
+    (st.sel || []).some(function (q) {
+      var e = document.querySelector(q);
+      if (studentGuideShown(e)) { target = e; return true; }
+      return false;
+    });
+    if (st.sel && !target && !st.always) return;
+    out.push({ el: target, title: st.title,
+      text: (target || !st.away ? st.text : st.away).replace('{ai}', aiEngineName()) });
+  });
+  return out;
+}
+
+var stuTour = null;
+function studentGuideBuild() {
+  var root = $('stuTour');
+  if (root) return root;
+  root = document.createElement('div');
+  root.id = 'stuTour';
+  root.hidden = true;
+  root.setAttribute('role', 'dialog');
+  root.setAttribute('aria-modal', 'true');
+  root.setAttribute('aria-labelledby', 'stTitle');
+  root.innerHTML = '<div class="stRing"></div>' +
+    '<div class="stCard"><div class="stStep" id="stStep"></div><div class="stTitle" id="stTitle"></div>' +
+    '<div class="stText" id="stText"></div><div class="stDots" id="stDots"></div>' +
+    '<div class="stBtns"><button type="button" class="stSkip" id="stSkip">Skip tour</button>' +
+    '<button type="button" class="stBack" id="stBack">Back</button>' +
+    '<button type="button" class="stNext" id="stNext">Next</button></div></div>';
+  document.body.appendChild(root);
+  root.addEventListener('keydown', function (e) {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); studentGuideClose(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); studentGuideGo(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); studentGuideGo(-1); }
+  });
+  // A tap on the dimmed page is not a tap on whatever is under it.
+  root.addEventListener('pointerdown', function (e) { if (!e.target.closest('.stCard')) e.preventDefault(); });
+  $('stSkip').addEventListener('click', studentGuideClose);
+  $('stBack').addEventListener('click', function () { studentGuideGo(-1); });
+  $('stNext').addEventListener('click', function () { studentGuideGo(1); });
+  window.addEventListener('resize', studentGuideRender);
+  return root;
+}
+
+function studentGuideOpen() {
+  if (!isStudent()) return;
+  studentBarSync();
+  var steps = studentGuideResolve();
+  if (!steps.length) return;
+  var root = studentGuideBuild();
+  stuTour = { steps: steps, i: 0 };
+  root.hidden = false;
+  studentGuideRender();
+  try { $('stNext').focus({ preventScroll: true }); } catch (e) {}
+}
+
+function studentGuideGo(d) {
+  if (!stuTour) return;
+  var j = stuTour.i + d;
+  if (j >= stuTour.steps.length) { studentGuideClose(); return; }
+  stuTour.i = Math.max(0, j);
+  studentGuideRender();
+}
+
+function studentGuideRender() {
+  if (!stuTour) return;
+  var st = stuTour.steps[stuTour.i], n = stuTour.steps.length;
+  var root = $('stuTour'), ring = root.querySelector('.stRing'), card = root.querySelector('.stCard');
+  // A button scrolled out of the bar's sideways row on a phone is brought in.
+  if (st.el && st.el.closest('#studentBar')) { try { st.el.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
+  var r = st.el && studentGuideShown(st.el) ? st.el.getBoundingClientRect() : null;
+  $('stStep').textContent = 'Step ' + (stuTour.i + 1) + ' of ' + n;
+  $('stTitle').textContent = st.title;
+  $('stText').textContent = st.text;
+  var dots = $('stDots');
+  dots.replaceChildren();
+  for (var k = 0; k < n; k++) {
+    var d = document.createElement('span');
+    d.className = 'stDot' + (k === stuTour.i ? ' on' : '');
+    dots.appendChild(d);
+  }
+  $('stBack').hidden = stuTour.i === 0;
+  $('stNext').textContent = stuTour.i === n - 1 ? 'Done' : 'Next';
+  ring.classList.toggle('stNone', !r);
+  if (r) {
+    var p = 6;
+    ring.style.left = (r.left - p) + 'px';
+    ring.style.top = (r.top - p) + 'px';
+    ring.style.width = (r.width + p * 2) + 'px';
+    ring.style.height = (r.height + p * 2) + 'px';
+  } else {
+    ring.style.left = (innerWidth / 2) + 'px';
+    ring.style.top = (innerHeight / 2) + 'px';
+  }
+  var cr = card.getBoundingClientRect();
+  var at = studentGuidePlace(r, { w: cr.width || 360, h: cr.height || 220 }, { w: innerWidth, h: innerHeight });
+  card.style.left = at.left + 'px';
+  card.style.top = at.top + 'px';
+}
+
+function studentGuideSeenKey() {
+  return STUDENT_GUIDE_KEY + ':' + (currentUser && currentUser.uid ? currentUser.uid : 'anon');
+}
+function studentGuideClose() {
+  var root = $('stuTour');
+  if (root) root.hidden = true;
+  if (stuTour) {
+    stuTour = null;
+    try { localStorage.setItem(studentGuideSeenKey(), '1'); } catch (e) {}
+  }
+}
+
+var studentGuideAutoTimer = null;
+function studentGuideMaybeAuto() {
+  if (!isStudent()) { clearInterval(studentGuideAutoTimer); studentGuideAutoTimer = null; studentGuideClose(); return; }
+  var real = !!currentUser && !isAdmin(currentUser) && !actingStudent && !isSharedVisitor();
+  if (!real || studentGuideAutoTimer || stuTour) return;
+  var seen = false;
+  try { seen = localStorage.getItem(studentGuideSeenKey()) === '1'; } catch (e) { seen = true; }
+  if (seen) return;
+  var tries = 0, uid = currentUser.uid;
+  studentGuideAutoTimer = setInterval(function () {
+    tries++;
+    if (!currentUser || currentUser.uid !== uid || !isStudent() || tries > 90) {
+      clearInterval(studentGuideAutoTimer); studentGuideAutoTimer = null; return;
+    }
+    // The level/subject form, a share gate or any other question comes first.
+    if (document.querySelector('.modalBack.open:not(.floatWin)')) return;
+    clearInterval(studentGuideAutoTimer); studentGuideAutoTimer = null;
+    studentGuideOpen();
+  }, 900);
 }
 
 /* Bounding box of any annotation, in page units. */
@@ -30562,9 +31025,11 @@ function applyRoleUI() {
   var para = $('emptyState').querySelector('p');
   if (student) {
     h1.textContent = 'Welcome to Polymath!';
-    para.textContent = 'Tap the ☰ button (top left) to see the questions for your level and subject, ' +
-      'or “My PDFs” to open a saved worksheet. Use the sidebar to watch the lesson recording and revise keywords.';
+    para.textContent = sharedVisitor ? 'Your worksheet is opening…'
+      : 'Everything you need is in the orange bar at the top: pick a worksheet, practise it, and watch its lesson video.';
     $('emptyUploadBtn').style.display = 'none';
+    $('emptyBlankBtn').style.display = 'none';
+    $('emptyStudent').hidden = sharedVisitor;
     $('dropHint').style.display = 'none';
     clearLassoSel(false);
     selectedId = null;
@@ -30574,12 +31039,18 @@ function applyRoleUI() {
     h1.textContent = 'Annotate any PDF';
     para.textContent = EMPTY_STATE_TEACHER_P;
     $('emptyUploadBtn').style.display = '';
+    $('emptyBlankBtn').style.display = '';
+    $('emptyStudent').hidden = true;
     $('dropHint').style.display = '';
   }
   // The line-style group decides its own visibility (tool AND role), so it is
   // deliberately not in TEACHER_TOOLBAR_IDS — it just has to be re-asked here,
   // or a device handed to a student mid-lesson keeps it on screen.
   syncLineStyleCtl();
+  // 🧭 The student's start-here bar, the labels on every icon (the
+  // `studentView` class) and the first-visit tour all follow the role.
+  studentBarSync();
+  studentGuideMaybeAuto();
 }
 
 async function signIn() {
@@ -36877,6 +37348,8 @@ $('uploadBtn').addEventListener('click', openFilePicker);
 $('blankPageBtn').addEventListener('click', addBlankPage);
 $('deletePageBtn').addEventListener('click', function () { deletePage(); });
 $('emptyBlankBtn').addEventListener('click', addBlankPage);
+$('emptyWorksheetsBtn').addEventListener('click', studentBarOpenWorksheets);
+$('emptyGuideBtn').addEventListener('click', function () { if (isStudent()) studentGuideOpen(); });
 $('emptyUploadBtn').addEventListener('click', openFilePicker);
 $('fileInput').addEventListener('change', function (e) {
   if (e.target.files && e.target.files[0]) loadPdfFromFile(e.target.files[0]);
