@@ -2,6 +2,15 @@
 
 Guidance for Claude when working in this repo.
 
+## 🧭 Students: the start-here bar, icon names and the tour (v1.148.0)
+
+- Search `STUDENT START-HERE BAR` and `THE BUTTON TOUR` (after `endPractice`), `#studentBar`, `#stuTour` (built in JS), `#emptyStudent`, the `data-label` attributes and the `body.studentView` CSS.
+- `studentBarModel` is pure and the one place the bar decides what shows. `studentBarSync` runs from `applyRoleUI`, `updatePracticeCard`, `lessonPlaylistSync` and `renderVideoCard`; it also sets `body.studentView` (any `isStudent()`), which puts each `data-label` beside its icon.
+- Every bar button calls the existing function (`startPractice`, `checkAllAnswers`, `checkAnswer`, `endPractice`, `lessonPlaylistStart`/`TogglePanel`, `openVideoModal`, `toggleQuestionsDrawer`) and asks `isStudent()` again. Never give the bar its own way to start practice or play; the guards live in those functions.
+- While practising the video pills are parked in `teacherAnswers`, so the bar hides the video button rather than open an empty playlist.
+- The tour opens by itself once per signed-in student per device (`polymath.studentGuide.v1:{uid}`), only when no `.modalBack.open` is showing, never for the teacher, "Practise as" or a share link. Its keydown stops at `#stuTour`. Steps whose button is not visible are skipped, except practice and videos (`always`, with `away` text).
+- Run `node --test tools/student-guide-tests.mjs` and `node tools/student-guide-check.mjs` (real Chromium, desktop and phone; in CI).
+
 ## Rune sockets and unique items (v1.147.0)
 
 The shared catalogue contains 270 items, including 16 runes and 20 unique treasures. Unique rarity is 0.1%; common is 44.9%, and the other original weights are unchanged. `ITEM_SKILLS` are granted by actual worn gear/socket sources or validated consumable `giftSkills`, never by forging `learnedSkills`. Foundation and job trees remain at 312 learnable skills. Quick and manual combat use `availableSkills`.
