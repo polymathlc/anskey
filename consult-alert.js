@@ -237,7 +237,15 @@
     stop();
     var db = global.db;
     if (!db || typeof db.collection !== 'function' || !teacherHere()) return;
-    W.unsub = db.collection(COLLECTION).where('status', '==', 'waiting').onSnapshot(function (qs) {
+    // A limited or stubbed db (a share link, a harness) must never throw
+    // into applyRoleUI: the pop-up is a courtesy, the role setup is not.
+    var query = null;
+    try {
+      var coll = db.collection(COLLECTION);
+      query = coll && typeof coll.where === 'function' ? coll.where('status', '==', 'waiting') : null;
+    } catch (e) { query = null; }
+    if (!query || typeof query.onSnapshot !== 'function') return;
+    try { W.unsub = query.onSnapshot(function (qs) {
       if (!teacherHere()) { stop(); return; }
       var next = {};
       (qs.docs || []).forEach(function (d) { next[d.id] = d.data() || {}; });
@@ -247,7 +255,8 @@
       fresh.forEach(function (id) { W.seen[id] = true; });
       if (fresh.length) chime();
       render();
-    }, function (err) { console.warn('consult alert: the waiting list could not be read', err); });
+    }, function (err) { console.warn('consult alert: the waiting list could not be read', err); }); }
+    catch (e) { W.unsub = null; console.warn('consult alert: could not listen', e); return; }
     // The cards age ("2 min ago") and a stale one drops off without a snapshot.
     W.tick = setInterval(render, TICK_MS);
   }
