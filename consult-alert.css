@@ -33,4 +33,27 @@
 @media (max-width: 640px) {
   .consultAlerts { top: auto; bottom: 16px; right: 16px; left: 16px; width: auto; }
 }
+/* A question the student LEFT (v1.151.0): magenta, the colour of the box
+   they drew round the part of the page, with their words quoted. */
+.consultAlert.consultAlertQ { border-left-color: #D81B60; }
+.consultAlertQText {
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--ink-soft, #55554F);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.consultAlertMore {
+  pointer-events: auto;
+  align-self: flex-end;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--bg, #fff);
+  border: 1px solid var(--line, #ECECEA);
+  box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.1));
+  font-size: 0.8rem;
+  color: var(--ink-soft, #55554F);
+}
+.consultAlertRow { flex-wrap: wrap; }
+@media (pointer: coarse) { .consultAlertRow .btn { min-height: 40px; } }
 @media print { .consultAlerts { display: none !important; } }

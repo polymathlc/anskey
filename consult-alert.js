@@ -1,6 +1,8 @@
 /* =====================================================================
    🙋 CONSULT ALERT — a student in Study Buddy asks for help, and the
    teacher, already on Ans Key, is shown a pop-up to join them (v1.149.0)
+   — or, when they cannot take the call, a question the student LEFT,
+   answered here with a recording (v1.151.0)
 
    Study Buddy (`polymathlc/tutor`, `consult.js`) owns the whole consult:
    the student's button, the call, the teacher's room, the writing on the
@@ -31,6 +33,25 @@
      so a field somebody wrote cannot send the teacher anywhere else.
    - A CHIME, ONCE PER NEW CONSULT, and silence when the browser refuses
      sound without a tap: the card is the alert, the sound is a courtesy.
+
+   QUESTIONS LEFT INSTEAD (v1.151.0)
+   - TWO EQUALITY LISTENERS, ONE LIST: `waiting` (a call) and `question`
+     (a question the student left). A card is keyed `id:kind`, because the
+     same consult turns from a call into a question and that is a new thing
+     to be told about. Calls first, then questions, at most ALERT_SHOW_MAX.
+   - A CALL CARD is Join · ✋ Not now · Hide. Not now asks the student to
+     leave a question instead; a QUESTION CARD is 📝 Answer · Hide, and
+     Answer opens the recorder RIGHT HERE (`consult-answer.js`, the same
+     file as Study Buddy's, byte for byte) — the teacher teaches from Ans
+     Key, so the answer is made where they already are.
+   - THIS FILE STILL WRITES NOTHING. ✋ Not now and the answer's Send are
+     `ConsultAnswer.askLater` / the recorder's own transaction; this file
+     only calls them, and the harness fails on a write in it.
+   - HIDE IS THIS SCREEN'S ALONE. A hidden question stays in the list for
+     the next visit and in Study Buddy until it is answered.
+   - A HANDOVER TO A STUDENT CLOSES THE RECORDER (`ConsultAnswer.stop`): a
+     child's question and its camera are never left open on a screen a
+     child is using.
    ===================================================================== */
 (function (global) {
   'use strict';
@@ -42,6 +63,8 @@
   var NAME_MAX = 60;
   var TITLE_MAX = 120;
   var TICK_MS = 30 * 1000;
+  var ALERT_SHOW_MAX = 4;
+  var QUESTION_MAX = 500;
 
   /* ---------------- Pure helpers (pinned by the harness) ---------------- */
   function consultIdOk(id) {
@@ -126,13 +149,60 @@
     };
   }
 
+  /* A question card's words. The recorder's own `questionWords` when it is
+     loaded (one wording in both apps), a plain fallback when it is not. */
+  function questionCardWords(item) {
+    var d = (item && item.data) || {};
+    var CA = global.ConsultAnswer && global.ConsultAnswer.pure;
+    if (CA && typeof CA.questionWords === 'function') {
+      var w = CA.questionWords(d);
+      return { title: w.title, where: cleanText(w.where, 200), text: w.text || '' };
+    }
+    var q = d.question && typeof d.question === 'object' ? d.question : {};
+    var text = String(q.text == null ? '' : q.text).replace(/[\u0000-\u0009\u000B-\u001F\u007F]+/g, ' ').trim().slice(0, QUESTION_MAX);
+    return { title: (cleanText(d.studentName, NAME_MAX) || 'A student') + ' left a question', where: cleanText(consultSummary(d), 200), text: text };
+  }
+  function questionFresh(data, now) {
+    var CA = global.ConsultAnswer && global.ConsultAnswer.pure;
+    if (CA && typeof CA.questionFresh === 'function') return CA.questionFresh(data, now);
+    return !!data && data.status === 'question';
+  }
+  function questionAt(data) {
+    var q = data && data.question;
+    return stampMs(q && q.at) || stampMs(data && data.at);
+  }
+  function questionAgo(ms) {
+    var CA = global.ConsultAnswer && global.ConsultAnswer.pure;
+    if (CA && typeof CA.questionAgo === 'function') return CA.questionAgo(ms);
+    return consultAgo(ms);
+  }
+
+  /* Every card there is to show: the calls (`waitingList`'s rule) first,
+     then the questions, each oldest first. `items` is keyed `id:kind`. */
+  function alertList(items, dismissed, now) {
+    items = items || {}; dismissed = dismissed || {};
+    var out = Object.keys(items)
+      .map(function (k) { return items[k]; })
+      .filter(function (it) {
+        if (!it || !consultIdOk(it.id) || dismissed[it.key]) return false;
+        return it.kind === 'question' ? questionFresh(it.data, now) : consultFresh(it.data, now);
+      });
+    out.sort(function (a, b) {
+      if (a.kind !== b.kind) return a.kind === 'call' ? -1 : 1;
+      var ta = a.kind === 'question' ? questionAt(a.data) : stampMs(a.data.at);
+      var tb = b.kind === 'question' ? questionAt(b.data) : stampMs(b.data.at);
+      return ta - tb;
+    });
+    return out;
+  }
+
   function titleWith(base, n) {
     base = String(base || '').replace(/^🙋 \(\d+\) /, '');
     return n > 0 ? '🙋 (' + n + ') ' + base : base;
   }
 
   /* ---------------- State ---------------- */
-  var W = { unsub: null, tick: null, items: {}, dismissed: {}, seen: {}, root: null, ac: null, uid: '' };
+  var W = { unsub: null, unsubQ: null, tick: null, items: {}, dismissed: {}, seen: {}, root: null, ac: null, uid: '' };
 
   function now() { return Date.now(); }
 
@@ -170,10 +240,23 @@
     } catch (e) {}
   }
 
+  function answerApi() {
+    var CA = global.ConsultAnswer;
+    return CA && typeof CA.open === 'function' && teacherHere() ? CA : null;
+  }
+
+  function btn(text, cls, title, onClick) {
+    var b = el('button', 'btn btnSm' + (cls ? ' ' + cls : ''), text);
+    b.type = 'button';
+    if (title) b.title = title;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
   function join(id) {
     var link = consultLink(id);
     if (!link) return;
-    W.dismissed[id] = true;
+    W.dismissed[id + ':call'] = true;
     var win = null;
     try { win = global.open(link, '_blank'); } catch (e) {}
     // A blocked pop-up is not a reason to lose the consult: go there instead.
@@ -184,7 +267,7 @@
   function render() {
     var doc = global.document;
     if (!doc || !doc.body) return;
-    var list = teacherHere() ? waitingList(W.items, W.dismissed, now()) : [];
+    var list = teacherHere() ? alertList(W.items, W.dismissed, now()) : [];
     try { doc.title = titleWith(doc.title, list.length); } catch (e) {}
     if (!list.length) {
       if (W.root && W.root.parentNode) W.root.parentNode.removeChild(W.root);
@@ -199,37 +282,79 @@
     }
     while (W.root.firstChild) W.root.removeChild(W.root.firstChild);
     var t = now();
-    list.forEach(function (item) {
-      var words = cardWords(item);
-      var card = el('div', 'consultAlert');
-      card.setAttribute('role', 'alert');
-      var top = el('div', 'consultAlertTop');
-      top.appendChild(el('span', 'consultAlertIcon', '🙋'));
-      var box = el('div', 'consultAlertWords');
-      box.appendChild(el('b', '', words.title));
-      box.appendChild(el('span', 'consultAlertWhere', [words.where, consultAgo(t - stampMs(item.data.at))].filter(Boolean).join(' · ')));
-      top.appendChild(box);
-      card.appendChild(top);
-      var row = el('div', 'consultAlertRow');
-      var later = el('button', 'btn btnSm consultAlertLater', 'Later');
-      later.type = 'button';
-      later.title = 'Hide this pop-up — the email still has the link';
-      later.addEventListener('click', function () { W.dismissed[item.id] = true; render(); });
-      var go = el('button', 'btn btnSm btnPrimary consultAlertJoin', 'Join');
-      go.type = 'button';
-      go.title = 'Open the consult in Study Buddy and connect to them';
-      go.addEventListener('click', function () { join(item.id); });
-      row.appendChild(later);
-      row.appendChild(go);
-      card.appendChild(row);
-      W.root.appendChild(card);
+    list.slice(0, ALERT_SHOW_MAX).forEach(function (item) {
+      W.root.appendChild(item.kind === 'question' ? questionCard(item, t) : callCard(item, t));
     });
+    if (list.length > ALERT_SHOW_MAX) {
+      W.root.appendChild(el('div', 'consultAlertMore', '+ ' + (list.length - ALERT_SHOW_MAX) + ' more waiting — hide one to see the next'));
+    }
+  }
+
+  function hide(item) { W.dismissed[item.key] = true; render(); }
+
+  function callCard(item, t) {
+    var words = cardWords(item);
+    var card = el('div', 'consultAlert');
+    card.setAttribute('role', 'alert');
+    var top = el('div', 'consultAlertTop');
+    top.appendChild(el('span', 'consultAlertIcon', '🙋'));
+    var box = el('div', 'consultAlertWords');
+    box.appendChild(el('b', '', words.title));
+    box.appendChild(el('span', 'consultAlertWhere', [words.where, consultAgo(t - stampMs(item.data.at))].filter(Boolean).join(' · ')));
+    top.appendChild(box);
+    card.appendChild(top);
+    var row = el('div', 'consultAlertRow');
+    row.appendChild(btn('Hide', 'consultAlertLater', 'Hide this pop-up — the email still has the link', function () { hide(item); }));
+    var api = answerApi();
+    if (api && typeof api.askLater === 'function') {
+      var later = btn('✋ Not now', 'consultAlertNotNow', 'Ask them to show you the question instead — you answer it later with a recording', async function () {
+        later.disabled = true;
+        var ok = false;
+        try { ok = await api.askLater(item.id); } catch (e) { ok = false; }
+        if (ok) hide(item); else later.disabled = false;
+      });
+      row.appendChild(later);
+    }
+    row.appendChild(btn('Join', 'btnPrimary consultAlertJoin', 'Open the consult in Study Buddy and connect to them', function () { join(item.id); }));
+    card.appendChild(row);
+    return card;
+  }
+
+  function questionCard(item, t) {
+    var words = questionCardWords(item);
+    var card = el('div', 'consultAlert consultAlertQ');
+    card.setAttribute('role', 'alert');
+    var top = el('div', 'consultAlertTop');
+    top.appendChild(el('span', 'consultAlertIcon', '📝'));
+    var box = el('div', 'consultAlertWords');
+    box.appendChild(el('b', '', words.title));
+    box.appendChild(el('span', 'consultAlertWhere', [words.where, questionAgo(t - questionAt(item.data))].filter(Boolean).join(' · ')));
+    // What the student wrote, painted as text and cut short on the card; the
+    // recorder shows all of it.
+    if (words.text) {
+      var short = words.text.length > 140 ? words.text.slice(0, 139).trim() + '…' : words.text;
+      box.appendChild(el('span', 'consultAlertQText', '“' + short + '”'));
+    }
+    top.appendChild(box);
+    card.appendChild(top);
+    var row = el('div', 'consultAlertRow');
+    row.appendChild(btn('Hide', 'consultAlertLater', 'Hide this for now — it stays in your list', function () { hide(item); }));
+    var api = answerApi();
+    if (api) {
+      row.appendChild(btn('📝 Answer', 'btnPrimary consultAlertAnswer', 'Write on their page and record your answer', function () { api.open(item.id); }));
+    } else {
+      // No recorder loaded (a blocked file): Study Buddy answers it too.
+      row.appendChild(btn('Open in Study Buddy', 'btnPrimary consultAlertJoin', 'Answer it in Study Buddy', function () { join(item.id); }));
+    }
+    card.appendChild(row);
+    return card;
   }
 
   function stop() {
     if (W.unsub) { try { W.unsub(); } catch (e) {} }
+    if (W.unsubQ) { try { W.unsubQ(); } catch (e) {} }
     if (W.tick) clearInterval(W.tick);
-    W.unsub = null; W.tick = null; W.items = {};
+    W.unsub = null; W.unsubQ = null; W.tick = null; W.items = {};
     render();
   }
 
@@ -239,24 +364,38 @@
     if (!db || typeof db.collection !== 'function' || !teacherHere()) return;
     // A limited or stubbed db (a share link, a harness) must never throw
     // into applyRoleUI: the pop-up is a courtesy, the role setup is not.
-    var query = null;
-    try {
-      var coll = db.collection(COLLECTION);
-      query = coll && typeof coll.where === 'function' ? coll.where('status', '==', 'waiting') : null;
-    } catch (e) { query = null; }
-    if (!query || typeof query.onSnapshot !== 'function') return;
-    try { W.unsub = query.onSnapshot(function (qs) {
-      if (!teacherHere()) { stop(); return; }
-      var next = {};
-      (qs.docs || []).forEach(function (d) { next[d.id] = d.data() || {}; });
-      var t = now();
-      var fresh = Object.keys(next).filter(function (id) { return consultIdOk(id) && !W.seen[id] && consultFresh(next[id], t); });
-      W.items = next;
-      fresh.forEach(function (id) { W.seen[id] = true; });
-      if (fresh.length) chime();
-      render();
-    }, function (err) { console.warn('consult alert: the waiting list could not be read', err); }); }
-    catch (e) { W.unsub = null; console.warn('consult alert: could not listen', e); return; }
+    var listen = function (status, kind) {
+      var query = null;
+      try {
+        var coll = db.collection(COLLECTION);
+        query = coll && typeof coll.where === 'function' ? coll.where('status', '==', status) : null;
+      } catch (e) { query = null; }
+      if (!query || typeof query.onSnapshot !== 'function') return null;
+      try {
+        return query.onSnapshot(function (qs) {
+          if (!teacherHere()) { stop(); return; }
+          var t = now();
+          var next = {};
+          Object.keys(W.items).forEach(function (k) { if (W.items[k].kind !== kind) next[k] = W.items[k]; });
+          var fresh = [];
+          (qs.docs || []).forEach(function (d) {
+            if (!consultIdOk(d.id)) return;
+            var key = d.id + ':' + kind;
+            var data = d.data() || {};
+            next[key] = { key: key, id: d.id, kind: kind, data: data };
+            var isFresh = kind === 'question' ? questionFresh(data, t) : consultFresh(data, t);
+            if (!W.seen[key] && isFresh) fresh.push(key);
+          });
+          W.items = next;
+          fresh.forEach(function (k) { W.seen[k] = true; });
+          if (fresh.length) chime();
+          render();
+        }, function (err) { console.warn('consult alert: the ' + kind + ' list could not be read', err); });
+      } catch (e) { console.warn('consult alert: could not listen', e); return null; }
+    };
+    W.unsub = listen('waiting', 'call');
+    if (!W.unsub) return;
+    W.unsubQ = listen('question', 'question');
     // The cards age ("2 min ago") and a stale one drops off without a snapshot.
     W.tick = setInterval(render, TICK_MS);
   }
@@ -268,7 +407,13 @@
     var uid = here && global.currentUser ? global.currentUser.uid : '';
     if (uid !== W.uid) { W.dismissed = {}; W.seen = {}; }
     W.uid = uid;
-    if (!here) { stop(); return; }
+    if (!here) {
+      stop();
+      // A handover to a student, or a sign-out: the recorder, its camera and
+      // the child's question it holds come down with the cards.
+      try { if (global.ConsultAnswer && typeof global.ConsultAnswer.stop === 'function') global.ConsultAnswer.stop(); } catch (e) {}
+      return;
+    }
     if (!W.unsub) start(); else render();
   }
 
@@ -280,8 +425,9 @@
       COLLECTION: COLLECTION, JOIN_BASE: JOIN_BASE, WAIT_FRESH_MS: WAIT_FRESH_MS, SEEN_FRESH_MS: SEEN_FRESH_MS,
       consultIdOk: consultIdOk, consultLink: consultLink, cleanText: cleanText, stampMs: stampMs,
       consultFresh: consultFresh, consultAgo: consultAgo, subjectWord: subjectWord, consultSummary: consultSummary,
-      waitingList: waitingList, cardWords: cardWords, titleWith: titleWith
+      waitingList: waitingList, cardWords: cardWords, titleWith: titleWith,
+      ALERT_SHOW_MAX: ALERT_SHOW_MAX, alertList: alertList, questionCardWords: questionCardWords
     },
-    _internals: { W: W, teacherHere: teacherHere, join: join }
+    _internals: { W: W, teacherHere: teacherHere, join: join, answerApi: answerApi }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
