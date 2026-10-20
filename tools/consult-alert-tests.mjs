@@ -1,5 +1,6 @@
 /* 🙋 CONSULT ALERT — the pop-up that tells the teacher a student in Study
-   Buddy is asking for help (v1.149.0).
+   Buddy is asking for help (v1.149.0), or has left a question to be
+   answered with a recording (v1.151.0).
 
    Every failure here is quiet. A card shown on a device handed to a student
    names another child on a child's screen; a stale consult pops up for a child
@@ -13,6 +14,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const src = fs.readFileSync(new URL('../consult-alert.js', import.meta.url), 'utf8');
+const answerSrc = fs.readFileSync(new URL('../consult-answer.js', import.meta.url), 'utf8');
+const answerCss = fs.readFileSync(new URL('../consult-answer.css', import.meta.url), 'utf8');
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 /* ---- a tiny DOM: enough for el(), appendChild and textContent ---- */
@@ -39,15 +42,19 @@ function find(n, cls) {
   return null;
 }
 
-function load({ admin = true, acting = null, now = 1_700_000_000_000 } = {}) {
+function load({ admin = true, acting = null, now = 1_700_000_000_000, answer = null } = {}) {
   const doc = makeDoc();
   const opened = [];
-  let listener = null, unsubbed = 0, where = null;
+  // One listener per status queried: the calls (`waiting`) and the questions.
+  const listeners = {};
+  let unsubbed = 0;
+  const wheres = [];
   const db = {
     collection(name) {
+      let status = null;
       return {
-        where(a, b, c) { where = [name, a, b, c]; return this; },
-        onSnapshot(ok) { listener = ok; return () => { unsubbed++; listener = null; }; }
+        where(a, b, c) { wheres.push([name, a, b, c]); status = c; return this; },
+        onSnapshot(ok) { const k = status; listeners[k] = ok; return () => { unsubbed++; delete listeners[k]; }; }
       };
     }
   };
@@ -59,14 +66,17 @@ function load({ admin = true, acting = null, now = 1_700_000_000_000 } = {}) {
     db, currentUser: { uid: 'teacher-1', email: 't@x' }, actingStudent: acting,
     isAdmin: () => admin
   };
+  if (answer) ctx.ConsultAnswer = answer;
   ctx.window = ctx; ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(src.replace('typeof window !== \'undefined\' ? window : globalThis', 'window'), ctx);
   return {
     ctx, doc, opened,
     CA: ctx.ConsultAlert,
-    fire(items) { listener && listener({ docs: Object.entries(items).map(([id, d]) => ({ id, data: () => d })) }); },
-    get listening() { return !!listener; }, get unsubbed() { return unsubbed; }, get where() { return where; }
+    fire(items, status = 'waiting') { const l = listeners[status]; l && l({ docs: Object.entries(items).map(([id, d]) => ({ id, data: () => d })) }); },
+    fireQ(items) { this.fire(items, 'question'); },
+    get listening() { return !!listeners.waiting; }, get listeningQ() { return !!listeners.question; },
+    get unsubbed() { return unsubbed; }, get wheres() { return wheres; }
   };
 }
 
@@ -125,7 +135,8 @@ test('the teacher signed in gets a card with Join, which opens the room', () => 
   const t = load();
   t.CA.roleChanged();
   assert.ok(t.listening);
-  assert.deepEqual(t.where, ['tutorConsults', 'status', '==', 'waiting']);
+  assert.deepEqual(t.wheres, [['tutorConsults', 'status', '==', 'waiting'], ['tutorConsults', 'status', '==', 'question']]);
+  assert.ok(t.listeningQ, 'and the questions left, on a second listener');
   t.fire({ [ID]: waiting() });
   const root = find(t.doc.body, 'consultAlerts');
   assert.ok(root, 'a card is drawn');
@@ -137,7 +148,7 @@ test('the teacher signed in gets a card with Join, which opens the room', () => 
   assert.equal(t.doc.title, 'Ans Key');
 });
 
-test('Later hides the card and a new snapshot does not bring it back', () => {
+test('Hide hides the card and a new snapshot does not bring it back', () => {
   const t = load();
   t.CA.roleChanged();
   t.fire({ [ID]: waiting() });
@@ -157,7 +168,7 @@ test('a student, and the teacher handing the device over, are never shown it', (
   assert.ok(find(t.doc.body, 'consultAlerts'));
   t.ctx.actingStudent = { name: 'Mei' };
   t.CA.roleChanged();
-  assert.equal(t.unsubbed, 1, 'the listener comes down on a handover');
+  assert.equal(t.unsubbed, 2, 'both listeners come down on a handover');
   assert.equal(find(t.doc.body, 'consultAlerts'), null, 'and the card with it');
 });
 
@@ -182,6 +193,135 @@ test('Ans Key loads it and asks it on every role change', () => {
   const role = html.slice(html.indexOf('function applyRoleUI() {'), html.indexOf('var student = isStudent();', html.indexOf('function applyRoleUI() {')));
   assert.match(role, /ConsultAlert\.roleChanged\(\)/);
   assert.match(fs.readFileSync(new URL('./check-syntax.mjs', import.meta.url), 'utf8'), /'consult-alert\.js'/);
+  assert.match(fs.readFileSync(new URL('./check-syntax.mjs', import.meta.url), 'utf8'), /'consult-answer\.js'/);
+  // The recorder loads before the alert, so the alert's cards find it.
+  assert.match(html, /<link rel="stylesheet" href="consult-answer\.css">/);
+  const rec = html.indexOf('<script src="consult-answer.js"></script>');
+  assert.ok(rec > 0 && rec < at, 'consult-answer.js loads before consult-alert.js');
+  assert.match(html, /var APP_VERSION = 'v1\.(15[1-9]|1[6-9]\d|[2-9]\d\d)\.\d+';/);
+});
+
+/* ---------------- v1.151.0: questions left instead of a call ---------------- */
+
+const question = (extra = {}) => ({ status: 'question', at: NOW - 600_000, seen: NOW - 600_000, studentName: 'Mei', level: 'P5', subject: 'science',
+  worksheetName: 'Heat SA2', question: { text: 'Why is <b>Q3</b> 40°C?', page: 2, ws: 'w1', box: [0.1, 0.1, 0.5, 0.4], at: NOW - 120_000 }, ...extra });
+function stubAnswer() {
+  const calls = [];
+  return {
+    calls,
+    pure: { questionFresh: (d) => !!d && d.status === 'question', questionWords: (d) => ({ title: d.studentName + ' left a question', where: 'P5 Science · ' + d.worksheetName + ' · page ' + d.question.page, text: d.question.text }),
+      questionAgo: () => '2 min ago' },
+    open: (id) => { calls.push(['open', id]); return Promise.resolve(true); },
+    askLater: (id) => { calls.push(['askLater', id]); return Promise.resolve(true); },
+    stop: () => { calls.push(['stop']); }
+  };
+}
+const buttons = (n) => {
+  const out = [];
+  (function walk(x) { if (x.tagName === 'BUTTON') out.push(x); x.children.forEach(walk); })(n);
+  return out;
+};
+
+test('a call card is Hide · ✋ Not now · Join, and Not now asks the student for a question', async () => {
+  const ans = stubAnswer();
+  const t = load({ answer: ans });
+  t.CA.roleChanged();
+  t.fire({ [ID]: waiting() });
+  const root = find(t.doc.body, 'consultAlerts');
+  assert.deepEqual(buttons(root).map((b) => b.textContent), ['Hide', '✋ Not now', 'Join']);
+  await find(root, 'consultAlertNotNow').listeners.click();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(ans.calls, [['askLater', ID]], 'the write is the recorder\'s, never this file\'s');
+  assert.equal(find(t.doc.body, 'consultAlerts'), null, 'the card goes once they have been asked');
+});
+
+test('without the recorder, a call card is the old Hide · Join', () => {
+  const t = load();
+  t.CA.roleChanged();
+  t.fire({ [ID]: waiting() });
+  assert.deepEqual(buttons(find(t.doc.body, 'consultAlerts')).map((b) => b.textContent), ['Hide', 'Join']);
+});
+
+test('a question left is a 📝 card with its words, and Answer opens the recorder here', () => {
+  const ans = stubAnswer();
+  const t = load({ answer: ans });
+  t.CA.roleChanged();
+  t.fireQ({ [ID]: question() });
+  const root = find(t.doc.body, 'consultAlerts');
+  assert.ok(root);
+  const all = texts(root);
+  assert.ok(all.includes('Mei left a question'));
+  assert.ok(all.includes('“Why is <b>Q3</b> 40°C?”'), 'the question, as text');
+  assert.ok(find(root, 'consultAlertQ'));
+  assert.deepEqual(buttons(root).map((b) => b.textContent), ['Hide', '📝 Answer']);
+  find(root, 'consultAlertAnswer').listeners.click();
+  assert.deepEqual(ans.calls, [['open', ID]]);
+  assert.deepEqual(t.opened, [], 'answered in Ans Key, not a new tab');
+});
+
+test('the same consult as a call and then a question is two cards in turn, keyed id:kind', () => {
+  const ans = stubAnswer();
+  const t = load({ answer: ans });
+  t.CA.roleChanged();
+  t.fire({ [ID]: waiting() });
+  find(t.doc.body, 'consultAlertLater').listeners.click();
+  assert.equal(find(t.doc.body, 'consultAlerts'), null, 'the call hidden');
+  t.fire({});
+  t.fireQ({ [ID]: question() });
+  assert.ok(find(t.doc.body, 'consultAlertQ'), 'hiding the call never hides the question it became');
+  assert.equal(t.doc.title, '🙋 (1) Ans Key');
+});
+
+test('calls first, then questions, at most four cards and the rest counted', () => {
+  const ans = stubAnswer();
+  const t = load({ answer: ans });
+  t.CA.roleChanged();
+  const ids = ['QuestionAaaaaa01', 'QuestionAaaaaa02', 'QuestionAaaaaa03', 'QuestionAaaaaa04'];
+  t.fireQ(Object.fromEntries(ids.map((id, i) => [id, question({ question: { text: 'q' + i, page: 1, at: NOW - (i + 1) * 60_000 } })])));
+  t.fire({ [ID]: waiting() });
+  const root = find(t.doc.body, 'consultAlerts');
+  const cards = root.children.filter((c) => /consultAlert\b/.test(c.className) && !/More/.test(c.className));
+  assert.equal(cards.length, t.CA.pure.ALERT_SHOW_MAX);
+  assert.ok(!/consultAlertQ/.test(cards[0].className), 'the call is first');
+  assert.ok(texts(find(root, 'consultAlertMore')).some((x) => /\+ 1 more/.test(x)));
+  assert.equal(t.doc.title, '🙋 (5) Ans Key');
+});
+
+test('a handover to a student closes the recorder with the cards', () => {
+  const ans = stubAnswer();
+  const t = load({ answer: ans });
+  t.CA.roleChanged();
+  t.fireQ({ [ID]: question() });
+  t.ctx.actingStudent = { name: 'Mei' };
+  t.CA.roleChanged();
+  assert.deepEqual(ans.calls, [['stop']]);
+  assert.equal(find(t.doc.body, 'consultAlerts'), null);
+});
+
+test('the recorder is Study Buddy\'s file, and keeps its bans', () => {
+  const code = answerSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(code, /getDisplayMedia\s*\(/, 'a canvas, never the screen');
+  assert.doesNotMatch(code, /\.innerHTML\s*=|insertAdjacentHTML/);
+  assert.doesNotMatch(code, /annotations\s*(\.\s*(push|splice|unshift)|=[^=])/, 'never the page\'s annotations');
+  assert.doesNotMatch(code, /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/, 'no email address');
+  for (const fn of ['async function askLater', 'async function open', 'async function sendReply']) {
+    const a = answerSrc.indexOf(fn);
+    assert.ok(a > 0, fn);
+    assert.match(answerSrc.slice(a, a + 200), /teacherHere\(\)/, fn + ' asks teacherHere first');
+  }
+  const sandbox = { console, Math, Date, Number, String, Array, Object, JSON };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(answerSrc, sandbox);
+  assert.equal(sandbox.ConsultAnswer.pure.COLLECTION, 'tutorConsults');
+  assert.equal(sandbox.ConsultAnswer.pure.replyUrlOk('https://evil.example/x.mp4'), false);
+});
+
+const tutorAnswer = ['../../tutor/consult-answer.js', '../../polymathlc/tutor/consult-answer.js']
+  .map((p) => new URL(p, import.meta.url)).find((u) => fs.existsSync(u));
+test('consult-answer.js and .css are Study Buddy\'s, byte for byte', { skip: !tutorAnswer && 'polymathlc/tutor is not checked out beside this repo' }, () => {
+  assert.equal(answerSrc, fs.readFileSync(tutorAnswer, 'utf8'), 'consult-answer.js has drifted from Study Buddy');
+  assert.equal(answerCss, fs.readFileSync(new URL('consult-answer.css', tutorAnswer), 'utf8'), 'consult-answer.css has drifted from Study Buddy');
 });
 
 /* Freshness, the link and the summary are Study Buddy's rules. Whenever

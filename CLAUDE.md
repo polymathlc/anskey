@@ -10,6 +10,13 @@ Guidance for Claude when working in this repo.
 - `consultIdOk` / `consultLink` / `cleanText` / `stampMs` / `consultFresh` / `consultAgo` / `consultSummary` / `subjectWord` and `JOIN_BASE` / `WAIT_FRESH_MS` / `SEEN_FRESH_MS` are Study Buddy's, byte for byte; the test compares them when tutor is checked out beside this repo. The link is built from a checked id, never read off the document. Names and titles go in with `textContent`.
 - Run `node --test tools/consult-alert-tests.mjs`.
 
+## 📝 Consult questions, answered here (v1.151.0)
+
+- `consult-answer.js` / `consult-answer.css` (`window.ConsultAnswer` {pure, open, askLater, close, stop, isOpen}) are **Study Buddy's files, byte for byte** — copy fixes across from `polymathlc/tutor`, never re-derive; `tools/consult-alert-tests.mjs` compares them when tutor is checked out beside this repo. They load BEFORE `consult-alert.js`.
+- `consult-alert.js` now listens twice (`status == 'waiting'` and `status == 'question'`), cards keyed `id:kind`, calls first, at most `ALERT_SHOW_MAX` (4). Call card: Hide · ✋ Not now (`ConsultAnswer.askLater`) · Join. Question card: Hide · 📝 Answer (`ConsultAnswer.open`, in this tab).
+- `consult-alert.js` STILL WRITES NOTHING — the `later` and `answered` writes are `consult-answer.js`'s transactions. The harness fails on a write in `consult-alert.js`.
+- `roleChanged` with no teacher (a handover, a sign-out) calls `ConsultAnswer.stop()` as well as `stop()`.
+
 ## 🧭 Students: the start-here bar, icon names and the tour (v1.148.0)
 
 - Search `STUDENT START-HERE BAR` and `THE BUTTON TOUR` (after `endPractice`), `#studentBar`, `#stuTour` (built in JS), `#emptyStudent`, the `data-label` attributes and the `body.studentView` CSS.

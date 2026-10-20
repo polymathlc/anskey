@@ -3,6 +3,25 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.151.0 — 📝 Answer a student's question with a recording, right here in Ans Key
+
+When a student in Study Buddy cannot get you on a call, they can leave a question. They
+mark the part of the page and type or say what they want to ask. It now comes to Ans Key
+as well as Study Buddy.
+
+- **📝 question cards.** *"Mei left a question"*, with the worksheet, the page and their
+  words, in the top-right corner. It stays there until it is answered. **Hide** only hides
+  it on this screen.
+- **📝 Answer opens the recorder here,** with no new tab. You see their page with the
+  part they boxed and their question. You write on it with three pens and can turn
+  the camera on. **⏺ Record** makes one video of the page, your writing, your voice and
+  your camera. Watch it back and press **📨 Send**. It goes back to the student in Study Buddy.
+- **✋ Not now.** A call card now shows **Hide · ✋ Not now · Join**. Not now stops the call
+  ringing and asks the student to leave the question instead, so you can answer it when
+  you are free. (The old **Later** button is now **Hide**.)
+- Handing the device to a student closes the recorder and the cards. `consult-answer.js`
+  is the same file as Study Buddy's.
+
 ## v1.150.0 — Students can fold the start-here bar away
 
 - The orange start-here bar now has a **▴ Hide** button at its end. It folds the bar into a slim strip so the worksheet gets the room back; **▾ Show my buttons** opens it again.
