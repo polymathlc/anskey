@@ -162,6 +162,27 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 860 }, { name: 'phone'
   ok(vp.name + ': the video button calls for a tap', w.glow && !w.noVideo);
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'guide-' + vp.name + '-worksheet.png') });
 
+  const fold = await page.evaluate(() => {
+    const vis = id => { const e = $(id); const r = e.getBoundingClientRect(); return !e.hidden && r.width > 0 && r.height > 0; };
+    const tall = $('studentBar').getBoundingClientRect().height;
+    $('sbHideBtn').click();
+    const r = { tall, slim: $('studentBar').getBoundingClientRect().height, practice: vis('sbPracticeBtn'),
+      show: vis('sbShowBtn'), saved: localStorage.getItem('polymath.studentBarMin.v1'),
+      body: document.body.scrollWidth <= innerWidth + 1 };
+    studentGuideOpen();
+    r.tourOpens = $('studentBar').classList.contains('sbMin') === false;
+    studentGuideClose();
+    r.tourCloses = $('studentBar').classList.contains('sbMin');
+    $('sbShowBtn').click();
+    r.back = vis('sbPracticeBtn') && localStorage.getItem('polymath.studentBarMin.v1') === '0';
+    return r;
+  });
+  ok(vp.name + ': ▴ Hide folds the bar into a slim strip', fold.slim < 40 && fold.slim < fold.tall && !fold.practice && fold.show, JSON.stringify(fold));
+  ok(vp.name + ': the fold is remembered on this device', fold.saved === '1');
+  ok(vp.name + ': the tour opens a folded bar and folds it again after', fold.tourOpens && fold.tourCloses, JSON.stringify(fold));
+  ok(vp.name + ': ▾ Show my buttons brings the bar back', fold.back);
+  ok(vp.name + ': a folded bar does not scroll sideways', fold.body);
+
   const panel = await page.evaluate(() => { $('sbVideosBtn').click(); return !$('playlistPanel').hidden && $('playlistList').children.length; });
   ok(vp.name + ': ▶ opens the list of the worksheet’s videos', panel === 2, String(panel));
   await page.evaluate(() => lessonPlaylistClosePanel());

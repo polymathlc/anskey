@@ -17,6 +17,7 @@ Guidance for Claude when working in this repo.
 - Every bar button calls the existing function (`startPractice`, `checkAllAnswers`, `checkAnswer`, `endPractice`, `lessonPlaylistStart`/`TogglePanel`, `openVideoModal`, `toggleQuestionsDrawer`) and asks `isStudent()` again. Never give the bar its own way to start practice or play; the guards live in those functions.
 - While practising the video pills are parked in `teacherAnswers`, so the bar hides the video button rather than open an empty playlist.
 - The tour opens by itself once per signed-in student per device (`polymath.studentGuide.v1:{uid}`), only when no `.modalBack.open` is showing, never for the teacher, "Practise as" or a share link. Its keydown stops at `#stuTour`. Steps whose button is not visible are skipped, except practice and videos (`always`, with `away` text).
+- ▴ Fold (v1.150.0): `THE BAR FOLDS AWAY`, `#sbHideBtn` / `#sbShowBtn`, `#studentBar.sbMin`. `studentBarModel` decides `min` from `st.min` (`studentBarMinGet`, `polymath.studentBarMin.v1`, memory fallback) and `st.touring` (`studentBarTourHold`, set by `studentGuideOpen`, cleared in `studentGuideClose`): the tour must unfold the bar or every bar step is skipped. Folding only hides; never add other buttons' doors to the strip.
 - Run `node --test tools/student-guide-tests.mjs` and `node tools/student-guide-check.mjs` (real Chromium, desktop and phone; in CI).
 
 ## Rune sockets and unique items (v1.147.0)

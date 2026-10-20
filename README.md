@@ -3,6 +3,13 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.150.0 — Students can fold the start-here bar away
+
+- The orange start-here bar now has a **▴ Hide** button at its end. It folds the bar into a slim strip so the worksheet gets the room back; **▾ Show my buttons** opens it again.
+- The choice is remembered on that device, so a student who prefers it folded keeps it folded next time.
+- While practising, the folded strip still says ✏️ Practising. The ❓ tour opens the bar while it runs and folds it again afterwards.
+- The teacher's screen is unchanged.
+
 ## v1.149.0 — 🙋 A pop-up when a student asks for help
 
 - When a student presses **🙋 Consult** in Study Buddy and you are signed in here, a card appears in the top-right corner: who is asking, their level and subject, the worksheet and the page, and how long ago. The tab title shows 🙋 and how many are waiting, and a short chime plays once per new request.

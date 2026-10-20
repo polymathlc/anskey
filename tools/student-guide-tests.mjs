@@ -96,6 +96,29 @@ test('while practising: the practice controls, and no video button', () => {
   assert.equal(m.noVideo, false);
 });
 
+test('▴ the bar folds to a strip, and the tour opens it again', () => {
+  assert.equal(model({ student: true, worksheet: true, hasAnswers: true }).min, false, 'open by default');
+  assert.equal(model({ student: true, worksheet: true, min: true }).min, true);
+  assert.equal(model({ student: true, worksheet: true, min: true, touring: true }).min, false,
+    'the tour points at the bar\'s buttons, so they must be on screen');
+  assert.equal(model({ student: false, min: true }).min, false, 'never for the teacher');
+  assert.match(model({ student: true, worksheet: true, practising: true, min: true }).tabNow, /Practising/,
+    'a folded bar still says practice is on');
+  assert.equal(model({ student: true, worksheet: true, min: true }).tabNow, '');
+});
+
+test('folding is remembered per device and only hides buttons', () => {
+  const fold = cut('/* ---- ▴ THE BAR FOLDS AWAY', 'function studentBarSync()');
+  assert.match(fold, /STUDENT_BAR_MIN_KEY = 'polymath\.studentBarMin\.v1'/);
+  assert.match(fold, /try \{ studentBarMinMem = localStorage\.getItem\(STUDENT_BAR_MIN_KEY\)/, 'a blocked storage read cannot throw');
+  assert.match(fold, /function studentBarSetMin\(on\) \{\n  if \(!isStudent\(\)\) return;/);
+  assert.match(cut('function studentGuideOpen()', 'function studentGuideGo('), /studentBarTourHold = true;\s*studentBarSync\(\);/);
+  assert.match(cut('function studentGuideClose()', 'var studentGuideAutoTimer'), /studentBarTourHold = false; studentBarSync\(\);/);
+  assert.match(html, /#studentBar\.sbMin \.sbRow \{ display:none; \}/);
+  assert.match(html, /id="sbHideBtn"/);
+  assert.match(html, /id="sbShowBtn"/);
+});
+
 test('the tour card is always on screen', () => {
   const view = { w: 1000, h: 800 }, card = { w: 360, h: 220 };
   const below = ctx.studentGuidePlace({ left: 20, top: 60, width: 40, height: 30, right: 60, bottom: 90 }, card, view);
