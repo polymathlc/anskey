@@ -3797,8 +3797,21 @@ body.immersive #studentBar, body.lessonScreenRec #studentBar { display:none; }
 .sbNote { font-size:0.82rem; color:var(--ink-faint); white-space:nowrap; }
 .sbSpacer { flex:1 1 auto; }
 .sbGuide { border-color:#E7CFA6; background:#FFFDF8; color:#8A5A12; }
+/* ▴ Folded (v1.150.0): the whole bar becomes one slim strip, so the
+   worksheet gets the room back. Search `THE BAR FOLDS AWAY`. */
+.sbFold { min-height:34px; padding:6px 12px; border-color:#E7CFA6; background:#FFFDF8; color:#8A5A12; font-size:0.8rem; }
+.sbTabRow { display:none; align-items:center; justify-content:center; gap:10px; max-width:1180px; margin:0 auto; }
+#studentBar.sbMin { padding:3px 16px; }
+#studentBar.sbMin .sbRow { display:none; }
+#studentBar.sbMin .sbTabRow { display:flex; }
+.sbTab { display:inline-flex; align-items:center; gap:6px; min-height:26px; padding:3px 14px; border:1px solid #E7CFA6; border-radius:999px; background:#FFFDF8; color:#8A5A12; font:inherit; font-size:0.78rem; font-weight:700; line-height:1.2; cursor:pointer; white-space:nowrap; }
+.sbTab:hover { background:#fff; }
+.sbTab:focus-visible { outline:3px solid #1E88E5; outline-offset:2px; }
+.sbTabNow { font-size:0.78rem; font-weight:700; color:#1B5E20; white-space:nowrap; }
+.sbTabNow:empty { display:none; }
 @media (max-width: 720px) {
   #studentBar { padding:8px 10px; }
+  #studentBar.sbMin { padding:3px 10px; }
   .sbRow { gap:8px; }
   .sbHello, .sbSpacer { display:none; }
   .sbBtn { min-height:38px; padding:7px 13px; font-size:0.82rem; flex:0 0 auto; }
@@ -4269,6 +4282,15 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <span class="sbSpacer"></span>
     <button type="button" class="sbBtn sbGuide" id="sbGuideBtn" title="A quick tour of every button and what it does">
       <span class="sbIcon" aria-hidden="true">❓</span><span>What do the buttons do?</span>
+    </button>
+    <button type="button" class="sbBtn sbFold" id="sbHideBtn" aria-expanded="true" aria-controls="studentBar" title="Make this bar small so you can see more of the worksheet">
+      <span class="sbIcon" aria-hidden="true">▴</span><span>Hide</span>
+    </button>
+  </div>
+  <div class="sbTabRow">
+    <span class="sbTabNow" id="sbTabNow"></span>
+    <button type="button" class="sbTab" id="sbShowBtn" aria-expanded="false" aria-controls="studentBar" title="Show the start-here buttons again">
+      <span aria-hidden="true">▾</span><span>Show my buttons</span>
     </button>
   </div>
 </div>
@@ -5772,7 +5794,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.149.0';
+var APP_VERSION = 'v1.150.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -29257,10 +29279,13 @@ function endPractice() {
      ends instead of opening a playlist of nothing. */
 function studentBarModel(st) {
   var m = { show: false, hello: '', worksheets: false, practice: false, practising: false,
-    videos: 0, videoWords: '', recording: false, noVideo: false, guide: false };
+    videos: 0, videoWords: '', recording: false, noVideo: false, guide: false, min: false, tabNow: '' };
   if (!st || !st.student) return m;
   m.show = true;
   m.guide = true;
+  // Folded, unless the tour is pointing at the bar's own buttons.
+  m.min = !!st.min && !st.touring;
+  m.tabNow = st.practising && st.worksheet ? '✏️ Practising' : '';
   m.worksheets = !st.shared;              // a share link is one worksheet, with no list behind it
   if (!st.worksheet) {
     m.hello = st.shared ? '👋 Opening your worksheet…' : '👋 Start here';
@@ -29289,8 +29314,37 @@ function studentBarState() {
     practising: !!practiceMode,
     hasAnswers: practiceMode ? !!(teacherAnswers && teacherAnswers.length) : annotations.length > 0,
     videos: open && typeof lessonPlaylistItems === 'function' ? lessonPlaylistItems(parked).length : 0,
-    recording: !!(wsMeta && wsMeta.videoUrl)
+    recording: !!(wsMeta && wsMeta.videoUrl),
+    min: studentBarMinGet(),
+    touring: !!studentBarTourHold
   };
+}
+
+/* ---- ▴ THE BAR FOLDS AWAY (v1.150.0) ----
+   The bar takes two rows on a laptop, and a student reading a worksheet
+   wants that room back. ▴ Hide folds it into one slim strip; ▾ Show my
+   buttons opens it again. The choice is per device (`STUDENT_BAR_MIN_KEY`),
+   kept in memory too so a browser that blocks storage still remembers it
+   for the visit. Folding hides buttons and nothing else: every door is the
+   same, and the tour opens the bar for as long as it runs. */
+var STUDENT_BAR_MIN_KEY = 'polymath.studentBarMin.v1';
+var studentBarMinMem = null;
+var studentBarTourHold = false;
+function studentBarMinGet() {
+  if (studentBarMinMem === null) {
+    try { studentBarMinMem = localStorage.getItem(STUDENT_BAR_MIN_KEY) === '1'; }
+    catch (e) { studentBarMinMem = false; }
+  }
+  return studentBarMinMem;
+}
+function studentBarSetMin(on) {
+  if (!isStudent()) return;
+  studentBarMinMem = !!on;
+  try { localStorage.setItem(STUDENT_BAR_MIN_KEY, on ? '1' : '0'); } catch (e) {}
+  studentBarSync();
+  // Keep the keyboard where the student is: on the button that undoes it.
+  var next = $(on ? 'sbShowBtn' : 'sbHideBtn');
+  try { if (next) next.focus({ preventScroll: true }); } catch (e) {}
 }
 
 function studentBarSync() {
@@ -29302,6 +29356,10 @@ function studentBarSync() {
   bar.hidden = !m.show;
   if (!m.show) { if (!was && typeof placeToolbarToggle === 'function') placeToolbarToggle(); return; }
   var show = function (id, on) { var e = $(id); if (e) e.hidden = !on; };
+  bar.classList.toggle('sbMin', m.min);
+  $('sbHideBtn').setAttribute('aria-expanded', m.min ? 'false' : 'true');
+  $('sbShowBtn').setAttribute('aria-expanded', m.min ? 'false' : 'true');
+  $('sbTabNow').textContent = m.tabNow;
   $('sbHello').textContent = m.hello;
   show('sbHello', !!m.hello);
   show('sbWorksheetsBtn', m.worksheets);
@@ -29348,6 +29406,8 @@ $('sbStopBtn').addEventListener('click', function () { if (isStudent() && practi
 $('sbVideosBtn').addEventListener('click', studentBarVideos);
 $('sbRecordingBtn').addEventListener('click', function () { if (isStudent()) openVideoModal(); });
 $('sbGuideBtn').addEventListener('click', function () { if (isStudent()) studentGuideOpen(); });
+$('sbHideBtn').addEventListener('click', function () { studentBarSetMin(true); });
+$('sbShowBtn').addEventListener('click', function () { studentBarSetMin(false); });
 
 /* ================= ❓ THE BUTTON TOUR (v1.148.0) =================
    One button at a time: a ring round it, everything else dimmed, and a card
@@ -29463,9 +29523,10 @@ function studentGuideBuild() {
 
 function studentGuideOpen() {
   if (!isStudent()) return;
+  studentBarTourHold = true;
   studentBarSync();
   var steps = studentGuideResolve();
-  if (!steps.length) return;
+  if (!steps.length) { studentBarTourHold = false; studentBarSync(); return; }
   var root = studentGuideBuild();
   stuTour = { steps: steps, i: 0 };
   root.hidden = false;
@@ -29527,6 +29588,7 @@ function studentGuideClose() {
     stuTour = null;
     try { localStorage.setItem(studentGuideSeenKey(), '1'); } catch (e) {}
   }
+  if (studentBarTourHold) { studentBarTourHold = false; studentBarSync(); }
 }
 
 var studentGuideAutoTimer = null;
