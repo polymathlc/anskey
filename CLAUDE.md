@@ -2,6 +2,14 @@
 
 Guidance for Claude when working in this repo.
 
+## 🙋 Consult alert (v1.149.0)
+
+- `consult-alert.js` / `consult-alert.css` (`window.ConsultAlert`: `roleChanged`, `render`, `stop`, `pure`). `applyRoleUI` calls `ConsultAlert.roleChanged()`. Study Buddy (`polymathlc/tutor`, `consult.js`) owns the consult itself: the button, the call, the room, the ink and the email.
+- The teacher only: `isAdmin(currentUser)` and no `actingStudent`. The `tutorConsults` listener (`status == 'waiting'`) comes down the moment either stops being true.
+- It only reads. Nothing here writes `tutorConsults`; joining in Study Buddy marks a consult joined.
+- `consultIdOk` / `consultLink` / `cleanText` / `stampMs` / `consultFresh` / `consultAgo` / `consultSummary` / `subjectWord` and `JOIN_BASE` / `WAIT_FRESH_MS` / `SEEN_FRESH_MS` are Study Buddy's, byte for byte; the test compares them when tutor is checked out beside this repo. The link is built from a checked id, never read off the document. Names and titles go in with `textContent`.
+- Run `node --test tools/consult-alert-tests.mjs`.
+
 ## 🧭 Students: the start-here bar, icon names and the tour (v1.148.0)
 
 - Search `STUDENT START-HERE BAR` and `THE BUTTON TOUR` (after `endPractice`), `#studentBar`, `#stuTour` (built in JS), `#emptyStudent`, the `data-label` attributes and the `body.studentView` CSS.
@@ -2401,6 +2409,7 @@ the pen, and nothing on any screen says what changed.
 - Run **`node --test tools/writing-tests.mjs`** after touching any of it.
 
 ## House rules
+- After touching **🙋 the consult alert** (`consult-alert.js`, `consult-alert.css`, the `ConsultAlert.roleChanged()` call in `applyRoleUI`), run `node --test tools/consult-alert-tests.mjs`. Show it while `actingStudent` is set and a child's screen names another child; drop the freshness rule and a child who left half an hour ago pops up; read the link off the document and a client decides where the teacher goes; paint a name as markup and it is a script on the teacher's page.
 - After touching **hold-to-snap or Pen select** (`shape-snap.js`, `shapeSnapApi`, `armSnapHold`, `trySnapShape`, `snapAdjustPoints`, `SNAP_HOLD_MS`, `penPath`, `penSelect*`, `selectAnnotationsInPolygon`, `selectionGrab`, `completeLasso`, the `penselect` button / `isDrawTool` / `setTool` / Shift+S wiring), run `node --test tools/shape-snap-tests.mjs tools/hold-snap-tests.mjs tools/pen-select-tests.mjs tools/writing-tests.mjs` and `node tools/shape-snap-browser-check.mjs`; `shape-snap.js` and its tests change in book, cer and anskey together. Every failure is silent — the page still draws, the tool still looks selected. A held stroke that snaps into an annotation type of its own stops saving and printing as ink; a recogniser that throws or is absent must leave plain ink, not an error; a pen path that survives a tool switch, worksheet change or account change draws over the wrong page; and a second copy of the lasso's inclusion rule makes the two tools select different things from the same loop.
 - After touching **⬇ the 1080p export, 🎬 the playlist or 🏷 the lesson title** (`LESSON_EXPORT_*`,
   `lessonExport*`, `PLAYLIST_ROW`, `lessonPlaylist*`, `lessonBlessMedia`, `lessonQuestionGuess`,
