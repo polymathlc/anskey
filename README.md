@@ -3,6 +3,13 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.149.0 — 🙋 A pop-up when a student asks for help
+
+- When a student presses **🙋 Consult** in Study Buddy and you are signed in here, a card appears in the top-right corner: who is asking, their level and subject, the worksheet and the page, and how long ago. The tab title shows 🙋 and how many are waiting, and a short chime plays once per new request.
+- **Join** opens the consult in Study Buddy in a new tab (or this one, if pop-ups are blocked). From there you see their page, talk on video and write on their screen. **Later** hides the card; the email still has the link.
+- Only the teacher sees it, and never while the device is handed to a student with "Practise as". Requests older than 30 minutes, or from a device that has stopped answering, are not shown.
+- Ans Key only reads the requests; Study Buddy marks them joined.
+
 ## v1.148.0 — Students can see where everything is
 
 - **A start-here bar for students.** Right under the toolbar, in orange, a signed-in student now sees the three things they came for: 📚 **My worksheets**, a green ✏️ **Practise this worksheet** and a purple ▶ **Watch lesson video** (with how many videos the worksheet has). With nothing open it says “👋 Start here”; on a worksheet with no video it says so instead of leaving a gap.

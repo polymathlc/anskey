@@ -1,0 +1,36 @@
+/* 🙋 CONSULT ALERT — a student asks for help in Study Buddy, and a card
+   appears in the top-right corner for the teacher (v1.149.0).
+   Built by consult-alert.js with textContent only. */
+.consultAlerts {
+  position: fixed;
+  top: 72px;
+  right: 16px;
+  z-index: 96;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(340px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.consultAlert {
+  pointer-events: auto;
+  background: var(--bg, #fff);
+  border: 1px solid var(--line, #ECECEA);
+  border-left: 4px solid var(--accent-strong, #FFCC80);
+  border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.1));
+  padding: 14px 16px;
+  animation: consultAlertIn 0.25s ease-out both;
+}
+.consultAlertTop { display: flex; gap: 12px; align-items: flex-start; }
+.consultAlertIcon { font-size: 1.6rem; line-height: 1; }
+.consultAlertWords { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.consultAlertWords b { font-size: 0.95rem; line-height: 1.35; overflow-wrap: anywhere; }
+.consultAlertWhere { font-size: 0.8rem; color: var(--ink-faint, #8A8A84); line-height: 1.4; overflow-wrap: anywhere; }
+.consultAlertRow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+@keyframes consultAlertIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .consultAlert { animation: none; } }
+@media (max-width: 640px) {
+  .consultAlerts { top: auto; bottom: 16px; right: 16px; left: 16px; width: auto; }
+}
+@media print { .consultAlerts { display: none !important; } }
