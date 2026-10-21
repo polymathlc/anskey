@@ -403,3 +403,136 @@ test('Ans Key carries the header button and the archive is Study Buddy\'s', () =
   assert.match(answerSrc, /openLog: openLog/);
   assert.match(html, /var APP_VERSION = 'v1\.(15[2-9]|1[6-9]\d|[2-9]\d\d)\.\d+';/);
 });
+
+/* ---------------- v1.154.0: 🗑 deleting a consult ---------------- */
+
+// The archive RUN in a vm: a stub document that takes anything the window
+// sets on a node, and a stub Firestore and Storage that log every delete.
+function loadArchive({ admin = true, acting = null, docs = {}, refuse = false } = {}) {
+  function node(tag) {
+    return {
+      tagName: tag.toUpperCase(), className: '', textContent: '', children: [], attrs: {}, listeners: {},
+      parentNode: null, style: {},
+      get firstChild() { return this.children[0] || null; },
+      setAttribute(k, v) { this.attrs[k] = String(v); },
+      removeAttribute(k) { delete this.attrs[k]; },
+      appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
+      removeChild(c) { this.children = this.children.filter((x) => x !== c); c.parentNode = null; return c; },
+      addEventListener(t, f) { this.listeners[t] = f; },
+      querySelector() { return null; },
+      focus() {},
+      set innerHTML(v) { throw new Error('innerHTML must never be used'); }
+    };
+  }
+  const body = node('body');
+  const log = [];
+  const store = JSON.parse(JSON.stringify(docs));
+  let snap = null;
+  const subs = { ink: ['s1', 's2'], frames: ['question', 'latest'] };
+  const db = {
+    collection(name) {
+      assert.equal(name, 'tutorConsults');
+      return {
+        orderBy() { return this; }, limit() { return this; },
+        onSnapshot(ok) { snap = ok; return () => {}; },
+        doc(id) {
+          return {
+            async get() { log.push(['get', id]); return { exists: id in store, data: () => store[id] }; },
+            async delete() {
+              if (refuse) throw new Error('Missing or insufficient permissions.');
+              log.push(['delete', id]); delete store[id];
+            },
+            collection(sub) {
+              return { async get() { return { docs: (subs[sub] || []).map((k) => ({ ref: { async delete() { log.push(['delete', id + '/' + sub + '/' + k]); } } })) }; } };
+            }
+          };
+        }
+      };
+    }
+  };
+  const storage = { ref(path) { return { delete() { log.push(['file', path]); return Promise.resolve(); } }; } };
+  const toasts = [];
+  const ctx = {
+    document: { body, createElement: node }, console, Math, Date, Number, String, Array, Object, JSON, Promise,
+    db, storage, currentUser: { uid: 'teacher-1' }, actingStudent: acting,
+    isAdmin: () => admin, toast: (m) => toasts.push(m), addEventListener() {}
+  };
+  ctx.window = ctx; ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(answerSrc, ctx);
+  return {
+    ctx, body, log, toasts, store, CA: ctx.ConsultAnswer,
+    fire() { snap({ docs: Object.entries(store).map(([id, d]) => ({ id, data: () => d })) }); }
+  };
+}
+function allNodes(n) { return [n].concat(...n.children.map(allNodes)); }
+function btnNamed(root, text) { return allNodes(root).find((n) => n.tagName === 'BUTTON' && n.textContent === text) || null; }
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+const DEL_ID = 'Consult0000000000001';
+const DEL_PATH = 'pdf-annotator/lesson-consult-' + DEL_ID + '-1700000000000.mp4';
+const answeredDoc = () => ({
+  status: 'answered', studentName: 'Mei', worksheetName: 'Heat SA2', at: 1_700_000_000_000,
+  question: { text: 'how to do', page: 2 },
+  reply: { url: 'https://firebasestorage.googleapis.com/v0/b/x/o/a.mp4', path: DEL_PATH, mime: 'video/mp4', at: 1_700_000_100_000 }
+});
+
+test('🗑 the plan takes the consult, its ink, its pictures and its checked video path', () => {
+  const P = loadArchive().CA.pure;
+  assert.deepEqual(J(P.deletePlan(DEL_ID, answeredDoc())), { id: DEL_ID, subs: ['ink', 'frames'], files: [DEL_PATH] });
+  assert.deepEqual(J(P.deletePlan(DEL_ID, { status: 'ended' }).files), []);
+  assert.deepEqual(J(P.deletePlan(DEL_ID, { reply: { path: 'users/someone-else/secret.mp4' } }).files), [],
+    'a path another client wrote is never handed to Storage');
+  assert.equal(P.deletePlan('../evil', {}), null);
+  assert.match(P.deleteAsk({ state: 'answered', who: 'Mei', reply: {} }), /video answer goes too.*Mei/);
+  assert.match(P.deleteAsk({ state: 'live', who: 'Mei' }), /call is still open/);
+  assert.match(P.deleteAsk({ state: 'missed' }), /cannot be undone/);
+});
+function J(x) { return JSON.parse(JSON.stringify(x)); }
+
+test('🗑 Delete asks on the row first; Cancel keeps it; Yes removes it from the cloud', async () => {
+  const t = loadArchive({ docs: { [DEL_ID]: answeredDoc() } });
+  assert.equal(t.CA.openLog({}), true);
+  t.fire();
+  const root = t.body.children[0];
+  btnNamed(root, 'All (1)').listeners.click();
+  assert.ok(btnNamed(root, '▶ Watch'));
+  btnNamed(root, '🗑 Delete').listeners.click();
+  assert.equal(t.log.length, 0, 'one tap removes nothing');
+  assert.ok(allNodes(root).some((n) => /Delete this consult for good\?/.test(n.textContent)));
+  assert.equal(btnNamed(root, '▶ Watch'), null, 'while it asks, the row offers only the answer');
+  t.fire();
+  assert.ok(btnNamed(root, '🗑 Yes, delete'), 'a live snapshot mid-question keeps the question');
+  btnNamed(root, 'Cancel').listeners.click();
+  assert.equal(btnNamed(root, '🗑 Yes, delete'), null);
+  assert.equal(t.log.length, 0);
+
+  btnNamed(root, '🗑 Delete').listeners.click();
+  btnNamed(root, '🗑 Yes, delete').listeners.click();
+  for (let i = 0; i < 10; i++) await tick();
+  assert.deepEqual(t.log, [
+    ['get', DEL_ID],
+    ['delete', DEL_ID],
+    ['delete', DEL_ID + '/ink/s1'], ['delete', DEL_ID + '/ink/s2'],
+    ['delete', DEL_ID + '/frames/question'], ['delete', DEL_ID + '/frames/latest'],
+    ['file', DEL_PATH]
+  ], 'the document first, then what it leaves behind');
+  assert.ok(!(DEL_ID in t.store));
+  assert.ok(allNodes(root).some((n) => n.textContent === 'Nothing here yet.'), 'the row goes at once');
+});
+
+test('🗑 a refused delete takes nothing else with it, and says so', async () => {
+  const t = loadArchive({ docs: { [DEL_ID]: answeredDoc() }, refuse: true });
+  assert.equal(await t.CA.deleteConsult(DEL_ID), false);
+  assert.deepEqual(t.log, [['get', DEL_ID]], 'no ink, no pictures, no video removed');
+  assert.ok(t.toasts.some((m) => /Could not delete/.test(m)));
+});
+
+test('🗑 only the teacher deletes, refused in the handler', async () => {
+  for (const opts of [{ admin: false }, { acting: { name: 'Mei' } }]) {
+    const t = loadArchive({ docs: { [DEL_ID]: answeredDoc() }, ...opts });
+    assert.equal(await t.CA.deleteConsult(DEL_ID), false);
+    assert.deepEqual(t.log, []);
+    assert.ok(DEL_ID in t.store);
+  }
+});

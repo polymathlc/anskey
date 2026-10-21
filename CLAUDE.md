@@ -13,7 +13,15 @@ Guidance for Claude when working in this repo.
 ## 📚 Every consult, kept (v1.152.0)
 
 - `#consultLogBtn` (🙋 Consults, header) and the "📚 All consults" button under the cards call `ConsultAnswer.openLog({join})` — the archive lives in `consult-answer.js`, Study Buddy's file byte for byte. `syncLogButton` (from `render`) shows it only when `teacherHere()` and counts what is waiting.
-- The archive only reads `tutorConsults`; its one write is the student's `replySeen` (Study Buddy only). Answering from it goes through the same recorder transaction. `consult-alert.js` still writes nothing.
+- The archive's writes are the student's `replySeen` (Study Buddy only) and the teacher's 🗑 Delete (v1.154.0, below). Answering from it goes through the same recorder transaction. `consult-alert.js` still writes nothing.
+
+## 🗑 Deleting a consult (v1.154.0)
+
+- `deleteConsult` / `logAskDelete` / `logCancelDelete` / `logDelete` and the pure `deletePlan` / `deleteAsk` / `DELETE_SUBS` in `consult-answer.js` (so Study Buddy v1.68.0 carries it too, byte for byte), plus `.caDel` / `.caDelYes` / `.caAsking` in the CSS. `ConsultAnswer.deleteConsult(id)` is exported.
+- **Asked twice, on the row**: 🗑 Delete only sets `s.asking`; the row then shows `deleteAsk(row)` with Cancel and 🗑 Yes, delete. `s.asking` lives on the log's state so a live snapshot redraw keeps the question open.
+- **The document goes FIRST**, then `ink` and `frames` (a document delete leaves sub-collections behind), then the reply video by a `replyPathOk` path only. A refused document delete removes nothing else; the rest is best effort.
+- **Teacher only, refused in `deleteConsult`** (`teacherHere`, asked again after the read). An open call is deletable (a crashed room leaves `live` for ever) and the question says it ends for the student; the consult whose recorder is open is refused. Study Buddy already handles a consult that vanishes.
+- Run `node --test tools/consult-alert-tests.mjs` (runs the archive in a vm and counts every delete).
 
 ## 📝 Consult questions, answered here (v1.151.0)
 

@@ -32,7 +32,11 @@
      answered — with Join, 📝 Answer and ▶ Watch on the row; `openLibrary`
      is the student's shelf of every answer they have been sent. Both are
      LIVE queries that come down when the window closes; the only write
-     either makes is the student's own `replySeen` when they press ▶.
+     either makes is the student's own `replySeen` when they press ▶ —
+     and the teacher's 🗑 Delete (v1.68.0 Study Buddy, v1.154.0 Ans Key),
+     asked twice on the row itself, which takes the consult, its ink, its
+     pictures and its video answer out of the cloud for good
+     (`deleteConsult`).
 
    The rules this file keeps:
 
@@ -180,6 +184,33 @@
     };
   }
 
+  // 🗑 What a delete takes with it, read off the document alone: the
+  // consult, the two sub-collections Study Buddy writes under it (`ink`, the
+  // teacher's strokes; `frames`, the page pictures) and the video answer in
+  // Storage. Only a path `replyPathOk` accepts is ever handed to Storage, so a
+  // consult another client wrote cannot point the delete at somebody else's
+  // file. A call that is still open is NOT refused — a room that crashed
+  // leaves `live` behind for ever, and an entry that can never be deleted is
+  // the one thing this button exists to clear — but the question it asks
+  // says the student's call ends with it (`deleteAsk`).
+  var DELETE_SUBS = ['ink', 'frames'];
+  function deletePlan(id, d) {
+    if (!consultIdOk(id)) return null;
+    var data = d && typeof d === 'object' ? d : {};
+    var files = [];
+    var r = data.reply;
+    if (r && typeof r === 'object' && replyPathOk(r.path)) files.push(r.path);
+    return { id: id, subs: DELETE_SUBS.slice(), files: files };
+  }
+  // The words on the row while it asks. A reader acts on these, so they say
+  // exactly what goes: the entry for everyone, and the video when there is one.
+  function deleteAsk(row) {
+    var r = row || {};
+    var what = 'Delete this consult for good?';
+    if (r.state === 'ringing' || r.state === 'live') return what + ' The call is still open — it ends for ' + (r.who || 'the student') + ' too.';
+    if (r.reply) return what + ' The video answer goes too, and ' + (r.who || 'the student') + ' can no longer watch it.';
+    return what + ' It cannot be undone.';
+  }
   function extFor(mime) { return /mp4/i.test(mime || '') ? 'mp4' : 'webm'; }
   function storagePath(dir, id, ts, mime) {
     if (DIRS.indexOf(dir) < 0 || !consultIdOk(id)) return '';
@@ -425,7 +456,8 @@
     laterSaid: laterSaid,
     CALL_FRESH_MS: CALL_FRESH_MS, CALL_SEEN_MS: CALL_SEEN_MS, LOG_MAX: LOG_MAX, LOG_FILTERS: LOG_FILTERS,
     callRinging: callRinging, logState: logState, logLabel: logLabel, logRow: logRow, logFilter: logFilter,
-    logCounts: logCounts, logSort: logSort, libraryRows: libraryRows, whenText: whenText, consultLink: consultLink
+    logCounts: logCounts, logSort: logSort, libraryRows: libraryRows, whenText: whenText, consultLink: consultLink,
+    DELETE_SUBS: DELETE_SUBS, deletePlan: deletePlan, deleteAsk: deleteAsk
   };
 
   if (!global.document) { global.ConsultAnswer = { pure: pure }; return; }
@@ -1150,13 +1182,73 @@
     if (!link) return;
     try { global.open(link, '_blank', 'noopener'); } catch (e) {}
   }
+  /* ---- 🗑 Deleting a consult (the teacher's, asked twice) ----
+     🗑 Delete on a row turns that row's buttons into the question and a
+     Cancel, so one stray tap never removes anything. Yes, delete:
+       ① the consult document — FIRST, so a delete the rules refuse takes
+          nothing else with it, and the entry the teacher asked to remove is
+          the part that is sure to go;
+       ② its `ink` and `frames` sub-collections, which a document delete
+          leaves behind in Firestore;
+       ③ the video answer in Storage, by a path `replyPathOk` accepts.
+     ② and ③ are best effort: the entry is gone either way, and a leftover
+     stroke or file is invisible where a half-deleted entry would not be.
+     Study Buddy already copes with a consult that vanishes: the student's
+     panel ends the call, the room says "The consult was removed". */
+  var deleteBusy = {};
+  async function deleteConsult(id) {
+    if (!teacherHere()) { toast('Only the teacher can delete a consult.'); return false; }
+    var x = ref(id);
+    if (!x) return false;
+    if (A && A.id === id) { toast('Close the answer window for this consult first.'); return false; }
+    if (deleteBusy[id]) return false;
+    deleteBusy[id] = true;
+    try {
+      var snap = null;
+      try { snap = await x.get(); } catch (e) {
+        toast('Could not reach that consult — nothing was deleted.', 6000);
+        return false;
+      }
+      // The teacher can hand the device over while the read is in flight.
+      if (!teacherHere()) return false;
+      if (!snap || !snap.exists) return true;
+      var plan = deletePlan(id, snap.data() || {});
+      if (!plan) return false;
+      try { await x.delete(); } catch (e) {
+        console.warn('consult: could not delete', e);
+        toast('Could not delete that consult: ' + cleanText(String(e && e.message || e), 160), 7000);
+        return false;
+      }
+      for (var i = 0; i < plan.subs.length; i++) {
+        try {
+          var qs = await x.collection(plan.subs[i]).get();
+          await Promise.all((qs.docs || []).map(function (doc) { return doc.ref.delete(); }));
+        } catch (e) { console.warn('consult: left ' + plan.subs[i] + ' behind', e); }
+      }
+      var st = store();
+      plan.files.forEach(function (path) {
+        if (!st) return;
+        try {
+          var pr = st.ref(path).delete();
+          if (pr && pr.catch) pr.catch(function (e) {
+            if (!e || e.code !== 'storage/object-not-found') console.warn('consult: left the video behind', e);
+          });
+        } catch (e) {}
+      });
+      toast('🗑 Deleted.', 3000);
+      return true;
+    } finally {
+      delete deleteBusy[id];
+    }
+  }
   function openLog(opts) {
     if (!teacherHere()) { toast('Only the teacher can see the consults.'); return false; }
     var o = opts || {};
     if (L) { try { L.win.root.focus(); } catch (e) {} if (typeof o.join === 'function') L.join = o.join; return true; }
     var d = db();
     if (!d) { toast('Not connected yet — try again in a moment.'); return false; }
-    var s = { win: null, unsub: null, docs: [], filter: 'todo', search: '', join: typeof o.join === 'function' ? o.join : null, loaded: false, failed: false, els: {} };
+    var s = { win: null, unsub: null, docs: [], filter: 'todo', search: '', join: typeof o.join === 'function' ? o.join : null, loaded: false, failed: false, els: {},
+      asking: '', deleting: {} };
     L = s;
     s.win = archiveWin('caLogTeacher', '🙋 Consults — every call and question', closeLog);
     var bar = el('div', 'caLogBar');
@@ -1221,9 +1313,35 @@
         : 'Nothing here yet.'));
       return;
     }
-    show.forEach(function (r) { list.appendChild(logRowNode(r)); });
+    show.forEach(function (r) { list.appendChild(logRowNode(r, s)); });
   }
-  function logRowNode(r) {
+  // The row's two-step delete. The question lives on `s.asking` (one row at
+  // a time) so a live snapshot redrawing the list mid-question keeps it.
+  function logAskDelete(s, id) {
+    if (!teacherHere() || L !== s) return;
+    s.asking = id;
+    renderLogList(s);
+  }
+  function logCancelDelete(s) {
+    if (L !== s) return;
+    s.asking = '';
+    renderLogList(s);
+  }
+  async function logDelete(s, id) {
+    if (L !== s || s.deleting[id]) return;
+    s.deleting[id] = true;
+    renderLogList(s);
+    var ok = false;
+    try { ok = await deleteConsult(id); } catch (e) { ok = false; }
+    if (L !== s) return;
+    delete s.deleting[id];
+    if (s.asking === id) s.asking = '';
+    // The live query drops the row by itself; drop it here as well, so a
+    // slow snapshot never shows a deleted consult for a second longer.
+    if (ok) s.docs = s.docs.filter(function (x) { return x.id !== id; });
+    renderLog(s);
+  }
+  function logRowNode(r, s) {
     var row = el('div', 'caLogRow caState-' + r.state);
     var top = el('div', 'caLogTop');
     top.appendChild(el('span', 'caLogWho', r.who));
@@ -1244,6 +1362,20 @@
       acts.appendChild(btn('📝 Answer again', 'btnGhost', function () { closeLog(); open(r.id); }, 'Record a new answer in place of this one'));
     }
     if (r.state === 'later') acts.appendChild(el('span', 'caMuted', 'Waiting for them to leave the question.'));
+    if (s) {
+      if (s.deleting[r.id]) {
+        while (acts.firstChild) acts.removeChild(acts.firstChild);
+        acts.appendChild(el('span', 'caMuted', 'Deleting…'));
+      } else if (s.asking === r.id) {
+        while (acts.firstChild) acts.removeChild(acts.firstChild);
+        row.className += ' caAsking';
+        acts.appendChild(el('span', 'caDelAsk', deleteAsk(r)));
+        acts.appendChild(btn('Cancel', 'btnGhost', function () { logCancelDelete(s); }));
+        acts.appendChild(btn('🗑 Yes, delete', 'caDelYes', function () { logDelete(s, r.id); }, 'Delete this consult for good'));
+      } else {
+        acts.appendChild(btn('🗑 Delete', 'btnGhost caDel', function () { logAskDelete(s, r.id); }, 'Delete this consult'));
+      }
+    }
     if (acts.firstChild) row.appendChild(acts);
     return row;
   }
@@ -1390,6 +1522,7 @@
     isOpen: function (id) { return !!A && (id == null || A.id === id); },
     openLog: openLog,
     closeLog: closeLog,
+    deleteConsult: deleteConsult,
     openLibrary: openLibrary,
     closeLibrary: closeLibrary,
     play: play,
