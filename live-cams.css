@@ -143,6 +143,10 @@
 }
 .lcBtn:hover, .lcBtn:focus-visible { background: var(--bg-viewer, #f3f2f0); color: var(--ink, #1a1a1a); }
 .lcBtnDanger:hover { color: var(--danger, #e53935); }
+/* ⟳ shows the angle once a student is turned, so a turned tile is never a
+   mystery — and is tinted so it reads as "on". */
+.lcBtnRot { width: auto; min-width: 28px; padding: 0 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lcBtnRot.lcBtnOn { color: var(--accent-deep, #e8a54b); font-weight: 700; }
 
 .lcEmpty {
   display: flex;

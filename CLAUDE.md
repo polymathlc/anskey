@@ -193,6 +193,12 @@ Compact points (v1.146.1): `CompactWheel.renderAward` builds one amount input an
 - 🔢 The portal's `qno` (cer v1.433.0; given once, never changed) rides on the snapshot (`KEEP_Q`). It is shown as `#123` (`qnoChip`/`.qbNo`, and `bankQNoText` on the selected question's badge). `filterQuestions` reads `qnoQuery`: `#123` finds that question only, while a bare `123` ranks it first and still searches words. Keep this in step with cer's `qNoParseToken`.
 - Run `node --test tools/question-bank-tests.mjs` and `node tools/question-bank-check.mjs` (real page in Chromium, fake bank; `PDF_LIB=` for offline pdf-lib). It is also in CI.
 
+## 🔄 Live cam rotation, kept per student (v1.153.0)
+
+- `ROTATE_KEY` (`polymath.liveCamRotate.v1`) / `cleanRotation` / `rotationKey` (`u:{uid}`, else `n:{name}`) / `rememberRotation` (upright is deleted, `ROTATE_MAX` least-recently-turned kept) / `nextSpin` / `rotateLabel` on `LiveCams.pure`; `loadRotations` / `rotationFor` / `saveRotation` / `rotatePeer` in the teacher half.
+- `p.rotate` is the angle (0/90/180/270) that `drawFrame` uses for 📌 and ⬇; `p.spin` is what CSS gets and only grows, so 270 → 0 turns one more quarter clockwise rather than spinning back. `upsertPeer` picks up the remembered turn whenever the student's key changes (a new peer doc after Share again).
+- Teacher's device only: never written to Firestore, never seen by the student. R in the window turns the enlarged student. Run `node --test tools/live-cams-tests.mjs` and `node tools/live-cams-check.mjs`.
+
 ## 📹 Live cams (v1.135.0)
 
 - `live-cams.js` / `live-cams.css` own the feature (`LiveCams.create(env)`, pure helpers on `LiveCams.pure`). index.html holds only the glue between `📹 Live cams — glue` and `End live cams glue` (`liveCamRole`, `liveCamUser`, `liveCamsInit`, `liveCamsRoleChanged`), the `#liveCamBtn` header button, and `<script>liveCamsInit();</script>` after the module's script tag.

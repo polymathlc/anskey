@@ -213,6 +213,64 @@ test('nextRotation walks the quarter turns', () => {
   assert.equal(P.nextRotation(undefined), 90);
 });
 
+test('cleanRotation keeps quarter turns only', () => {
+  assert.equal(P.cleanRotation(0), 0);
+  assert.equal(P.cleanRotation(90), 90);
+  assert.equal(P.cleanRotation(450), 90);
+  assert.equal(P.cleanRotation(-90), 270);
+  assert.equal(P.cleanRotation(45), 0);
+  assert.equal(P.cleanRotation('180'), 180);
+  assert.equal(P.cleanRotation('x'), 0);
+  assert.equal(P.cleanRotation(undefined), 0);
+});
+
+test('rotationKey: account first, then name, else nothing', () => {
+  assert.equal(P.rotationKey({ uid: 'abc', name: 'Ada' }), 'u:abc');
+  assert.equal(P.rotationKey({ uid: '', name: '  Ada Lovelace ' }), 'n:ada lovelace');
+  assert.equal(P.rotationKey({ name: 'ADA' }), P.rotationKey({ name: 'ada' }));
+  assert.equal(P.rotationKey({}), '');
+  assert.equal(P.rotationKey(null), '');
+  assert.equal(P.rotationKey({ uid: 'x'.repeat(500), name: 'Bo' }), 'n:bo');
+});
+
+test('rememberRotation writes, forgets upright, and caps the list', () => {
+  const a = P.rememberRotation({}, 'u:a', 90, 1, 10);
+  assert.deepEqual(JSON.parse(JSON.stringify(a)), { 'u:a': { d: 90, at: 1 } });
+  const b = P.rememberRotation(a, 'u:a', 0, 2, 10);
+  assert.deepEqual(Object.keys(b), []);
+  assert.ok('u:a' in a, 'the map passed in is not changed');
+  const bad = P.rememberRotation({ 'u:x': { d: 45 }, 'u:y': { d: 'no' }, 'u:z': null, 'u:ok': { d: 270, at: 5 } }, '', 0, 0, 10);
+  assert.deepEqual(Object.keys(bad), ['u:ok']);
+  let m = {};
+  for (let i = 0; i < 5; i++) m = P.rememberRotation(m, 'u:' + i, 90, i, 3);
+  assert.deepEqual(Object.keys(m).sort(), ['u:2', 'u:3', 'u:4']);
+  assert.deepEqual(Object.keys(P.rememberRotation(null, '', 90, 0, 3)), []);
+});
+
+test('nextSpin only ever turns clockwise', () => {
+  let spin = 0, deg = 0;
+  for (let i = 0; i < 8; i++) {
+    const s2 = P.nextSpin(spin); const d2 = P.nextRotation(deg);
+    assert.equal(s2 - spin, 90);
+    assert.equal(((s2 % 360) + 360) % 360, d2);
+    spin = s2; deg = d2;
+  }
+  assert.equal(P.nextSpin(undefined), 90);
+});
+
+test('rotateLabel says the angle once turned', () => {
+  assert.equal(P.rotateLabel(0), '⟳');
+  assert.equal(P.rotateLabel(90), '⟳ 90°');
+  assert.equal(P.rotateLabel(270), '⟳ 270°');
+});
+
+test('the turn is the teacher’s view only: never written to the room', () => {
+  const sec = SRC.slice(SRC.indexOf('function rotatePeer'), SRC.indexOf('function fitRotation'));
+  assert.ok(sec.includes('teacherAllowed()'), 'rotatePeer asks the role');
+  assert.ok(!/peersRef|roomRef|\.update\(|\.set\(/.test(sec), 'rotatePeer writes nothing to Firestore');
+  assert.ok(/drawFrame\(m, p\.rotate/.test(SRC), '📌 and ⬇ draw the frame turned');
+});
+
 test('sortPeers: by name, case-blind, then by id', () => {
   const out = P.sortPeers([{ id: 'b', name: 'zoe' }, { id: 'a', name: 'Amy' }, { id: 'c', name: 'amy' }, { id: 'd' }]);
   assert.deepEqual(out.map(p => p.id), ['d', 'a', 'c', 'b']);
