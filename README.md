@@ -3,6 +3,18 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.154.0 — 🗑 Delete a consult from the list
+
+- **Every entry in 🙋 Consults has a 🗑 Delete button**, on the right of its row, in
+  every tab: To do, Answered, Calls and All.
+- **It asks first, on the row itself.** The row turns red and says exactly what goes —
+  the video answer too, if there is one — with Cancel beside 🗑 Yes, delete. One stray
+  tap never removes anything.
+- **It is removed from the cloud for good:** the consult, the writing on it, the page
+  pictures and the video answer you recorded. The student no longer sees it in
+  🎬 My answers either. A call still open ends for the student.
+- Only you can delete; it is not offered to students or on a "Practise as" device.
+
 ## v1.153.0 — 🔄 Turn a student's live cam, and it stays turned
 
 - **⟳ on each student's tile turns their picture a quarter clockwise** — 0° → 90° →

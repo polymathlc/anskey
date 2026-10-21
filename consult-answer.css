@@ -360,6 +360,14 @@
 .caLogNote { margin-top: 6px; font-size: 0.84rem; line-height: 1.5; color: #55554F; white-space: pre-wrap; overflow-wrap: anywhere; }
 .caMuted { color: var(--ink-faint, #8A8A84); font-size: 0.84rem; }
 .caLogActs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 11px; }
+/* 🗑 Delete sits apart, on the right, so it is never the button a hand
+   reaches for when it means ▶ Watch or Join. Asking turns the row red. */
+.caLogActs .caDel { margin-left: auto; color: #991B1B; }
+.caLogActs .caDel:hover { background: #FEE2E2; border-color: #FCA5A5; }
+.caLogRow.caAsking { border-color: #FCA5A5; background: #FEF2F2; }
+.caDelAsk { flex: 1 1 220px; font-size: 0.86rem; line-height: 1.45; color: #991B1B; font-weight: 600; }
+.caLogActs .caDelYes { background: var(--danger, #E53935); border-color: var(--danger, #E53935); color: #FFFFFF; font-weight: 700; }
+.caLogActs .caDelYes:hover { filter: brightness(0.94); }
 
 /* ---------------- The player ---------------- */
 .caPlayMedia {
