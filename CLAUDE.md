@@ -10,6 +10,11 @@ Guidance for Claude when working in this repo.
 - `consultIdOk` / `consultLink` / `cleanText` / `stampMs` / `consultFresh` / `consultAgo` / `consultSummary` / `subjectWord` and `JOIN_BASE` / `WAIT_FRESH_MS` / `SEEN_FRESH_MS` are Study Buddy's, byte for byte; the test compares them when tutor is checked out beside this repo. The link is built from a checked id, never read off the document. Names and titles go in with `textContent`.
 - Run `node --test tools/consult-alert-tests.mjs`.
 
+## 📚 Every consult, kept (v1.152.0)
+
+- `#consultLogBtn` (🙋 Consults, header) and the "📚 All consults" button under the cards call `ConsultAnswer.openLog({join})` — the archive lives in `consult-answer.js`, Study Buddy's file byte for byte. `syncLogButton` (from `render`) shows it only when `teacherHere()` and counts what is waiting.
+- The archive only reads `tutorConsults`; its one write is the student's `replySeen` (Study Buddy only). Answering from it goes through the same recorder transaction. `consult-alert.js` still writes nothing.
+
 ## 📝 Consult questions, answered here (v1.151.0)
 
 - `consult-answer.js` / `consult-answer.css` (`window.ConsultAnswer` {pure, open, askLater, close, stop, isOpen}) are **Study Buddy's files, byte for byte** — copy fixes across from `polymathlc/tutor`, never re-derive; `tools/consult-alert-tests.mjs` compares them when tutor is checked out beside this repo. They load BEFORE `consult-alert.js`.

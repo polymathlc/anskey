@@ -52,6 +52,14 @@
    - A HANDOVER TO A STUDENT CLOSES THE RECORDER (`ConsultAnswer.stop`): a
      child's question and its camera are never left open on a screen a
      child is using.
+
+   EVERY CONSULT, KEPT (v1.152.0)
+   - 🙋 CONSULTS in the header and 📚 All consults under the cards open
+     `ConsultAnswer.openLog` — the same archive as Study Buddy's: every
+     call and question, the hidden ones included, and the videos sent.
+   - THE BUTTON IS PAINTED BY `render` AND ASKS `teacherHere()`, so it is
+     the teacher's alone exactly as the cards are, and its count is the calls
+     and questions waiting now. Opening the log is still a read; nothing here writes.
    ===================================================================== */
 (function (global) {
   'use strict';
@@ -264,7 +272,46 @@
     render();
   }
 
+  /* ---- 🙋 Consults: every call and question, kept (v1.152.0) ----
+     The list itself is ConsultAnswer.openLog (Study Buddy's file, byte for
+     byte). This file only shows the button and opens it; Join from the list
+     goes through join() above, which opens the consult in Study Buddy. */
+  function logApi() {
+    var CA = global.ConsultAnswer;
+    return CA && typeof CA.openLog === 'function' && teacherHere() ? CA : null;
+  }
+  function openLog() {
+    var api = logApi();
+    if (!api) return false;
+    return api.openLog({ join: join });
+  }
+  // The count includes the cards the teacher HID: Hide is "not now", and
+  // this button is where they are found again.
+  function waitingCount() {
+    return teacherHere() ? alertList(W.items, {}, now()).length : 0;
+  }
+  function syncLogButton() {
+    var doc = global.document;
+    var b = doc && doc.getElementById ? doc.getElementById('consultLogBtn') : null;
+    if (!b) return;
+    if (!b._consultBound) {
+      b._consultBound = true;
+      b.addEventListener('click', function () { openLog(); });
+    }
+    var on = !!logApi();
+    b.style.display = on ? '' : 'none';
+    if (!on) return;
+    var n = waitingCount();
+    var label = b.querySelector ? b.querySelector('.btnLabel') : null;
+    var words = 'Consults' + (n ? ' · ' + n : '');
+    if (label) label.textContent = words; else b.textContent = '🙋 ' + words;
+    b.title = n ? n + ' waiting — every call and question students have sent you'
+      : 'Every call and question students have sent you, and the videos you answered with';
+    if (b.classList) b.classList.toggle('consultOn', n > 0);
+  }
+
   function render() {
+    syncLogButton();
     var doc = global.document;
     if (!doc || !doc.body) return;
     var list = teacherHere() ? alertList(W.items, W.dismissed, now()) : [];
@@ -287,6 +334,9 @@
     });
     if (list.length > ALERT_SHOW_MAX) {
       W.root.appendChild(el('div', 'consultAlertMore', '+ ' + (list.length - ALERT_SHOW_MAX) + ' more waiting — hide one to see the next'));
+    }
+    if (logApi()) {
+      W.root.appendChild(btn('📚 All consults', 'consultAlertAll', 'Every call and question, including the ones you hid', function () { openLog(); }));
     }
   }
 
@@ -420,6 +470,7 @@
   global.ConsultAlert = {
     roleChanged: roleChanged,
     render: render,
+    openLog: openLog,
     stop: stop,
     pure: {
       COLLECTION: COLLECTION, JOIN_BASE: JOIN_BASE, WAIT_FRESH_MS: WAIT_FRESH_MS, SEEN_FRESH_MS: SEEN_FRESH_MS,
@@ -428,6 +479,6 @@
       waitingList: waitingList, cardWords: cardWords, titleWith: titleWith,
       ALERT_SHOW_MAX: ALERT_SHOW_MAX, alertList: alertList, questionCardWords: questionCardWords
     },
-    _internals: { W: W, teacherHere: teacherHere, join: join, answerApi: answerApi }
+    _internals: { W: W, teacherHere: teacherHere, join: join, answerApi: answerApi, logApi: logApi, waitingCount: waitingCount }
   };
 })(typeof window !== 'undefined' ? window : globalThis);

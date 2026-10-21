@@ -57,3 +57,17 @@
 .consultAlertRow { flex-wrap: wrap; }
 @media (pointer: coarse) { .consultAlertRow .btn { min-height: 40px; } }
 @media print { .consultAlerts { display: none !important; } }
+
+/* 📚 Every consult, kept (v1.152.0): the stack's way in, and the header
+   button lit by how many are waiting. */
+.consultAlertAll.btn {
+  align-self: flex-end;
+  border-radius: 999px;
+  box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.1));
+  pointer-events: auto;
+}
+#consultLogBtn.consultOn {
+  border-color: var(--accent, #FB8C00);
+  color: var(--accent, #FB8C00);
+  font-weight: 700;
+}

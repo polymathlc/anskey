@@ -27,6 +27,12 @@
      only by the verified teacher), then writes `status: 'answered'`
      and `reply: { url, path, mime, ms, note, at }` in ONE transaction.
      The student's Study Buddy picks it up and plays it.
+   ④ 📚 Nothing is lost afterwards (v1.66.0 / v1.152.0). `openLog` is the
+     teacher's list of EVERY call and question — waiting, missed, talked,
+     answered — with Join, 📝 Answer and ▶ Watch on the row; `openLibrary`
+     is the student's shelf of every answer they have been sent. Both are
+     LIVE queries that come down when the window closes; the only write
+     either makes is the student's own `replySeen` when they press ▶.
 
    The rules this file keeps:
 
@@ -70,6 +76,19 @@
   var PIP_GAP = 0.022;
   var DIRS = ['pdf-annotator', 'tutor-worksheets'];
   var URL_PREFIX = 'https://firebasestorage.googleapis.com/';
+  // 📚 The archive. A call rings by Study Buddy's own rule (WAIT_FRESH_MS /
+  // SEEN_FRESH_MS there); a Join opens Study Buddy's room by its own link.
+  var CALL_FRESH_MS = 30 * 60 * 1000;
+  var CALL_SEEN_MS = 2 * 60 * 1000;
+  var LOG_MAX = 300;
+  var JOIN_BASE = 'https://polymathlc.github.io/tutor/';
+  var LOG_LABELS = {
+    ringing: 'Calling now', live: 'In a call', later: 'Asked to leave a question',
+    question: 'Question waiting', answered: 'Answered', watched: 'Answered · watched',
+    talked: 'Talked on a call', missed: 'Missed call', cancelled: 'Cancelled', other: 'Consult'
+  };
+  var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var PENS = [
     { key: 'red', name: 'Red', c: '#E5484D' },
     { key: 'blue', name: 'Blue', c: '#2563EB' },
@@ -87,6 +106,7 @@
      The pure half — no DOM, no Firebase. The harness runs these alone.
      =================================================================== */
   function consultIdOk(id) { return typeof id === 'string' && /^[A-Za-z0-9]{12,40}$/.test(id); }
+  function consultLink(id) { return consultIdOk(id) ? JOIN_BASE + '?consult=' + encodeURIComponent(id) : ''; }
   function cleanText(s, max) {
     if (typeof s !== 'string') return '';
     var t = s.replace(/[\u0000-\u001F\u007F]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -269,6 +289,131 @@
     return { c: pen.c, w: w, p: pts };
   }
 
+  /* ---- 📚 The archive: every consult, kept (v1.66.0 / v1.152.0) ----
+     The teacher's list of every call and question, and the student's
+     shelf of every answer they have been sent. Both read documents that
+     are already there; nothing here invents a status. */
+  // A call is "ringing" by exactly the rule the pop-up uses (Study Buddy's
+  // consultFresh): asked within half an hour and the student's panel still
+  // beating within two minutes. A waiting consult older than that is a call
+  // nobody took.
+  function callRinging(d, t) {
+    if (!d || d.status !== 'waiting') return false;
+    var nowMs = typeof t === 'number' ? t : Date.now();
+    var at = Math.min(stampMs(d.at), nowMs);
+    if (!at) return false;
+    var seen = Math.min(stampMs(d.seen) || at, nowMs);
+    return nowMs - at < CALL_FRESH_MS && nowMs - seen < CALL_SEEN_MS;
+  }
+  // ONE word for where a consult stands, read off the document alone.
+  function logState(d, t) {
+    var s = d && d.status;
+    if (s === 'waiting') return callRinging(d, t) ? 'ringing' : 'missed';
+    if (s === 'live') return 'live';
+    if (s === 'later') return 'later';
+    if (s === 'question') return 'question';
+    if (s === 'answered') return d.replySeen ? 'watched' : 'answered';
+    if (s === 'ended') return d.joinedAt ? 'talked' : 'missed';
+    if (s === 'cancelled') return 'cancelled';
+    return 'other';
+  }
+  function logLabel(state) { return LOG_LABELS[state] || 'Consult'; }
+  function logRow(id, d, t) {
+    if (!consultIdOk(id) || !d || typeof d !== 'object') return null;
+    var q = cleanQuestion(d.question);
+    var state = logState(d, t);
+    var reply = (state === 'answered' || state === 'watched') ? cleanReply(d.reply) : null;
+    return {
+      id: id,
+      state: state,
+      label: logLabel(state),
+      who: cleanText(d.studentName, NAME_MAX) || 'A student',
+      ws: cleanText(d.worksheetName, TITLE_MAX),
+      wsId: (q && consultIdOk(q.ws) ? q.ws : '') || (consultIdOk(d.worksheetId) ? d.worksheetId : ''),
+      subj: [cleanText(d.level, 12), subjectWord(d.subject)].filter(Boolean).join(' '),
+      page: q ? q.page : 0,
+      text: q ? q.text : '',
+      asked: !!q,
+      at: stampMs(d.at) || stampMs(d.createdAt),
+      answeredAt: reply ? (reply.at || stampMs(d.answeredAt)) : 0,
+      reply: reply
+    };
+  }
+  var LOG_FILTERS = {
+    todo: ['ringing', 'live', 'later', 'question'],
+    answered: ['answered', 'watched'],
+    calls: ['ringing', 'live', 'talked', 'missed', 'cancelled', 'later']
+  };
+  function logSearchWords(s) {
+    return cleanText(s, 80).toLowerCase().split(' ').filter(Boolean);
+  }
+  function logHit(row, words) {
+    if (!words.length) return true;
+    var hay = [row.who, row.ws, row.text, row.subj, row.label, row.reply && row.reply.note].join(' ').toLowerCase();
+    return words.every(function (w) { return hay.indexOf(w) >= 0; });
+  }
+  // `f` narrows by state and EVERY word searched for has to appear, so a
+  // second word narrows rather than widens.
+  function logFilter(rows, f, search) {
+    var want = LOG_FILTERS[f] || null;
+    var words = logSearchWords(search);
+    return (rows || []).filter(function (r) {
+      return r && (!want || want.indexOf(r.state) >= 0) && logHit(r, words);
+    });
+  }
+  function logCounts(rows) {
+    var c = { todo: 0, answered: 0, calls: 0, all: 0 };
+    (rows || []).forEach(function (r) {
+      if (!r) return;
+      c.all++;
+      Object.keys(LOG_FILTERS).forEach(function (k) { if (LOG_FILTERS[k].indexOf(r.state) >= 0) c[k]++; });
+    });
+    return c;
+  }
+  // What sorts to the top of the teacher's list: what is waiting on them,
+  // then everything else newest first.
+  function logSort(rows) {
+    var rank = { ringing: 0, live: 1, question: 2, later: 3 };
+    return (rows || []).slice().sort(function (a, b) {
+      var ra = rank[a.state] != null ? rank[a.state] : 9, rb = rank[b.state] != null ? rank[b.state] : 9;
+      if (ra !== rb) return ra - rb;
+      return (b.at || 0) - (a.at || 0);
+    });
+  }
+  // The student's shelf: every answer with a link that will play, newest
+  // answer first, and the questions still waiting for one.
+  function libraryRows(docs, t) {
+    var answers = [], waiting = [];
+    (docs || []).forEach(function (x) {
+      var r = x && logRow(x.id, x.data, t);
+      if (!r) return;
+      if (r.reply) { r.fresh = r.state === 'answered'; answers.push(r); }
+      else if (r.state === 'question' || r.state === 'later') waiting.push(r);
+    });
+    answers.sort(function (a, b) { return (b.answeredAt || b.at || 0) - (a.answeredAt || a.at || 0); });
+    waiting.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+    return { answers: answers, waiting: waiting };
+  }
+  // When, in words a reader acts on: today and yesterday by name, the last
+  // week by weekday, then the date (with the year once it is not this one).
+  // A stamp that will not read is EMPTY, never 1 January 1970.
+  function whenText(ms, t) {
+    var v = Number(ms);
+    if (!isFinite(v) || v <= 0) return '';
+    var nowMs = typeof t === 'number' ? t : Date.now();
+    var d = new Date(v), n = new Date(nowMs);
+    var hh = d.getHours(), mm = d.getMinutes();
+    var clock = ((hh % 12) || 12) + ':' + (mm < 10 ? '0' : '') + mm + (hh < 12 ? ' am' : ' pm');
+    var day0 = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+    var dd0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    var days = Math.round((day0 - dd0) / 86400000);
+    if (days <= 0) return 'Today ' + clock;
+    if (days === 1) return 'Yesterday ' + clock;
+    if (days < 7) return WEEKDAYS[d.getDay()] + ' ' + clock;
+    var date = d.getDate() + ' ' + MONTHS[d.getMonth()];
+    return d.getFullYear() === n.getFullYear() ? date : date + ' ' + d.getFullYear();
+  }
+
   var pure = {
     COLLECTION: COLLECTION, QUESTION_MAX: QUESTION_MAX, NOTE_MAX: NOTE_MAX, QUESTION_FRESH_MS: QUESTION_FRESH_MS,
     REC_MAX_MS: REC_MAX_MS, STAGE_LONG: STAGE_LONG, DIRS: DIRS, URL_PREFIX: URL_PREFIX, PENS: PENS, MIMES: MIMES,
@@ -277,7 +422,10 @@
     cleanReply: cleanReply, extFor: extFor, storagePath: storagePath, pickMime: pickMime, fit: fit,
     stageSize: stageSize, pipRect: pipRect, fmtClock: fmtClock, questionFresh: questionFresh,
     questionWords: questionWords, questionAgo: questionAgo, cleanPenStroke: cleanPenStroke,
-    laterSaid: laterSaid
+    laterSaid: laterSaid,
+    CALL_FRESH_MS: CALL_FRESH_MS, CALL_SEEN_MS: CALL_SEEN_MS, LOG_MAX: LOG_MAX, LOG_FILTERS: LOG_FILTERS,
+    callRinging: callRinging, logState: logState, logLabel: logLabel, logRow: logRow, logFilter: logFilter,
+    logCounts: logCounts, logSort: logSort, libraryRows: libraryRows, whenText: whenText, consultLink: consultLink
   };
 
   if (!global.document) { global.ConsultAnswer = { pure: pure }; return; }
@@ -902,6 +1050,306 @@
     }
   }
 
+  /* ===================================================================
+     📚 THE ARCHIVE — the teacher's list of every call and question
+     (`openLog`) and the student's shelf of every answer (`openLibrary`).
+     Both are windows over a LIVE query that comes down when they close;
+     both are READS, except the one field a student owns: `replySeen`,
+     written when they press ▶ on an answer.
+     =================================================================== */
+  var L = null;   // the teacher's log window
+  var B = null;   // the student's library window
+  var P = null;   // the player both of them open
+
+  function archiveWin(cls, title, onClose) {
+    var root = el('div', 'caLogBack ' + cls);
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-label', title);
+    root.tabIndex = -1;
+    var card = el('div', 'caLogCard');
+    root.appendChild(card);
+    var head = el('div', 'caHead');
+    var who = el('div', 'caWho');
+    who.appendChild(el('div', 'caTitle', title));
+    head.appendChild(who);
+    head.appendChild(btn('✕', 'caClose', onClose, 'Close'));
+    card.appendChild(head);
+    // Every key typed in here stops here, or a letter in the search box
+    // fires one of the page's one-letter tool shortcuts.
+    root.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Escape') { if (P) closePlayer(); else onClose(); }
+    });
+    root.addEventListener('click', function (e) { if (e.target === root) onClose(); });
+    global.document.body.appendChild(root);
+    try { root.focus(); } catch (e) {}
+    return { root: root, card: card, who: who };
+  }
+
+  /* ---- The player ---- */
+  function closePlayer() {
+    var p = P;
+    P = null;
+    if (!p) return;
+    try { var m = p.root.querySelector('video,audio'); if (m) { m.pause(); m.removeAttribute('src'); } } catch (e) {}
+    if (p.root.parentNode) p.root.parentNode.removeChild(p.root);
+    // Focus goes back to the list it was opened from, or the next Escape
+    // reaches the page instead of closing the list.
+    var back = (B && B.win) || (L && L.win);
+    if (back) { try { back.root.focus(); } catch (e) {} }
+  }
+  function play(row, onPlayed) {
+    closePlayer();
+    var rep = row && cleanReply(row.reply);
+    if (!rep) { toast('That answer cannot be played.'); return false; }
+    var root = el('div', 'caPlayBack');
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-label', teacherName() + '’s answer');
+    root.tabIndex = -1;
+    var card = el('div', 'caPlayCard');
+    root.appendChild(card);
+    var head = el('div', 'caHead');
+    var who = el('div', 'caWho');
+    who.appendChild(el('div', 'caTitle', '🎬 ' + teacherName() + '’s answer'));
+    var where = [row.ws, row.page ? 'page ' + row.page : '', whenText(row.answeredAt)].filter(Boolean).join(' · ');
+    if (where) who.appendChild(el('div', 'caWhere', where));
+    head.appendChild(who);
+    head.appendChild(btn('✕', 'caClose', closePlayer, 'Close'));
+    card.appendChild(head);
+    var media = global.document.createElement(/^audio\//i.test(rep.mime) ? 'audio' : 'video');
+    media.className = 'caPlayMedia';
+    media.controls = true;
+    media.setAttribute('playsinline', ''); media.playsInline = true;
+    media.preload = 'auto';
+    media.src = rep.url;
+    card.appendChild(media);
+    if (row.text) card.appendChild(el('p', 'caPlayQ', (row.mine ? 'You asked: “' : 'They asked: “') + row.text + '”'));
+    if (rep.note) card.appendChild(el('p', 'caPlayNote', rep.note));
+    root.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Escape') closePlayer(); });
+    root.addEventListener('click', function (e) { if (e.target === root) closePlayer(); });
+    var told = false;
+    media.addEventListener('play', function () {
+      if (told) return;
+      told = true;
+      if (typeof onPlayed === 'function') { try { onPlayed(row); } catch (e) {} }
+    });
+    global.document.body.appendChild(root);
+    P = { id: row.id, root: root };
+    try { root.focus(); } catch (e) {}
+    try { var pr = media.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+    return true;
+  }
+
+  /* ---- The teacher's log ---- */
+  function logJoin(id) {
+    if (!teacherHere()) { toast('Only the teacher can join a consult.'); return; }
+    // The room opens over the page, so the list steps out of its way.
+    var j = L && L.join;
+    if (typeof j === 'function') { closeLog(); try { j(id); return; } catch (e) {} }
+    var link = consultLink(id);
+    if (!link) return;
+    try { global.open(link, '_blank', 'noopener'); } catch (e) {}
+  }
+  function openLog(opts) {
+    if (!teacherHere()) { toast('Only the teacher can see the consults.'); return false; }
+    var o = opts || {};
+    if (L) { try { L.win.root.focus(); } catch (e) {} if (typeof o.join === 'function') L.join = o.join; return true; }
+    var d = db();
+    if (!d) { toast('Not connected yet — try again in a moment.'); return false; }
+    var s = { win: null, unsub: null, docs: [], filter: 'todo', search: '', join: typeof o.join === 'function' ? o.join : null, loaded: false, failed: false, els: {} };
+    L = s;
+    s.win = archiveWin('caLogTeacher', '🙋 Consults — every call and question', closeLog);
+    var bar = el('div', 'caLogBar');
+    var chips = el('div', 'caChips');
+    bar.appendChild(chips);
+    var search = el('input', 'caSearch');
+    search.type = 'search';
+    search.placeholder = 'Search a name, a worksheet or a question';
+    search.setAttribute('aria-label', 'Search the consults');
+    search.addEventListener('input', function () { s.search = search.value; renderLogList(s); });
+    bar.appendChild(search);
+    s.win.card.appendChild(bar);
+    var list = el('div', 'caLogList');
+    s.win.card.appendChild(list);
+    s.els = { chips: chips, list: list, search: search };
+    renderLog(s);
+    try {
+      s.unsub = d.collection(COLLECTION).orderBy('at', 'desc').limit(LOG_MAX).onSnapshot(function (qs) {
+        if (L !== s) return;
+        s.docs = (qs.docs || []).map(function (doc) { return { id: doc.id, data: doc.data() || {} }; });
+        s.loaded = true; s.failed = false;
+        renderLog(s);
+      }, function (err) {
+        if (L !== s) return;
+        console.warn('consult: the log', err);
+        s.failed = true;
+        renderLog(s);
+      });
+    } catch (e) { s.failed = true; renderLog(s); }
+    return true;
+  }
+  function logRows(s) {
+    var t = Date.now();
+    return logSort(s.docs.map(function (x) { return logRow(x.id, x.data, t); }).filter(Boolean));
+  }
+  function renderLog(s) {
+    if (!s || L !== s) return;
+    var rows = logRows(s);
+    var c = logCounts(rows);
+    var chips = s.els.chips;
+    while (chips.firstChild) chips.removeChild(chips.firstChild);
+    [['todo', 'To do'], ['answered', 'Answered'], ['calls', 'Calls'], ['all', 'All']].forEach(function (f) {
+      var b = btn(f[1] + ' (' + c[f[0]] + ')', 'caChip' + (s.filter === f[0] ? ' on' : ''), function () {
+        s.filter = f[0];
+        renderLog(s);
+      });
+      b.setAttribute('aria-pressed', s.filter === f[0] ? 'true' : 'false');
+      chips.appendChild(b);
+    });
+    renderLogList(s, rows);
+  }
+  function renderLogList(s, rows) {
+    if (!s || L !== s) return;
+    var list = s.els.list;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    if (s.failed && !s.loaded) { list.appendChild(el('p', 'caEmpty', 'Could not read the consults just now — close this and try again.')); return; }
+    if (!s.loaded) { list.appendChild(el('p', 'caEmpty', 'Loading…')); return; }
+    var show = logFilter(rows || logRows(s), s.filter, s.search);
+    if (!show.length) {
+      list.appendChild(el('p', 'caEmpty', s.search ? 'Nothing matches that search.'
+        : s.filter === 'todo' ? 'Nothing is waiting for you — every call and question has been dealt with.'
+        : 'Nothing here yet.'));
+      return;
+    }
+    show.forEach(function (r) { list.appendChild(logRowNode(r)); });
+  }
+  function logRowNode(r) {
+    var row = el('div', 'caLogRow caState-' + r.state);
+    var top = el('div', 'caLogTop');
+    top.appendChild(el('span', 'caLogWho', r.who));
+    top.appendChild(el('span', 'caPill caPill-' + r.state, r.label));
+    top.appendChild(el('span', 'caLogWhen', whenText(r.at)));
+    row.appendChild(top);
+    var where = [r.ws, r.page ? 'page ' + r.page : '', r.subj].filter(Boolean).join(' · ');
+    if (where) row.appendChild(el('div', 'caLogWhere', where));
+    if (r.text) row.appendChild(el('div', 'caLogQ', '“' + r.text + '”'));
+    else if (r.asked) row.appendChild(el('div', 'caLogQ caMuted', 'They marked part of the page and did not type anything.'));
+    if (r.reply && r.reply.note) row.appendChild(el('div', 'caLogNote', 'Your note: ' + r.reply.note));
+    var acts = el('div', 'caLogActs');
+    if (r.state === 'ringing' || r.state === 'live') acts.appendChild(btn('Join', 'btnPrimary', function () { logJoin(r.id); }));
+    // The recorder opens over the page, so the list steps out of its way.
+    if (r.state === 'question') acts.appendChild(btn('📝 Answer', 'btnPrimary', function () { closeLog(); open(r.id); }));
+    if (r.reply) {
+      acts.appendChild(btn('▶ Watch', 'btnPrimary', function () { play(r); }));
+      acts.appendChild(btn('📝 Answer again', 'btnGhost', function () { closeLog(); open(r.id); }, 'Record a new answer in place of this one'));
+    }
+    if (r.state === 'later') acts.appendChild(el('span', 'caMuted', 'Waiting for them to leave the question.'));
+    if (acts.firstChild) row.appendChild(acts);
+    return row;
+  }
+  function closeLog() {
+    var s = L;
+    L = null;
+    if (!s) return;
+    if (s.unsub) { try { s.unsub(); } catch (e) {} }
+    if (s.win && s.win.root.parentNode) s.win.root.parentNode.removeChild(s.win.root);
+    closePlayer();
+  }
+
+  /* ---- The student's library ---- */
+  function openLibrary() {
+    var u = user();
+    if (!u || !u.uid) { toast('Sign in to see the answers you have been sent.'); return false; }
+    if (B) { try { B.win.root.focus(); } catch (e) {} return true; }
+    var d = db();
+    if (!d) { toast('Not connected yet — try again in a moment.'); return false; }
+    var s = { uid: u.uid, win: null, unsub: null, docs: [], loaded: false, failed: false, list: null };
+    B = s;
+    s.win = archiveWin('caLib', '🎬 My answers from ' + teacherName(), closeLibrary);
+    s.win.who.appendChild(el('div', 'caWhere', 'Every video ' + teacherName() + ' has recorded for a question you left, kept here.'));
+    s.list = el('div', 'caLogList');
+    s.win.card.appendChild(s.list);
+    renderLibrary(s);
+    try {
+      s.unsub = d.collection(COLLECTION).where('studentUid', '==', s.uid).onSnapshot(function (qs) {
+        if (B !== s) return;
+        s.docs = (qs.docs || []).map(function (doc) { return { id: doc.id, data: doc.data() || {} }; });
+        s.loaded = true; s.failed = false;
+        renderLibrary(s);
+      }, function (err) {
+        if (B !== s) return;
+        console.warn('consult: the library', err);
+        s.failed = true;
+        renderLibrary(s);
+      });
+    } catch (e) { s.failed = true; renderLibrary(s); }
+    return true;
+  }
+  function renderLibrary(s) {
+    if (!s || B !== s) return;
+    var list = s.list;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    if (s.failed && !s.loaded) { list.appendChild(el('p', 'caEmpty', 'Could not read your answers just now — close this and try again.')); return; }
+    if (!s.loaded) { list.appendChild(el('p', 'caEmpty', 'Loading…')); return; }
+    var lib = libraryRows(s.docs, Date.now());
+    if (!lib.answers.length && !lib.waiting.length) {
+      list.appendChild(el('p', 'caEmpty', 'No answers yet. When you leave ' + teacherName() + ' a question with 🙋 Consult, the video answer will be kept here.'));
+      return;
+    }
+    if (lib.waiting.length) {
+      list.appendChild(el('div', 'caLibHead', 'Waiting for an answer'));
+      lib.waiting.forEach(function (r) { list.appendChild(libraryRowNode(r, s)); });
+    }
+    if (lib.answers.length) {
+      list.appendChild(el('div', 'caLibHead', 'Answers (' + lib.answers.length + ')'));
+      lib.answers.forEach(function (r) { list.appendChild(libraryRowNode(r, s)); });
+    }
+  }
+  function libraryRowNode(r, s) {
+    r.mine = true;
+    var row = el('div', 'caLogRow' + (r.fresh ? ' caFresh' : ''));
+    var top = el('div', 'caLogTop');
+    top.appendChild(el('span', 'caLogWho', r.ws || 'Your worksheet'));
+    if (r.fresh) top.appendChild(el('span', 'caPill caPill-answered', 'New'));
+    else if (!r.reply) top.appendChild(el('span', 'caPill caPill-question', r.state === 'later' ? 'Leave your question' : 'Sent'));
+    top.appendChild(el('span', 'caLogWhen', whenText(r.reply ? (r.answeredAt || r.at) : r.at)));
+    row.appendChild(top);
+    var where = [r.page ? 'page ' + r.page : '', r.subj].filter(Boolean).join(' · ');
+    if (where) row.appendChild(el('div', 'caLogWhere', where));
+    if (r.text) row.appendChild(el('div', 'caLogQ', 'You asked: “' + r.text + '”'));
+    if (r.reply && r.reply.note) row.appendChild(el('div', 'caLogNote', r.reply.note));
+    var acts = el('div', 'caLogActs');
+    if (r.reply) acts.appendChild(btn('▶ Watch', 'btnPrimary', function () { play(r, function () { markSeen(s, r); }); }));
+    if (r.wsId && typeof global.openWorksheet === 'function') {
+      acts.appendChild(btn('Open the worksheet', 'btnGhost', function () {
+        closeLibrary();
+        try { global.openWorksheet(r.wsId); } catch (e) {}
+      }));
+    }
+    if (acts.firstChild) row.appendChild(acts);
+    return row;
+  }
+  // The ONE write the library makes: the student's own "I have seen it",
+  // on their own consult, and only the first time.
+  function markSeen(s, r) {
+    if (!r || !r.fresh || !s || B !== s) return;
+    var u = user();
+    if (!u || u.uid !== s.uid) return;
+    var x = ref(r.id);
+    if (!x) return;
+    r.fresh = false;
+    try { var pr = x.update({ replySeen: Date.now() }); if (pr && pr.catch) pr.catch(function (e) { console.warn('consult: could not mark the answer seen', e); }); } catch (e) {}
+  }
+  function closeLibrary() {
+    var s = B;
+    B = null;
+    if (!s) return;
+    if (s.unsub) { try { s.unsub(); } catch (e) {} }
+    if (s.win && s.win.root.parentNode) s.win.root.parentNode.removeChild(s.win.root);
+    closePlayer();
+  }
+  function archiveStop() { closeLog(); closeLibrary(); closePlayer(); }
+
   /* ---- Closing ---- */
   // `force` is the way out that asks nothing: an account change or the page
   // going away, where a question nobody can answer would only be in the way.
@@ -926,7 +1374,7 @@
   // The window's own ✕, Escape and the send: ask first when it would lose work.
   function close() { return closeWin(false); }
   // Everything down, no questions asked: an account change or the page going.
-  function stop() { return closeWin(true); }
+  function stop() { archiveStop(); return closeWin(true); }
 
   try {
     global.addEventListener('pagehide', function () { stop(); });
@@ -940,6 +1388,14 @@
     stop: stop,
     // With an id: is THAT question the one open. Without: is any.
     isOpen: function (id) { return !!A && (id == null || A.id === id); },
-    _internals: { state: function () { return A; }, paint: paint, teacherHere: teacherHere }
+    openLog: openLog,
+    closeLog: closeLog,
+    openLibrary: openLibrary,
+    closeLibrary: closeLibrary,
+    play: play,
+    closePlayer: closePlayer,
+    archiveOpen: function () { return { log: !!L, library: !!B, player: !!P }; },
+    _internals: { state: function () { return A; }, paint: paint, teacherHere: teacherHere,
+      log: function () { return L; }, library: function () { return B; } }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
