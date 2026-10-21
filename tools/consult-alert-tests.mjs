@@ -344,3 +344,62 @@ test('the shared helpers are Study Buddy\'s, byte for byte', { skip: !tutorPath 
     assert.equal(src.match(re)[1], tutor.match(re)[1], k + ' has drifted from Study Buddy');
   }
 });
+
+/* ---------------- v1.152.0: every consult, kept ---------------- */
+
+function withLogButton(t) {
+  const b = t.doc.createElement('button');
+  b.style = { display: 'none' };
+  const label = t.doc.createElement('span'); label.className = 'btnLabel'; label.textContent = 'Consults';
+  b.appendChild(label);
+  b.querySelector = (sel) => (sel === '.btnLabel' ? label : null);
+  const cls = new Set();
+  b.classList = { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), contains: (c) => cls.has(c) };
+  t.doc.getElementById = (id) => (id === 'consultLogBtn' ? b : null);
+  return { b, label, cls };
+}
+
+test('🙋 Consults in the header opens the archive, and counts what is waiting', () => {
+  const ans = stubAnswer();
+  ans.openLog = (o) => { ans.calls.push(['openLog', typeof o.join]); return true; };
+  const t = load({ answer: ans });
+  const { b, label, cls } = withLogButton(t);
+  t.CA.roleChanged();
+  t.fire({ [ID]: waiting() });
+  t.fireQ({ QuestionAaaaaa01: question() });
+  assert.equal(b.style.display, '', 'shown to the teacher');
+  assert.equal(label.textContent, 'Consults · 2');
+  assert.ok(cls.has('consultOn'));
+  b.listeners.click();
+  assert.deepEqual(ans.calls, [['openLog', 'function']]);
+  const all = find(t.doc.body, 'consultAlertAll');
+  assert.ok(all, '📚 All consults under the cards');
+  all.listeners.click();
+  assert.equal(ans.calls.length, 2);
+  t.fire({}); t.fireQ({});
+  assert.equal(label.textContent, 'Consults', 'nothing waiting, no count');
+  assert.equal(b.style.display, '', 'the archive is still there with nothing waiting');
+});
+
+test('the archive button is never shown to a student or on a handover', () => {
+  const ans = stubAnswer();
+  ans.openLog = () => true;
+  const t = load({ answer: ans, admin: false });
+  const { b } = withLogButton(t);
+  t.CA.roleChanged();
+  assert.equal(b.style.display, 'none');
+  const t2 = load({ answer: ans });
+  const r2 = withLogButton(t2);
+  t2.CA.roleChanged();
+  assert.equal(r2.b.style.display, '');
+  t2.ctx.actingStudent = { name: 'Mei' };
+  t2.CA.roleChanged();
+  assert.equal(r2.b.style.display, 'none', 'hidden the moment the device is handed over');
+});
+
+test('Ans Key carries the header button and the archive is Study Buddy\'s', () => {
+  assert.match(html, /id="consultLogBtn"[^>]*style="display:none"/);
+  assert.match(answerSrc, /function openLog\(/);
+  assert.match(answerSrc, /openLog: openLog/);
+  assert.match(html, /var APP_VERSION = 'v1\.(15[2-9]|1[6-9]\d|[2-9]\d\d)\.\d+';/);
+});

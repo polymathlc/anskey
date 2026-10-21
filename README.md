@@ -3,6 +3,16 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.152.0 — 🙋 Every consult, kept in one place
+
+- **🙋 Consults** in the header opens a list of every call and question students have sent
+  you, including the ones you hid and the ones that are finished. Search it by name,
+  worksheet or words, and filter it: waiting, questions, answered, talked.
+- **The videos you sent are kept there too.** ▶ Watch plays any answer again, and
+  📝 Answer again records a new one. A question still waiting opens the recorder.
+- **📚 All consults** sits under the pop-up cards, so a card you hid is one tap away.
+- Students see their own answers in Study Buddy under **🎬 My answers**.
+
 ## v1.151.0 — 📝 Answer a student's question with a recording, right here in Ans Key
 
 When a student in Study Buddy cannot get you on a call, they can leave a question. They

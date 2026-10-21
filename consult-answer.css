@@ -243,6 +243,143 @@
    handing frames to the canvas the recording draws it into */
 .caRecording .caCamPreview { opacity: 0; }
 
+/* ---------------- 📚 The archive: the teacher's list, the student's shelf ----------------
+   A centred window rather than a full-screen sheet — it is a list to read,
+   not a studio. It sits UNDER the recorder (1500), so 📝 Answer from the
+   list opens over it, and the player sits over the list. */
+.caLogBack, .caPlayBack {
+  position: fixed;
+  inset: 0;
+  z-index: 1450;
+  background: rgba(20, 20, 18, 0.40);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  font-family: var(--font, 'Century Gothic', 'Segoe UI', sans-serif);
+  color: var(--ink, #1A1A1A);
+  animation: caFade 0.18s ease-out both;
+}
+.caPlayBack { z-index: 1460; background: rgba(20, 20, 18, 0.62); }
+.caLogBack:focus, .caPlayBack:focus { outline: none; }
+.caLogCard, .caPlayCard {
+  width: min(760px, 100%);
+  max-height: min(820px, 100%);
+  background: var(--bg, #FFFFFF);
+  border: 1px solid var(--line, #ECECEA);
+  border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.12));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.caPlayCard { width: min(900px, 100%); }
+.caLogCard .caWhere { white-space: normal; }
+
+.caLogBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line, #ECECEA);
+}
+.caChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.caChip.btn { border-radius: 999px; }
+.caChip.on {
+  background: var(--accent, #1F6F78);
+  border-color: var(--accent, #1F6F78);
+  color: #FFFFFF;
+}
+.caSearch {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  border: 1px solid var(--line, #ECECEA);
+  border-radius: 10px;
+  background: var(--bg, #FFFFFF);
+  color: inherit;
+}
+
+/* The list scrolls; the heading and the search stay where they are.
+   min-height: 0, or a flex child refuses to shrink and never scrolls. */
+.caLogList {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 20px 20px;
+  -webkit-overflow-scrolling: touch;
+}
+.caLogList > * + * { margin-top: 10px; }
+.caEmpty {
+  margin: 28px 8px;
+  text-align: center;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--ink-faint, #8A8A84);
+}
+.caLibHead {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint, #8A8A84);
+  padding: 6px 2px 0;
+}
+.caLibHead:not(:first-child) { margin-top: 18px; }
+.caLogRow {
+  padding: 13px 15px;
+  border: 1px solid var(--line, #ECECEA);
+  border-radius: 12px;
+  background: var(--bg, #FFFFFF);
+}
+.caLogRow.caFresh, .caLogRow.caState-ringing, .caLogRow.caState-question {
+  border-color: rgba(31, 111, 120, 0.45);
+  background: rgba(31, 111, 120, 0.05);
+}
+.caLogTop { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.caLogWho { font-weight: 700; font-size: 0.95rem; min-width: 0; overflow-wrap: anywhere; }
+.caLogWhen { margin-left: auto; font-size: 0.78rem; color: var(--ink-faint, #8A8A84); white-space: nowrap; }
+.caPill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #F1F1EE;
+  color: #55554F;
+  white-space: nowrap;
+}
+.caPill-ringing, .caPill-live { background: #DCFCE7; color: #166534; }
+.caPill-question, .caPill-later { background: #FEF3C7; color: #92400E; }
+.caPill-answered { background: #DBEAFE; color: #1E40AF; }
+.caPill-missed { background: #FEE2E2; color: #991B1B; }
+.caLogWhere { margin-top: 4px; font-size: 0.8rem; color: var(--ink-faint, #8A8A84); overflow-wrap: anywhere; }
+.caLogQ { margin-top: 8px; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.caLogNote { margin-top: 6px; font-size: 0.84rem; line-height: 1.5; color: #55554F; white-space: pre-wrap; overflow-wrap: anywhere; }
+.caMuted { color: var(--ink-faint, #8A8A84); font-size: 0.84rem; }
+.caLogActs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 11px; }
+
+/* ---------------- The player ---------------- */
+.caPlayMedia {
+  display: block;
+  width: 100%;
+  max-height: 64vh;
+  background: #000000;
+}
+audio.caPlayMedia { background: transparent; margin: 16px 0 4px; }
+.caPlayQ, .caPlayNote {
+  margin: 0;
+  padding: 12px 20px 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.caPlayNote { color: #55554F; }
+.caPlayCard > :last-child { padding-bottom: 18px; }
+
 /* ---------------- Phones and narrow tablets ---------------- */
 @media (max-width: 820px) {
   .caBack { padding: 0; }
@@ -257,12 +394,15 @@
   }
   .caStageWrap { order: 1; padding: 10px; }
   .caCamPreview { width: 110px; right: 16px; bottom: 16px; }
+  .caLogBack, .caPlayBack { padding: 0; }
+  .caLogCard, .caPlayCard { width: 100%; max-height: 100%; height: 100%; border-radius: 0; border: 0; }
+  .caLogBar, .caLogList { padding-left: 16px; padding-right: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .caBack, .caRec.recording::before { animation: none; }
+  .caBack, .caLogBack, .caPlayBack, .caRec.recording::before { animation: none; }
 }
 
 @media print {
-  .caBack { display: none !important; }
+  .caBack, .caLogBack, .caPlayBack { display: none !important; }
 }
