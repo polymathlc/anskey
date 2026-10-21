@@ -231,6 +231,73 @@
     return (((Number(deg) || 0) + 90) % 360 + 360) % 360;
   }
 
+  /* ---- 🔄 Rotation kept per student (v1.153.0) ----
+     A turn used to live on the connection, so it was back to 0 every time
+     the student pressed Share again, reconnected, or the teacher reopened
+     the window — the very moments a sideways camera comes back sideways.
+     It is kept per STUDENT on the teacher's device: by account when there
+     is one, by name for a share-link visitor. It never reaches Firestore
+     and never the student: only the teacher's view is turned. */
+  var ROTATE_KEY = 'polymath.liveCamRotate.v1';
+  var ROTATE_MAX = 200;         // students remembered before the oldest is forgotten
+
+  /* Any number → one of 0 / 90 / 180 / 270. Anything not a quarter turn
+     (a stale or hand-edited value) is no turn at all. */
+  function cleanRotation(deg) {
+    var n = Number(deg);
+    if (!isFinite(n)) return 0;
+    n = ((Math.round(n) % 360) + 360) % 360;
+    return n % 90 === 0 ? n : 0;
+  }
+
+  /* Who a turn belongs to. A uid outlives a name change and two children
+     with the same name; a visitor with no account is known by name only.
+     Nothing at all → '' and nothing is remembered. */
+  function rotationKey(data) {
+    var uid = data && typeof data.uid === 'string' ? data.uid.trim() : '';
+    if (uid && uid.length <= 128) return 'u:' + uid;
+    var name = cleanName(data && data.name, '').toLowerCase();
+    return name ? 'n:' + name : '';
+  }
+
+  /* The remembered map with one student's turn written in. Pure: returns a
+     new map. A turn back to 0 is DELETED rather than stored, and past
+     `max` students the least recently turned are dropped. */
+  function rememberRotation(map, key, deg, at, max) {
+    var out = {};
+    var src = map && typeof map === 'object' ? map : {};
+    Object.keys(src).forEach(function (k) {
+      var v = src[k];
+      var d = cleanRotation(v && v.d);
+      if (d && typeof k === 'string' && k) out[k] = { d: d, at: Number(v.at) || 0 };
+    });
+    if (key) {
+      var dd = cleanRotation(deg);
+      if (dd) out[key] = { d: dd, at: Number(at) || 0 };
+      else delete out[key];
+    }
+    var keys = Object.keys(out);
+    var cap = Math.max(1, Number(max) || ROTATE_MAX);
+    if (keys.length > cap) {
+      keys.sort(function (a, b) { return out[a].at - out[b].at; });
+      keys.slice(0, keys.length - cap).forEach(function (k) { delete out[k]; });
+    }
+    return out;
+  }
+
+  /* The angle CSS is handed. It only ever grows, so 270 → 0 is one more
+     quarter clockwise instead of three quarters back the other way. */
+  function nextSpin(spin) {
+    var n = Number(spin);
+    return (isFinite(n) ? Math.round(n / 90) * 90 : 0) + 90;
+  }
+
+  /* What the ⟳ button says: plain when upright, the angle once turned. */
+  function rotateLabel(deg) {
+    var d = cleanRotation(deg);
+    return d ? '⟳ ' + d + '°' : '⟳';
+  }
+
   function sortPeers(list) {
     return (list || []).slice().sort(function (a, b) {
       var an = cleanName(a && a.name, '').toLowerCase(), bn = cleanName(b && b.name, '').toLowerCase();
@@ -280,6 +347,9 @@
     unpackCandidates: unpackCandidates, peerStatus: peerStatus, statusLabel: statusLabel,
     needsAnswer: needsAnswer, gridColumns: gridColumns, snapshotSize: snapshotSize,
     rotateFit: rotateFit, nextRotation: nextRotation, sortPeers: sortPeers,
+    ROTATE_KEY: ROTATE_KEY, ROTATE_MAX: ROTATE_MAX, cleanRotation: cleanRotation,
+    rotationKey: rotationKey, rememberRotation: rememberRotation, nextSpin: nextSpin,
+    rotateLabel: rotateLabel,
     summarize: summarize, snapFits: snapFits, frameFileName: frameFileName
   };
 
@@ -455,6 +525,14 @@
         }
         if (e.ctrlKey || e.metaKey || e.altKey || e.key === 'Tab') return;
         e.stopPropagation();
+        // R turns the enlarged student a quarter — both hands stay free for
+        // the pen. Not while typing in a field inside the window.
+        var tag = e.target && e.target.tagName;
+        if ((e.key === 'r' || e.key === 'R') && T.focus && T.peers[T.focus] &&
+            tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+          e.preventDefault();
+          rotatePeer(T.peers[T.focus]);
+        }
       });
 
       if (typeof env.attachFloatWin === 'function') {
@@ -492,6 +570,30 @@
       return null;
     }
     function saveWin() { try { root.localStorage.setItem(WIN_KEY, JSON.stringify(T.win)); } catch (e) {} }
+
+    /* The remembered turns. Storage can be blocked (a private window), so
+       the map is also held in memory and the turn still sticks for the
+       visit. */
+    var rotMemory = null;
+    function loadRotations() {
+      if (rotMemory) return rotMemory;
+      var v = null;
+      try { v = JSON.parse(root.localStorage.getItem(ROTATE_KEY) || 'null'); } catch (e) { v = null; }
+      rotMemory = rememberRotation(v, '', 0, 0, ROTATE_MAX);
+      return rotMemory;
+    }
+    function rotationFor(data) {
+      var key = rotationKey(data);
+      if (!key) return 0;
+      var v = loadRotations()[key];
+      return v ? cleanRotation(v.d) : 0;
+    }
+    function saveRotation(data, deg) {
+      var key = rotationKey(data);
+      if (!key) return;
+      rotMemory = rememberRotation(loadRotations(), key, deg, now(), ROTATE_MAX);
+      try { root.localStorage.setItem(ROTATE_KEY, JSON.stringify(rotMemory)); } catch (e) {}
+    }
     function applyWin() {
       var c = $('Card');
       if (!c || !T.win) return;
@@ -649,10 +751,18 @@
       if (!p) {
         p = T.peers[pid] = {
           id: pid, data: data, pc: null, handledRev: null, seen: {}, buf: [], answered: false,
-          tile: null, rtc: 'new', startedAt: now(), rotate: 0, asked: false, stream: null
+          tile: null, rtc: 'new', startedAt: now(), rotate: 0, spin: 0, rotKey: '', asked: false, stream: null
         };
       }
       p.data = data;
+      // A new connection, or a name that arrived late: pick up the turn this
+      // student was last given. A turn made on THIS connection is kept.
+      var rk = rotationKey(data);
+      if (rk !== p.rotKey) {
+        p.rotKey = rk;
+        p.rotate = rotationFor(data);
+        p.spin = p.rotate;
+      }
       if (needsAnswer(data, p.handledRev)) answerPeer(p);
       else applyRemoteCandidates(p);
       updateTile(p);
@@ -779,7 +889,7 @@
           h('span', { class: 'lcWs' }),
           h('span', { class: 'lcBtns' }, [
             h('button', { class: 'lcBtn', 'data-act': 'focus', title: 'Enlarge — see this answer big' , text: '⤢' }),
-            h('button', { class: 'lcBtn', 'data-act': 'rotate', title: 'Turn a quarter — for a camera held sideways', text: '⟳' }),
+            h('button', { class: 'lcBtn lcBtnRot', 'data-act': 'rotate', title: 'Turn a quarter clockwise — for a camera held sideways', text: '⟳' }),
             env.putOnPage ? h('button', { class: 'lcBtn', 'data-act': 'pin', title: 'Put this frame on the worksheet page', text: '📌' }) : null,
             h('button', { class: 'lcBtn', 'data-act': 'save', title: 'Save this frame as a picture', text: '⬇' }),
             h('button', { class: 'lcBtn', 'data-act': 'reconnect', title: 'Reconnect this camera', text: '↻' }),
@@ -847,9 +957,27 @@
         s = rotateFit(box.clientWidth, box.clientHeight,
           m.videoWidth || m.naturalWidth, m.videoHeight || m.naturalHeight, deg);
       }
-      var tf = deg ? 'rotate(' + deg + 'deg) scale(' + s + ')' : '';
+      var spin = p.spin || 0;
+      var tf = spin ? 'rotate(' + spin + 'deg) scale(' + s + ')' : '';
       p.video.style.transform = tf;
       p.img.style.transform = tf;
+      var btn = p.tile ? p.tile.querySelector('[data-act="rotate"]') : null;
+      if (btn) {
+        btn.textContent = rotateLabel(deg);
+        btn.classList.toggle('lcBtnOn', !!deg);
+        btn.title = deg ? 'Turned ' + deg + '° — press to turn another quarter clockwise'
+          : 'Turn a quarter clockwise — for a camera held sideways';
+        btn.setAttribute('aria-label', btn.title);
+      }
+    }
+
+    /* One quarter clockwise, for ever round: 0 → 90 → 180 → 270 → 0. */
+    function rotatePeer(p) {
+      if (!teacherAllowed() || !p) return;
+      p.rotate = nextRotation(p.rotate);
+      p.spin = nextSpin(p.spin);
+      saveRotation(p.data, p.rotate);
+      applyRotation(p);
     }
     function fitRotation(p) { if (p && p.tile) applyRotation(p); }
     function fitAllRotations() { Object.keys(T.peers).forEach(function (k) { fitRotation(T.peers[k]); }); }
@@ -910,7 +1038,7 @@
       }
       var act = btn.getAttribute('data-act');
       if (act === 'focus') setFocus(T.focus === pid ? '' : pid);
-      else if (act === 'rotate') { p.rotate = nextRotation(p.rotate); applyRotation(p); }
+      else if (act === 'rotate') rotatePeer(p);
       else if (act === 'pin') pinFrame(p);
       else if (act === 'save') saveFrame(p);
       else if (act === 'reconnect') reconnectPeer(p);
@@ -1592,7 +1720,7 @@
             open: T.open, live: T.live, epoch: T.epoch, quality: T.quality, focus: T.focus,
             peers: Object.keys(T.peers).map(function (k) {
               var p = T.peers[k];
-              return { id: k, name: p.data && p.data.name, status: p.status || peerStatus(p.data, now(), p.rtc), rtc: p.rtc, rotate: p.rotate,
+              return { id: k, name: p.data && p.data.name, status: p.status || peerStatus(p.data, now(), p.rtc), rtc: p.rtc, rotate: p.rotate, spin: p.spin,
                 videoWidth: p.video ? p.video.videoWidth : 0, hasSnap: !!(p.data && p.data.snap) };
             })
           },

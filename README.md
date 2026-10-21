@@ -3,6 +3,18 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.153.0 — 🔄 Turn a student's live cam, and it stays turned
+
+- **⟳ on each student's tile turns their picture a quarter clockwise** — 0° → 90° →
+  180° → 270° → upright, round and round. For a phone or tablet camera held sideways,
+  so their working reads the right way up. It always turns clockwise, even from 270°.
+- **The button shows the angle** (⟳ 90°) once a student is turned, and the enlarged
+  view has its own ⟳. With a student enlarged, **R** turns them too.
+- **It is remembered per student** on your device: when they press Share again,
+  reconnect, or you reopen 📹 Live cams, they come back turned the way you left them.
+- **Only your view turns.** Nothing is sent to the student. 📌 Put on page and ⬇ Save
+  frame take the picture the way you see it.
+
 ## v1.152.0 — 🙋 Every consult, kept in one place
 
 - **🙋 Consults** in the header opens a list of every call and question students have sent

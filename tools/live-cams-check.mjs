@@ -246,10 +246,30 @@ try {
     await page.click('#ltGrid .lcTile [data-act="rotate"]');
     ok('rotate turns the tile a quarter', await page.evaluate(() => teacher.state().teacher.peers[0].rotate === 90 &&
       /rotate\(90deg\)/.test(document.querySelector('.lcTile .lcVideo').style.transform)));
+    ok('⟳ shows the angle once turned', await page.evaluate(() =>
+      document.querySelector('#ltGrid .lcTile [data-act="rotate"]').textContent === '⟳ 90°'));
+    ok('…and the turn is remembered for this student', await page.evaluate(() =>
+      JSON.parse(localStorage.getItem(LiveCams.pure.ROTATE_KEY) || '{}')['u:student-uid']?.d === 90));
+    for (let i = 0; i < 3; i++) await page.click('#ltGrid .lcTile [data-act="rotate"]');
+    ok('four presses come all the way round to upright', await page.evaluate(() => teacher.state().teacher.peers[0].rotate === 0 &&
+      document.querySelector('#ltGrid .lcTile [data-act="rotate"]').textContent === '⟳'));
+    ok('…turning clockwise the whole time (270 → 360, never back to 0)', await page.evaluate(() =>
+      teacher.state().teacher.peers[0].spin === 360 && /rotate\(360deg\)/.test(document.querySelector('.lcTile .lcVideo').style.transform)));
+    ok('…and upright is forgotten rather than stored', await page.evaluate(() =>
+      !('u:student-uid' in JSON.parse(localStorage.getItem(LiveCams.pure.ROTATE_KEY) || '{}'))));
+    await page.click('#ltGrid .lcTile [data-act="rotate"]');
+    ok('a fifth press starts round again at 90°', await page.evaluate(() => teacher.state().teacher.peers[0].rotate === 90));
     await page.click('.lcTile .lcMedia');
     ok('tapping the picture enlarges it', await until(page, () => teacher.state().teacher.focus !== '' &&
       document.querySelector('#ltStage .lcTile.lcBig') != null && !document.getElementById('ltStage').hidden));
     ok('the big video keeps playing after it moved', await until(page, () => { const v = document.querySelector('#ltStage video'); return v && !v.paused && v.videoWidth > 0; }));
+    await page.keyboard.press('r');
+    ok('R turns the enlarged student a quarter', await until(page, () => teacher.state().teacher.peers[0].rotate === 180));
+    await page.keyboard.press('r');
+    await page.keyboard.press('r');
+    ok('…and round again', await until(page, () => teacher.state().teacher.peers[0].rotate === 0));
+    await page.click('#ltStage .lcTile [data-act="rotate"]');
+    ok('the enlarged tile has its own ⟳ too', await until(page, () => teacher.state().teacher.peers[0].rotate === 90));
     await shot(page, '03-focus');
     await page.click('#ltStage .lcTile .lcMedia');
     ok('tapping it again puts it back', await until(page, () => teacher.state().teacher.focus === '' && document.querySelector('#ltGrid .lcTile')));
@@ -280,6 +300,8 @@ try {
     await until(page, () => student.state().student.invite);
     await page.click('#lsShareBtn');
     ok('the student can share again', await until(page, () => teacher.state().teacher.peers[0]?.status === 'live'));
+    ok('a student who shares again comes back turned the way the teacher left them', await page.evaluate(() =>
+      teacher.state().teacher.peers[0].rotate === 90 && /rotate\(90deg\)/.test(document.querySelector('#ltGrid .lcTile .lcVideo').style.transform)));
     await page.click('#ltCloseBtn');
     ok('closing the window closes the room', await until(page, () => db._peek('liveCamRooms/main').open === false));
     ok('…the student stops', await until(page, () => !student.state().student.sharing));
