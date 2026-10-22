@@ -26,7 +26,7 @@
       async guests(request) {
         authorize();
         const frozen = JSON.parse(JSON.stringify(request));
-        if (!['get','add','remove'].includes(frozen.command)) throw new Error('Invalid temporary student request.');
+        if (!['get','add','remove','absent','restore'].includes(frozen.command)) throw new Error('Invalid temporary student request.');
         if (frozen.command !== 'get') {
           if (!/^[a-zA-Z0-9_-]{8,100}$/.test(frozen.id || '')) throw new Error('Invalid temporary student request ID.');
           if (typeof frozen.studentId !== 'string' || !frozen.studentId || frozen.studentId.length > 200 || /\//.test(frozen.studentId)) throw new Error('Choose a valid temporary student.');
@@ -36,6 +36,7 @@
         const result = await api({...frozen,type:'lessonGuests',classId},{canSend:canWrite});
         authorize();
         if (!Array.isArray(result?.guests) || result.guests.some(guest => !guest || typeof guest.studentId !== 'string' || !guest.studentId || typeof guest.name !== 'string' || !Array.isArray(guest.lessonSlots) || guest.lessonSlots.some(slot => typeof slot !== 'string')) || new Set(result.guests.map(guest => guest.studentId)).size !== result.guests.length) throw new Error('The temporary students could not be confirmed. Retry the same request.');
+        if(result.absent!==undefined && (!Array.isArray(result.absent) || result.absent.some(row=>!row || typeof row.studentId!=='string') || typeof result.date!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(result.date)))throw new Error('Attendance could not be confirmed. Retry the same request.');
         return result;
       },
       async mission(request) {

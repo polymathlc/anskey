@@ -37,7 +37,8 @@ async function setup(pendingGuest = false) {
       { id: 'away-locked', name: 'Sam', slots: ['P6 Science'], marks: 50 }
     ];
     const saved = JSON.parse(localStorage.getItem('lesson-guest-fixture') || '{}');
-    const documents = saved.documents || {}, memberships = saved.memberships || {}, receipts = saved.receipts || {}, profiles = saved.profiles || {};
+    const documents = saved.documents || {}, memberships = saved.memberships || {}, receipts = saved.receipts || {}, profiles = saved.profiles || {}, attendance=saved.attendance || {};
+    window.__attendanceDate=new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);
     const key = cls => 'classroomBattles/guest-teacher/classes/' + ClassroomBattleStore.classKey(cls);
     const home = 'P5 Science';
     rwStudents.forEach(student => {
@@ -54,7 +55,7 @@ async function setup(pendingGuest = false) {
     const listeners = new Map();
     function snapshot(k) { return { exists: k in documents, data: () => structuredClone(documents[k]) }; }
     function notify(k) { for (const listener of listeners.get(k) || []) listener(snapshot(k)); }
-    function persist() { localStorage.setItem('lesson-guest-fixture', JSON.stringify({ documents, memberships, receipts, profiles })); }
+    function persist() { localStorage.setItem('lesson-guest-fixture', JSON.stringify({ documents, memberships, receipts, profiles,attendance })); }
     function reference(k) {
       return { key: k, doc: id => reference(k + '/' + id), collection: name => reference(k + '/' + name), onSnapshot(listener) {
         const set = listeners.get(k) || new Set(); listeners.set(k, set); set.add(listener);
@@ -68,7 +69,8 @@ async function setup(pendingGuest = false) {
     window.__guestMemberships = memberships;
     window.__heroProfiles = profiles;
     window.__fixtureDocuments = documents;
-    const roster = cls => rwStudents.filter(s => s.slots.includes(cls) || (memberships[cls] || []).includes(s.id));
+    const absent=cls=>attendance[cls]?.date===__attendanceDate?attendance[cls].ids:[];
+    const roster = cls => rwStudents.filter(s => !absent(cls).includes(s.id) && (s.slots.includes(cls) || (memberships[cls] || []).includes(s.id)));
     const guests = cls => (memberships[cls] || []).map(id => { const s = rwStudents.find(s => s.id === id); return { studentId: id, name: s.name, lessonSlots: s.slots }; });
     function saveState(cls, state) {
       if (!state) return;
@@ -86,6 +88,7 @@ async function setup(pendingGuest = false) {
         if (command !== 'get' && !receipts[request.id]) {
           if (studentId === 'away-locked') throw Object.assign(Error('Finish Sam’s active encounter in P6 Science before adding them here.'), {code:'encounter_active'});
           memberships[classId] ||= [];
+          if(['absent','restore'].includes(command)){attendance[classId]={date:__attendanceDate,ids:[...absent(classId)]};attendance[classId].ids=command==='absent'?[...new Set([...attendance[classId].ids,studentId])]:attendance[classId].ids.filter(id=>id!==studentId);}
           if (command === 'add' && !memberships[classId].includes(studentId)) memberships[classId].push(studentId);
           if (command === 'remove') memberships[classId] = memberships[classId].filter(id => id !== studentId);
           const old = __battleState(classId);
@@ -98,7 +101,7 @@ async function setup(pendingGuest = false) {
           receipts[request.id] = {command,studentId,classId}; persist();
           if (__loseGuestReply) { __loseGuestReply = false; throw Error('Membership saved, but response was lost.'); }
         }
-        return { guests: guests(classId), state:__battleState(classId) || null };
+        return { guests: guests(classId),absent:absent(classId).map(id=>{const s=rwStudents.find(s=>s.id===id);return {studentId:id,name:s.name,lessonSlots:s.slots};}),date:__attendanceDate,returned:attendance[classId]?.date!==__attendanceDate?(attendance[classId]?.ids || []):[], state:__battleState(classId) || null };
       }
       if (type === 'assist') {
         __assistCalls.push(structuredClone(request));
@@ -113,7 +116,7 @@ async function setup(pendingGuest = false) {
       if (receipts[action.id]) return {state:__battleState(classId),award:receipts[action.id].award};
       const old = __battleState(classId) || null;
       const heroes = roster(classId).map(s => structuredClone(old?.heroes.find(h => h.studentId === s.id) || profiles[s.id]));
-      const trusted = {...action,heroes};
+      const trusted = {formation:'raid',...action,heroes};
       if (type === 'wheelAward') {
         if (!roster(classId).some(s => s.id === studentId)) throw Object.assign(Error('This student is not in the lesson.'),{code:'roster_changed'});
         Object.assign(trusted,{type:'auto',points:delta});
@@ -123,13 +126,13 @@ async function setup(pendingGuest = false) {
       let seeded = old || ((trusted.type === 'auto' || trusted.type === 'start') ? {revision:0,heroes,heroArchive:{}} : null);
       if (!old && seeded) trusted.expectedRevision=0;
       if (!old && trusted.type === 'auto') {
-        seeded=ClassroomBattleCore.reduce(seeded,{type:'start',id:trusted.id,expectedRevision:0,heroes,spinId:trusted.spinId});
+        seeded=ClassroomBattleCore.reduce(seeded,{type:'start',formation:'raid',id:trusted.id,expectedRevision:0,heroes,spinId:trusted.spinId});
         seeded.bossHp=seeded.bossMaxHp=100000;
         trusted.encounterId=seeded.encounterId;trusted.expectedRevision=seeded.revision;
       }
       const next = ClassroomBattleCore.reduce(seeded, trusted);
       const state = next ? {...next,teacherId:currentUser.uid,classId} : null;
-      if (!old && trusted.type === 'start') state.bossHp=state.bossMaxHp=100000;
+      if (!old && trusted.type === 'start' && !state.enemies) state.bossHp=state.bossMaxHp=100000;
       let award;
       if (type === 'wheelAward') {
         documents['students/' + studentId].marks += delta;
@@ -251,6 +254,18 @@ try {
   await page.click('#cbSkip');
   await page.waitForFunction(()=>!__battleState().pending && !document.getElementById('wheelSpinBtn').disabled);
   check('the teacher can resolve the waiting manual answer after confirming the guest change',await page.evaluate(()=>__battleState().lastEvent.outcome==='skip' && !__battleState().pending));
+  await panel();
+  await page.click('[data-attendance="absent"][data-student-id="home-mira"]');
+  await page.waitForFunction(()=>!wheelGuestsBusy());
+  check('Absent today removes the resident from wheel, battle and eligible roster while keeping enrolment',await page.evaluate(()=>!wheelState.names.some(n=>n.id==='home-mira') && !__battleState().heroes.some(h=>h.studentId==='home-mira') && !wheelLessonStudents('P5 Science').some(s=>s.id==='home-mira') && rwStudents.find(s=>s.id==='home-mira').slots.includes('P5 Science')));
+  await page.screenshot({path:path.join(output,'attendance-absent-today.png'),fullPage:true});
+  await page.click('[data-attendance="restore"][data-student-id="home-mira"]');await page.waitForFunction(()=>!wheelGuestsBusy());
+  check('Bring back today restores the same registered student',await page.evaluate(()=>wheelState.names.some(n=>n.id==='home-mira') && wheelLessonStudents('P5 Science').some(s=>s.id==='home-mira')));
+  await page.click('[data-attendance="absent"][data-student-id="home-mira"]');await page.waitForFunction(()=>!wheelGuestsBusy());
+  await setup();await panel();
+  check('absence survives reloading the lesson',await page.evaluate(()=>!wheelState.names.some(n=>n.id==='home-mira') && LessonGuests.isAbsent('home-mira','P5 Science')));
+  await page.evaluate(()=>{__attendanceDate='2099-01-01';LessonGuests.refresh();});await page.waitForFunction(()=>!wheelGuestsBusy());
+  check('the next lesson date automatically restores the wheel entry without changing enrolment',await page.evaluate(()=>wheelState.names.some(n=>n.id==='home-mira') && wheelLessonStudents('P5 Science').some(s=>s.id==='home-mira')));
   check('temporary guest flows run without uncaught browser exceptions',errors.length === 0);
   console.log(`Passed ${checks} temporary lesson guest browser checks.`);
 } catch (error) {

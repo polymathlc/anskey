@@ -17,3 +17,7 @@
 .whGuestBadge { display:inline-block; margin-left:5px; color:#f6d897; font-size:10px; font-weight:800; text-transform:uppercase; }
 .cbWheelSlot .whGuests { grid-column:1/-1; }
 .cbWheelSlot #wheelGuestPanel { color:#edf2ff; }
+
+#wheelAttendanceList { list-style:none; padding:0; margin:8px 0 14px; display:grid; gap:5px; max-height:220px; overflow:auto; }
+#wheelAttendanceList li { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; }
+#wheelAttendanceList [data-attendance="restore"] { color:#abefbf; }

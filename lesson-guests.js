@@ -1,7 +1,7 @@
 /* Temporary lesson attendance. The server owns membership and canonical heroes. */
 (function () {
   'use strict';
-  var g = {epoch:0,uid:'',cls:'',store:null,guests:[],loading:false,busy:false,pending:null,error:'',expanded:false};
+  var g = {epoch:0,uid:'',cls:'',store:null,guests:[],absent:[],date:'',loading:false,busy:false,pending:null,error:'',expanded:false};
   function el(id) { return document.getElementById(id); }
   function allowed() { return !!(window.wheelTeacher && wheelTeacher() && window.currentUser && currentUser.uid); }
   function visible() { return !!el('wheelModal') && el('wheelModal').classList.contains('open'); }
@@ -9,9 +9,11 @@
   function sameLesson(cls) { return allowed() && currentUser.uid === g.uid && cls === g.cls; }
   function permanent(student, cls) { return !!student && window.rwStudentClasses && rwStudentClasses(student).includes(cls); }
   function guest(studentId, cls) { return sameLesson(cls) && g.guests.some(function (row) { return row.studentId === studentId; }); }
+  function today(){return new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);}
+  function absent(studentId,cls){return sameLesson(cls) && g.date===today() && g.absent.some(function(row){return row.studentId===studentId;});}
   function students(cls) {
     var all = window.rwStudents || [];
-    return all.filter(function (student) { return permanent(student,cls) || guest(student.id,cls); });
+    return all.filter(function (student) { return !absent(student.id,cls) && (permanent(student,cls) || guest(student.id,cls)); });
   }
   function blocks() {
     return active() && (g.loading || g.busy || !!g.pending);
@@ -31,9 +33,9 @@
   function mount() {
     if (el('wheelGuestToggle')) return;
     var host = document.createElement('section'); host.className = 'whGuests'; host.id = 'wheelGuests';
-    host.setAttribute('aria-label','Temporary lesson guests');
-    host.innerHTML = '<button type="button" class="btn" id="wheelGuestToggle" aria-expanded="false" aria-controls="wheelGuestPanel">+ Add student from another slot</button>' +
-      '<div id="wheelGuestPanel" hidden><p class="whGuestHint">Guests join this wheel and battle with their saved hero. Their home Lesson slot stays unchanged. Remove them here when they leave.</p>' +
+    host.setAttribute('aria-label','Lesson attendance and guests');
+    host.innerHTML = '<button type="button" class="btn" id="wheelGuestToggle" aria-expanded="false" aria-controls="wheelGuestPanel">Attendance · absent today / add guest</button>' +
+      '<div id="wheelGuestPanel" hidden><p class="whGuestHint">Mark absent to remove a student from today’s wheel, battles and rewards. Their class and hero stay saved; they return automatically on the next Singapore calendar date.</p><ul id="wheelAttendanceList"></ul><p class="whGuestHint">Guests join this wheel and battle with their saved hero. Their home Lesson slot stays unchanged. Remove them here when they leave.</p>' +
       '<div class="whGuestFields"><label>From Lesson slot<select id="wheelGuestSlot"></select></label><label>Student<select id="wheelGuestStudent"></select></label>' +
       '<button type="button" class="btn" id="wheelGuestAdd">Add guest</button></div><ul id="wheelGuestList"></ul></div>' +
       '<p id="wheelGuestStatus" role="status" aria-live="polite" hidden></p><button type="button" class="btn" id="wheelGuestRetry" hidden>Retry guest list</button>';
@@ -43,6 +45,7 @@
     el('wheelGuestStudent').addEventListener('change',renderButtons);
     el('wheelGuestAdd').addEventListener('click',function () { change('add',el('wheelGuestStudent').value); });
     el('wheelGuestRetry').addEventListener('click',function () { if(g.pending)change(null,null,true);else refresh(); });
+    el('wheelAttendanceList').addEventListener('click',function(event){var b=event.target.closest('[data-attendance]');if(b)change(b.dataset.attendance,b.dataset.studentId);});
     el('wheelGuestList').addEventListener('click',function (event) { var button=event.target.closest('[data-guest-remove]');if(button)change('remove',button.dataset.guestRemove); });
   }
   function renderStudents() {
@@ -60,13 +63,13 @@
     var disabled=!active() || !g.cls || blocks() || combatBusy();
     el('wheelGuestAdd').disabled=disabled || !el('wheelGuestStudent').value;
     el('wheelGuestSlot').disabled=disabled;el('wheelGuestStudent').disabled=disabled;
-    document.querySelectorAll('[data-guest-remove]').forEach(function(button){button.disabled=disabled;});
+    document.querySelectorAll('[data-guest-remove],[data-attendance]').forEach(function(button){button.disabled=disabled;});
     el('wheelGuestRetry').disabled=g.loading || g.busy || combatBusy(!!g.pending);
   }
   function render() {
     mount();
     el('wheelGuests').hidden=!allowed() || !g.cls;
-    el('wheelGuestToggle').textContent=g.guests.length ? 'Lesson guests · '+g.guests.length+' · add or remove' : '+ Add student from another slot';
+    el('wheelGuestToggle').textContent='Attendance · '+g.absent.length+' absent today'+(g.guests.length?' · '+g.guests.length+' guests':'');
     el('wheelGuestToggle').setAttribute('aria-expanded',String(g.expanded));
     el('wheelGuestPanel').hidden=!g.expanded;
     var select=el('wheelGuestSlot'),previous=select.value;
@@ -81,6 +84,12 @@
       li.append(label,button);list.appendChild(li);
     });
     if(!g.guests.length){var empty=document.createElement('li');empty.className='whGuestEmpty';empty.textContent='No guests in this lesson.';list.appendChild(empty);}
+    var attendanceList=el('wheelAttendanceList');attendanceList.replaceChildren();
+    (window.rwStudents || []).filter(function(row){return permanent(row,g.cls) || guest(row.id,g.cls);}).forEach(function(row){
+      var li=document.createElement('li'),name=document.createElement('span'),b=document.createElement('button'),away=absent(row.id,g.cls);
+      name.textContent=row.name+(away?' · absent today':'');b.type='button';b.className='btn';b.dataset.studentId=row.id;b.dataset.attendance=away?'restore':'absent';b.textContent=away?'Bring back today':'Absent today';
+      b.setAttribute('aria-label',(away?'Bring back today: ':'Mark absent today: ')+row.name);li.append(name,b);attendanceList.appendChild(li);
+    });
     var message=g.loading?'Loading lesson guests…':g.busy?'Saving lesson guests…':g.error;
     el('wheelGuestStatus').textContent=message;el('wheelGuestStatus').hidden=!message;
     el('wheelGuestStatus').classList.toggle('whGuestError',!!g.error);
@@ -95,16 +104,18 @@
     if(window.ClassroomBattle && ClassroomBattle.render)ClassroomBattle.render();
   }
   function receive(result) {
-    g.guests=result.guests;
+    g.guests=result.guests;g.absent=result.absent || [];g.date=result.date || today();
     if(window.wheelState){
       var selected=wheelState.names[window.wheelWinnerIdx],selectedId=selected && selected.id;
       wheelState.names=wheelState.names.filter(function(entry){
+        if(absent(entry.id,g.cls))return false;
         if(!entry.guest)return true;
         var student=(window.rwStudents || []).find(function(s){return s.id===entry.id;});
         if(permanent(student,g.cls)){delete entry.guest;return true;}
         return guest(entry.id,g.cls);
       });
-      g.guests.forEach(function(row){
+      (result.returned || []).forEach(function(id){var row=(window.rwStudents || []).find(function(s){return s.id===id;});if(row && !absent(id,g.cls) && (permanent(row,g.cls) || guest(id,g.cls)) && !wheelState.names.some(function(n){return n.id===id;}))wheelAddName(wheelState,row.name,id);});
+      g.guests.filter(function(row){return !absent(row.studentId,g.cls);}).forEach(function(row){
         var entry=wheelState.names.find(function(n){return n.id===row.studentId;}) || wheelAddName(wheelState,row.name,row.studentId);
         if(entry){entry.n=row.name;entry.guest=true;}
       });
@@ -136,8 +147,10 @@
     try{
       var result=await store.guests(request);clearRequest(uid,cls,request.id);
       if(stamp!==g.epoch || !active())return;
-      g.pending=null;receive(result);
-      if(window.toast)toast(command==='remove' || request.command==='remove'?'Guest removed. Their hero progress is saved.':'Guest added to this wheel and battle.');
+      g.pending=null;
+      if(request.command==='restore')result.returned=[...(result.returned || []),request.studentId];
+      receive(result);
+      if(window.toast)toast(request.command==='absent'?'Absent today. They return automatically next lesson.':request.command==='restore'?'Student restored for today.':command==='remove' || request.command==='remove'?'Guest removed. Their hero progress is saved.':'Guest added to this wheel and battle.');
     }catch(error){
       if(['invalid_request','invalid_action','invalid_guest','invalid_slot','invalid_student','missing_student','already_in_slot','roster_changed','encounter_active','battle_changed','guest_changed','guest_pending','pending_answer','invalid_roster'].includes(error.code)){
         clearRequest(uid,cls,request.id);if(stamp===g.epoch)g.pending=null;
@@ -145,7 +158,7 @@
       if(stamp===g.epoch && active())g.error=(error.message || 'Could not confirm the guest change.')+(g.pending?' Retry to confirm the same change safely.':'');
     }finally{if(stamp===g.epoch){g.busy=false;notifyControls();}}
   }
-  function close() {g.epoch++;g.uid='';g.cls='';g.store=null;g.guests=[];g.loading=false;g.busy=false;g.pending=null;g.error='';g.expanded=false;if(el('wheelGuests'))el('wheelGuests').hidden=true;}
+  function close() {g.epoch++;g.uid='';g.cls='';g.store=null;g.guests=[];g.absent=[];g.date='';g.loading=false;g.busy=false;g.pending=null;g.error='';g.expanded=false;if(el('wheelGuests'))el('wheelGuests').hidden=true;}
   function open(cls) {
     close();mount();
     if(!allowed() || !visible() || !cls){render();return;}
@@ -153,14 +166,16 @@
     var stamp=g.epoch,uid=g.uid;
     try{
       var saved=JSON.parse(sessionStorage.getItem(requestKey(uid,cls)) || 'null');
-      if(saved && ['add','remove'].includes(saved.command) && /^[a-zA-Z0-9_-]{8,100}$/.test(saved.id || '') && typeof saved.studentId==='string')g.pending=saved;
+      if(saved && ['add','remove','absent','restore'].includes(saved.command) && /^[a-zA-Z0-9_-]{8,100}$/.test(saved.id || '') && typeof saved.studentId==='string')g.pending=saved;
       g.store=ClassroomBattleStore.create({db:window.db,teacherId:uid,classId:cls,canWrite:function(){return stamp===g.epoch && active();}});
       if(g.pending){g.expanded=true;g.error='Confirm the pending guest change using Retry.';notifyControls();}
       else refresh();
     }catch(error){g.error=error.message;render();}
   }
+  setInterval(function(){if(active() && g.date && g.date!==today() && !blocks() && !combatBusy())refresh();},30000);
+  window.addEventListener('focus',function(){if(active() && !blocks() && !combatBusy())refresh();});
   window.wheelLessonStudents=students;
-  window.wheelStudentInLesson=function(student,cls){return !!student && (permanent(student,cls) || guest(student.id,cls));};
+  window.wheelStudentInLesson=function(student,cls){return !!student && !absent(student.id,cls) && (permanent(student,cls) || guest(student.id,cls));};
   window.wheelGuestsBusy=blocks;
-  window.LessonGuests={open:open,close:close,render:render,renderButtons:renderButtons,refresh:refresh,isGuest:guest,remove:function(id){return change('remove',id);},addStudent:function(id){return change('add',id);}};
+  window.LessonGuests={open:open,close:close,render:render,renderButtons:renderButtons,refresh:refresh,isGuest:guest,isAbsent:absent,markAbsent:function(id){return change('absent',id);},restore:function(id){return change('restore',id);},remove:function(id){return change('remove',id);},addStudent:function(id){return change('add',id);}};
 })();

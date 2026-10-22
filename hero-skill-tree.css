@@ -111,3 +111,5 @@
 .hst .hstPreview { grid-column:1/-1; width:100%; border-top:1px solid #4c4a50; padding-top:14px; }
 .hst .hstPreview>div:first-child { display:flex; justify-content:space-between; align-items:center; gap:12px; }
 .hst .hstPreview .cbaSkillPreview { min-height:150px; overflow:hidden; }
+
+.hst .hstTargetScope { display:block; color:#9dddc8; font:9px/1.35 ui-sans-serif,system-ui,sans-serif; max-width:155px; margin:3px auto 0; }
