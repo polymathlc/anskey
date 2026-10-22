@@ -102,6 +102,7 @@
     return Promise.all(Array.from(new Set(names)).map(load));
   }
   function effectFor(hero, event) {
+    if(event.combo)return 'lightning';
     if(hero && hero.isChung) return 'chung-punch';
     var role = roleName(hero && hero.role), skill = skillById(event.skillId);
     if (event.itemId === 'fire-flask' || event.itemId === 'starbomb') return 'fire';
@@ -185,7 +186,7 @@
     function teamImpact() {
       (event.actions || []).forEach(function(action){
         var member=(options.heroes || []).find(function(h){return h.id===action.heroId;}) || hero;
-        var actor=findHero(action.heroId),cast=skillById(action.skillId),choreography=recipeFor(member,cast),family=effectFor(member,action);
+        var actor=findHero(action.heroId),cast=skillById(action.skillId),choreography=recipeFor(member,cast),family=action.combo?'lightning':effectFor(member,action);
         var actorSprite=actor && actor.querySelector('.cbaHero');
         if(actorSprite){actorSprite.classList.add('cbaActing');later(function(){actorSprite.classList.remove('cbaActing');},640);}
         (action.enemyTargets || []).forEach(function(target){

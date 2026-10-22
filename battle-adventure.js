@@ -19,6 +19,7 @@
   function encounterText(state){
     var road=state&&state.adventure;
     if(!road)return ['The adventure begins','Spin the wheel to lead your party along the trail.'];
+    if(road.chapterGuardian)return ['CHAPTER GUARDIAN','Win to complete this chapter. Empowered enemy: 1.8× HP, 1.25× attack and 1.6× victory XP. Your route gifts still apply.'];
     if(road.kind==='uber')return ['UBER BOSS · 2% encounter','A rare empowered enemy: 1.8× HP, 1.25× attack and 1.6× victory XP.'];
     if(road.kind==='chest')return ['RARE CHEST · 6% discovery',state.status==='victory'?'Chest opened! Every hero’s bonus treasure is saved.':'A locked chest is guarded by this enemy. Win to grant every hero a bonus rare-or-better item.'];
     if(road.kind==='event'){var event=EVENTS[road.eventId]||EVENTS['guardian-shrine'];return [event[0]+(road.resolved?' · blessing received':''),road.resolved?'Your roadside blessing is saved for this encounter.':event[1]];}

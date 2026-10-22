@@ -415,6 +415,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       const helper={...helperSnap.data(),id:studentId};
       if (!profile) profile=migrateHero(helper,docs(await tx.get(classes)));
       if (profile.activeEncounter && (profile.activeEncounter.classId!==classId || !state || profile.activeEncounter.encounterId!==state.encounterId)) deny('encounter_active','Finish this helper’s other active encounter before recording an assist.');
+      if(state?.combo?.paused && state.combo.recoveryHeroId==='student:'+helpedStudentId){state=clone(state);state.combo.paused=false;state.combo.recoveryHeroId=null;}
       profile.hero=Core.grantAssistXp(cleanHero(profile.hero,helper,profile),6);
       profile.revision=(profile.revision || 0)+1;profile.updatedAt=clock;
       const receipt={id:action.id,spinId:action.spinId,studentId,helpedStudentId,xp:6,createdAt:clock};
@@ -490,6 +491,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       const starting=action.type==='start' || (action.type==='auto' && (!old || old.status!=='active'));
       const syncing=action.type==='sync' && !action.command;
       let incoming=(starting || syncing || (action.type==='auto' && Array.isArray(action.heroes))) ? action.heroes : old?.heroes;
+      if(action.type==='quest' && action.heroId){const student=rosterById.get(action.heroId.replace(/^student:/,''));if(!lessonMember(student,classId,guests,absent))deny('roster_changed','Only a student present in this lesson can make this choice.',409);}
       if(Array.isArray(incoming) && (starting || syncing || action.type==='auto'))incoming=incoming.filter(h=>!absent.includes(h.studentId || (h.id || '').replace(/^student:/,'')));
       if (!Array.isArray(incoming) || !incoming.length || incoming.length>100) deny('invalid_roster','Choose a lesson slot with 1–100 heroes.',400);
       const identities=incoming.map(h=>{
@@ -530,6 +532,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       for (const student of identities.filter(s=>!s.guest)) {
         const profile=profileMap.get(student.id), lock=profile.activeEncounter;
         if (lock && (lock.classId!==classId || (!starting && old?.encounterId!==lock.encounterId))) {
+          if(action.type==='quest')deny('encounter_active','Finish '+student.name+'’s active encounter in '+lock.classId+' before making quest choices here.');
           if (action.type==='end') { otherEncounter.add(student.id); continue; }
           if (lock.classId===classId) deny('encounter_active',student.name+' is in an active encounter in '+lock.classId+'. End it before starting another.');
           // A student may continue their quest from any lesson's wheel: the
@@ -577,6 +580,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         // start. Seed its archive with trusted canonical profiles instead.
         const seeded=prior || (starting ? {revision:0,heroes:canonical,heroArchive:{}} : null);
         if (!prior && starting) action.expectedRevision=0;
+        if(action.type==='quest')action.eligibleHeroIds=roster.filter(s=>lessonMember(s,classId,guests,absent)).map(s=>'student:'+s.id);
         next=Core.reduce(seeded,action);
       } catch(e) { deny('battle_changed',e.message,409); }
       if (next===prior) {

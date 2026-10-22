@@ -203,7 +203,8 @@ try {
   await page.locator('[data-inspect="'+relicHero+'"]').click();
   check('victory automatically equips collected gear in its owner journal',await page.evaluate(id=>!!__battleState().heroes.find(h=>h.id===id).equipped,relicHero));
   const selectedRelic = await page.evaluate(id=>__battleState().heroes.find(h=>h.id===id).equipped,relicHero);
-  await page.locator('[data-equip=""]').first().click(); await settle();
+  const selectedSlot=await page.evaluate(({id,item})=>{const h=__battleState().heroes.find(h=>h.id===id);return Object.keys(ClassroomBattleCore.loadoutFor(h)).find(slot=>h.loadout[slot]===item);},{id:relicHero,item:selectedRelic});
+  await page.locator('[data-equip=""][data-equip-slot="'+selectedSlot+'"]').click(); await settle();
   await page.locator('[data-equip="'+selectedRelic+'"]').click(); await settle();
   check('collected equipment can be equipped from its owner journal',await page.evaluate(id=>!!__battleState().heroes.find(h=>h.id===id).equipped,relicHero));
   await page.click('#cbJournalClose');
