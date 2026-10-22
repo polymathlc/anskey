@@ -7,7 +7,7 @@ const require=createRequire(import.meta.url),C=require('../battle-core.js'),A=re
 let sequence=0;
 const id=()=>`adventure-test-${++sequence}`;
 function hero(role,level=35){let h=C.heroFromStudent({id:role,name:role},null,Object.keys(C.ROLES).indexOf(role));h.xp=C.xpForLevel(level);h.level=level;h=C.cleanHero(h,h);h.stats.critChance=0;h.hp=h.stats.maxHp;h.mp=h.stats.maxMp;return h;}
-function start(heroes=[hero('warrior'),hero('cleric'),hero('mage')]){return C.reduce(null,{type:'start',id:id(),heroes});}
+function start(heroes=[hero('warrior'),hero('cleric'),hero('mage')]){return C.reduce(null,{type:'start',id:id(),heroes,formation:'raid'});}
 function turn(s,heroId,command={command:'attack'},outcome='correct'){
   const selected=C.reduce(s,{type:'select',id:id(),turnId:'adventure-fixed-turn',heroId,encounterId:s.encounterId,expectedRevision:s.revision});
   return C.reduce(selected,{type:'answer',id:id(),turnId:selected.pending.id,encounterId:s.encounterId,outcome,...command});
@@ -56,7 +56,7 @@ test('a roadside blessing is awarded once on a correct answer and never scales w
 test('rare chests grant one extra rare-or-better item to every hero only after victory',()=>{
   const s=arena([hero('warrior'),hero('cleric')]);s.adventure.kind='chest';s.bossHp=1;
   const before=structuredClone(s),win=turn(s,s.heroes[0].id);
-  assert.equal(win.status,'victory');assert.equal(win.rewards.length,4);assert.deepEqual(s,before);
+  assert.equal(win.status,'victory');assert.equal(win.rewards.filter(r=>r.source!=='bonus-rune').length,4);assert.deepEqual(s,before);
   for(const h of win.heroes){const bonus=win.rewards.filter(r=>r.heroId===h.id&&r.source==='road-chest');assert.equal(bonus.length,1);assert.ok(['rare','epic','legendary','mythical'].includes(bonus[0].rarity));assert.equal(bonus[0].xp,0);}
   assert.throws(()=>turn(win,win.heroes[0].id),/finished/);
   const loss=C.reduce({...s,bossHp:100},{type:'end',id:id(),encounterId:s.encounterId,expectedRevision:s.revision});assert.deepEqual(loss.rewards,[]);

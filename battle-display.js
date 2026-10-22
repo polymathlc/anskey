@@ -47,6 +47,11 @@
     if (!rows.length) return '<section class="cbDamageLog" aria-label="Damage log"><h4>Damage log</h4><p>Saved attacks, healing and enemy replies appear here.</p></section>';
     function effects(row) {
       var parts=[];
+      (row.actions || []).forEach(function(a){
+        var hero=(state.heroes || []).find(function(h){return h.id===a.heroId;}),b=a.enemyId && Core.bossById(a.enemyId);
+        var skill=a.skillId && Core.skillById(a.skillId);
+        parts.push(esc(hero?hero.name:b?b.name:'Hero')+': '+esc(a.move || 'Attack')+(skill?' ['+esc(Core.targetingLabel(skill))+']':a.targeting?' ['+esc(a.targeting==='aoe'?'AoE damage':'Single-target damage')+']':'')+(a.damage?' −'+a.damage:'')+(a.enemyTargets || []).map(function(t){return ' → '+esc(Core.bossById(t.enemyId).name)+' −'+t.damage;}).join(''));
+      });
       if(row.damageType)parts.push(esc(row.damageType)+' damage');
       if(row.synergy){var setter=(state.heroes||[]).find(function(h){return h.id===row.synergy.sourceHeroId;});parts.push('TEAM SYNERGY · '+esc(row.synergy.channel)+' defence break'+(setter?' by '+esc(setter.name):''));}
       if(row.discovery)parts.push('Roadside blessing: '+esc(row.discovery.replace(/-/g,' ')));
@@ -75,6 +80,17 @@
     return Core.socketable(Core.itemById(entry.itemId))?'<button type="button" class="btn cbSocketOpen" data-socket-item="'+esc(entry.id)+'"'+(slot?' data-socket-slot="'+esc(slot)+'"':'')+(locked?' disabled':'')+'>Socket runes</button>':'';
   }
   var socketDialog=null;
+  function enemyTeam(state) {
+    return '<div class="cbEnemyTeam" aria-label="Enemy team">'+Core.enemiesFor(state).map(function(enemy){
+      var b=Core.bossById(enemy.bossId);
+      return '<article class="cbEnemyMember'+(enemy.hp<=0?' cbEnemyFallen':'')+'" data-enemy-id="'+esc(enemy.id)+'" data-boss-id="'+esc(b.id)+'">'+enemyArt(b)+'<strong>'+esc(b.name)+'</strong><small>'+esc(b.playstyle)+' · '+(enemy.hp<=0?'DEFEATED':enemy.hp+' / '+enemy.maxHp+' HP')+'</small><div class="cbHp" role="progressbar" aria-label="'+esc(b.name)+' HP" aria-valuemin="0" aria-valuemax="'+enemy.maxHp+'" aria-valuenow="'+enemy.hp+'"><span style="width:'+Math.max(0,enemy.hp/enemy.maxHp*100)+'%"></span></div></article>';
+    }).join('')+'</div>';
+  }
+  function heroTeam(state) {
+    return '<div class="cbActiveTeam" aria-label="Active student team">'+Core.combatHeroes(state).map(function(h){
+      return '<div class="cbQuickHero" data-cba-hero-id="'+esc(h.id)+'" data-cba-actor="hero">'+(root.ClassroomBattleAnimation?root.ClassroomBattleAnimation.heroMarkup(h.role,{job:h.job,gender:h.gender,dormant:h.hp<=0}):'')+'<strong>'+esc(h.name)+'</strong><small>'+h.hp+' / '+h.stats.maxHp+' HP · '+h.mp+' MP</small><div class="cbHp"><span style="width:'+Math.max(0,h.hp/h.stats.maxHp*100)+'%"></span></div></div>';
+    }).join('')+'</div>';
+  }
   function closeSockets() {if(socketDialog){var previous=socketDialog;socketDialog=null;previous.close();previous.remove();}}
   function openSockets(options) {
     closeSockets();
@@ -116,5 +132,5 @@
     dialog.addEventListener('cancel',function(event){event.preventDefault();closeSockets();});
     render();if(socketDialog===dialog)dialog.showModal();
   }
-  root.ClassroomBattleDisplay = {itemIcon:itemIcon,enemyArt:enemyArt,equipmentPanel:equipmentPanel,slotName:slotName,rotation:rotation,treasure:treasure,log:log,socketSummary:socketSummary,socketButton:socketButton,openSockets:openSockets,closeSockets:closeSockets};
+  root.ClassroomBattleDisplay = {enemyTeam:enemyTeam,heroTeam:heroTeam,itemIcon:itemIcon,enemyArt:enemyArt,equipmentPanel:equipmentPanel,slotName:slotName,rotation:rotation,treasure:treasure,log:log,socketSummary:socketSummary,socketButton:socketButton,openSockets:openSockets,closeSockets:closeSockets};
 })(typeof window !== 'undefined' ? window : globalThis);

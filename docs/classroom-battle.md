@@ -1,5 +1,17 @@
 # Pixel classroom adventure
 
+## Team encounters, rune rewards and daily attendance (v1.155.0)
+
+Every eligible hero now has an independent 50% bonus rune roll after victory, in addition to ordinary personal treasure and any roadside chest. Rune rarity follows the existing rarity weights (including 0.1% Unique within the bonus roll). Bonus runes grant no extra XP. All rewards are committed once inside the victory receipt; completed old encounters never receive retroactive rewards.
+
+New encounters default to random formation: 60% class raid, 25% 2v2 and 15% 3v3 when enough students are present. Teachers can also select a formation before starting. Existing encounters keep their current formation and health. Team enemies each have saved HP; their combined HP preserves the ordinary encounter health budget. All enemies count towards the no-repeat rotation. A called student leads a rotating team of up to two standing classmates. One correct answer executes the chosen command and affordable, learned, ready teammate commands in one transaction. Teammates use ordinary power; the called hero alone uses awarded-point scaling. A wrong or skipped answer executes no attacks. Every present student, including reserves and resting heroes, still receives victory rewards.
+
+Skills declare separate damage and healing scopes in the shared catalogue and display them on tree nodes, descriptions and the command menu. Single-target damage can focus a chosen living enemy; AoE damage hits all standing enemies, with the per-enemy 25% health cap per acting hero. Focused healing restores one chosen active ally; AoE healing, wards and party support affect the current student team. Automatic choices favour AoE damage when multiple enemies remain and AoE healing when several active allies are injured. Enemy squads attack together under the existing teacher meter, alternating more frequent AoE attacks with focused attacks. They share the displayed MP pool and ultimate charge. Defeated enemies stop attacking. Saved per-actor actions drive the group visuals and damage log.
+
+Open **Attendance** on the wheel and choose **Absent today**, or use a registered student's cross on the wheel. The student is removed from the wheel and active encounter, and excluded from new encounters, treasure, assist XP and class mission point payouts for that lesson slot on that Singapore calendar date. Their permanent enrolment, canonical hero and earlier rewards stay intact. **Bring back today** reverses an absence. Attendance expires at Singapore midnight and restores the student when the next lesson opens, including next week. A currently selected answer must be resolved or skipped first. Daily attendance uses the existing authenticated `lessonGuests` transaction and immutable receipts; stale clients cannot reinsert an absent hero through roster sync.
+
+Validation adds `tools/team-battle-tests.mjs`, `tools/team-battle-browser-check.mjs` and repository attendance/atomic squad tests. The existing lesson guest browser suite covers absence, restore, reload and date expiry. Run the shared game bundle synchroniser before deployment.
+
 Open **Classroom battle** from the teacher toolbar or name wheel, choose a class, then start an encounter. Pixel heroes stand four per column on the left, facing an enemy on the right. Large rosters scroll horizontally within the party formation. The original classroom wheel still calls each student once per round.
 
 ## Student ownership and lesson slots

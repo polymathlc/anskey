@@ -40,6 +40,16 @@ Guidance for Claude when working in this repo.
 - ▴ Fold (v1.150.0): `THE BAR FOLDS AWAY`, `#sbHideBtn` / `#sbShowBtn`, `#studentBar.sbMin`. `studentBarModel` decides `min` from `st.min` (`studentBarMinGet`, `polymath.studentBarMin.v1`, memory fallback) and `st.touring` (`studentBarTourHold`, set by `studentGuideOpen`, cleared in `studentGuideClose`): the tour must unfold the bar or every bar step is skipped. Folding only hides; never add other buttons' doors to the strip.
 - Run `node --test tools/student-guide-tests.mjs` and `node tools/student-guide-check.mjs` (real Chromium, desktop and phone; in CI).
 
+## Team battles and daily attendance (v1.155.0)
+
+`battle-core.js` retains scalar enemy HP for old raids; team encounters additionally save `teamVersion`, `teamSize`, `teamHeroIds` and `enemies` with individual HP. `bossHp` is their combined HP. Formation is rolled only at encounter start. `enemiesFor`, `combatHeroes` and `targetingLabel` are shared by the engine and views. Never reroll enemies on render. Companion actions use one correct-answer receipt and do not multiply the wheel points award. Enemy teams share MP/charge; individual defeated enemies cannot act. See `docs/classroom-battle.md` for scope, caps and rotation semantics.
+
+Each hero gets a separate 50% bonus rune roll inside `awardLoot`, with ordinary rarity weights and zero bonus XP. Never award loot from presentation or replay a completed encounter. Skill catalogue fields `damageTarget`, `healTarget` and `supportTarget` drive actual mechanics and labels; hybrids may have different scopes.
+
+Attendance extends the existing `lessonGuests` API with `absent`/`restore`. `absentDate` uses the server clock in Singapore; exclusions are per teacher/slot/date, separate from permanent enrolment and guest membership. Filter absent students from wheel, encounter rosters, loot, assists and mission points on the server. Removal releases the encounter lock and archives the unchanged hero. Retries acknowledge receipts and cannot replay absence after a later restore. Reopening restores prior-date absentees. Never mutate `students.slots` for an absence.
+
+Run `node tools/sync-hero-game.mjs`, application/server suites and the wheel/manual/quick/student/tree/adventure/mission/animation browser checks. `tools/team-battle-browser-check.mjs` covers real simultaneous effects, individual enemy HP, phone and compact layouts; `tools/lesson-guests-browser-check.mjs` covers date-scoped attendance.
+
 ## Rune sockets and unique items (v1.147.0)
 
 The shared catalogue contains 270 items, including 16 runes and 20 unique treasures. Unique rarity is 0.1%; common is 44.9%, and the other original weights are unchanged. `ITEM_SKILLS` are granted by actual worn gear/socket sources or validated consumable `giftSkills`, never by forging `learnedSkills`. Foundation and job trees remain at 312 learnable skills. Quick and manual combat use `availableSkills`.

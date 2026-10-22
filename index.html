@@ -5797,7 +5797,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.154.0';
+var APP_VERSION = 'v1.155.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32752,7 +32752,7 @@ function wheelSave() {
 function wheelSeed(force) {
   if (!wheelState || !wheelClass) return;
   if (wheelState.seeded && !force) return;
-  rwStudentsInClass(wheelClass).forEach(function (s) {
+  rwStudentsInClass(wheelClass).filter(function(s){return !window.LessonGuests || !LessonGuests.isAbsent(s.id,wheelClass);}).forEach(function (s) {
     var name = (s.name || '').trim();
     if (!name) return;
     var existing = wheelState.names.filter(function (n) { return n.id === s.id; })[0];
@@ -32977,10 +32977,11 @@ function wheelRender() {
     var x = document.createElement('button');
     x.className = 'whChipX';
     x.textContent = '✕';
-    x.title = 'Take ' + n.n + ' off the wheel';
+    x.title = n.guest?'Remove guest '+n.n:'Absent today: '+n.n+' (returns next lesson)';
     x.addEventListener('click', function () {
       if (wheelSpinning || !wheelTeacher() || (window.wheelGuestsBusy && wheelGuestsBusy())) return;
       if (n.guest && window.LessonGuests) { LessonGuests.remove(n.id); return; }
+      if(n.id && window.LessonGuests && rwStudents.some(function(s){return s.id===n.id && rwStudentClasses(s).includes(wheelClass);})){LessonGuests.markAbsent(n.id);return;}
       st.names.splice(i, 1);
       if (wheelWinnerIdx === i) { wheelWinnerIdx = -1; delete st.last; delete st.lastSpinId; }
       else if (wheelWinnerIdx > i) wheelWinnerIdx -= 1;
@@ -33105,6 +33106,7 @@ function wheelAddFromBox() {
   var match = rwStudents.filter(function (s) { return (s.name || '').trim().toLowerCase() === name.toLowerCase(); });
   var inClass = match.filter(function (s) { return rwStudentClasses(s).indexOf(wheelClass) !== -1; });
   var linked = inClass.length === 1 ? inClass[0] : match.length === 1 ? match[0] : null;
+  if(linked && window.LessonGuests && LessonGuests.isAbsent(linked.id,wheelClass)){LessonGuests.restore(linked.id);box.value='';return;}
   if (linked && wheelClass && rwStudentClasses(linked).indexOf(wheelClass) === -1 && window.LessonGuests) {
     LessonGuests.addStudent(linked.id); box.value = ''; return;
   }

@@ -64,6 +64,7 @@ ok('the page loads with no uncaught error', errors.length === 0, errors.join('\n
 const CLASS = 'P5 Science — Wednesday 5pm–6.45pm';
 await page.evaluate((cls) => {
   window.isAdmin = () => true;
+  window.LessonGuests=null; // Plain wheel suite; persisted attendance has its own integration checks.
   window.currentUser = { email: 'chungzhikai@gmail.com' };
   window.__awards = [];
   window.rwStudents = ['Ann', 'Ben', 'Cai', 'Dee', 'Eli'].map((n, i) => ({ id: 's' + i, name: n, slots: [cls], marks: 10 }));
@@ -165,7 +166,8 @@ await page.click('#wheelMinBtn');
 await page.reload({ waitUntil: 'load' });
 await page.waitForTimeout(1000);
 await page.evaluate((cls) => {
-  window.isAdmin = () => true; window.currentUser = { email: 'chungzhikai@gmail.com' };
+  window.isAdmin = () => true; window.LessonGuests=null; // Plain wheel suite; persisted attendance has its own integration checks.
+  window.currentUser = { email: 'chungzhikai@gmail.com' };
   window.rwStudents = ['Ann', 'Ben', 'Cai', 'Dee', 'Eli'].map((n, i) => ({ id: 's' + i, name: n, slots: [cls], marks: 10 }));
   applyRewardVisibility();
 }, CLASS);

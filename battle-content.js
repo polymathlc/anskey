@@ -4169,5 +4169,32 @@
   ];
   UNIQUE_DEFINITIONS.forEach((r,i)=>{const [id,name,slot,effect,description,grantSkill]=r,type=slot==='pet'?'pet':slot==='consumable'?'consumable':'equipment';ITEMS['unique-'+id]={id:'unique-'+id,name,type,slot:type==='equipment'?slot:undefined,rarity:'unique',effect,description,
     ...(grantSkill?{[type==='consumable'?'giftSkill':'grantSkill']:grantSkill}:{passiveName:name}),icon:'✦',collection:'uniques',art:{sheet:'uniques-1',col:i%4,row:Math.floor(i/4),columns:4,rows:4,...(i===8?{frame:{x:0,y:600,width:314,height:302,atlasWidth:1254,atlasHeight:1254}}:{})}};});
+  // Target scopes are catalogue data, shared by the engine, tree and command menu.
+  // Hybrid skills keep independent damage and healing scopes.
+  const AREA_DAMAGE=new Set(`warrior-cleave warrior-earthshatter warrior-rampage warrior-physical-apex warrior-convergence-apex
+    ranger-starfall-volley ranger-thornstorm ranger-verdant-cataclysm ranger-phantom-barrage ranger-elemental-apex ranger-convergence-apex
+    mage-inferno mage-meteor mage-solar-flare mage-absolute-zero mage-glacier-tomb mage-supernova mage-starweave mage-elemental-apex mage-convergence-apex
+    cleric-dawns-wrath cleric-elemental-apex cleric-convergence-apex
+    paladin-consecration paladin-solar-verdict paladin-empyrean-judgement
+    berserker-scarlet-cyclone berserker-crimson-apocalypse berserker-sanguine-ragnarok berserker-worldbreaker berserker-ragnarok-howl berserker-faultline berserker-cataclysm-charge
+    sharpshooter-fan-of-arrows sharpshooter-rain-of-steel sharpshooter-falling-constellation sharpshooter-skyfall-barrage sharpshooter-eye-of-the-storm sharpshooter-hurricane-arrow
+    beastmaster-ancestral-pack beastmaster-great-hunt beastmaster-thunder-talons beastmaster-thunderbird-ascent
+    archmage-eruption archmage-sun-collapse archmage-primordial-inferno archmage-frost-nova archmage-eternal-winter archmage-endless-blizzard archmage-chain-lightning archmage-tempest-sigil archmage-celestial-tempest archmage-heavens-wrath
+    chronomancer-temporal-rift chronomancer-end-of-ages chronomancer-oblivion-hour
+    hierophant-daybreak-anthem hierophant-judgement-day oracle-comet-judgement oracle-zodiac-reckoning oracle-galaxy-collapse
+    relic-tempest-grasp relic-dragon-breath relic-cometfall relic-winter-veil relic-storm-volley relic-worldspark relic-starfall`.split(/\s+/));
+  const FOCUSED_HEALS={'cleric-healing-light':.55,'ranger-natures-gift':.55,'paladin-mercy-bell':.6,'chronomancer-rewind-wounds':.65,'hierophant-sacred-spring':.7,'oracle-moonwell':.6};
+  [...Object.values(SKILLS).flat(),...Object.values(JOB_SKILLS).flat(),...ITEM_SKILLS].forEach(skill=>{
+    const e=skill.effect;
+    if(skill.passive){skill.targeting='passive';return;}
+    if(FOCUSED_HEALS[skill.id]){
+      delete e.healAll;e.heal=FOCUSED_HEALS[skill.id];
+      skill.description='Restore one chosen ally, including a fallen ally, for '+Math.round(e.heal*100)+'% maximum HP.';
+    }
+    if(e.power || e.damage)skill.damageTarget=AREA_DAMAGE.has(skill.id) || /-(elemental-ascension|worldweaver)$/.test(skill.id)?'aoe':'single';
+    if(e.healAll || e.heal)skill.healTarget=e.healAll?'aoe':'single';
+    skill.supportTarget=e.healAll || e.manaAll || e.shield || e.haste || e.weakenBoss || e.expose?'aoe':'single';
+    skill.targeting=skill.damageTarget || skill.healTarget || skill.supportTarget;
+  });
   return {ROLES,SKILLS,SKILL_TREES:SKILLS,BASE_LEVEL,BASE_COST,JOB_LEVEL,JOB_COST,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,EQUIPMENT_SLOTS,ITEM_SKILLS};
 });

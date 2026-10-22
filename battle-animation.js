@@ -139,6 +139,7 @@
       if (!cancelled) stage('settled', '');
       done = true; timers.forEach(clearTimeout); motions.forEach(function (motion) { motion.cancel(); });
       created.forEach(function (node) { node.remove(); });
+      container.querySelectorAll('.cbaActing').forEach(function(n){n.classList.remove('cbaActing');});
       if (sprite) { sprite.classList.remove('cbaActing'); if(wasDormant) sprite.classList.add('cbaDormant'); }
       container.classList.remove('cbaPlaying'); delete container.dataset.cbaPhase; delete container.dataset.skillAnimation;
       if (media && media.removeEventListener) media.removeEventListener('change', motionChanged);
@@ -152,7 +153,7 @@
       if(options.findHero) return options.findHero(id);
       return Array.from(container.querySelectorAll('[data-cba-hero-id]')).find(function (node) { return node.dataset.cbaHeroId === id; });
     }
-    function effect(name, target, label, travelling, choreography, index) {
+    function effect(name, target, label, travelling, choreography, index, sourceActor) {
       if (!target) return;
       var spec=atlases[name], sheet=spec?spec[0]:name, r=choreography, step=index || 0;
       var node = document.createElement('span'); node.className = 'cbaEffect cbaFx-' + name + (spec?' cbaAtlasEffect':'');
@@ -168,9 +169,9 @@
       }
       target.appendChild(node); created.push(node);
       load(sheet).then(function (ok) { if (!ok) node.hidden = true; });
-      if ((travelling || r && r.trajectory==='projectile') && heroActor && enemyActor && target===enemyActor) {
-        var a = heroActor.getBoundingClientRect(), b = enemyActor.getBoundingClientRect();
-        animate(node, [{ translate: (a.left-b.left)+'px 0px', opacity:1 }, { translate:'0px 0px',opacity:1 }], 360);
+      if ((sourceActor || travelling || r && r.trajectory==='projectile') && (sourceActor || heroActor) && target) {
+        var a = (sourceActor || heroActor).getBoundingClientRect(), b = target.getBoundingClientRect();
+        animate(node, [{ translate: (a.left-b.left)+'px '+(a.top-b.top)+'px', opacity:1 }, { translate:'0px 0px',opacity:1 }], 360);
       } else if(r && r.trajectory==='fall') animate(node,[{translate:'-28px -70px',opacity:0},{translate:'0px 0px',opacity:1}],380);
       else if(r && (r.trajectory==='orbit' || r.trajectory==='aura')) animate(node,[{rotate:'-25deg',opacity:.6},{rotate:'18deg',opacity:1},{rotate:'0deg',opacity:.8}],r.duration);
       if (label) {
@@ -179,6 +180,19 @@
         number.textContent = label; number.setAttribute('aria-hidden', 'true'); target.appendChild(number); created.push(number);
       }
       later(function () { node.remove(); }, r?r.duration+30:700);
+    }
+    function findEnemy(id) { return Array.from(container.querySelectorAll('[data-enemy-id]')).find(function(n){return n.dataset.enemyId===id;}) || enemyActor; }
+    function teamImpact() {
+      (event.actions || []).forEach(function(action){
+        var member=(options.heroes || []).find(function(h){return h.id===action.heroId;}) || hero;
+        var actor=findHero(action.heroId),cast=skillById(action.skillId),choreography=recipeFor(member,cast),family=effectFor(member,action);
+        var actorSprite=actor && actor.querySelector('.cbaHero');
+        if(actorSprite){actorSprite.classList.add('cbaActing');later(function(){actorSprite.classList.remove('cbaActing');},640);}
+        (action.enemyTargets || []).forEach(function(target){
+          if(target.damage>0)effect(family,findEnemy(target.enemyId),'−'+target.damage,true,choreography,0,actor);
+        });
+        if(!action.damage && actor)effect(choreography.family,actor,'',false,choreography,0);
+      });
     }
     function skillEffect(target,label,family) {
       for(var i=0;i<recipe.count;i++) (function(index){
@@ -211,7 +225,8 @@
     // whole turn reads in about a second and a half rather than two and a half.
     later(function () {
       stage('hero-impact', hero.name + ': ' + (event.move || 'Attack') + (event.damage ? ' · ' + event.damage + ' damage' : ''));
-      if (event.damage > 0) { if(skill) skillEffect(enemyActor,options.preview?'':'−'+event.damage); else effect(fx, enemyActor, '−' + event.damage, fx === 'arrow'); animate(enemyActor && enemyActor.querySelector('img,.cbEnemySprite'), [{ filter: 'brightness(1)' }, { filter: 'brightness(2)' }, { filter: 'brightness(1)' }], 420); }
+      if(event.actions && event.actions.length)teamImpact();
+      if (!(event.actions && event.actions.length) && event.damage > 0) { if(skill) skillEffect(enemyActor,options.preview?'':'−'+event.damage); else effect(fx, enemyActor, '−' + event.damage, fx === 'arrow'); animate(enemyActor && enemyActor.querySelector('img,.cbEnemySprite'), [{ filter: 'brightness(1)' }, { filter: 'brightness(2)' }, { filter: 'brightness(1)' }], 420); }
       var enemyTargets = (event.enemy && event.enemy.targets || []).slice();
       (event.targets || []).forEach(function (target) {
         var enemyIndex = enemyTargets.findIndex(function (other) { return other.heroId === target.heroId && other.damage === target.damage; });
@@ -233,12 +248,13 @@
     if (event.enemy) {
       later(function () {
         stage('enemy-windup', 'Enemy uses ' + event.enemy.move + '…');
+        (event.enemy.actions || []).forEach(function(a){var actor=findEnemy(a.enemyId);animate(actor,[{transform:'translateX(0)'},{transform:'translateX(-12px)'},{transform:'translateX(0)'}],560);});
         animate(enemyActor && enemyActor.querySelector('img,.cbEnemySprite'), [{ transform: 'translateX(0)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-16px)' }, { transform: 'translateX(0)' }], 560);
       }, enemyStart);
       later(function () {
         var targets = event.enemy.targets || [];
         stage('enemy-impact', 'Enemy: ' + event.enemy.move + ' · ' + targets.reduce(function (sum, target) { return sum + target.damage; }, 0) + ' damage');
-        targets.forEach(function (target) { if (target.damage > 0) effect('slash', findHero(target.heroId), '−' + target.damage, false); });
+        targets.forEach(function (target) { if (target.damage > 0) effect('slash', findHero(target.heroId), '−' + target.damage, false,null,0,target.enemyId?findEnemy(target.enemyId):enemyActor); });
         (event.enemy.healed || []).forEach(function (entry) { if (entry.amount > 0) effect('heal',findHero(entry.heroId),'+'+entry.amount,false); });
       }, enemyStart+200);
     }
@@ -248,6 +264,7 @@
     // Slow first loads cannot consume the animation while the image is invisible.
     var wanted=[hero.isChung?'chung':sheetName(hero.role,hero.job),atlases[fx]?atlases[fx][0]:fx,'heal'];
     if(event.enemy) wanted.push('slash');
+    (event.actions || []).forEach(function(a){var member=(options.heroes || []).find(function(h){return h.id===a.heroId;});if(member){var family=effectFor(member,a);wanted.push(sheetName(member.role,member.job),atlases[family]?atlases[family][0]:family);}});
     if(roleName(hero.role)==='mage' && (event.afflicted || []).some(function(entry){return entry.effect==='poison';})) wanted.push('fire');
     if((event.supported || []).length || (event.afflicted || []).length) wanted=wanted.concat(['cleric-advanced','mage-advanced','ranger-advanced']);
     Promise.all(Array.from(new Set(wanted)).map(load)).then(begin);

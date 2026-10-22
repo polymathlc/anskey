@@ -21,7 +21,7 @@ async function reset(role='warrior',options={}){
     QuickBattle.close(); sessionStorage.clear(); window.__fail=false;window.__delay=25;window.__tamper=false;window.__awardError='';window.__nextBeforeReply=false;
     // Timeline/race checks need an enemy that survives even a critical starter
     // skill. Victory scenarios explicitly lower its HP to one below.
-    window.__state=ClassroomBattleCore.reduce(null,{type:'start',id:'animation-start-'+Math.random().toString(36).slice(2),heroes:rwStudents.map((student,index)=>ClassroomBattleCore.configureHero(ClassroomBattleCore.heroFromStudent(student,null,index),{command:'class',role:index===0?role:'warrior'})),bossId:'lich'});
+    window.__state=ClassroomBattleCore.reduce(null,{type:'start',formation:'raid',id:'animation-start-'+Math.random().toString(36).slice(2),heroes:rwStudents.map((student,index)=>ClassroomBattleCore.configureHero(ClassroomBattleCore.heroFromStudent(student,null,index),{command:'class',role:index===0?role:'warrior'})),bossId:'lich'});
     // Boss choice is now authoritative and may select a weak enemy; timeline
     // fixtures set enough HP explicitly rather than relying on a requested ID.
     __state.bossHp=__state.bossMaxHp=100000;
@@ -49,7 +49,7 @@ try{
       __calls++;await new Promise(r=>setTimeout(r,__delay));if(__fail)throw new Error('Save failed for test');
       __state=ClassroomBattleCore.reduce(__state,{...action,type:'auto',points:delta+(window.__tamper?1:0)});
       const student=rwStudents.find(s=>s.id===studentId),award={id:action.id,studentId,delta,marks:student.marks+delta};
-      const savedReply=structuredClone(__state);if(__listener)__listener(structuredClone(__state));if(__nextBeforeReply){__state=ClassroomBattleCore.reduce(__state,{type:'start',id:'replacement-before-http-reply',expectedRevision:__state.revision,heroes:__state.heroes,bossId:ClassroomBattleCore.BOSSES.filter(b=>!b.legacy)[1].id});if(__listener)__listener(structuredClone(__state));}await new Promise(r=>setTimeout(r,25));return {state:savedReply,award};
+      const savedReply=structuredClone(__state);if(__listener)__listener(structuredClone(__state));if(__nextBeforeReply){__state=ClassroomBattleCore.reduce(__state,{type:'start',formation:'raid',id:'replacement-before-http-reply',expectedRevision:__state.revision,heroes:__state.heroes,bossId:ClassroomBattleCore.BOSSES.filter(b=>!b.legacy)[1].id});if(__listener)__listener(structuredClone(__state));}await new Promise(r=>setTimeout(r,25));return {state:savedReply,award};
     }});
     document.getElementById('samples').innerHTML=['warrior','ranger','mage','cleric'].map(role=>ClassroomBattleAnimation.heroMarkup(role)).join('');ClassroomBattleAnimation.mount(document.getElementById('samples'));
   });
@@ -106,10 +106,12 @@ try{
     check('automatically chosen '+skill+' plays generated '+fx,await page.evaluate(({skill,fx})=>__state.lastEvent.skillId===skill&&!!document.querySelector('.cbQuickEnemy .cbaFx-'+fx),{skill,fx}));await settle();
   }
   await reset('cleric',{wounded:true});await land();await phase('hero-impact');
-  check('cleric healing plays only on the recorded healed teammates',await page.evaluate(()=>{const expected=__state.lastEvent.healed.filter(e=>e.amount>0).map(e=>e.heroId);return __state.lastEvent.damage===0&&expected.length===2&&document.querySelectorAll('.cbaFx-heal').length===expected.length&&expected.every(id=>Array.from(document.querySelectorAll('[data-cba-hero-id]')).some(node=>node.dataset.cbaHeroId===id&&node.querySelector('.cbaFx-heal')))&&!document.querySelector('.cbQuickEnemy .cbaEffect');}));
+  check('cleric healing plays only on the recorded healed teammates',await page.evaluate(()=>{const expected=__state.lastEvent.healed.filter(e=>e.amount>0).map(e=>e.heroId);return __state.lastEvent.damage===0&&expected.length===1&&document.querySelectorAll('.cbaFx-heal').length===expected.length&&expected.every(id=>Array.from(document.querySelectorAll('[data-cba-hero-id]')).some(node=>node.dataset.cbaHeroId===id&&node.querySelector('.cbaFx-heal')))&&!document.querySelector('.cbQuickEnemy .cbaEffect');}));
   await page.screenshot({path:path.join(output,'animated-cleric-heal.png')});await settle();
+  await reset('cleric',{wounded:true,skill:'cleric-renewal'});await land();await phase('hero-impact');
+  check('AoE healing animates on both saved allies',await page.evaluate(()=>__state.lastEvent.skillId==='cleric-renewal'&&__state.lastEvent.healed.filter(e=>e.amount>0).length===2&&document.querySelectorAll('.cbaFx-heal').length===2));await settle();
   await reset('warrior',{victory:true});await land();await phase('hero-impact');
-  check('victory chest and item grid appear immediately while the final hit animates',await page.locator('.cbQuickTreasure .cbReward').count()===2);await settle();
+  check('victory chest and item grid appear immediately while the final hit animates',await page.locator('.cbQuickTreasure .cbReward').count()===await page.evaluate(()=>__state.rewards.length));await settle();
   check('settled victory reveals the saved chest and rewards once',await page.evaluate(()=>document.querySelectorAll('.cbQuickTreasure').length===1&&document.querySelectorAll('.cbQuickTreasure .cbReward').length===__state.rewards.length));
   await reset();await land();await phase('hero-impact');
   const beforeClose=await page.evaluate(()=>JSON.stringify(__state));

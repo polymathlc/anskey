@@ -85,13 +85,13 @@
     var node = document.createElement('div'); node.id = 'classroomBattle'; node.className = 'cbOverlay'; node.hidden = true;
     node.innerHTML = '<section class="cbShell" role="dialog" aria-modal="true" aria-labelledby="cbTitle">' +
       '<header class="cbHeader"><div><span class="cbEyebrow">CLASSROOM CHRONICLES / PIXEL RPG</span><h2 id="cbTitle">Classroom boss battle</h2><p id="cbClassLabel"></p></div><div class="cbHeaderActions"><span class="cbSaved" id="cbSaveStatus" role="status"></span><button type="button" id="cbClose" aria-label="Close battle">✕</button></div></header>' +
-      '<div id="cbError" class="cbError" role="alert" hidden></div><main class="cbMain"><aside class="cbWheelPane"><div class="cbSectionTitle">01 / CALL A HERO <span class="cbLiveDot">LIVE WHEEL</span></div><div id="cbWheelMount" class="cbWheelSlot"></div><details class="cbMissionDrawer"><summary>Mission machine · class quests</summary><div id="cbMission"></div></details><details class="cbHelp"><summary>Adventure guide</summary><p>Spin for a student, choose Attack, Skills or Items, then mark the answer. A correct answer executes the command. Every student earns personal loot and XP after a victory.</p><p>Click a hero to change their appearance, choose their class, learn skills and equip treasure. Classroom characters progress independently from CER.</p><p>Boss attacks are teacher controlled. Start the power meter and press Stop: black is a glancing hit, orange is strong, and red deals the most damage. Resting heroes can rally on a correct answer.</p></details></aside>' +
+      '<div id="cbError" class="cbError" role="alert" hidden></div><main class="cbMain"><aside class="cbWheelPane"><div class="cbSectionTitle">01 / CALL A HERO <span class="cbLiveDot">LIVE WHEEL</span></div><div id="cbWheelMount" class="cbWheelSlot"></div><details class="cbMissionDrawer"><summary>Mission machine · class quests</summary><div id="cbMission"></div></details><details class="cbHelp"><summary>Adventure guide</summary><p>New encounters can be a class raid, 2v2 or 3v3. In team fights, the called student leads a rotating team; a correct answer launches their command and automatic teammate skills together. Other students wait in reserve. All students still earn victory rewards.</p><p>Spin for a student, choose Attack, Skills or Items, then mark the answer. A correct answer executes the command. Every student earns personal loot and XP after a victory.</p><p>Click a hero to change their appearance, choose their class, learn skills and equip treasure. Classroom characters progress independently from CER.</p><p>Boss attacks are teacher controlled. Start the power meter and press Stop: black is a glancing hit, orange is strong, and red deals the most damage. Resting heroes can rally on a correct answer.</p></details></aside>' +
       '<section class="cbArena" id="cbArena" aria-label="Battlefield"><div class="cbArenaTop"><div class="cbSectionTitle">02 / THE ENCOUNTER</div><span id="cbEncounterStatus" class="cbEncounterStatus"></span></div><div class="cbBattlefield"><section class="cbTeam"><div class="cbTeamTitle"><h3>Your party</h3><span id="cbTeamCount"></span></div><div id="cbHeroes" class="cbHeroes" aria-label="Party formation: four heroes per column"></div><p class="cbFormationHint">4 per column · choose a hero to change appearance, skills & gear</p></section>' +
       '<section class="cbBoss" id="cbBoss"><span class="cbBossTag" id="cbBossTag"></span><div class="cbBossArt" id="cbBossArt"></div><h3 id="cbBossName"></h3><p id="cbBossStyle"></p><p id="cbBossGuard" class="cbCondition" hidden>Guard raised · next attack is reduced</p><div class="cbHpLine"><span>ENEMY HP</span><strong id="cbBossHp"></strong></div><div class="cbHp cbBossHp"><span id="cbBossBar"></span></div><div class="cbHpLine"><span>ENEMY MP</span><strong id="cbBossMp"></strong></div><div class="cbHp cbBossMp"><span id="cbBossMpBar"></span></div><div class="cbChargeLabel"><span id="cbUltimateName"></span><strong id="cbChargeText"></strong></div><div id="cbCharge" class="cbCharge"></div><p class="cbBossIntent" id="cbBossIntent"></p></section></div>' +
       '<div id="cbLoot" class="cbLoot" hidden></div><div id="cbDamageLog"></div><div id="cbEffects" class="cbEffects" aria-hidden="true"></div><div id="cbFeedback" class="cbFeedback" role="status" aria-live="polite"></div>' +
       '<section id="cbTiming" class="cbTiming" hidden aria-label="Boss attack power"><div class="cbTimingHead"><strong id="cbTimingTitle">BOSS POWER</strong><span id="cbPowerText">Press Stop near red for maximum damage</span></div><div class="cbPowerBar"><span class="cbBlackZone">GLANCE</span><span class="cbOrangeZone">STRONG</span><span class="cbRedZone">CRITICAL</span><i id="cbPowerNeedle"></i></div><div class="cbTimingActions"><button id="cbStop">■ Stop meter</button><button id="cbCancelMeter">Cancel</button></div></section>' +
-      '<section class="cbCommandBox" aria-label="Hero commands"><div class="cbCommandHeading"><span class="cbEyebrow">03 / CHOOSE YOUR COMMAND</span><strong id="cbTurnName"></strong></div><div class="cbCommandTabs" role="group" aria-label="Command type"><button data-menu="attack" id="cbNormalAttack">⚔ Attack</button><button data-menu="skill" id="cbSkills">✦ Skills</button><button data-menu="item" id="cbItems">◆ Items</button></div><div id="cbCommandOptions" class="cbCommandOptions"></div><label id="cbTargetWrap" class="cbTargetWrap" hidden>Ally target <select id="cbTarget"></select></label><div class="cbAnswerButtons"><button id="cbCorrect" class="cbCorrect">✓ Correct / execute</button><button id="cbIncorrect">↻ Incorrect</button><button id="cbSkip">→ Skip</button></div></section>' +
-      '<footer class="cbTeacherControls"><span class="cbEyebrow">TEACHER / ENEMY TURN</span><button id="cbAttack">Boss attack</button><button id="cbUltimate" class="cbUltimate">Boss skill</button><label class="cbEncounterChoice">Encounter <select id="cbEncounterChoice"><option value="">Next boss · no repeats this round</option></select></label><button id="cbStart" class="cbStart">Start encounter</button><button id="cbEnd">End encounter</button></footer></section></main>' +
+      '<section class="cbCommandBox" aria-label="Hero commands"><div class="cbCommandHeading"><span class="cbEyebrow">03 / CHOOSE YOUR COMMAND</span><strong id="cbTurnName"></strong></div><div class="cbCommandTabs" role="group" aria-label="Command type"><button data-menu="attack" id="cbNormalAttack">⚔ Attack</button><button data-menu="skill" id="cbSkills">✦ Skills</button><button data-menu="item" id="cbItems">◆ Items</button></div><div id="cbCommandOptions" class="cbCommandOptions"></div><label id="cbEnemyTargetWrap" class="cbTargetWrap" hidden>Enemy target <select id="cbEnemyTarget"></select></label><label id="cbTargetWrap" class="cbTargetWrap" hidden>Ally target <select id="cbTarget"></select></label><div class="cbAnswerButtons"><button id="cbCorrect" class="cbCorrect">✓ Correct / execute</button><button id="cbIncorrect">↻ Incorrect</button><button id="cbSkip">→ Skip</button></div></section>' +
+      '<footer class="cbTeacherControls"><span class="cbEyebrow">TEACHER / ENEMY TURN</span><button id="cbAttack">Boss attack</button><button id="cbUltimate" class="cbUltimate">Boss skill</button><label class="cbEncounterChoice">Encounter <select id="cbEncounterChoice"><option value="">Next boss · no repeats this round</option></select></label><label class="cbEncounterChoice">Formation <select id="cbFormation"><option value="auto">Random · raid / 2v2 / 3v3</option><option value="raid">Class raid</option><option value="2v2">2v2</option><option value="3v3">3v3</option></select></label><button id="cbStart" class="cbStart">Start encounter</button><button id="cbEnd">End encounter</button></footer></section></main>' +
       '<section id="cbHeroPanel" class="cbHeroPanel" hidden aria-label="Hero progression"><header><div><span class="cbEyebrow">HERO JOURNAL</span><h3 id="cbJournalName"></h3></div><button id="cbJournalClose" aria-label="Close hero journal">✕</button></header><div id="cbJournalBody"></div></section></section>';
     document.body.appendChild(node);
     el('cbEncounterChoice').disabled = true; el('cbEncounterChoice').setAttribute('aria-label','Bosses appear once each per round');
@@ -219,7 +219,7 @@
     if (!heroes.length) { showError(new Error('Add students to this class or to the wheel first.')); return; }
     if (state && state.status === 'active' && !window.confirm('Start another encounter for ' + classId + '? This replaces the current boss and restores your team’s health.')) return;
     var seed=uuid(), chosen=Core.nextBoss(state,seed);
-    try { await act({ type: 'start', id:seed, heroes: heroes, bossId: chosen.id }); } catch (_) {}
+    try { await act({ type: 'start', id:seed, heroes: heroes, bossId: chosen.id, formation:el('cbFormation').value }); } catch (_) {}
   }
   function beforeSpin() {
     if (!opened) return window.QuickBattle ? QuickBattle.beforeSpin() : true;
@@ -257,7 +257,7 @@
   async function answer(outcome) {
     if (!allowed() || busy || missionBusy() || guestsBusy() || timing || selectionInFlight || !state || !state.pending || window.wheelSpinning) return;
     if (outcome === 'correct' && menu !== 'attack' && !commandId) { showError(new Error('Choose a skill or item first.')); return; }
-    try { await act({ type: 'answer', turnId: state.pending.id, outcome: outcome, command: menu, skillId: menu === 'skill' ? commandId : undefined, itemId: menu === 'item' ? commandId : undefined, targetId: el('cbTarget').value || undefined }); } catch (_) {}
+    try { await act({ type: 'answer', turnId: state.pending.id, outcome: outcome, command: menu, skillId: menu === 'skill' ? commandId : undefined, itemId: menu === 'item' ? commandId : undefined, targetId: el('cbTarget').value || undefined, enemyTargetId:el('cbEnemyTarget').value || undefined }); } catch (_) {}
   }
   function attack(ultimate) {
     if (!allowed() || busy || missionBusy() || guestsBusy() || timing || selectionInFlight || !state || state.status !== 'active' || state.pending || window.wheelSpinning) return;
@@ -313,16 +313,24 @@
     else if (menu === 'attack') html = '<p><strong>Normal attack</strong> · ' + h.stats.damage + ' power · restores 10 MP. A correct answer rallies a resting hero.</p>';
     else if (menu === 'skill') {
       var skills = Core.availableSkills(h);
-      html = skills.map(function (s) { var cooldown = (h.cooldowns || {})[s.id] || 0, unavailable = cooldown > 0 || (h.mp || 0) < s.mpCost; return button('<span class="cbPixelIcon">' + pixelIcon(s) + '</span><span><strong>' + esc(s.name) + '</strong><small>' + esc(s.description) + '</small><small>' + s.mpCost + ' MP' + (cooldown ? ' · wait ' + cooldown + ' turns' : '') + '</small></span>', 'data-command="' + esc(s.id) + '" aria-pressed="' + (commandId === s.id) + '"', locked || unavailable); }).join('') || '<p>No active skills learned. Click this hero to explore their skill tree.</p>';
+      html = skills.map(function (s) { var cooldown = (h.cooldowns || {})[s.id] || 0, unavailable = cooldown > 0 || (h.mp || 0) < s.mpCost; return button('<span class="cbPixelIcon">' + pixelIcon(s) + '</span><span><strong>' + esc(s.name) + '</strong><small>' + esc(Core.targetingLabel(s)) + ' · ' + esc(s.description) + '</small><small>' + s.mpCost + ' MP' + (cooldown ? ' · wait ' + cooldown + ' turns' : '') + '</small></span>', 'data-command="' + esc(s.id) + '" aria-pressed="' + (commandId === s.id) + '"', locked || unavailable); }).join('') || '<p>No active skills learned. Click this hero to explore their skill tree.</p>';
     } else {
       html = (h.inventory || []).filter(function (entry) { return itemInfo(entry).type === 'consumable' && entry.quantity > 0; }).map(function (entry) { var item = itemInfo(entry); return button((window.ClassroomBattleDisplay ? ClassroomBattleDisplay.itemIcon(item) : '<span class="cbPixelIcon">◆</span>') + '<span><strong>' + esc(item.name) + ' ×' + entry.quantity + '</strong><small>' + esc(item.description) + '</small></span>', 'data-command="' + esc(entry.id) + '" aria-pressed="' + (commandId === entry.id) + '"', locked); }).join('') || '<p>No consumables left. Defeat enemies to find more treasure.</p>';
     }
     el('cbCommandOptions').innerHTML = html;
     var oldTarget = el('cbTarget').value;
     el('cbTargetWrap').hidden = !h || menu === 'attack';
-    el('cbTarget').innerHTML = (state ? state.heroes : []).map(function (hero) { return '<option value="' + esc(hero.id) + '">' + esc(hero.name) + ' · ' + hero.hp + '/' + hero.stats.maxHp + ' HP</option>'; }).join('');
+    el('cbTarget').innerHTML = (state ? Core.combatHeroes(state) : []).map(function (hero) { return '<option value="' + esc(hero.id) + '">' + esc(hero.name) + ' · ' + hero.hp + '/' + hero.stats.maxHp + ' HP</option>'; }).join('');
     if (state && state.heroes.some(function (hero) { return hero.id === oldTarget; })) el('cbTarget').value = oldTarget; else if (h) el('cbTarget').value = h.id;
+    var selectedSkill=menu==='skill' && Core.skillById(commandId),effect=selectedSkill && selectedSkill.effect;
+    el('cbTargetWrap').hidden=!h || menu==='attack' || menu==='skill' && !(effect && (effect.heal || effect.mana || effect.cleanse && !effect.healAll));
+    if(!el('cbTarget').value && h)el('cbTarget').value=h.id;
     el('cbTarget').disabled = locked;
+    var oldEnemy=el('cbEnemyTarget').value,enemies=state?Core.enemiesFor(state).filter(function(e){return e.hp>0;}):[];
+    el('cbEnemyTargetWrap').hidden=!h || enemies.length<2 || menu==='skill' && (!selectedSkill || selectedSkill.damageTarget!=='single') || menu==='item';
+    el('cbEnemyTarget').innerHTML=enemies.map(function(e){return '<option value="'+esc(e.id)+'">'+esc(Core.bossById(e.bossId).name)+' · '+e.hp+' HP</option>';}).join('');
+    if(enemies.some(function(e){return e.id===oldEnemy;}))el('cbEnemyTarget').value=oldEnemy;
+    el('cbEnemyTarget').disabled=locked;
     el('cbCorrect').disabled = locked || menu !== 'attack' && !commandId;
   }
   function journalAdvancement(h, locked) {
@@ -394,16 +402,16 @@
     el('cbSaveStatus').classList.toggle('cbSaveError', !!error);
     el('cbEncounterStatus').textContent = state ? (state.status === 'victory' ? '★ VICTORY' : state.status === 'defeat' ? 'ENCOUNTER COMPLETE' : 'ENCOUNTER IN PROGRESS') : 'READY WHEN YOU ARE';
     if (window.ClassroomBattleDisplay) el('cbEncounterStatus').textContent += ' · ' + ClassroomBattleDisplay.rotation(state);
-    el('cbTeamCount').textContent = heroes.length + ' heroes';
+    el('cbTeamCount').textContent = state && state.teamSize>1 ? state.teamSize+'v'+state.teamSize+' · highlighted heroes attack together' : heroes.length + ' heroes';
     el('cbHeroes').innerHTML = heroes.length ? heroes.map(function (h) {
       var role = {name:heroClassName(h)}, stats = h.stats || {}, hp = state ? h.hp : stats.maxHp;
       var ratio = Math.max(0, Math.min(100, hp / (stats.maxHp || 1) * 100));
-      return '<button type="button" class="cbHero ' + (selected && selected.id === h.id ? 'cbSelected ' : '') + (hp <= 0 ? 'cbResting' : '') + '" data-hero-id="' + esc(h.id) + '" data-inspect="' + esc(h.id) + '" aria-label="' + esc(h.name + ', ' + role.name + ', ' + hp + ' HP. Open skills and inventory') + '">' + avatar(h) + '<strong class="cbHeroName">' + esc(h.name) + '</strong><span class="cbRoleName">' + role.name + ' · LV ' + (h.level || 1) + '</span><div class="cbHp"><span style="width:' + ratio + '%"></span></div><span class="cbHeroHp">' + hp + ' / ' + stats.maxHp + (hp <= 0 ? ' · resting' : '') + '</span>' + (h.weakened ? '<span class="cbCondition">Weakened</span>' : '') + '</button>';
+      return '<button type="button" class="cbHero ' + (state && state.teamSize>1 && state.teamHeroIds.includes(h.id)?'cbTeamActive ':'') + (selected && selected.id === h.id ? 'cbSelected ' : '') + (hp <= 0 ? 'cbResting' : '') + '" data-hero-id="' + esc(h.id) + '" data-inspect="' + esc(h.id) + '" aria-label="' + esc(h.name + ', ' + role.name + ', ' + hp + ' HP. Open skills and inventory') + '">' + avatar(h) + '<strong class="cbHeroName">' + esc(h.name) + '</strong><span class="cbRoleName">' + role.name + ' · LV ' + (h.level || 1) + '</span><div class="cbHp"><span style="width:' + ratio + '%"></span></div><span class="cbHeroHp">' + hp + ' / ' + stats.maxHp + (hp <= 0 ? ' · resting' : '') + '</span>' + (h.weakened ? '<span class="cbCondition">Weakened</span>' : '') + '</button>';
     }).join('') : '<p class="cbEmpty">Choose a class to gather your heroes.</p>';
     bindAvatarFailures(el('cbHeroes'));
 
     if (b) {
-      if (el('cbBossArt').dataset.boss !== b.id) {
+      if (state.teamSize>1) {el('cbBossArt').dataset.boss='team';el('cbBossArt').innerHTML=ClassroomBattleDisplay.enemyTeam(state);} else if (el('cbBossArt').dataset.boss !== b.id) {
         el('cbBossArt').dataset.boss = b.id;
         el('cbBossArt').innerHTML = window.ClassroomBattleDisplay ? ClassroomBattleDisplay.enemyArt(b,'cbBossImage') : '<img src="' + esc(b.image) + '" alt="' + esc(b.name) + ' pixel enemy" id="cbBossImage">';
         el('cbBossImage').onerror = function () { el('cbBossArt').innerHTML = '<span class="cbMystery" aria-label="Boss artwork unavailable">♜</span>'; };
@@ -431,6 +439,14 @@
       el('cbChargeText').textContent = '—'; el('cbUltimateName').textContent = 'Ultimate charge';
       el('cbBossIntent').textContent = 'The teacher chooses when the boss attacks.';
     }
+    if(state && state.teamSize>1){
+      el('cbBossName').textContent=state.teamSize+'v'+state.teamSize+' team battle';
+      el('cbBossTag').textContent='TEAM ENCOUNTER · '+Core.enemiesFor(state).filter(function(e){return e.hp>0;}).length+' enemies standing';
+      el('cbBossStyle').textContent='Single-target skills focus one enemy. AoE damage hits every standing enemy; AoE healing restores the highlighted student team.';
+      el('cbBossIntent').textContent='Enemy team attacks together · alternating single-target and AoE attacks · shared MP and ultimate charge.';
+      el('cbAttack').textContent='Enemy team attack';el('cbUltimate').textContent='Enemy team ultimate · '+state.charge+'/'+b.chargeMax;
+    }
+    el('cbFormation').disabled=locked;
     el('cbBossGuard').hidden = !(state && state.guard);
     el('cbBoss').classList.toggle('cbDefeated', !!state && state.status === 'victory');
     el('cbFeedback').textContent = feedback();
@@ -488,7 +504,7 @@
       if (window.ClassroomBattleAnimation && ClassroomBattleAnimation.playArena) {
         var actor = state && state.heroes.find(function (h) { return h.id === event.heroId; });
         if (actor) {
-          var player = ClassroomBattleAnimation.playArena(el('cbArena'), { hero:actor, event:event, heroActor:heroNode(actor.id), enemyActor:el('cbBossArt'), findHero:heroNode });
+          var player = ClassroomBattleAnimation.playArena(el('cbArena'), { hero:actor, event:event, heroActor:heroNode(actor.id), enemyActor:el('cbBossArt'), findHero:heroNode, heroes:state.heroes });
           arenaPlayer = player;
           player.finished.then(function () { if (arenaPlayer === player) arenaPlayer = null; });
           return;
@@ -508,7 +524,7 @@
         var area = document.createElement('div'); area.className = 'cbAreaAttack'; el('cbEffects').appendChild(area);
         var wave = area.animate([{ transform: 'scale(.2)', opacity: 0 }, { opacity: .75, offset: .25 }, { transform: 'scale(2)', opacity: 0 }], { duration: 950 }); wave.onfinish = function () { area.remove(); };
       }
-      (event.targets || []).forEach(function (h, i) { var node = heroNode(h.heroId), at = center(node); if (at) { particle(event.ultimate ? '✹' : '◆', destination, at, 'cbBossProjectile', i * 65); particle('−' + h.damage, at, { x: at.x, y: at.y - 45 }, 'cbDamage', 550 + i * 65); impact(node, false); } });
+      (event.targets || []).forEach(function (h, i) { var node = heroNode(h.heroId), at = center(node), origin=h.enemyId?center(Array.from(el('cbBossArt').querySelectorAll('[data-enemy-id]')).find(function(n){return n.dataset.enemyId===h.enemyId;})):destination; if (at) { particle(event.ultimate ? '✹' : '◆', origin, at, 'cbBossProjectile', 0); particle('−' + h.damage, at, { x: at.x, y: at.y - 45 }, 'cbDamage', 550 + i * 65); impact(node, false); } });
       if (event.bossHealed) particle('+' + event.bossHealed + ' ✚', destination, { x: destination.x, y: destination.y - 60 }, 'cbHealing', 350);
     }
   }

@@ -98,13 +98,13 @@
     const rotation={version:1,round:int(saved?.round || 1,1,1000000),seen:[...new Set((Array.isArray(saved?.seen)?saved.seen:[]).filter(id=>playable.has(id)))]};
     // Existing encounters already showed their current enemy. Count it once
     // when introducing rotations or reconciling an older six-enemy catalogue.
-    if (playable.has(previous?.bossId) && !rotation.seen.includes(previous.bossId)) rotation.seen.push(previous.bossId);
+    if (!previous?.teamVersion && playable.has(previous?.bossId) && !rotation.seen.includes(previous.bossId)) rotation.seen.push(previous.bossId);
     return rotation;
   }
-  function nextBoss(previous,seed) {
+  function nextBoss(previous,seed,exclude=[]) {
     const rotation=bossRotationFor(previous),playable=BOSSES.filter(b=>!b.legacy);
     if (!playable.length) fail('No playable enemies. Reload the app.');
-    const remaining=playable.filter(b=>!rotation.seen.includes(b.id)),pool=remaining.length?remaining:playable;
+    const remaining=playable.filter(b=>!rotation.seen.includes(b.id)),pool=(remaining.length?remaining:playable).filter(b=>!exclude.includes(b.id));
     return pool[Math.floor(randomUnit(String(seed)+':enemy')*pool.length)];
   }
   function rotationAfterStart(previous,boss) {
@@ -129,6 +129,60 @@
       xp:(1+ENEMY_SCALING.xpPerLevel*(level-1))*(state?.adventure?.kind==='uber'?1.6:1),
       hitCap:scaled?Math.max(1,Math.round((state.bossMaxHp || 1)*ENEMY_SCALING.hitShare)):Infinity,
       poisonCap:scaled?Math.max(1,Math.round((state.bossMaxHp || 1)*ENEMY_SCALING.poisonShare)):Infinity};
+  }
+  // Old encounters have no enemies array and keep their original raid rules.
+  const RUNE_BONUS_CHANCE=.5;
+  function enemiesFor(state) {
+    return state?.enemies || (state ? [{id:state.bossId,bossId:state.bossId,hp:state.bossHp,maxHp:state.bossMaxHp}] : []);
+  }
+  function combatHeroes(state) {
+    return state?.teamSize>1 ? state.heroes.filter(h=>(state.teamHeroIds || []).includes(h.id)) : state.heroes;
+  }
+  function setTeam(state,heroId) {
+    if (!(state.teamSize>1)) return;
+    const lead=state.heroes.find(h=>h.id===heroId),others=state.heroes.filter(h=>h.id!==heroId && h.hp>0);
+    const offset=others.length?state.correctCount%others.length:0;
+    state.teamHeroIds=[...(lead?[lead.id]:[]),...others.slice(offset).concat(others.slice(0,offset)).slice(0,state.teamSize-(lead?1:0)).map(h=>h.id)];
+  }
+  function syncEnemyHp(state) {
+    if(state.enemies) state.bossHp=state.enemies.reduce((n,e)=>n+e.hp,0);
+  }
+  function hitEnemy(state,enemy,damage) {
+    const dealt=Math.min(enemy.hp,Math.max(0,damage));
+    if(state.enemies){enemy.hp-=dealt;syncEnemyHp(state);}else state.bossHp-=dealt;
+    return dealt;
+  }
+  function tickDamage(state,ailment,cap) {
+    let dealt=0;
+    for(const enemy of enemiesFor(state).filter(e=>e.hp>0 && (!ailment.enemyIds || ailment.enemyIds.includes(e.id)))){
+      dealt+=hitEnemy(state,enemy,Math.min(cap-dealt,Math.max(0,ailment.damage)));
+    }
+    return dealt;
+  }
+  function startFormation(state,previous,seed,choice) {
+    if(choice!==undefined && !['auto','raid','2v2','3v3'].includes(choice)) fail('Choose a valid encounter formation.');
+    const roll=randomUnit(seed+':formation'),size=choice==='raid'?1:choice==='2v2'?2:choice==='3v3'?3:roll<.15?3:roll<.4?2:1;
+    if(size>state.heroes.length && choice && choice!=='auto')fail('Add enough students for that team formation.');
+    if(size<2 || state.heroes.length<size)return state;
+    state.teamSize=size;state.teamVersion=1;
+    const total=state.bossMaxHp,rotation=state.bossRotation;
+    state.enemies=[{id:state.bossId,bossId:state.bossId,hp:0,maxHp:0}];
+    for(let i=1;i<size;i++){
+      const boss=nextBoss({bossRotation:rotation,bossId:state.enemies.at(-1).bossId},seed+':ally:'+i,state.enemies.map(e=>e.bossId));
+      const next=rotationAfterStart({bossRotation:rotation},boss);
+      rotation.round=next.round;rotation.seen=next.seen;
+      state.enemies.push({id:boss.id,bossId:boss.id,hp:0,maxHp:0});
+    }
+    // Split the encounter's health budget, so extra enemies do not multiply grind.
+    state.enemies.forEach((enemy,i)=>{enemy.maxHp=Math.floor(total/size)+(i<total%size?1:0);enemy.hp=enemy.maxHp;});
+    setTeam(state,state.heroes[0].id);return state;
+  }
+  function targetingLabel(skill) {
+    if(skill.passive)return 'Passive';
+    const labels=[];
+    if(skill.damageTarget)labels.push(skill.damageTarget==='aoe'?'AoE damage':'Single-target damage');
+    if(skill.healTarget)labels.push(skill.healTarget==='aoe'?'AoE healing':'Single-target healing');
+    return labels.join(' · ') || (skill.supportTarget==='aoe'?'AoE support':'Single-target support');
   }
   function xpForLevel(level) { return 75 * (int(level,1,50)-1) * int(level,1,50) / 2; }
   function levelForXp(xp) { let level=1; while (level<50 && xp>=xpForLevel(level+1)) level++; return level; }
@@ -423,6 +477,15 @@
       const equipped=autoEquip(hero);if(equipped){reward.autoEquipped=equipped;reward.autoEquippedName=itemById(equipped).name;}
       state.rewards.push(reward);
     });
+    state.heroes.forEach(hero=>{
+      const seed=state.encounterId+':'+hero.id+':bonus-rune';
+      if(randomUnit(seed+':drop')>=RUNE_BONUS_CHANCE)return;
+      const rarityRoll=randomUnit(seed+':rarity')*100;let sum=0,rarity='common';
+      for(const key of Object.keys(RARITIES)){sum+=RARITIES[key].weight;if(rarityRoll<sum){rarity=key;break;}}
+      const pool=Object.values(ITEMS).filter(i=>i.type==='rune' && i.rarity===rarity),item=pool[Math.floor(randomUnit(seed+':item')*pool.length)];
+      addInventory(hero,item.id);
+      state.rewards.push({heroId:hero.id,itemId:item.id,instanceId:seed,rarity:item.rarity,name:item.name,description:item.description,xp:0,source:'bonus-rune'});
+    });
     event.rewards=state.rewards;
   }
   function finish(state,event) {
@@ -449,14 +512,14 @@
     const afflicted=(type,amount)=>{if(amount>0)(event.afflicted || (event.afflicted=[])).push({effect:type,amount});};
     const shield=(h,amount)=>{const before=h.shield;h.shield=Math.min(h.stats.maxHp,h.shield+amount);supported(h,'shield',h.shield-before);};
     if (effect.heal) heal(target,scaled(target.stats.maxHp*effect.heal),event);
-    if (effect.healAll) state.heroes.forEach(h=>heal(h,scaled(h.stats.maxHp*effect.healAll*boost),event));
+    if (effect.healAll) combatHeroes(state).forEach(h=>heal(h,scaled(h.stats.maxHp*effect.healAll*boost),event));
     if (effect.mana) supported(target,'mana',restoreMana(target,scaled(effect.mana)));
-    if (effect.manaAll) state.heroes.forEach(h=>supported(h,'mana',restoreMana(h,scaled(effect.manaAll))));
-    if (effect.shield) state.heroes.forEach(h=>shield(h,scaled(h.stats.maxHp*effect.shield)));
+    if (effect.manaAll) combatHeroes(state).forEach(h=>supported(h,'mana',restoreMana(h,scaled(effect.manaAll))));
+    if (effect.shield) combatHeroes(state).forEach(h=>shield(h,scaled(h.stats.maxHp*effect.shield)));
     if (effect.shieldSelf) shield(hero,scaled(hero.stats.maxHp*effect.shieldSelf));
-    if (effect.cleanse) (effect.healAll?state.heroes:[target]).forEach(h=>{if(h.weakened)supported(h,'cleanse',1);h.weakened=false;});
+    if (effect.cleanse) (effect.healAll?combatHeroes(state):[target]).forEach(h=>{if(h.weakened)supported(h,'cleanse',1);h.weakened=false;});
     if (effect.weakenBoss) {const before=state.bossWeakness || 0;state.bossWeakness=Math.max(before,effect.weakenBoss);afflicted('weaken',state.bossWeakness-before);}
-    if (effect.poison) {state.poison={turns:effect.poison,damage:Math.min(enemyScale(state).poisonCap,scaled(hero.stats.damage*.35)),heroId:hero.id};afflicted('poison',state.poison.damage);}
+    if (effect.poison) {state.poison={turns:effect.poison,damage:Math.min(enemyScale(state).poisonCap,scaled(hero.stats.damage*.35)),heroId:hero.id,...(state.enemies?{enemyIds:event.enemyTargets?.map(t=>t.enemyId) || enemiesFor(state).filter(e=>e.hp>0).map(e=>e.id)}:{})};afflicted('poison',state.poison.damage);}
     if (effect.expose) Object.entries(effect.expose).forEach(([channel,value])=>{
       if (!['physical','elemental'].includes(channel)) return;
       const before=state.exposures[channel] || {amount:0,turns:0};
@@ -464,7 +527,7 @@
       state.exposures[channel]={amount,turns,heroId:!before.heroId || clamp(value.amount,0,.5)>=before.amount?hero.id:before.heroId};
       if(amount>before.amount || turns>before.turns)(event.afflicted || (event.afflicted=[])).push({effect:channel+' defence break',amount,turns,heroId:hero.id});
     });
-    if (effect.haste) state.heroes.forEach(h=>{let turns=0;Object.keys(h.cooldowns).forEach(id=>{if(h.id!==hero.id || id!==event.skillId){const before=h.cooldowns[id];h.cooldowns[id]=Math.max(0,before-effect.haste);turns+=before-h.cooldowns[id];}});supported(h,'haste',turns);});
+    if (effect.haste) combatHeroes(state).forEach(h=>{let turns=0;Object.keys(h.cooldowns).forEach(id=>{if(h.id!==hero.id || id!==event.skillId){const before=h.cooldowns[id];h.cooldowns[id]=Math.max(0,before-effect.haste);turns+=before-h.cooldowns[id];}});supported(h,'haste',turns);});
   }
   function relicSupport(state,hero,gear,effect,event) {
     support(state,hero,{shieldSelf:gear.selfWard || 0},event,hero);
@@ -478,7 +541,7 @@
     for(const [type,amount] of [['burn',Math.max(gear.burn || 0,effect.burn || 0)],['venom',gear.venom || 0]]) {
       if(!amount)continue;
       const prior=state.ailments[type],damage=Math.min(enemyScale(state).poisonCap,Math.max(1,Math.round(hero.stats.damage*amount)));
-      state.ailments[type]={turns:Math.max(prior?.turns || 0,3),damage:Math.max(prior?.damage || 0,damage),heroId:!prior || damage>=prior.damage?hero.id:prior.heroId};
+      state.ailments[type]={turns:Math.max(prior?.turns || 0,3),damage:Math.max(prior?.damage || 0,damage),heroId:!prior || damage>=prior.damage?hero.id:prior.heroId,...(state.enemies?{enemyIds:event.enemyTargets?.map(t=>t.enemyId) || []}:{})};
       (event.afflicted || (event.afflicted=[])).push({effect:type,amount:damage});
     }
   }
@@ -503,6 +566,7 @@
     state.heroes=state.heroes.map(migrate);
     state.heroArchive=Object.fromEntries(Object.values(state.heroArchive || {}).map(h=>{migrate(h);return [h.id,h];}));
     const identity=id=>migrated.get(id) || id;
+    if(state.teamHeroIds){state.teamHeroIds=state.teamHeroIds.map(identity).filter(id=>state.heroes.some(h=>h.id===id));if(state.teamHeroIds.length<Math.min(state.teamSize,state.heroes.length))setTeam(state,state.pending?.heroId || state.teamHeroIds[0] || state.heroes[0]?.id);}
     if (state.pending) state.pending.heroId=identity(state.pending.heroId);
     if (state.poison) state.poison.heroId=identity(state.poison.heroId);
     (state.rewards || []).forEach(r=>{r.heroId=identity(r.heroId);});
@@ -529,28 +593,30 @@
   // Pick only learned, affordable, ready skills. Support becomes valuable when
   // allies need it; otherwise a normal attack restores MP instead of wasting it.
   function chooseAutoCommand(state, hero) {
-    const hurt=state.heroes.filter(h=>h.hp/h.stats.maxHp<.7), fallen=state.heroes.filter(h=>h.hp<=0);
+    const hurt=combatHeroes(state).filter(h=>h.hp/h.stats.maxHp<.7), fallen=combatHeroes(state).filter(h=>h.hp<=0);
+    const patient=[...combatHeroes(state)].sort((a,b)=>a.hp/a.stats.maxHp-b.hp/b.stats.maxHp)[0] || hero;
     const candidates=availableSkills(hero).filter(s=>hero.mp>=s.mpCost && !(hero.cooldowns[s.id]>0));
     const rated=candidates.map(skill=>{
       const e=skill.effect;
       let score=(e.power || 0)+(e.damage || 0)/Math.max(1,hero.stats.damage);
+      if(skill.damageTarget==='aoe') score*=Math.max(1,enemiesFor(state).filter(e=>e.hp>0).length)*.85;
       if (e.guaranteedCrit) score*=hero.stats.critMultiplier;
       score+=(e.pierce || 0)*.3;
-      if (e.healAll && hurt.length) score+=4+e.healAll*3+fallen.length*2;
-      if (e.heal && hero.hp/hero.stats.maxHp<.7) score+=4+e.heal*3;
-      if (e.shield && state.heroes.some(h=>h.hp>0 && h.shield<h.stats.maxHp*.1)) score+=1+e.shield;
+      if (e.healAll && hurt.length) score+=4+e.healAll*3+fallen.length*2+Math.max(0,hurt.length-1)*3;
+      if (e.heal && patient.hp/patient.stats.maxHp<.7) score+=4+e.heal*3;
+      if (e.shield && combatHeroes(state).some(h=>h.hp>0 && h.shield<h.stats.maxHp*.1)) score+=1+e.shield;
       if (e.weakenBoss) score+=e.weakenBoss;
       if (e.poison && !state.poison) score+=.3;
       const build=buildFor(hero),channel=damageTypeFor(hero,skill)==='physical'?'physical':'elemental';
       score*=1+build[channel+'Bonus'];
       if (state.exposures[channel]?.turns>0) score*=1+state.exposures[channel].amount+build.exposureBonus;
       if (e.expose) Object.entries(e.expose).forEach(([type,value])=>{
-        const ready=state.heroes.filter(h=>h.hp>0 && h.id!==hero.id && (availableSkills(h).some(s=>damageTypeFor(h,s)==='physical'?type==='physical':type==='elemental') || (buildFor(h).basicType==='physical'?type==='physical':type==='elemental'))).length;
+        const ready=combatHeroes(state).filter(h=>h.hp>0 && h.id!==hero.id && (availableSkills(h).some(s=>damageTypeFor(h,s)==='physical'?type==='physical':type==='elemental') || (buildFor(h).basicType==='physical'?type==='physical':type==='elemental'))).length;
         if(ready && (!state.exposures[type] || state.exposures[type].turns<=1))score+=2+Math.min(3,ready)*value.amount;
       });
       return {skill,score};
     }).sort((a,b)=>b.score-a.score || a.skill.id.localeCompare(b.skill.id));
-    return rated.length && rated[0].score>1 ? {command:'skill',skillId:rated[0].skill.id} : {command:'attack'};
+    return rated.length && rated[0].score>1 ? {command:'skill',skillId:rated[0].skill.id,targetId:patient.id} : {command:'attack'};
   }
   function autoTurn(previous, action) {
     if (typeof action.spinId!=='string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(action.spinId)) fail('Quick fights require the saved wheel spin ID.');
@@ -560,13 +626,14 @@
     if (previous && action.expectedRevision!==previous.revision) fail('The encounter changed on another screen. Try awarding points again.');
     let state=previous?normalizeState(previous):null;
     if (!state || state.status!=='active') {
-      state=reduce(state,{type:'start',id:action.id,spinId:action.spinId,expectedRevision:state && state.revision,heroes:action.heroes,bossId:action.bossId});
+      state=reduce(state,{type:'start',id:action.id,spinId:action.spinId,expectedRevision:state && state.revision,heroes:action.heroes,bossId:action.bossId,formation:action.formation});
     } else if (action.encounterId!==state.encounterId) fail('This encounter has changed. Reload its latest progress.');
     if (Array.isArray(action.heroes) && action.heroes.length) {
       const fresh=roster(action.heroes,state); state.heroArchive=archiveFor(state,fresh); state.heroes=fresh;
     }
     const hero=state.heroes.find(h=>h.id===action.heroId);
     if (!hero) fail('This student is no longer in the encounter. Open Battle to refresh the party.');
+    setTeam(state,hero.id);
     const command=chooseAutoCommand(state,hero);
     state.pending={id:action.spinId,heroId:hero.id};
     state=apply(state,{...command,type:'answer',id:action.id,encounterId:state.encounterId,turnId:action.spinId,outcome:'correct'},action.points);
@@ -588,6 +655,71 @@
       healed:[...(heroEvent.healed || []),...(enemyEvent && enemyEvent.healed || [])],rewards:state.status==='victory'?state.rewards:[]};
     return state;
   }
+  function heroAction(state,hero,action,event,points) {
+    let effect={power:1}, skill=null, itemEntry=null;
+    const gear=equipmentEffect(hero), target=action.targetId?state.heroes.find(h=>h.id===action.targetId):hero;
+    if (!target || state.teamSize>1 && !combatHeroes(state).some(h=>h.id===target.id)) fail('Choose a teammate in this encounter.');
+    if (event.command==='skill') {
+      skill=skillById(action.skillId);
+      if (!activeSkill(hero,skill) || skill.passive || (!skill.itemSkill && !hero.learnedSkills.includes(skill.id))) fail('Learn that active skill first.');
+      if ((hero.cooldowns[skill.id] || 0)>0) fail('That skill is cooling down. Use another command.');
+      if (hero.mp<skill.mpCost) fail('Not enough MP. Attack to recover MP or use an Ether.');
+      effect=skill.effect; event.skillId=skill.id; event.move=skill.name;
+    } else if (event.command==='item') {
+      itemEntry=hero.inventory.find(i=>i.id===action.itemId && i.quantity>0);
+      const item=itemEntry && itemById(itemEntry.itemId);
+      if (!item || item.type!=='consumable') fail('Choose a consumable from this hero’s inventory.');
+      if(item.giftSkill && (hero.giftSkills || []).includes(item.giftSkill)) fail('This hero already knows that unique gift. Save it for another adventure.');
+      effect=item.effect; event.itemId=item.id; event.move=item.name;
+      if(item.giftSkill){hero.giftSkills=[...(hero.giftSkills || []),item.giftSkill];refreshStats(hero);event.giftSkill=item.giftSkill;}
+    } else if (event.command!=='attack') fail('Choose Attack, Skills or Items.');
+    if (hero.hp<=0) heal(hero,hero.stats.maxHp*.25,event);
+    Object.keys(hero.cooldowns).forEach(id=>{hero.cooldowns[id]=Math.max(0,hero.cooldowns[id]-1);});
+    if (skill) {hero.mp-=skill.mpCost;hero.cooldowns[skill.id]=skill.cooldown;}
+    if (itemEntry) {itemEntry.quantity--;hero.inventory=hero.inventory.filter(i=>i.quantity>0);}
+    const restore=(h,amount)=>{const actual=restoreMana(h,amount);if(actual>0)(event.supported||(event.supported=[])).push({heroId:h.id,effect:'mana',amount:actual});};
+    if (event.command==='attack') restore(hero,10);
+    restore(hero,gear.manaRegen || 0);
+    if (effect.power || effect.damage) {
+      const living=enemiesFor(state).filter(e=>e.hp>0);
+      const chosen=action.enemyTargetId?living.find(e=>e.id===action.enemyTargetId):living[0];
+      if(!chosen)fail('Choose a living enemy in this encounter.');
+      const enemyTargets=skill?.damageTarget==='aoe'?living:[chosen];
+      event.enemyTargets=[];
+      const exposures=copy(state.exposures);
+      for(const enemy of enemyTargets){
+        const boss=bossById(enemy.bossId);
+
+        event.critical=!!effect.power && (!!effect.guaranteedCrit || randomUnit(state.encounterId+':'+action.turnId)<hero.stats.critChance);
+        const scale=enemyScale(state),build=buildFor(hero),damageType=damageTypeFor(hero,skill),channel=damageType==='physical'?'physical':'elemental';
+        const exposure=exposures[channel],broken=!!(exposure && exposure.turns>0);
+        const armour=Math.max(-.5,(boss.defence+scale.armour)*(1-Math.max(effect.pierce || 0,gear.pierce || 0,Math.min(.75,build[channel+'Pierce'])))-(broken?exposure.amount:0));
+        const echo=gear.echo && (hero.correctActions+1)%3===0?2:1;
+        const raw=(effect.damage || hero.stats.damage*effect.power*(event.critical?hero.stats.critMultiplier:1)*(1-armour)*(hero.weakened?.7:1)*(state.guard && !gear.ignoreGuard?.6:1))*echo*(1+build[channel+'Bonus'])*(broken?1+build.exposureBonus:1);
+        event.damageType=damageType;event.infused=event.command==='attack' && !!weaponElement(hero);event.synergy=broken?{channel,amount:exposure.amount,sourceHeroId:exposure.heroId}:null;
+
+        const dealt=Math.max(1,Math.round(raw))*points;
+        const hitCap=state.enemies?Math.max(1,Math.round(enemy.maxHp*ENEMY_SCALING.hitShare)):scale.hitCap;
+        const damage=hitEnemy(state,enemy,Math.min(dealt,hitCap));event.damage+=damage;event.echo=echo===2;
+        event.enemyTargets.push({enemyId:enemy.id,damage});
+        if (dealt>hitCap && damage===hitCap) event.capped=true;
+
+        if (effect.leech || gear.leech) heal(hero,damage*((effect.leech || 0)+(gear.leech || 0)),event);
+        if (boss.playstyle==='reflect' && (state.enemies?enemy.hp:state.bossHp)>0) {
+          const reflected=Math.min(hero.hp,Math.max(1,Math.round(damage*.12)));
+          hero.hp-=reflected;event.targets.push({heroId:hero.id,damage:reflected});event.effect='reflect';
+        }
+      }
+      if (gear.teamLeech) combatHeroes(state).forEach(h=>heal(h,Math.round(h.stats.maxHp*gear.teamLeech)*points,event));
+      if (gear.teamMana) combatHeroes(state).forEach(h=>restore(h,gear.teamMana*points));
+      hero.correctActions++;state.guard=false;
+      Object.keys(state.exposures).forEach(key=>{if(--state.exposures[key].turns<=0)delete state.exposures[key];});
+    }
+    support(state,hero,effect,event,target,points);
+    relicSupport(state,hero,gear,effect,event);
+    adventureDiscovery(state,hero,event);
+    hero.weakened=false; addXp(hero,12);
+  }
   function apply(previous,action,points=1) {
     if (!action || typeof action.id!=='string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(action.id)) fail('Invalid battle action.');
     const event={id:action.id,type:action.type,healed:[],targets:[]};
@@ -600,10 +732,10 @@
       const adventure=adventureFor(previous,action.spinId || action.id);
       const enemyLevel=enemyLevelFor(heroes),scale=enemyScale({enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,adventure});
       const bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)*scale.hp)/2));
-      return {schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
+      return startFormation({schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
         enemyHealthVersion:ENEMY_HEALTH_VERSION,enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,bossRotation:rotationAfterStart(previous,boss),adventure,exposures:{},
         bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
-        bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,ailments:{},exposures:{},rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)};
+        bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,ailments:{},exposures:{},rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)},previous,action.spinId || action.id,action.formation);
     }
     if (!previous || action.encounterId!==previous.encounterId) fail('This encounter has changed. Reload its latest progress.');
     const state=normalizeState(previous), boss=bossById(state.bossId);
@@ -619,6 +751,7 @@
       } else {
         const fresh=roster(action.heroes,state);
         state.heroArchive=archiveFor(state,fresh); state.heroes=fresh;
+        if(state.teamSize>1)setTeam(state,state.pending?.heroId || state.teamHeroIds?.find(id=>fresh.some(h=>h.id===id)) || fresh[0].id);
         if (state.pending && !state.heroes.some(h=>h.id===state.pending.heroId)) state.pending=null;
         if (state.enemyHealthVersion===previous.enemyHealthVersion && JSON.stringify(state.bossRotation)===JSON.stringify(previous.bossRotation) && JSON.stringify(state.heroes)===JSON.stringify(previous.heroes) && JSON.stringify(state.pending)===JSON.stringify(previous.pending)) return previous;
       }
@@ -634,12 +767,13 @@
       if (action.expectedRevision!==state.revision) fail('The encounter changed. Try the summon again.');
       if (!['reward','teacher'].includes(action.source)) fail('Choose a class summon reward or teacher help.');
       Object.assign(event,{actorName:'One-Punch Chung',move:'One Huge Punch',damage:state.bossHp,source:action.source,outcome:'victory'});
-      state.bossHp=0;state.pending=null;return finish(state,event);
+      if(state.enemies)state.enemies.forEach(e=>{e.hp=0;});state.bossHp=0;state.pending=null;return finish(state,event);
     }
     if (action.type==='select') {
       if (state.pending) fail('Resolve the selected answer before spinning again.');
       if (action.expectedRevision!==state.revision) fail('The class changed on another screen. Spin again.');
       const hero=state.heroes.find(h=>h.id===action.heroId); if (!hero) fail('This student is no longer in the class.');
+      setTeam(state,hero.id);
       state.pending={id:action.turnId || action.id,heroId:hero.id}; event.heroId=hero.id; return finish(state,event);
     }
     if (action.type==='answer') {
@@ -648,56 +782,20 @@
       const hero=state.heroes.find(h=>h.id===state.pending.heroId);
       Object.assign(event,{heroId:hero.id,role:hero.role,job:hero.job || null,outcome:action.outcome,damage:0,critical:false,command:action.command || 'attack'});
       if (action.outcome==='correct') {
-        let effect={power:1}, skill=null, itemEntry=null;
-        const gear=equipmentEffect(hero), target=action.targetId?state.heroes.find(h=>h.id===action.targetId):hero;
-        if (!target) fail('Choose a teammate in this encounter.');
-        if (event.command==='skill') {
-          skill=skillById(action.skillId);
-          if (!activeSkill(hero,skill) || skill.passive || (!skill.itemSkill && !hero.learnedSkills.includes(skill.id))) fail('Learn that active skill first.');
-          if ((hero.cooldowns[skill.id] || 0)>0) fail('That skill is cooling down. Use another command.');
-          if (hero.mp<skill.mpCost) fail('Not enough MP. Attack to recover MP or use an Ether.');
-          effect=skill.effect; event.skillId=skill.id; event.move=skill.name;
-        } else if (event.command==='item') {
-          itemEntry=hero.inventory.find(i=>i.id===action.itemId && i.quantity>0);
-          const item=itemEntry && itemById(itemEntry.itemId);
-          if (!item || item.type!=='consumable') fail('Choose a consumable from this hero’s inventory.');
-          if(item.giftSkill && (hero.giftSkills || []).includes(item.giftSkill)) fail('This hero already knows that unique gift. Save it for another adventure.');
-          effect=item.effect; event.itemId=item.id; event.move=item.name;
-          if(item.giftSkill){hero.giftSkills=[...(hero.giftSkills || []),item.giftSkill];refreshStats(hero);event.giftSkill=item.giftSkill;}
-        } else if (event.command!=='attack') fail('Choose Attack, Skills or Items.');
-        if (hero.hp<=0) heal(hero,hero.stats.maxHp*.25,event);
-        Object.keys(hero.cooldowns).forEach(id=>{hero.cooldowns[id]=Math.max(0,hero.cooldowns[id]-1);});
-        if (skill) {hero.mp-=skill.mpCost;hero.cooldowns[skill.id]=skill.cooldown;}
-        if (itemEntry) {itemEntry.quantity--;hero.inventory=hero.inventory.filter(i=>i.quantity>0);}
-        const restore=(h,amount)=>{const actual=restoreMana(h,amount);if(actual>0)(event.supported||(event.supported=[])).push({heroId:h.id,effect:'mana',amount:actual});};
-        if (event.command==='attack') restore(hero,10);
-        restore(hero,gear.manaRegen || 0);
-        if (effect.power || effect.damage) {
-          hero.correctActions++;
-          event.critical=!!effect.power && (!!effect.guaranteedCrit || randomUnit(state.encounterId+':'+action.turnId)<hero.stats.critChance);
-          const scale=enemyScale(state),build=buildFor(hero),damageType=damageTypeFor(hero,skill),channel=damageType==='physical'?'physical':'elemental';
-          const exposure=state.exposures[channel],broken=!!(exposure && exposure.turns>0);
-          const armour=Math.max(-.5,(boss.defence+scale.armour)*(1-Math.max(effect.pierce || 0,gear.pierce || 0,Math.min(.75,build[channel+'Pierce'])))-(broken?exposure.amount:0));
-          const echo=gear.echo && hero.correctActions%3===0?2:1;
-          const raw=(effect.damage || hero.stats.damage*effect.power*(event.critical?hero.stats.critMultiplier:1)*(1-armour)*(hero.weakened?.7:1)*(state.guard && !gear.ignoreGuard?.6:1))*echo*(1+build[channel+'Bonus'])*(broken?1+build.exposureBonus:1);
-          event.damageType=damageType;event.infused=event.command==='attack' && !!weaponElement(hero);event.synergy=broken?{channel,amount:exposure.amount,sourceHeroId:exposure.heroId}:null;
-          Object.keys(state.exposures).forEach(key=>{if(--state.exposures[key].turns<=0)delete state.exposures[key];});
-          const dealt=Math.max(1,Math.round(raw))*points;
-          event.damage=Math.min(state.bossHp,dealt,scale.hitCap); event.echo=echo===2;
-          if (dealt>scale.hitCap && event.damage===scale.hitCap) event.capped=true;
-          state.bossHp-=event.damage; state.guard=false;
-          if (effect.leech || gear.leech) heal(hero,event.damage*((effect.leech || 0)+(gear.leech || 0)),event);
-          if (gear.teamLeech) state.heroes.forEach(h=>heal(h,Math.round(h.stats.maxHp*gear.teamLeech)*points,event));
-          if (gear.teamMana) state.heroes.forEach(h=>restore(h,gear.teamMana*points));
-          if (boss.playstyle==='reflect' && state.bossHp>0) {
-            const damage=Math.min(hero.hp,Math.max(1,Math.round(event.damage*.12)));
-            hero.hp-=damage;event.targets.push({heroId:hero.id,damage});event.effect='reflect';
+        setTeam(state,hero.id);
+        heroAction(state,hero,action,event,points);
+        if(state.teamSize>1){
+          const actions=[copy(event)];
+          for(const ally of combatHeroes(state).filter(h=>h.id!==hero.id && h.hp>0)){
+            if(state.bossHp<=0)break;
+            const command=chooseAutoCommand(state,ally),part={id:action.id,type:'answer',outcome:'correct',heroId:ally.id,role:ally.role,job:ally.job || null,command:command.command,damage:0,critical:false,healed:[],targets:[]};
+            heroAction(state,ally,{...action,...command,turnId:action.turnId+':'+ally.id,enemyTargetId:undefined},part,1);actions.push(part);
+            event.damage+=part.damage;event.healed.push(...part.healed);event.targets.push(...part.targets);
+            for(const key of ['supported','afflicted'])if(part[key])event[key]=[...(event[key] || []),...part[key]];
           }
+          event.actions=actions;event.actorName=actions.map(a=>state.heroes.find(h=>h.id===a.heroId).name).join(' + ');event.move='Team attack';
         }
-        support(state,hero,effect,event,target,points);
-        relicSupport(state,hero,gear,effect,event);
-        adventureDiscovery(state,hero,event);
-        hero.weakened=false; state.correctCount++; addXp(hero,12);
+        state.correctCount++;
       }
       state.pending=null; return finish(state,event);
     }
@@ -711,27 +809,37 @@
       if (action.timing!==undefined && (!Number.isFinite(action.timing) || action.timing<0 || action.timing>1)) fail('Stop the timing meter inside the bar.');
       const timing=action.timing===undefined?.5:action.timing, multiplier=timingMultiplier(timing);
       const manaBefore=state.bossMp;state.bossMp=ultimate?state.bossMp-BOSS_SKILL_MP:Math.min(BOSS_MAX_MP,state.bossMp+BOSS_ATTACK_MP);
-      const living=state.heroes.filter(h=>h.hp>0),focus=living[state.bossTurns%living.length],targets=ultimate || boss.playstyle==='splash'?living:[focus];
+      const living=combatHeroes(state).filter(h=>h.hp>0);
+      const attackers=enemiesFor(state).filter(e=>e.hp>0);
+      if(!living.length)fail('Call a standing hero before the enemy team attacks.');
       Object.assign(event,{ultimate,manaBefore,manaAfter:state.bossMp,manaCost:ultimate?BOSS_SKILL_MP:0,manaRestored:ultimate?0:state.bossMp-manaBefore,move:ultimate?boss.ultimateName:boss.attackName,effect:boss.playstyle,timing,multiplier,zone:timing>=.85?'red':timing>=.55?'orange':'black'});
+      if(state.enemies)event.actions=[];
+      for(const [index,enemy] of attackers.entries()){
+        const boss=bossById(enemy.bossId),focus=living[(state.bossTurns+index)%living.length];
+        const aoe=ultimate || boss.playstyle==='splash' || state.teamSize>1 && (state.bossTurns+index)%2===1;
+        const targets=aoe?living:[focus],part={enemyId:enemy.id,move:ultimate?boss.ultimateName:boss.attackName,targeting:aoe?'aoe':'single',targets:[]};
       targets.forEach(h=>{
-        const scale=ultimate?1.4:boss.playstyle==='splash'?.6:1;
-        const raw=(18+h.stats.maxHp*.07)*boss.attackMultiplier*scale*enemyScale(state).attack;
+        const scale=ultimate?1.4:aoe?.6:boss.playstyle==='splash'?.6:1;
+        const raw=(18+h.stats.maxHp*.07)*boss.attackMultiplier*scale*enemyScale(state).attack/(state.teamSize || 1);
         const defence=h.stats.defence*(boss.playstyle==='pierce'?.35:1),hits=!ultimate && boss.playstyle==='swift'?2:1;
         const beforeShield=Math.max(1,Math.round(Math.max(3,raw-defence*.65)*hits*multiplier*(1-state.bossWeakness)));
         const absorbed=Math.min(h.shield,beforeShield),damage=Math.min(h.hp,beforeShield-absorbed);
         h.shield-=absorbed;h.hp-=damage;if (boss.playstyle==='weaken') h.weakened=true;
-        event.targets.push({heroId:h.id,damage,hits,absorbed});
+        const hit={heroId:h.id,damage,hits,absorbed,...(state.enemies?{enemyId:enemy.id}:{})};event.targets.push(hit);part.targets.push(hit);
       });
-      state.bossWeakness=0;
-      if (!ultimate && boss.playstyle==='regenerate') {event.bossHealed=Math.min(state.bossMaxHp-state.bossHp,Math.round(state.bossMaxHp*.025));state.bossHp+=event.bossHealed;}
+      if(state.enemies)event.actions.push(part);
+      if (!ultimate && boss.playstyle==='regenerate') {const amount=Math.min(enemy.maxHp-enemy.hp,Math.round(enemy.maxHp*.025));event.bossHealed=(event.bossHealed || 0)+amount;if(state.enemies)enemy.hp+=amount;else state.bossHp+=amount;}
       if (boss.playstyle==='guard') state.guard=true;
+      }
+      syncEnemyHp(state);state.bossWeakness=0;
+      if(state.enemies){event.move=ultimate?'Enemy team ultimate':'Enemy team attack';}
       if (state.poison && state.poison.turns>0) {
-        event.poisonDamage=Math.min(state.bossHp,state.poison.damage,enemyScale(state).poisonCap);state.bossHp-=event.poisonDamage;state.poison.turns--;
+        event.poisonDamage=tickDamage(state,state.poison,enemyScale(state).poisonCap);state.poison.turns--;
         if (!state.poison.turns) state.poison=null;
       }
       let remaining=enemyScale(state).poisonCap-(event.poisonDamage || 0);
       Object.entries(state.ailments || {}).forEach(([type,ailment])=>{
-        const damage=Math.min(state.bossHp,remaining,Math.max(0,ailment.damage));state.bossHp-=damage;remaining-=damage;
+        const damage=tickDamage(state,ailment,remaining);remaining-=damage;
         if(damage)(event.ailmentTicks || (event.ailmentTicks=[])).push({effect:type,amount:damage,heroId:ailment.heroId});
         if(--ailment.turns<=0)delete state.ailments[type];
       });
@@ -743,12 +851,12 @@
   function combatLogEntry(state,event) {
     const names=new Map(state.heroes.map(h=>[h.id,h.name])),enemyName=bossById(state.bossId).name;
     const named=rows=>(rows || []).map(row=>({...row,name:names.get(row.heroId)||'Hero'}));
-    const enemy=event.enemy?{actorName:enemyName,move:event.enemy.move,targets:named(event.enemy.targets),healed:named(event.enemy.healed),bossHealed:event.enemy.bossHealed||0,poisonDamage:event.enemy.poisonDamage||0,ailmentTicks:copy(event.enemy.ailmentTicks||[])}:null;
+    const enemy=event.enemy?{actorName:enemyName,move:event.enemy.move,targets:named(event.enemy.targets),healed:named(event.enemy.healed),bossHealed:event.enemy.bossHealed||0,poisonDamage:event.enemy.poisonDamage||0,ailmentTicks:copy(event.enemy.ailmentTicks||[]),actions:copy(event.enemy.actions || [])}:null;
     // Auto events already combine their recipient arrays; retain only the
     // hero phase here, with the separately saved enemy reply nested below.
     const withoutEnemy=(rows,other)=>{const result=[...(rows||[])];for(const row of other||[]){const i=result.findLastIndex(x=>JSON.stringify(x)===JSON.stringify(row));if(i>=0)result.splice(i,1);}return result;};
     return {id:event.id,encounterId:state.encounterId,type:event.type,actorName:event.actorName || (event.type==='boss'?enemyName:names.get(event.heroId)||'Hero'),heroId:event.heroId||null,enemyName,
-      move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,damageType:event.damageType||null,infused:!!event.infused,giftSkill:event.giftSkill||null,synergy:copy(event.synergy||null),discovery:event.discovery||null,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
+      actions:copy(event.actions || []),enemyTargets:copy(event.enemyTargets || []),move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,damageType:event.damageType||null,infused:!!event.infused,giftSkill:event.giftSkill||null,synergy:copy(event.synergy||null),discovery:event.discovery||null,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
       targets:named(withoutEnemy(event.targets,event.enemy?.targets)),healed:named(withoutEnemy(event.healed,event.enemy?.healed)),supported:named(event.supported),afflicted:copy(event.afflicted||[]),enemy,bossHealed:event.bossHealed||0,poisonDamage:event.poisonDamage||0,ailmentTicks:copy(event.ailmentTicks||[])};
   }
   function reduce(previous,action) {
@@ -757,6 +865,6 @@
     const log=(previous?.combatLog || []).filter(row=>row.id!==action.id);
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
-  return {ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
+  return {RUNE_BONUS_CHANCE,enemiesFor,combatHeroes,targetingLabel,ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
     reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor,adventureFor,ADVENTURE_RATES,ADVENTURE_BIOMES,buildFor,damageTypeFor};
 });

@@ -22,7 +22,10 @@ function guestIds(saved, roster, classId) {
   const allowed=new Map(roster.filter(s=>slots(s).length && !slots(s).includes(classId)).map(s=>[s.id,s]));
   return [...new Set(Array.isArray(saved?.studentIds)?saved.studentIds:[])].filter(id=>allowed.has(id));
 }
-function lessonMember(student, classId, guests=[]) { return !!student && (slots(student).includes(classId) || guests.includes(student.id)); }
+// Attendance expires at the next Singapore calendar day, independently of devices.
+function lessonDate(clock) {return new Date(clock+8*60*60*1000).toISOString().slice(0,10);}
+function absentIds(saved,roster,clock) {return saved?.absentDate===lessonDate(clock)?[...new Set(saved.absentIds || [])].filter(id=>roster.some(s=>s.id===id)):[];}
+function lessonMember(student, classId, guests=[],absent=[]) { return !!student && !absent.includes(student.id) && (slots(student).includes(classId) || guests.includes(student.id)); }
 function guestViews(ids, roster) {
   return ids.map(id=>roster.find(s=>s.id===id)).filter(Boolean).map(s=>({studentId:s.id,name:String(s.name||'Student').slice(0,100),lessonSlots:slots(s)})).sort((a,b)=>a.name.localeCompare(b.name));
 }
@@ -206,19 +209,20 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
   async function lessonGuests(actor,body,refs,clock) {
     const {root,classes,profiles}=refs,classId=body.classId,encoded=key(classId),classRef=classes.doc(encoded),guestRef=root.collection('lessonGuests').doc(encoded);
     const command=body.command;
-    if(!['get','add','remove'].includes(command))deny('invalid_guest','Choose a temporary student action.',400);
+    if(!['get','add','remove','absent','restore'].includes(command))deny('invalid_guest','Choose a temporary student action.',400);
     const mutation=command!=='get',studentId=mutation?studentKey(body.studentId):null;
     if(mutation && (typeof body.id!=='string' || !/^[A-Za-z0-9_-]{8,100}$/.test(body.id)))deny('invalid_guest','Invalid temporary student action.',400);
-    const receiptRef=mutation?guestRef.collection('actions').doc(body.id):null,request={command,studentId};
+    const receiptRef=mutation?guestRef.collection('actions').doc(body.id):null,request={command,studentId,...(['absent','restore'].includes(command)?{date:lessonDate(clock)}:{})};
     return db.runTransaction(async tx=>{
       const [guestSnap,stateSnap,rosterSnap,receiptSnap]=await Promise.all([tx.get(guestRef),tx.get(classRef),tx.get(db.collection('students')),receiptRef?tx.get(receiptRef):null]);
       const saved=docData(guestSnap),roster=docs(rosterSnap).map(s=>({...s.data(),id:s.id}));
-      let ids=guestIds(saved,roster,classId),state=docData(stateSnap);
+      let ids=guestIds(saved,roster,classId),absent=absentIds(saved,roster,clock),state=docData(stateSnap);
+      const attendance=()=>({absent:guestViews(absent,roster),date:lessonDate(clock),returned:saved?.absentDate && saved.absentDate!==lessonDate(clock)?(saved.absentIds || []):[]});
       // An old receipt only acknowledges its original save; it must never
       // replay membership after a later add/remove on another screen.
       if(receiptSnap?.exists){
         if(JSON.stringify(receiptSnap.data().request)!==JSON.stringify(request))deny('guest_changed','This temporary student action was already saved with different details. Refresh the list.');
-        return {guests:guestViews(ids,roster),state,duplicate:true};
+        return {guests:guestViews(ids,roster),...attendance(),state,duplicate:true};
       }
       // A removed register entry cannot remain a hidden battle participant.
       // Becoming a permanent member only removes the temporary label; that
@@ -234,7 +238,20 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       if(command==='add' && !roster.some(s=>slots(s).includes(classId)))deny('roster_changed','Choose a Lesson slot with registered students.',400);
       const student=mutation?roster.find(s=>s.id===studentId):null;
       let profile=null,profileRef=null,writeProfile=false;
-      if(command==='add'){
+      if(command==='absent' || command==='restore'){
+        if(!student || !lessonMember(student,classId,ids))deny('roster_changed','Choose a student in this Lesson slot.',400);
+        if(command==='absent' && !absent.includes(studentId))absent.push(studentId);
+        if(command==='restore')absent=absent.filter(id=>id!==studentId);
+        if(command==='absent' && state?.status==='active' && state.heroes.some(h=>h.studentId===studentId)){
+          const hero=state.heroes.find(h=>h.studentId===studentId);
+          if(state.pending?.heroId===hero.id)deny('guest_pending','Resolve or skip this student’s answer before marking them absent.');
+          profileRef=profiles.doc(studentId);profile=docData(await tx.get(profileRef));
+          const heroes=state.heroes.filter(h=>h.studentId!==studentId);
+          state={...state,heroes,heroArchive:{...(state.heroArchive || {}),[hero.id]:hero},revision:(state.revision || 0)+1,updatedAt:clock,...(!heroes.length?{status:'defeat',pending:null}:{})};
+          if(state.teamHeroIds)state.teamHeroIds=state.teamHeroIds.filter(id=>id!==hero.id);
+          if(profile?.activeEncounter?.classId===classId && profile.activeEncounter.encounterId===state.encounterId){profile.activeEncounter=null;writeProfile=true;}
+        }
+      } else if(command==='add'){
         if(!student || !slots(student).length)deny('missing_student','Choose a registered student from another Lesson slot.',404);
         if(slots(student).includes(classId))deny('already_in_slot','This student already belongs to this Lesson slot.',400);
         profileRef=profiles.doc(studentId);profile=docData(await tx.get(profileRef));
@@ -260,21 +277,50 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         }
         ids=ids.filter(id=>id!==studentId);
       }
+      // Returning students join an already running encounter before the teacher
+      // can finish it or redeem a summon. Opening next week's lesson is enough.
+      const returning=command==='restore'?[studentId]:command==='get' && saved?.absentDate && saved.absentDate!==lessonDate(clock)?(saved.absentIds || []):[];
+      const returnWrites=[],returnMoves=[];
+      if(state?.status==='active')for(const id of returning){
+        const member=roster.find(s=>s.id===id);
+        if(!lessonMember(member,classId,ids,absent) || state.heroes.some(h=>h.studentId===id))continue;
+        if(state.heroes.length>=100)deny('invalid_roster','A Lesson slot can have at most 100 battle heroes.',400);
+        const ref=profiles.doc(id);let restored=docData(await tx.get(ref));
+        if(!restored)restored=migrateHero(member,docs(await tx.get(classes)));
+        const lock=restored.activeEncounter;
+        if(lock && (lock.classId!==classId || lock.encounterId!==state.encounterId)){
+          const moved=await releaseLock(tx,classes,lock,id,clock);
+          if(moved){
+            const existing=returnMoves.find(row=>row.ref.path===moved.ref.path);
+            if(existing){
+              const removed=existing.state.heroes.find(h=>h.studentId===id);
+              existing.state.heroes=existing.state.heroes.filter(h=>h.studentId!==id);
+              if(removed){existing.state.heroArchive[removed.id]=removed;if(existing.state.pending?.heroId===removed.id)existing.state.pending=null;}
+              if(!existing.state.heroes.length){existing.state.status='defeat';existing.state.pending=null;}
+            }else returnMoves.push(moved);
+          }
+        }
+        const hero=cleanHero(restored.hero,member,restored),archive={...(state.heroArchive || {})};delete archive[hero.id];
+        state={...state,heroes:[...state.heroes,hero],heroArchive:archive,revision:(state.revision || 0)+1,updatedAt:clock};
+        returnWrites.push({ref,profile:{...restored,hero,activeEncounter:{classId,encounterId:state.encounterId},revision:(restored.revision || 0)+1,updatedAt:clock}});
+      }
       const membershipChanged=JSON.stringify(ids)!==JSON.stringify(saved?.studentIds||[]);
-      if(membershipChanged)tx.set(guestRef,{schemaVersion:1,classId,studentIds:ids,revision:(saved?.revision||0)+1,updatedAt:clock});
+      if(membershipChanged || command==='absent' || command==='restore')tx.set(guestRef,{...(saved || {}),schemaVersion:1,classId,studentIds:ids,...(['absent','restore'].includes(command)?{absentDate:lessonDate(clock),absentIds:absent}:{}),revision:(saved?.revision||0)+1,updatedAt:clock});
       for(const {id,profile:stale} of staleProfiles){
         if(stale?.activeEncounter?.classId===classId && (!state || stale.activeEncounter.encounterId===state.encounterId))tx.set(profiles.doc(id),{...stale,activeEncounter:null,revision:(stale.revision||0)+1,updatedAt:clock});
       }
+      for(const moved of returnMoves)tx.set(moved.ref,moved.state);
+      for(const restored of returnWrites)tx.set(restored.ref,restored.profile);
       if(writeProfile){profile.revision=(profile.revision||0)+1;profile.updatedAt=clock;tx.set(profileRef,profile);}
       if(JSON.stringify(state)!==JSON.stringify(docData(stateSnap)))tx.set(classRef,state);
       if(receiptRef)tx.set(receiptRef,{request,createdAt:clock});
-      return {guests:guestViews(ids,roster),state};
+      return {guests:guestViews(ids,roster),...attendance(),state};
     });
   }
-  function payoutMission(tx,actor,classId,before,after,roster,clock,markOverrides=new Map(),guests=[]) {
+  function payoutMission(tx,actor,classId,before,after,roster,clock,markOverrides=new Map(),guests=[],absent=[]) {
     const payout=after?.lastPayout;
     if(!payout || payout.kind!=='points' || before?.lastPayout?.id===payout.id)return;
-    const party=roster.map(s=>({...s.data(),id:s.id,original:s.data()})).filter(s=>lessonMember(s,classId,guests));
+    const party=roster.map(s=>({...s.data(),id:s.id,original:s.data()})).filter(s=>lessonMember(s,classId,guests,absent));
     for(const student of party){
       const marks=markOverrides.has(student.id)?markOverrides.get(student.id):student.marks||0;
       if(!Number.isSafeInteger(marks)||!Number.isSafeInteger(marks+5))deny('invalid_balance','Correct the class marks balance before completing this mission.');
@@ -320,7 +366,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         return {mission:before,state,duplicate:true};
       }
       const roster=docs(rosterSnap).map(s=>({...s.data(),id:s.id}));
-      const guests=guestIds(docData(guestSnap),roster,classId);
+      const guests=guestIds(docData(guestSnap),roster,classId),absent=absentIds(docData(guestSnap),roster,clock);
       if(!roster.some(s=>slots(s).includes(classId)))deny('roster_changed','Choose a Lesson slot with students.',400);
       if(command==='turn'){
         if(body.expectedRevision!==before.revision)deny('mission_changed','The mission changed on another screen. Refresh before turning.');
@@ -339,7 +385,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
           try{next=Missions.progress(next,{kind:'focus',now:clock});}catch(e){deny('focus_not_ready',e.message);}
         }else next=Missions.progress(next,{kind:'incorrect',now:clock});
       }
-      payoutMission(tx,actor,classId,before,next,docs(rosterSnap),clock,new Map(),guests);
+      payoutMission(tx,actor,classId,before,next,docs(rosterSnap),clock,new Map(),guests,absent);
       next.updatedAt=clock;tx.set(missionRef,next);tx.set(receiptRef,{request,revision:next.revision,createdAt:clock});
       if(state){state={...state,revision:(state.revision||0)+1,missionRevision:next.revision,updatedAt:clock};tx.set(classRef,state);}
       return {mission:next,state};
@@ -364,8 +410,8 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         if (receipt.helpedStudentId!==helpedStudentId) deny('assist_changed','This helper already received XP for this called question.');
         return {hero:profile?.hero || null,state,assist:receipt,mission:beforeMission,duplicate:true};
       }
-      const guests=guestIds(docData(guestSnap),docs(rosterSnap).map(s=>({...s.data(),id:s.id})),classId);
-      if (!helperSnap.exists || !helpedSnap.exists || !lessonMember({...helperSnap.data(),id:studentId},classId,guests) || !lessonMember({...helpedSnap.data(),id:helpedStudentId},classId,guests)) deny('roster_changed','Both students must belong to this Lesson slot or be added as temporary students. Refresh the wheel.');
+      const roster=docs(rosterSnap).map(s=>({...s.data(),id:s.id})),guests=guestIds(docData(guestSnap),roster,classId),absent=absentIds(docData(guestSnap),roster,clock);
+      if (!helperSnap.exists || !helpedSnap.exists || !lessonMember({...helperSnap.data(),id:studentId},classId,guests,absent) || !lessonMember({...helpedSnap.data(),id:helpedStudentId},classId,guests,absent)) deny('roster_changed','Both students must belong to this Lesson slot or be added as temporary students. Refresh the wheel.');
       const helper={...helperSnap.data(),id:studentId};
       if (!profile) profile=migrateHero(helper,docs(await tx.get(classes)));
       if (profile.activeEncounter && (profile.activeEncounter.classId!==classId || !state || profile.activeEncounter.encounterId!==state.encounterId)) deny('encounter_active','Finish this helper’s other active encounter before recording an assist.');
@@ -379,7 +425,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         if (state.heroArchive?.[profile.hero.id]) state.heroArchive[profile.hero.id]=profile.hero;
         state.revision=(state.revision || 0)+1;state.updatedAt=clock;state.lastAssist=receipt;
       }
-      payoutMission(tx,actor,classId,beforeMission,mission,docs(rosterSnap),clock,new Map(),guests);
+      payoutMission(tx,actor,classId,beforeMission,mission,docs(rosterSnap),clock,new Map(),guests,absent);
       if(mission.revision!==beforeMission.revision){mission.updatedAt=clock;tx.set(missionRef,mission);if(state)state.missionRevision=mission.revision;}
       tx.set(profileRef,profile);tx.set(receiptRef,receipt);if(state)tx.set(classRef,state);
       return {hero:profile.hero,state,assist:receipt,mission};
@@ -418,7 +464,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       let old=docData(oldSnap);
       const beforeMission=Missions.clean(docData(missionSnap));let mission=Missions.clean(beforeMission);
       const roster=docs(rosterSnap).map(s=>({...s.data(),id:s.id})), rosterById=new Map(roster.map(s=>[s.id,s]));
-      const guests=guestIds(docData(guestSnap),roster,classId);
+      const guests=guestIds(docData(guestSnap),roster,classId),absent=absentIds(docData(guestSnap),roster,clock);
       if (oldReceipt.exists) {
         if (!awardRequest) return {state:old,mission};
         const receipt=oldReceipt.data();
@@ -435,7 +481,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       let awardedStudent=null,award=null,schoolBosses=[];
       if (awardRequest) {
         awardedStudent=rosterById.get(awardRequest.studentId);
-        if (!lessonMember(awardedStudent,classId,guests)) deny('roster_changed','That student is no longer in this lesson slot. Refresh the wheel.',409);
+        if (!lessonMember(awardedStudent,classId,guests,absent)) deny('roster_changed','That student is no longer in this lesson slot. Refresh the wheel.',409);
         const marks=awardedStudent.marks || 0;
         if (!Number.isSafeInteger(marks) || !Number.isSafeInteger(marks+awardRequest.delta)) deny('invalid_balance','This marks balance needs to be corrected before awarding points.',409);
         award={id:action.id,studentId:awardRequest.studentId,delta:awardRequest.delta,marks:marks+awardRequest.delta};
@@ -443,14 +489,15 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       }
       const starting=action.type==='start' || (action.type==='auto' && (!old || old.status!=='active'));
       const syncing=action.type==='sync' && !action.command;
-      const incoming=(starting || syncing || (action.type==='auto' && Array.isArray(action.heroes))) ? action.heroes : old?.heroes;
+      let incoming=(starting || syncing || (action.type==='auto' && Array.isArray(action.heroes))) ? action.heroes : old?.heroes;
+      if(Array.isArray(incoming) && (starting || syncing || action.type==='auto'))incoming=incoming.filter(h=>!absent.includes(h.studentId || (h.id || '').replace(/^student:/,'')));
       if (!Array.isArray(incoming) || !incoming.length || incoming.length>100) deny('invalid_roster','Choose a lesson slot with 1–100 heroes.',400);
       const identities=incoming.map(h=>{
         const id=studentKey(h.studentId || (h.id || '').replace(/^student:/,'')), student=rosterById.get(id);
         if (student) {
           // A departing student can finish/end their existing encounter; new
           // encounters and roster updates must use the current lesson slot.
-          if ((starting || syncing || action.type==='auto') && !lessonMember(student,classId,guests)) deny('roster_changed','The lesson roster changed. Refresh the wheel.',409);
+          if ((starting || syncing || action.type==='auto') && !lessonMember(student,classId,guests,absent)) deny('roster_changed','The lesson roster changed. Refresh the wheel.',409);
           return student;
         }
         if (!/^wheel-[a-z0-9]+$/.test(id)) {
@@ -565,7 +612,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
           tx.set(db.collection('bosses').doc(snap.id),{...boss,hp,...(hp===0 ? {defeated:true,defeatedAt:timestamp} : {})});
         }
       }
-      payoutMission(tx,actor,classId,beforeMission,mission,docs(rosterSnap),clock,new Map(award?[[award.studentId,award.marks]]:[]),guests);
+      payoutMission(tx,actor,classId,beforeMission,mission,docs(rosterSnap),clock,new Map(award?[[award.studentId,award.marks]]:[]),guests,absent);
       if(answerRef&&!answerAlreadyCounted)tx.set(answerRef,{actionId:action.id,createdAt:clock});
       if(award&&mission.lastPayout?.id!==beforeMission.lastPayout?.id){const bonus=mission.lastPayout?.awards.find(row=>row.studentId===award.studentId);if(bonus)award.marks=bonus.marks;}
       if(mission.revision!==beforeMission.revision){mission.updatedAt=clock;tx.set(missionRef,mission);next.missionRevision=mission.revision;}

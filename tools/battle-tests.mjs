@@ -11,7 +11,7 @@ const id = () => 'action-' + String(++seq).padStart(8, '0');
 // Mechanical fixtures deliberately replace the randomly selected enemy after
 // start. Production starts always enforce the saved no-repeat rotation.
 const start = (bossId = 'mossback', party = heroes) => {
-  const state=C.reduce(null,{type:'start',id:id(),heroes:party}),boss=C.bossById(bossId);
+  const state=C.reduce(null,{type:'start',id:id(),formation:'raid',heroes:party}),boss=C.bossById(bossId);
   state.bossId=boss.id;
   state.bossHp=state.bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.max(200,state.heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)/2));
   return state;
@@ -121,7 +121,7 @@ test('consumables are used once, target teammates, resurrect and never consume o
 
 test('cleric heals fallen allies, shields absorb, poison ticks and weaken reduces the next boss hit',()=>{
   const hurt=start();hurt.heroes.forEach(h=>h.hp=10);hurt.heroes[0].hp=0;
-  const healed=answer(hurt,'cleric','correct',{command:'skill',skillId:'cleric-healing-light'});
+  unlock(hurt,'cleric','cleric-renewal');const healed=answer(hurt,'cleric','correct',{command:'skill',skillId:'cleric-renewal'});
   assert.ok(healed.heroes.every(h=>h.hp>10));assert.equal(healed.lastEvent.healed.length,4);
   const shielded=answer(unlock(start(),'cleric','cleric-sanctuary'),'cleric','correct',{command:'skill',skillId:'cleric-sanctuary'});
   assert.ok(shielded.heroes.every(h=>h.shield>0));assert.ok(apply(shielded,'boss',{timing:0}).lastEvent.targets[0].absorbed>0);
@@ -163,11 +163,11 @@ test('all heroes including KO heroes receive deterministic independent loot exac
   const s=start('goblin');s.bossHp=1;s.heroes[1].hp=0;
   const selected=apply(s,'select',{heroId:'student:register-warrior'});
   const action={id:id(),encounterId:s.encounterId,type:'answer',turnId:selected.pending.id,outcome:'correct'};
-  const won=C.reduce(selected,action);assert.equal(won.status,'victory');assert.equal(won.rewards.length,4);assert.ok(won.lootAwarded);
-  assert.deepEqual(won,C.reduce(selected,action));assert.equal(new Set(won.rewards.map(r=>r.instanceId)).size,4);
+  const won=C.reduce(selected,action);assert.equal(won.status,'victory');assert.equal(won.rewards.filter(r=>!r.source).length,4);assert.ok(won.lootAwarded);
+  assert.deepEqual(won,C.reduce(selected,action));assert.equal(new Set(won.rewards.map(r=>r.instanceId)).size,won.rewards.length);
   for(const h of won.heroes){const reward=won.rewards.find(r=>r.heroId===h.id);assert.ok(h.inventory.find(i=>i.itemId===reward.itemId));assert.ok(h.xp>=45);}
   assert.equal(won.heroes[1].hp,0);assert.throws(()=>C.reduce(won,action),/finished/);
-  const synced=apply(won,'sync',{heroes});assert.equal(synced.rewards.length,4);assert.equal(synced.heroes.reduce((n,h)=>n+h.inventory.reduce((a,i)=>a+i.quantity,0),0),16);
+  const synced=apply(won,'sync',{heroes});assert.equal(synced.rewards.filter(r=>!r.source).length,4);assert.equal(synced.heroes.reduce((n,h)=>n+h.inventory.reduce((a,i)=>a+i.quantity,0),0),16+won.rewards.filter(r=>r.source==='bonus-rune').length);
   const rarities=new Set();for(let i=0;i<10000;i++)rarities.add(C.rollReward('loot-distribution','hero-'+i,C.bossById('goblin')).rarity);
   assert.equal(rarities.size,7);
 });
@@ -285,7 +285,7 @@ test('two sessions, duplicate IDs, simultaneous answers, reload and teacher/clas
 test('concurrent transaction retries consume an item once, learn once and award one chest',async()=>{
   const db=database(),config={db,teacherId:'teacher',classId:'Pixel party',canWrite:()=>true};
   const a=Store.create(config),b=Store.create(config);
-  let s=await a.act({id:id(),type:'start',bossId:'goblin',heroes});
+  let s=await a.act({id:id(),type:'start',formation:'raid',bossId:'goblin',heroes});
   const learn={type:'sync',command:'learn',heroId:'student:register-warrior',skillId:'warrior-cleave',encounterId:s.encounterId,expectedRevision:s.revision};
   const results=await Promise.allSettled([a.act({...learn,id:id()}),b.act({...learn,id:id()})]);
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
@@ -298,8 +298,8 @@ test('concurrent transaction retries consume an item once, learn once and award 
   s=await a.act({id:id(),type:'select',heroId:'student:register-warrior',encounterId:s.encounterId,expectedRevision:s.revision});
   const kill={id:id(),type:'answer',outcome:'correct',turnId:s.pending.id,encounterId:s.encounterId};
   const victories=await Promise.all([a.act(kill),b.act(kill)]);
-  assert.deepEqual(victories[0],victories[1]);assert.equal(victories[0].rewards.length,4);
-  assert.equal(victories[0].heroes.reduce((n,h)=>n+h.inventory.reduce((q,i)=>q+i.quantity,0),0),15);
+  assert.deepEqual(victories[0],victories[1]);assert.equal(victories[0].rewards.filter(r=>!r.source).length,4);
+  assert.equal(victories[0].heroes.reduce((n,h)=>n+h.inventory.reduce((q,i)=>q+i.quantity,0),0),15+victories[0].rewards.filter(r=>r.source==='bonus-rune').length);
   const xp=victories[0].heroes.map(h=>h.xp);
   assert.deepEqual((await a.act(kill)).heroes.map(h=>h.xp),xp);
   assert.equal([...db.data.keys()].filter(path=>path.endsWith('/actions/'+kill.id)).length,1);
@@ -307,10 +307,10 @@ test('concurrent transaction retries consume an item once, learn once and award 
 
 const auto = (s, role = 'warrior', extra = {}) => {
   const spinId=id();
-  return C.reduce(s,{type:'auto',id:spinId,spinId,points:1,encounterId:s?.encounterId,expectedRevision:s?.revision,heroId:'student:register-'+role,heroes,bossId:'goblin',...extra});
+  return C.reduce(s,{type:'auto',formation:'raid',id:spinId,spinId,points:1,encounterId:s?.encounterId,expectedRevision:s?.revision,heroId:'student:register-'+role,heroes,bossId:'goblin',...extra});
 };
 test('an awarded answer starts an encounter and resolves chosen skill and boss reply atomically',()=>{
-  const spinId=id(), action={type:'auto',id:spinId,spinId,points:1,heroId:heroes[0].id,heroes,bossId:'goblin'};
+  const spinId=id(), action={type:'auto',formation:'raid',id:spinId,spinId,points:1,heroId:heroes[0].id,heroes,bossId:'goblin'};
   const s=C.reduce(null,action), repeat=C.reduce(null,action);
   assert.deepEqual(s,repeat);assert.equal(s.revision,1);assert.equal(s.pending,null);assert.equal(s.correctCount,1);
   assert.equal(s.lastEvent.type,'auto');assert.equal(s.lastEvent.skillId,'warrior-power-strike');assert.ok(s.lastEvent.damage>0);
@@ -360,7 +360,7 @@ test('awarded points scale healing and shields with health caps and poison damag
   const spinId=id(), awardId=id(), options={id:awardId,spinId};
   const one=auto(wounded,'cleric',{...options,points:1}), two=auto(wounded,'cleric',{...options,points:2});
   assert.equal(one.lastEvent.skillId,'cleric-healing-light');
-  for (const healed of one.lastEvent.healed) assert.equal(two.lastEvent.healed.find(h=>h.heroId===healed.heroId).amount,healed.amount*2);
+  for (const healed of one.lastEvent.healed) assert.equal(two.lastEvent.healed.find(h=>h.heroId===healed.heroId).amount,Math.min(one.heroes.find(h=>h.id===healed.heroId).stats.maxHp-1,healed.amount*2));
   const full=auto(wounded,'cleric',{...options,points:10000});
   assert.ok(full.heroes.every(h=>h.hp<=h.stats.maxHp));
   const shieldState=unlock(start('goblin'),'cleric','cleric-sanctuary');
@@ -398,13 +398,13 @@ test('quick mode never overwrites a manual pending answer; end encounter clears 
 });
 test('quick victory rewards all heroes once, skips enemy reply, and carries progress to next awarded answer',async()=>{
   const db=database(), config={db,teacherId:'teacher',classId:'Quick fight',canWrite:()=>true}, a=Store.create(config), b=Store.create(config);
-  let s=await a.act({id:id(),type:'start',bossId:'goblin',heroes});s.bossHp=1;s.heroes[1].hp=0;db.data.set(a.ref.path,s);
-  const spinId=id(), action={type:'auto',id:spinId,spinId,points:1,encounterId:s.encounterId,expectedRevision:s.revision,heroId:heroes[0].id,heroes,bossId:'goblin'};
+  let s=await a.act({id:id(),type:'start',formation:'raid',bossId:'goblin',heroes});s.bossHp=1;s.heroes[1].hp=0;db.data.set(a.ref.path,s);
+  const spinId=id(), action={type:'auto',formation:'raid',id:spinId,spinId,points:1,encounterId:s.encounterId,expectedRevision:s.revision,heroId:heroes[0].id,heroes,bossId:'goblin'};
   const results=await Promise.all([a.act(action),b.act(action)]);
   assert.deepEqual(results[0],results[1]);s=results[0];assert.equal(s.status,'victory');assert.equal(s.lastEvent.enemy,null);
-  assert.equal(s.rewards.length,4);assert.ok(s.heroes[1].xp>0);assert.equal(s.bossTurns,0);
+  assert.equal(s.rewards.filter(r=>!r.source).length,4);assert.ok(s.heroes[1].xp>0);assert.equal(s.bossTurns,0);
   const total=s.heroes.reduce((n,h)=>n+h.inventory.reduce((sum,i)=>sum+i.quantity,0),0);
-  assert.equal(total,16);const xp=s.heroes[0].xp;
+  assert.equal(total,16+s.rewards.filter(r=>r.source==='bonus-rune').length);const xp=s.heroes[0].xp;
   const next=auto(s);assert.equal(next.heroes[0].xp,xp+12);assert.equal(next.heroes.reduce((n,h)=>n+h.inventory.reduce((sum,i)=>sum+i.quantity,0),0),total);
   assert.deepEqual(await b.act(action),s);
 });

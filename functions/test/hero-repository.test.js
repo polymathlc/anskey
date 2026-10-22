@@ -29,7 +29,7 @@ const profilePath=id=>'classroomHeroData/teacher/profiles/'+id;
 const classPath=slot=>'classroomBattles/teacher/classes/'+key(slot);
 const heroes=[C.heroFromStudent({id:'alex',name:'Alex'}),C.heroFromStudent({id:'sam',name:'Sam'})];
 let seq=0;const aid=()=> 'action-'+String(++seq).padStart(8,'0');
-const battle=(call,slot,action)=>call(teacher,{type:'battle',classId:slot,action});
+const battle=(call,slot,action)=>call(teacher,{type:'battle',classId:slot,action:{formation:'raid',...action}});
 const missionPath=slot=>'classroomHeroData/teacher/missions/'+key(slot);
 function missionSetup(objectiveRoll=0,prizeRoll=.1){
   const {db}=setup();let clock=1000,index=0;
@@ -38,7 +38,7 @@ function missionSetup(objectiveRoll=0,prizeRoll=.1){
   return {db,call,time:value=>{clock=value;},mission:(command,extra={})=>call(teacher,{type:'mission',classId:'Saturday',command,id:aid(),...extra})};
 }
 function wheelRequest(state=null,{id=aid(),spinId=aid(),studentId='alex',delta=1,classId='Saturday',...extra}={}) {
-  return {type:'wheelAward',classId,studentId,delta,reason:'Correct answer on the wheel',action:{type:'auto',id,spinId,heroId:'student:'+studentId,heroes,bossId:'goblin',...(state ? {encounterId:state.encounterId,expectedRevision:state.revision} : {}),...extra}};
+  return {type:'wheelAward',classId,studentId,delta,reason:'Correct answer on the wheel',action:{type:'auto',formation:'raid',id,spinId,heroId:'student:'+studentId,heroes,bossId:'goblin',...(state ? {encounterId:state.encounterId,expectedRevision:state.revision} : {}),...extra}};
 }
 async function begin(call,slot='Saturday',party=heroes) {return (await battle(call,slot,{id:aid(),type:'start',bossId:'goblin',heroes:party})).state;}
 async function claim(call,uid='one',studentId='alex',lessonSlot='Saturday') {await call(pupil(uid),{type:'claim',studentId,lessonSlot});await call(teacher,{type:'approve',studentId});}
@@ -123,7 +123,7 @@ test('guest membership authorizes start, sync, marks, assists and victory loot u
   const award=await call(teacher,wheelRequest(state,{studentId:'visitor',delta:1,heroes:party}));assert.equal(award.award.marks,8);assert.equal(db.data.get(profilePath('visitor')).hero.xp,18);assert.equal(db.data.get('students/visitor').slot,'Tuesday');state=award.state;
   // A scaled enemy can no longer fall to one award, however large: bring it to its last hit.
   state.bossHp=1;db.seed(classPath('Saturday'),state);
-  const victory=await call(teacher,wheelRequest(state,{studentId:'visitor',delta:10000,heroes:party}));assert.equal(victory.state.status,'victory');assert.equal(victory.state.rewards.length,3);assert.ok(db.data.get(profilePath('visitor')).hero.inventory.length);assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);
+  const victory=await call(teacher,wheelRequest(state,{studentId:'visitor',delta:10000,heroes:party}));assert.equal(victory.state.status,'victory');assert.equal(victory.state.rewards.filter(r=>!r.source).length,3);assert.ok(db.data.get(profilePath('visitor')).hero.inventory.length);assert.equal(db.data.get(profilePath('visitor')).activeEncounter,null);
   const historical=structuredClone(victory.state);assert.deepEqual((await visit('remove')).state,historical);
   await assert.rejects(call(teacher,wheelRequest(null,{studentId:'visitor',heroes:party})),/no longer in this lesson/);
   await assert.rejects(call(teacher,{type:'assist',classId:'Saturday',studentId:'visitor',helpedStudentId:'alex',action:{id:aid(),spinId:aid()}}),/Both students/);
@@ -376,9 +376,9 @@ test('battle rollback and duplicate receipts prevent repeat XP, item consumption
   s.bossHp=1;db.seed(classPath('Saturday'),s);
   const action={id:aid(),type:'answer',encounterId:s.encounterId,turnId:s.pending.id,outcome:'correct'};
   const results=await Promise.all([battle(call,'Saturday',action),battle(call,'Saturday',action)]);assert.deepEqual(results[0],results[1]);assert.equal(results[0].state.status,'victory');
-  const profile=db.data.get(profilePath('alex'));assert.equal(profile.activeEncounter,null);const total=profile.hero.inventory.reduce((sum,i)=>sum+i.quantity,0);assert.equal(total,4);
+  const profile=db.data.get(profilePath('alex'));assert.equal(profile.activeEncounter,null);const total=profile.hero.inventory.reduce((sum,i)=>sum+i.quantity,0);assert.equal(total,4+results[0].state.rewards.filter(r=>r.heroId===profile.hero.id && r.source==='bonus-rune').length);
   await battle(call,'Saturday',action);assert.deepEqual(db.data.get(profilePath('alex')),profile);
-  const next=await begin(call,'Sunday',[heroes[0]]);assert.equal(next.heroes[0].xp,profile.hero.xp);assert.equal(next.heroes[0].inventory.reduce((sum,i)=>sum+i.quantity,0),4);
+  const next=await begin(call,'Sunday',[heroes[0]]);assert.equal(next.heroes[0].xp,profile.hero.xp);assert.equal(next.heroes[0].inventory.reduce((sum,i)=>sum+i.quantity,0),total);
 });
 
 test('migration selects strongest latest snapshot without duplicating loot and maps old uid to roster ID',()=>{
@@ -657,7 +657,7 @@ test('summon token is atomically consumed once, clears pending answers, and dupl
   let s=await begin(call);s=(await battle(call,'Saturday',{id:aid(),type:'select',heroId:'student:alex',encounterId:s.encounterId,expectedRevision:s.revision})).state;
   const action={id:aid(),type:'summon',source:'reward',encounterId:s.encounterId,expectedRevision:s.revision};
   const outcomes=await Promise.all([battle(call,'Saturday',action),battle(call,'Saturday',action)]);const done=outcomes[0];
-  assert.equal(done.state.status,'victory');assert.equal(done.state.pending,null);assert.equal(done.state.lastEvent.damage,s.bossHp);assert.equal(done.state.rewards.length,2);
+  assert.equal(done.state.status,'victory');assert.equal(done.state.pending,null);assert.equal(done.state.lastEvent.damage,s.bossHp);assert.equal(done.state.rewards.filter(r=>r.source!=='bonus-rune').length,2);
   assert.equal(done.mission.summonTokens,0);assert.equal(db.data.get(profilePath('alex')).activeEncounter,null);assert.equal(done.state.combatLog.length,1);
   assert.deepEqual(outcomes[1].state,done.state);s=(await battle(call,'Saturday',{id:aid(),type:'start',heroes,bossId:'goblin',expectedRevision:done.state.revision})).state;
   await assert.rejects(battle(call,'Saturday',{...action,id:aid(),encounterId:s.encounterId,expectedRevision:s.revision}),/reward first/);
@@ -715,7 +715,7 @@ test('server persists all 100 enemies before repeating across reopened repositor
   assert.equal(C.BOSSES.filter(b=>!b.legacy).length,100);
   for(let index=0;index<101;index++){
     if(index===50)repo=createHeroRepository(db,{now:()=>123456789});
-    const action={type:'start',id:aid(),heroes,bossId:'goblin',expectedRevision:state?.revision},predicted=C.nextBoss(state,action.id);
+    const action={type:'start',formation:'raid',id:aid(),heroes,bossId:'goblin',expectedRevision:state?.revision},predicted=C.nextBoss(state,action.id);
     const request={type:'battle',classId:'Saturday',action};
     const result=await repo.execute(teacher,request);state=result.state;
     assert.equal(state.bossId,predicted.id);ids.push(state.bossId);
@@ -788,4 +788,51 @@ test('teacher socket changes use canonical battle receipts and preserve HP and e
  assert.equal(db.data.get(profilePath('alex')).hero.inventory.find(i=>i.itemId==='rune-worldspark').quantity,1);
  state=result.state;const selected=(await battle(call,'Saturday',{type:'select',id:aid(),turnId:aid(),heroId:h.id,encounterId:state.encounterId,expectedRevision:state.revision})).state;
  await assert.rejects(battle(call,'Saturday',{...request,id:aid(),command:'unsocket',runeId:undefined,itemId:h.loadout.mainHand,expectedRevision:selected.revision}),/selected answer/);
+});
+
+test('absent today removes a hero atomically, preserves enrolment and progress, and blocks loot and wheel awards',async()=>{
+ const {db,call}=setup();let state=await begin(call),prior=structuredClone(db.data.get(profilePath('sam')).hero),student=structuredClone(db.data.get('students/sam'));
+ const request={type:'lessonGuests',command:'absent',classId:'Saturday',studentId:'sam',id:aid()};
+ db.failNextCommit=true;await assert.rejects(call(teacher,request),/commit failed/);assert.equal(db.data.get(classPath('Saturday')).heroes.length,2);
+ const absent=await call(teacher,request);state=absent.state;assert.equal(absent.absent[0].studentId,'sam');assert.equal(state.heroes.length,1);assert.deepEqual(db.data.get('students/sam'),student);assert.deepEqual(db.data.get(profilePath('sam')).hero,prior);assert.equal(db.data.get(profilePath('sam')).activeEncounter,null);
+ assert.equal((await call(teacher,request)).duplicate,true);
+ await assert.rejects(call(teacher,wheelRequest(state,{studentId:'sam'})),e=>e.code==='roster_changed');
+ // An older client cannot sneak an absent student back through roster sync.
+ state=(await battle(call,'Saturday',{type:'sync',id:aid(),heroes,expectedRevision:state.revision,encounterId:state.encounterId})).state;assert.equal(state.heroes.length,1);
+ const victory=await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision});assert.ok(victory.state.rewards.every(r=>r.heroId!=='student:sam'));assert.deepEqual(db.data.get(profilePath('sam')).hero,prior);
+});
+test('attendance expires on Singapore midnight, supports bringing a student back today, and receipts never replay absence',async()=>{
+ const {db}=setup();let clock=Date.parse('2026-10-22T15:59:00Z');const repo=createHeroRepository(db,{now:()=>clock}),call=(who,body)=>repo.execute(who,body);
+ await begin(call);const request={type:'lessonGuests',command:'absent',classId:'Saturday',studentId:'sam',id:aid()};await call(teacher,request);
+ const restored=await call(teacher,{...request,command:'restore',id:aid()});assert.equal(restored.absent.length,0);assert.equal(restored.state.heroes.length,2);assert.equal((await call(teacher,request)).absent.length,0);
+ await call(teacher,{...request,id:aid()});clock=Date.parse('2026-10-22T16:00:00Z');
+ const next=await call(teacher,{type:'lessonGuests',classId:'Saturday',command:'get'});assert.equal(next.date,'2026-10-23');assert.deepEqual(next.absent,[]);assert.deepEqual(next.returned,['sam']);assert.equal(next.state.heroes.length,2);
+ assert.equal((await battle(call,'Saturday',{type:'start',id:aid(),heroes,expectedRevision:next.state.revision})).state.heroes.length,2);assert.equal(db.data.get('students/sam').slot,'Saturday');
+ await assert.rejects(call(teacher,request),e=>e.code==='guest_changed');
+});
+test('absent students receive neither assist XP nor class mission points and cannot be hidden during a pending answer',async()=>{
+ const {db,call,mission,time}=missionSetup(.6,.99);let state=await begin(call);
+ state=(await battle(call,'Saturday',{type:'select',id:aid(),heroId:'student:sam',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ const absent={type:'lessonGuests',command:'absent',studentId:'sam',classId:'Saturday',id:aid()};await assert.rejects(call(teacher,absent),e=>e.code==='guest_pending');
+ state=(await battle(call,'Saturday',{type:'answer',id:aid(),outcome:'skip',turnId:state.pending.id,encounterId:state.encounterId})).state;
+ await call(teacher,absent);await assert.rejects(call(teacher,{type:'assist',classId:'Saturday',studentId:'sam',helpedStudentId:'alex',action:{id:aid(),spinId:aid()}}),e=>e.code==='roster_changed');
+ const m=await mission('turn',{expectedRevision:0});time(1801001);const done=await mission('focus',{missionId:m.mission.current.id});assert.equal(done.mission.current.status,'complete');assert.deepEqual(done.mission.lastPayout.awards.map(a=>a.studentId),['alex']);assert.equal(db.data.get('students/sam').marks,undefined);
+});
+test('authoritative team fights persist separate HP and exactly one simultaneous turn across retries and reopened service',async()=>{
+ const {db,call}=setup();db.seed('students/jun',{name:'Jun',slot:'Saturday'});const party=[...heroes,C.heroFromStudent({id:'jun',name:'Jun'},null,2)];
+ let state=(await battle(call,'Saturday',{type:'start',id:aid(),formation:'3v3',heroes:party})).state;assert.equal(state.enemies.length,3);
+ const req=wheelRequest(state,{heroes:party,delta:2});const [a,b]=await Promise.all([call(teacher,req),call(teacher,req)]);assert.deepEqual(a.state,b.state);assert.equal(a.state.lastEvent.actions.length,3);assert.ok(a.state.lastEvent.enemy.actions.length>0);assert.equal(db.data.get('students/alex').marks,2);
+ const reopened=createHeroRepository(db,{now:()=>123456789}),retry=await reopened.execute(teacher,req);assert.deepEqual(retry.state.enemies,a.state.enemies);assert.equal(retry.award.marks,2);
+ for(const e of a.state.enemies)assert.ok(e.hp>=0 && e.hp<=e.maxHp);assert.equal(a.state.bossHp,a.state.enemies.reduce((n,e)=>n+e.hp,0));
+});
+
+test('next-date attendance restores every returning hero before immediate victory, including transfer from another slot',async()=>{
+ const {db}=setup();let clock=Date.parse('2026-10-22T02:00:00Z');const repo=createHeroRepository(db,{now:()=>clock}),call=(actor,body)=>repo.execute(actor,body);
+ db.seed('students/jun',{name:'Jun',slot:'Saturday'});const party=[...heroes,C.heroFromStudent({id:'jun',name:'Jun'})];await begin(call,'Saturday',party);
+ for(const studentId of ['alex','sam'])await call(teacher,{type:'lessonGuests',command:'absent',classId:'Saturday',studentId,id:aid()});
+ db.seed('students/alex',{name:'Alex',slots:['Saturday','Sunday']});db.seed('students/sam',{name:'Sam',slots:['Saturday','Sunday']});
+ await begin(call,'Sunday',heroes);clock+=7*86400000;
+ const restored=await call(teacher,{type:'lessonGuests',command:'get',classId:'Saturday'}),s=restored.state;
+ assert.equal(s.heroes.length,3);assert.equal(db.data.get(classPath('Sunday')).heroes.length,0);assert.equal(db.data.get(classPath('Sunday')).status,'defeat');
+ const victory=await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:s.encounterId,expectedRevision:s.revision});assert.equal(victory.state.rewards.filter(r=>!r.source).length,3);
 });

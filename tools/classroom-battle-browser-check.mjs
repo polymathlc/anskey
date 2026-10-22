@@ -80,7 +80,7 @@ async function setup(delayProfiles = 0) {
         const receipt = ref.collection('actions').doc(action.id), oldReceipt = await tx.get(receipt), snapshot = await tx.get(ref);
         const old = snapshot.exists ? snapshot.data() : null;
         if (oldReceipt.exists) return {state:old};
-        const next = ClassroomBattleCore.reduce(old, action);
+        const next = ClassroomBattleCore.reduce(old, {...action,formation:'raid'});
         if (next === old) return {state:old};
         const state = {...next,teacherId:currentUser.uid,classId};
         tx.set(ref,state);tx.set(receipt,{encounterId:state.encounterId,revision:state.revision,type:action.type});return {state};
@@ -193,7 +193,7 @@ try {
   await page.click('#cbSkip'); await settle();
   await page.evaluate(()=>{__battleState().bossHp=1;__battleState().heroes[4].hp=0;__battleNotify('classroomBattles/teacher-fixture/classes/'+ClassroomBattleStore.classKey('P5 Science'));});
   await spin(); await page.click('#cbCorrect'); await settle();
-  check('victory awards a personal treasure to every hero including fallen allies',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.length===__battleState().heroes.length*(__battleState().adventure?.kind==='chest'?2:1)&&document.querySelectorAll('.cbReward').length===__battleState().rewards.length&&!document.getElementById('cbLoot').hidden));
+  check('victory awards a personal treasure to every hero including fallen allies',await page.evaluate(()=>__battleState().status==='victory'&&__battleState().rewards.filter(r=>r.source!=='bonus-rune').length===__battleState().heroes.length*(__battleState().adventure?.kind==='chest'?2:1)&&document.querySelectorAll('.cbReward').length===__battleState().rewards.length&&!document.getElementById('cbLoot').hidden));
   const rewards=await page.evaluate(()=>JSON.stringify(__battleState().rewards));
   await page.locator('#cbLoot').scrollIntoViewIfNeeded(); await page.waitForTimeout(200);
   await page.screenshot({path:path.join(output,'pixel-victory-loot.png'),fullPage:true});

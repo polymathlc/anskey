@@ -19,7 +19,7 @@ try {
     const Core=ClassroomBattleCore,M=ClassroomMissionContent;
     window.rwStudents=[{id:'one',name:'Ari',marks:10},{id:'two',name:'Bo',marks:10}];
     window.__missions={Science:M.empty(),Maths:M.empty()};window.__receipts={};window.__requests=[];window.__objective=.3;window.__prize=.1;window.__lose=false;window.__hold=false;window.__release=null;window.__rejection=null;window.__summons=[];window.__live=true;window.__slot='Science';window.__now=Date.now();window.__spin='mission-question-001';
-    window.__state=Core.reduce(null,{type:'start',id:'mission-ui-encounter',heroes:rwStudents.map(s=>Core.heroFromStudent(s)),bossId:Core.BOSSES.find(b=>!b.legacy).id});
+    window.__state=Core.reduce(null,{type:'start',formation:'raid',id:'mission-ui-encounter',heroes:rwStudents.map(s=>Core.heroFromStudent(s)),bossId:Core.BOSSES.find(b=>!b.legacy).id});
     const reference=()=>({collection:reference,doc:reference});
     window.__mount=function(slot='Science') {
       if(window.__panel)__panel.destroy();__live=true;__slot=slot;const boundSlot=slot;
@@ -88,10 +88,10 @@ try {
   check('three saved assists complete the mission and enable its earned summon',await page.locator('.mmReels').textContent().then(t=>t.includes('3 / 3')&&t.includes('complete')));
   const hp=await page.evaluate(()=>__state.bossHp);await page.click('[data-source=reward]');await ready();
   check('earned summon saves a one-hit victory and consumes one token',await page.evaluate(hp=>__state.status==='victory'&&__state.lastEvent.damage===hp&&__missions.Science.summonTokens===0&&__summons.length===1,hp));
-  check('victory log contains actual one-punch damage and saved rewards',await page.evaluate(()=>__state.combatLog.at(-1).actorName==='One-Punch Chung'&&__state.rewards.length===2));
-  await page.evaluate(()=>{__state=ClassroomBattleCore.reduce(__state,{type:'start',id:'mission-ui-second-enemy',expectedRevision:__state.revision,heroes:__state.heroes,bossId:__state.bossId});__panel.render();});
+  check('victory log contains actual one-punch damage and saved rewards',await page.evaluate(()=>__state.combatLog.at(-1).actorName==='One-Punch Chung'&&__state.rewards.filter(r=>r.source!=='bonus-rune').length===2));
+  await page.evaluate(()=>{__state=ClassroomBattleCore.reduce(__state,{type:'start',formation:'raid',id:'mission-ui-second-enemy',expectedRevision:__state.revision,heroes:__state.heroes,bossId:__state.bossId});__panel.render();});
   await page.click('[data-source=teacher]');await ready();
-  check('teacher help works without an earned token and still saves personal loot',await page.evaluate(()=>__state.status==='victory'&&__state.rewards.length===2&&__requests.at(-1).action.source==='teacher'));
+  check('teacher help works without an earned token and still saves personal loot',await page.evaluate(()=>__state.status==='victory'&&__state.rewards.filter(r=>r.source!=='bonus-rune').length===2&&__requests.at(-1).action.source==='teacher'));
   await page.evaluate(()=>{__rejection='mission_changed';});await page.click('[data-mm=turn]');await ready();
   check('explicit uncommitted mission rejection clears the outbox for recovery',await page.evaluate(()=>!__panel.blocked()&&!sessionStorage.getItem('polymath.classMission.mission-teacher.Science')));
   await page.evaluate(()=>{__rejection=null;__mount('Maths');});await ready();
