@@ -59,6 +59,133 @@
       eventId:kind==='event'?events[Math.floor(randomUnit(seed+':event')*events.length)]:null,resolved:false};
   }
   // Presentation reads this same build profile; it never invents a combat bonus.
+  // A class journey advances only on a saved victory, never by restarting a fight.
+  const QUEST_ROUTES={
+    forest:{name:'Enchanted forest',biome:'forest',kind:'event',eventId:'guardian-shrine',description:'A guardian grants a 15% party shield on the first correct answer.'},
+    cave:{name:'Mysterious cave',biome:'cavern',kind:'chest',description:'Win to open an extra rare-or-better chest for every present hero.'},
+    ruins:{name:'Moonfall ruins',biome:'ruins',kind:'event',eventId:'mana-spring',description:'An ancient spring restores 18 party MP on the first correct answer.'},
+    volcano:{name:'Ember summit',biome:'volcano',kind:'uber',description:'An empowered boss: 1.8× HP, 1.25× attack and 1.6× victory XP.'}
+  };
+  const QUEST_EVENTS={
+    merchant:{name:'The wandering merchant',description:'A traveller shares supplies. Which gift should the class take?',choices:[{id:'mana',name:'Bottled starlight',description:'Restore 18 party MP on the next encounter’s first correct answer.'},{id:'shield',name:'Guardian charms',description:'Grant a 15% party shield on the next encounter’s first correct answer.'}]},
+    chest:{name:'The sealed treasure chest',description:'A glowing chest offers two ways forward.',choices:[{id:'treasure',name:'Find the hidden key',description:'The next victory includes an extra rare-or-better chest.'},{id:'expose',name:'Study the ancient runes',description:'Open both enemy defences by 15% for four damaging actions next encounter.'}]},
+    creature:{name:'An injured forest companion',description:'A small creature needs your help. Choose how to care for it.',choices:[{id:'companion',name:'Help it home',description:'It joins the next encounter and strikes every enemy on the first correct answer.'},{id:'shield',name:'Build a safe shelter',description:'Its guardian grants the party a 15% shield next encounter.'}]}
+  };
+  function journeyFor(state) {
+    return copy(state?.journey || {version:1,chapter:1,node:0,totalWins:0,history:[],votes:{},route:null,event:null,blessing:null});
+  }
+  function routeOptions(state) {
+    const j=journeyFor(state);
+    return j.totalWins%2===0?['forest','cave']:['ruins','volcano'];
+  }
+  function bossIntentFor(state) {
+    if(!state || state.status!=='active')return null;
+    const boss=bossById(state.bossId),ultimate=state.charge>=boss.chargeMax && state.bossMp>=BOSS_SKILL_MP;
+    const living=combatHeroes(state).filter(h=>h.hp>0);
+    const attacks=enemiesFor(state).filter(e=>e.hp>0).map((enemy,index)=>{
+      const b=bossById(enemy.bossId),aoe=ultimate || b.playstyle==='splash' || state.teamSize>1 && (state.bossTurns+index)%2===1;
+      return {enemyId:enemy.id,name:b.name,move:ultimate?b.ultimateName:b.attackName,aoe,targets:(aoe?living:[living[(state.bossTurns+index)%living.length]]).filter(Boolean).map(h=>h.name)};
+    });
+    return {ultimate,charging:!ultimate && state.charge>=boss.chargeMax-1,attacks,
+      advice:ultimate?'Ultimate ready: shield the party or heal before the next enemy turn.':'Prepare a shield, restore health or power the next attack.'};
+  }
+  function questVictory(state) {
+    if(!state.journey)return;
+    const j=state.journey;j.totalWins++;j.node++;j.history.push({chapter:j.chapter,node:j.node,route:j.route || 'trail',bossId:state.bossId});j.history=j.history.slice(-20);
+    if(j.node>=5){j.chapter++;j.node=0;}
+    j.route=null;j.votes={};j.blessing=null;
+    const seed=state.encounterId+':surprise';
+    j.event=j.totalWins===1 || randomUnit(seed)<.4?{id:state.encounterId,kind:['merchant','chest','creature'][Math.floor(randomUnit(seed+':kind')*3)],choice:null}:null;
+    // Choices live on canonical heroes, so unclaimed prizes travel with them.
+    state.heroes.forEach(hero=>{
+      hero.treasureInbox=hero.treasureInbox || [];
+      const seed=state.encounterId+':'+hero.id+':choice',rolled=rollReward(seed,hero.id,bossById(state.bossId));
+      const pick=(type)=>{const pool=Object.values(ITEMS).filter(i=>type==='equipment'?i.type==='equipment' && i.rarity===rolled.rarity:i.type==='rune' && i.rarity===rolled.rarity);return pool[Math.floor(randomUnit(seed+':'+type)*pool.length)];};
+      const gear=pick('equipment'),rune=pick('rune');
+      hero.treasureInbox.push({id:seed,options:[{id:'equipment',itemId:gear.id,sockets:socketRoll(seed,gear)},{id:'rune',itemId:rune.id},{id:'materials',shards:3}]});
+      // Bound profile size without destroying earned treasure: an old unopened
+      // choice becomes its equipment option, with no XP or extra battle award.
+      if(hero.treasureInbox.length>12){const old=hero.treasureInbox.shift().options[0];addInventory(hero,old.itemId,1,old.sockets);}
+    });
+  }
+  function comboAnswer(state,hero,action,event) {
+    if(!state.combo)return;
+    const c=state.combo,question=action.turnId;
+    if(c.questions.includes(question))return;
+    c.questions.push(question);c.questions=c.questions.slice(-100);
+    if(action.outcome==='incorrect'){c.paused=true;c.recoveryHeroId=hero.id;return;}
+    if(action.outcome!=='correct' || c.paused)return;
+    if(state.heroes.length>1 && c.lastHeroId===hero.id)return;
+    c.lastHeroId=hero.id;c.count++;
+    if(![3,5].includes(c.count))return;
+    const ultimate=c.count===5,targets=[];
+    // A burst is a bounded AoE bonus; awarded classroom points never multiply it.
+    enemiesFor(state).filter(e=>e.hp>0).forEach(e=>{const damage=hitEnemy(state,e,Math.max(1,Math.round(e.maxHp*(ultimate?.1:.05))));targets.push({enemyId:e.id,damage});event.damage+=damage;});
+    event.comboBurst={level:c.count,name:ultimate?'Class constellation':'Together strike',enemyTargets:targets};
+    const part={combo:true,heroId:hero.id,move:event.comboBurst.name,damage:targets.reduce((n,t)=>n+t.damage,0),enemyTargets:targets,healed:[],targets:[]};
+    event.actions=event.actions || [{heroId:hero.id,skillId:event.skillId,damage:event.damage-part.damage,enemyTargets:copy(event.enemyTargets || []),healed:copy(event.healed),targets:copy(event.targets)}];event.actions.push(part);
+    if(ultimate){state.heroes.forEach(h=>heal(h,h.stats.maxHp*.1,event));c.count=0;c.lastHeroId=null;c.cycles++;}
+  }
+  function applyPreparation(state,hero,event) {
+    const prep=state.preparation;if(!prep || prep.applied || prep.bossTurn!==state.bossTurns)return;
+    prep.applied=true;event.preparation=prep.choice;
+    if(prep.choice==='heal')state.heroes.forEach(h=>heal(h,h.stats.maxHp*.15,event));
+    if(prep.choice==='shield')state.heroes.forEach(h=>{const before=h.shield;h.shield=Math.min(h.stats.maxHp,h.shield+Math.round(h.stats.maxHp*.2));(event.supported || (event.supported=[])).push({heroId:h.id,effect:'shield',amount:h.shield-before});});
+    if(prep.choice==='attack' && hero){const targets=[];enemiesFor(state).filter(e=>e.hp>0).forEach(e=>{const damage=hitEnemy(state,e,Math.max(1,Math.round(e.maxHp*.03)));targets.push({enemyId:e.id,damage});event.damage=(event.damage || 0)+damage;});event.preparationTargets=targets;}
+  }
+  function questAction(state,action,event) {
+    if(action.expectedRevision!==state.revision)fail('The quest changed on another screen. Refresh and try again.');
+    if(state.pending)fail('Resolve the selected answer before making a quest choice.');
+    const j=state.journey;
+    if(!j)fail('Start the next encounter to begin your class adventure.');
+    if(['vote','route','event'].includes(action.command)){
+      if(state.status==='active')fail('Finish this encounter before choosing the next route.');
+      if(action.command==='event'){
+        const surprise=j.event,definition=surprise && QUEST_EVENTS[surprise.kind];
+        if(!definition || surprise.choice || !definition.choices.some(c=>c.id===action.choiceId))fail('Choose an available surprise event reward.');
+        surprise.choice=action.choiceId;j.blessing=action.choiceId;
+      }else{
+        if(!routeOptions(state).includes(action.routeId))fail('Choose one of the two available routes.');
+        if(j.route)fail('The class already chose its route for the next encounter.');
+        if(action.command==='vote'){
+          if(!state.heroes.some(h=>h.id===action.heroId))fail('Choose a student in this lesson to record their vote.');
+          j.votes[action.heroId]=action.routeId;
+        }else{
+          const votes=Object.entries(j.votes).filter(([id])=>state.heroes.some(h=>h.id===id) && (!action.eligibleHeroIds || action.eligibleHeroIds.includes(id))),counts=routeOptions(state).map(id=>[id,votes.filter(([,v])=>v===id).length]);
+          if(counts.find(([id])=>id===action.routeId)[1]<Math.max(...counts.map(([,n])=>n)))fail('Choose the route with the most student votes. The teacher breaks a tie.');
+          j.route=action.routeId;
+        }
+      }
+    }else if(action.command==='prepare'){
+      if(state.status!=='active' || !['heal','shield','attack'].includes(action.choiceId))fail('Choose a battle preparation.');
+      if(state.preparation?.bossTurn===state.bossTurns)fail('The class has already prepared for this enemy turn.');
+      state.preparation={bossTurn:state.bossTurns,choice:action.choiceId,applied:false};
+    }else if(action.command==='recover'){
+      if(state.status!=='active' || !state.combo?.paused)fail('The team combo is not paused.');
+      if(!state.heroes.some(h=>h.id===action.heroId))fail('Choose the student who explained the correction or helped.');
+      state.combo.paused=false;state.combo.recoveryHeroId=null;event.move='Combo recovered by explanation';
+    }else if(action.command==='treasure'){
+      const hero=state.heroes.find(h=>h.id===action.heroId),prize=hero?.treasureInbox?.find(p=>p.id===action.treasureId),choice=prize?.options.find(o=>o.id===action.choiceId);
+      if(!choice)fail('This treasure was already chosen or is no longer available.');
+      if(choice.shards)hero.upgradeShards=int((hero.upgradeShards || 0)+choice.shards,0,999);
+      else addInventory(hero,choice.itemId,1,choice.sockets);
+      hero.treasureInbox=hero.treasureInbox.filter(p=>p.id!==prize.id);event.heroId=hero.id;event.move='Personal treasure chosen';event.choice=copy(choice);
+    }else if(action.command==='forge'){
+      if(state.status==='active')fail('Finish the encounter before upgrading equipment.');
+      const hero=state.heroes.find(h=>h.id===action.heroId),entry=hero?.inventory.find(e=>e.id===action.itemId),item=entry && itemById(entry.itemId);
+      if(!hero || !item || !equipmentSlot(item) || item.rarity==='unique' || item.rarity==='mythical')fail('Choose equipment below mythical rarity.');
+      if(socketsFor(entry).some(Boolean))fail('Remove socketed runes before upgrading this item.');
+      const next=Object.keys(RARITIES)[Object.keys(RARITIES).indexOf(item.rarity)+1],cost=(Object.keys(RARITIES).indexOf(item.rarity)+1)*3;
+      if((hero.upgradeShards || 0)<cost)fail('This upgrade needs '+cost+' star shards.');
+      const pool=Object.values(ITEMS).filter(i=>i.rarity===next && equipmentSlot(i)===equipmentSlot(item));
+      if(!pool.length)fail('No upgrade is available for that equipment slot.');
+      const upgraded=pool[Math.floor(randomUnit(action.id+':forge')*pool.length)],slots=Object.entries(loadoutFor(hero)).filter(([,id])=>id===entry.id).map(([slot])=>slot);
+      hero.upgradeShards-=cost;entry.quantity--;hero.inventory=hero.inventory.filter(e=>e.quantity>0);slots.forEach(slot=>delete hero.loadout[slot]);hero.equipped=null;
+      addInventory(hero,upgraded.id);autoEquip(hero);event.heroId=hero.id;event.move='Forged '+upgraded.name;
+    }else fail('Choose a valid quest action.');
+    state.revision++;state.lastEvent=event;return state;
+  }
+
   function buildFor(hero) {
     const result={physicalBonus:0,elementalBonus:0,physicalPierce:0,elementalPierce:0,exposureBonus:0,element:null};
     (hero.learnedSkills || []).map(skillById).filter(s=>s && !s.itemSkill && activeSkill(hero,s) && s.passive).forEach(s=>{
@@ -85,6 +212,12 @@
     return hero.role==='mage'?'arcane':hero.role==='cleric'?'holy':'physical';
   }
   function adventureDiscovery(state,hero,event) {
+    if(state.journey && !state.journey.blessingUsed){
+      state.journey.blessingUsed=true;const blessing=state.journey.blessing;
+      const effects={shield:{shield:.15},mana:{manaAll:18},expose:{expose:{physical:{amount:.15,turns:4},elemental:{amount:.15,turns:4}}}};
+      if(effects[blessing])support(state,hero,effects[blessing],event,hero);
+      if(blessing==='companion'){event.companion=true;for(const enemy of enemiesFor(state).filter(e=>e.hp>0)){const damage=hitEnemy(state,enemy,Math.max(1,Math.round(enemy.maxHp*.05)));event.damage+=damage;(event.enemyTargets || (event.enemyTargets=[])).push({enemyId:enemy.id,damage});}}
+    }
     const road=state.adventure;
     if (!road || road.resolved) return;
     road.resolved=true;
@@ -469,7 +602,7 @@
     });
     // The rare roadside chest adds one guaranteed rare-or-better item per hero.
     // It is inside the same immutable victory receipt as ordinary treasure.
-    if (state.adventure?.kind==='chest') state.heroes.forEach(hero=>{
+    if (state.adventure?.kind==='chest' || state.journey?.blessing==='treasure') state.heroes.forEach(hero=>{
       const seed=state.encounterId+':'+hero.id+':road-chest',pool=Object.values(ITEMS).filter(i=>['rare','epic','legendary','mythical'].includes(i.rarity));
       const item=pool[Math.floor(randomUnit(seed)*pool.length)],sockets=socketRoll(seed,item);
       addInventory(hero,item.id,1,sockets);
@@ -486,6 +619,7 @@
       addInventory(hero,item.id);
       state.rewards.push({heroId:hero.id,itemId:item.id,instanceId:seed,rarity:item.rarity,name:item.name,description:item.description,xp:0,source:'bonus-rune'});
     });
+    questVictory(state);
     event.rewards=state.rewards;
   }
   function finish(state,event) {
@@ -729,16 +863,21 @@
       if (previous && action.expectedRevision!==previous.revision) fail('The class changed on another screen. Try again.');
       const heroes=roster(action.heroes,previous && normalizeState(previous)), boss=nextBoss(previous,action.spinId || action.id);
       heroes.forEach(h=>{h.hp=h.stats.maxHp;h.mp=h.stats.maxMp;h.cooldowns={};h.shield=0;h.weakened=false;h.mythicalUsed=false;h.correctActions=0;});
-      const adventure=adventureFor(previous,action.spinId || action.id);
+      const journey=journeyFor(previous),adventure=adventureFor(previous,action.spinId || action.id);
+      const route=QUEST_ROUTES[journey.route];
+      if(route)Object.assign(adventure,{biome:route.biome,kind:route.kind,eventId:route.eventId || null,resolved:false});
+      if(journey.node===4){adventure.kind='uber';adventure.eventId=null;adventure.chapterGuardian=true;}
+      journey.blessingUsed=false;
       const enemyLevel=enemyLevelFor(heroes),scale=enemyScale({enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,adventure});
       const bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)*scale.hp)/2));
       return startFormation({schemaVersion:1,encounterId:action.id,revision:(previous && previous.revision || 0)+1,
-        enemyHealthVersion:ENEMY_HEALTH_VERSION,enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,bossRotation:rotationAfterStart(previous,boss),adventure,exposures:{},
+        enemyHealthVersion:ENEMY_HEALTH_VERSION,enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,bossRotation:rotationAfterStart(previous,boss),adventure,journey,combo:{count:0,lastHeroId:null,questions:[],paused:false,recoveryHeroId:null,cycles:0},preparation:null,exposures:{},
         bossId:boss.id,bossHp:bossMaxHp,bossMaxHp,bossMp:BOSS_MAX_MP,bossMaxMp:BOSS_MAX_MP,charge:0,heroes,heroArchive:archiveFor(previous,heroes),pending:null,status:'active',
         bossTurns:0,actionCount:1,correctCount:0,guard:false,bossWeakness:0,poison:null,ailments:{},exposures:{},rewards:[],lootAwarded:false,lastEvent:event,combatLog:copy(previous?.combatLog || []).slice(-40)},previous,action.spinId || action.id,action.formation);
     }
     if (!previous || action.encounterId!==previous.encounterId) fail('This encounter has changed. Reload its latest progress.');
     const state=normalizeState(previous), boss=bossById(state.bossId);
+    if (action.type==='quest') return questAction(state,action,event);
     if (action.type==='sync') {
       if (action.expectedRevision!==state.revision) fail('The class changed on another screen. Try again.');
       if (action.command) {
@@ -783,7 +922,9 @@
       Object.assign(event,{heroId:hero.id,role:hero.role,job:hero.job || null,outcome:action.outcome,damage:0,critical:false,command:action.command || 'attack'});
       if (action.outcome==='correct') {
         setTeam(state,hero.id);
+        applyPreparation(state,hero,event);
         heroAction(state,hero,action,event,points);
+        if(event.preparationTargets)event.enemyTargets=[...(event.enemyTargets || []),...event.preparationTargets];
         if(state.teamSize>1){
           const actions=[copy(event)];
           for(const ally of combatHeroes(state).filter(h=>h.id!==hero.id && h.hp>0)){
@@ -797,6 +938,7 @@
         }
         state.correctCount++;
       }
+      comboAnswer(state,hero,action,event);
       state.pending=null; return finish(state,event);
     }
     if (action.type==='boss') {
@@ -809,6 +951,7 @@
       if (action.timing!==undefined && (!Number.isFinite(action.timing) || action.timing<0 || action.timing>1)) fail('Stop the timing meter inside the bar.');
       const timing=action.timing===undefined?.5:action.timing, multiplier=timingMultiplier(timing);
       const manaBefore=state.bossMp;state.bossMp=ultimate?state.bossMp-BOSS_SKILL_MP:Math.min(BOSS_MAX_MP,state.bossMp+BOSS_ATTACK_MP);
+      applyPreparation(state,null,event);
       const living=combatHeroes(state).filter(h=>h.hp>0);
       const attackers=enemiesFor(state).filter(e=>e.hp>0);
       if(!living.length)fail('Call a standing hero before the enemy team attacks.');
@@ -856,7 +999,7 @@
     // hero phase here, with the separately saved enemy reply nested below.
     const withoutEnemy=(rows,other)=>{const result=[...(rows||[])];for(const row of other||[]){const i=result.findLastIndex(x=>JSON.stringify(x)===JSON.stringify(row));if(i>=0)result.splice(i,1);}return result;};
     return {id:event.id,encounterId:state.encounterId,type:event.type,actorName:event.actorName || (event.type==='boss'?enemyName:names.get(event.heroId)||'Hero'),heroId:event.heroId||null,enemyName,
-      actions:copy(event.actions || []),enemyTargets:copy(event.enemyTargets || []),move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,damageType:event.damageType||null,infused:!!event.infused,giftSkill:event.giftSkill||null,synergy:copy(event.synergy||null),discovery:event.discovery||null,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
+      actions:copy(event.actions || []),enemyTargets:copy(event.enemyTargets || []),move:event.move||(event.type==='answer'&&event.outcome!=='correct'?event.outcome==='skip'?'Skipped answer':'Incorrect answer':'Attack'),damage:event.damage||0,damageType:event.damageType||null,infused:!!event.infused,giftSkill:event.giftSkill||null,synergy:copy(event.synergy||null),discovery:event.discovery||null,comboBurst:copy(event.comboBurst||null),preparation:event.preparation||null,critical:!!event.critical,outcome:event.outcome||state.status,points:event.points||null,
       targets:named(withoutEnemy(event.targets,event.enemy?.targets)),healed:named(withoutEnemy(event.healed,event.enemy?.healed)),supported:named(event.supported),afflicted:copy(event.afflicted||[]),enemy,bossHealed:event.bossHealed||0,poisonDamage:event.poisonDamage||0,ailmentTicks:copy(event.ailmentTicks||[])};
   }
   function reduce(previous,action) {
@@ -865,6 +1008,6 @@
     const log=(previous?.combatLog || []).filter(row=>row.id!==action.id);
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
-  return {RUNE_BONUS_CHANCE,enemiesFor,combatHeroes,targetingLabel,ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
+  return {QUEST_ROUTES,QUEST_EVENTS,journeyFor,routeOptions,bossIntentFor,RUNE_BONUS_CHANCE,enemiesFor,combatHeroes,targetingLabel,ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
     reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor,adventureFor,ADVENTURE_RATES,ADVENTURE_BIOMES,buildFor,damageTypeFor};
 });

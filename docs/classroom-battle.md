@@ -160,3 +160,49 @@ This release requires the updated `ansKeyHeroes` deployment. Existing installati
 - `tools/battle-animation-art-tests.mjs` verifies all generated sheet hashes, alpha, grid boundaries and distinct frame content. `tools/battle-animation-browser-check.mjs` verifies idle motion, each class effect, playback ordering, cancellation, duplicate callbacks, missing assets and reduced motion.
 - `tools/item-catalog-tests.mjs` checks all 238 loot entries, supported bonuses, drop reachability and the preserved 50 relic pictures. `tools/armory-art-tests.mjs` and `tools/boss-catalog-tests.mjs` verify generated artwork, catalog counts, transparency and unique tiles. `tools/equipment-rotation-tests.mjs` checks loadout migration, ownership and complete no-repeat rounds. `tools/mission-animation-art-tests.mjs` checks the native mission/Chung sheets. `tools/mission-tests.mjs` and the server tests cover mission probabilities, timer/streak/Assist progress, current-roster payouts, summon authority and exact-once receipts. `tools/mission-machine-browser-check.mjs` exercises the mission panel, class bank, failed-response retries and Lesson slot lifecycle.
 - `tools/mission-animation-browser-check.mjs` checks Chung and machine playback, responsive controls during effects, cancellation, reduced motion and mobile layouts.
+# Class adventures (v1.156.0)
+
+The wheel and manual battle now share an Our class adventure panel beneath
+the fight/mission controls. Open its choices to record students' decisions.
+
+- Each lesson slot saves a five-encounter chapter. Only victory advances the
+  map; restarting or losing a fight keeps the checkpoint. The fifth encounter
+  is an empowered chapter guardian. Completed chapters continue into the next.
+- After a fight, record each present student's route vote, then confirm the
+  majority route (the teacher breaks ties). Forest grants a shield, ruins grant
+  mana, caves add a rare chest, and the summit offers an empowered encounter.
+  Leaving choices unopened continues the existing random trail.
+- The first victory, then occasional later victories, reveal a merchant,
+  sealed chest or injured creature. Choose one gift for the next encounter.
+  Blessings activate once on its first correct answer; a chest gift pays out
+  with victory. A companion adds an opening AoE strike.
+- Alternating students build a team combo. Three answers unleash Together
+  strike; five unleash Class constellation and heal the party. Repeating the
+  same question cannot charge the meter again. Wrong answers pause the meter;
+  a teacher-confirmed correction or a real teammate assist resumes it. With a
+  one-student roster, that student can build the combo alone.
+- Boss intent names upcoming attacks and single/AoE targets. Once per enemy
+  turn, prepare a 20% HP shield, 15% HP heal, or a 3% enemy HP attack bonus.
+  Benefits activate with the next correct answer; shields/healing also activate
+  if the teacher launches the enemy first. Attack preparation needs an answer
+  before that enemy turn. These benefits do not award marks or extra XP.
+- Ordinary loot and the independent 50% bonus rune roll remain automatic.
+  Every present victory hero also receives one extra choice: equipment, a rune
+  or three star shards. Choices and shards are stored on canonical heroes and
+  follow them between lessons. Up to twelve unopened choices are retained; an
+  older choice automatically becomes its equipment option if the inbox fills.
+- Between encounters, star shards upgrade one owned piece of equipment to
+  the next rarity for 3/6/9/12/15 shards. Remove socketed runes first. Mythical
+  and unique gear cannot be upgraded. Rewards are not automatically equipped
+  merely by selecting them; forging uses the existing equipment upgrade rules.
+
+Quest requests use the authenticated teacher battle API, expected encounter
+and revision, and durable action receipts. Uncertain saves retain the exact
+request across reloads and block conflicting wheel actions until confirmed.
+Absent students cannot vote or claim through the current lesson; only present
+votes count towards a route. Existing encounters keep their original rules
+until the next encounter introduces a journey.
+
+The new UI reuses existing biome, equipment and rune artwork, lightning attack
+atlases and CSS effects, including reduced-motion alternatives.
+

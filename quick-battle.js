@@ -4,8 +4,9 @@
   var Core = window.ClassroomBattleCore, Store = window.ClassroomBattleStore;
   if (!Core || !Store) return;
   var q = { epoch: 0, store: null, off: null, state: null, preview: null, queued: null, player: null, playing: false, playingId: '', before: null, cls: '', uid: '', loading: false, busy: false, error: '', heroId: '', selection: null, request: null, assistOpen: false, assistMessage: '', assisted: new Set(), on: true };
-  var played = new Set(), missionPanel = null;
-  function missionBusy() {return !!(missionPanel && missionPanel.blocked());}
+  var played = new Set(), missionPanel = null, questPanel = null;
+  function questBusy(){return !!(questPanel && questPanel.blocked());}
+  function missionBusy() {return questBusy() || !!(missionPanel && missionPanel.blocked());}
   function guestsBusy() { return !!(window.wheelGuestsBusy && wheelGuestsBusy()); }
   function lessonStudents() { return window.wheelLessonStudents ? wheelLessonStudents(q.cls) : window.rwStudentsInClass ? rwStudentsInClass(q.cls) : []; }
   function studentInLesson(student) { return !!student && (window.wheelStudentInLesson ? wheelStudentInLesson(student, q.cls) : rwStudentClasses(student).includes(q.cls)); }
@@ -28,7 +29,7 @@
     var side = el('wheelSide');
     if (side) side.appendChild(box); else document.querySelector('#wheelModal .whSpinRow').insertAdjacentElement('afterend', box);
     var mission = document.createElement('section'); mission.id='wheelMissionDock'; mission.className='whMissionDock';
-    mission.innerHTML='<div id="wheelMission"></div><p id="wheelMissionHint" class="whMissionHint"></p>';
+    mission.innerHTML='<div id="wheelMission"></div><p id="wheelMissionHint" class="whMissionHint"></p><div id="wheelQuest"></div>';
     box.insertAdjacentElement('afterend', mission);
     el('wheelQuickToggle').checked = q.on;
     el('wheelQuickRetry').addEventListener('click', function () { (q.request && q.request.kind === 'assist' ? assist(null, true) : award(null, 0, '', true)).catch(function (err) { if (window.toast) toast(err.message); }); });
@@ -44,6 +45,7 @@
     });
   }
   function close() {
+    if(questPanel)questPanel.destroy();questPanel=null;
     cancelFeedback(); q.preview = null; q.queued = null; if (missionPanel) missionPanel.destroy(); missionPanel=null;
     q.epoch++; if (q.off) q.off(); q.off = null; q.store = null;
     q.busy = false; q.loading = false; q.state = null; q.heroId = ''; q.selection = null; q.request = null; q.assistOpen = false; q.assistMessage = ''; q.error = ''; q.restore = false;
@@ -67,7 +69,7 @@
     var stamp = q.epoch; q.loading = true; render();
     try {
       q.store = Store.create({ onMission:function(result){if(missionPanel)missionPanel.receive(result);}, db: window.db, teacherId: uid, classId: cls, canWrite: function () { return !manual() && stamp === q.epoch && allowed() && currentUser.uid === uid && window.wheelClass === cls && visible(); } });
-      mountMission();
+      mountQuest();mountMission();
       q.off = q.store.subscribe(function (next) {
         if (stamp !== q.epoch) return;
         if (next && q.state && next.revision < q.state.revision) return;
@@ -156,6 +158,8 @@
     el('wheelQuickFight').hidden = manual() || !visible();
     el('wheelMissionDock').hidden = manual() || !visible();
     if (manual() || !visible()) return;
+    if(questPanel)questPanel.render();
+    el('wheelQuest').hidden=!q.on;
     controls(q.state);
     el('wheelQuickLog').innerHTML = q.on && window.ClassroomBattleDisplay ? ClassroomBattleDisplay.log(shown()) : '';
     el('wheelMissionHint').textContent = !q.cls ? 'Choose a Lesson slot to turn for a class mission.' : !q.on ? 'Turn on Quick fight to use a summon during battle.' : '';
@@ -183,6 +187,7 @@
     if (s && s.status === 'victory' && q.on) el('wheelQuickDuel').innerHTML += '<div class="cbQuickTreasure"><span class="cbChest" aria-label="Opening treasure chest" role="img"></span><div class="cbQuickSpoils"><h4>Treasure for all ' + s.heroes.length + ' heroes</h4>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.treasure(s) : '') + '</div></div>';
     if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(el('wheelQuickDuel'));
     el('wheelQuickStatus').textContent = !q.on ? 'Name wheel only. Turn on Quick fight to battle when points are awarded.' : q.error || (!q.cls ? 'Choose a Lesson slot to enable battles for points.' : q.loading ? 'Loading the saved encounter…' : q.busy ? 'Saving answer…' : window.wheelSpinning ? 'Choosing your champion…' : summary(s));
+    if(q.on && s && s.combo && !q.error)el('wheelQuickStatus').textContent+=' · Combo '+s.combo.count+'/5'+(s.combo.paused?' (explain to resume)':'')+(s.lastEvent&&s.lastEvent.comboBurst?' · '+s.lastEvent.comboBurst.name+'!':'');
     if (q.on && window.ClassroomBattleDisplay && !q.error) el('wheelQuickStatus').textContent += ' · ' + ClassroomBattleDisplay.rotation(s);
     el('wheelQuickStatus').classList.toggle('cbQuickError', !!q.error);
     if (q.on) el('wheelHeroPreview').hidden = true;
@@ -354,10 +359,19 @@
     q.player=player;
     player.finished.then(function () { if(q.player===player) { q.player=null;q.playing=false;q.playingId='';render(); } });
   }
+  function mountQuest(){
+    if(!window.ClassroomQuestPanel||!q.store)return;
+    questPanel=ClassroomQuestPanel.mount(el('wheelQuest'),{store:q.store,teacherId:q.uid,classId:q.cls,
+      getState:function(){return q.state;},
+      isEligible:function(hero){return !hero.studentId || lessonStudents().some(function(s){return s.id===hero.studentId;});},
+      canAct:function(){return q.on&&!guestsBusy()&&!q.loading&&!q.busy&&!q.request&&!q.playing&&!(missionPanel&&missionPanel.blocked())&&!window.wheelSpinning&&allowed()&&visible()&&!manual();},
+      onChange:function(next){if(next&&(!q.state||next.revision>=q.state.revision))q.state=next;render();},onBusy:function(){render();}
+    });
+  }
   function mountMission() {
     if (!window.ClassroomMissionMachine || !q.store) return;
     missionPanel=ClassroomMissionMachine.mount(el('wheelMission'), {store:q.store,teacherId:q.uid,classId:q.cls,
-      canAct:function () { return !guestsBusy()&&!q.loading&&!q.busy&&!q.request&&!window.wheelSpinning&&allowed()&&visible()&&!manual(); },
+      canAct:function () { return !questBusy()&&!guestsBusy()&&!q.loading&&!q.busy&&!q.request&&!window.wheelSpinning&&allowed()&&visible()&&!manual(); },
       getState:function () {return q.on ? q.state : null;},getSpinId:function () {return q.selection&&q.selection.spinId;},
       onChange:function (result) {if(result.state&&(!q.state||result.state.revision>=q.state.revision))q.state=result.state;render();},
       onBusy:function () {controls(q.state);},

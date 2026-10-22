@@ -253,7 +253,7 @@ try {
   await page.waitForFunction(()=>!document.getElementById('cbSkip').disabled);
   await page.click('#cbSkip');
   await page.waitForFunction(()=>!__battleState().pending && !document.getElementById('wheelSpinBtn').disabled);
-  check('the teacher can resolve the waiting manual answer after confirming the guest change',await page.evaluate(()=>__battleState().lastEvent.outcome==='skip' && !__battleState().pending));
+  check('the teacher can resolve the waiting manual answer after confirming the guest change',await page.evaluate(()=>__battleState().combatLog.at(-1)?.outcome==='skip' && !__battleState().pending));
   await panel();
   await page.click('[data-attendance="absent"][data-student-id="home-mira"]');
   await page.waitForFunction(()=>!wheelGuestsBusy());
