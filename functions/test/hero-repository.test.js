@@ -76,6 +76,15 @@ test('absent students cannot vote or claim new treasure; their votes cannot over
  assert.equal(result.state.journey.route,routes[1]);
 });
 
+
+test('quest choices cannot release or overwrite a hero fighting in another lesson',async()=>{
+ const {call,db}=setup();let state=await begin(call);
+ state=(await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ await begin(call,'Sunday',[heroes[0]]);const before=JSON.stringify([...db.data]);
+ await assert.rejects(battle(call,'Saturday',{type:'quest',command:'treasure',id:aid(),heroId:'student:alex',treasureId:state.heroes[0].treasureInbox[0].id,choiceId:'materials',encounterId:state.encounterId,expectedRevision:state.revision}),/active encounter in Sunday/);
+ assert.equal(JSON.stringify([...db.data]),before);
+});
+
 test('a real teammate assist resumes a paused combo once without adding combat turns or repeated XP',async()=>{
  const {call}=setup();let state=await begin(call);
  state=(await battle(call,'Saturday',{type:'select',id:aid(),heroId:'student:alex',encounterId:state.encounterId,expectedRevision:state.revision})).state;

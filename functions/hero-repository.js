@@ -532,6 +532,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       for (const student of identities.filter(s=>!s.guest)) {
         const profile=profileMap.get(student.id), lock=profile.activeEncounter;
         if (lock && (lock.classId!==classId || (!starting && old?.encounterId!==lock.encounterId))) {
+          if(action.type==='quest')deny('encounter_active','Finish '+student.name+'’s active encounter in '+lock.classId+' before making quest choices here.');
           if (action.type==='end') { otherEncounter.add(student.id); continue; }
           if (lock.classId===classId) deny('encounter_active',student.name+' is in an active encounter in '+lock.classId+'. End it before starting another.');
           // A student may continue their quest from any lesson's wheel: the
