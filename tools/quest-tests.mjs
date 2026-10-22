@@ -67,3 +67,11 @@ test('quest choices enforce encounter/revision/pending-answer guards and never m
  let s=sturdy(),copy=structuredClone(s);assert.throws(()=>act(s,'quest',{command:'prepare',choiceId:'heal',expectedRevision:s.revision-1}),/changed/);assert.deepEqual(s,copy);
  s=act(s,'select',{heroId:s.heroes[0].id});assert.throws(()=>quest(s,'prepare',{choiceId:'heal'}),/Resolve/);
 });
+
+test('chapter guardians retain the chosen route’s shield or extra chest',()=>{
+ for(const route of ['forest','cave']){
+  let s=win(start());s.journey.node=4;s.journey.route=route;s=start(s);assert.equal(s.adventure.chapterGuardian,true);
+  if(route==='forest'){s=answer(s,0);assert.ok(s.heroes.every(h=>h.shield>0));}
+  if(route==='cave'){s=win(s);assert.equal(s.rewards.filter(r=>r.source==='road-chest').length,s.heroes.length);}
+ }
+});

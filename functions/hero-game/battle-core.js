@@ -221,10 +221,10 @@
     const road=state.adventure;
     if (!road || road.resolved) return;
     road.resolved=true;
-    if (road.kind!=='event') return;
+    if (road.kind!=='event' && !road.guardianEventId) return;
     const effects={'guardian-shrine':{shield:.15},'mana-spring':{manaAll:18},'travelling-smith':{expose:{physical:{amount:.15,turns:4},elemental:{amount:.15,turns:4}}}};
-    support(state,hero,effects[road.eventId] || effects['guardian-shrine'],event,hero);
-    event.discovery=road.eventId;
+    support(state,hero,effects[road.guardianEventId || road.eventId] || effects['guardian-shrine'],event,hero);
+    event.discovery=road.guardianEventId || road.eventId;
   }
   function bossRotationFor(previous) {
     const playable=new Set(BOSSES.filter(b=>!b.legacy).map(b=>b.id)),saved=previous?.bossRotation;
@@ -602,7 +602,7 @@
     });
     // The rare roadside chest adds one guaranteed rare-or-better item per hero.
     // It is inside the same immutable victory receipt as ordinary treasure.
-    if (state.adventure?.kind==='chest' || state.journey?.blessing==='treasure') state.heroes.forEach(hero=>{
+    if (state.adventure?.kind==='chest' || state.adventure?.guardedChest || state.journey?.blessing==='treasure') state.heroes.forEach(hero=>{
       const seed=state.encounterId+':'+hero.id+':road-chest',pool=Object.values(ITEMS).filter(i=>['rare','epic','legendary','mythical'].includes(i.rarity));
       const item=pool[Math.floor(randomUnit(seed)*pool.length)],sockets=socketRoll(seed,item);
       addInventory(hero,item.id,1,sockets);
@@ -866,7 +866,7 @@
       const journey=journeyFor(previous),adventure=adventureFor(previous,action.spinId || action.id);
       const route=QUEST_ROUTES[journey.route];
       if(route)Object.assign(adventure,{biome:route.biome,kind:route.kind,eventId:route.eventId || null,resolved:false});
-      if(journey.node===4){adventure.kind='uber';adventure.eventId=null;adventure.chapterGuardian=true;}
+      if(journey.node===4){adventure.guardedChest=adventure.kind==='chest';adventure.guardianEventId=adventure.kind==='event'?adventure.eventId:null;adventure.kind='uber';adventure.eventId=null;adventure.chapterGuardian=true;}
       journey.blessingUsed=false;
       const enemyLevel=enemyLevelFor(heroes),scale=enemyScale({enemyScalingVersion:ENEMY_SCALING_VERSION,enemyLevel,adventure});
       const bossMaxHp=Math.max(1,Math.ceil(Math.round(Math.round(Math.max(200,heroes.reduce((sum,h)=>sum+h.stats.damage,0)*4)*boss.hpMultiplier)*scale.hp)/2));
