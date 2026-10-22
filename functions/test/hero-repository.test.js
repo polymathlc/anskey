@@ -50,6 +50,51 @@ function guestSetup() {
   return {...result,visit:(command,extra={})=>result.call(teacher,guestRequest(command,extra))};
 }
 
+test('quest votes, preparations and personal treasure are teacher-only, canonical and receipt protected',async()=>{
+ const {call,db}=setup();let state=await begin(call);
+ const quest=async(command,extra={})=>{const request={type:'battle',classId:'Saturday',action:{type:'quest',command,id:aid(),encounterId:state.encounterId,expectedRevision:state.revision,heroId:'student:alex',...extra}};const result=await call(teacher,request);state=result.state;return {request,result};};
+ await assert.rejects(call(pupil('one'),{type:'battle',classId:'Saturday',action:{type:'quest',command:'prepare',id:aid()}}),/teacher/);
+ await quest('prepare',{choiceId:'shield'});assert.equal(state.preparation.choice,'shield');
+ state=(await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ const prize=state.heroes.find(h=>h.studentId==='alex').treasureInbox[0];
+ const request={type:'battle',classId:'Saturday',action:{type:'quest',command:'treasure',id:aid(),encounterId:state.encounterId,expectedRevision:state.revision,heroId:'student:alex',treasureId:prize.id,choiceId:'materials',shards:99999}};
+ const replies=await Promise.all([call(teacher,request),call(teacher,request),call(teacher,request)]);state=replies.at(-1).state;
+ assert.equal(db.data.get(profilePath('alex')).hero.upgradeShards,3);assert.equal(db.data.get(profilePath('alex')).hero.treasureInbox.length,0);
+ await assert.rejects(call(teacher,{...request,action:{...request.action,id:aid(),expectedRevision:state.revision,choiceId:'rune'}}),/already chosen/);
+ const options=C.routeOptions(state);await quest('vote',{routeId:options[0]});await quest('route',{routeId:options[0]});
+ assert.equal(db.data.get(classPath('Saturday')).journey.route,options[0]);
+ const next=(await battle(call,'Saturday',{type:'start',id:aid(),heroes,expectedRevision:state.revision})).state;assert.equal(next.journey.route,options[0]);assert.equal(next.heroes.find(h=>h.studentId==='alex').upgradeShards,3);
+});
+
+test('absent students cannot vote or claim new treasure; their votes cannot override the present class',async()=>{
+ const {call}=setup();let state=await begin(call);state=(await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ const routes=C.routeOptions(state);
+ state=(await battle(call,'Saturday',{type:'quest',command:'vote',id:aid(),heroId:'student:sam',routeId:routes[0],encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ await call(teacher,{type:'lessonGuests',classId:'Saturday',command:'absent',studentId:'sam',id:aid()});
+ await assert.rejects(battle(call,'Saturday',{type:'quest',command:'vote',id:aid(),heroId:'student:sam',routeId:routes[0],encounterId:state.encounterId,expectedRevision:state.revision}),/present in this lesson/);
+ const result=await battle(call,'Saturday',{type:'quest',command:'route',id:aid(),heroId:'student:alex',routeId:routes[1],encounterId:state.encounterId,expectedRevision:state.revision,eligibleHeroIds:['student:sam']});
+ assert.equal(result.state.journey.route,routes[1]);
+});
+
+
+test('quest choices cannot release or overwrite a hero fighting in another lesson',async()=>{
+ const {call,db}=setup();let state=await begin(call);
+ state=(await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ await begin(call,'Sunday',[heroes[0]]);const before=JSON.stringify([...db.data]);
+ await assert.rejects(battle(call,'Saturday',{type:'quest',command:'treasure',id:aid(),heroId:'student:alex',treasureId:state.heroes[0].treasureInbox[0].id,choiceId:'materials',encounterId:state.encounterId,expectedRevision:state.revision}),/active encounter in Sunday/);
+ assert.equal(JSON.stringify([...db.data]),before);
+});
+
+test('a real teammate assist resumes a paused combo once without adding combat turns or repeated XP',async()=>{
+ const {call}=setup();let state=await begin(call);
+ state=(await battle(call,'Saturday',{type:'select',id:aid(),heroId:'student:alex',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ const turnId=state.pending.id;
+ state=(await battle(call,'Saturday',{type:'answer',id:aid(),turnId,outcome:'incorrect',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ assert.equal(state.combo.paused,true);const hp=state.bossHp,turns=state.bossTurns;
+ const request={type:'assist',classId:'Saturday',studentId:'sam',helpedStudentId:'alex',action:{id:aid(),spinId:turnId}};
+ const a=await call(teacher,request),b=await call(teacher,request);assert.equal(a.state.combo.paused,false);assert.equal(a.state.bossHp,hp);assert.equal(a.state.bossTurns,turns);assert.equal(a.hero.xp,b.hero.xp);
+});
+
 test('temporary guest membership is teacher-only and rejects invalid target, source, student and receipts without writes',async()=>{
   const {call,db}=guestSetup(),before=JSON.stringify([...db.data]);
   for(const command of ['get','add','remove'])await assert.rejects(call(pupil('one'),guestRequest(command)),/teacher/);

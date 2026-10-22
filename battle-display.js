@@ -52,6 +52,8 @@
         var skill=a.skillId && Core.skillById(a.skillId);
         parts.push(esc(hero?hero.name:b?b.name:'Hero')+': '+esc(a.move || 'Attack')+(skill?' ['+esc(Core.targetingLabel(skill))+']':a.targeting?' ['+esc(a.targeting==='aoe'?'AoE damage':'Single-target damage')+']':'')+(a.damage?' −'+a.damage:'')+(a.enemyTargets || []).map(function(t){return ' → '+esc(Core.bossById(t.enemyId).name)+' −'+t.damage;}).join(''));
       });
+      if(row.comboBurst)parts.push('CLASS COMBO · '+esc(row.comboBurst.name));
+      if(row.preparation)parts.push('Preparation: '+esc(row.preparation));
       if(row.damageType)parts.push(esc(row.damageType)+' damage');
       if(row.synergy){var setter=(state.heroes||[]).find(function(h){return h.id===row.synergy.sourceHeroId;});parts.push('TEAM SYNERGY · '+esc(row.synergy.channel)+' defence break'+(setter?' by '+esc(setter.name):''));}
       if(row.discovery)parts.push('Roadside blessing: '+esc(row.discovery.replace(/-/g,' ')));

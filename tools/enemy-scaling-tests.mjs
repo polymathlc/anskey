@@ -69,7 +69,7 @@ test('scaled enemies hit harder, wear more armour and give more experience',()=>
 });
 
 test('an encounter started before scaling plays exactly as it always did',()=>{
-  const s=start(party(30),'goblin');delete s.enemyScalingVersion;delete s.enemyLevel;s.bossHp=s.bossMaxHp=50;
+  const s=start(party(30),'goblin');delete s.enemyScalingVersion;delete s.enemyLevel;delete s.enemies;delete s.teamSize;delete s.teamVersion;delete s.teamHeroIds;s.bossHp=s.bossMaxHp=50;
   const scale=C.enemyScale(s);
   assert.equal(scale.scaled,false);assert.equal(scale.hp,1);assert.equal(scale.attack,1);assert.equal(scale.armour,0);assert.equal(scale.hitCap,Infinity);
   const won=answer(s);assert.equal(won.status,'victory');assert.equal(won.lastEvent.capped,undefined);

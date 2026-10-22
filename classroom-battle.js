@@ -10,9 +10,10 @@
   var wheelParent, wheelNext, selectionInFlight = false, classReady = false, pendingProfiles = 0;
   var offWheelProfile = null, wheelPreviewEpoch = 0;
   var failedAvatars = {}, menu = 'attack', commandId = '', commandTurn = '', inspectId = '', timing = null, timingFrame = 0;
-  var missionPanel = null;
+  var missionPanel = null, questPanel = null;
+  function questBusy(){return !!(questPanel && questPanel.blocked());}
   var journalTree = null, arenaPlayer = null, animationPending = null, animationId = '';
-  function missionBusy() {return !!(missionPanel && missionPanel.blocked());}
+  function missionBusy() {return questBusy() || !!(missionPanel && missionPanel.blocked());}
   function guestsBusy() { return !!(window.wheelGuestsBusy && wheelGuestsBusy()); }
   function lessonStudents() { return window.wheelLessonStudents ? wheelLessonStudents(classId) : window.rwStudentsInClass ? rwStudentsInClass(classId) : []; }
   function studentInLesson(student) { return !!student && (window.wheelStudentInLesson ? wheelStudentInLesson(student, classId) : rwStudentClasses(student).includes(classId)); }
@@ -140,6 +141,7 @@
     classChanged(window.wheelClass || ''); wheelFit(); el('cbClose').focus();
   }
   function detach() {
+    if(questPanel)questPanel.destroy();questPanel=null;
     if (missionPanel) missionPanel.destroy(); missionPanel=null;
     cancelArena(); animationPending = null; animationId = '';
     if (journalTree) journalTree.destroy(); journalTree = null;
@@ -172,7 +174,7 @@
     var boundUid = teacherId;
     try { store = Store.create({ onMission:function(result){if(missionPanel)missionPanel.receive(result);}, db: window.db, teacherId: teacherId, classId: classId, canWrite: function () { return stamp === epoch && opened && classId === cls && allowed() && currentUser.uid === boundUid; } }); }
     catch (e) { loading = false; showError(e); return; }
-    mountMission();
+    mountQuest();mountMission();
     offState = store.subscribe(function (next) {
       if (stamp !== epoch || !opened) return;
       if (next && state && next.revision < state.revision) return;
@@ -387,6 +389,9 @@
     return 'Spin the wheel for the next hero. Boss attacks only happen when the teacher triggers them.';
   }
   function render() {
+    if(arenaPlayer){
+      var waiting=arenaPlayer;waiting.finished.then(function(){if(opened && (!arenaPlayer || arenaPlayer===waiting)){arenaPlayer=null;render();}});return;
+    }
     cancelArena();
     if (!opened || !el('classroomBattle')) return;
     if(!el('cbAdventure'))el('cbArena').querySelector('.cbArenaTop').insertAdjacentHTML('afterend','<div id="cbAdventure"></div>');
@@ -466,13 +471,24 @@
     el('cbEncounterChoice').disabled = true;
     renderCommands(); renderJournal(); renderLoot();
     el('cbDamageLog').innerHTML=window.ClassroomBattleDisplay?ClassroomBattleDisplay.log(state):'';
+    if(questPanel)questPanel.render();
     if(missionPanel)missionPanel.render();
     if (window.LessonGuests) LessonGuests.renderButtons();
+  }
+  function mountQuest(){
+    if(!el('cbQuest'))el('cbFeedback').insertAdjacentHTML('afterend','<div id="cbQuest"></div>');
+    if(!window.ClassroomQuestPanel||!store)return;
+    questPanel=ClassroomQuestPanel.mount(el('cbQuest'),{store:store,teacherId:teacherId,classId:classId,
+      getState:function(){return state;},
+      isEligible:function(hero){return !hero.studentId || lessonStudents().some(function(s){return s.id===hero.studentId;});},
+      canAct:function(){return opened&&allowed()&&!guestsBusy()&&!busy&&!loading&&!timing&&!selectionInFlight&&!(missionPanel&&missionPanel.blocked())&&!window.wheelSpinning;},
+      onChange:function(next){if(next&&(!state||next.revision>=state.revision))state=next;render();},onBusy:function(){render();}
+    });
   }
   function mountMission() {
     if(!window.ClassroomMissionMachine||!store)return;
     missionPanel=ClassroomMissionMachine.mount(el('cbMission'),{store:store,teacherId:teacherId,classId:classId,
-      canAct:function(){return opened&&allowed()&&!guestsBusy()&&!busy&&!loading&&!timing&&!selectionInFlight&&!window.wheelSpinning;},
+      canAct:function(){return !questBusy()&&opened&&allowed()&&!guestsBusy()&&!busy&&!loading&&!timing&&!selectionInFlight&&!window.wheelSpinning;},
       getState:function(){return state;},getSpinId:function(){return null;},
       onChange:function(result){if(result.state&&(!state||result.state.revision>=state.revision))state=result.state;render();},
       onBusy:function(){render();},onSummon:function(event,encounterId){if(event)queueAnimation(event,encounterId);}
