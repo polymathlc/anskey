@@ -536,3 +536,54 @@ test('🗑 only the teacher deletes, refused in the handler', async () => {
     assert.ok(DEL_ID in t.store);
   }
 });
+
+/* ---- 🙋 The student's side (v1.156.0) ---- */
+function withButton(L) {
+  const b = L.doc.createElement('button');
+  b.style = {}; b.classList = { on: false, toggle(c, v) { this.on = !!v; } };
+  L.doc.getElementById = (id) => (id === 'consultLogBtn' ? b : null);
+  return b;
+}
+test('a student signed in to Ans Key gets 🙋 Consults: their window to ask and the answers not yet watched', () => {
+  const libs = [];
+  const answer = { openLibrary: (o) => { libs.push(o); return true; }, openLog: () => { throw new Error('a student never opens the log'); }, stop() {} };
+  const L = load({ admin: false, answer });
+  const b = withButton(L);
+  L.CA.roleChanged();
+  assert.equal(L.listening, false, 'a student is never shown the calls');
+  assert.deepEqual(L.wheres.map((w) => w.slice(0, 4)), [['tutorConsults', 'studentUid', '==', 'teacher-1']], 'their own consults, and nobody else\'s');
+  assert.equal(b.style.display, '');
+  assert.equal(b.textContent, '🙋 Consults');
+  // Two answers, one watched: one new.
+  L.fire({
+    a: { status: 'answered', reply: { url: 'x' }, replySeen: null },
+    b: { status: 'answered', reply: { url: 'y' }, replySeen: 5 },
+    c: { status: 'question' }
+  }, 'teacher-1');
+  assert.equal(b.textContent, '🙋 Consults · 1 new');
+  assert.equal(b.classList.on, true);
+  b.listeners.click();
+  assert.equal(libs.length, 1);
+  assert.equal(libs[0].ask, 'anskey', 'the window carries the box to ask in, for Ans Key');
+  assert.equal(L.CA.pure.studentUnseen([{ status: 'answered', reply: {}, replySeen: null }, null, { status: 'answered' }]), 1);
+});
+test('the teacher handing the device over is not a student, and a guest gets no button', () => {
+  const answer = { openLibrary: () => true, openLog: () => true, stop() {} };
+  const L = load({ admin: true, acting: { uid: 's1' }, answer });
+  const b = withButton(L);
+  L.ctx.currentUser = { uid: 'teacher-1', email: 't@x' };
+  L.CA.roleChanged();
+  assert.equal(L.CA._internals.studentHere(), false, 'still the teacher\'s account');
+  assert.equal(L.wheres.filter((w) => w[1] === 'studentUid').length, 0);
+  const G = load({ admin: false, answer });
+  const gb = withButton(G);
+  G.ctx.currentUser = { uid: 'g1', isAnonymous: true };
+  G.CA.roleChanged();
+  assert.equal(gb.style.display, 'none');
+});
+test('the student side still writes nothing', () => {
+  const at = src.indexOf('/* ---- 🙋 The student\'s side');
+  const part = src.slice(at, src.indexOf('function syncLogButton'));
+  assert.ok(at > 0);
+  assert.ok(!/\.(set|update|add|delete)\(|runTransaction/.test(part));
+});

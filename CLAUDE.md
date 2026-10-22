@@ -10,6 +10,16 @@ Guidance for Claude when working in this repo.
 - `consultIdOk` / `consultLink` / `cleanText` / `stampMs` / `consultFresh` / `consultAgo` / `consultSummary` / `subjectWord` and `JOIN_BASE` / `WAIT_FRESH_MS` / `SEEN_FRESH_MS` are Study Buddy's, byte for byte; the test compares them when tutor is checked out beside this repo. The link is built from a checked id, never read off the document. Names and titles go in with `textContent`.
 - Run `node --test tools/consult-alert-tests.mjs`.
 
+## 🙋 Consults for students too (v1.156.0)
+
+`#consultLogBtn` is now the student's as well (`studentHere`, `libApi`, `studentSync`, `studentUnseen` in
+`consult-alert.js`): a signed-in, non-admin, non-anonymous account gets `ConsultAnswer.openLibrary({ ask:
+'anskey' })` — a box to type a question and add a photo, plus every video answer from any of the four apps —
+with a count of answers not yet watched. A teacher who handed the device over (`actingStudent`) is still the
+teacher's account, so there is no student button then. consult-alert.js still writes nothing; the question
+and the "seen" are consult-answer.js's (byte for byte Study Buddy's, the Science portal's and the Maths
+portal's).
+
 ## 📚 Every consult, kept (v1.152.0)
 
 - `#consultLogBtn` (🙋 Consults, header) and the "📚 All consults" button under the cards call `ConsultAnswer.openLog({join})` — the archive lives in `consult-answer.js`, Study Buddy's file byte for byte. `syncLogButton` (from `render`) shows it only when `teacherHere()` and counts what is waiting.
