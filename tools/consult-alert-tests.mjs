@@ -537,7 +537,7 @@ test('🗑 only the teacher deletes, refused in the handler', async () => {
   }
 });
 
-/* ---- 🙋 The student's side (v1.156.0) ---- */
+/* ---- 🙋 The student's side (v1.157.0) ---- */
 function withButton(L) {
   const b = L.doc.createElement('button');
   b.style = {}; b.classList = { on: false, toggle(c, v) { this.on = !!v; } };

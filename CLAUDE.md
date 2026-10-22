@@ -10,7 +10,7 @@ Guidance for Claude when working in this repo.
 - `consultIdOk` / `consultLink` / `cleanText` / `stampMs` / `consultFresh` / `consultAgo` / `consultSummary` / `subjectWord` and `JOIN_BASE` / `WAIT_FRESH_MS` / `SEEN_FRESH_MS` are Study Buddy's, byte for byte; the test compares them when tutor is checked out beside this repo. The link is built from a checked id, never read off the document. Names and titles go in with `textContent`.
 - Run `node --test tools/consult-alert-tests.mjs`.
 
-## 🙋 Consults for students too (v1.156.0)
+## 🙋 Consults for students too (v1.157.0)
 
 `#consultLogBtn` is now the student's as well (`studentHere`, `libApi`, `studentSync`, `studentUnseen` in
 `consult-alert.js`): a signed-in, non-admin, non-anonymous account gets `ConsultAnswer.openLibrary({ ask:

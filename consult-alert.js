@@ -290,7 +290,7 @@
   function waitingCount() {
     return teacherHere() ? alertList(W.items, {}, now()).length : 0;
   }
-  /* ---- 🙋 The student's side (v1.156.0) ----
+  /* ---- 🙋 The student's side (v1.157.0) ----
      A student signed in to Ans Key gets the same 🙋 Consults button: their
      window to ASK (ConsultAnswer.openLibrary with `ask: 'anskey'` — a typed
      question and a photo, saved as the same `question` consult Study Buddy
