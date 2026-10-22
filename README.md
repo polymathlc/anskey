@@ -3,6 +3,21 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## ⚡ New page: Where is bulb P brightest? (`apps/bulb-p-circuits.html`, v1.0.0)
+
+- **Jason's four-circuit question, word for word**, with the four circuit diagrams redrawn,
+  the options 1. (1) to 4. (4) and the Answer box. Tap an option (or type 1–4) and press
+  Check answer: a wrong answer gets a hint and Try again; the right one gets confetti.
+- **▶ Watch the current flow** appears after the first check: six short scenes (Intro,
+  circuits (1) to (4), Compare) with moving charges flowing from + to −, the current
+  splitting at each junction into coloured branches as wide as the current they carry,
+  bulbs that glow as brightly as their current, bulb P's path traced in yellow, and a
+  meter, a "batteries ÷ bulbs on P's path" sum and a bar chart filling in scene by scene.
+  Pause, step back and forward (← →, Space), 0.75×/1×/1.5×, Show numbers, Read aloud.
+- **Worked answer** table and a **circuit lab** afterwards: change the batteries (1–4) or
+  tap a bulb to unscrew it, and see which bulbs go out and why.
+- Works on phones; the print button prints the question (and the worked answer once shown).
+
 ## v1.154.0 — 🗑 Delete a consult from the list
 
 - **Every entry in 🙋 Consults has a 🗑 Delete button**, on the right of its row, in

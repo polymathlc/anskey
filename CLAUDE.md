@@ -10,6 +10,14 @@ Guidance for Claude when working in this repo.
 - `consultIdOk` / `consultLink` / `cleanText` / `stampMs` / `consultFresh` / `consultAgo` / `consultSummary` / `subjectWord` and `JOIN_BASE` / `WAIT_FRESH_MS` / `SEEN_FRESH_MS` are Study Buddy's, byte for byte; the test compares them when tutor is checked out beside this repo. The link is built from a checked id, never read off the document. Names and titles go in with `textContent`.
 - Run `node --test tools/consult-alert-tests.mjs`.
 
+## ⚡ Where is bulb P brightest? (`apps/bulb-p-circuits.html`, its own v1.0.0)
+
+- A standalone page, not part of index.html (index.html's `APP_VERSION` is untouched by it; the page has its own `APP_VERSION` in its header and footer). The question is reproduced word for word; the diagrams are drawn by the same `CircuitView` that animates (`variant: 'worksheet'`).
+- **Every number comes from the solver** between `CIRCUIT PURE (start)` / `(end)`: `buildModel` → `solveModel` (nodal analysis, 1 Ω bulbs, 1 V cells; wire currents by Kirchhoff over the wire tree) → `laneCurrents` / `layoutLanes`. The answer key is cross-checked against `brightestChoice()` at start. Never type a current into a scene, a caption's numbers aside.
+- Branch routes run **clockwise from +** and are listed **inside branch first**; that is what makes the lanes nest without crossing. A new circuit must follow both or its lanes cross.
+- Presentation only: one rAF clock (`frame`); theatre views freeze while paused except for `awake` settling time after a step change. Scenes are `SCENES` (state per step, merged by `cumulativeState`; `callouts` are per step).
+- Run `node --test tools/bulb-circuits-tests.mjs` (solver vs. lanes on every wire for 1–4 cells and every unscrewed bulb, the routes, the question text, the version, the script parses).
+
 ## 🙋 Consults for students too (v1.157.0)
 
 `#consultLogBtn` is now the student's as well (`studentHere`, `libApi`, `studentSync`, `studentUnseen` in
