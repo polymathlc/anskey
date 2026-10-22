@@ -290,23 +290,82 @@
   function waitingCount() {
     return teacherHere() ? alertList(W.items, {}, now()).length : 0;
   }
+  /* ---- 🙋 The student's side (v1.157.0) ----
+     A student signed in to Ans Key gets the same 🙋 Consults button: their
+     window to ASK (ConsultAnswer.openLibrary with `ask: 'anskey'` — a typed
+     question and a photo, saved as the same `question` consult Study Buddy
+     leaves) and to watch every video answer, wherever it was asked. The
+     count is the answers not watched yet. This file still writes nothing:
+     the question and the "seen" are ConsultAnswer's. A teacher who has
+     handed the device to a student (`actingStudent`) is still signed in as
+     the teacher, so there is no student here then — asking needs the
+     student's own account. */
+  var SB = { uid: '', unsub: null, docs: [] };
+  function studentHere() {
+    var u = global.currentUser;
+    try {
+      if (!u || !u.uid || u.isAnonymous) return false;
+      return !(typeof global.isAdmin === 'function' && global.isAdmin(u));
+    } catch (e) { return false; }
+  }
+  function libApi() {
+    var CA = global.ConsultAnswer;
+    return CA && typeof CA.openLibrary === 'function' && studentHere() ? CA : null;
+  }
+  function openLibrary() {
+    var api = libApi();
+    if (!api) return false;
+    return api.openLibrary({ ask: 'anskey' });
+  }
+  function studentUnseen(docs) {
+    var n = 0;
+    (docs || []).forEach(function (d) { if (d && d.status === 'answered' && d.reply && !d.replySeen) n++; });
+    return n;
+  }
+  function studentStop() {
+    if (SB.unsub) { try { SB.unsub(); } catch (e) {} }
+    SB.unsub = null; SB.uid = ''; SB.docs = [];
+  }
+  function studentSync() {
+    var uid = studentHere() ? global.currentUser.uid : '';
+    if (uid === SB.uid && (SB.unsub || !uid)) { syncLogButton(); return; }
+    studentStop();
+    if (!uid) { syncLogButton(); return; }
+    var db = global.db;
+    SB.uid = uid;
+    if (db && typeof db.collection === 'function') {
+      try {
+        SB.unsub = db.collection(COLLECTION).where('studentUid', '==', uid).onSnapshot(function (qs) {
+          if (SB.uid !== uid) return;
+          SB.docs = (qs.docs || []).map(function (d) { return d.data() || {}; });
+          syncLogButton();
+        }, function (err) { console.warn('consult: your answers', err); });
+      } catch (e) { console.warn('consult: your answers', e); }
+    }
+    syncLogButton();
+  }
+
   function syncLogButton() {
     var doc = global.document;
     var b = doc && doc.getElementById ? doc.getElementById('consultLogBtn') : null;
     if (!b) return;
     if (!b._consultBound) {
       b._consultBound = true;
-      b.addEventListener('click', function () { openLog(); });
+      b.addEventListener('click', function () { if (!openLog()) openLibrary(); });
     }
-    var on = !!logApi();
+    var teacher = !!logApi(), student = !teacher && !!libApi();
+    var on = teacher || student;
     b.style.display = on ? '' : 'none';
     if (!on) return;
-    var n = waitingCount();
+    var n = teacher ? waitingCount() : studentUnseen(SB.docs);
     var label = b.querySelector ? b.querySelector('.btnLabel') : null;
-    var words = 'Consults' + (n ? ' · ' + n : '');
+    var words = 'Consults' + (n ? ' · ' + n + (student ? ' new' : '') : '');
     if (label) label.textContent = words; else b.textContent = '🙋 ' + words;
-    b.title = n ? n + ' waiting — every call and question students have sent you'
-      : 'Every call and question students have sent you, and the videos you answered with';
+    b.title = teacher
+      ? (n ? n + ' waiting — every call and question students have sent you'
+        : 'Every call and question students have sent you, and the videos you answered with')
+      : (n ? n + ' new video answer' + (n === 1 ? '' : 's') + ' from Mr Chung'
+        : 'Ask Mr Chung a question, and watch his video answers');
     if (b.classList) b.classList.toggle('consultOn', n > 0);
   }
 
@@ -453,6 +512,7 @@
   /* Called on every sign-in change AND every role change (a handover to a
      student and back is a role change on the same account). */
   function roleChanged() {
+    studentSync();
     var here = teacherHere();
     var uid = here && global.currentUser ? global.currentUser.uid : '';
     if (uid !== W.uid) { W.dismissed = {}; W.seen = {}; }
@@ -471,14 +531,17 @@
     roleChanged: roleChanged,
     render: render,
     openLog: openLog,
+    openLibrary: openLibrary,
     stop: stop,
     pure: {
       COLLECTION: COLLECTION, JOIN_BASE: JOIN_BASE, WAIT_FRESH_MS: WAIT_FRESH_MS, SEEN_FRESH_MS: SEEN_FRESH_MS,
       consultIdOk: consultIdOk, consultLink: consultLink, cleanText: cleanText, stampMs: stampMs,
       consultFresh: consultFresh, consultAgo: consultAgo, subjectWord: subjectWord, consultSummary: consultSummary,
       waitingList: waitingList, cardWords: cardWords, titleWith: titleWith,
-      ALERT_SHOW_MAX: ALERT_SHOW_MAX, alertList: alertList, questionCardWords: questionCardWords
+      ALERT_SHOW_MAX: ALERT_SHOW_MAX, alertList: alertList, questionCardWords: questionCardWords,
+      studentUnseen: studentUnseen
     },
-    _internals: { W: W, teacherHere: teacherHere, join: join, answerApi: answerApi, logApi: logApi, waitingCount: waitingCount }
+    _internals: { W: W, teacherHere: teacherHere, join: join, answerApi: answerApi, logApi: logApi, waitingCount: waitingCount,
+      SB: SB, studentHere: studentHere, libApi: libApi, studentSync: studentSync }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
