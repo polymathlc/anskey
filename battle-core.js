@@ -59,6 +59,47 @@
       eventId:kind==='event'?events[Math.floor(randomUnit(seed+':event')*events.length)]:null,resolved:false};
   }
   // Presentation reads this same build profile; it never invents a combat bonus.
+  const AVATAR_OUTFITS={traveller:{name:'Trail adventurer',price:0},ranger:{name:'Forest cloak',price:30},royal:{name:'Royal cape',price:45},mage:{name:'Starlight robes',price:55},knight:{name:'Knight armour',price:65},shadow:{name:'Midnight hood',price:75}};
+  const AVATAR_PALETTES={
+    skin:{porcelain:'#f7dcc5',warm:'#e9b98d',tan:'#c58b64',brown:'#925c3e',deep:'#56372c'},
+    hair:{black:'#252433',brown:'#75472f',blonde:'#e6c36e',red:'#ae553b',silver:'#d9e4ee',blue:'#526fbd',purple:'#9160b1',pink:'#d476a0'},
+    eyes:{brown:'#714626',amber:'#c28b2c',blue:'#438cc2',green:'#4d9869',grey:'#788999',violet:'#9369b3'},
+    clothing:{blue:'#426fb1',green:'#3d8264',red:'#b84f59',purple:'#8660a6',gold:'#c29b42',teal:'#3b9292',rose:'#c27095',charcoal:'#45485d'}
+  };
+  const AVATAR_HAIR=['short','swept','long','curly','braids'];
+  const MARKET=[...Object.entries(AVATAR_OUTFITS).filter(([,v])=>v.price>0).map(([id,v])=>({id:'outfit-'+id,name:v.name,price:v.price,outfitId:id})),
+    ...[['red-potion',8],['blue-ether',8],['party-tonic',18],['bronze-blade',20],['oak-amulet',30],['foxtrail-boots',40],['crimson-edge',70],['silver-aegis',70]].map(([itemId,price])=>({id:'item-'+itemId,name:ITEMS[itemId].name,itemId,price}))];
+  function avatarFor(input,owned=['traveller']) {
+    if(input===null)return null;
+    if(!input || typeof input!=='object' || Array.isArray(input))fail('Choose your avatar appearance.');
+    if(!Object.prototype.hasOwnProperty.call(AVATAR_OUTFITS,input.outfit) || !owned.includes(input.outfit))fail('Unlock that outfit in the shop first.');
+    if(!AVATAR_HAIR.includes(input.hairStyle))fail('Choose an available hairstyle.');
+    const avatar={version:1,outfit:input.outfit,hairStyle:input.hairStyle};
+    for(const key of Object.keys(AVATAR_PALETTES)){
+      if(!Object.prototype.hasOwnProperty.call(AVATAR_PALETTES[key],input[key]))fail('Choose an available '+key+' colour.');
+      avatar[key]=input[key];
+    }
+    return avatar;
+  }
+  function purchase(hero,action) {
+    const offer=MARKET.find(row=>row.id===action.skuId);
+    if(!offer)fail('Choose an item from the quest shop.');
+    if(offer.outfitId && hero.outfits.includes(offer.outfitId))fail('You already own that outfit.');
+    if(hero.questPoints<offer.price)fail('You need '+offer.price+' quest points for this purchase.');
+    if(offer.outfitId)hero.outfits.push(offer.outfitId);
+    else{
+      const item=itemById(offer.itemId);
+      // Shop power is deliberately bounded. It never stocks drop-only relics,
+      // runes, pets or granted skills, and equipment is sold without sockets.
+      if(!item || !['common','uncommon','rare'].includes(item.rarity) || item.giftSkill || !['equipment','consumable'].includes(item.type))fail('This item is available from drops only.');
+      if(hero.inventory.filter(e=>e.itemId===item.id).reduce((n,e)=>n+e.quantity,0)>=999)fail('Your bag already holds enough of that item.');
+      addInventory(hero,item.id,1,socketable(item)?[]:undefined);
+    }
+    hero.questPoints-=offer.price;
+    return hero;
+  }
+  function victoryPoints(state) {return state.adventure?.chapterGuardian?50:state.adventure?.kind==='uber'?35:25;}
+
   // A class journey advances only on a saved victory, never by restarting a fight.
   const QUEST_ROUTES={
     forest:{name:'Enchanted forest',biome:'forest',kind:'event',eventId:'guardian-shrine',description:'A guardian grants a 15% party shield on the first correct answer.'},
@@ -449,7 +490,7 @@
   }
   function freshHero(identity, role) {
     const hero={...identity,role:roleKey(role),gender:'male',progressionVersion:1,level:1,xp:0,skillPoints:2,
-      learnedSkills:[SKILLS[roleKey(role)][0].id],inventory:[{id:'bag:red-potion',itemId:'red-potion',quantity:2},{id:'bag:blue-ether',itemId:'blue-ether',quantity:1}],
+      questPoints:0,outfits:['traveller'],avatar:null,learnedSkills:[SKILLS[roleKey(role)][0].id],inventory:[{id:'bag:red-potion',itemId:'red-potion',quantity:2},{id:'bag:blue-ether',itemId:'blue-ether',quantity:1}],
       equipped:null,loadout:{},loadoutVersion:1,cooldowns:{},shield:0,weakened:false,correctActions:0,mythicalUsed:false};
     refreshStats(hero); return hero;
   }
@@ -465,6 +506,9 @@
     // New roster data never supplies progression, stats, equipment or avatars.
     if (!prior || prior.progressionVersion!==1) return freshHero(identity,prior?roleKey(prior.role):roleKey(input.role));
     const hero={...copy(prior),...identity,role:roleKey(prior.role),gender:prior.gender==='female'?'female':'male'};
+    hero.questPoints=int(hero.questPoints || 0,0,1000000);
+    hero.outfits=[...new Set(['traveller',...(Array.isArray(hero.outfits)?hero.outfits:[]).filter(id=>Object.prototype.hasOwnProperty.call(AVATAR_OUTFITS,id))])];
+    if(hero.avatar){try{hero.avatar=avatarFor(hero.avatar,hero.outfits);}catch(_){hero.avatar=null;}}else hero.avatar=null;
     delete hero.avatarUrl; delete hero.equipment; delete hero.fallbackReason;
     hero.xp=int(hero.xp,0,xpForLevel(50)); hero.level=levelForXp(hero.xp);
     if (!activeJob(hero)) delete hero.job;
@@ -497,6 +541,8 @@
       if (action.gender!=='male' && action.gender!=='female') fail('Choose a male or female hero appearance.');
       hero.gender=action.gender;
       return hero;
+    } else if(action.command==='customise'){hero.avatar=avatarFor(action.avatar,hero.outfits);return hero;
+    } else if(action.command==='purchase'){return purchase(hero,action);
     } else if (action.command==='learn') {
       const result=canLearn(hero,action.skillId); if (!result.ok) fail(result.reason);
       hero.learnedSkills.push(action.skillId); hero.skillPoints-=skillById(action.skillId).cost;
@@ -595,6 +641,7 @@
     state.lootAwarded=true;
     state.rewards=state.heroes.map(hero=>{
       const reward=rollReward(state.encounterId,hero.id,bossById(state.bossId),enemyScale(state).xp);
+      reward.questPoints=victoryPoints(state);hero.questPoints=Math.min(1000000,(hero.questPoints || 0)+reward.questPoints);
       addInventory(hero,reward.itemId,1,reward.sockets);
       addXp(hero,reward.xp);
       const equipped=autoEquip(hero); if (equipped) {reward.autoEquipped=equipped;reward.autoEquippedName=itemById(equipped).name;}
@@ -881,8 +928,9 @@
     if (action.type==='sync') {
       if (action.expectedRevision!==state.revision) fail('The class changed on another screen. Try again.');
       if (action.command) {
+        if (action.command==='purchase' && state.status==='active') fail('Finish the encounter before shopping.');
         if (action.command==='advance' && state.status==='active') fail('End the active encounter before changing advanced jobs.');
-        if (state.pending && action.command!=='appearance') fail('Resolve the selected answer before changing a hero.');
+        if (state.pending && !['appearance','customise'].includes(action.command)) fail('Resolve the selected answer before changing a hero.');
         const hero=state.heroes.find(h=>h.id===action.heroId);
         if (!hero) fail('This student is no longer in the class.');
         state.heroes[state.heroes.indexOf(hero)]=configureHero(hero,action);
@@ -894,8 +942,8 @@
         if (state.pending && !state.heroes.some(h=>h.id===state.pending.heroId)) state.pending=null;
         if (state.enemyHealthVersion===previous.enemyHealthVersion && JSON.stringify(state.bossRotation)===JSON.stringify(previous.bossRotation) && JSON.stringify(state.heroes)===JSON.stringify(previous.heroes) && JSON.stringify(state.pending)===JSON.stringify(previous.pending)) return previous;
       }
-      if (action.command!=='appearance' && state.status==='active' && state.heroes.every(h=>h.hp<=0)) {state.status='defeat';state.pending=null;}
-      state.revision++; if (action.command!=='appearance') state.lastEvent=event; return state;
+      if (!['appearance','customise'].includes(action.command) && state.status==='active' && state.heroes.every(h=>h.hp<=0)) {state.status='defeat';state.pending=null;}
+      state.revision++; if (!['appearance','customise'].includes(action.command)) state.lastEvent=event; return state;
     }
     if (action.type==='end') {
       if (action.expectedRevision!==state.revision) fail('The encounter changed. Try again.');
@@ -1008,6 +1056,6 @@
     const log=(previous?.combatLog || []).filter(row=>row.id!==action.id);
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
-  return {QUEST_ROUTES,QUEST_EVENTS,journeyFor,routeOptions,bossIntentFor,RUNE_BONUS_CHANCE,enemiesFor,combatHeroes,targetingLabel,ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
+  return {AVATAR_OUTFITS,AVATAR_PALETTES,AVATAR_HAIR,MARKET,avatarFor,victoryPoints,QUEST_ROUTES,QUEST_EVENTS,journeyFor,routeOptions,bossIntentFor,RUNE_BONUS_CHANCE,enemiesFor,combatHeroes,targetingLabel,ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
     reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor,adventureFor,ADVENTURE_RATES,ADVENTURE_BIOMES,buildFor,damageTypeFor};
 });

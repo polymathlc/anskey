@@ -203,7 +203,14 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       if (body.type === 'configure') {
         if (!actor.isTeacher && (!profile?.claim || profile.claim.uid !== actor.uid || profile.claim.status !== 'approved' || account?.status !== 'approved')) deny('approval_required','Your teacher needs to approve this claim first.',403);
         if (!profile) profile = migrateHero(student,docs(await tx.get(classes)));
-        const appearance=body.command==='appearance';
+        const appearance=['appearance','customise'].includes(body.command);
+        const marketChange=['purchase','customise'].includes(body.command);let marketRef=null,marketRequest=null;
+        if(marketChange){
+          if(typeof body.id!=='string' || !/^[A-Za-z0-9_-]{8,100}$/.test(body.id))deny('invalid_action','Shop and avatar changes require a saved action ID.',400);
+          marketRequest=body.command==='purchase'?{command:body.command,skuId:body.skuId || null}:{command:body.command,avatar:body.avatar===null?null:{outfit:body.avatar?.outfit || null,hairStyle:body.avatar?.hairStyle || null,skin:body.avatar?.skin || null,hair:body.avatar?.hair || null,eyes:body.avatar?.eyes || null,clothing:body.avatar?.clothing || null}};
+          marketRef=profileRef.collection('market').doc(body.id);const receipt=docData(await tx.get(marketRef));
+          if(receipt){if(receipt.uid!==actor.uid || JSON.stringify(receipt.request)!==JSON.stringify(marketRequest))deny('purchase_changed','That saved request has different details. Refresh your hero.');return {...view(profile,student),hero:cleanHero(profile.hero,student,profile),revision:profile.revision || 0,duplicate:true};}
+        }
         const socketChange=body.command==='socket' || body.command==='unsocket';
         let socketRef=null,socketReceipt=null,socketRequest=null;
         if(socketChange){
@@ -216,11 +223,11 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
           }
         }
         if (profile.activeEncounter && !appearance) deny('encounter_active','Finish or end the active encounter before changing your hero.');
-        if (!['class','advance','learn','equip','appearance','socket','unsocket'].includes(body.command)) deny('invalid_command','Choose a hero class, job advancement, skill, equipment or appearance.',400);
+        if (!['class','advance','learn','equip','appearance','socket','unsocket','purchase','customise'].includes(body.command)) deny('invalid_command','Choose a hero class, job advancement, skill, equipment or appearance.',400);
         let appearanceRef=null,appearanceReceipt=null,activeRef=null,activeState=null;
         if (appearance) {
-          if (body.gender!=='male' && body.gender!=='female') deny('invalid_command','Choose a male or female hero appearance.',400);
-          if (body.id!==undefined) {
+          if (body.command==='appearance' && body.gender!=='male' && body.gender!=='female') deny('invalid_command','Choose a male or female hero appearance.',400);
+          if (body.command==='appearance' && body.id!==undefined) {
             if (typeof body.id!=='string' || !/^[A-Za-z0-9_-]{8,100}$/.test(body.id)) deny('invalid_action','Invalid appearance action.',400);
             appearanceRef=profileRef.collection('appearances').doc(body.id);
             appearanceReceipt=docData(await tx.get(appearanceRef));
@@ -243,11 +250,13 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         profile.revision = (profile.revision||0)+1; profile.updatedAt=clock;
         if (activeState) {
           const matches=h=>h.studentId===id || h.id===profile.hero.id;
-          activeState.heroes=activeState.heroes.map(h=>matches(h)?{...h,gender:body.gender}:h);
-          activeState.heroArchive=Object.fromEntries(Object.entries(activeState.heroArchive || {}).map(([key,h])=>[key,matches(h)?{...h,gender:body.gender}:h]));
+          const visual=body.command==='customise'?{avatar:profile.hero.avatar}:{gender:profile.hero.gender};
+          activeState.heroes=activeState.heroes.map(h=>matches(h)?{...h,...visual}:h);
+          activeState.heroArchive=Object.fromEntries(Object.entries(activeState.heroArchive || {}).map(([key,h])=>[key,matches(h)?{...h,...visual}:h]));
           activeState.revision=(activeState.revision || 0)+1;activeState.updatedAt=clock;
           tx.set(activeRef,activeState);
         }
+        if(marketRef)tx.set(marketRef,{uid:actor.uid,request:marketRequest,createdAt:clock});
         if (socketRef) tx.set(socketRef,{uid:actor.uid,request:socketRequest,createdAt:clock});
         if (appearanceRef) tx.set(appearanceRef,{uid:actor.uid,gender:body.gender,createdAt:clock});
         tx.set(profileRef,profile); return {...view(profile,student),hero:profile.hero,revision:profile.revision,...(appearance && actor.isTeacher ? {state:activeState} : {})};

@@ -39,7 +39,7 @@
   function treasure(state) {
     return '<div class="cbRewardGrid" aria-label="Treasure received by every student">' + (state.rewards || []).map(function (reward) {
       var hero = (state.heroes || []).find(function (h) { return h.id === reward.heroId; }), item = Core.itemById(reward.itemId);
-      return '<article class="cbReward cbRarity-' + esc(reward.rarity) + '">' + itemIcon(item) + '<strong>' + esc(hero ? hero.name : 'Hero') + '</strong><span>' + esc(reward.name) + '</span><small>' + esc(reward.rarity).toUpperCase() + (reward.source==='road-chest'?' · ROAD CHEST BONUS':'') + ' · +' + Number(reward.xp || 0) + ' XP</small><p>' + esc(reward.description || item && item.description) + '</p>' + (reward.sockets ? '<small>' + reward.sockets.length + ' sockets</small>' : '') + (reward.autoEquippedName ? '<small class="cbEquippedNote">Auto-equipped: ' + esc(reward.autoEquippedName) + '</small>' : '') + '</article>';
+      return '<article class="cbReward cbRarity-' + esc(reward.rarity) + '">' + itemIcon(item) + '<strong>' + esc(hero ? hero.name : 'Hero') + '</strong><span>' + esc(reward.name) + '</span><small>' + esc(reward.rarity).toUpperCase() + (reward.source==='road-chest'?' · ROAD CHEST BONUS':'') + ' · +' + Number(reward.xp || 0) + ' XP'+(reward.questPoints?' · +'+Number(reward.questPoints)+' quest points':'')+'</small><p>' + esc(reward.description || item && item.description) + '</p>' + (reward.sockets ? '<small>' + reward.sockets.length + ' sockets</small>' : '') + (reward.autoEquippedName ? '<small class="cbEquippedNote">Auto-equipped: ' + esc(reward.autoEquippedName) + '</small>' : '') + '</article>';
     }).join('') + '</div>';
   }
   function log(state) {
@@ -90,7 +90,7 @@
   }
   function heroTeam(state) {
     return '<div class="cbActiveTeam" aria-label="Active student team">'+Core.combatHeroes(state).map(function(h){
-      return '<div class="cbQuickHero" data-cba-hero-id="'+esc(h.id)+'" data-cba-actor="hero">'+(root.ClassroomBattleAnimation?root.ClassroomBattleAnimation.heroMarkup(h.role,{job:h.job,gender:h.gender,dormant:h.hp<=0}):'')+'<strong>'+esc(h.name)+'</strong><small>'+h.hp+' / '+h.stats.maxHp+' HP · '+h.mp+' MP</small><div class="cbHp"><span style="width:'+Math.max(0,h.hp/h.stats.maxHp*100)+'%"></span></div></div>';
+      return '<div class="cbQuickHero" data-cba-hero-id="'+esc(h.id)+'" data-cba-actor="hero">'+(root.ClassroomBattleAnimation?root.ClassroomBattleAnimation.heroMarkup(h.role,{job:h.job,gender:h.gender,avatar:h.avatar,dormant:h.hp<=0}):'')+'<strong>'+esc(h.name)+'</strong><small>'+h.hp+' / '+h.stats.maxHp+' HP · '+h.mp+' MP</small><div class="cbHp"><span style="width:'+Math.max(0,h.hp/h.stats.maxHp*100)+'%"></span></div></div>';
     }).join('')+'</div>';
   }
   function closeSockets() {if(socketDialog){var previous=socketDialog;socketDialog=null;previous.close();previous.remove();}}

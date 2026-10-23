@@ -10,6 +10,17 @@ Guidance for Claude when working in this repo.
 - Client: `hero-items.js` / `.css` (`window.HeroItems.mount`, `pure`), mounted by `mountItemsDesk` at the end of `renderJournal` in `classroom-battle.js` (`#cbItemsDesk`). Redraws in its change handler are deferred (a removed focused field fires change/blur into a half-set node).
 - Run `npm --prefix functions test`, `node --test tools/hero-items-tests.mjs` and `node tools/hero-items-browser-check.mjs` (in CI).
 
+
+## Avatar tailor, quest points and shop (v1.159.0)
+
+`questPoints` is earned currency separate from classroom marks: 25 per ordinary boss victory, 35 per uber boss, 50 per chapter guardian, once per present hero inside `awardLoot`. Bonus chests/runes never pay again. Legacy profiles begin at zero. Browser-supplied balances and prices are ignored.
+
+`MARKET` is the canonical catalogue. Outfits are permanent cosmetic unlocks; shop equipment stops at rare rarity, with zero sockets and no granted skills. Runes, pets, epic and stronger equipment remain drops. `configure:purchase` and `configure:customise` require immutable per-profile `market` receipts, actor/payload matching and atomic updates. Retry before revision/encounter guards. Purchases are blocked during encounters; owned cosmetics may synchronise during pending answers without changing combat.
+
+`hero-avatar.js` renders layered SVG pixel avatars using validated palette IDs and owned outfits; null retains original generated class artwork. Pass avatar through every saved hero portrait, skill preview, team and adventure scene. `hero-studio.js/css` mounts in My Hero with a per-account/student session outbox; unknown failures retain the exact request, and close/account changes discard presentation without cancelling saves. The tailor banner's generation prompt and hash are in `assets/battle-pixel/market/provenance.json`.
+
+Boss sizing and darker backgrounds are presentation only. Test `tools/hero-market-tests.mjs`, repository tests and `tools/hero-market-browser-check.mjs` alongside existing battle suites. Sync the shared core and deploy `ansKeyHeroes`.
+
 ## 🙋 Consult alert (v1.149.0)
 
 - `consult-alert.js` / `consult-alert.css` (`window.ConsultAlert`: `roleChanged`, `render`, `stop`, `pure`). `applyRoleUI` calls `ConsultAlert.roleChanged()`. Study Buddy (`polymathlc/tutor`, `consult.js`) owns the consult itself: the button, the call, the room, the ink and the email.

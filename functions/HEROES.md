@@ -68,6 +68,15 @@ Rune sockets and unique loot (v1.147.0): equipment drops save their 0–3 socket
 
 The 0.1% Unique tier includes every gear slot, a pet, two permanent-gift consumables and four unique runes. `ITEM_SKILLS` are validated against actual equipped/socketed sources or permanent gifts, including MP/cooldown checks and Quick fight selection. Burn and venom are saved in `ailments`; their actual tick records join the damage log and share the class-poison cap. Deploy the updated `ansKeyHeroes` service for canonical loot, socket configuration and these combat effects.
 
+## Quest shop and avatars
+
+Boss victory pays every present hero 25 quest points (35 uber, 50 chapter guardian) exactly once in the victory transaction. `questPoints` does not affect classroom marks. Profiles without this field start at zero.
+
+Approved students may `configure` with `command:purchase`, `skuId`, `id` and optional `expectedRevision`. Server catalogue prices and existing balances decide the purchase. Paid outfits unlock permanently; equipment and supplies are capped at rare rarity, without sockets or granted skills. Stronger drops cannot be bought. Purchases wait until the active encounter ends.
+
+`command:customise` accepts null (original class art) or a validated avatar with outfit, hairStyle, skin, hair, eyes and clothing palette IDs. Only owned outfits can be saved. This is cosmetic and may update a live encounter during a pending answer. Every purchase/customisation needs an immutable `market/{id}` receipt matching the actor and canonical payload, acknowledged before stale revision/active encounter checks so uncertain replies can be retried safely.
+
+
 ## Item ledger, gifts and restores (v1.158.0)
 
 `classroomHeroData/{teacherUid}/itemLedger/{id}` is an append-only record of every item a hero gains: one `battle-*` document per battle action (written in that action's transaction from the inventory difference), `gift-*` for a teacher gift, `restore-*` for a restore and `backfill-*` for each lesson's last victory saved before the ledger existed. Each document carries `studentIds` (plus `guests` for unlinked wheel names) and `restoreKeys` for `array-contains` queries; nothing edits or deletes one. The teacher-only `items` route lists a student's history (`history`), gives an item by rarity, Random (ordinary drop odds, sampled outside transaction retries) or exact ID (`gift`), and re-grants a recorded drop (`restore`, refused a second time unless `again`). A gift or restore during an active locked encounter is applied to that encounter's hero and the profile together, because the next battle turn writes the encounter hero over the profile. Browser access to this namespace stays denied; no rules migration is needed.

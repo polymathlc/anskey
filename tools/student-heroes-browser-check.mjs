@@ -16,13 +16,13 @@ async function idle(){await page.waitForFunction(()=>document.getElementById('sh
 try{
   await page.route('https://hero.test/**',async route=>{
     const url=new URL(route.request().url());
-    if(url.pathname==='/') return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif}button,select{font:inherit}</style><base href="https://hero.test/"><link rel="stylesheet" href="classroom-battle.css"><link rel="stylesheet" href="student-heroes.css"><link rel="stylesheet" href="battle-animation.css"><link rel="stylesheet" href="hero-skill-tree.css"></head><body><button id="myHeroBtn">My Hero</button><button id="heroClaimsBtn">Hero claims</button><div id="profileModal"></div></body></html>'});
+    if(url.pathname==='/') return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif}button,select{font:inherit}</style><base href="https://hero.test/"><link rel="stylesheet" href="classroom-battle.css"><link rel="stylesheet" href="student-heroes.css"><link rel="stylesheet" href="battle-animation.css"><link rel="stylesheet" href="hero-skill-tree.css"><link rel="stylesheet" href="hero-studio.css"></head><body><button id="myHeroBtn">My Hero</button><button id="heroClaimsBtn">Hero claims</button><div id="profileModal"></div></body></html>'});
     const local=path.resolve('.'+url.pathname);
     if(!local.startsWith(process.cwd()+path.sep)||!fs.existsSync(local))return route.abort();
     return route.fulfill({path:local});
   });
   await page.goto('https://hero.test/');
-  for(const script of ['battle-bosses.js','battle-content.js','battle-core.js','battle-display.js','battle-animation.js','hero-skill-tree.js'])await page.addScriptTag({url:'/'+script});
+  for(const script of ['battle-bosses.js','battle-content.js','battle-core.js','hero-avatar.js','hero-studio.js','battle-display.js','battle-animation.js','hero-skill-tree.js'])await page.addScriptTag({url:'/'+script});
   await page.evaluate(()=>{
     window.currentUser={uid:'student-a',email:'ari@example.test'};
     window.isAdmin=u=>u?.uid==='teacher';window.isSharedVisitor=()=>false;window.profileComplete=()=>true;window.studentProfile={level:'P5'};
@@ -49,7 +49,7 @@ try{
           if(data.socketReceipts.has(action.id))return {hero:structuredClone(data.hero),duplicate:true};
           if(data.socketDelay)await new Promise(resolve=>data.socketRelease=resolve);
         }
-        if(data.active && action.command!=='appearance')throw new Error('Finish the encounter first.');
+        if(data.active && !['appearance','customise'].includes(action.command))throw new Error('Finish the encounter first.');
         if(action.command==='appearance' && data.appearanceDelay)await new Promise(resolve=>data.appearanceRelease=resolve);
         if(action.command==='appearance' && data.appearanceFail)throw new Error('Appearance save failed. Try again.');
         data.hero=Core.configureHero(data.hero,action);if(action.command==='class')data.hero.classChosen=true;

@@ -14,6 +14,7 @@
   function walkMarkup(hero,index){
     var form=Core.JOBS[hero.job]&&Core.JOBS[hero.job].role===hero.role&&hero.level>=15?hero.job:hero.role;
     var spec=FORMS[form]||FORMS.warrior,row=spec[1]+(hero.gender==='female'?1:0),title=(hero.gender==='female'?'Female ':'Male ')+(Core.JOBS[form]||Core.ROLES[form]||Core.ROLES.warrior).name;
+    if(hero.avatar && typeof window!=='undefined' && window.HeroAvatar)return '<div class="advTraveller" data-adventure-hero="'+esc(hero.id)+'" style="--adv-index:'+index+'">'+HeroAvatar.markup(hero.role,{job:hero.job,gender:hero.gender,avatar:hero.avatar,walking:true,className:'advWalk',alt:title+' walking'})+'<span class="advName">'+esc(hero.name)+'</span></div>';
     return '<div class="advTraveller" data-adventure-hero="'+esc(hero.id)+'" style="--adv-index:'+index+'"><span class="advWalk" data-walk-form="'+esc(form)+'" role="img" aria-label="'+esc(title+' walking')+'" style="--adv-row:'+row/7*100+'%;--adv-aspect:'+(spec[0]==='walk-martial'?4/3:1)+';background-image:url(assets/battle-pixel/adventure/'+spec[0]+'.png)"></span><span class="advName">'+esc(hero.name)+'</span></div>';
   }
   function encounterText(state){
@@ -36,7 +37,7 @@
   }
   function render(host,state,heroes,options){
     if(!host)return;options=options||{};
-    var prior=mounts.get(host),key=JSON.stringify([state&&state.encounterId,state&&state.status,state&&state.adventure,!!options.travelling,!!options.compact,(heroes||[]).map(function(h){return [h.id,h.name,h.role,h.job,h.gender,h.level];})]);
+    var prior=mounts.get(host),key=JSON.stringify([state&&state.encounterId,state&&state.status,state&&state.adventure,!!options.travelling,!!options.compact,(heroes||[]).map(function(h){return [h.id,h.name,h.role,h.job,h.gender,h.level,h.avatar];})]);
     if(prior&&prior.key===key){var status=host.querySelector('.advBreaks');if(status)status.innerHTML=breaks(state);return;}
     var paused=prior&&prior.paused;
     host.innerHTML=markup(state,heroes,options);
