@@ -3,6 +3,21 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.160.0 — Full treasure shop and long-term savings
+
+Heroes & Quests now stocks all 270 illustrated treasures, from Common through
+Unique: equipment for every slot, pets, runes and potions. Browse by rarity or item
+type, search by name, and filter to purchases within your balance. The original
+starter supplies keep their prices; stronger tiers cost 500 (Epic), 1,500
+(Legendary), 2,500 (Mythical) and 3,000 (Unique) quest points.
+
+The 3,000-point target represents about five teaching months at five victories per
+week: four ordinary victories and the fifth-win guardian pay 150 points, repeated
+over 20 weeks. This is a savings estimate; extra lessons or empowered bosses can
+shorten it. Shop equipment has no rolled sockets and retains its listed powers.
+Purchases use canonical server prices, atomic receipts and the permanent item
+ledger, so retries charge once and purchased treasures can be restored.
+
 ## v1.159.0 — Larger bosses, avatar tailor and quest shop
 
 Bosses occupy more of the arena and the Emerald Trail scene has a darker backdrop,

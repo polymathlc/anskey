@@ -67,8 +67,14 @@
     clothing:{blue:'#426fb1',green:'#3d8264',red:'#b84f59',purple:'#8660a6',gold:'#c29b42',teal:'#3b9292',rose:'#c27095',charcoal:'#45485d'}
   };
   const AVATAR_HAIR=['short','swept','long','curly','braids'];
+  // A weekly five-victory chapter pays 4 ordinary victories + its guardian.
+  // Twenty teaching weeks (~5 months) is a savings estimate, not a time gate;
+  // extra lessons and empowered bosses let students reach their goal sooner.
+  const MARKET_SAVINGS={weeks:20,victoriesPerWeek:5,weeklyPoints:150,targetPoints:3000};
+  const MARKET_PRICES={common:20,uncommon:40,rare:100,epic:500,legendary:1500,mythical:2500,unique:MARKET_SAVINGS.targetPoints};
+  const MARKET_LEGACY_PRICES={'red-potion':8,'blue-ether':8,'party-tonic':18,'bronze-blade':20,'oak-amulet':30,'foxtrail-boots':40,'crimson-edge':70,'silver-aegis':70};
   const MARKET=[...Object.entries(AVATAR_OUTFITS).filter(([,v])=>v.price>0).map(([id,v])=>({id:'outfit-'+id,name:v.name,price:v.price,outfitId:id})),
-    ...[['red-potion',8],['blue-ether',8],['party-tonic',18],['bronze-blade',20],['oak-amulet',30],['foxtrail-boots',40],['crimson-edge',70],['silver-aegis',70]].map(([itemId,price])=>({id:'item-'+itemId,name:ITEMS[itemId].name,itemId,price}))];
+    ...Object.values(ITEMS).map(item=>({id:'item-'+item.id,name:item.name,itemId:item.id,price:MARKET_LEGACY_PRICES[item.id] ?? MARKET_PRICES[item.rarity]}))];
   function avatarFor(input,owned=['traveller']) {
     if(input===null)return null;
     if(!input || typeof input!=='object' || Array.isArray(input))fail('Choose your avatar appearance.');
@@ -89,9 +95,11 @@
     if(offer.outfitId)hero.outfits.push(offer.outfitId);
     else{
       const item=itemById(offer.itemId);
-      // Shop power is deliberately bounded. It never stocks drop-only relics,
-      // runes, pets or granted skills, and equipment is sold without sockets.
-      if(!item || !['common','uncommon','rare'].includes(item.rarity) || item.giftSkill || !['equipment','consumable'].includes(item.type))fail('This item is available from drops only.');
+      // Every illustrated rarity is available at its canonical savings price.
+      // Equipment keeps its catalogue powers but is sold without rolled sockets.
+      if(!item || !RARITIES[item.rarity] || !['equipment','consumable','pet','rune'].includes(item.type))fail('Choose an item from the quest shop.');
+      if(item.giftSkill && (hero.giftSkills || []).includes(item.giftSkill))fail('This hero already knows that permanent gift.');
+      if(item.giftSkill && hero.inventory.some(entry=>entry.itemId===item.id && entry.quantity>0))fail('You already have that permanent gift in your bag.');
       if(hero.inventory.filter(e=>e.itemId===item.id).reduce((n,e)=>n+e.quantity,0)>=999)fail('Your bag already holds enough of that item.');
       addInventory(hero,item.id,1,socketable(item)?[]:undefined);
     }
@@ -1056,6 +1064,6 @@
     const log=(previous?.combatLog || []).filter(row=>row.id!==action.id);
     next.combatLog=[...copy(log),combatLogEntry(next,next.lastEvent)].slice(-40);return next;
   }
-  return {AVATAR_OUTFITS,AVATAR_PALETTES,AVATAR_HAIR,MARKET,avatarFor,victoryPoints,QUEST_ROUTES,QUEST_EVENTS,journeyFor,routeOptions,bossIntentFor,RUNE_BONUS_CHANCE,enemiesFor,combatHeroes,targetingLabel,ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
+  return {AVATAR_OUTFITS,AVATAR_PALETTES,AVATAR_HAIR,MARKET,MARKET_PRICES,MARKET_SAVINGS,avatarFor,victoryPoints,QUEST_ROUTES,QUEST_EVENTS,journeyFor,routeOptions,bossIntentFor,RUNE_BONUS_CHANCE,enemiesFor,combatHeroes,targetingLabel,ROLES,BOSSES,CONTENT,SKILLS,SKILL_TREES:SKILLS,JOBS,JOB_SKILLS,JOB_TREES:JOB_SKILLS,ITEMS,RARITIES,ITEM_SKILLS,EQUIPMENT_SLOTS,socketable,socketsFor,socketRoll,addInventory,grantedSkills,weaponElement,BOSS_MAX_MP,BOSS_SKILL_MP,BOSS_ATTACK_MP,ENEMY_SCALING_VERSION,ENEMY_SCALING,enemyLevelFor,enemyScale,bossById,skillById,itemById,heroFromStudent,
     reduce,cleanHero,configureHero,normalizeState,rebalanceEnemyHealth,levelForXp,chooseAutoCommand,randomUnit,availableSkills,canLearn,canAdvance,jobsFor,skillsFor,treeSkills,grantAssistXp,autoEquip,xpForLevel,timingMultiplier,equipmentEffect,equipmentSlot,equipmentFits,loadoutFor,equippedEntries,statsFor,rollReward,nextBoss,bossRotationFor,adventureFor,ADVENTURE_RATES,ADVENTURE_BIOMES,buildFor,damageTypeFor};
 });

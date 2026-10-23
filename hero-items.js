@@ -10,7 +10,7 @@
   var SOURCES = {
     victory: 'Victory treasure', 'road-chest': 'Roadside chest', 'bonus-rune': 'Bonus rune', gift: 'Teacher gift', restore: 'Restored',
     'quest-treasure': 'Personal treasure', 'quest-forge': 'Forged', 'victory-recovered': 'Victory treasure (recovered)',
-    'road-chest-recovered': 'Roadside chest (recovered)', 'bonus-rune-recovered': 'Bonus rune (recovered)', summon: 'Victory treasure', auto: 'Battle', answer: 'Battle'
+    'road-chest-recovered': 'Roadside chest (recovered)', 'bonus-rune-recovered': 'Bonus rune (recovered)', shop: 'Quest shop', summon: 'Victory treasure', auto: 'Battle', answer: 'Battle'
   };
   var CACHE_MS = 60000, SHOWN_ROWS = 60;
 

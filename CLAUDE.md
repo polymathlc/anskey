@@ -11,11 +11,13 @@ Guidance for Claude when working in this repo.
 - Run `npm --prefix functions test`, `node --test tools/hero-items-tests.mjs` and `node tools/hero-items-browser-check.mjs` (in CI).
 
 
-## Avatar tailor, quest points and shop (v1.159.0)
+## Avatar tailor, quest points and shop (v1.160.0)
 
 `questPoints` is earned currency separate from classroom marks: 25 per ordinary boss victory, 35 per uber boss, 50 per chapter guardian, once per present hero inside `awardLoot`. Bonus chests/runes never pay again. Legacy profiles begin at zero. Browser-supplied balances and prices are ignored.
 
-`MARKET` is the canonical catalogue. Outfits are permanent cosmetic unlocks; shop equipment stops at rare rarity, with zero sockets and no granted skills. Runes, pets, epic and stronger equipment remain drops. `configure:purchase` and `configure:customise` require immutable per-profile `market` receipts, actor/payload matching and atomic updates. Retry before revision/encounter guards. Purchases are blocked during encounters; owned cosmetics may synchronise during pending answers without changing combat.
+`MARKET` is the canonical catalogue: all 270 illustrated items across seven rarities, every gear slot, pets, runes and consumables, plus permanent cosmetic outfits. `MARKET_PRICES` sets rarity prices (20/40/100/500/1500/2500/3000); the eight original supplies retain their prices. `MARKET_SAVINGS` documents the Unique target: five victories per weekly lesson (four ordinary + one fifth-win guardian = 150 points) for 20 teaching weeks = 3,000 points, about five months. Calendar time is an estimate; there is no earning cap or time gate. Equipment has zero rolled sockets and keeps its catalogue powers, including granted skills; consumable gifts retain their once-per-hero rules. Existing generated atlases cover the entire shop.
+
+`configure:purchase` and `configure:customise` require immutable per-profile `market` receipts, actor/payload matching and atomic updates. Retry before revision/encounter guards. Item purchases append a `shop` entry to the permanent ledger in the same transaction; outfits do not. Purchases are blocked during encounters; owned cosmetics may synchronise during pending answers without changing combat. The shop has rarity/type/search/balance filters and 24-item pages; browsing state is separate from the saved request outbox.
 
 `hero-avatar.js` renders layered SVG pixel avatars using validated palette IDs and owned outfits; null retains original generated class artwork. Pass avatar through every saved hero portrait, skill preview, team and adventure scene. `hero-studio.js/css` mounts in My Hero with a per-account/student session outbox; unknown failures retain the exact request, and close/account changes discard presentation without cancelling saves. The tailor banner's generation prompt and hash are in `assets/battle-pixel/market/provenance.json`.
 
