@@ -4,6 +4,14 @@ const {createHeroRepository,migrateHero,key}=require('../hero-repository');
 const C=require('../hero-game/battle-core');
 const teacher={uid:'teacher',teacherId:'teacher',email:'chungzhikai@gmail.com',isTeacher:true};
 const pupil=uid=>({uid,email:uid+'@example.com',teacherId:'teacher',isTeacher:false});
+function firestoreValue(v,path,where='',inArray=false,depth=0){
+  if(depth>20)throw Error('too deep at '+path+' '+where);
+  if(v===undefined)throw Error('Cannot use undefined as a Firestore value at '+path+' '+where);
+  if(typeof v==='function'||typeof v==='symbol'||typeof v==='bigint')throw Error('bad type at '+path+' '+where);
+  if(Array.isArray(v)){if(inArray)throw Error('Nested arrays are not supported at '+path+' '+where);v.forEach((x,i)=>firestoreValue(x,path,where+'['+i+']',true,depth+1));return;}
+  if(v&&typeof v==='object'&&!(v instanceof Date)&&typeof v.toMillis!=='function'){for(const [k,x] of Object.entries(v))firestoreValue(x,path,where+'.'+k,false,depth+1);}
+  if(where==='' && JSON.stringify(v).length>1000000)throw Error('document too large '+path);
+}
 function database() {
   const data=new Map(),versions=new Map();let version=0;
   const snapshot=path=>({id:path.split('/').at(-1),exists:data.has(path),data:()=>structuredClone(data.get(path))});
@@ -14,7 +22,7 @@ function database() {
       for(let retry=0;retry<40;retry++){
         const reads=new Map(),writes=new Map();let queryVersion=null,wrote=false;
         const out=await callback({get:async r=>{assert.equal(wrote,false,'Firestore reads must precede all writes');if(r.isCollection)queryVersion=version;else reads.set(r.path,versions.get(r.path)||0);await Promise.resolve();return get(r);},
-          set:(r,v)=>{wrote=true;writes.set(r.path,structuredClone(v));},delete:r=>{wrote=true;writes.set(r.path,undefined);}});
+          set:(r,v)=>{firestoreValue(v,r.path);wrote=true;writes.set(r.path,structuredClone(v));},delete:r=>{wrote=true;writes.set(r.path,undefined);}});
         if((queryVersion!==null&&queryVersion!==version)||[...reads].some(([p,v])=>(versions.get(p)||0)!==v))continue;
         if(this.failNextCommit){this.failNextCommit=false;throw Error('transaction commit failed');}
         for(const [p,v]of writes){if(v===undefined)data.delete(p);else data.set(p,v);versions.set(p,++version);}return out;
@@ -880,4 +888,22 @@ test('next-date attendance restores every returning hero before immediate victor
  const restored=await call(teacher,{type:'lessonGuests',command:'get',classId:'Saturday'}),s=restored.state;
  assert.equal(s.heroes.length,3);assert.equal(db.data.get(classPath('Sunday')).heroes.length,0);assert.equal(db.data.get(classPath('Sunday')).status,'defeat');
  const victory=await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:s.encounterId,expectedRevision:s.revision});assert.equal(victory.state.rewards.filter(r=>!r.source).length,3);
+});
+
+test('a long lesson of points awards only ever writes values Firestore accepts, in every formation',async()=>{
+ // The fake refuses undefined, nested arrays and over-deep maps exactly as
+ // Firestore does. A team combo once logged an undefined skillId, which made
+ // every later award in the lesson fail as "Your hero could not be saved".
+ for(const formation of ['raid','2v2','3v3']){
+  const {db}=setup();const names=['a1','b2','c3','d4','e5','f6','g7','h8'];
+  for(const n of names)db.seed('students/'+n,{name:n,slot:'Saturday',marks:50});
+  const repo=createHeroRepository(db,{now:()=>123456789}),party=names.map(n=>C.heroFromStudent({id:n,name:n}));
+  let state=null;
+  for(let i=0;i<240;i++){
+   const sid=names[i%names.length];
+   const request={type:'wheelAward',classId:'Saturday',studentId:sid,delta:1+(i%3),reason:'Correct answer on the wheel',action:{type:'auto',formation,id:aid(),spinId:aid(),heroId:'student:'+sid,heroes:party,...(state?{encounterId:state.encounterId,expectedRevision:state.revision}:{})}};
+   state=(await repo.execute(teacher,request)).state;
+  }
+  assert.equal(db.data.get('students/h8').marks>50,true);
+ }
 });

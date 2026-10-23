@@ -123,7 +123,7 @@
     enemiesFor(state).filter(e=>e.hp>0).forEach(e=>{const damage=hitEnemy(state,e,Math.max(1,Math.round(e.maxHp*(ultimate?.1:.05))));targets.push({enemyId:e.id,damage});event.damage+=damage;});
     event.comboBurst={level:c.count,name:ultimate?'Class constellation':'Together strike',enemyTargets:targets};
     const part={combo:true,heroId:hero.id,move:event.comboBurst.name,damage:targets.reduce((n,t)=>n+t.damage,0),enemyTargets:targets,healed:[],targets:[]};
-    event.actions=event.actions || [{heroId:hero.id,skillId:event.skillId,damage:event.damage-part.damage,enemyTargets:copy(event.enemyTargets || []),healed:copy(event.healed),targets:copy(event.targets)}];event.actions.push(part);
+    event.actions=event.actions || [{heroId:hero.id,skillId:event.skillId||null,damage:event.damage-part.damage,enemyTargets:copy(event.enemyTargets || []),healed:copy(event.healed),targets:copy(event.targets)}];event.actions.push(part);
     if(ultimate){state.heroes.forEach(h=>heal(h,h.stats.maxHp*.1,event));c.count=0;c.lastHeroId=null;c.cycles++;}
   }
   function applyPreparation(state,hero,event) {
