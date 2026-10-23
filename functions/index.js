@@ -20,9 +20,13 @@ const { createHeroRepository } = require('./hero-repository');
 const { createLessonComposeService } = require('./lesson-compose');
 
 initializeApp();
+// A field left undefined in a saved hero, encounter or log entry must never
+// cost the whole award: without this, one missing value refuses the commit
+// and every points award in that lesson fails as "could not be saved".
+getFirestore().settings({ ignoreUndefinedProperties: true });
 const heroService = createHeroService({
   auth: getAuth(), appCheck: getAppCheck(), repository: createHeroRepository(getFirestore()),
-  report: code => logger.warn(code)
+  report: (code, error) => logger.warn(code, { message: String(error?.message || error || '').slice(0, 500) })
 });
 // Scale to zero between lessons. Keeping an idle instance would add a fixed
 // minimum bill and block non-interactive deployment without a billing override.
