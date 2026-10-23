@@ -3,6 +3,15 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.157.1 — The small wheel fits 2v2 and 3v3 fights
+
+- **Minimised, the wheel now shows a team fight properly.** Your students sit in one row,
+  the enemies in the row below, each in a card with their picture, name and HP bar.
+- Before, two or three enemies were stacked on top of each other and spilled out of the
+  small window, over its title bar, the ✕ and the points box.
+- When the points box is showing and the rows are short, each picture moves beside its
+  name so it stays big enough to recognise. 1v1 fights look exactly as they did.
+
 ## v1.154.0 — 🗑 Delete a consult from the list
 
 - **Every entry in 🙋 Consults has a 🗑 Delete button**, on the right of its row, in
