@@ -23,6 +23,14 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 - **A gift during a fight goes into the fight too.** The encounter's hero is written back
   over the saved profile after every answer, so an item added to the profile alone would
   be lost at the next turn; it is added to both, together.
+## v1.157.1 — The small wheel fits 2v2 and 3v3 fights
+
+- **Minimised, the wheel now shows a team fight properly.** Your students sit in one row,
+  the enemies in the row below, each in a card with their picture, name and HP bar.
+- Before, two or three enemies were stacked on top of each other and spilled out of the
+  small window, over its title bar, the ✕ and the points box.
+- When the points box is showing and the rows are short, each picture moves beside its
+  name so it stays big enough to recognise. 1v1 fights look exactly as they did.
 
 ## v1.154.0 — 🗑 Delete a consult from the list
 

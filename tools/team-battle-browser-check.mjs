@@ -199,6 +199,28 @@ try {
   await page.evaluate(()=>setWheelMin(true));
   await page.locator('#wheelModal').screenshot({path:path.join(output,'team-battle-3v3-compact.png')});
   check('minimised wheel preserves the 3v3 enemy team',await page.locator('#wheelQuickDuel [data-enemy-id]').count()===3);
+  // The small window must hold both teams inside its battle box: nothing over the title bar,
+  // the reel or the points controls, and every picture still large enough to recognise.
+  const compactFits=()=>page.evaluate(()=>{
+    const box=document.getElementById('cwBattle').getBoundingClientRect(),head=document.getElementById('wheelHead').getBoundingClientRect();
+    const cards=[...document.querySelectorAll('#cwBattle .cbActiveTeam>.cbQuickHero,#cwBattle .cbEnemyMember')].map(n=>n.getBoundingClientRect());
+    const art=[...document.querySelectorAll('#cwBattle .cbActiveTeam .cbaHero,#cwBattle .cbEnemyMember>:first-child')].map(n=>n.getBoundingClientRect());
+    const award=document.getElementById('cwAwards').getBoundingClientRect();
+    const inside=r=>r.top>=box.top-1&&r.bottom<=box.bottom+1&&r.left>=box.left-1&&r.right<=box.right+1;
+    return {cards:cards.length,inside:cards.every(inside)&&art.every(inside),belowHead:cards.every(r=>r.top>=head.bottom),clearOfAward:!award.height||cards.every(r=>r.bottom<=award.top+1),art:Math.min(...art.map(r=>Math.min(r.width,r.height))),overflow:document.getElementById('cwBattle').scrollHeight<=document.getElementById('cwBattle').clientHeight+1};
+  });
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:width===390?844:1000});await page.waitForTimeout(100);
+    let fit=await compactFits();
+    check(width+'px minimised 3v3 keeps all six cards inside the battle box, under the title bar',fit.cards===6&&fit.inside&&fit.belowHead&&fit.overflow&&fit.art>=24);
+    if(width===1440){
+      await page.click('#cwSpin');await page.waitForFunction(()=>!wheelSpinning&&!document.getElementById('cwGive').disabled);
+      await page.click('#cwGive');await page.waitForFunction(()=>__awardCalls.length>0&&!document.getElementById('cwGive').disabled);
+      fit=await compactFits();
+      check('minimised 3v3 with the points controls showing keeps every card above them, pictures beside names',fit.cards===6&&fit.inside&&fit.clearOfAward&&fit.overflow&&fit.art>=24);
+      await page.locator('#wheelModal').screenshot({path:path.join(output,'team-battle-3v3-compact-award.png')});
+    }
+  }
   check('team battle UI has no uncaught exceptions',errors.length===0);
   console.log(`Passed ${checks} team battle browser checks.`);
 } finally {await browser.close();}

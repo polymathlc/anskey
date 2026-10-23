@@ -94,6 +94,8 @@ After core/content changes run `node tools/sync-hero-game.mjs`, syntax checks, a
 
 `wheelCompactWin` / `polymath.wheelCompactWin.v1` store the compact box independently of the full `wheelWin`. Clamp the whole rectangle inside the viewport; manual Battle restores the full wheel before mounting it. Generic minimised-window rules still hide `.whBody`. Browser coverage is in the existing wheel and Quick fight checks; reel math is in `tools/compact-wheel-tests.mjs`.
 
+Compact team fights (v1.157.1): a `teamSize>1` duel (`heroTeam` / `enemyTeam`) is laid out by the `2v2 / 3v3` block in `compact-wheel.css`: heroes one row, enemies one row, each card a size container whose picture is sized in `cq` units, and `.cwBattle` clips. The wide-card layout is chosen by `@container` queries on the TEAM row and handed to the card's children as `--cw-*` variables (a child's own queries would be answered by the card, not the row). 1v1 is untouched. `tools/team-battle-browser-check.mjs` asserts all six cards stay inside the battle box, under the title bar and above the points controls.
+
 Compact points (v1.146.1): `CompactWheel.renderAward` builds one amount input and a + button inside the existing `#wheelAward`. It delegates to `wheelGive`, preserving its role, selection, busy and receipt checks. Valid whole-number amounts (1–10,000) persist in `polymath.wheelCompactPoints.v1`; an invalid draft never replaces the last saved amount. `setWheelMin` rerenders result controls on mode changes so the full wheel retains its presets/custom input. The Quick fight browser check uses an HTTP origin for reliable reload persistence and covers input validation, Enter, double clicks, retries and ordinary rewards.
 
 ## 📸 Snip and pin (v1.145.0)
