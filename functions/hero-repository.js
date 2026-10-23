@@ -67,6 +67,54 @@ function view(profile, student) {
   return { status: claim.status, claim, ...(claim.status === 'approved' ? { hero: cleanHero(profile.hero, student || {id:profile.studentId,name:profile.hero.name}, profile), activeEncounter: profile.activeEncounter || null } : {}) };
 }
 function requireTeacher(actor) { if (!actor.isTeacher) deny('teacher_required', 'Only the teacher can approve claims or run a battle.', 403); }
+// ---- The item ledger (v1.158.0) ----
+// classroomHeroData/{teacher}/itemLedger is APPEND ONLY: one document per
+// battle action that gave items, per teacher gift and per restore. Nothing
+// ever edits or deletes one, so it outlives any bug in the inventory code.
+const LEDGER='itemLedger';
+const GIFT_TYPES=['any','equipment','pet','rune','consumable'];
+const LEDGER_MAX_ROWS=400;
+function inventoryGains(before,after) {
+  const had=new Map((before || []).filter(e=>e && e.id).map(e=>[e.id,Number(e.quantity) || 0]));
+  return (after || []).filter(e=>e && e.id && Core.itemById(e.itemId)).flatMap(e=>{
+    const gain=(Number(e.quantity) || 0)-(had.get(e.id) || 0);
+    return gain>0 ? [{entryId:e.id,itemId:e.itemId,quantity:gain,...(Array.isArray(e.sockets) ? {sockets:e.sockets.length} : {})}] : [];
+  });
+}
+function dropEntry(hero,gain,source) {
+  const item=Core.itemById(gain.itemId),studentId=String(hero.studentId || '');
+  const guest=!studentId || /^wheel-/.test(studentId);
+  return {studentId:guest?null:studentId,heroId:String(hero.id || ''),name:String(hero.name || 'Student').slice(0,100),guest,
+    itemId:gain.itemId,itemName:item.name,rarity:item.rarity,type:item.type,quantity:gain.quantity,
+    ...(Number.isInteger(gain.sockets) ? {sockets:gain.sockets} : {}),source:String(source || 'battle').slice(0,40)};
+}
+function ledgerDoc({kind,source,classId,encounterId,actionId,by,clock,entries,extraKeys=[]}) {
+  return {schemaVersion:1,kind,source,classId:classId || null,encounterId:encounterId || null,actionId:actionId || null,by:by || '',createdAt:clock,
+    studentIds:[...new Set([...entries.map(e=>e.guest ? 'guests' : e.studentId),...extraKeys].filter(Boolean))],
+    restoreKeys:[...new Set(entries.map(e=>e.restoreOf).filter(Boolean))],entries};
+}
+// Teacher gifts use the ordinary drop weights for "random", or one rarity.
+function giftItem({rarity,itemType:type,itemId},rarityRoll,itemRoll) {
+  if (!GIFT_TYPES.includes(type || 'any')) deny('invalid_gift','Choose an item type.',400);
+  if (itemId) {
+    const item=Core.itemById(itemId);
+    if (typeof itemId!=='string' || !item) deny('invalid_gift','Choose an item from the catalogue.',400);
+    return item;
+  }
+  const keys=Object.keys(Core.RARITIES);
+  if (rarity!=='random' && !keys.includes(rarity)) deny('invalid_gift','Choose a rarity or Random.',400);
+  const fits=i=>!type || type==='any' || i.type===type;
+  let chosen=rarity;
+  if (rarity==='random') {
+    // Only rarities that hold an item of this type can be rolled.
+    const open=keys.filter(k=>Object.values(Core.ITEMS).some(i=>i.rarity===k && fits(i)));
+    const total=open.reduce((n,k)=>n+Core.RARITIES[k].weight,0);let sum=0;chosen=open[open.length-1];
+    for (const k of open) { sum+=Core.RARITIES[k].weight; if (rarityRoll*total<sum) { chosen=k; break; } }
+  }
+  const pool=Object.values(Core.ITEMS).filter(i=>i.rarity===chosen && fits(i));
+  if (!pool.length) deny('invalid_gift','There is no '+String(type)+' item of '+Core.RARITIES[chosen].name+' rarity. Choose another rarity or type.',400);
+  return pool[Math.min(pool.length-1,Math.floor(itemRoll*pool.length))];
+}
 function createHeroRepository(db, { now = Date.now, random = () => require('node:crypto').randomInt(0,0x100000000)/0x100000000 } = {}) {
   function realm(actor) {
     return { root: db.collection('classroomHeroData').doc(actor.teacherId), classes: db.collection('classroomBattles').doc(actor.teacherId).collection('classes') };
@@ -74,7 +122,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
   async function execute(actor, body) {
     const { root, classes } = realm(actor), profiles = root.collection('profiles'), accounts = root.collection('accounts');
     const accountRef = accounts.doc(actor.uid), clock = now();
-    if (['claims','approve','reject','unlink','battle','wheelAward','assist','mission','lessonGuests','endEncounter'].includes(body.type)) requireTeacher(actor);
+    if (['claims','approve','reject','unlink','battle','wheelAward','assist','mission','lessonGuests','endEncounter','items'].includes(body.type)) requireTeacher(actor);
     if (body.type === 'catalog' || body.type === 'claims') {
       const [rosterSnap, profileSnap] = await Promise.all([db.collection('students').get(), profiles.get()]);
       const roster = docs(rosterSnap).map(s => ({...s.data(),id:s.id})), byId = new Map(docs(profileSnap).map(s => [s.id,s.data()]));
@@ -91,6 +139,7 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
     if (body.type === 'assist') return assist(actor, body, {root,classes,profiles}, clock);
     if (body.type === 'lessonGuests') return lessonGuests(actor,body,{root,classes,profiles},clock);
     if (body.type === 'mission') return missionAction(actor,body,{root,classes,profiles},clock);
+    if (body.type === 'items') return itemsAction(actor,body,{root,classes,profiles},clock);
     if (body.type === 'endEncounter') {
       const studentId=studentKey(body.studentId), profile=docData(await profiles.doc(studentId).get());
       if (!profile?.activeEncounter) return {status:'ended'};
@@ -552,6 +601,8 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
         return cleanHero(profileMap.get(student.id).hero,student,profileMap.get(student.id));
       });
       if (starting || syncing || action.type==='auto') action.heroes=canonical;
+      // What each hero owned before this action: the ledger records only gains.
+      const beforeInventory=new Map(canonical.map(h=>[h.id,clone(h.inventory || [])]));
       // A new encounter can retain progression even when this slot has never
       // hosted this student. Supplying prior canonical heroes is server-only.
       const prior=old ? {...old,heroes:old.heroes.map(h=>canonical.find(c=>c.studentId===h.studentId)||h)} : null;
@@ -621,10 +672,139 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
       if(award&&mission.lastPayout?.id!==beforeMission.lastPayout?.id){const bonus=mission.lastPayout?.awards.find(row=>row.studentId===award.studentId);if(bonus)award.marks=bonus.marks;}
       if(mission.revision!==beforeMission.revision){mission.updatedAt=clock;tx.set(missionRef,mission);next.missionRevision=mission.revision;}
       for (const r of lockReleases) tx.set(r.ref,r.state);
+      // Every item a hero gains in this action is written to the permanent
+      // ledger in the same transaction, so a later bug can be repaired from it.
+      const lootNow=next.status==='victory' && !!next.lootAwarded && !(old?.lootAwarded && old.encounterId===next.encounterId);
+      const dropSource=lootNow?'victory':action.type==='quest'?'quest-'+String(action.command||''):String(action.type||'battle');
+      const dropEntries=next.heroes.flatMap(h=>{
+        const before=beforeInventory.get(h.id);
+        if (!before) return [];
+        return inventoryGains(before,h.inventory).map(gain=>dropEntry(h,gain,lootNow?((next.rewards||[]).find(r=>r.heroId===h.id && r.itemId===gain.itemId)?.source || 'victory'):dropSource));
+      });
+      if (dropEntries.length) tx.set(root.collection(LEDGER).doc('battle-'+createHash('sha256').update(actor.teacherId+'\0'+classId+'\0'+action.id).digest('hex').slice(0,40)),ledgerDoc({kind:'drop',source:dropSource,classId,encounterId:next.encounterId,actionId:action.id,by:actor.email,clock,entries:dropEntries}));
       tx.set(classRef,next); tx.set(receiptRef,{encounterId:next.encounterId,revision:next.revision,type:action.type,...(award ? {awardRequest,award} : {})});
       return {state:next,mission,...(award ? {award} : {})};
     });
   }
+  // ---- Items: the ledger, teacher gifts and restores (v1.158.0) ----
+  async function grantInTransaction(tx,refs,{studentId,classId,itemId,quantity,sockets}) {
+    const {classes,profiles}=refs,profileRef=profiles.doc(studentId);
+    const [profileSnap,studentSnap]=await Promise.all([tx.get(profileRef),tx.get(db.collection('students').doc(studentId))]);
+    if (!studentSnap.exists) deny('missing_student','That student is no longer on the register.',404);
+    const student={...studentSnap.data(),id:studentId};
+    let profile=docData(profileSnap);
+    if (!profile) profile=migrateHero(student,docs(await tx.get(classes)));
+    const lock=profile.activeEncounter,lockRef=lock ? classes.doc(key(lock.classId)) : null;
+    const lockState=lockRef ? docData(await tx.get(lockRef)) : null;
+    const viewRef=classId ? classes.doc(key(classId)) : null;
+    const viewState=viewRef && (!lockRef || viewRef.path!==lockRef.path) ? docData(await tx.get(viewRef)) : null;
+    const matches=h=>h && (h.studentId===studentId || h.id==='student:'+studentId);
+    const give=hero=>{Core.addInventory(hero,itemId,quantity,sockets);return hero;};
+    const writes=[];
+    let hero=cleanHero(profile.hero,student,profile);
+    const live=lockState?.status==='active' && lockState.encounterId===lock.encounterId && lockState.heroes.find(matches);
+    if (live) {
+      // The encounter's hero is written back over the profile on the next
+      // turn, so the item goes into BOTH or it is lost at the next answer.
+      const next=clone(lockState),inParty=next.heroes.find(matches);give(inParty);hero=clone(inParty);
+      next.revision=(next.revision || 0)+1;writes.push([lockRef,next]);
+    } else {
+      give(hero);Core.autoEquip(hero);
+    }
+    if (viewState && viewState.heroes?.some(matches)) {
+      const next=clone(viewState);next.heroes=next.heroes.map(h=>matches(h) ? give(h) : h);
+      next.revision=(next.revision || 0)+1;writes.push([viewRef,next]);
+    }
+    profile.hero=hero;profile.revision=(profile.revision || 0)+1;
+    return {profile,profileRef,writes,hero,student,state:writes.find(([ref])=>viewRef && ref.path===viewRef.path)?.[1] || null};
+  }
+  async function itemsAction(actor,body,refs,clock) {
+    const {root,classes}=refs,ledger=root.collection(LEDGER),command=body.command;
+    if (!['history','gift','restore'].includes(command)) deny('invalid_items','Choose an item action.',400);
+    if (body.classId !== undefined && body.classId !== null) key(body.classId);
+    if (command==='history') {
+      const guests=body.guests===true,studentId=guests ? null : studentKey(body.studentId);
+      await backfillLedger(actor,refs,clock);
+      const [snap,profileSnap]=await Promise.all([ledger.where('studentIds','array-contains',guests ? 'guests' : studentId).get(),guests ? null : refs.profiles.doc(studentId).get()]);
+      const restored={},rows=[];
+      for (const d of docs(snap)) {
+        const doc=d.data();
+        (doc.entries || []).forEach((e,index)=>{
+          if (e.restoreOf) (restored[e.restoreOf]=restored[e.restoreOf] || []).push({at:doc.createdAt,by:doc.by,studentId:e.studentId,name:e.name});
+          if (guests ? !e.guest : e.studentId!==studentId) return;
+          rows.push({...e,dropId:d.id+':'+index,kind:doc.kind,classId:doc.classId,encounterId:doc.encounterId,createdAt:doc.createdAt,by:doc.by});
+        });
+      }
+      rows.sort((a,b)=>(b.createdAt || 0)-(a.createdAt || 0) || a.dropId.localeCompare(b.dropId));
+      const owned={};
+      ((profileSnap && docData(profileSnap)?.hero?.inventory) || []).forEach(e=>{if (e && e.itemId) owned[e.itemId]=(owned[e.itemId] || 0)+(Number(e.quantity) || 0);});
+      return {rows:rows.slice(0,LEDGER_MAX_ROWS).map(r=>({...r,restored:restored[r.dropId] || []})),total:rows.length,owned};
+    }
+    if (typeof body.id!=='string' || !/^[A-Za-z0-9_-]{8,100}$/.test(body.id)) deny('invalid_items','Item actions need a saved action ID.',400);
+    const studentId=studentKey(body.studentId),classId=typeof body.classId==='string' ? body.classId : null;
+    if (command==='gift') {
+      const quantity=body.quantity===undefined ? 1 : body.quantity;
+      if (!Number.isSafeInteger(quantity) || quantity<1 || quantity>20) deny('invalid_gift','Give 1 to 20 copies.',400);
+      const request={command,studentId,rarity:body.itemId ? null : String(body.rarity || ''),itemType:String(body.itemType || 'any'),itemId:body.itemId || null,quantity};
+      // Randomness is sampled once, outside Firestore retries, like mission rolls.
+      const item=giftItem(request,random(),random()),receiptRef=ledger.doc('gift-'+body.id);
+      return db.runTransaction(async tx=>{
+        const receipt=docData(await tx.get(receiptRef));
+        if (receipt) {
+          if (JSON.stringify(receipt.request)!==JSON.stringify(request)) deny('gift_changed','This gift was already saved with different details.');
+          return {entry:receipt.entries[0],hero:null,duplicate:true};
+        }
+        const sockets=Core.socketRoll('gift:'+body.id,item);
+        const result=await grantInTransaction(tx,refs,{studentId,classId,itemId:item.id,quantity,sockets});
+        const entry=dropEntry(result.hero,{itemId:item.id,quantity,...(sockets ? {sockets:sockets.length} : {})},'gift');
+        result.profile.updatedAt=clock;tx.set(result.profileRef,result.profile);
+        for (const [ref,state] of result.writes) tx.set(ref,{...state,updatedAt:clock});
+        tx.set(receiptRef,{...ledgerDoc({kind:'gift',source:'gift',classId,actionId:body.id,by:actor.email,clock,entries:[entry]}),request});
+        return {entry,hero:result.hero,state:result.state};
+      });
+    }
+    const dropId=String(body.dropId || ''),match=/^([A-Za-z0-9_-]{1,120}):(\d{1,4})$/.exec(dropId);
+    if (!match) deny('invalid_restore','Choose a saved drop to restore.',400);
+    const receiptRef=ledger.doc('restore-'+body.id),sourceRef=ledger.doc(match[1]);
+    const request={command,studentId,dropId,again:body.again===true};
+    return db.runTransaction(async tx=>{
+      const [receiptSnap,sourceSnap,earlier]=await Promise.all([tx.get(receiptRef),tx.get(sourceRef),tx.get(ledger.where('restoreKeys','array-contains',dropId))]);
+      if (receiptSnap.exists) {
+        if (JSON.stringify(receiptSnap.data().request)!==JSON.stringify(request)) deny('restore_changed','This restore was already saved with different details.');
+        return {entry:receiptSnap.data().entries[0],hero:null,duplicate:true};
+      }
+      const original=docData(sourceSnap)?.entries?.[Number(match[2])];
+      if (!original || !Core.itemById(original.itemId)) deny('invalid_restore','That drop is not in the ledger.',404);
+      if (docs(earlier).length && !request.again) deny('already_restored','This drop was already restored once. Confirm to restore it again.');
+      const sockets=Number.isInteger(original.sockets) && Core.socketable(Core.itemById(original.itemId)) ? Array(Math.min(3,Math.max(0,original.sockets))).fill(null) : undefined;
+      const result=await grantInTransaction(tx,refs,{studentId,classId,itemId:original.itemId,quantity:original.quantity || 1,sockets});
+      const entry={...dropEntry(result.hero,{itemId:original.itemId,quantity:original.quantity || 1,...(sockets ? {sockets:sockets.length} : {})},'restore'),restoreOf:dropId,restoredFrom:original.name};
+      result.profile.updatedAt=clock;tx.set(result.profileRef,result.profile);
+      for (const [ref,state] of result.writes) tx.set(ref,{...state,updatedAt:clock});
+      const sourceKeys=docData(sourceSnap).studentIds || [];
+      tx.set(receiptRef,{...ledgerDoc({kind:'restore',source:'restore',classId,actionId:body.id,by:actor.email,clock,entries:[entry],extraKeys:original.guest ? ['guests'] : sourceKeys.filter(k=>k===original.studentId)}),request});
+      return {entry,hero:result.hero,state:result.state};
+    });
+  }
+  // Victories saved before the ledger existed still sit on each lesson's last
+  // encounter. Copy them in once (idempotent by encounter), so the most recent
+  // drops can be checked and restored too.
+  async function backfillLedger(actor,refs,clock) {
+    const {root,classes}=refs,ledger=root.collection(LEDGER);
+    const states=docs(await classes.get()).map(s=>s.data()).filter(s=>s && s.lootAwarded && s.encounterId && Array.isArray(s.rewards) && s.rewards.length);
+    for (const state of states) {
+      const ref=ledger.doc('backfill-'+createHash('sha256').update(actor.teacherId+'\0'+String(state.classId || '')+'\0'+state.encounterId).digest('hex').slice(0,40));
+      await db.runTransaction(async tx=>{
+        if ((await tx.get(ref)).exists) return;
+        const heroes=[...(state.heroes || []),...Object.values(state.heroArchive || {})];
+        const entries=state.rewards.filter(r=>r && Core.itemById(r.itemId)).map(r=>{
+          const hero=heroes.find(h=>h.id===r.heroId) || {id:r.heroId,studentId:String(r.heroId || '').replace(/^student:/,''),name:'Student'};
+          return dropEntry(hero,{itemId:r.itemId,quantity:1,...(Array.isArray(r.sockets) ? {sockets:r.sockets.length} : {})},(r.source || 'victory')+'-recovered');
+        });
+        if (entries.length) tx.set(ref,ledgerDoc({kind:'drop',source:'victory-recovered',classId:state.classId,encounterId:state.encounterId,by:'',clock:state.updatedAt || clock,entries}));
+      });
+    }
+  }
   return {execute};
 }
-module.exports={createHeroRepository,migrateHero,slots,key};
+module.exports={createHeroRepository,migrateHero,slots,key,inventoryGains,giftItem,LEDGER};
