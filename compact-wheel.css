@@ -26,6 +26,27 @@
 .cwBattle .cbQuickResource{max-width:150px}.cwBattle .cbQuickResource>span{font-size:8px!important}.cwBattle .cbQuickBar{height:4px}
 .cwBattle .cbQuickMystery{height:68px!important;font-size:45px!important}.cwBattle .cbQuickVs{font-size:9px}
 .cwBattle .cbaParty,.cwBattle .cbQuickTreasure{display:none!important}
+/* 2v2 / 3v3: heroes in one row above, enemies in one row below, each picture sized to its own card
+   (cq units of the card), so nothing spills over the title bar or the points controls. */
+.cwBattle:has(.cbActiveTeam){overflow:hidden;align-items:stretch}
+#wheelCard .cwBattle .cbQuickDuel:has(.cbActiveTeam){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto minmax(0,1fr);gap:2px;height:100%;align-items:stretch}
+#wheelCard .cwBattle .cbQuickDuel:has(.cbActiveTeam)>.cbQuickVs{font-size:8px;line-height:10px;text-align:center}
+#wheelCard .cwBattle .cbQuickDuel .cbQuickEnemy:has(.cbEnemyTeam){display:block;width:100%;height:100%;min-height:0;padding:0;margin:0}
+#wheelCard .cwBattle :is(.cbActiveTeam,.cbEnemyTeam){container-type:size;display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;width:100%;height:100%;min-height:0}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember){container-type:size;--cw-cap:min(calc(100cqh - 38px),100cqw);--cw-art-col:1;--cw-art-row:1;--cw-text-col:1;--cw-align:center;display:grid;grid-template-columns:var(--cw-cols,minmax(0,1fr));grid-template-rows:var(--cw-rows,minmax(0,1fr) auto auto auto);justify-items:stretch;align-items:end;gap:2px 5px;width:auto;min-width:0;min-height:0;height:100%;padding:2px;margin:0;box-sizing:border-box;overflow:hidden;border-radius:5px}
+#wheelCard .cwBattle .cbActiveTeam>.cbQuickHero{background:#16233acc;border:1px solid #3d557c}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>:is(.cbaHero,.cbEnemySprite,img,.cbMystery){grid-column:var(--cw-art-col);grid-row:var(--cw-art-row);justify-self:center;align-self:var(--cw-art-align,end);min-height:0;max-width:none;max-height:none;transform:none}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>:is(.cbaHero,img,.cbMystery){width:var(--cw-cap);height:var(--cw-cap);object-fit:contain;font-size:20px;line-height:1}
+#wheelCard .cwBattle .cbEnemyMember>.cbEnemySprite{--cw-art-h:min(var(--cw-cap-h,calc(100cqh - 38px)),calc(var(--cw-cap-w,100cqw) / var(--cb-enemy-aspect,1)));height:var(--cw-art-h);width:calc(var(--cw-art-h) * var(--cb-enemy-aspect,1))}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>:is(strong,small,.cbHp){grid-column:var(--cw-text-col);display:block;width:100%;max-height:none;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:var(--cw-align)}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>strong{grid-row:var(--cw-name-row,2);font-size:10px;line-height:12px;height:12px}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>small{grid-row:var(--cw-info-row,3);font-size:8px;line-height:10px;height:10px}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>.cbHp{grid-row:var(--cw-hp-row,4);height:4px}
+/* A short, wide row (the window under its points controls) puts each picture beside its name:
+   two cards from 3:1, three cards from 9:2. The card is styled against its team (the container)
+   and hands the layout to its children as variables, which resolve their cq units against the card. */
+@container (min-aspect-ratio:3/1){#wheelCard #cwBattle :is(.cbActiveTeam,.cbEnemyTeam):not(:has(>:nth-child(3)))>*{--cw-cols:auto minmax(0,1fr);--cw-rows:minmax(0,1fr) auto auto auto minmax(0,1fr);--cw-art-row:1/-1;--cw-art-align:center;--cw-text-col:2;--cw-align:left;--cw-cap:min(calc(100cqh - 4px),42cqw);--cw-cap-h:calc(100cqh - 4px);--cw-cap-w:42cqw}}
+@container (min-aspect-ratio:9/2){#wheelCard #cwBattle :is(.cbActiveTeam,.cbEnemyTeam)>*{--cw-cols:auto minmax(0,1fr);--cw-rows:minmax(0,1fr) auto auto auto minmax(0,1fr);--cw-art-row:1/-1;--cw-art-align:center;--cw-text-col:2;--cw-align:left;--cw-cap:min(calc(100cqh - 4px),42cqw);--cw-cap-h:calc(100cqh - 4px);--cw-cap-w:42cqw}}
 .cwAwards{flex:none}.cwAwards:empty{display:none}.cwAwards .whAward{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px;margin:0}
 #wheelCard .cwAwards .rwAmount{min-width:32px;min-height:26px;padding:3px 6px;font-size:10px;line-height:1.2;border-radius:4px;box-shadow:none}
 .cwPointControls{display:flex;align-items:center;justify-content:center;gap:6px}
