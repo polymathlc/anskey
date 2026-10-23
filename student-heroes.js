@@ -5,7 +5,7 @@
   if (!Core) return;
   var refreshId = 0;
   var epoch = 0, identity = '', openedFor = '', readyFor = '', mode = '', tree = null, poll = null, busy = false, lastFocus = null;
-  var model = null, catalog = null, chosenSlot = '';
+  var model = null, catalog = null, chosenSlot = '', studio = null;
   var roles = ['warrior', 'ranger', 'mage', 'cleric'];
   var descriptions = {
     warrior: 'Protect your party with shields, rallying cries and powerful sword strikes.',
@@ -19,12 +19,12 @@
   function teacher() { return !!user() && window.isAdmin(user()) && !window.actingStudent && !window.isSharedVisitor(); }
   function student() { return !!user() && !user().isAnonymous && !window.isAdmin(user()) && !window.actingStudent && !window.isSharedVisitor(); }
   function heroName(hero) { return Core.JOBS && Core.JOBS[hero.job] ? Core.JOBS[hero.job].name : Core.ROLES[hero.role].name; }
-  function sprite(role, cls, job, gender) { var name = Core.JOBS && Core.JOBS[job] ? Core.JOBS[job].name : Core.ROLES[role] ? Core.ROLES[role].name : 'Warrior'; if (window.ClassroomBattleAnimation) return ClassroomBattleAnimation.heroMarkup(role, { job:job, gender:gender, className:'shSprite ' + (cls || ''), alt:name + ' pixel hero' }); return '<img class="shSprite ' + (cls || '') + '" src="assets/battle-pixel/' + (roles.includes(role) ? role : 'warrior') + '.png" alt="' + esc(name) + ' pixel hero">'; }
+  function sprite(role, cls, job, gender, avatar) { var name = Core.JOBS && Core.JOBS[job] ? Core.JOBS[job].name : Core.ROLES[role] ? Core.ROLES[role].name : 'Warrior'; if (window.ClassroomBattleAnimation) return ClassroomBattleAnimation.heroMarkup(role, { job:job, gender:gender, avatar:avatar, className:'shSprite ' + (cls || ''), alt:name + ' pixel hero' }); return '<img class="shSprite ' + (cls || '') + '" src="assets/battle-pixel/' + (roles.includes(role) ? role : 'warrior') + '.png" alt="' + esc(name) + ' pixel hero">'; }
   function api(action) { if (!window.ClassroomHeroAPI) return Promise.reject(new Error('The hero service is still loading. Please try again.')); var token = epoch; return window.ClassroomHeroAPI.request(action, { canSend:function () { return alive(token); } }); }
   function alive(token) { return token === epoch && !!mode && (mode === 'teacher' ? teacher() : student()); }
   function error(message) { el('shError').textContent = message; el('shError').hidden = !message; }
   function cleanupTree() { if (tree) tree.destroy(); tree = null; }
-  function content(html) { cleanupTree(); if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(el('shBody')); el('shBody').innerHTML = html; if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(el('shBody')); }
+  function content(html) { if(studio)studio.destroy();studio=null; cleanupTree(); if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(el('shBody')); el('shBody').innerHTML = html; if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.mount(el('shBody')); }
   function stopPoll() { if (poll) clearTimeout(poll); poll = null; }
   function schedule() { stopPoll(); if (mode && model) poll = setTimeout(function () { if (busy || document.hidden) schedule(); else refresh(false); }, 15000); }
   function setBusy(value) {
@@ -34,7 +34,7 @@
     var appearanceStatus = el('shBody').querySelector('[data-sh-appearance-status]'); if (appearanceStatus) appearanceStatus.textContent = value ? 'Saving your change...' : '';
   }
   async function mutate(action) {
-    if (busy || !mode) return;
+    if (busy || !mode || studio&&studio.blocked()) return;
     var token = epoch;
     error(''); setBusy(true);
     try { await api(action); if (alive(token)) await refresh(false); }
@@ -98,12 +98,13 @@
     var floor = Core.xpForLevel(hero.level), next = Core.xpForLevel(Math.min(50, hero.level + 1)), maxed = hero.level >= 50;
     var pct = maxed ? 100 : Math.max(0, Math.min(100, (hero.xp - floor) / (next - floor) * 100));
     var items = (hero.inventory || []).filter(function (entry) { return entry.quantity > 0; });
-    content('<div class="shHeroTop">' + sprite(hero.role, '', hero.job, hero.gender) + '<div><span class="shEyebrow">MY HERO · LEVEL ' + esc(hero.level) + '</span><h2>' + esc(hero.name || claim.name) + '</h2><p>Lesson slot · ' + esc((claim.lessonSlots || []).join(' · ') || claim.lessonSlot || 'Ask your teacher') + '</p><p>Hero class · ' + (first ? 'Choose below' : esc(heroName(hero))) + '</p><div class="shXp" role="progressbar" aria-label="Experience toward next level" aria-valuenow="' + Math.round(pct) + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + pct + '%"></i></div><small>' + (maxed ? 'Maximum level · ' + hero.xp + ' XP' : hero.xp + ' / ' + next + ' XP · ' + Math.max(0, next - hero.xp) + ' XP to level ' + (hero.level + 1)) + '</small></div><div class="shStats"><strong>' + esc(hero.skillPoints) + ' skill points</strong><span>' + esc(hero.hp) + ' / ' + esc(hero.stats.maxHp) + ' HP</span><span>' + esc(hero.mp) + ' / ' + esc(hero.stats.maxMp) + ' MP</span></div></div>' + appearance(hero) + (locked ? '<p class="shLock">An encounter is in progress' + (model.activeEncounter.classId ? ' · ' + esc(model.activeEncounter.classId) : '') + '. Your teacher can finish or end it before you change your class, skills or equipment.</p>' : '') + (first ? classCards(hero, true, locked) : '<div class="shAdventureNote">Earn XP for answering questions, assisting classmates and defeating enemies. Leveling up grants 2 skill points. Every hero receives treasure after a victory. New gear automatically upgrades each equipment slot by rarity.</div>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.equipmentPanel(hero,{prefix:'sh',portrait:sprite(hero.role,'',hero.job,hero.gender),locked:locked}) : '') + advancement(hero, locked) + '<section><h2>Skill tree</h2><div id="shTree"></div></section><section><h2>Treasure bag</h2><p class="shHint">Gear and pets equip into their own slots. Change any slot between encounters. Each item below shows where it belongs.</p><div class="shInventory">' + (items.length ? items.map(function (entry) {
+    content('<div class="shHeroTop">' + sprite(hero.role, '', hero.job, hero.gender,hero.avatar) + '<div><span class="shEyebrow">MY HERO · LEVEL ' + esc(hero.level) + '</span><h2>' + esc(hero.name || claim.name) + '</h2><p>Lesson slot · ' + esc((claim.lessonSlots || []).join(' · ') || claim.lessonSlot || 'Ask your teacher') + '</p><p>Hero class · ' + (first ? 'Choose below' : esc(heroName(hero))) + '</p><div class="shXp" role="progressbar" aria-label="Experience toward next level" aria-valuenow="' + Math.round(pct) + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + pct + '%"></i></div><small>' + (maxed ? 'Maximum level · ' + hero.xp + ' XP' : hero.xp + ' / ' + next + ' XP · ' + Math.max(0, next - hero.xp) + ' XP to level ' + (hero.level + 1)) + '</small></div><div class="shStats"><strong>' + esc(hero.skillPoints) + ' skill points</strong><span>' + esc(hero.hp) + ' / ' + esc(hero.stats.maxHp) + ' HP</span><span>' + esc(hero.mp) + ' / ' + esc(hero.stats.maxMp) + ' MP</span></div></div>' + appearance(hero) + '<div id="shStudio"></div>' + (locked ? '<p class="shLock">An encounter is in progress' + (model.activeEncounter.classId ? ' · ' + esc(model.activeEncounter.classId) : '') + '. Your teacher can finish or end it before you change your class, skills or equipment.</p>' : '') + (first ? classCards(hero, true, locked) : '<div class="shAdventureNote">Earn XP for answering questions, assisting classmates and defeating enemies. Leveling up grants 2 skill points. Every hero receives treasure after a victory. New gear automatically upgrades each equipment slot by rarity.</div>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.equipmentPanel(hero,{prefix:'sh',portrait:sprite(hero.role,'',hero.job,hero.gender,hero.avatar),locked:locked}) : '') + advancement(hero, locked) + '<section><h2>Skill tree</h2><div id="shTree"></div></section><section><h2>Treasure bag</h2><p class="shHint">Gear and pets equip into their own slots. Change any slot between encounters. Each item below shows where it belongs.</p><div class="shInventory">' + (items.length ? items.map(function (entry) {
       var item = Core.itemById(entry.itemId);
       if (!item) return '';
       var rarity = Core.RARITIES[item.rarity] || {}, loadout=Core.loadoutFor(hero), slot = Object.keys(loadout).find(function(key){return loadout[key]===entry.id;}) || Core.equipmentSlot(item), equipped = Object.values(loadout).includes(entry.id);
       return '<article class="shItem" data-rarity="' + esc(item.rarity) + '">' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.itemIcon(item) : '') + '<span class="shEyebrow">' + esc(rarity.name || item.rarity) + ' · ' + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot || 'Consumable') + ' · ×' + esc(entry.quantity) + '</span><h3>' + esc(item.name) + '</h3><p>' + esc(item.description) + '</p>' + (item.type === 'rune' ? '<span class="shHint">Socket into weapons, armour or jewellery.</span>' : item.type === 'consumable' ? '<span class="shHint">Use during battle</span>' : '<button class="btn" data-sh-equip="' + esc(entry.id) + '" data-sh-equip-slot="' + esc(slot) + '"' + (locked || equipped ? ' disabled' : '') + '>' + (equipped ? 'Equipped in ' : 'Equip to ') + esc(window.ClassroomBattleDisplay ? ClassroomBattleDisplay.slotName(slot) : slot) + '</button>') + (window.ClassroomBattleDisplay?ClassroomBattleDisplay.socketSummary(entry)+ClassroomBattleDisplay.socketButton(entry,equipped?slot:null,locked):'') + '</article>';
     }).join('') : '<p>Your next victory brings new treasure.</p>') + '</div></section><details class="shChange"><summary>Change Hero class</summary>' + classCards(hero, false, locked) + '</details>'));
+    if(window.HeroStudio)studio=HeroStudio.mount(el('shStudio'),{getHero:function(){return model.hero;},getRevision:function(){return model.revision;},locked:function(){return !!model.activeEncounter;},key:(user()&&user().uid)+':'+hero.studentId,canAct:function(){return !!mode&&student()&&!busy;},dispatch:async function(action){return api(Object.assign({type:'configure'},action));},onChange:function(result){model=Object.assign({},model,result);renderHero();schedule();}});
     if (!first && window.ClassroomSkillTree) tree = window.ClassroomSkillTree.render(el('shTree'), { hero: hero, locked: locked, lockedReason: 'Finish or end the active encounter before learning skills.', onLearn: async function (skillId) { await mutate({type:'configure',command:'learn',skillId:skillId}); } });
   }
   function renderTeacher() {
@@ -113,7 +114,7 @@
     content('<div class="shWelcome"><span class="shEyebrow">TEACHER · CHARACTER OWNERSHIP</span><h2>Hero claims</h2><p>Approve each student’s account before they choose a Hero class. Names and Lesson slots come from your existing rewards roster.</p></div><section><h2>Awaiting approval</h2>' + rows('pending') + '</section><section><h2>Approved characters</h2><p class="shHint">Unlink a mistaken claim to make the name available again. XP, skills, equipment and treasure stay with the roster character.</p>' + rows('approved') + '</section><section><h2>Active encounters</h2><p class="shHint">End an encounter to release its heroes for class changes, skills or a different Lesson slot. Ending does not grant victory rewards.</p>' + (encounters.map(function (row) { return '<article class="shClaimRow"><div><strong>' + esc(row.classId) + '</strong><span>Heroes currently in battle</span></div><button class="btn" data-sh-manage="endEncounter" data-student-id="' + esc(row.studentId) + '">End encounter</button></article>'; }).join('') || '<p>No active encounters.</p>') + '</section>');
   }
   async function refresh(showLoading) {
-    if (!mode) return;
+    if (!mode || studio&&studio.blocked()) return;
     var token = epoch, requestId = ++refreshId;
     stopPoll(); error('');
     if (showLoading) content('<p class="shLoading" role="status">Loading your adventure…</p>');
@@ -132,6 +133,7 @@
     } catch (e) { if (alive(token) && requestId === refreshId) { error(e.message || 'Unable to load heroes. Please refresh.'); schedule(); } }
   }
   function close() {
+    if(studio)studio.destroy();studio=null;
     if(window.ClassroomBattleDisplay)ClassroomBattleDisplay.closeSockets();
     if (window.ClassroomBattleAnimation) ClassroomBattleAnimation.unmount(el('shBody'));
     epoch++; mode = ''; model = catalog = null; busy = false; stopPoll(); cleanupTree();
@@ -162,9 +164,9 @@
   el('heroClaimsBtn').addEventListener('click', function () { open('teacher'); });
   el('shClose').addEventListener('click', close);
   el('shDialog').addEventListener('cancel', function (event) { event.preventDefault(); close(); });
-  el('shRefresh').addEventListener('click', function () { if (!busy) refresh(true); });
+  el('shRefresh').addEventListener('click', function () { if (!busy && !(studio&&studio.blocked())) refresh(true); });
   el('shBody').addEventListener('click', function (event) {
-    var target = event.target.closest('button'); if (!target || target.disabled || busy) return;
+    var target = event.target.closest('button'); if (!target || target.disabled || busy || studio&&studio.blocked()&&!target.closest('#shStudio')) return;
     if(target.dataset.socketItem){openSocketWorkshop(target);return;}
     if (target.dataset.shClaim) mutate({type:'claim',studentId:target.dataset.shClaim,lessonSlot:chosenSlot});
     else if (target.dataset.shAction) mutate({type:target.dataset.shAction});
@@ -175,7 +177,7 @@
     else if (target.dataset.shEquip) mutate({type:'configure',command:'equip',itemId:target.dataset.shEquip,slot:target.dataset.shEquipSlot});
     else if (target.dataset.shManage) mutate({type:target.dataset.shManage,studentId:target.dataset.studentId});
   });
-  el('shBody').addEventListener('change', function (event) { var choice=event.target.closest('[data-sh-loadout-slot]'); if (choice && choice.value && !choice.disabled && !busy) mutate({type:'configure',command:'equip',itemId:choice.value,slot:choice.dataset.shLoadoutSlot}); });
+  el('shBody').addEventListener('change', function (event) { var choice=event.target.closest('[data-sh-loadout-slot]'); if (choice && choice.value && !choice.disabled && !busy && !(studio&&studio.blocked())) mutate({type:'configure',command:'equip',itemId:choice.value,slot:choice.dataset.shLoadoutSlot}); });
   window.StudentHeroes = { open:open, close:close, roleChanged:roleChanged, profileReady:function (uid) { if (user() && user().uid === uid) { readyFor = uid; maybeOpen(); } } };
   roleChanged();
   if (student() && window.profileComplete && window.profileComplete(window.studentProfile)) window.StudentHeroes.profileReady(user().uid);

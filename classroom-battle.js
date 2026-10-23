@@ -284,7 +284,7 @@
   }
   function avatar(h, extra) {
     var role = roleOf(h);
-    if (window.ClassroomBattleAnimation) return ClassroomBattleAnimation.heroMarkup(role, { job: h.job, gender: h.gender, className: 'cbAvatar ' + (extra || ''), alt: heroClassName(h) + ' pixel avatar facing right', dormant: h.hp <= 0 });
+    if (window.ClassroomBattleAnimation) return ClassroomBattleAnimation.heroMarkup(role, { job: h.job, gender: h.gender, avatar:h.avatar, className: 'cbAvatar ' + (extra || ''), alt: heroClassName(h) + ' pixel avatar facing right', dormant: h.hp <= 0 });
     return '<img class="cbAvatar ' + (extra || '') + '" src="assets/battle-pixel/' + esc(role) + '.png" alt="' + esc(roleText[role].name) + ' pixel avatar facing right" draggable="false">';
   }
   function bindAvatarFailures(container) {

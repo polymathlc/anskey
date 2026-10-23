@@ -3,6 +3,19 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.159.0 — Larger bosses, avatar tailor and quest shop
+
+Bosses occupy more of the arena and the Emerald Trail scene has a darker backdrop,
+so characters and opponents remain clear. Students can customise their skin, hair,
+eyes, hairstyle and clothing in My Hero, then unlock permanent cosmetic outfits.
+
+Present heroes earn 25 quest points per ordinary boss victory, 35 for an empowered
+boss and 50 for a chapter guardian. The shop sells potions and equipment up to rare
+rarity, with no sockets or granted skills; mythic and unique drops remain stronger.
+Purchases use server prices, atomic saves and durable receipts so retries cannot
+charge twice. Existing saved battles, attendance and the permanent item ledger are
+preserved.
+
 ## v1.158.0 — 🎁 Give a hero an item, and 📜 every drop kept for good
 
 - **Click a character in the Battle window and give them an item.** The hero journal

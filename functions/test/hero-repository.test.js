@@ -890,6 +890,39 @@ test('next-date attendance restores every returning hero before immediate victor
  const victory=await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:s.encounterId,expectedRevision:s.revision});assert.equal(victory.state.rewards.filter(r=>!r.source).length,3);
 });
 
+test('quest shop charges canonical prices atomically and acknowledges concurrent and stale retries',async()=>{
+ const {db,call}=setup();await claim(call);const p=db.data.get(profilePath('alex'));p.hero.questPoints=100;db.seed(profilePath('alex'),p);
+ const request={type:'configure',command:'purchase',skuId:'outfit-ranger',id:aid(),expectedRevision:p.revision||0,price:0,questPoints:999999};
+ const replies=await Promise.all([call(pupil('one'),request),call(pupil('one'),request),call(pupil('one'),request)]);
+ assert.equal(replies.filter(r=>r.duplicate).length,2);assert.equal(db.data.get(profilePath('alex')).hero.questPoints,70);
+ assert.deepEqual(db.data.get(profilePath('alex')).hero.outfits,['traveller','ranger']);
+ await assert.rejects(call(pupil('one'),{...request,skuId:'outfit-royal'}),/different details/);
+ await assert.rejects(call(pupil('two'),{...request,studentId:'alex'}),/approve|claim|belongs/i);
+ const before=JSON.stringify([...db.data]);await assert.rejects(call(pupil('one'),{...request,id:aid(),expectedRevision:undefined,skuId:'outfit-shadow'}),/quest points/);assert.equal(JSON.stringify([...db.data]),before);
+ await begin(call);assert.equal((await call(pupil('one'),request)).duplicate,true);
+ await assert.rejects(call(pupil('one'),{...request,id:aid(),expectedRevision:undefined,skuId:'item-red-potion'}),/active encounter/);
+});
+test('distinct simultaneous purchases cannot overspend the same balance',async()=>{
+ const {db,call}=setup();await claim(call);const p=db.data.get(profilePath('alex'));p.hero.questPoints=40;db.seed(profilePath('alex'),p);
+ const results=await Promise.allSettled(['ranger','royal'].map(outfit=>call(pupil('one'),{type:'configure',command:'purchase',skuId:'outfit-'+outfit,id:aid()})));
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(db.data.get(profilePath('alex')).hero.questPoints,10);
+});
+test('custom avatars update the active pending encounter without changing combat or allowing locked outfits',async()=>{
+ const {db,call}=setup();await claim(call);let s=await begin(call);s=(await battle(call,'Saturday',{type:'select',id:aid(),heroId:'student:alex',encounterId:s.encounterId,expectedRevision:s.revision})).state;
+ const avatar={version:1,outfit:'traveller',hairStyle:'long',skin:'deep',hair:'blue',eyes:'green',clothing:'purple'};
+ const before=structuredClone(s),result=await call(pupil('one'),{type:'configure',command:'customise',id:aid(),avatar});
+ const saved=db.data.get(classPath('Saturday'));assert.deepEqual(saved.pending,before.pending);assert.deepEqual(saved.lastEvent,before.lastEvent);assert.equal(saved.bossHp,before.bossHp);
+ const old=before.heroes.find(h=>h.studentId==='alex'),updated=saved.heroes.find(h=>h.studentId==='alex');assert.deepEqual(updated,{...old,avatar});assert.deepEqual(result.hero.avatar,avatar);
+ const unchanged=JSON.stringify([...db.data]);await assert.rejects(call(pupil('one'),{type:'configure',command:'customise',id:aid(),avatar:{...avatar,outfit:'royal'}}),/Unlock/);assert.equal(JSON.stringify([...db.data]),unchanged);
+});
+test('only students present at victory earn quest points and replay never grants more',async()=>{
+ const {db,call}=setup();let s=await begin(call);await call(teacher,{type:'lessonGuests',classId:'Saturday',command:'absent',studentId:'sam',id:aid()});
+ s=db.data.get(classPath('Saturday'));const request={type:'summon',id:aid(),source:'teacher',encounterId:s.encounterId,expectedRevision:s.revision};
+ await battle(call,'Saturday',request);const points=db.data.get(profilePath('alex')).hero.questPoints;assert.ok(points>=25);assert.equal(db.data.get(profilePath('sam')).hero.questPoints,0);
+ await battle(call,'Saturday',request);assert.equal(db.data.get(profilePath('alex')).hero.questPoints,points);
+});
+
+
 // ---- The item ledger, gifts and restores (v1.158.0) ----
 const ledgerDocs=db=>[...db.data].filter(([p])=>p.startsWith('classroomHeroData/teacher/itemLedger/')).map(([p,v])=>({id:p.split('/').at(-1),...v}));
 const owned=(hero,itemId)=>hero.inventory.filter(e=>e.itemId===itemId).reduce((n,e)=>n+e.quantity,0);
