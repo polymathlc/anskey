@@ -68,7 +68,7 @@ function createHeroService({ auth, appCheck, repository, report = () => {} }) {
       return res.status(200).json(result);
     } catch (error) {
       if (error instanceof HeroError) return res.status(error.status).json({ error: { code: error.code, message: error.message } });
-      report('hero_request_failed');
+      report('hero_request_failed', error);
       return res.status(503).json({ error: { code: 'hero_unavailable', message: 'Your hero could not be saved. Try again; your progress is safe.' } });
     }
   }

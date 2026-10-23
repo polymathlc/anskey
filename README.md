@@ -3,6 +3,14 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.157.2 — ⚔ Points awards save again after a team combo
+
+- **"Your hero could not be saved" on every points award is fixed.** Once a lesson's
+  class reached a Together strike combo, the battle log carried an empty skill field
+  the cloud refuses, so the whole award (marks, XP and damage) was rolled back and
+  every award after it failed the same way. Nothing was lost: the retry now saves.
+- The cloud now drops an empty field instead of refusing the save, and logs the
+  real reason when a hero save does fail.
 ## v1.157.1 — The small wheel fits 2v2 and 3v3 fights
 
 - **Minimised, the wheel now shows a team fight properly.** Your students sit in one row,
