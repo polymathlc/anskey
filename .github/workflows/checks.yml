@@ -45,6 +45,7 @@ jobs:
         run: |
           node tools/wheel-check.mjs
           node tools/classroom-battle-browser-check.mjs
+          node tools/hero-items-browser-check.mjs
           node tools/hero-skill-tree-browser-check.mjs
           node tools/adventure-browser-check.mjs
           node tools/student-heroes-browser-check.mjs

@@ -1,0 +1,27 @@
+/* 🎁 Teacher item desk (v1.158.0) — lives inside the hero journal. */
+.hiDesk { margin-top: 8px; }
+.hiDesk .hiQuiet { color: #9fb3d4; font-size: 11px; line-height: 1.6; margin: 0 0 14px; }
+.hiGift { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 12px 14px; align-items: end; padding: 16px; border: 2px solid #435c82; background: #132443; }
+.hiGift label { display: flex; flex-direction: column; gap: 6px; color: #c9d6ee; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.hiGift .hiWide { grid-column: span 2; }
+.hiGift select, .hiGift input { font: inherit; font-size: 12px; text-transform: none; letter-spacing: 0; color: #f3f6ff; background: #0b1730; border: 1px solid #5a77a3; padding: 8px 9px; min-height: 36px; user-select: text; -webkit-user-select: text; }
+.hiGift select:disabled, .hiGift input:disabled { opacity: .55; }
+.hiGift .hiGive { min-height: 38px; padding: 8px 14px; font-weight: 700; color: #241500; background: #f7cf77; border: 2px solid #ffe7a8; cursor: pointer; }
+.hiGift .hiGive:disabled { opacity: .5; cursor: default; }
+.hiMessage { margin: 12px 0 0; padding: 10px 12px; color: #dff7e6; background: #133a2a; border-left: 4px solid #6fd39a; font-size: 12px; line-height: 1.5; }
+.hiError { margin: 12px 0 0; padding: 10px 12px; color: #ffe1e1; background: #3d1720; border-left: 4px solid #ff8a8a; font-size: 12px; line-height: 1.5; }
+.hiError button { margin-left: 8px; }
+.hiRows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hiRow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: #152640; border: 1px solid var(--rarity,#7490ad); border-left: 4px solid var(--rarity,#7490ad); }
+.hiRowText { flex: 1; min-width: 0; }
+.hiRowText strong, .hiRowText small { display: block; }
+.hiRowText strong { font-size: 12px; color: #f3f6ff; }
+.hiRowText small { margin-top: 4px; font-size: 10px; color: #9fb3d4; line-height: 1.45; overflow-wrap: anywhere; }
+.hiRowText .hiDone { color: #8fe0ad; }
+.hiRowText .hiOwned { color: #ecd295; }
+.hiRow > button, .hiMore { flex: none; padding: 7px 11px; font-size: 11px; color: #e9f0ff; background: #24406b; border: 1px solid #6f8fc0; cursor: pointer; }
+.hiRow > button:hover, .hiMore:hover { background: #2e5288; }
+.hiMore { margin-top: 10px; }
+.hiGuests { margin-top: 20px; padding: 12px 14px; border: 1px dashed #435c82; }
+.hiGuests summary { cursor: pointer; color: #ecd295; font-size: 12px; margin-bottom: 10px; }
+@media (max-width:620px) { .hiGift { grid-template-columns: 1fr 1fr; padding: 12px; } .hiGift .hiWide, .hiGift .hiGive { grid-column: 1/-1; } .hiRow { flex-wrap: wrap; } .hiRow > button { width: 100%; } }

@@ -15,8 +15,8 @@ function firestoreValue(v,path,where='',inArray=false,depth=0){
 function database() {
   const data=new Map(),versions=new Map();let version=0;
   const snapshot=path=>({id:path.split('/').at(-1),exists:data.has(path),data:()=>structuredClone(data.get(path))});
-  function ref(path,isCollection=false,filters=[]) { return {path,isCollection,filters,collection:n=>ref(path+'/'+n,true),doc:id=>ref(path+'/'+id),where:(field,op,value)=>{assert.equal(op,'==');return ref(path,true,[...filters,[field,value]]);},get:async()=>get({path,isCollection,filters})}; }
-  function get(r) { if (!r.isCollection) return snapshot(r.path); const prefix=r.path+'/';return {docs:[...data.keys()].filter(p=>p.startsWith(prefix)&&!p.slice(prefix.length).includes('/')&&(r.filters||[]).every(([k,v])=>data.get(p)[k]===v)).map(snapshot)}; }
+  function ref(path,isCollection=false,filters=[]) { return {path,isCollection,filters,collection:n=>ref(path+'/'+n,true),doc:id=>ref(path+'/'+id),where:(field,op,value)=>{assert.ok(op==='=='||op==='array-contains');return ref(path,true,[...filters,[field,value,op]]);},get:async()=>get({path,isCollection,filters})}; }
+  function get(r) { if (!r.isCollection) return snapshot(r.path); const prefix=r.path+'/';return {docs:[...data.keys()].filter(p=>p.startsWith(prefix)&&!p.slice(prefix.length).includes('/')&&(r.filters||[]).every(([k,v,op])=>op==='array-contains'?(data.get(p)[k]||[]).includes(v):data.get(p)[k]===v)).map(snapshot)}; }
   return {data,failNextCommit:false,collection:n=>ref(n,true),seed(path,value){data.set(path,structuredClone(value));versions.set(path,++version);},
     async runTransaction(callback) {
       for(let retry=0;retry<40;retry++){
@@ -888,6 +888,127 @@ test('next-date attendance restores every returning hero before immediate victor
  const restored=await call(teacher,{type:'lessonGuests',command:'get',classId:'Saturday'}),s=restored.state;
  assert.equal(s.heroes.length,3);assert.equal(db.data.get(classPath('Sunday')).heroes.length,0);assert.equal(db.data.get(classPath('Sunday')).status,'defeat');
  const victory=await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:s.encounterId,expectedRevision:s.revision});assert.equal(victory.state.rewards.filter(r=>!r.source).length,3);
+});
+
+// ---- The item ledger, gifts and restores (v1.158.0) ----
+const ledgerDocs=db=>[...db.data].filter(([p])=>p.startsWith('classroomHeroData/teacher/itemLedger/')).map(([p,v])=>({id:p.split('/').at(-1),...v}));
+const owned=(hero,itemId)=>hero.inventory.filter(e=>e.itemId===itemId).reduce((n,e)=>n+e.quantity,0);
+const items=(call,body)=>call(teacher,{type:'items',...body});
+
+test('every victory drop is written to the permanent ledger in the same transaction, once',async()=>{
+  const {call,db}=setup();let state=await begin(call);
+  const request={type:'battle',classId:'Saturday',action:{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision,formation:'raid'}};
+  state=(await Promise.all([call(teacher,request),call(teacher,request)])).at(-1).state;
+  const docsNow=ledgerDocs(db).filter(d=>d.kind==='drop');assert.equal(docsNow.length,1);
+  const doc=docsNow[0];assert.equal(doc.source,'victory');assert.equal(doc.encounterId,state.encounterId);assert.deepEqual(doc.studentIds.sort(),['alex','sam']);
+  for(const r of state.rewards){
+    const id=r.heroId.replace('student:','');
+    assert.ok(doc.entries.some(e=>e.studentId===id && e.itemId===r.itemId),'reward '+r.itemId+' for '+id+' is in the ledger');
+    assert.ok(owned(db.data.get(profilePath(id)).hero,r.itemId)>=1);
+  }
+  // A plain start with no new items writes nothing.
+  await battle(call,'Saturday',{type:'start',id:aid(),heroes,expectedRevision:state.revision});
+  assert.equal(ledgerDocs(db).filter(d=>d.kind==='drop').length,1);
+});
+
+test('a failed commit leaves no ledger entry and a retry writes exactly one',async()=>{
+  const {call,db}=setup();const state=await begin(call);
+  const request={type:'battle',classId:'Saturday',action:{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision,formation:'raid'}};
+  db.failNextCommit=true;await assert.rejects(call(teacher,request),/commit failed/);
+  assert.equal(ledgerDocs(db).length,0);
+  await call(teacher,request);assert.equal(ledgerDocs(db).length,1);
+});
+
+test('teacher gifts: a chosen rarity, random rarity, a chosen item; idempotent and teacher-only',async()=>{
+  const {call,db}=setup();
+  await assert.rejects(call(pupil('one'),{type:'items',command:'gift',studentId:'alex',rarity:'epic',id:aid()}),/teacher/);
+  const id=aid(),gift={command:'gift',studentId:'alex',rarity:'legendary',itemType:'equipment',id};
+  const a=await items(call,gift),b=await items(call,gift);
+  assert.equal(a.entry.rarity,'legendary');assert.equal(a.entry.type,'equipment');assert.equal(b.duplicate,true);
+  assert.equal(owned(db.data.get(profilePath('alex')).hero,a.entry.itemId),1);
+  await assert.rejects(items(call,{...gift,rarity:'common'}),/different details/);
+  const random=await items(call,{command:'gift',studentId:'alex',rarity:'random',itemType:'rune',id:aid()});assert.equal(random.entry.type,'rune');
+  const chosen=await items(call,{command:'gift',studentId:'sam',itemId:'red-potion',quantity:3,id:aid()});
+  assert.equal(chosen.entry.itemId,'red-potion');assert.equal(owned(db.data.get(profilePath('sam')).hero,'red-potion'),2+3);
+  await assert.rejects(items(call,{command:'gift',studentId:'alex',rarity:'mythical',itemType:'consumable',id:aid()}),/no consumable/);
+  await assert.rejects(items(call,{command:'gift',studentId:'alex',rarity:'shiny',id:aid()}),/rarity/);
+  await assert.rejects(items(call,{command:'gift',studentId:'alex',itemId:'nope',id:aid()}),/catalogue/);
+  await assert.rejects(items(call,{command:'gift',studentId:'alex',rarity:'rare',quantity:99,id:aid()}),/1 to 20/);
+  assert.equal(ledgerDocs(db).filter(d=>d.kind==='gift').length,3);
+});
+
+test('a gift during an active encounter goes into the encounter too, so the next turn cannot erase it',async()=>{
+  const {call,db}=setup();let state=await begin(call);
+  const before=state.revision;
+  const gift=await items(call,{command:'gift',studentId:'alex',itemId:'blue-ether',classId:'Saturday',id:aid()});
+  assert.equal(gift.state.revision,before+1);
+  state=db.data.get(classPath('Saturday'));
+  assert.equal(owned(state.heroes.find(h=>h.studentId==='alex'),'blue-ether'),2);
+  // The next battle action writes the encounter hero over the profile.
+  state=(await battle(call,'Saturday',{type:'select',id:aid(),heroId:'student:alex',turnId:aid(),encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  state=(await battle(call,'Saturday',{type:'answer',id:aid(),turnId:state.pending.id,outcome:'correct',command:'attack',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  assert.equal(owned(db.data.get(profilePath('alex')).hero,'blue-ether'),2);
+});
+
+test('history lists a student’s drops, gifts and current counts; restore adds once unless confirmed again',async()=>{
+  const {call,db}=setup();let state=await begin(call);
+  state=(await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  await items(call,{command:'gift',studentId:'alex',itemId:'red-potion',id:aid()});
+  const history=await items(call,{command:'history',studentId:'alex'});
+  assert.ok(history.rows.some(r=>r.source==='gift'));assert.ok(history.rows.some(r=>r.kind==='drop'));
+  assert.ok(history.rows.every(r=>r.studentId==='alex'));assert.equal(typeof history.owned['red-potion'],'number');
+  const drop=history.rows.find(r=>r.kind==='drop');
+  // Simulate the bug this exists for: the item vanished from the profile.
+  const profile=db.data.get(profilePath('alex'));profile.hero.inventory=profile.hero.inventory.filter(e=>e.itemId!==drop.itemId);profile.hero.loadout={};db.seed(profilePath('alex'),profile);
+  const request={command:'restore',studentId:'alex',dropId:drop.dropId,id:aid()};
+  const restored=await items(call,request);assert.equal(restored.entry.restoreOf,drop.dropId);
+  assert.equal((await items(call,request)).duplicate,true);
+  assert.equal(owned(db.data.get(profilePath('alex')).hero,drop.itemId),drop.quantity);
+  await assert.rejects(items(call,{...request,id:aid()}),/already restored/);
+  await items(call,{...request,id:aid(),again:true});assert.equal(owned(db.data.get(profilePath('alex')).hero,drop.itemId),drop.quantity*2);
+  const after=await items(call,{command:'history',studentId:'alex'});
+  assert.equal(after.rows.find(r=>r.dropId===drop.dropId).restored.length,2);
+  await assert.rejects(items(call,{command:'restore',studentId:'alex',dropId:'missing:0',id:aid()}),/not in the ledger/);
+});
+
+test('drops that went to an unlinked wheel name are listed as guest drops and can be restored to the right student',async()=>{
+  const {call,db}=setup();
+  const party=[heroes[0],C.heroFromStudent({id:'wheel-abc123',name:'Alex T'})];
+  let state=await begin(call,'Saturday',party);
+  state=(await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  const guests=await items(call,{command:'history',guests:true});
+  assert.ok(guests.rows.length>=1);assert.ok(guests.rows.every(r=>r.guest && r.name==='Alex T'));
+  const drop=guests.rows[0],before=owned(db.data.get(profilePath('alex')).hero,drop.itemId);
+  await items(call,{command:'restore',studentId:'alex',dropId:drop.dropId,id:aid()});
+  assert.equal(owned(db.data.get(profilePath('alex')).hero,drop.itemId),before+drop.quantity);
+  assert.equal((await items(call,{command:'history',guests:true})).rows.find(r=>r.dropId===drop.dropId).restored[0].studentId,'alex');
+});
+
+test('victories saved before the ledger are copied in once from each lesson’s last encounter',async()=>{
+  const {call,db}=setup();let state=await begin(call);
+  state=(await battle(call,'Saturday',{type:'summon',id:aid(),source:'teacher',encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  for(const [p] of [...db.data])if(p.includes('/itemLedger/'))db.data.delete(p);
+  await items(call,{command:'history',studentId:'alex'});await items(call,{command:'history',studentId:'sam'});
+  const copied=ledgerDocs(db);assert.equal(copied.length,1);assert.equal(copied[0].source,'victory-recovered');
+  assert.equal(copied[0].entries.length,state.rewards.length);
+});
+
+test('the ledger only records gains',()=>{
+  const {inventoryGains}=require('../hero-repository');
+  assert.deepEqual(inventoryGains([{id:'bag:red-potion',itemId:'red-potion',quantity:2}],[{id:'bag:red-potion',itemId:'red-potion',quantity:1}]),[]);
+  assert.deepEqual(inventoryGains([{id:'bag:red-potion',itemId:'red-potion',quantity:2}],[{id:'bag:red-potion',itemId:'red-potion',quantity:4},{id:'bag:x',itemId:'nope',quantity:1}]),[{entryId:'bag:red-potion',itemId:'red-potion',quantity:2}]);
+});
+
+test('gift rolls: the server picks within the asked rarity and type, and Random follows the drop odds', () => {
+  const {giftItem}=require('../hero-repository');
+  for (const rarity of Object.keys(C.RARITIES)) {
+    const item = giftItem({ rarity, itemType: 'equipment' }, 0.5, 0.5);
+    assert.equal(item.rarity, rarity); assert.equal(item.type, 'equipment');
+  }
+  assert.equal(giftItem({ rarity: 'random', itemType: 'any' }, 0, 0).rarity, 'common');
+  assert.equal(giftItem({ rarity: 'random', itemType: 'any' }, 0.9999, 0).rarity, 'unique');
+  // Potions have no legendary or mythical tier, so Random never lands there.
+  for (let r = 0; r < 1; r += 0.01) assert.ok(['common', 'uncommon', 'rare', 'epic', 'unique'].includes(giftItem({ rarity: 'random', itemType: 'consumable' }, r, 0.3).rarity));
 });
 
 test('a long lesson of points awards only ever writes values Firestore accepts, in every formation',async()=>{

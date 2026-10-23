@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.158.0 — 🎁 Give a hero an item, and 📜 every drop kept for good
+
+- **Click a character in the Battle window and give them an item.** The hero journal
+  now has **🎁 Give an item**: pick a rarity (or 🎲 Random, which uses the ordinary
+  drop odds), a type (equipment, pet, rune or potion), optionally the exact item, and
+  how many copies. The server rolls Random, so it cannot be nudged from the browser.
+- **📜 Drop history.** Every item a hero gains — victory treasure, the roadside chest,
+  bonus runes, personal treasure, forging, teacher gifts and restores — is written to a
+  permanent, append-only ledger in the same save that gives it. Nothing ever edits or
+  deletes an entry. Each row shows when, where, the rarity and how many the student owns
+  now, with **↩ Restore** to give it back if a bug ever loses it (a second restore asks
+  first).
+- **Drops to unlinked wheel names.** Treasure won by a wheel name that is not linked to a
+  register student used to vanish with the throwaway hero. It is listed under
+  *Drops to unlinked wheel names*, and can be given to the right student.
+- **Earlier victories are recovered.** The last saved victory in each lesson is copied
+  into the ledger the first time the history is opened.
+- **A gift during a fight goes into the fight too.** The encounter's hero is written back
+  over the saved profile after every answer, so an item added to the profile alone would
+  be lost at the next turn; it is added to both, together.
+
 ## v1.157.2 — ⚔ Points awards save again after a team combo
 
 - **"Your hero could not be saved" on every points award is fixed.** Once a lesson's

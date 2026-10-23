@@ -2,6 +2,14 @@
 
 Guidance for Claude when working in this repo.
 
+## 🎁 Item ledger, gifts and restores (v1.158.0)
+
+- Server: `type:'items'` (teacher only, in `hero-service.js` TYPES) → `itemsAction` in `functions/hero-repository.js`: `history` (`studentId` or `guests:true`), `gift` (`rarity` key | `'random'`, `itemType`, optional `itemId`, `quantity` 1–20, receipt `id`), `restore` (`dropId` = `ledgerDocId:index`, `again` to restore twice). **Use `itemType`, never `type`** — `type` is the request's own type.
+- `classroomHeroData/{teacher}/itemLedger` is **append only**: `battle-*` (one per battle action that gained items, written in the battle transaction from `inventoryGains(before, after)`), `gift-*`, `restore-*`, `backfill-*` (each lesson's last victory, copied once by `backfillLedger`). Queried with `array-contains` on `studentIds` (`'guests'` for unlinked `wheel-*` names) and `restoreKeys`. Never edit or delete one.
+- `grantInTransaction`: a locked ACTIVE encounter gets the item on its hero and the profile copies that hero (the battle writes the encounter hero over the profile every turn — an item added to the profile alone is lost on the next answer); otherwise the profile gets it and `autoEquip`s. Random is sampled outside the transaction; sockets come from `Core.socketRoll('gift:'+id)`.
+- Client: `hero-items.js` / `.css` (`window.HeroItems.mount`, `pure`), mounted by `mountItemsDesk` at the end of `renderJournal` in `classroom-battle.js` (`#cbItemsDesk`). Redraws in its change handler are deferred (a removed focused field fires change/blur into a half-set node).
+- Run `npm --prefix functions test`, `node --test tools/hero-items-tests.mjs` and `node tools/hero-items-browser-check.mjs` (in CI).
+
 ## 🙋 Consult alert (v1.149.0)
 
 - `consult-alert.js` / `consult-alert.css` (`window.ConsultAlert`: `roleChanged`, `render`, `stop`, `pure`). `applyRoleUI` calls `ConsultAlert.roleChanged()`. Study Buddy (`polymathlc/tutor`, `consult.js`) owns the consult itself: the button, the call, the room, the ink and the email.
