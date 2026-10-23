@@ -907,6 +907,94 @@ test('distinct simultaneous purchases cannot overspend the same balance',async()
  const results=await Promise.allSettled(['ranger','royal'].map(outfit=>call(pupil('one'),{type:'configure',command:'purchase',skuId:'outfit-'+outfit,id:aid()})));
  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(db.data.get(profilePath('alex')).hero.questPoints,10);
 });
+test('a unique shop purchase charges 3000 canonical points once and retains its equipped skill after reload and encounter retries',async()=>{
+ const {db,call}=setup();await claim(call);const p=db.data.get(profilePath('alex'));p.hero.questPoints=6000;db.seed(profilePath('alex'),p);
+ const item=C.ITEMS['unique-wyrmflame'];
+ const request={type:'configure',command:'purchase',skuId:'item-'+item.id,id:aid(),expectedRevision:p.revision || 0,price:1,questPoints:999999,quantity:99,sockets:['rune-worldspark']};
+ const replies=await Promise.all([call(pupil('one'),request),call(pupil('one'),request),call(pupil('one'),request)]);
+ assert.equal(replies.filter(r=>r.duplicate).length,2);
+ let saved=db.data.get(profilePath('alex')),entry=saved.hero.inventory.find(e=>e.itemId===item.id);
+ assert.equal(saved.hero.questPoints,3000);assert.equal(saved.revision,(p.revision || 0)+1);assert.equal(owned(saved.hero,item.id),1);
+ assert.equal(entry.socketVersion,1);assert.deepEqual(entry.sockets,[]);assert.ok(!C.availableSkills(saved.hero).some(s=>s.id===item.grantSkill));
+ const receipt=db.data.get(profilePath('alex')+'/market/'+request.id);
+ assert.deepEqual(receipt,{uid:'one',request:{command:'purchase',skuId:request.skuId},createdAt:123456789});
+ const purchase=ledgerDocs(db).filter(d=>d.kind==='purchase');assert.equal(purchase.length,1);assert.equal(purchase[0].source,'shop');assert.equal(purchase[0].actionId,request.id);
+ assert.deepEqual(purchase[0].studentIds,['alex']);assert.equal(purchase[0].entries[0].itemId,item.id);assert.equal(purchase[0].entries[0].quantity,1);assert.equal(purchase[0].entries[0].sockets,0);
+ await assert.rejects(call(pupil('one'),{...request,skuId:'item-rune-worldspark'}),/different details/);
+ saved=await call(pupil('one'),{type:'configure',command:'equip',slot:'mainHand',itemId:entry.id,expectedRevision:saved.revision});
+ assert.ok(C.availableSkills(saved.hero).some(s=>s.id===item.grantSkill));
+ const reopened=createHeroRepository(db,{now:()=>123456790});let reloaded=await reopened.execute(pupil('one'),{type:'me'});
+ assert.equal(reloaded.hero.loadout.mainHand,entry.id);assert.ok(C.availableSkills(reloaded.hero).some(s=>s.id===item.grantSkill));
+ const state=await begin(call),active=state.heroes.find(h=>h.studentId==='alex');assert.equal(active.loadout.mainHand,entry.id);assert.ok(C.availableSkills(active).some(s=>s.id===item.grantSkill));
+ const before=structuredClone([...db.data]),retry=await reopened.execute(pupil('one'),request);
+ assert.equal(retry.duplicate,true);assert.equal(retry.hero.questPoints,3000);assert.equal(owned(retry.hero,item.id),1);assert.deepEqual([...db.data],before);
+ await assert.rejects(reopened.execute(pupil('one'),{...request,id:aid()}),/active encounter/);
+});
+test('insufficient savings cannot be bypassed by a forged price and leave the item, balance and receipts unchanged',async()=>{
+ const {db,call}=setup();await claim(call);const p=db.data.get(profilePath('alex'));p.hero.questPoints=2999;db.seed(profilePath('alex'),p);
+ const before=structuredClone([...db.data]);
+ await assert.rejects(call(pupil('one'),{type:'configure',command:'purchase',skuId:'item-unique-wyrmflame',id:aid(),price:0,questPoints:3000}),/3000 quest points/);
+ assert.deepEqual([...db.data],before);assert.equal(ledgerDocs(db).length,0);
+});
+test('a failed expensive purchase rolls back its coins, inventory, receipt and ledger together before a successful retry',async()=>{
+ const {db,call}=setup();await claim(call);const p=db.data.get(profilePath('alex'));p.hero.questPoints=3000;db.seed(profilePath('alex'),p);
+ const request={type:'configure',command:'purchase',skuId:'item-unique-wyrmflame',id:aid(),expectedRevision:p.revision || 0},before=structuredClone([...db.data]);
+ db.failNextCommit=true;await assert.rejects(call(pupil('one'),request),/commit failed/);assert.deepEqual([...db.data],before);
+ await call(pupil('one'),request);assert.equal((await call(pupil('one'),request)).duplicate,true);
+ const hero=db.data.get(profilePath('alex')).hero;assert.equal(hero.questPoints,0);assert.equal(owned(hero,'unique-wyrmflame'),1);assert.equal(ledgerDocs(db).filter(d=>d.kind==='purchase').length,1);
+});
+test('purchased pets, runes and unique gifts use the existing equipment, socket and consumable rules after persistence',async()=>{
+ const {db,call}=setup();await claim(call);const p=db.data.get(profilePath('alex'));p.hero.questPoints=9000;
+ const weapon=C.addInventory(p.hero,'bronze-blade',1,[null]);db.seed(profilePath('alex'),p);
+ for(const itemId of ['unique-dawnfox','rune-worldspark','unique-elixir-of-dawn'])await call(pupil('one'),{type:'configure',command:'purchase',skuId:'item-'+itemId,id:aid()});
+ let hero=db.data.get(profilePath('alex')).hero;assert.equal(hero.questPoints,0);assert.equal(ledgerDocs(db).filter(d=>d.kind==='purchase').length,3);
+ assert.ok(!C.grantedSkills(hero).some(s=>['relic-worldspark','relic-dawn-aura'].includes(s.id)));
+ await call(pupil('one'),{type:'configure',command:'equip',slot:'pet',itemId:'bag:unique-dawnfox'});
+ await call(pupil('one'),{type:'configure',command:'equip',slot:'mainHand',itemId:weapon.id});
+ await call(pupil('one'),{type:'configure',command:'socket',itemId:weapon.id,runeId:'bag:rune-worldspark',socketIndex:0,slot:'mainHand',id:aid()});
+ let state=await begin(call);hero=state.heroes.find(h=>h.studentId==='alex');assert.equal(hero.loadout.pet,'bag:unique-dawnfox');assert.equal(owned(hero,'rune-worldspark'),0);assert.ok(C.availableSkills(hero).some(s=>s.id==='relic-worldspark'));
+ state=(await battle(call,'Saturday',{type:'select',heroId:hero.id,id:aid(),encounterId:state.encounterId,expectedRevision:state.revision})).state;
+ const use={type:'answer',id:aid(),turnId:state.pending.id,outcome:'correct',command:'item',itemId:'bag:unique-elixir-of-dawn',encounterId:state.encounterId,expectedRevision:state.revision};
+ await battle(call,'Saturday',use);await battle(call,'Saturday',use);
+ const reopened=createHeroRepository(db,{now:()=>123456790}),reloaded=await reopened.execute(pupil('one'),{type:'me'});hero=reloaded.hero;
+ assert.equal(hero.loadout.pet,'bag:unique-dawnfox');assert.equal(owned(hero,'unique-elixir-of-dawn'),0);assert.deepEqual(hero.giftSkills,['relic-dawn-aura']);
+ assert.ok(C.availableSkills(hero).some(s=>s.id==='relic-worldspark'));assert.ok(C.grantedSkills(hero).some(s=>s.id==='relic-dawn-aura'));assert.equal(hero.questPoints,0);
+});
+test('permanent gift purchases reject an unused copy or an already learned gift without spending coins or writing receipts',async()=>{
+ for(const item of Object.values(C.ITEMS).filter(i=>i.giftSkill)){
+  const {db,call}=setup();await claim(call);const p=db.data.get(profilePath('alex'));p.hero.questPoints=9000;db.seed(profilePath('alex'),p);
+  const request={type:'configure',command:'purchase',skuId:'item-'+item.id,id:aid()};await call(pupil('one'),request);
+  let before=structuredClone([...db.data]);
+  await assert.rejects(call(pupil('one'),{...request,id:aid()}),/already have/);assert.deepEqual([...db.data],before,item.id+' owned-copy rejection is atomic');
+  assert.equal(owned(db.data.get(profilePath('alex')).hero,item.id),1);
+  let state=await begin(call);
+  state=(await battle(call,'Saturday',{type:'select',heroId:'student:alex',id:aid(),encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  state=(await battle(call,'Saturday',{type:'answer',id:aid(),turnId:state.pending.id,outcome:'correct',command:'item',itemId:'bag:'+item.id,encounterId:state.encounterId,expectedRevision:state.revision})).state;
+  await battle(call,'Saturday',{type:'end',id:aid(),encounterId:state.encounterId,expectedRevision:state.revision});
+  const reopened=createHeroRepository(db,{now:()=>123456790}),hero=(await reopened.execute(pupil('one'),{type:'me'})).hero;
+  assert.equal(owned(hero,item.id),0);assert.ok(hero.giftSkills.includes(item.giftSkill));assert.equal(hero.questPoints,6000);
+  before=structuredClone([...db.data]);
+  await assert.rejects(reopened.execute(pupil('one'),{...request,id:aid()}),/already knows/);assert.deepEqual([...db.data],before,item.id+' learned-gift rejection is atomic');
+  assert.equal((await reopened.execute(pupil('one'),request)).duplicate,true);assert.deepEqual([...db.data],before,'original purchase retry still only acknowledges its receipt');
+  assert.equal(ledgerDocs(db).filter(d=>d.kind==='purchase').length,1);assert.equal([...db.data.keys()].filter(path=>path.startsWith(profilePath('alex')+'/market/')).length,1);
+ }
+});
+test('shop history records each profile separately, excludes outfits and restores a lost purchase without charging again',async()=>{
+ const {db,call}=setup();await claim(call);await claim(call,'two','sam');
+ for(const id of ['alex','sam']){const p=db.data.get(profilePath(id));p.hero.questPoints=3030;db.seed(profilePath(id),p);}
+ const request={type:'configure',command:'purchase',skuId:'item-unique-wyrmflame',id:aid()};
+ await call(pupil('one'),request);await call(pupil('two'),request);
+ await call(pupil('one'),{type:'configure',command:'purchase',skuId:'outfit-ranger',id:aid()});
+ const purchases=ledgerDocs(db);assert.equal(purchases.length,2);assert.deepEqual(purchases.map(d=>d.studentIds[0]).sort(),['alex','sam']);assert.equal(new Set(purchases.map(d=>d.id)).size,2);
+ const history=await items(call,{command:'history',studentId:'alex'}),purchase=history.rows.find(r=>r.source==='shop');
+ assert.equal(purchase.kind,'purchase');assert.equal(purchase.itemId,'unique-wyrmflame');assert.equal(purchase.quantity,1);assert.equal(history.owned[purchase.itemId],1);
+ const p=db.data.get(profilePath('alex'));p.hero.inventory=p.hero.inventory.filter(e=>e.itemId!==purchase.itemId);db.seed(profilePath('alex'),p);
+ const restore={command:'restore',studentId:'alex',dropId:purchase.dropId,id:aid()};await items(call,restore);assert.equal((await items(call,restore)).duplicate,true);
+ const restored=db.data.get(profilePath('alex')).hero,entry=restored.inventory.find(e=>e.itemId===purchase.itemId);
+ assert.equal(restored.questPoints,0);assert.equal(owned(restored,purchase.itemId),1);assert.deepEqual(entry.sockets,[]);
+ assert.deepEqual(ledgerDocs(db).filter(d=>d.kind==='purchase'),purchases);
+ assert.equal((await items(call,{command:'history',studentId:'alex'})).rows.find(r=>r.dropId===purchase.dropId).restored.length,1);
+});
 test('custom avatars update the active pending encounter without changing combat or allowing locked outfits',async()=>{
  const {db,call}=setup();await claim(call);let s=await begin(call);s=(await battle(call,'Saturday',{type:'select',id:aid(),heroId:'student:alex',encounterId:s.encounterId,expectedRevision:s.revision})).state;
  const avatar={version:1,outfit:'traveller',hairStyle:'long',skin:'deep',hair:'blue',eyes:'green',clothing:'purple'};

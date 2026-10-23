@@ -69,7 +69,7 @@ function view(profile, student) {
 function requireTeacher(actor) { if (!actor.isTeacher) deny('teacher_required', 'Only the teacher can approve claims or run a battle.', 403); }
 // ---- The item ledger (v1.158.0) ----
 // classroomHeroData/{teacher}/itemLedger is APPEND ONLY: one document per
-// battle action that gave items, per teacher gift and per restore. Nothing
+// battle action that gave items, shop purchase, teacher gift and restore. Nothing
 // ever edits or deletes one, so it outlives any bug in the inventory code.
 const LEDGER='itemLedger';
 const GIFT_TYPES=['any','equipment','pet','rune','consumable'];
@@ -244,7 +244,12 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
           if (appearanceReceipt) return {...view(profile,student),hero:cleanHero(profile.hero,student,profile),revision:profile.revision || 0,duplicate:true,...(actor.isTeacher ? {state:activeState} : {})};
         }
         if (body.expectedRevision !== undefined && body.expectedRevision !== (profile.revision || 0)) deny('hero_changed','Your hero changed on another screen. Refresh and try again.');
-        try { profile.hero = Core.configureHero(cleanHero(profile.hero,student,profile),body); }
+        let purchaseInventory=null;
+        try {
+          const hero=cleanHero(profile.hero,student,profile);
+          if(body.command==='purchase' && Core.MARKET.some(offer=>offer.id===body.skuId && offer.itemId))purchaseInventory=clone(hero.inventory);
+          profile.hero = Core.configureHero(hero,body);
+        }
         catch (e) { deny('invalid_command',e.message,400); }
         if (body.command === 'class') profile.hero.classChosen = true;
         profile.revision = (profile.revision||0)+1; profile.updatedAt=clock;
@@ -255,6 +260,10 @@ function createHeroRepository(db, { now = Date.now, random = () => require('node
           activeState.heroArchive=Object.fromEntries(Object.entries(activeState.heroArchive || {}).map(([key,h])=>[key,matches(h)?{...h,...visual}:h]));
           activeState.revision=(activeState.revision || 0)+1;activeState.updatedAt=clock;
           tx.set(activeRef,activeState);
+        }
+        if(purchaseInventory){
+          const entries=inventoryGains(purchaseInventory,profile.hero.inventory).map(gain=>dropEntry(profile.hero,gain,'shop'));
+          if(entries.length)tx.set(root.collection(LEDGER).doc('purchase-'+createHash('sha256').update(actor.teacherId+'\0'+id+'\0'+body.id).digest('hex').slice(0,40)),ledgerDoc({kind:'purchase',source:'shop',actionId:body.id,by:actor.email,clock,entries}));
         }
         if(marketRef)tx.set(marketRef,{uid:actor.uid,request:marketRequest,createdAt:clock});
         if (socketRef) tx.set(socketRef,{uid:actor.uid,request:socketRequest,createdAt:clock});
