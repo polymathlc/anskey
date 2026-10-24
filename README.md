@@ -3,6 +3,34 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.161.0 — 📲 Install Ans Key as an app
+
+- **📲 Install app, in the header** (beside 🧭 Apps), for everyone: students,
+  the teacher and share-link visitors. On Chrome and Edge (PC, Mac, Chromebook,
+  Android) it opens the browser's own install prompt. On an iPhone or iPad it
+  shows the three steps for Share → Add to Home Screen, and on Safari on a Mac
+  it shows File → Add to Dock. Other Android browsers are sent to Chrome, which
+  installs it with no Play Protect warning. On a phone, and on most iPads, the
+  button shows just 📲. Long-press it to see what it does.
+- **It disappears once the app is installed**, and inside the installed app.
+  It never shows inside Polymath Online's answer-key window either. Only the
+  top window can install anything, and the portal has its own button.
+- **A small floating Install app button** (bottom right, with × to put it
+  away for three weeks) appears only on a screen with no header. It stays away
+  in full screen, with the banner hidden, and while a lesson records the
+  window, so a clear screen stays clear.
+- **New icon and name.** Installed, it is **Answer Keys**: an orange key on
+  peach, matching the Answer Keys tile on the student dashboard. It is the same
+  app as before, so a copy already on a Home Screen or desktop updates in place
+  rather than turning into a second icon. On an iPhone or iPad, an icon added
+  before this update keeps its old picture until it is added again.
+- **Opened with no connection**, the installed app shows a short "You're
+  offline — Try again" page instead of the browser's error. Nothing else is
+  cached: every release still arrives the moment it is published.
+- Opened from the Home Screen, it still has no browser bars at all, which is
+  still the reliable way to get a truly full-screen worksheet on an iPad.
+- The old `logo-192.png` / `logo-512.png` are replaced by `assets/app-icons/`.
+
 ## v1.160.0 — Full treasure shop and long-term savings
 
 Heroes & Quests now stocks all 270 illustrated treasures, from Common through

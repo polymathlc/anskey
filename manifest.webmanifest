@@ -1,28 +1,44 @@
 {
-  "name": "Polymath PDF Annotator",
-  "short_name": "Polymath",
+  "id": "./",
+  "name": "Polymath Answer Keys",
+  "short_name": "Answer Keys",
   "description": "Open a worksheet, mark it up, and save it to the cloud.",
-  "start_url": ".",
-  "scope": ".",
+  "lang": "en-SG",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
   "background_color": "#FFFFFF",
   "theme_color": "#FFE0B2",
+  "categories": [
+    "education"
+  ],
   "icons": [
     {
-      "src": "logo-192.png",
+      "src": "assets/app-icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "logo-512.png",
+      "src": "assets/app-icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "logo-512.png",
+      "src": "assets/app-icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/app-icons/maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
