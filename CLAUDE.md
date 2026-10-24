@@ -14,6 +14,11 @@ Guidance for Claude when working in this repo.
 - Sign-in already uses `signInWithRedirect` when running standalone (`standaloneApp()`), so Google sign-in works inside the installed app.
 - **Run** `node --test tools/pwa-install-tests.mjs` and `PW=/path/to/playwright/index.mjs node tools/pwa-install-browser.mjs` after touching any of it (both in CI: `.github/workflows/installable-app.yml`). The browser check asks Chrome whether the page is installable, takes it offline, presses the button on a computer and on an iPhone, opens it "installed", dismisses the floating button and embeds the page in another origin's iframe.
 
+- **The offline page carries its icon inline (sw 2.0.1, v1.161.1).** `sw.js` answers page loads only, so an
+  icon file beside `offline.html` could never arrive with no connection (it showed as a broken picture).
+  The icon is a `data:` URI inside `offline.html`, `PRECACHE` is just the offline page, and `SW_VERSION`
+  went to 2.0.1 so installed copies re-cache it. The kit's browser harness checks the icon shows offline.
+
 ## 🎁 Item ledger, gifts and restores (v1.158.0)
 
 - Server: `type:'items'` (teacher only, in `hero-service.js` TYPES) → `itemsAction` in `functions/hero-repository.js`: `history` (`studentId` or `guests:true`), `gift` (`rarity` key | `'random'`, `itemType`, optional `itemId`, `quantity` 1–20, receipt `id`), `restore` (`dropId` = `ledgerDocId:index`, `again` to restore twice). **Use `itemType`, never `type`** — `type` is the request's own type.
