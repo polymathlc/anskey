@@ -3,6 +3,12 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.161.1 — the offline screen shows its picture
+
+- Opened with no connection, the installed app's "You're offline" screen now
+  shows the Answer Keys icon instead of a broken picture (the picture travels
+  inside the page).
+
 ## v1.161.0 — 📲 Install Ans Key as an app
 
 - **📲 Install app, in the header** (beside 🧭 Apps), for everyone: students,
