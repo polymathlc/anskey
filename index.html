@@ -8,25 +8,29 @@
      which is what actually prevents iOS zooming into them. -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PDF Annotator — Polymath Learning Centre</title>
-<!-- Added to the Home Screen this opens with no browser bars at all, which is
-     the only way to be properly rid of them on an iPad: Safari's Fullscreen
-     API lets go of the page on its own. `display` in the manifest covers
-     iOS 17.4+ and Android; the apple-mobile-web-app-capable tag covers the
-     iPads still on older versions. -->
+<!-- 📲 Installable app (Polymath install kit v2.0.0): manifest + icons make "Install" / "Add to Home Screen"
+     work on PC, Android and iPhone/iPad. pwa-install.js registers sw.js and drives every [data-pwa-install] control.
+     Installed (or added to the Home Screen) this opens with no browser bars at
+     all, which is the only way to be properly rid of them on an iPad: Safari's
+     Fullscreen API lets go of the page on its own. `display` in the manifest
+     covers iOS 17.4+ and Android; the apple-mobile-web-app-capable tag covers
+     the iPads still on older versions.
+     The icons (assets/app-icons/) sit next to this file rather than on the
+     brand's file host: a device that cannot reach that host (a filtered
+     network, a content blocker) was left with no icon at all, and an icon that
+     fails is a blank tile on the Home Screen. The apple-touch-icon is opaque
+     and square on purpose — iOS fills transparency with black and rounds the
+     corners itself. -->
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="model-studio.css">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Polymath">
 <meta name="theme-color" content="#FFE0B2">
-<!-- The icons sit next to this file rather than on the brand's file host: a
-     device that cannot reach that host (a filtered network, a content blocker)
-     was left with no icon at all, and an icon that fails is a blank tile on
-     the Home Screen. Opaque and square on purpose — iOS fills transparency
-     with black and rounds the corners itself. -->
-<link rel="apple-touch-icon" sizes="192x192" href="logo-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="logo-512.png">
-<link rel="icon" type="image/png" sizes="192x192" href="logo-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/app-icons/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/app-icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Answer Keys">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>[data-pwa-install][data-pwa-hidden]{display:none!important}</style>
+<link rel="stylesheet" href="model-studio.css">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <style>
@@ -109,6 +113,24 @@
   .versionTag { font-size: 0.7rem; color: var(--ink-faint); margin-left: 4px; font-weight: normal; }
   .headerSpacer { flex: 1; }
   .authArea { display: flex; align-items: center; gap: 12px; }
+  /* 📲 Install app (Polymath install kit). The header's gap is generous; the
+     install button sits close to 🧭 Apps as one pair. */
+  .headerInstallBtn { margin-right: -6px; }
+  /* Below a laptop's width it is the 📲 alone (its title still says what it
+     does), so the signed-in header still fits an iPad: the teacher's row of
+     header buttons is widest and fills a 1024px landscape iPad exactly. */
+  @media (max-width: 1120px) {
+    .headerInstallBtn { padding: 9px 10px; margin-right: -9px; }
+    .headerInstallBtn .btnLabel { display: none; }
+  }
+  /* The kit's floating Install button only stands in for the header one. When
+     the banner is folded away on purpose (full screen, Hide banner) or the
+     window is being recorded, the screen is meant to be clear — and the
+     bottom-right corner is where Up next and the AI job chips live — so it
+     stays away too. */
+  body.immersive .pwa-fab,
+  body.headerHidden .pwa-fab,
+  body.lessonScreenRec .pwa-fab { display: none !important; }
   /* 🧭 the apps menu */
   .appsMenu { position: relative; margin-right: 12px; }
   .appsPanel { position: absolute; right: 0; top: calc(100% + 8px); min-width: 268px; background: #fff; border: 1px solid var(--line);
@@ -3911,6 +3933,10 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <div class="headerSub">Upload · mark up · save to the cloud</div>
   </div>
   <div class="headerSpacer"></div>
+  <!-- 📲 Install app — for everyone, outside every role-gated block. It starts
+       hidden; pwa-install.js shows it, and keeps it hidden inside the installed
+       app and inside a frame (Polymath Online's answer-key window). -->
+  <button class="btn headerInstallBtn" type="button" data-pwa-install data-pwa-hidden title="Install Polymath Answer Keys as an app on this computer, phone or tablet — its own icon and window, no app store needed">📲 <span class="btnLabel">Install app</span></button>
   <!-- 🧭 Every Polymath app, one menu. The SAME table every app carries — see POLYMATH_APPS. -->
   <div class="appsMenu" id="appsMenu">
     <button class="btn" id="appsBtn" type="button" aria-haspopup="true" aria-expanded="false" title="Every Polymath app — you stay signed in">🧭 Apps</button>
@@ -5800,7 +5826,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.160.0';
+var APP_VERSION = 'v1.161.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -39116,6 +39142,8 @@ loadAiNotePrefs();
 <script src="question-apps.js"></script>
 <script src="question-bank.js"></script>
 <script>bankQInit();</script>
+<!-- 📲 The Polymath install kit: registers sw.js (top window only) and drives the header's Install app button. -->
+<script defer src="pwa-install.js?v=2.0.0" data-app-name="Polymath Answer Keys" data-app-key="anskey" data-app-icon="assets/app-icons/icon-192.png" data-accent="#E65100" data-sw="sw.js" data-floating="auto"></script>
 <script type="module">
 /* ================= Firebase AI Logic (Gemini) =================
    Gemini access for the AI text-box features. Uses the shared Polymath
