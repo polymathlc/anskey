@@ -258,7 +258,7 @@ test('a bank question is a pasted picture, and nothing new for the nine places t
 });
 
 test('the teacher’s controls are the teacher’s, and asked again in the handlers', () => {
-  assert.match(html, /var TEACHER_TOOLBAR_IDS = \[[^\]]*'bankQBtn', 'printQrBtn'/);
+  assert.match(html, /var TEACHER_TOOLBAR_IDS = \[[^\]]*'bankQBtn', (?:'livingAppBtn', )?'printQrBtn'/);
   assert.match(html, /\$\('bankQBtn'\)\.addEventListener\('click', function \(\) \{\s*if \(!wheelTeacher\(\)\) return;/);
   assert.match(html, /\$\('printQrBtn'\)\.addEventListener\('click', function \(\) \{\s*if \(!wheelTeacher\(\)\) return;/);
   assert.match(html, /function bankQAddToPage\(pic, snap\) \{\s*if \(!wheelTeacher\(\)\)/);
@@ -275,10 +275,10 @@ test('a tap opens the question for a student, but a pen in a writer’s hand sti
 });
 
 test('the questions print keeps the bank questions, practice keeps them locked, and the QR code is opt-in', () => {
-  assert.match(html, /anns: answers \? answerAnnotations\(\) : answerAnnotations\(\)\.filter\(annBankQ\),\s*qr: printQrUrl\(\)/);
+  assert.match(html, /anns: answers \? answerAnnotations\(\) : answerAnnotations\(\)\.filter\(function \(a\) \{ return annBankQ\(a\) \|\| annLivingApp\(a\); \}\),\s*qr: printQrUrl\(\)/);
   assert.match(html, /buildAnnotatedPdf\(false, \{ qr: printQrUrl\(\) \}\)/);
   assert.match(html, /if \(opts\.qr && window\.QuestionBank && outDoc\.getPageCount\(\)\)/);
-  assert.match(html, /annotations = bankQPracticeCopies\(teacherAnswers\);/);
+  assert.match(html, /annotations = bankQPracticeCopies\(teacherAnswers\)(?:\.concat\(lappPracticeCopies\(teacherAnswers\)\))?;/);
   assert.match(html, /function bankQPracticeCopies\(list\) \{[\s\S]{0,200}c\.locked = true;/);
   assert.match(html, /printQrOn = localStorage\.getItem\(BANKQ_QR_PREF\) === '1'/);
 });
