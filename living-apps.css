@@ -1,0 +1,284 @@
+/* =====================================================================
+   🪄 Living apps — the adder and the stage. Both are overlays that exist
+   only while they are open; on the page a living app is a frameless
+   picture like any other. Uses the app's tokens (--bg, --ink, --line,
+   --radius…) so it reads as part of the same app, plus the gold of the
+   magic wand.
+   ===================================================================== */
+
+.laBack {
+  --la-gold: #F2B705;
+  --la-gold-soft: rgba(255, 210, 90, 0.55);
+  --la-blue: #1F6FB2;
+  --la-wash: #EEF6FD;
+  position: fixed;
+  inset: 0;
+  z-index: 4300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: min(4vh, 32px) 16px;
+  background: rgba(24, 24, 22, 0.34);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.laBack.in { opacity: 1; }
+.laBack.laStageBack { background: rgba(18, 22, 40, 0.62); }
+.laBack > .laCard {
+  transform: translateY(10px) scale(0.98);
+  transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.laBack.in > .laCard { transform: none; }
+
+.laCard {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 100%;
+  background: var(--bg, #fff);
+  color: var(--ink, #1a1a1a);
+  border-radius: var(--radius, 14px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.26);
+  overflow: hidden;
+  outline: none;
+}
+.laAdder { max-width: 1040px; height: min(760px, 100%); }
+.laStage { max-width: 1180px; height: 100%; }
+
+.laHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--line, #ececea);
+}
+.laHeadTitle { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.laHeadTitle h2 { margin: 0; font-size: 19px; line-height: 1.3; font-weight: 700; overflow-wrap: anywhere; }
+.laSub { margin: 6px 0 0; font-size: 13.5px; line-height: 1.55; color: #55585a; max-width: 640px; }
+.laWandGlyph {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 38px; height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #FFF6D8, #FFE8A3);
+  box-shadow: 0 0 0 2px rgba(242, 183, 5, 0.35) inset;
+  font-size: 20px;
+}
+.laStageHead { align-items: center; padding: 12px 16px 12px 18px; background: linear-gradient(90deg, var(--la-wash), #fffdf6 60%, #fff3d6); }
+.laStageHead h2 { font-size: 17px; align-self: center; }
+.laStageBtns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.laBtn {
+  appearance: none;
+  border: 1px solid var(--line, #ececea);
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.laBtn:hover:not(:disabled) { background: #f7f7f5; }
+.laBtn:active:not(:disabled) { transform: scale(0.97); }
+.laBtn:disabled { opacity: 0.5; cursor: default; }
+.laBtn:focus-visible, .laIconBtn:focus-visible { outline: 3px solid var(--la-gold-soft); outline-offset: 2px; }
+.laPrimary { background: var(--la-blue); border-color: var(--la-blue); color: #fff; }
+.laPrimary:hover:not(:disabled) { background: #195f9a; }
+.laIconBtn {
+  appearance: none; border: 0; background: transparent; color: inherit;
+  width: 36px; height: 36px; border-radius: 10px; cursor: pointer; font-size: 17px; flex: none;
+}
+.laIconBtn:hover { background: rgba(0, 0, 0, 0.06); }
+
+/* The wand button glows like a lit wand. */
+.laWandBtn {
+  background: linear-gradient(135deg, #FFF3C4, #FFD976);
+  border-color: #E2A64A;
+  color: #3b2a00;
+  box-shadow: 0 0 0 0 var(--la-gold-soft);
+  animation: laWandGlow 2.2s ease-in-out infinite;
+}
+.laWandBtn:hover:not(:disabled) { background: linear-gradient(135deg, #FFF0B0, #FFCF55); }
+.laWandBtnIcon { display: inline-block; font-size: 17px; transform-origin: 20% 80%; }
+.laWandBtn.laFlick .laWandBtnIcon { animation: laFlick 0.5s cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes laWandGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 210, 90, 0.0); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 210, 90, 0.45); }
+}
+@keyframes laFlick {
+  0% { transform: rotate(0); }
+  35% { transform: rotate(-32deg); }
+  70% { transform: rotate(14deg); }
+  100% { transform: rotate(0); }
+}
+
+/* ---- the adder ---- */
+.laAdderBody {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 20px;
+  padding: 18px 22px;
+  overflow: auto;
+}
+.laAdderLeft { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.laAdderRight { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 280px; }
+.laDrop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 22px 16px;
+  border: 2px dashed #c9d8ea;
+  border-radius: 14px;
+  background: var(--la-wash);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.laDrop:hover, .laDrop.over, .laDrop:focus-within { border-color: var(--la-blue); background: #e2effb; }
+.laDropIcon { font-size: 26px; }
+.laDropMain { font-weight: 700; font-size: 15px; }
+.laDropSub { font-size: 12.5px; color: #55585a; }
+.laOr { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #8a8c8e; }
+.laOr::before, .laOr::after { content: ''; flex: 1; height: 1px; background: var(--line, #ececea); }
+.laPaste {
+  flex: 1;
+  min-height: 140px;
+  resize: vertical;
+  font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #ececea);
+  border-radius: 10px;
+  background: #fbfbfa;
+  color: inherit;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.laField { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+.laTitle {
+  font: inherit; font-weight: 400; font-size: 14.5px;
+  padding: 9px 12px; border: 1px solid var(--line, #ececea); border-radius: 10px;
+  user-select: text; -webkit-user-select: text;
+}
+.laInfo { font-size: 13px; line-height: 1.5; min-height: 1.5em; }
+.laInfo.good { color: #2e7d32; }
+.laInfo.bad { color: #c0392b; }
+.laPreviewHead { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 700; }
+.laPreviewNote { font-weight: 400; color: #8a8c8e; font-size: 12px; }
+.laPreview {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid #d8e2ef;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f6f7f5;
+  display: flex;
+}
+.laPreview .laFrame { flex: 1; width: 100%; height: 100%; border: 0; background: #fff; }
+.laPreviewEmpty { margin: auto; padding: 24px; text-align: center; color: #8a8c8e; font-size: 13.5px; line-height: 1.6; }
+.laFoot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 14px 22px 18px;
+  border-top: 1px solid var(--line, #ececea);
+}
+.laSafe { font-size: 12.5px; color: #55585a; line-height: 1.5; max-width: 560px; }
+.laFootBtns { display: flex; gap: 10px; margin-left: auto; }
+
+/* ---- the stage ---- */
+.laStageBody { position: relative; flex: 1; min-height: 0; background: #f6f7f5; }
+.laFrameHost { position: absolute; inset: 0; display: flex; }
+.laStage .laFrame { flex: 1; width: 100%; height: 100%; border: 0; background: #fff; transition: opacity 0.5s ease, filter 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
+.laStage .laFrame.laHidden { opacity: 0; filter: blur(10px) saturate(0.4); transform: scale(0.96); }
+.laStage .laFrame.laWake { animation: laWake 0.9s ease-out; }
+@keyframes laWake {
+  0% { filter: brightness(1.35) saturate(1.4); }
+  100% { filter: none; }
+}
+.laSpell { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.laSpell.laGlow { box-shadow: inset 0 0 80px rgba(255, 210, 90, 0.6); }
+.laFlyWand {
+  position: absolute; left: 0; top: 0;
+  width: 84px; height: 84px;
+  margin: -14px 0 0 -14px;
+  filter: drop-shadow(0 0 14px rgba(255, 210, 90, 0.95));
+  will-change: transform;
+  transition: opacity 0.35s ease;
+}
+.laFlyWand.laGone { opacity: 0; }
+.laSpark {
+  position: absolute;
+  width: 18px; height: 18px;
+  margin: -9px 0 0 -9px;
+  animation: laSpark var(--d, 800ms) ease-out forwards;
+  filter: drop-shadow(0 0 4px rgba(255, 210, 90, 0.9));
+}
+.laSpark.sm { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
+.laSpark svg { width: 100%; height: 100%; display: block; }
+@keyframes laSpark {
+  0% { transform: translate(0, 0) scale(0.3) rotate(0); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(var(--dx, 0), var(--dy, 0)) scale(1.1) rotate(160deg); opacity: 0; }
+}
+.laRing {
+  position: absolute;
+  width: 40px; height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  border: 3px solid rgba(242, 183, 5, 0.9);
+  box-shadow: 0 0 30px rgba(255, 210, 90, 0.8), inset 0 0 20px rgba(255, 210, 90, 0.6);
+  animation: laRing 0.9s ease-out forwards;
+}
+@keyframes laRing {
+  0% { transform: scale(0.2); opacity: 1; }
+  100% { transform: scale(9); opacity: 0; }
+}
+.laHint {
+  position: absolute;
+  left: 50%; bottom: 18px;
+  transform: translate(-50%, 12px);
+  max-width: min(560px, calc(100% - 32px));
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(26, 26, 26, 0.88);
+  color: #fff;
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.25s ease;
+}
+.laHint.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 760px) {
+  .laAdderBody { grid-template-columns: 1fr; }
+  .laAdderRight { min-height: 260px; }
+  .laBack { padding: 8px; }
+  .laStageHead { flex-wrap: wrap; }
+  .laStageBtns { width: 100%; justify-content: flex-start; }
+  .laStageBtns .laIconBtn { margin-left: auto; }
+  .laSub { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .laBack, .laBack > .laCard, .laStage .laFrame { transition: none; }
+  .laWandBtn { animation: none; box-shadow: 0 0 0 3px rgba(255, 210, 90, 0.4); }
+  .laWandBtn.laFlick .laWandBtnIcon, .laStage .laFrame.laWake { animation: none; }
+}
+
+/* 🪄 Bring alive on the picture's own bar, in the wand's gold. */
+.aiBar button.laBarWand {
+  background: linear-gradient(135deg, #FFF3C4, #FFD976);
+  border-color: #E2A64A;
+  color: #3b2a00;
+  font-weight: 700;
+}

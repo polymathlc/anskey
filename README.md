@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.162.0 — 🪄 Living apps: bring a question alive
+
+- **🪄 Living app** (teacher toolbar, beside 📚 Question bank) adds an
+  interactive HTML app to the page — a living diagram, a simulator, a slider
+  lab. Choose or drop an `.html` file, or paste its code; it runs in a preview
+  straight away, and its title is taken from the app itself.
+- **On the page it is a picture**: a painted cover with a magic wand on it. It
+  moves, resizes, locks, prints and saves like any pasted picture.
+- **🪄 Bring alive** (on its bar for the teacher, a tap for a student or a
+  share-link visitor) opens the stage: the wand sweeps across, sparkles burst
+  and the app wakes up. If the app has a magic wand of its own (like the
+  ballast-tank diagrams) the stage's wand picks it up and touches the picture,
+  so the diagram starts moving at once. **🪄 Wave the wand** (or W) steps it on;
+  **↺ Start again** reloads it.
+- **✎ Change app** swaps in a new version or renames it in place.
+- **The app is sealed off**: it runs in a sandboxed frame that cannot read the
+  worksheet, the account or the device's storage, and cannot send anything
+  anywhere. Pictures from the web and Google Fonts still load.
+- Practising keeps living apps on the page (locked), and the questions-only
+  print keeps their cover.
+
 ## v1.161.1 — the offline screen shows its picture
 
 - Opened with no connection, the installed app's "You're offline" screen now

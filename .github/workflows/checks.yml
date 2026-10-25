@@ -39,6 +39,7 @@ jobs:
           BATTLE_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots
           SNAP_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/shape-snap
           QB_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/question-bank
+          LA_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/living-apps
           MS_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/model-studio
           SNIP_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/snip-pin
           GUIDE_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/student-guide
@@ -61,6 +62,7 @@ jobs:
           node tools/shape-snap-browser-check.mjs
           node tools/live-cams-check.mjs
           node tools/question-bank-check.mjs
+          node tools/living-apps-check.mjs
           node tools/model-studio-check.mjs
           node tools/snip-pin-check.mjs
           node tools/student-guide-check.mjs

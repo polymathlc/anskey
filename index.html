@@ -3903,6 +3903,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="live-cams.css">
 <link rel="stylesheet" href="question-bank.css">
+<link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="battle-adventure.css">
 <link rel="stylesheet" href="quest-panel.css">
@@ -3962,6 +3963,10 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <button class="btn" id="bankQBtn" title="Question bank — pick a question from the Science portal's bank and put it on this page, with its interactive app">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v15H5.5A1.5 1.5 0 0 1 4 17.5z"/><path d="M10 4h4.5A1.5 1.5 0 0 1 16 5.5V19h-6"/><path d="M16 7.2l2.9-.8a1.2 1.2 0 0 1 1.5.9l2 9.6a1.2 1.2 0 0 1-.9 1.4L18.6 19"/><line x1="6.5" y1="8" x2="7.8" y2="8"/><line x1="12.3" y1="8" x2="13.7" y2="8"/></svg>
       <span class="btnLabel">Question bank</span>
+    </button>
+    <button class="btn" id="livingAppBtn" title="Living app — add an interactive HTML app (a living diagram, a simulator) to this page. A tap on it, or 🪄 Bring alive, waves the magic wand and brings the question alive.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9l11 11"/><path d="M5.5 2.5l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1z"/><path d="M15 3.5v2"/><path d="M14 4.5h2"/><path d="M19 8.5v2"/><path d="M18 9.5h2"/></svg>
+      <span class="btnLabel">Living app</span>
     </button>
     <button class="btn" id="snipBtn" data-key="Shift+A" title="Snip and pin — drag over part of the page and it stays pinned on screen while you move on, so the class can keep copying it">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M12 8.5v5"/><path d="M9.5 11.5l2.5 2.5 2.5-2.5"/><line x1="9" y1="16.5" x2="15" y2="16.5"/></svg>
@@ -5826,7 +5831,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.161.1';
+var APP_VERSION = 'v1.162.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6461,6 +6466,16 @@ function annPastePic(a) { return !!(a && a.type === 'ainote' && a.kind === 'past
 function annBankQ(a) {
   return annPastePic(a) && !!a.bq && typeof a.bq === 'object' && Array.isArray(a.bq.blocks) && a.bq.blocks.length > 0;
 }
+/* 🪄 A LIVING APP IS A PASTED PICTURE TOO — its painted cover, with a wand on
+   it — that also carries an interactive HTML app on `lapp`. Same kind, same
+   reason as the bank question: move, resize, lock, erase-around, lasso,
+   undo, save, thumbnails and both PDF paths come for free, and `lapp` is
+   what lets a tap open the stage. The app only ever runs in the sandboxed
+   frame living-apps.js makes; nothing here reads or runs its HTML. */
+function annLivingApp(a) {
+  return annPastePic(a) && !!a.lapp && typeof a.lapp === 'object' && typeof a.lapp.html === 'string' &&
+    a.lapp.html.trim().length > 0;
+}
 /* 🔢 " #123" when the question carries the portal's number, '' otherwise. */
 function bankQNoText(a) {
   var n = a && a.bq && a.bq.qno;
@@ -6619,6 +6634,7 @@ async function loadPdf(bytes, name, contextCheck) {
      has to happen while that page and its annotations are still here. */
   try { autoLearnFlushCurrent(); } catch (e) {}
   bankQWorksheetChanged();  // an open question belongs to the worksheet being left
+  lappWorksheetChanged();   // …and so does an open living app
   stopLivePresence(true); // the worksheet being left is no longer live
   unsubscribeOpenDoc();
   autoLearnReset(false);   // …but the page just flushed still has to be read
@@ -7962,6 +7978,10 @@ function renderEditChrome(p) {
     badge.textContent = annLocked(a)
       ? '📚 Question' + bankQNoText(a) + ' — locked in position'
       : '📚 Question' + bankQNoText(a) + ' from the bank — drag to move, a corner to resize';
+  } else if (annLivingApp(a)) {
+    badge.textContent = annLocked(a)
+      ? '🪄 Living app — locked in position'
+      : '🪄 Living app — drag to move, a corner to resize';
   } else if (annPastePic(a)) {
     badge.textContent = annLocked(a)
       ? '🔒 Locked in position — press 🔓 to move it again'
@@ -7997,6 +8017,12 @@ function renderPictureBar(p, a, box) {
       textActionButton(bar, '🧩 Show app', 'Open the question with its interactive app showing',
         function () { bankQOpen(a.id, true); });
     }
+  }
+  if (annLivingApp(a)) {
+    textActionButton(bar, '🪄 Bring alive', 'Open the app and wave the magic wand — the question comes alive',
+      function () { lappOpen(a.id); }, 'laBarWand');
+    textActionButton(bar, '✎ Change app', 'Swap in a new version of the app, or rename it',
+      function () { lappEdit(a.id); });
   }
   if (annModelStudio(a)) {
     textActionButton(bar, '✎ Edit model', 'Open this model in the model suite — every bar is still a bar',
@@ -8037,6 +8063,7 @@ function removePictureAnn(id) {
   if (!annotations.some(function (x) { return x.id === id; })) return;
   selectedId = id;
   deleteSelected();
+  if (lapp) lapp.annotationGone(id);
 }
 
 /* Place a floating bar on the badge row above the box, to the right of the
@@ -16469,6 +16496,22 @@ function attachOverlayHandlers(p) {
         return;
       }
     }
+    /* 🪄 A tap on a living app brings it alive for a student or a share-link
+       visitor, on exactly the bank question's terms: the teacher's tap
+       selects it (its bar has 🪄 Bring alive), and a drawing tool in the
+       hand of someone who may write on the page stays ink. */
+    var laHost = e.target.closest ? e.target.closest('[data-lapp]') : null;
+    if (laHost) {
+      var laG = laHost.closest ? laHost.closest('g[data-id]') : null;
+      var laAnn = laG && annotations.find(function (x) { return x.id === laG.getAttribute('data-id'); });
+      var laTeacher = annLivingApp(laAnn) && !isStudent() && !isSharedVisitor();
+      var laCanDraw = annLivingApp(laAnn) && (practiceMode || reviseMode || (isSharedVisitor() && !isStudent()));
+      if (annLivingApp(laAnn) && !laTeacher && !(laCanDraw && isDrawTool(tool))) {
+        e.preventDefault();
+        lappOpen(laAnn.id);
+        return;
+      }
+    }
     // Students read only — the page never draws or edits for them. Keyword
     // revision (revise mode) and practice mode are the interactions that stay.
     if (isStudent() && !reviseMode && !practiceMode) return;
@@ -24810,6 +24853,7 @@ function pastePicNode(a) {
   // No badge and no frame — this attribute is the only thing that marks a
   // bank question, and it is only read by the tap that opens it.
   if (annBankQ(a)) box.setAttribute('data-bq', '1');
+  if (annLivingApp(a)) box.setAttribute('data-lapp', '1');
   if (a.src) {
     var img = document.createElement('img');
     img.src = a.src;
@@ -29252,7 +29296,7 @@ function startPractice() {
   /* 📚 The bank's questions are the WORKSHEET, not the answers, so they stay
      on the page to practise on — as locked copies, so nothing done while
      practising moves the teacher's own, and endPractice simply drops them. */
-  annotations = bankQPracticeCopies(teacherAnswers);
+  annotations = bankQPracticeCopies(teacherAnswers).concat(lappPracticeCopies(teacherAnswers));
   undoStack = []; redoStack = [];
   selectedId = null; editingId = null; editModeId = null;
   reviseMode = false; $('reviseToggle').checked = false;
@@ -31017,7 +31061,7 @@ function isStudent() {
 /* Download and the two Print buttons are deliberately NOT in this list:
    students may keep — and print — a copy of any worksheet they can already
    open, so those buttons stay for everyone. */
-var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'printQrBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'livingAppBtn', 'printQrBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
@@ -31031,6 +31075,7 @@ function applyRoleUI() {
   lessonRoleChanged();
   voiceRoleChanged();
   bankQRoleChanged();
+  lappRoleChanged();
   if (typeof penSelectCancel === 'function') penSelectCancel();   // a path belongs to the role that started it
   if (typeof snipRoleChanged === 'function') snipRoleChanged();   // a pinned answer is the teacher's alone
   if (window.ConsultAlert) ConsultAlert.roleChanged();   // 🙋 a student asking for help is shown to the teacher alone
@@ -32164,6 +32209,134 @@ function bankQRoleChanged() {
 function bankQWorksheetChanged() {
   if (bankQ) bankQ.worksheetChanged();
 }
+/* ================= 🪄 Living apps — glue (the feature itself is living-apps.js) =================
+   The teacher adds an interactive HTML app — a living diagram like the
+   ballast-tank one, a simulator, a slider lab — and it lands on the page as
+   a PICTURE: a painted cover with a magic wand on it, an ordinary pasted
+   picture that also carries the app on `lapp` (see annLivingApp). Tapping
+   it (a student, a share-link visitor) or 🪄 Bring alive on its bar (the
+   teacher) opens the stage, where the wand sweeps in and the app wakes up
+   in its sandbox. living-apps.js owns the adder, the cover, the stage and
+   the wand's bridge into the frame; this block says who is using the
+   device, where an app goes on the page, and which buttons are its own.
+   living-apps.js loads at the foot of the page, so `lapp` stays null until
+   lappInit() runs there; every call here is guarded for that moment. */
+var lapp = null;
+var lappRoleKey = '';
+
+function lappFind(id) {
+  return annotations.find(function (x) { return x.id === id; }) ||
+    (teacherAnswers || []).find(function (x) { return x.id === id; }) || null;
+}
+
+/* Where the app goes: the page in view, centred, a little below the top of
+   what is on screen, stepped for each living app already on that page. */
+function lappAddToPage(cover, app) {
+  if (!wheelTeacher()) { toast('Adding a living app is the teacher’s own.'); return 0; }
+  if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return 0; }
+  var page = mmTargetPage();
+  if (!pdfDoc || !page) { toast('Open a worksheet — or add a blank page — first.', 4000); return 0; }
+  if (!cover || !cover.src || !window.LivingApps) return 0;
+  var r = page.wrap ? page.wrap.getBoundingClientRect() : null;
+  var anchorY = r ? Math.max(0, -r.top) / (scale || 1) + 24 : undefined;
+  var step = annotations.filter(function (x) { return x.page === page.num && annLivingApp(x); }).length;
+  var box = window.LivingApps.pure.placeOnPage(page.baseW, page.baseH, cover.ratio, step, anchorY);
+  pushUndo();
+  var a = {
+    id: newAnnId(), page: page.num, type: 'ainote', kind: 'paste',
+    x: box.x, y: box.y, w: box.w, h: box.h,
+    ratio: round2(Math.max(0.05, cover.ratio || 2.3)),
+    color: '#F2B705', title: app.title || 'Living app', text: '', src: cover.src,
+    lapp: app, ts: Date.now()
+  };
+  annotations.push(a);
+  selectedId = a.id;
+  editModeId = a.id;
+  renderAllOverlays();
+  setDirty(true);
+  return page.num;
+}
+
+/* ✎ Change app: the same picture keeps its place and size (its height is
+   re-fitted to the new cover's shape), one undo step. */
+function lappUpdateOnPage(id, cover, app) {
+  if (!wheelTeacher()) { toast('Changing a living app is the teacher’s own.'); return false; }
+  if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return false; }
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!annLivingApp(a) || !cover || !cover.src) { toast('That living app is no longer on the page.'); return false; }
+  pushUndo();
+  a.lapp = app;
+  a.src = cover.src;
+  a.title = app.title || a.title;
+  if (cover.ratio > 0) {
+    a.ratio = round2(cover.ratio);
+    a.h = round2(a.w / cover.ratio);
+  }
+  selectedId = a.id;
+  editModeId = a.id;
+  renderAllOverlays();
+  setDirty(true);
+  return true;
+}
+
+function lappInit() {
+  if (lapp || !window.LivingApps) return lapp;
+  lapp = window.LivingApps.create({
+    role: bankQRole,
+    toast: toast,
+    canAdd: function () {
+      if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return false; }
+      if (!pdfDoc) { toast('Open a worksheet — or add a blank page — first.', 4000); return false; }
+      return true;
+    },
+    addToPage: lappAddToPage,
+    updateOnPage: lappUpdateOnPage,
+    findAnnotation: lappFind
+  });
+  var btn = $('livingAppBtn');
+  if (btn) btn.addEventListener('click', function () {
+    if (!wheelTeacher()) return;   // hiding the button is never the lock
+    lapp.openAdder();
+  });
+  lappRoleKey = bankQIdentity();
+  return lapp;
+}
+
+/* Everyone may open a living app — playing with it is the point. */
+function lappOpen(id) {
+  if (!lapp) return false;
+  return lapp.open(id, { cast: true });
+}
+function lappEdit(id) {
+  if (!lapp || !wheelTeacher()) return false;
+  if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return false; }
+  return lapp.openAdder({ editId: id });
+}
+
+/* While practising, living apps stay on the page as LOCKED copies, exactly
+   like the bank's questions: they are the worksheet, not the answers. */
+function lappPracticeCopies(list) {
+  return (list || []).filter(function (a) { return annLivingApp(a) && !annBankQ(a); }).map(function (a) {
+    var c = JSON.parse(JSON.stringify(a));
+    c.locked = true;
+    return c;
+  });
+}
+
+/* The adder never stays open in a student's hands, and a stage opened by
+   one person is not left for the next. Acted on only when the person really
+   changed — applyRoleUI also runs for practice and sign-in. */
+function lappRoleChanged() {
+  var key = bankQIdentity();
+  if (key === lappRoleKey) return;
+  lappRoleKey = key;
+  if (lapp) lapp.roleChanged();
+}
+function lappWorksheetChanged() {
+  if (lapp) lapp.worksheetChanged();
+}
+/* ================= End living apps glue ================= */
+
 /* ================= End live cams glue ================= */
 
 async function rwLoadStudents(force) {
@@ -37255,7 +37428,7 @@ async function runPrint(kind) {
     /* The bank's questions are part of the worksheet, so the questions-only
        print keeps them — everything else written on the page goes. */
     var outBytes = await buildAnnotatedPdf(false, {
-      anns: answers ? answerAnnotations() : answerAnnotations().filter(annBankQ),
+      anns: answers ? answerAnnotations() : answerAnnotations().filter(function (a) { return annBankQ(a) || annLivingApp(a); }),
       qr: printQrUrl()
     });
     printPdfBytes(outBytes, answers ? lab.aDone : lab.qDone);
@@ -39142,6 +39315,8 @@ loadAiNotePrefs();
 <script src="question-apps.js"></script>
 <script src="question-bank.js"></script>
 <script>bankQInit();</script>
+<script src="living-apps.js"></script>
+<script>lappInit();</script>
 <!-- 📲 The Polymath install kit: registers sw.js (top window only) and drives the header's Install app button. -->
 <script defer src="pwa-install.js?v=2.0.0" data-app-name="Polymath Answer Keys" data-app-key="anskey" data-app-icon="assets/app-icons/icon-192.png" data-accent="#E65100" data-sw="sw.js" data-floating="auto"></script>
 <script type="module">
