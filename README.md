@@ -3,6 +3,15 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.165.0 — 📲 Simpler QR codes
+
+- **A living app's code is much plainer now: 33 × 33 squares instead of 41 × 41.** Its link
+  packs the app's fingerprint and its Storage key into 31 characters
+  (`living.html?AAY0Rr…`), down from about 105.
+- **Every QR code uses low error correction**, so it has fewer, bigger squares; the worksheet's
+  front-page code is printed a little larger too (72 pt, was 64).
+- Codes already printed in the long form still open their app.
+
 ## v1.164.0 — 📲 The living app window has its own QR code
 
 - **Opening a living app now shows a QR code in the corner of its window.**

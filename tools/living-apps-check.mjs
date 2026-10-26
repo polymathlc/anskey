@@ -311,7 +311,7 @@ const hosted = await page.evaluate(async () => {
 ok('exporting puts the app online once, under its own content hash', hosted.puts === 1 && hosted.paths.length === 1 &&
   hosted.paths[0] === 'pdf-annotator/living-' + hosted.appHash + '.json' && /json/.test(hosted.type), JSON.stringify(hosted));
 ok('…only the app is stored — nothing about the worksheet or the teacher', hosted.storedKeys === 'hash,html,title,v' && hosted.storedHash === hosted.appHash, hosted.storedKeys);
-ok('…the QR link is living.html with the hash and the token', /living\.html\?a=la1-[\d]+-[0-9a-f]+&t=[0-9a-f-]+$/.test(hosted.link) && hosted.link.length < 160, hosted.link);
+ok('…the QR link is living.html with the hash and token packed into 31 characters', /living\.html\?[A-Za-z0-9_-]{31}$/.test(hosted.link), hosted.link);
 ok('…the token is kept on the annotation and the worksheet is saved with it', hosted.pub && hosted.pub.hash === hosted.appHash && hosted.dirty === true, JSON.stringify(hosted.pub));
 ok('…a second export reuses it: no second upload, the same code', hosted.putsAfter === 1 && hosted.again === hosted.link);
 ok('…and only living apps get a code', !hosted.inkLinked);
@@ -470,7 +470,14 @@ const vBack = await viewer.evaluate(() => ({ stage: !!document.querySelector('.l
 ok('closing it leaves a 🪄 Open the app button to go back in', !vBack.stage && vBack.btn, JSON.stringify(vBack));
 if (SHOTS) await viewer.screenshot({ path: path.join(SHOTS, 'living-apps-viewer-closed.png') });
 
-await viewer.goto(pathToFileURL(path.join(ROOT, 'living.html')).href + query.replace(/t=[^&]+/, 't=ffffffff-0000-0000-0000-000000000000'));
+// A link printed in the long form before v1.165.0 still opens the app.
+const longQuery = await page.evaluate((q) => { const w = window.LivingApps.pure.parseViewerQuery(q); return '?a=' + w.hash + '&t=' + w.token; }, query);
+await viewer.goto(pathToFileURL(path.join(ROOT, 'living.html')).href + longQuery);
+await viewer.waitForSelector('.laStage', { timeout: 5000 }).catch(() => {});
+const vLong = await viewer.evaluate(() => !!document.querySelector('.laStage iframe.laFrame'));
+ok('a long link printed before the simpler code still opens the app', vLong, longQuery);
+const badQuery = await page.evaluate((q) => { const P = window.LivingApps.pure; const w = P.parseViewerQuery(q); return '?' + P.packCode(w.hash, 'ffffffff-0000-4000-8000-000000000000'); }, query);
+await viewer.goto(pathToFileURL(path.join(ROOT, 'living.html')).href + badQuery);
 await viewer.waitForFunction(() => document.getElementById('lvCard').className === 'failed', null, { timeout: 4000 }).catch(() => {});
 const vBad = await viewer.evaluate(() => ({ cls: document.getElementById('lvCard').className, text: document.getElementById('lvSub').textContent, stage: !!document.querySelector('.laStage') }));
 ok('a wrong token opens nothing and says so', vBad.cls === 'failed' && !vBad.stage && /no longer online/.test(vBad.text), JSON.stringify(vBad));

@@ -41,6 +41,12 @@ Guidance for Claude when working in this repo.
 - The glue's `lappQrLink(id)` is `lappPublish` + `lappRememberPub` + `viewerUrl`: it opens THIS app alone (living.html), never `shareUrl`/`printQrUrl`. Teacher's open hosts it; anyone else gets a code only from an existing `pub`, else no card. living.html passes no `qrLink`, so the hosted page shows no code.
 - Run `node --test tools/living-apps-tests.mjs` and `node tools/living-apps-check.mjs` (the code drawn must equal the code for the viewer link).
 
+## 📲 Simpler QR codes (v1.165.0)
+
+- `packCode` / `unpackCode` in `living-apps.js`: the viewer link is `living.html?<31 base64url chars>` = 23 bytes (app length 3, FNV hash 4, UUID token 16). `viewerUrl` packs when the token is a UUID, else keeps `?a=&t=`; `parseViewerQuery` reads both forever (codes are on paper). ~76 chars → a version-4 (33 × 33) code.
+- `QuestionBank.pure.qrMatrix(text, fn, level)` defaults to error correction `'L'` (was `'M'`) for every code; the worksheet's page-1 code is `QR_PT` 72.
+- Run `node --test tools/living-apps-tests.mjs` and `node tools/living-apps-check.mjs` (the old long link still opens; a wrong packed token is refused).
+
 ## 🎁 Item ledger, gifts and restores (v1.158.0)
 
 - Server: `type:'items'` (teacher only, in `hero-service.js` TYPES) → `itemsAction` in `functions/hero-repository.js`: `history` (`studentId` or `guests:true`), `gift` (`rarity` key | `'random'`, `itemType`, optional `itemId`, `quantity` 1–20, receipt `id`), `restore` (`dropId` = `ledgerDocId:index`, `again` to restore twice). **Use `itemType`, never `type`** — `type` is the request's own type.

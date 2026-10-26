@@ -68,7 +68,7 @@
   var WIDGET_MAX_CHARS = 420000;   // an app bigger than this travels as its link
   var LIST_MAX = 160;              // rows the picker draws at once
   var OPEN_LINES_MAX = 12;
-  var QR_PT = 64;                  // the QR code's size on paper, in points
+  var QR_PT = 72;                  // the QR code's size on paper, in points (v1.165.0: was 64)
   var QR_MARGIN_PT = 14;
   var QR_LABEL = 'Scan to open in Ans Key';
   var QR_MAX_URL = 600;
@@ -493,13 +493,15 @@
     var y = pageH - QR_MARGIN_PT - size;
     return { x: round2(x), y: round2(y), size: round2(size), labelY: round2(y - 8) };
   }
-  /* The QR modules as rows of booleans. Medium error correction survives a
-     smudge on a photocopy; the URL is short enough for a small code. */
-  function qrMatrix(text, qrcodeFn) {
+  /* The QR modules as rows of booleans. LOW error correction (v1.165.0): a
+     printed link is read from a clean sheet, and 'M' made every code a size
+     or two denser — more, smaller squares that phones struggled to read.
+     `level` may still ask for 'M', 'Q' or 'H'. */
+  function qrMatrix(text, qrcodeFn, level) {
     var make = qrcodeFn || root.qrcode;
     var s = String(text || '');
     if (typeof make !== 'function' || !s || s.length > QR_MAX_URL) return null;
-    var qr = make(0, 'M');
+    var qr = make(0, /^[LMQH]$/.test(level || '') ? level : 'L');
     qr.addData(s, 'Byte');
     qr.make();
     var n = qr.getModuleCount();
