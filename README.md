@@ -3,6 +3,24 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.163.0 — 📲 A QR code on every living app, for the printed sheet
+
+- **Exporting or printing a worksheet puts each living app online** in the
+  centre's Firebase Storage (`pdf-annotator/living-<hash>.json`) and prints a
+  **QR code on its cover**, with the words "Scan to open the app". The digital
+  PDF also links the whole cover to it.
+- **A student scans it on a phone** and the app opens straight onto the stage
+  in `living.html`: the same sandbox, the same wand, no sign-in. Closing it
+  leaves a 🪄 Open the app button to go back in.
+- **One file per app.** The file is named after the app's content, so the
+  same app on ten worksheets is one upload, and an app changed with ✎ Change
+  app gets a new file and a new code. A printed code never starts opening a
+  different app.
+- The first export is the teacher's: it uploads, and the link is saved on the
+  worksheet. A student printing the sheet afterwards gets the same code
+  without uploading anything. An app that cannot be put online still prints,
+  without its code, and the teacher is told.
+
 ## v1.162.0 — 🪄 Living apps: bring a question alive
 
 - **🪄 Living app** (teacher toolbar, beside 📚 Question bank) adds an

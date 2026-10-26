@@ -259,3 +259,81 @@ test('reduced motion is honoured on the stage', () => {
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(src, /prefers-reduced-motion: reduce/);
 });
+
+/* ---------------------------------------------------------------
+   📲 Hosted for a QR code (v1.163.0)
+   --------------------------------------------------------------- */
+const viewer = fs.readFileSync(new URL('../living.html', import.meta.url), 'utf8');
+const TOKEN = '0b4c1f9e-3c1d-4f0a-9a5b-1234567890ab';
+
+test('an app is hosted under its own content hash, and only the app is stored', () => {
+  const app = P.normalizeApp({ html: '<div>tank</div>', title: 'Tank' }).app;
+  assert.equal(P.publishPath(app.hash), 'pdf-annotator/living-' + app.hash + '.json');
+  assert.equal(P.publishPath('../../etc'), '');
+  const body = JSON.parse(P.publishPayload(Object.assign({ pub: { token: TOKEN }, secret: 'x' }, app)));
+  assert.deepEqual(Object.keys(body).sort(), ['hash', 'html', 'title', 'v']);
+  assert.equal(body.hash, P.contentHash('<div>tank</div>'));
+  assert.equal(P.publishPayload({ html: '' }), '');
+});
+
+test('the QR link is short, built from the hash and token alone, and parses back', () => {
+  const h = P.contentHash('<div>tank</div>');
+  const link = P.viewerUrl('https://polymathlc.com.sg/anskey/?share=abc#x', h, TOKEN);
+  assert.equal(link, 'https://polymathlc.com.sg/anskey/living.html?a=' + h + '&t=' + TOKEN);
+  assert.ok(link.length < 120, link);
+  assert.deepEqual(P.parseViewerQuery(link.slice(link.indexOf('?'))), { hash: h, token: TOKEN });
+  assert.equal(P.viewerUrl('https://x/anskey/', 'nope', TOKEN), '');
+  assert.equal(P.parseViewerQuery('?a=' + h + '&t=<script>'), null);
+  assert.equal(P.parseViewerQuery('?a=evil&t=' + TOKEN), null);
+  const media = P.mediaUrl(h, TOKEN);
+  assert.ok(media.startsWith('https://firebasestorage.googleapis.com/v0/b/mathgen--app.firebasestorage.app/o/pdf-annotator%2Fliving-'), media);
+  assert.equal(P.tokenFromDownloadUrl(media), TOKEN);
+  assert.equal(P.tokenFromDownloadUrl('https://x/?alt=media'), '');
+});
+
+test('a downloaded app must be the one the code was printed for', () => {
+  const app = P.normalizeApp({ html: '<div>tank</div>', title: 'Tank' }).app;
+  const text = P.publishPayload(app);
+  const good = P.readPublished(text, app.hash);
+  assert.ok(good.ok && good.app.html === '<div>tank</div>' && good.app.title === 'Tank');
+  assert.equal(P.readPublished(text, P.contentHash('<div>other</div>')).ok, false);
+  assert.equal(P.readPublished('not json', app.hash).ok, false);
+  assert.equal(P.readPublished('{"html":""}', app.hash).ok, false);
+});
+
+test('a hosted copy is reused only while it is still this app', () => {
+  const app = P.normalizeApp({ html: '<div>tank</div>' }).app;
+  assert.equal(P.publishedFor(app), null);
+  app.pub = { hash: app.hash, token: TOKEN };
+  assert.deepEqual(P.publishedFor(app), { hash: app.hash, token: TOKEN });
+  app.html += '<p>changed</p>';
+  assert.equal(P.publishedFor(app), null);
+});
+
+test('the code sits inside the cover, never off it, and shrinks with a small cover', () => {
+  [[50, 300, 433, 188], [20, 20, 160, 70], [0, 0, 600, 260]].forEach(([x, y, w, h]) => {
+    const q = P.qrOnCover(x, y, w, h);
+    assert.ok(q.padX >= x && q.padY >= y && q.padX + q.padW <= x + w + 0.01 && q.padY + q.padH <= y + h + 0.01, JSON.stringify([x, y, w, h, q]));
+    assert.ok(q.size >= 24 && q.size <= 86);
+  });
+  assert.ok(P.qrOnCover(0, 0, 160, 70).size < P.qrOnCover(0, 0, 433, 188).size);
+});
+
+test('the export hosts the apps and draws their codes on both PDF paths', () => {
+  assert.match(html, /buildAnnotatedPdf\(false, \{ qr: printQrUrl\(\), lappQr: await lappQrLinks\(annotations\) \}\)/);
+  assert.match(html, /lappQr: await lappQrLinks\(printAnns\)/);
+  assert.match(html, /window\.LivingApps\.drawQrOnPdf\(outDoc, outDoc\.getPage\(a\.page - 1\), link, PDFLib, font, rect,\s*window\.QuestionBank\.pure\.qrMatrix, window\.QuestionBank\.pure\.qrRuns\)/);
+  // Only the teacher uploads; a student reuses the stored token.
+  assert.match(html, /async function lappPublish\(a\) \{[\s\S]{0,200}if \(have\) return have;\s*if \(!wheelTeacher\(\)/);
+  // An export never fails because an app could not be hosted.
+  assert.match(html, /try \{ pub = await lappPublish\(a\); \} catch \(e\) \{/);
+});
+
+test('the viewer runs the app in the same sandbox and stage, as a student, with no sign-in', () => {
+  assert.match(viewer, /<script src="living-apps\.js"><\/script>/);
+  assert.match(viewer, /<link rel="stylesheet" href="living-apps\.css">/);
+  assert.match(viewer, /role: function \(\) \{ return 'student'; \}/);
+  assert.match(viewer, /P\.readPublished\(text, want\.hash\)/);
+  assert.doesNotMatch(viewer, /<script[^>]*src="[^"]*(firebase|gstatic)/i);
+  assert.doesNotMatch(viewer, /innerHTML/);
+});

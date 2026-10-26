@@ -66,6 +66,10 @@ const ctx = await browser.newContext({ viewport: { width: 1180, height: 900 } })
 const page = await ctx.newPage();
 const shot = async (name) => { if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'living-apps-' + name + '.png') }); };
 
+if (process.env.PDF_LIB) {
+  const body = fs.readFileSync(process.env.PDF_LIB);
+  await page.route('**/pdf-lib.min.js', r => r.fulfill({ status: 200, contentType: 'application/javascript', body }));
+}
 await page.route(/firebase-[a-z]+-compat\.js(?:\?.*)?$/, route => route.fulfill({ contentType: 'text/javascript', body: '' }));
 // Nothing an app does may reach the network; any request that is not the
 // page's own files is counted here.
@@ -271,6 +275,145 @@ const practice = await page.evaluate(() => {
 });
 ok('practising keeps the living app on the page, locked, and hides the answers', practice.during.length === 1 && practice.during[0].app && practice.during[0].locked, JSON.stringify(practice));
 ok('…the teacher’s own is untouched, and ending practice puts everything back', !practice.realLocked && practice.after === practice.before);
+
+console.log('\n📲 Hosted for a QR code');
+const hosted = await page.evaluate(async () => {
+  currentUser = { uid: 'teacher-1', email: ADMIN_EMAIL, displayName: 'Teacher' };
+  applyRoleUI();
+  // A Storage stand-in: an object is there once it is put, with a token.
+  const objects = {}; let puts = 0;
+  window.__laObjects = objects;
+  storage = {
+    ref(p) {
+      return {
+        getDownloadURL: async () => {
+          if (!objects[p]) { const e = new Error('object-not-found'); e.code = 'storage/object-not-found'; throw e; }
+          return 'https://firebasestorage.googleapis.com/v0/b/mathgen--app.firebasestorage.app/o/' + encodeURIComponent(p) + '?alt=media&token=' + objects[p].token;
+        },
+        putString: async (body, fmt, meta) => { puts++; objects[p] = { body, meta, token: '5d0c2c1e-7a4b-4f7e-9b1a-0c' + String(puts).padStart(10, '0') }; }
+      };
+    }
+  };
+  dirty = false;
+  const a = annotations.find(annLivingApp);
+  const links = await lappQrLinks(annotations);
+  const firstPuts = puts;
+  const again = await lappQrLinks(annotations);
+  const paths = Object.keys(objects);
+  const stored = paths.length ? JSON.parse(objects[paths[0]].body) : null;
+  return {
+    link: links[a.id] || '', again: again[a.id] || '', puts: firstPuts, putsAfter: puts, paths,
+    type: paths.length ? objects[paths[0]].meta.contentType : '',
+    storedHash: stored && stored.hash, appHash: a.lapp.hash, storedKeys: stored ? Object.keys(stored).sort().join(',') : '',
+    pub: a.lapp.pub || null, dirty, inkLinked: !!links.ink1
+  };
+});
+ok('exporting puts the app online once, under its own content hash', hosted.puts === 1 && hosted.paths.length === 1 &&
+  hosted.paths[0] === 'pdf-annotator/living-' + hosted.appHash + '.json' && /json/.test(hosted.type), JSON.stringify(hosted));
+ok('…only the app is stored — nothing about the worksheet or the teacher', hosted.storedKeys === 'hash,html,title,v' && hosted.storedHash === hosted.appHash, hosted.storedKeys);
+ok('…the QR link is living.html with the hash and the token', /living\.html\?a=la1-[\d]+-[0-9a-f]+&t=[0-9a-f-]+$/.test(hosted.link) && hosted.link.length < 160, hosted.link);
+ok('…the token is kept on the annotation and the worksheet is saved with it', hosted.pub && hosted.pub.hash === hosted.appHash && hosted.dirty === true, JSON.stringify(hosted.pub));
+ok('…a second export reuses it: no second upload, the same code', hosted.putsAfter === 1 && hosted.again === hosted.link);
+ok('…and only living apps get a code', !hosted.inkLinked);
+
+const studentQr = await page.evaluate(async () => {
+  currentUser = { uid: 'kid-1', email: 'kid@example.com', displayName: 'Kid' };
+  applyRoleUI();
+  const before = Object.keys(window.__laObjects).length;
+  const a = annotations.find(annLivingApp);
+  const links = await lappQrLinks(annotations);
+  // An app changed since it was put online is not the one its token opens.
+  const copy = JSON.parse(JSON.stringify(a));
+  copy.id = 'copy1'; copy.lapp.html += '<p>changed</p>'; copy.lapp.hash = window.LivingApps.pure.contentHash(copy.lapp.html);
+  const stale = await lappQrLinks([copy]);
+  currentUser = { uid: 'teacher-1', email: ADMIN_EMAIL, displayName: 'Teacher' };
+  applyRoleUI();
+  return { link: links[a.id] || '', stale: stale.copy1 || '', after: Object.keys(window.__laObjects).length, before };
+});
+ok('a student printing later gets the same code, and uploads nothing', studentQr.link === hosted.link && studentQr.after === studentQr.before, JSON.stringify(studentQr));
+ok('…but an app changed since is never given the old app’s code', studentQr.stale === '');
+
+const pdfOk = await page.evaluate(() => typeof PDFLib !== 'undefined' && !!PDFLib.PDFDocument);
+if (!pdfOk) {
+  console.log('  – pdf-lib is not reachable here (set PDF_LIB=…) — the PDF half was skipped.');
+} else {
+  const pdf = await page.evaluate(async (link) => {
+    const d = await PDFLib.PDFDocument.create();
+    d.addPage([600, 780]);
+    pdfBytes = await d.save();
+    const a = annotations.find(annLivingApp);
+    const lappQr = {}; lappQr[a.id] = link;
+    const out = await buildAnnotatedPdf(false, { lappQr });
+    const back = await PDFLib.PDFDocument.load(out);
+    const pg = back.getPage(0);
+    const annots = pg.node.lookup(PDFLib.PDFName.of('Annots'));
+    const uris = [];
+    if (annots) for (let i = 0; i < annots.size(); i++) {
+      const an = annots.lookup(i); const act = an.lookup(PDFLib.PDFName.of('A'));
+      const uri = act && act.lookup(PDFLib.PDFName.of('URI'));
+      if (uri) uris.push(uri.decodeText ? uri.decodeText() : String(uri));
+    }
+    const plain = await buildAnnotatedPdf(false, {});
+    let b64 = ''; const u8 = new Uint8Array(out);
+    for (let i = 0; i < u8.length; i += 0x8000) b64 += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return { uris, bigger: out.length - plain.length, pdf: btoa(b64) };
+  }, hosted.link);
+  if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'living-apps-export.pdf'), Buffer.from(pdf.pdf, 'base64'));
+  ok('the exported PDF links the cover to the hosted app', pdf.uris.some(u => u === hosted.link), JSON.stringify(pdf.uris));
+  ok('…and draws the QR code on it', pdf.bigger > 1500, 'extra bytes ' + pdf.bigger);
+}
+
+console.log('\n📱 The page the code opens');
+const objects = await page.evaluate(() => window.__laObjects);
+const objPath = Object.keys(objects)[0];
+const served = objects[objPath];
+await ctx.route('https://firebasestorage.googleapis.com/**', route => {
+  const u = new URL(route.request().url());
+  const p = decodeURIComponent(u.pathname.split('/o/')[1] || '');
+  const o = p === objPath && u.searchParams.get('token') === served.token ? served : null;
+  route.fulfill(o
+    ? { status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: o.body }
+    : { status: 403, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"error":{"code":403}}' });
+});
+const query = hosted.link.slice(hosted.link.indexOf('?'));
+const viewer = await ctx.newPage();
+await viewer.setViewportSize({ width: 390, height: 780 });
+const vErrors = [];
+viewer.on('pageerror', e => vErrors.push(e.message));
+await viewer.goto(pathToFileURL(path.join(ROOT, 'living.html')).href + query);
+await viewer.waitForSelector('.laStage', { timeout: 5000 }).catch(() => {});
+const vInfo = await viewer.evaluate(() => {
+  const f = document.querySelector('.laStage iframe.laFrame');
+  return { stage: !!document.querySelector('.laStage'), title: document.title,
+    sandbox: f && f.getAttribute('sandbox'), csp: !!(f && /Content-Security-Policy/.test(f.srcdoc)) };
+});
+ok('scanning it opens the app straight onto the stage, on a phone', vInfo.stage && /Sinking lab, part 2/.test(vInfo.title), JSON.stringify(vInfo));
+ok('…in the same scripts-only sandbox with its CSP', vInfo.sandbox === 'allow-scripts' && vInfo.csp, JSON.stringify(vInfo));
+const vFrame = () => viewer.frames().find(f => f !== viewer.mainFrame() && /about:srcdoc/.test(f.url()));
+let vStep = '';
+for (let i = 0; i < 50 && vStep !== '1'; i++) {
+  await viewer.waitForTimeout(100);
+  const fr = vFrame();
+  if (fr) vStep = await fr.evaluate(() => document.body.getAttribute('data-step') || '').catch(() => '');
+}
+ok('…and the wand brings it alive there too', vStep === '1', 'step=' + vStep);
+if (SHOTS) await viewer.screenshot({ path: path.join(SHOTS, 'living-apps-viewer.png') });
+await viewer.keyboard.press('Escape');
+await viewer.waitForTimeout(250);
+const vBack = await viewer.evaluate(() => ({ stage: !!document.querySelector('.laStage'), btn: !document.getElementById('lvOpen').hidden }));
+ok('closing it leaves a 🪄 Open the app button to go back in', !vBack.stage && vBack.btn, JSON.stringify(vBack));
+if (SHOTS) await viewer.screenshot({ path: path.join(SHOTS, 'living-apps-viewer-closed.png') });
+
+await viewer.goto(pathToFileURL(path.join(ROOT, 'living.html')).href + query.replace(/t=[^&]+/, 't=ffffffff-0000-0000-0000-000000000000'));
+await viewer.waitForFunction(() => document.getElementById('lvCard').className === 'failed', null, { timeout: 4000 }).catch(() => {});
+const vBad = await viewer.evaluate(() => ({ cls: document.getElementById('lvCard').className, text: document.getElementById('lvSub').textContent, stage: !!document.querySelector('.laStage') }));
+ok('a wrong token opens nothing and says so', vBad.cls === 'failed' && !vBad.stage && /no longer online/.test(vBad.text), JSON.stringify(vBad));
+await viewer.goto(pathToFileURL(path.join(ROOT, 'living.html')).href + '?a=nope');
+await viewer.waitForTimeout(200);
+const vJunk = await viewer.evaluate(() => document.getElementById('lvSub').textContent);
+ok('…and a broken link is refused before anything is fetched', /not a complete app code/.test(vJunk), vJunk);
+ok('the viewer threw nothing', vErrors.length === 0, vErrors.join('\n      '));
+await viewer.close();
 
 if (process.env.LA_SAMPLE && fs.existsSync(process.env.LA_SAMPLE)) {
   console.log('\n🌊 A real app: ' + path.basename(process.env.LA_SAMPLE));
