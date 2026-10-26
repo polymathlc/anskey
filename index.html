@@ -5831,7 +5831,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.162.0';
+var APP_VERSION = 'v1.163.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32335,6 +32335,67 @@ function lappRoleChanged() {
 function lappWorksheetChanged() {
   if (lapp) lapp.worksheetChanged();
 }
+
+/* 📲 Hosted for a QR code (v1.163.0). An exported or printed worksheet
+   carries a QR code on every living app's cover. The app goes up to
+   Firebase Storage the first time the TEACHER exports it — under its own
+   content hash, so it is one file however many sheets carry it and a changed
+   app is a new file a printed code can never drift onto — and the download
+   token is kept on the annotation as `lapp.pub`, so a student printing the
+   sheet later gets the same code without writing anything. The code opens
+   living.html, which runs the app in the same sandbox and stage. A living
+   app that cannot be hosted still prints, without its code, and says so. */
+async function lappPublish(a) {
+  var P = window.LivingApps.pure;
+  var have = P.publishedFor(a.lapp);
+  if (have) return have;
+  if (!wheelTeacher() || typeof storage === 'undefined') return null;
+  var hash = P.contentHash(a.lapp.html);
+  var ref = storage.ref(P.publishPath(hash));
+  var url = '';
+  try { url = await ref.getDownloadURL(); } catch (e) { url = ''; }
+  if (!url) {
+    await ref.putString(P.publishPayload(a.lapp), 'raw', {
+      contentType: 'application/json; charset=utf-8',
+      cacheControl: 'public, max-age=86400'
+    });
+    url = await ref.getDownloadURL();
+  }
+  var token = P.tokenFromDownloadUrl(url);
+  if (!token) throw new Error('Storage gave no download link for the app.');
+  return { hash: hash, token: token };
+}
+
+/* { annotationId: viewer link } for every living app in `anns` that has, or
+   can be given, a hosted copy. Never throws: an export must not fail
+   because one app could not be hosted. */
+async function lappQrLinks(anns) {
+  var out = Object.create(null);
+  if (!window.LivingApps) return out;
+  var P = window.LivingApps.pure;
+  var list = (anns || []).filter(annLivingApp);
+  var changed = false, failed = 0, missing = 0;
+  for (var i = 0; i < list.length; i++) {
+    var a = list[i];
+    var pub = null, broke = false;
+    try { pub = await lappPublish(a); } catch (e) { broke = true; failed++; console.warn('A living app could not be hosted for its QR code', e); }
+    if (!pub) { if (!broke) missing++; continue; }
+    var link = P.viewerUrl(location.href, pub.hash, pub.token);
+    if (!link) continue;
+    out[a.id] = link;
+    if (!P.publishedFor(a.lapp)) {
+      a.lapp.pub = { hash: pub.hash, token: pub.token };
+      // The real annotation as well, when `anns` holds practice copies.
+      var real = lappFind(a.id);
+      if (real && real !== a && annLivingApp(real) && real.lapp.hash === a.lapp.hash) real.lapp.pub = a.lapp.pub;
+      changed = true;
+    }
+  }
+  if (changed && !practiceMode) setDirty(true);
+  if (failed) toast('A living app could not be put online, so it prints without its QR code. Check the connection and export again.', 5200);
+  else if (missing) toast('Ask the teacher to export this sheet once — then its living apps print with a QR code.', 4200);
+  return out;
+}
 /* ================= End living apps glue ================= */
 
 /* ================= End live cams glue ================= */
@@ -37357,6 +37418,22 @@ async function buildAnnotatedPdf(includeTs, opts) {
 
     });
 
+  /* 📲 A QR code on every living app's cover, opening the hosted app. */
+  if (opts.lappQr && window.LivingApps && window.QuestionBank) {
+    anns.forEach(function (a) {
+      var link = opts.lappQr[a.id];
+      var pageInfo = pages[a.page - 1];
+      if (!link || !annLivingApp(a) || !pageInfo) return;
+      try {
+        var vp = pageInfo.viewport1;
+        var p1 = vp.convertToPdfPoint(a.x, a.y + a.h), p2 = vp.convertToPdfPoint(a.x + a.w, a.y);
+        var rect = { x: Math.min(p1[0], p2[0]), y: Math.min(p1[1], p2[1]), w: Math.abs(p2[0] - p1[0]), h: Math.abs(p2[1] - p1[1]) };
+        window.LivingApps.drawQrOnPdf(outDoc, outDoc.getPage(a.page - 1), link, PDFLib, font, rect,
+          window.QuestionBank.pure.qrMatrix, window.QuestionBank.pure.qrRuns);
+      } catch (laErr) { console.warn('A living app\'s QR code could not be drawn', laErr); }
+    });
+  }
+
   /* 📚 The QR code on the first page — the worksheet's share link, drawn as
      vector squares so it scans from a photocopy. */
   if (opts.qr && window.QuestionBank && outDoc.getPageCount()) {
@@ -37373,7 +37450,7 @@ async function downloadAnnotated() {
   btn.disabled = true;
   toast('Preparing PDF…');
   try {
-    var outBytes = await buildAnnotatedPdf(false, { qr: printQrUrl() });
+    var outBytes = await buildAnnotatedPdf(false, { qr: printQrUrl(), lappQr: await lappQrLinks(annotations) });
     var blob = new Blob([outBytes], { type: 'application/pdf' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -37427,9 +37504,11 @@ async function runPrint(kind) {
   try {
     /* The bank's questions are part of the worksheet, so the questions-only
        print keeps them — everything else written on the page goes. */
+    var printAnns = answers ? answerAnnotations() : answerAnnotations().filter(function (a) { return annBankQ(a) || annLivingApp(a); });
     var outBytes = await buildAnnotatedPdf(false, {
-      anns: answers ? answerAnnotations() : answerAnnotations().filter(function (a) { return annBankQ(a) || annLivingApp(a); }),
-      qr: printQrUrl()
+      anns: printAnns,
+      qr: printQrUrl(),
+      lappQr: await lappQrLinks(printAnns)
     });
     printPdfBytes(outBytes, answers ? lab.aDone : lab.qDone);
   } catch (e) {

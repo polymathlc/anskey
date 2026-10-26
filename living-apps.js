@@ -298,12 +298,144 @@
     }
   }
 
+  /* ---------------------------------------------------------------
+     📲 Hosted for a QR code (v1.163.0)
+     An exported worksheet carries a QR code beside every living app. The
+     app is put in Firebase Storage under its own content hash
+     (`pdf-annotator/living-<hash>.json`), and the code opens living.html,
+     which downloads it by its download token and runs it in the very same
+     sandbox and stage. Content-addressed: the same app is one file however
+     many worksheets carry it, and a changed app is a new file — so a printed
+     code never starts showing a different app.
+     --------------------------------------------------------------- */
+  var PUBLISH_DIR = 'pdf-annotator';
+  var PUBLISH_PREFIX = 'living-';
+  var VIEWER_PAGE = 'living.html';
+  var BUCKET = 'mathgen--app.firebasestorage.app';
+  var HASH_RE = /^la1-\d{1,7}-[0-9a-f]{1,8}$/;
+  var TOKEN_RE = /^[0-9A-Za-z-]{16,80}$/;
+  var QR_LABEL = 'Scan to open the app';
+
+  function validHash(h) { return typeof h === 'string' && HASH_RE.test(h); }
+  function validToken(t) { return typeof t === 'string' && TOKEN_RE.test(t); }
+  function publishPath(hash) {
+    return validHash(hash) ? PUBLISH_DIR + '/' + PUBLISH_PREFIX + hash + '.json' : '';
+  }
+  /* What is stored: the app and nothing else — never the worksheet, the
+     teacher or the page. */
+  function publishPayload(app) {
+    if (!validApp(app)) return '';
+    var hash = contentHash(app.html);
+    return JSON.stringify({ v: 1, title: cleanTitle(app.title) || 'Living app', html: app.html, hash: hash });
+  }
+  /* The download token Firebase put on the object, read off its download
+     URL. Only the token is kept: the rest of the URL is rebuilt from the
+     bucket and the hash, so a QR code can never be pointed elsewhere. */
+  function tokenFromDownloadUrl(url) {
+    var m = /[?&]token=([^&#]+)/.exec(String(url || ''));
+    var t = m ? decodeURIComponent(m[1]) : '';
+    return validToken(t) ? t : '';
+  }
+  function mediaUrl(hash, token, bucket) {
+    var p = publishPath(hash);
+    if (!p || !validToken(token)) return '';
+    return 'https://firebasestorage.googleapis.com/v0/b/' + (bucket || BUCKET) + '/o/' +
+      encodeURIComponent(p) + '?alt=media&token=' + encodeURIComponent(token);
+  }
+  /* The link the QR code carries: living.html beside the page, the hash and
+     the token. Short, so the code stays small enough to scan from a desk. */
+  function viewerUrl(pageHref, hash, token) {
+    if (!validHash(hash) || !validToken(token)) return '';
+    var base = String(pageHref || '').split('#')[0].split('?')[0];
+    base = base.replace(/[^/]*$/, '');
+    return base + VIEWER_PAGE + '?a=' + hash + '&t=' + token;
+  }
+  function parseViewerQuery(search) {
+    var q = {};
+    String(search || '').replace(/^\?/, '').split('&').forEach(function (kv) {
+      if (!kv) return;
+      var i = kv.indexOf('=');
+      var k = i < 0 ? kv : kv.slice(0, i);
+      var v = i < 0 ? '' : kv.slice(i + 1);
+      try { q[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) {}
+    });
+    var hash = q.a || '', token = q.t || '';
+    return validHash(hash) && validToken(token) ? { hash: hash, token: token } : null;
+  }
+  /* The downloaded file, checked: it must be an app, and the app must be the
+     one the code was printed for. */
+  function readPublished(text, hash) {
+    var d = null;
+    try { d = JSON.parse(String(text || '')); } catch (e) { return { ok: false, message: 'That app file could not be read.' }; }
+    if (!d || typeof d !== 'object' || !validApp(d)) return { ok: false, message: 'That app file is empty or damaged.' };
+    if (contentHash(d.html) !== hash) return { ok: false, message: 'That app file is not the one this code was printed for.' };
+    return { ok: true, app: { v: 1, title: cleanTitle(d.title) || titleFromHtml(d.html) || 'Living app', html: d.html, hash: hash, wand: hasWand(d.html), at: 0 } };
+  }
+  /* The hosted copy an annotation already has, when it is still this app. */
+  function publishedFor(app) {
+    var p = app && app.pub;
+    if (!validApp(app) || !p || !validToken(p.token) || p.hash !== contentHash(app.html)) return null;
+    return { hash: p.hash, token: p.token };
+  }
+  /* Where the QR code sits on the cover, in PDF points (origin bottom-left):
+     on a white pad over the wand's corner at the LEFT of the cover, centred
+     top to bottom, so the app's title stays readable. A small cover gets a
+     smaller code; it never spills off the cover. */
+  function qrOnCover(rx, ry, rw, rh) {
+    var pad = 4, label = 9;
+    var size = Math.min(86, rh - pad * 2 - label - 6, rw * 0.32);
+    size = Math.max(24, size);
+    var padW = size + pad * 2, padH = size + pad + label;
+    var padX = rx + Math.max(4, Math.min(rw * 0.035, 14));
+    var padY = ry + Math.max(2, (rh - padH) / 2);
+    return { x: r2(padX + pad), y: r2(padY + label), size: r2(size), padX: r2(padX), padY: r2(padY), padW: r2(padW), padH: r2(padH) };
+  }
+  /* Draws the code on a pdf-lib page with a link over the whole cover.
+     `matrixOf(url)` is the QR maker (QuestionBank.pure.qrMatrix on the page),
+     `runsOf(matrix)` its run-length helper. Returns false and draws nothing
+     without them. */
+  function drawQrOnPdf(pdfDoc, page, url, lib, font, rect, matrixOf, runsOf) {
+    var matrix = typeof matrixOf === 'function' ? matrixOf(url) : null;
+    if (!matrix || !page || !lib || !rect || typeof runsOf !== 'function') return false;
+    var at = qrOnCover(rect.x, rect.y, rect.w, rect.h);
+    var rgb = lib.rgb, n = matrix.length, quiet = 2;
+    var cell = at.size / (n + quiet * 2);
+    page.drawRectangle({ x: at.padX, y: at.padY, width: at.padW, height: at.padH, color: rgb(1, 1, 1),
+      borderColor: rgb(0.85, 0.72, 0.3), borderWidth: 0.8 });
+    runsOf(matrix).forEach(function (run) {
+      page.drawRectangle({
+        x: at.x + (quiet + run.c) * cell,
+        y: at.y + at.size - (quiet + run.r + 1) * cell,
+        width: run.len * cell + 0.01, height: cell + 0.01, color: rgb(0, 0, 0)
+      });
+    });
+    if (font) {
+      var fs = Math.max(4.6, Math.min(6.2, at.size / 13));
+      var tw = font.widthOfTextAtSize(QR_LABEL, fs);
+      page.drawText(QR_LABEL, { x: at.x + (at.size - tw) / 2, y: at.padY + 3, size: fs, font: font, color: rgb(0.3, 0.3, 0.28) });
+    }
+    try {
+      var ref = pdfDoc.context.register(pdfDoc.context.obj({
+        Type: 'Annot', Subtype: 'Link', Rect: [rect.x, rect.y, rect.x + rect.w, rect.y + rect.h],
+        Border: [0, 0, 0], A: { Type: 'Action', S: 'URI', URI: lib.PDFString.of(url) }
+      }));
+      var annots = page.node.lookup(lib.PDFName.of('Annots'));
+      if (annots) annots.push(ref);
+      else page.node.set(lib.PDFName.of('Annots'), pdfDoc.context.obj([ref]));
+    } catch (e) { /* the code still scans without the link */ }
+    return true;
+  }
+
   var pure = {
     MAX_CHARS: MAX_CHARS, TITLE_MAX: TITLE_MAX, COVER_W: COVER_W, COVER_H: COVER_H, CSP: CSP, WAND_BRIDGE: WAND_BRIDGE,
     escapeHtml: escapeHtml, cleanTitle: cleanTitle, titleFromHtml: titleFromHtml, titleFromFileName: titleFromFileName,
     looksLikeHtml: looksLikeHtml, hasScript: hasScript, hasWand: hasWand, utf8Bytes: utf8Bytes, sizeText: sizeText,
     contentHash: contentHash, normalizeApp: normalizeApp, validApp: validApp, sandboxDocument: sandboxDocument,
-    wrapLines: wrapLines, placeOnPage: placeOnPage, castMessage: castMessage
+    wrapLines: wrapLines, placeOnPage: placeOnPage, castMessage: castMessage,
+    BUCKET: BUCKET, VIEWER_PAGE: VIEWER_PAGE, QR_LABEL: QR_LABEL,
+    validHash: validHash, validToken: validToken, publishPath: publishPath, publishPayload: publishPayload,
+    tokenFromDownloadUrl: tokenFromDownloadUrl, mediaUrl: mediaUrl, viewerUrl: viewerUrl,
+    parseViewerQuery: parseViewerQuery, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover
   };
 
   /* ---------------------------------------------------------------
@@ -898,7 +1030,7 @@
     '<circle cx="7" cy="7" r="1.5" fill="#FFFFFF"/></svg>';
   var SPARK_SVG = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0.6L8.7 5.3L13.4 7L8.7 8.7L7 13.4L5.3 8.7L0.6 7L5.3 5.3Z" fill="#F6C343"/><circle cx="7" cy="7" r="1.4" fill="#FFFFFF"/></svg>';
 
-  var api = { create: create, pure: pure, paintCover: paintCover };
+  var api = { create: create, pure: pure, paintCover: paintCover, drawQrOnPdf: drawQrOnPdf };
   root.LivingApps = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
