@@ -279,8 +279,9 @@ test('an app is hosted under its own content hash, and only the app is stored', 
 test('the QR link is short, built from the hash and token alone, and parses back', () => {
   const h = P.contentHash('<div>tank</div>');
   const link = P.viewerUrl('https://polymathlc.com.sg/anskey/?share=abc#x', h, TOKEN);
-  assert.equal(link, 'https://polymathlc.com.sg/anskey/living.html?a=' + h + '&t=' + TOKEN);
-  assert.ok(link.length < 120, link);
+  // v1.165.0: packed into 31 characters, so the code is 33 × 33, not 41 × 41.
+  assert.match(link, /^https:\/\/polymathlc\.com\.sg\/anskey\/living\.html\?[A-Za-z0-9_-]{31}$/);
+  assert.ok(link.length <= 76, link);
   assert.deepEqual(P.parseViewerQuery(link.slice(link.indexOf('?'))), { hash: h, token: TOKEN });
   assert.equal(P.viewerUrl('https://x/anskey/', 'nope', TOKEN), '');
   assert.equal(P.parseViewerQuery('?a=' + h + '&t=<script>'), null);
@@ -363,4 +364,35 @@ test('📲 the living app window shows a code that opens that app alone, never A
   // The page the code opens offers no code of its own.
   assert.doesNotMatch(viewer, /qrLink/);
   assert.match(css, /\.laQr \{[\s\S]{0,120}position: absolute;/);
+});
+
+test('📲 a simpler code: the hash and token pack into 31 characters and come back exactly', () => {
+  const cases = [
+    ['la1-0-0', '00000000-0000-4000-8000-000000000000'],
+    ['la1-1588-46b240d4', '5d0c2c1e-7a4b-4f7e-9b1a-0c0000000001'],
+    ['la1-600000-ffffffff', 'ffffffff-ffff-4fff-bfff-ffffffffffff'],
+    ['la1-77-a', '0123abcd-4567-89ef-0123-456789abcdef']
+  ];
+  for (const [hash, token] of cases) {
+    const code = P.packCode(hash, token);
+    assert.match(code, /^[A-Za-z0-9_-]{31}$/, hash);
+    assert.deepEqual(P.unpackCode(code), { hash, token });
+    assert.deepEqual(P.parseViewerQuery('?' + code), { hash, token });
+  }
+  // A token Storage might issue in another shape keeps the long, still-valid link.
+  const odd = 'Abc-DEF-1234567890xyz';
+  assert.equal(P.packCode('la1-5-1f', odd), '');
+  assert.equal(P.viewerUrl('https://x/anskey/', 'la1-5-1f', odd), 'https://x/anskey/living.html?a=la1-5-1f&t=' + odd);
+  // Links already printed in the long form still open.
+  assert.deepEqual(P.parseViewerQuery('?a=la1-1588-46b240d4&t=5d0c2c1e-7a4b-4f7e-9b1a-0c0000000001'),
+    { hash: 'la1-1588-46b240d4', token: '5d0c2c1e-7a4b-4f7e-9b1a-0c0000000001' });
+  // Junk is refused.
+  assert.equal(P.unpackCode('short'), null);
+  assert.equal(P.parseViewerQuery('?' + 'A'.repeat(30) + '!'), null);
+});
+
+test('📲 a simpler code: low error correction and a bigger worksheet code', () => {
+  const qb = fs.readFileSync(new URL('../question-bank.js', import.meta.url), 'utf8');
+  assert.match(qb, /make\(0, \/\^\[LMQH\]\$\/\.test\(level \|\| ''\) \? level : 'L'\)/);
+  assert.match(qb, /var QR_PT = 72;/);
 });

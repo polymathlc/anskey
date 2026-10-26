@@ -342,15 +342,76 @@
     return 'https://firebasestorage.googleapis.com/v0/b/' + (bucket || BUCKET) + '/o/' +
       encodeURIComponent(p) + '?alt=media&token=' + encodeURIComponent(token);
   }
-  /* The link the QR code carries: living.html beside the page, the hash and
-     the token. Short, so the code stays small enough to scan from a desk. */
+  /* 📲 A simpler code (v1.165.0). The link used to spell out the hash and
+     the Storage token (`?a=la1-1588-46b240d4&t=<36-character token>`), about
+     105 characters, which made a dense 45 × 45 code that phones struggled to
+     read off paper. The same facts packed as bytes are 23 bytes: the app's
+     length (3), its FNV hash (4) and the token's 16 bytes, written as 31
+     base64url characters after a bare `?`. The whole link is then about 76
+     characters, a 33 × 33 code at low error correction. A token that is not
+     a UUID (Storage has only ever issued UUIDs) keeps the long form, and the
+     viewer still reads every long link already printed. */
+  var CODE_RE = /^[A-Za-z0-9_-]{31}$/;
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  var B64U = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  function bytesToB64u(bytes) {
+    var out = '', i;
+    for (i = 0; i < bytes.length; i += 3) {
+      var n = (bytes[i] << 16) | ((bytes[i + 1] || 0) << 8) | (bytes[i + 2] || 0);
+      var left = bytes.length - i;
+      out += B64U[(n >> 18) & 63] + B64U[(n >> 12) & 63];
+      if (left > 1) out += B64U[(n >> 6) & 63];
+      if (left > 2) out += B64U[n & 63];
+    }
+    return out;
+  }
+  function b64uToBytes(str) {
+    var bytes = [], bits = 0, acc = 0;
+    for (var i = 0; i < str.length; i++) {
+      var v = B64U.indexOf(str[i]);
+      if (v < 0) return null;
+      acc = (acc << 6) | v;
+      bits += 6;
+      if (bits >= 8) { bits -= 8; bytes.push((acc >> bits) & 255); }
+    }
+    return bytes;
+  }
+  function packCode(hash, token) {
+    if (!validHash(hash) || typeof token !== 'string' || !UUID_RE.test(token)) return '';
+    var parts = hash.split('-');
+    var len = Number(parts[1]), h = parseInt(parts[2], 16);
+    if (!(len >= 0 && len < 16777216) || !(h >= 0 && h <= 4294967295)) return '';
+    var bytes = [(len >>> 16) & 255, (len >>> 8) & 255, len & 255,
+      (h >>> 24) & 255, (h >>> 16) & 255, (h >>> 8) & 255, h & 255];
+    var hex = token.replace(/-/g, '');
+    for (var i = 0; i < 32; i += 2) bytes.push(parseInt(hex.slice(i, i + 2), 16));
+    return bytesToB64u(bytes);
+  }
+  function unpackCode(code) {
+    if (typeof code !== 'string' || !CODE_RE.test(code)) return null;
+    var b = b64uToBytes(code);
+    if (!b || b.length !== 23) return null;
+    var len = (b[0] << 16) | (b[1] << 8) | b[2];
+    var h = ((b[3] << 24) | (b[4] << 16) | (b[5] << 8) | b[6]) >>> 0;
+    var hex = '';
+    for (var i = 7; i < 23; i++) hex += ('0' + b[i].toString(16)).slice(-2);
+    var token = hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+    var hash = 'la1-' + len + '-' + h.toString(16);
+    return validHash(hash) && validToken(token) ? { hash: hash, token: token } : null;
+  }
+  /* The link the QR code carries: living.html beside the page, then the
+     packed code (or, for a token that cannot be packed, the hash and token
+     spelled out). */
   function viewerUrl(pageHref, hash, token) {
     if (!validHash(hash) || !validToken(token)) return '';
     var base = String(pageHref || '').split('#')[0].split('?')[0];
     base = base.replace(/[^/]*$/, '');
-    return base + VIEWER_PAGE + '?a=' + hash + '&t=' + token;
+    var code = packCode(hash, token);
+    return base + VIEWER_PAGE + '?' + (code || 'a=' + hash + '&t=' + token);
   }
   function parseViewerQuery(search) {
+    var bare = String(search || '').replace(/^\?/, '').split('&')[0];
+    if (CODE_RE.test(bare)) return unpackCode(bare);
     var q = {};
     String(search || '').replace(/^\?/, '').split('&').forEach(function (kv) {
       if (!kv) return;
@@ -454,7 +515,7 @@
     BUCKET: BUCKET, VIEWER_PAGE: VIEWER_PAGE, QR_LABEL: QR_LABEL,
     validHash: validHash, validToken: validToken, publishPath: publishPath, publishPayload: publishPayload,
     tokenFromDownloadUrl: tokenFromDownloadUrl, mediaUrl: mediaUrl, viewerUrl: viewerUrl,
-    parseViewerQuery: parseViewerQuery, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover, qrSvg: qrSvg
+    parseViewerQuery: parseViewerQuery, packCode: packCode, unpackCode: unpackCode, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover, qrSvg: qrSvg
   };
 
   /* ---------------------------------------------------------------
