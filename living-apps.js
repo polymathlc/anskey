@@ -426,6 +426,25 @@
     return true;
   }
 
+  /* 📲 The stage's own QR code (v1.164.0): a QR matrix as one SVG path,
+     with the four-module quiet zone a phone camera needs. Dark modules are
+     merged into runs, so a 41 × 41 code is a few hundred path commands. */
+  function qrSvg(matrix) {
+    if (!matrix || !matrix.length) return '';
+    var n = matrix.length, q = 4, size = n + q * 2, d = '';
+    for (var r = 0; r < n; r++) {
+      var row = matrix[r] || [], c = 0;
+      while (c < n) {
+        if (!row[c]) { c++; continue; }
+        var start = c;
+        while (c < n && row[c]) c++;
+        d += 'M' + (start + q) + ' ' + (r + q) + 'h' + (c - start) + 'v1h-' + (c - start) + 'z';
+      }
+    }
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="crispEdges" role="img" aria-label="QR code">' +
+      '<rect width="' + size + '" height="' + size + '" fill="#fff"/><path fill="#111" d="' + d + '"/></svg>';
+  }
+
   var pure = {
     MAX_CHARS: MAX_CHARS, TITLE_MAX: TITLE_MAX, COVER_W: COVER_W, COVER_H: COVER_H, CSP: CSP, WAND_BRIDGE: WAND_BRIDGE,
     escapeHtml: escapeHtml, cleanTitle: cleanTitle, titleFromHtml: titleFromHtml, titleFromFileName: titleFromFileName,
@@ -435,7 +454,7 @@
     BUCKET: BUCKET, VIEWER_PAGE: VIEWER_PAGE, QR_LABEL: QR_LABEL,
     validHash: validHash, validToken: validToken, publishPath: publishPath, publishPayload: publishPayload,
     tokenFromDownloadUrl: tokenFromDownloadUrl, mediaUrl: mediaUrl, viewerUrl: viewerUrl,
-    parseViewerQuery: parseViewerQuery, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover
+    parseViewerQuery: parseViewerQuery, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover, qrSvg: qrSvg
   };
 
   /* ---------------------------------------------------------------
@@ -829,6 +848,7 @@
             '<button type="button" class="laBtn laWandBtn" data-la="cast" title="Wave the magic wand — it picks up the app’s wand and touches the picture (W)">' +
               '<span class="laWandBtnIcon" aria-hidden="true">🪄</span><span>Wave the wand</span></button>' +
             '<button type="button" class="laBtn" data-la="restart" title="Start the app again from the beginning">↺ Start again</button>' +
+            '<button type="button" class="laBtn laQrBtn" data-la="qr" title="Show the QR code that opens this app on a phone" aria-pressed="true" hidden>📲 QR</button>' +
             '<button type="button" class="laIconBtn" data-la="close" title="Close (Esc)" aria-label="Close">✕</button>' +
           '</div>' +
         '</div>' +
@@ -836,6 +856,12 @@
           '<div class="laFrameHost"></div>' +
           '<div class="laSpell" aria-hidden="true"></div>' +
           '<div class="laHint" role="status" aria-live="polite"></div>' +
+          '<div class="laQr" data-la="qrcard" hidden>' +
+            '<div class="laQrHead"><span>📲 Scan to open this app</span>' +
+              '<button type="button" class="laQrHide" data-la="qrhide" title="Hide the QR code" aria-label="Hide the QR code">✕</button></div>' +
+            '<button type="button" class="laQrCode" data-la="qrcode" title="Make the QR code bigger"></button>' +
+            '<div class="laQrNote"></div>' +
+          '</div>' +
         '</div>';
       card.querySelector('.laStageHead h2').textContent = app.title || 'Living app';
       back.appendChild(card);
@@ -858,6 +884,15 @@
       card.querySelector('[data-la="close"]').addEventListener('click', closeStage);
       card.querySelector('[data-la="cast"]').addEventListener('click', function () { cast(s); });
       card.querySelector('[data-la="restart"]').addEventListener('click', function () { restart(s, false); });
+      card.querySelector('[data-la="qr"]').addEventListener('click', function () { qrShow(s, !s.qrShown); });
+      card.querySelector('[data-la="qrhide"]').addEventListener('click', function () { qrShow(s, false); });
+      card.querySelector('[data-la="qrcode"]').addEventListener('click', function () {
+        var box = s.card.querySelector('[data-la="qrcard"]');
+        var big = !box.classList.contains('laQrBig');
+        box.classList.toggle('laQrBig', big);
+        this.title = big ? 'Make the QR code smaller' : 'Make the QR code bigger';
+      });
+      qrLoad(s);
       card.addEventListener('keydown', function (e) {
         if ((e.key === 'w' || e.key === 'W') && !e.metaKey && !e.ctrlKey && !e.altKey &&
             !(e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) {
@@ -868,6 +903,48 @@
       restart(s, opts.cast !== false);
       setTimeout(function () { focusIn(card.querySelector('[data-la="cast"]')); }, 40);
       return true;
+    }
+    /* 📲 The QR code on the stage opens THIS app alone (living.html), never
+       Ans Key. The link comes from the glue (env.qrLink, which hosts the app
+       the first time the teacher needs it); a person with no hosted copy to
+       offer simply gets no code. A late answer for a stage that has closed or
+       moved on to another app is dropped. */
+    function qrLoad(s) {
+      if (typeof env.qrLink !== 'function' || typeof env.qrMatrix !== 'function') return;
+      var box = s.card.querySelector('[data-la="qrcard"]');
+      var note = box.querySelector('.laQrNote');
+      var code = box.querySelector('[data-la="qrcode"]');
+      code.innerHTML = '<span class="laQrWait" aria-hidden="true">✨</span>';
+      note.textContent = 'Putting the app online…';
+      s.qrShown = true;
+      box.hidden = false;
+      var p;
+      try { p = Promise.resolve(env.qrLink(s.id)); } catch (e) { p = Promise.reject(e); }
+      p.then(function (url) {
+        if (stage !== s) return;
+        var svg = url ? qrSvg(env.qrMatrix(url)) : '';
+        if (!svg) { box.hidden = true; s.qrShown = false; return; }
+        s.qrUrl = url;
+        code.innerHTML = svg;
+        code.setAttribute('aria-label', 'QR code for ' + (s.app.title || 'this living app') + ' — tap to make it bigger');
+        note.textContent = 'Opens only this app, on any phone.';
+        var btn = s.card.querySelector('[data-la="qr"]');
+        btn.hidden = false;
+        qrShow(s, s.qrShown);
+      }, function () {
+        if (stage !== s) return;
+        box.hidden = true;
+        s.qrShown = false;
+        hint(s, 'The QR code could not be made — check the connection and open the app again.');
+      });
+    }
+    function qrShow(s, on) {
+      if (stage !== s || !s.qrUrl) return;
+      s.qrShown = !!on;
+      var box = s.card.querySelector('[data-la="qrcard"]');
+      box.hidden = !on;
+      if (!on) box.classList.remove('laQrBig');
+      s.card.querySelector('[data-la="qr"]').setAttribute('aria-pressed', on ? 'true' : 'false');
     }
     function later(s, fn, ms) {
       var t = setTimeout(function () {

@@ -363,6 +363,72 @@ if (!pdfOk) {
   ok('…and draws the QR code on it', pdf.bigger > 1500, 'extra bytes ' + pdf.bigger);
 }
 
+console.log('\n📲 The living app window’s own QR code');
+const stageQr = await page.evaluate(async (link) => {
+  const a = annotations.find(annLivingApp);
+  lappOpen(a.id);
+  const card = () => document.querySelector('.laStage [data-la="qrcard"]');
+  for (let i = 0; i < 60 && !(card() && card().querySelector('svg')); i++) await new Promise(r => setTimeout(r, 50));
+  const box = card();
+  const dOf = (markup) => { const t = document.createElement('div'); t.innerHTML = markup; const q = t.querySelector('path'); return q ? q.getAttribute('d') : ''; };
+  const svg = box && box.querySelector('svg path') ? box.querySelector('svg path').getAttribute('d') : '';
+  // The code drawn is exactly the code for living.html's link to THIS app.
+  const want = dOf(window.LivingApps.pure.qrSvg(window.QuestionBank.pure.qrMatrix(link)));
+  const anskey = dOf(window.LivingApps.pure.qrSvg(window.QuestionBank.pure.qrMatrix(location.href)));
+  const r = box ? box.getBoundingClientRect() : null;
+  const stage = document.querySelector('.laStageBody').getBoundingClientRect();
+  const btn = document.querySelector('.laStage [data-la="qr"]');
+  box.querySelector('[data-la="qrcode"]').click();
+  await new Promise(r => setTimeout(r, 350));
+  const bigW = box.getBoundingClientRect().width;
+  document.querySelector('.laStage [data-la="qrhide"]').click();
+  const hidden = box.hidden;
+  btn.click();
+  const back = !box.hidden;
+  return {
+    same: !!svg && svg === want, notAnskey: svg !== anskey, visible: !!r && r.width > 100,
+    inside: !!r && r.right <= stage.right + 0.5 && r.bottom <= stage.bottom + 0.5 && r.left >= stage.left,
+    grew: bigW > r.width + 40, hidden, back, btnShown: !btn.hidden,
+    note: box.querySelector('.laQrNote').textContent
+  };
+}, hosted.link);
+await shot('stage-qr');
+ok('the living app window shows a QR code for that app alone (living.html), not Ans Key', stageQr.same && stageQr.notAnskey, JSON.stringify(stageQr));
+ok('…in the stage’s corner, outside the app, and a tap makes it bigger', stageQr.visible && stageQr.inside && stageQr.grew);
+ok('…it can be hidden and brought back with 📲 QR', stageQr.hidden && stageQr.back && stageQr.btnShown);
+
+const freshQr = await page.evaluate(async () => {
+  // A new app the teacher has never exported: opening it puts it online.
+  const a = annotations.find(annLivingApp);
+  lapp.close();
+  const before = Object.keys(window.__laObjects).length;
+  const html0 = a.lapp.html, hash0 = a.lapp.hash, pub0 = a.lapp.pub;
+  a.lapp.html = html0 + '<p>fresh</p>'; a.lapp.hash = window.LivingApps.pure.contentHash(a.lapp.html); delete a.lapp.pub;
+  lappOpen(a.id);
+  const card = () => document.querySelector('.laStage [data-la="qrcard"]');
+  for (let i = 0; i < 60 && !(card() && card().querySelector('svg')); i++) await new Promise(r => setTimeout(r, 50));
+  const teacherSvg = !!(card() && card().querySelector('svg'));
+  const uploaded = Object.keys(window.__laObjects).length - before;
+  const kept = !!(a.lapp.pub && a.lapp.pub.hash === a.lapp.hash);
+  lapp.close();
+  // A student opening an app that was never put online gets no code, and uploads nothing.
+  delete a.lapp.pub;
+  currentUser = { uid: 'kid-1', email: 'kid@example.com', displayName: 'Kid' };
+  applyRoleUI();
+  lappOpen(a.id);
+  await new Promise(r => setTimeout(r, 300));
+  const kidCard = card();
+  const kid = { shown: !!(kidCard && !kidCard.hidden), btn: !document.querySelector('.laStage [data-la="qr"]').hidden,
+    uploads: Object.keys(window.__laObjects).length - before - uploaded };
+  lapp.close();
+  currentUser = { uid: 'teacher-1', email: ADMIN_EMAIL, displayName: 'Teacher' };
+  applyRoleUI();
+  a.lapp.html = html0; a.lapp.hash = hash0; a.lapp.pub = pub0;
+  return { teacherSvg, uploaded, kept, kid };
+});
+ok('the teacher’s first open of a new app puts it online for its code, once', freshQr.teacherSvg && freshQr.uploaded === 1 && freshQr.kept, JSON.stringify(freshQr));
+ok('…a student with no hosted copy sees no code and uploads nothing', !freshQr.kid.shown && !freshQr.kid.btn && freshQr.kid.uploads === 0);
+
 console.log('\n📱 The page the code opens');
 const objects = await page.evaluate(() => window.__laObjects);
 const objPath = Object.keys(objects)[0];
