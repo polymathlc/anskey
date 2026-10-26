@@ -35,6 +35,12 @@ Guidance for Claude when working in this repo.
 - **`living.html`** is the code's target: `?a=<hash>&t=<token>` (`viewerUrl` / `parseViewerQuery`). It fetches `mediaUrl` (rebuilt from `BUCKET` + hash, never a URL from the query), checks `readPublished` (hash must match), then `LivingApps.create({role:'student'})` and `open('hosted',{cast:true})`: the same sandbox, CSP and wand. No Firebase SDK, no sign-in, no writes. It relies on the bucket's CORS (`cors.json`, origin *).
 - Run `node --test tools/living-apps-tests.mjs` and `node tools/living-apps-check.mjs` (fake Storage, the exported PDF's link, the viewer on a phone, bad tokens; `PDF_LIB=` offline).
 
+## 📲 The living app window's own QR code (v1.164.0)
+
+- The stage draws `.laQr` (bottom-right of `.laStageBody`, outside the frame) from `env.qrLink(id)` → URL and `env.qrMatrix(url)`, rendered by the pure `qrSvg` (one path, 4-module quiet zone). `📲 QR` (`data-la="qr"`) toggles it; a tap on the code toggles `.laQrBig`. A late link for a closed or replaced stage is dropped (`stage !== s`).
+- The glue's `lappQrLink(id)` is `lappPublish` + `lappRememberPub` + `viewerUrl`: it opens THIS app alone (living.html), never `shareUrl`/`printQrUrl`. Teacher's open hosts it; anyone else gets a code only from an existing `pub`, else no card. living.html passes no `qrLink`, so the hosted page shows no code.
+- Run `node --test tools/living-apps-tests.mjs` and `node tools/living-apps-check.mjs` (the code drawn must equal the code for the viewer link).
+
 ## 🎁 Item ledger, gifts and restores (v1.158.0)
 
 - Server: `type:'items'` (teacher only, in `hero-service.js` TYPES) → `itemsAction` in `functions/hero-repository.js`: `history` (`studentId` or `guests:true`), `gift` (`rarity` key | `'random'`, `itemType`, optional `itemId`, `quantity` 1–20, receipt `id`), `restore` (`dropId` = `ledgerDocId:index`, `again` to restore twice). **Use `itemType`, never `type`** — `type` is the request's own type.

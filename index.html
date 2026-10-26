@@ -5831,7 +5831,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.163.0';
+var APP_VERSION = 'v1.164.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32291,7 +32291,9 @@ function lappInit() {
     },
     addToPage: lappAddToPage,
     updateOnPage: lappUpdateOnPage,
-    findAnnotation: lappFind
+    findAnnotation: lappFind,
+    qrLink: lappQrLink,
+    qrMatrix: function (url) { return window.QuestionBank ? window.QuestionBank.pure.qrMatrix(url) : null; }
   });
   var btn = $('livingAppBtn');
   if (btn) btn.addEventListener('click', function () {
@@ -32366,6 +32368,30 @@ async function lappPublish(a) {
   return { hash: hash, token: token };
 }
 
+/* Keeps the hosted copy's token on the annotation (and on the real one when
+   `a` is a practice copy). True when something new was written. */
+function lappRememberPub(a, pub) {
+  var P = window.LivingApps.pure;
+  if (!a || !a.lapp || !pub || P.publishedFor(a.lapp)) return false;
+  a.lapp.pub = { hash: pub.hash, token: pub.token };
+  var real = lappFind(a.id);
+  if (real && real !== a && annLivingApp(real) && real.lapp.hash === a.lapp.hash) real.lapp.pub = a.lapp.pub;
+  return true;
+}
+
+/* 📲 The living app window's own QR code (v1.164.0): the link that opens
+   THIS app alone (living.html), never Ans Key. The teacher's first open
+   hosts it, exactly as an export would; anyone else gets the code only when
+   the app already has a hosted copy, and otherwise no code. */
+async function lappQrLink(id) {
+  var a = lappFind(id);
+  if (!annLivingApp(a) || !window.LivingApps) return null;
+  var pub = await lappPublish(a);
+  if (!pub) return null;
+  if (lappRememberPub(a, pub) && !practiceMode) setDirty(true);
+  return window.LivingApps.pure.viewerUrl(location.href, pub.hash, pub.token) || null;
+}
+
 /* { annotationId: viewer link } for every living app in `anns` that has, or
    can be given, a hosted copy. Never throws: an export must not fail
    because one app could not be hosted. */
@@ -32383,13 +32409,7 @@ async function lappQrLinks(anns) {
     var link = P.viewerUrl(location.href, pub.hash, pub.token);
     if (!link) continue;
     out[a.id] = link;
-    if (!P.publishedFor(a.lapp)) {
-      a.lapp.pub = { hash: pub.hash, token: pub.token };
-      // The real annotation as well, when `anns` holds practice copies.
-      var real = lappFind(a.id);
-      if (real && real !== a && annLivingApp(real) && real.lapp.hash === a.lapp.hash) real.lapp.pub = a.lapp.pub;
-      changed = true;
-    }
+    if (lappRememberPub(a, pub)) changed = true;
   }
   if (changed && !practiceMode) setDirty(true);
   if (failed) toast('A living app could not be put online, so it prints without its QR code. Check the connection and export again.', 5200);

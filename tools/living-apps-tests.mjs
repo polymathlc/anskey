@@ -337,3 +337,30 @@ test('the viewer runs the app in the same sandbox and stage, as a student, with 
   assert.doesNotMatch(viewer, /<script[^>]*src="[^"]*(firebase|gstatic)/i);
   assert.doesNotMatch(viewer, /innerHTML/);
 });
+
+test('📲 the stage’s own QR code is one SVG path with a quiet zone, and nothing for no matrix', () => {
+  const m = [[true, true, false], [false, true, false], [true, false, true]];
+  const svg = P.qrSvg(m);
+  assert.match(svg, /viewBox="0 0 11 11"/);              // 3 modules + 4 quiet each side
+  assert.match(svg, /<rect width="11" height="11" fill="#fff"\/>/);
+  // Runs merged: row 0 is one run of two, starting after the quiet zone.
+  assert.match(svg, /M4 4h2v1h-2z/);
+  assert.equal((svg.match(/z/g) || []).length, 4);
+  assert.doesNotMatch(svg, /<script|on\w+=/i);
+  assert.equal(P.qrSvg(null), '');
+  assert.equal(P.qrSvg([]), '');
+});
+
+test('📲 the living app window shows a code that opens that app alone, never Ans Key', () => {
+  // The stage asks the glue for the link and draws the code in its own corner.
+  assert.match(src, /data-la="qrcard"/);
+  assert.match(src, /env\.qrLink\(s\.id\)/);
+  assert.match(src, /if \(stage !== s\) return;\s*var svg = url \? qrSvg\(env\.qrMatrix\(url\)\) : ''/);
+  // The glue hands it living.html's link for THIS app — the same hosting as the export.
+  assert.match(html, /qrLink: lappQrLink,/);
+  assert.match(html, /async function lappQrLink\(id\) \{[\s\S]{0,260}await lappPublish\(a\)[\s\S]{0,200}viewerUrl\(location\.href, pub\.hash, pub\.token\)/);
+  assert.doesNotMatch(html.slice(html.indexOf('async function lappQrLink'), html.indexOf('async function lappQrLinks')), /shareUrl|printQrUrl/);
+  // The page the code opens offers no code of its own.
+  assert.doesNotMatch(viewer, /qrLink/);
+  assert.match(css, /\.laQr \{[\s\S]{0,120}position: absolute;/);
+});
