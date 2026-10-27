@@ -1,0 +1,620 @@
+/* =====================================================================
+   🏰 Lesson start — cover, stickers, the castle gate and the quest board.
+   One overlay above everything (it is shown to a class, so nothing of the
+   worksheet should peek through). Pixel-flavoured: hard colour stops,
+   stepped borders and the "Press Start 2P" face for headings only; the
+   rules themselves are in the app's own face so they read from the back of
+   the room.
+   ===================================================================== */
+
+.lsBack {
+  --ls-ink: #2B1A10;
+  --ls-wood: #7A4824;
+  --ls-wood-2: #6A3D1D;
+  --ls-wood-dark: #3E2310;
+  --ls-iron: #3B3F46;
+  --ls-iron-hi: #8A929C;
+  --ls-gold: #F2B705;
+  --ls-gold-deep: #B8791C;
+  --ls-paper: #FFF7E6;
+  --ls-paper-edge: #E8A54B;
+  --ls-night: #1C1840;
+  --ls-pixel: 'Press Start 2P', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+  overflow: hidden;
+  background: var(--ls-night);
+  color: var(--ls-ink);
+  font-family: var(--font, 'Century Gothic', 'Segoe UI', sans-serif);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+.lsBack.in { opacity: 1; }
+.lsBack.out { opacity: 0; pointer-events: none; }
+body.lsOpen { overflow: hidden; }
+
+.lsStage { position: absolute; inset: 0; }
+.lsScene { position: absolute; inset: 0; outline: none; }
+.lsScene[hidden] { display: none; }
+
+/* ---------------------------------------------------------------- cover */
+
+.lsCover {
+  cursor: pointer;
+  background:
+    linear-gradient(180deg, #1C1840 0%, #2E2466 38%, #6B3A7A 66%, #E07A4F 86%, #F8B860 100%);
+}
+.lsSky { position: absolute; inset: 0; pointer-events: none; }
+/* Stars are 3px squares drawn with box-shadows, so they stay crisp pixels. */
+.lsStars {
+  position: absolute;
+  left: 0; top: 0;
+  width: 3px; height: 3px;
+  background: transparent;
+  box-shadow:
+    6vw 6vh #fff, 14vw 18vh #ffeab0, 22vw 9vh #fff, 31vw 26vh #fff, 38vw 5vh #ffeab0,
+    47vw 15vh #fff, 55vw 8vh #fff, 63vw 22vh #ffeab0, 72vw 6vh #fff, 80vw 17vh #fff,
+    88vw 10vh #ffeab0, 94vw 28vh #fff, 9vw 34vh #fff, 27vw 40vh #ffeab0, 51vw 33vh #fff,
+    68vw 38vh #fff, 85vw 44vh #fff, 3vw 48vh #ffeab0, 42vw 46vh #fff, 97vw 3vh #fff;
+  animation: lsTwinkle 2.6s steps(2, end) infinite;
+}
+.lsStars2 {
+  box-shadow:
+    10vw 12vh #fff, 18vw 4vh #fff, 26vw 21vh #ffeab0, 35vw 13vh #fff, 44vw 27vh #fff,
+    58vw 19vh #ffeab0, 66vw 11vh #fff, 76vw 29vh #fff, 83vw 4vh #ffeab0, 91vw 21vh #fff,
+    5vw 25vh #fff, 33vw 36vh #fff, 60vw 42vh #ffeab0, 78vw 36vh #fff, 98vw 38vh #fff;
+  animation-delay: -1.3s;
+}
+@keyframes lsTwinkle { 50% { opacity: 0.35; } }
+.lsMoon {
+  position: absolute;
+  right: 9vw; top: 9vh;
+  width: clamp(44px, 7vw, 92px);
+  aspect-ratio: 1;
+  background: #FFF1C1;
+  border-radius: 50%;
+  box-shadow: 0 0 0 6px rgba(255, 241, 193, 0.18), 0 0 0 14px rgba(255, 241, 193, 0.08), inset -12px -6px 0 #F3D98E;
+}
+
+/* A castle in blocks along the bottom: two towers, a keep and its open
+   gate, all in hard edges so it reads as pixel art. */
+.lsCastle {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 30vh;
+  pointer-events: none;
+}
+.lsHill {
+  position: absolute;
+  left: -5%; right: -5%; bottom: 0;
+  height: 42%;
+  background: #2A1E3F;
+  clip-path: polygon(0 40%, 8% 30%, 18% 34%, 30% 18%, 42% 22%, 50% 12%, 58% 22%, 70% 16%, 82% 32%, 92% 26%, 100% 36%, 100% 100%, 0 100%);
+}
+.lsKeep, .lsTowerL, .lsTowerR {
+  position: absolute;
+  bottom: 30%;
+  background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0 3px, transparent 3px 22px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.12) 0 3px, transparent 3px 34px),
+    #3A2D55;
+}
+.lsKeep {
+  left: 50%;
+  width: min(44vw, 520px);
+  height: 62%;
+  transform: translateX(-50%);
+  clip-path: polygon(0 12%, 6% 12%, 6% 0, 14% 0, 14% 12%, 22% 12%, 22% 0, 30% 0, 30% 12%, 38% 12%, 38% 0, 46% 0, 46% 12%, 54% 12%, 54% 0, 62% 0, 62% 12%, 70% 12%, 70% 0, 78% 0, 78% 12%, 86% 12%, 86% 0, 94% 0, 94% 12%, 100% 12%, 100% 100%, 0 100%);
+}
+.lsTowerL, .lsTowerR {
+  width: min(11vw, 130px);
+  height: 92%;
+  clip-path: polygon(0 10%, 20% 10%, 20% 0, 40% 0, 40% 10%, 60% 10%, 60% 0, 80% 0, 80% 10%, 100% 10%, 100% 100%, 0 100%);
+}
+.lsTowerL { left: calc(50% - min(22vw, 260px) - min(9vw, 105px)); }
+.lsTowerR { left: calc(50% + min(22vw, 260px) - min(2vw, 25px)); }
+.lsPortal {
+  position: absolute;
+  left: 50%;
+  bottom: 30%;
+  width: min(9vw, 110px);
+  height: 40%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #FFCF6B, #E8913A);
+  border-radius: 999px 999px 0 0;
+  box-shadow: 0 0 0 6px #241A36, 0 0 40px 8px rgba(255, 190, 90, 0.55);
+  animation: lsGlow 2.2s ease-in-out infinite;
+}
+@keyframes lsGlow { 50% { box-shadow: 0 0 0 6px #241A36, 0 0 64px 16px rgba(255, 190, 90, 0.75); } }
+
+.lsCoverTitle {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: min(880px, calc(100vw - 32px));
+  padding: clamp(18px, 3vw, 36px) clamp(18px, 3vw, 40px);
+  text-align: center;
+  color: #FFF3D6;
+  pointer-events: none;
+}
+.lsKicker {
+  font-family: var(--ls-pixel);
+  font-size: clamp(10px, 1.25vw, 15px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #FFD27A;
+  margin-bottom: clamp(14px, 2.4vh, 24px);
+}
+.lsCoverHead {
+  font-family: var(--ls-pixel);
+  font-weight: 400;
+  font-size: clamp(30px, 6.6vw, 88px);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: #FFE9A8;
+  /* A stepped 3-D edge, one pixel at a time, then a soft drop. */
+  text-shadow:
+    3px 3px 0 #C2581E, 6px 6px 0 #8A3414, 9px 9px 0 #4A1C0E,
+    0 0 28px rgba(255, 196, 90, 0.35);
+  word-break: break-word;
+}
+.lsDate {
+  margin-top: clamp(16px, 2.8vh, 28px);
+  font-size: clamp(16px, 2vw, 26px);
+  color: #FFE7C2;
+  letter-spacing: 0.02em;
+}
+.lsPrompt {
+  margin-top: clamp(22px, 4vh, 40px);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 22px;
+  font-family: var(--ls-pixel);
+  font-size: clamp(11px, 1.3vw, 16px);
+  color: var(--ls-ink);
+  background: #FFE0B2;
+  box-shadow: 0 0 0 4px #2B1A10, 6px 6px 0 4px rgba(0, 0, 0, 0.35);
+  animation: lsBlink 1.1s steps(2, end) infinite;
+}
+.lsPromptKey { font-size: 0.9em; }
+@keyframes lsBlink { 50% { opacity: 0.55; } }
+
+/* ------------------------------------------------------------- stickers */
+
+.lsStickers { position: absolute; inset: 0; pointer-events: none; }
+.lsSticker {
+  position: absolute;
+  transform: rotate(var(--rot, 0deg));
+  pointer-events: auto;
+  transition: transform 0.18s ease;
+  /* The sticker: a die-cut white outline that follows the sprite's own
+     shape, then the shadow of it lifting off the page. drop-shadow reads
+     the picture's alpha, so the outline hugs the hero, not its square. */
+  filter:
+    drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff)
+    drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff)
+    drop-shadow(2px 5px 3px rgba(20, 10, 40, 0.38));
+}
+.lsSticker:hover { transform: rotate(calc(var(--rot, 0deg) * -0.4)) scale(1.12); z-index: 2; }
+.lsArt {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+}
+.lsPop { animation: lsSlap 0.42s cubic-bezier(.2, 1.6, .4, 1) both; animation-delay: var(--delay, 0ms); }
+@keyframes lsSlap {
+  0% { opacity: 0; transform: rotate(calc(var(--rot, 0deg) - 18deg)) scale(1.7); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: rotate(var(--rot, 0deg)) scale(1); }
+}
+
+/* ---------------------------------------------------------------- board */
+
+.lsBoardScene { overflow: hidden; }
+.lsDay {
+  position: absolute;
+  inset: 0;
+  background:
+    /* a faint pixel checker over warm daylight */
+    repeating-conic-gradient(rgba(255, 255, 255, 0.10) 0 25%, transparent 0 50%) 0 0 / 48px 48px,
+    radial-gradient(120% 90% at 50% 10%, #FFF2D9 0%, #FFE0B2 48%, #F6C27A 100%);
+}
+.lsBoardWrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(60px, 8.4vh, 96px) 16px clamp(22px, 4.4vh, 56px);
+  pointer-events: none;
+}
+.lsBoard {
+  pointer-events: auto;
+  width: min(840px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: clamp(18px, min(3.4vw, 4.4vh), 44px) clamp(20px, 3.6vw, 52px) clamp(20px, min(3.6vw, 4.4vh), 48px);
+  background:
+    repeating-linear-gradient(0deg, rgba(184, 121, 28, 0.06) 0 2px, transparent 2px 34px),
+    var(--ls-paper);
+  color: var(--ls-ink);
+  /* A stepped, pixel-style double frame. */
+  box-shadow:
+    0 0 0 4px #3B2414,
+    0 0 0 10px var(--ls-paper-edge),
+    0 0 0 14px #3B2414,
+    14px 18px 0 14px rgba(59, 36, 20, 0.28),
+    0 28px 60px rgba(40, 20, 0, 0.35);
+  -webkit-user-select: text;
+  user-select: text;
+}
+.lsBoardHead {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 1.6vw, 20px);
+  padding-bottom: clamp(10px, 2.2vh, 24px);
+  margin-bottom: clamp(12px, 2.4vh, 28px);
+  border-bottom: 4px dashed rgba(59, 36, 20, 0.28);
+}
+.lsBoardBadge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: clamp(44px, 5vw, 64px);
+  height: clamp(44px, 5vw, 64px);
+  font-size: clamp(22px, 2.6vw, 34px);
+  color: #FFF3D6;
+  background: #C2581E;
+  box-shadow: 0 0 0 4px #3B2414, 4px 4px 0 4px rgba(59, 36, 20, 0.3);
+}
+.lsBoardTitle {
+  font-family: var(--ls-pixel);
+  font-weight: 400;
+  font-size: clamp(18px, 2.7vw, 36px);
+  line-height: 1.3;
+  color: #8A3414;
+  text-shadow: 2px 2px 0 rgba(232, 165, 75, 0.55);
+}
+.lsRules { list-style: none; display: flex; flex-direction: column; gap: clamp(10px, 1.9vh, 22px); }
+/* Four or more lines still fit one screen: everything steps down a size. */
+.lsRules.lsMany .lsWhat { font-size: clamp(15px, min(2vw, 2.7vh), 26px); }
+.lsRules.lsMany .lsRule { padding-top: clamp(8px, 1.2vh, 14px); padding-bottom: clamp(8px, 1.2vh, 14px); }
+.lsRules.lsMany .lsIcon { width: clamp(40px, min(4.6vw, 6.4vh), 60px); height: clamp(40px, min(4.6vw, 6.4vh), 60px); font-size: clamp(22px, min(2.6vw, 3.6vh), 34px); }
+.lsRule {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 26px);
+  padding: clamp(10px, min(2vw, 2.2vh), 22px) clamp(16px, 2vw, 24px);
+  background: #FFFDF6;
+  box-shadow: 0 0 0 3px rgba(59, 36, 20, 0.85), 5px 5px 0 3px rgba(59, 36, 20, 0.18);
+}
+.lsBoard.lsFresh .lsRule { animation: lsRuleIn 0.5s cubic-bezier(.2, .9, .3, 1.2) both; animation-delay: calc(var(--i, 0) * 120ms + 420ms); }
+@keyframes lsRuleIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.lsIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: clamp(46px, min(6vw, 8.6vh), 78px);
+  height: clamp(46px, min(6vw, 8.6vh), 78px);
+  font-size: clamp(26px, min(3.4vw, 4.8vh), 44px);
+  background: #FFE0B2;
+  box-shadow: 0 0 0 3px #3B2414, inset -4px -4px 0 rgba(232, 165, 75, 0.6);
+}
+.lsRuleText { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.lsWho {
+  font-size: clamp(14px, 1.5vw, 19px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #C2581E;
+}
+.lsWhat { font-size: clamp(17px, min(2.5vw, 3.6vh), 32px); line-height: 1.35; overflow-wrap: anywhere; }
+.lsReward {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 10px 10px;
+  font-family: var(--ls-pixel);
+  font-size: clamp(11px, 1.15vw, 15px);
+  line-height: 1.3;
+  color: #3B2414;
+  background: #FFE38A;
+  box-shadow: 0 0 0 3px #3B2414, 4px 4px 0 3px rgba(59, 36, 20, 0.2);
+  white-space: nowrap;
+}
+.lsCoin {
+  flex: none;
+  width: 22px; height: 22px;
+  background: radial-gradient(circle at 35% 35%, #FFF3B0 0 18%, #F2B705 20% 62%, #B8791C 64% 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #3B2414;
+  animation: lsCoinSpin 1.8s steps(6, end) infinite;
+}
+@keyframes lsCoinSpin { 50% { transform: scaleX(0.25); } }
+
+/* ---------------------------------------------------------------- tools */
+
+.lsTools {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100vw - 28px);
+}
+.lsTool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  color: #FFF3D6;
+  background: rgba(20, 14, 40, 0.42);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.lsTool:hover, .lsTool:focus-visible { opacity: 1; background: rgba(20, 14, 40, 0.68); }
+.lsTool[hidden] { display: none; }
+.lsBack.lsOnBoard .lsTool { color: #3B2414; background: rgba(255, 255, 255, 0.6); }
+.lsBack.lsOnBoard .lsTool:hover { background: rgba(255, 255, 255, 0.92); }
+.lsClose { padding: 9px 13px; font-size: 15px; }
+
+/* ----------------------------------------------------------------- gate */
+
+.lsGate { position: absolute; inset: 0; z-index: 4; pointer-events: auto; }
+.lsGate[hidden] { display: none; }
+.lsDoor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50.4%;
+  background:
+    /* wood grain */
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 11px),
+    /* planks, with a dark seam between each */
+    repeating-linear-gradient(90deg, var(--ls-wood-dark) 0 5px, var(--ls-wood) 5px 34px, var(--ls-wood-2) 34px 62px, var(--ls-wood-dark) 62px 68px);
+  box-shadow: inset 0 0 0 10px var(--ls-wood-dark), inset 0 0 60px rgba(0, 0, 0, 0.45);
+  transition: transform 0.82s cubic-bezier(.6, 0, .92, .42);
+  will-change: transform;
+}
+.lsDoorL { left: 0; transform: translateX(-102%); }
+.lsDoorR { right: 0; transform: translateX(102%); }
+.lsGate.lsShut .lsDoorL, .lsGate.lsShut .lsDoorR { transform: translateX(0); }
+.lsGate.lsOpening .lsDoor { transition: transform 0.98s cubic-bezier(.2, .75, .25, 1); }
+.lsDoorL { box-shadow: inset 0 0 0 10px var(--ls-wood-dark), inset -14px 0 0 var(--ls-wood-dark), inset 0 0 60px rgba(0, 0, 0, 0.45); }
+.lsDoorR { box-shadow: inset 0 0 0 10px var(--ls-wood-dark), inset 14px 0 0 var(--ls-wood-dark), inset 0 0 60px rgba(0, 0, 0, 0.45); }
+
+/* Iron straps with rivets. */
+.lsBand {
+  position: absolute;
+  left: 0; right: 0;
+  height: clamp(26px, 4.4vh, 44px);
+  background:
+    radial-gradient(circle, var(--ls-iron-hi) 0 4px, #1E2126 5px 6px, transparent 7px) 0 50% / 64px 100% repeat-x,
+    linear-gradient(180deg, #4A4F57, var(--ls-iron) 50%, #23262B);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 -2px 0 rgba(255, 255, 255, 0.08);
+}
+.lsBandT { top: 16%; }
+.lsBandB { bottom: 16%; }
+.lsRing {
+  position: absolute;
+  top: 50%;
+  width: clamp(40px, 6vh, 64px);
+  height: clamp(40px, 6vh, 64px);
+  margin-top: calc(clamp(40px, 6vh, 64px) / -2);
+  border-radius: 50%;
+  border: clamp(6px, 0.9vh, 9px) solid #C9A24B;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45), inset 0 2px 0 rgba(255, 255, 255, 0.25);
+}
+.lsDoorL .lsRing { right: clamp(30px, 5vw, 70px); }
+.lsDoorR .lsRing { left: clamp(30px, 5vw, 70px); }
+
+/* The stone arch along the top, which arrives with the doors. */
+.lsArch {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: clamp(30px, 6vh, 56px);
+  z-index: 2;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.35) 0 3px, transparent 3px 58px),
+    linear-gradient(180deg, #8C8A93, #5E5C66);
+  box-shadow: 0 4px 0 #2E2C35, 0 8px 18px rgba(0, 0, 0, 0.4);
+  transform: translateY(-110%);
+  transition: transform 0.32s ease;
+}
+.lsGate.lsShut .lsArch, .lsGate.lsOpening .lsArch { transform: none; }
+.lsGate.lsOpening .lsArch { transition-delay: 0.6s; transform: translateY(-110%); }
+
+/* The bar that drops across both doors once they meet. */
+.lsBar {
+  position: absolute;
+  left: 8%; right: 8%;
+  top: 50%;
+  height: clamp(30px, 5vh, 50px);
+  margin-top: calc(clamp(30px, 5vh, 50px) / -2);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.08) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, #8B5A2B, #5B3415);
+  box-shadow: 0 0 0 4px var(--ls-wood-dark), 0 10px 0 rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: translateY(-46vh);
+  transition: transform 0.26s cubic-bezier(.5, 0, .9, .6), opacity 0.1s ease;
+}
+.lsGate.lsBarred .lsBar { opacity: 1; transform: none; }
+.lsBarCap {
+  position: absolute;
+  top: -10px; bottom: -10px;
+  width: 26px;
+  background: linear-gradient(180deg, #5A5F67, #2A2D33);
+  box-shadow: 0 0 0 3px #1E2126;
+}
+.lsBarCapL { left: 6%; }
+.lsBarCapR { right: 6%; }
+.lsCrest {
+  display: grid;
+  place-items: center;
+  width: clamp(54px, 8vh, 80px);
+  height: clamp(54px, 8vh, 80px);
+  font-size: clamp(26px, 4vh, 40px);
+  color: #FFF3D6;
+  background: #C2581E;
+  box-shadow: 0 0 0 5px #3B2414, 0 0 0 9px var(--ls-gold);
+  transform: rotate(45deg);
+}
+.lsCrest > span { display: block; transform: rotate(-45deg); line-height: 1; }
+
+/* Dust where the doors meet the floor. */
+.lsDust { position: absolute; left: 50%; bottom: 0; width: 0; height: 0; z-index: 3; }
+.lsDust i {
+  position: absolute;
+  bottom: 6px;
+  width: 18px; height: 18px;
+  background: rgba(230, 210, 180, 0.85);
+  opacity: 0;
+}
+.lsGate.lsDusty .lsDust i { animation: lsPuff 0.7s ease-out both; }
+.lsDust i:nth-child(1) { --dx: -130px; --dy: -40px; }
+.lsDust i:nth-child(2) { --dx: -80px;  --dy: -70px; animation-delay: 0.04s; }
+.lsDust i:nth-child(3) { --dx: -30px;  --dy: -90px; animation-delay: 0.08s; }
+.lsDust i:nth-child(4) { --dx: 30px;   --dy: -90px; animation-delay: 0.08s; }
+.lsDust i:nth-child(5) { --dx: 80px;   --dy: -70px; animation-delay: 0.04s; }
+.lsDust i:nth-child(6) { --dx: 130px;  --dy: -40px; }
+@keyframes lsPuff {
+  0% { opacity: 0.9; transform: translate(-50%, 0) scale(0.6); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), var(--dy)) scale(2.4); }
+}
+
+.lsBack.lsShake .lsGate { animation: lsShake 0.38s steps(8, end); }
+@keyframes lsShake {
+  0%, 100% { transform: none; }
+  20% { transform: translate(-7px, 4px); }
+  40% { transform: translate(6px, -3px); }
+  60% { transform: translate(-4px, 2px); }
+  80% { transform: translate(3px, -1px); }
+}
+
+/* ----------------------------------------------------------------- form */
+
+.lsBoard.lsEditing { width: min(1040px, 100%); }
+.lsFormHead { margin-bottom: 18px; }
+.lsFormTop {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.lsF { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lsF > span { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8A3414; }
+.lsF input, .lsF textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ls-ink);
+  background: #fff;
+  border: 2px solid rgba(59, 36, 20, 0.35);
+  border-radius: 8px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.lsF textarea { resize: vertical; min-height: 52px; line-height: 1.4; }
+.lsF input:focus, .lsF textarea:focus { border-color: #C2581E; box-shadow: 0 0 0 3px rgba(194, 88, 30, 0.18); }
+.lsFormRows { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.lsFormRow {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) minmax(0, 2.2fr) minmax(0, 0.9fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  background: #FFFDF6;
+  box-shadow: 0 0 0 2px rgba(59, 36, 20, 0.5);
+  border-radius: 4px;
+}
+.lsFIcon input { text-align: center; font-size: 22px; padding: 6px; }
+.lsRowTools { display: flex; gap: 6px; padding-bottom: 4px; }
+.lsRowTools button {
+  width: 36px; height: 36px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  background: #FFE0B2;
+  color: #3B2414;
+  cursor: pointer;
+}
+.lsRowTools button:hover:not(:disabled) { background: #FFCC80; }
+.lsRowTools button:disabled { opacity: 0.35; cursor: default; }
+.lsFormFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 2px dashed rgba(59, 36, 20, 0.25);
+}
+.lsGrow { flex: 1 1 auto; }
+.lsFormMsg { font-size: 14px; color: #55554F; }
+.lsFormMsg.lsBad { color: #C62828; font-weight: 700; }
+.lsBtn {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: #3B2414;
+  background: #FFE0B2;
+  cursor: pointer;
+}
+.lsBtn:hover:not(:disabled) { background: #FFCC80; }
+.lsBtn:disabled { opacity: 0.5; cursor: default; }
+.lsBtnGhost { background: transparent; box-shadow: inset 0 0 0 2px rgba(59, 36, 20, 0.25); }
+.lsBtnGhost:hover:not(:disabled) { background: rgba(255, 224, 178, 0.6); }
+.lsBtnGo { color: #fff; background: #C2581E; }
+.lsBtnGo:hover:not(:disabled) { background: #A8461A; }
+
+/* --------------------------------------------------------------- narrow */
+
+@media (max-width: 760px) {
+  .lsTool span { display: none; }
+  .lsBoardWrap { padding-left: 26px; padding-right: 26px; }
+  .lsRule { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .lsReward { grid-column: 2; justify-self: start; }
+  .lsFormTop { grid-template-columns: 1fr; }
+  .lsFormRow { grid-template-columns: 64px minmax(0, 1fr); }
+  .lsFText, .lsFReward { grid-column: 1 / -1; }
+  .lsRowTools { grid-column: 1 / -1; justify-content: flex-end; }
+  .lsTowerL, .lsTowerR { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lsStars, .lsPortal, .lsPrompt, .lsCoin { animation: none; }
+  .lsPop, .lsBoard.lsFresh .lsRule { animation: none; }
+  .lsBack { transition: none; }
+}
+
+@media print { .lsBack { display: none !important; } }
