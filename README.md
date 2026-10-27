@@ -7,8 +7,9 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 - **🏰 Lesson start** (teacher toolbar, beside the Wheel) opens a full-screen
   cover, *Today's Quest*, peppered with stickers of the Wheel Quest heroes,
-  bosses and Chung, each with a die-cut white edge and a tilt, slapped on one
-  after another. They keep clear of the title and the rules.
+  bosses and Chung: small, soft pastel versions of the artwork, spread evenly
+  across the page with a die-cut white edge and a tilt, slapped on one after
+  another. They keep clear of the title and the rules.
 - **Tap the cover (or press Enter) and a castle gate swings shut across the
   screen**: the doors meet with a shake and a puff of dust, the bar drops
   across them, then lifts, and the doors open onto the quest rules.

@@ -232,9 +232,12 @@
     cells = shuffle(cells, rand);
     var spots = [];
     for (var i = 0; i < cells.length && spots.length < max; i++) {
-      var cx = (cells[i][0] + 0.5) * cw + (rand() * 2 - 1) * cw * 0.26;
-      var cy = (cells[i][1] + 0.5) * ch + (rand() * 2 - 1) * ch * 0.26;
-      var s = size * (0.78 + rand() * 0.44);
+      // Odd rows sit half a cell over (a brick pattern), and the jitter is
+      // small, so the stickers are spread EVENLY rather than in lines.
+      var shift = cells[i][1] % 2 ? 0.5 : 0;
+      var cx = (cells[i][0] + 0.5 + shift) * cw + (rand() * 2 - 1) * cw * 0.14;
+      var cy = (cells[i][1] + 0.5) * ch + (rand() * 2 - 1) * ch * 0.14;
+      var s = size * (0.88 + rand() * 0.24);
       var half = s / 2;
       var box = { x: cx - half, y: cy - half, w: s, h: s };
       if (box.x < edge || box.y < edge || box.x + box.w > w - edge || box.y + box.h > h - edge) continue;
@@ -276,11 +279,11 @@
      handful on a phone. */
   function stickerBudget(w, h) {
     var area = Math.max(0, w) * Math.max(0, h);
-    return Math.max(6, Math.min(30, Math.round(area / 52000)));
+    return Math.max(8, Math.min(64, Math.round(area / 22000)));
   }
   function stickerSize(w, h) {
     var short = Math.min(Math.max(0, w), Math.max(0, h));
-    return Math.max(52, Math.min(104, Math.round(short / 8.5)));
+    return Math.max(34, Math.min(64, Math.round(short / 13)));
   }
 
   /* The date line on the cover, in the teacher's own words for a day. */
@@ -548,7 +551,7 @@
       var spots = stickerSpots({
         w: w, h: h, size: size, max: stickerBudget(w, h), avoid: avoid,
         pad: Math.round(size * (scene === 'cover' ? 0.12 : 0.04)),
-        spread: scene === 'cover' ? 1.32 : 1.08, seed: seed
+        spread: scene === 'cover' ? 1.9 : 1.6, seed: seed
       });
       var picks = stickerPicks(seed ^ 0xA5A5, spots.length);
       var calm = reduced();

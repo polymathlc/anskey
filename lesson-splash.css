@@ -137,7 +137,10 @@ body.lsOpen { overflow: hidden; }
   left: 50%;
   top: 42%;
   transform: translate(-50%, -50%);
-  width: min(880px, calc(100vw - 32px));
+  /* As wide as its words and no wider, so the stickers can come right up
+     to the title on both sides rather than leaving an empty band. */
+  width: max-content;
+  max-width: min(880px, calc(100vw - 32px));
   padding: clamp(18px, 3vw, 36px) clamp(18px, 3vw, 40px);
   text-align: center;
   color: #FFF3D6;
@@ -198,15 +201,17 @@ body.lsOpen { overflow: hidden; }
      shape, then the shadow of it lifting off the page. drop-shadow reads
      the picture's alpha, so the outline hugs the hero, not its square. */
   filter:
-    drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff)
-    drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff)
-    drop-shadow(2px 5px 3px rgba(20, 10, 40, 0.38));
+    drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff)
+    drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff)
+    drop-shadow(1px 3px 2px rgba(20, 10, 40, 0.22));
 }
 .lsSticker:hover { transform: rotate(calc(var(--rot, 0deg) * -0.4)) scale(1.12); z-index: 2; }
 .lsArt {
   position: absolute;
   inset: 0;
   background-repeat: no-repeat;
+  /* Pastel: the artwork's own colours, softened and lifted towards white. */
+  filter: saturate(0.6) contrast(0.62) brightness(1.38);
 }
 .lsPop { animation: lsSlap 0.42s cubic-bezier(.2, 1.6, .4, 1) both; animation-delay: var(--delay, 0ms); }
 @keyframes lsSlap {

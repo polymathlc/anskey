@@ -117,6 +117,18 @@ test('stickers are peppered, not clumped: every quarter of a clear page gets som
   assert.ok(quads.every(n => n >= 3), quads.join(','));
 });
 
+test('stickers are small and spread evenly: no crowding, no big holes', () => {
+  assert.ok(P.stickerSize(1280, 800) <= 64 && P.stickerSize(390, 760) >= 34, 'small, with a floor');
+  for (let seed = 1; seed < 30; seed++) {
+    const spots = P.stickerSpots({ w: 1280, h: 800, size: P.stickerSize(1280, 800), max: P.stickerBudget(1280, 800), seed, spread: 1.9 });
+    const near = spots.map((p, i) => Math.min(...spots.filter((_, j) => j !== i).map(q => Math.hypot(p.x - q.x, p.y - q.y))));
+    const mean = near.reduce((a, b) => a + b, 0) / near.length;
+    const sd = Math.sqrt(near.reduce((a, b) => a + (b - mean) ** 2, 0) / near.length);
+    assert.ok(sd / mean < 0.25, 'seed ' + seed + ': nearest-neighbour spread ' + (sd / mean).toFixed(2));
+    assert.ok(Math.min(...near) > P.stickerSize(1280, 800) * 0.9, 'seed ' + seed + ': two stickers crowd each other');
+  }
+});
+
 test('stickers pop in one after another', () => {
   const spots = P.stickerSpots({ w: 1200, h: 800, size: 80, max: 20, seed: 3 });
   const delays = spots.map(p => p.delay).sort((a, b) => a - b);
@@ -218,9 +230,11 @@ test('the gate closes all the way across, and the CSS timings match the script',
 
 test('the stickers look like stickers: die-cut outline, shadow, tilt', () => {
   const rule = css.match(/\.lsSticker \{[\s\S]*?\n\}/)[0];
-  assert.match(rule, /drop-shadow\(3px 0 0 #fff\)/);
-  assert.match(rule, /drop-shadow\(0 -3px 0 #fff\)/);
-  assert.match(rule, /rgba\(20, 10, 40, 0\.38\)/);
+  assert.match(rule, /drop-shadow\(2px 0 0 #fff\)/);
+  assert.match(rule, /drop-shadow\(0 -2px 0 #fff\)/);
+  assert.match(rule, /rgba\(20, 10, 40, 0\.22\)/);
+  // …and pastel: softened, lightened colours.
+  assert.match(css, /\.lsArt \{[\s\S]*?filter: saturate\(0\.6\) contrast\(0\.62\) brightness\(1\.38\);/);
   assert.match(rule, /rotate\(var\(--rot/);
 });
 
