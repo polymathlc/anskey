@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.166.0 — 🏰 Lesson start: today's quest rules, behind a castle gate
+
+- **🏰 Lesson start** (teacher toolbar, beside the Wheel) opens a full-screen
+  cover, *Today's Quest*, peppered with stickers of the Wheel Quest heroes,
+  bosses and Chung: small, soft pastel versions of the artwork, spread evenly
+  across the page with a die-cut white edge and a tilt, slapped on one after
+  another. They keep clear of the title and the rules.
+- **Tap the cover (or press Enter) and a castle gate swings shut across the
+  screen**: the doors meet with a shake and a puff of dust, the bar drops
+  across them, then lifts, and the doors open onto the quest rules.
+- The rules start as the three you asked for: online students keep their
+  camera on for the whole lesson (+2 points), physical students focus and keep
+  quiet (+2 points), and everyone notes the homework. **✎ Edit** changes any
+  line, its icon and its reward, adds lines (up to eight), reorders them or
+  puts the original three back. They are saved to your account, so every
+  device shows the same rules, and kept on the device too.
+- **↺ Cover** goes back to the cover for the next class, **⛶** goes full
+  screen for the projector, and Esc closes it.
+- Teacher only: it is hidden from students, share links and "Practise as", and
+  closes the moment the device is handed over.
+
 ## v1.165.0 — 📲 Simpler QR codes
 
 - **A living app's code is much plainer now: 33 × 33 squares instead of 41 × 41.** Its link

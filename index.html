@@ -33,6 +33,8 @@
 <link rel="stylesheet" href="model-studio.css">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+<!-- 🏰 Lesson start: the pixel face for its headings only (lesson-splash.css). -->
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #FFFFFF;
@@ -3904,6 +3906,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="live-cams.css">
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
+<link rel="stylesheet" href="lesson-splash.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="battle-adventure.css">
 <link rel="stylesheet" href="quest-panel.css">
@@ -4248,6 +4251,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><circle cx="12" cy="13" r="1.6"/><line x1="12" y1="5" x2="12" y2="11.4"/><line x1="12" y1="14.6" x2="12" y2="21"/><line x1="4" y1="13" x2="10.4" y2="13"/><line x1="13.6" y1="13" x2="20" y2="13"/><path d="M10 2.6h4L12 6z" fill="currentColor"/></svg>
       <span class="btnLabel">Wheel</span>
     </button>
+    <button class="btn" id="lessonSplashBtn" type="button" title="Lesson start — flash today's quest rules to the class: a cover, the castle gate, then the rules" style="display:none">🏰 <span class="btnLabel">Lesson start</span></button>
     <button class="btn" id="consultLogBtn" type="button" title="Every consult: calls, questions and the answers you recorded" style="display:none">🙋 <span class="btnLabel">Consults</span></button>
     <button class="btn" id="liveCamBtn" title="Live cams — see every student's camera live, so they can hold their answers up to it" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/><circle cx="9" cy="12" r="2.2"/></svg>
@@ -5831,7 +5835,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.165.0';
+var APP_VERSION = 'v1.166.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -31974,6 +31978,10 @@ function applyRewardVisibility() {
   if (battleBtn) battleBtn.style.display = show ? '' : 'none';
   var camBtn = $('liveCamBtn');
   if (camBtn) camBtn.style.display = show ? '' : 'none';
+  var splashBtn = $('lessonSplashBtn');
+  if (splashBtn) splashBtn.style.display = show ? '' : 'none';
+  // 🏰 The lesson-start board closes the moment the device is not the teacher's.
+  if (typeof lsplashRoleChanged === 'function') lsplashRoleChanged();
   // Live cams follow the role too: the teacher's window closes (switching
   // every student's camera off) the moment the device is not the teacher's,
   // and a student's own camera stops on an account change.
@@ -32417,6 +32425,101 @@ async function lappQrLinks(anns) {
   return out;
 }
 /* ================= End living apps glue ================= */
+
+/* ================= 🏰 Lesson start — glue (the feature itself is lesson-splash.js) =================
+   The quest rules the teacher flashes at the start of a lesson: a cover
+   peppered with Wheel Quest stickers, a castle gate that shuts across the
+   screen, then the rules. lesson-splash.js owns all of it; this block only
+   says who the teacher is and where the rules are kept.
+
+   WHERE THE RULES LIVE: the teacher's own settings record,
+   `adminSettings/{uid}` (the AI Engine's doc), as `lessonSplash`, merged so
+   nothing else in the record is touched — and a copy on this device
+   (LSPLASH_LOCAL + uid) so the board opens at once and still opens offline.
+   Students never read either.
+
+   THE TEACHER'S ALONE: `lsplashTeacher()` is asked by the button's handler,
+   by the module before every action, and by `lsplashRoleChanged` (from
+   applyRewardVisibility), which closes the board on a handover, a sign-out
+   or a share link. lesson-splash.js loads at the foot of the page, so
+   `lsplash` stays null until lsplashInit() runs there. */
+var lsplash = null;
+var LSPLASH_LOCAL = 'polymath.lessonSplash.v1';
+
+function lsplashTeacher() {
+  return !!(currentUser && isAdmin(currentUser) && !actingStudent && !isSharedVisitor());
+}
+
+function lsplashLocalKey() {
+  return LSPLASH_LOCAL + ':' + (currentUser && currentUser.uid ? currentUser.uid : '');
+}
+
+function lsplashReadLocal() {
+  try {
+    var raw = localStorage.getItem(lsplashLocalKey());
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function lsplashWriteLocal(data) {
+  try { localStorage.setItem(lsplashLocalKey(), JSON.stringify(data)); return true; }
+  catch (e) { return false; }
+}
+
+/* The settings record, or null when it cannot be the teacher's. */
+function lsplashCloudRef() {
+  if (!lsplashTeacher()) return null;
+  try { return aiEngineDocRef(currentUser); } catch (e) { return null; }
+}
+
+function lsplashReadCloud() {
+  var ref = lsplashCloudRef();
+  if (!ref) return Promise.resolve(null);
+  var uid = currentUser && currentUser.uid;
+  return Promise.resolve(ref.get()).then(function (snap) {
+    // A late answer for an account that has since signed out is dropped.
+    if (!currentUser || currentUser.uid !== uid) return null;
+    var d = snap && snap.exists && typeof snap.data === 'function' ? snap.data() : null;
+    var rules = d && d.lessonSplash && typeof d.lessonSplash === 'object' ? d.lessonSplash : null;
+    if (rules) lsplashWriteLocal(rules);
+    return rules;
+  }).catch(function () { return null; });
+}
+
+/* Saved on the device first (so it is never lost), then in the account.
+   Resolves { cloud: true } only when the account really took it. */
+function lsplashSave(data) {
+  if (!lsplashTeacher()) return Promise.reject(new Error('teacher only'));
+  lsplashWriteLocal(data);
+  var ref = lsplashCloudRef();
+  if (!ref) return Promise.resolve({ cloud: false });
+  return Promise.resolve(ref.set({ lessonSplash: data }, { merge: true }))
+    .then(function () { return { cloud: true }; })
+    .catch(function (e) { console.warn('Could not save the lesson-start rules to the account', e); return { cloud: false }; });
+}
+
+function lsplashInit() {
+  if (lsplash || !window.LessonSplash) return;
+  lsplash = window.LessonSplash.create({
+    teacher: lsplashTeacher,
+    readLocal: lsplashReadLocal,
+    readCloud: lsplashReadCloud,
+    save: lsplashSave,
+    toast: function (t) { if (typeof toast === 'function') toast(t); }
+  });
+  var btn = $('lessonSplashBtn');
+  if (btn) btn.addEventListener('click', lsplashOpen);
+}
+
+function lsplashOpen() {
+  if (!lsplashTeacher()) return;
+  if (lsplash) lsplash.open();
+}
+
+function lsplashRoleChanged() {
+  if (lsplash) lsplash.roleChanged();
+}
+/* ================= End lesson start glue ================= */
 
 /* ================= End live cams glue ================= */
 
@@ -39416,6 +39519,8 @@ loadAiNotePrefs();
 <script>bankQInit();</script>
 <script src="living-apps.js"></script>
 <script>lappInit();</script>
+<script src="lesson-splash.js"></script>
+<script>lsplashInit();</script>
 <!-- 📲 The Polymath install kit: registers sw.js (top window only) and drives the header's Install app button. -->
 <script defer src="pwa-install.js?v=2.0.0" data-app-name="Polymath Answer Keys" data-app-key="anskey" data-app-icon="assets/app-icons/icon-192.png" data-accent="#E65100" data-sw="sw.js" data-floating="auto"></script>
 <script type="module">

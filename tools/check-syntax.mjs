@@ -14,7 +14,7 @@ try {
     fs.writeFileSync(file, script[2]);
     execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
   }
-  for (const name of ['bar-models.js', 'model-studio.js', 'battle-bosses.js', 'battle-core.js', 'battle-adventure.js', 'battle-store.js', 'classroom-battle.js', 'battle-content.js', 'hero-api.js', 'hero-items.js', 'hero-avatar.js', 'hero-studio.js', 'hero-skill-tree.js', 'battle-animation.js', 'quick-battle.js', 'student-heroes.js', 'mission-content.js', 'mission-machine.js', 'battle-display.js', 'pixel-wheel.js', 'lesson-guests.js', 'shape-snap.js', 'consult-alert.js', 'consult-answer.js', 'live-cams.js', 'question-apps.js', 'question-bank.js', 'living-apps.js', 'vendor/qrcode-generator.js']) {
+  for (const name of ['bar-models.js', 'model-studio.js', 'battle-bosses.js', 'battle-core.js', 'battle-adventure.js', 'battle-store.js', 'classroom-battle.js', 'battle-content.js', 'hero-api.js', 'hero-items.js', 'hero-avatar.js', 'hero-studio.js', 'hero-skill-tree.js', 'battle-animation.js', 'quick-battle.js', 'student-heroes.js', 'mission-content.js', 'mission-machine.js', 'battle-display.js', 'pixel-wheel.js', 'lesson-guests.js', 'shape-snap.js', 'consult-alert.js', 'consult-answer.js', 'live-cams.js', 'question-apps.js', 'question-bank.js', 'living-apps.js', 'lesson-splash.js', 'vendor/qrcode-generator.js']) {
     execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../' + name, import.meta.url))], { stdio: 'inherit' });
   }
   execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../compact-wheel.js', import.meta.url))], { stdio: 'inherit' });
