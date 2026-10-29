@@ -258,7 +258,7 @@ test('a bank question is a pasted picture, and nothing new for the nine places t
 });
 
 test('the teacher’s controls are the teacher’s, and asked again in the handlers', () => {
-  assert.match(html, /var TEACHER_TOOLBAR_IDS = \[[^\]]*'bankQBtn', (?:'livingAppBtn', )?'printQrBtn'/);
+  assert.match(html, /var TEACHER_TOOLBAR_IDS = \[[^\]]*'bankQBtn', (?:'livingAppBtn', )?(?:'livingLibBtn', )?'printQrBtn'/);
   assert.match(html, /\$\('bankQBtn'\)\.addEventListener\('click', function \(\) \{\s*if \(!wheelTeacher\(\)\) return;/);
   assert.match(html, /\$\('printQrBtn'\)\.addEventListener\('click', function \(\) \{\s*if \(!wheelTeacher\(\)\) return;/);
   assert.match(html, /function bankQAddToPage\(pic, snap\) \{\s*if \(!wheelTeacher\(\)\)/);

@@ -3906,6 +3906,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="live-cams.css">
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
+<link rel="stylesheet" href="living-library.css">
 <link rel="stylesheet" href="lesson-splash.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="battle-adventure.css">
@@ -3970,6 +3971,10 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <button class="btn" id="livingAppBtn" title="Living app — add an interactive HTML app (a living diagram, a simulator) to this page. A tap on it, or 🪄 Bring alive, waves the magic wand and brings the question alive.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9l11 11"/><path d="M5.5 2.5l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1z"/><path d="M15 3.5v2"/><path d="M14 4.5h2"/><path d="M19 8.5v2"/><path d="M18 9.5h2"/></svg>
       <span class="btnLabel">Living app</span>
+    </button>
+    <button class="btn" id="livingLibBtn" title="Living app library — every living app's own link and QR code, remembered as you save. Tick apps and students to email them for revision.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/><path d="M17.5 2.5l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z"/></svg>
+      <span class="btnLabel">App library</span>
     </button>
     <button class="btn" id="snipBtn" data-key="Shift+A" title="Snip and pin — drag over part of the page and it stays pinned on screen while you move on, so the class can keep copying it">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M12 8.5v5"/><path d="M9.5 11.5l2.5 2.5 2.5-2.5"/><line x1="9" y1="16.5" x2="15" y2="16.5"/></svg>
@@ -5835,7 +5840,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.166.0';
+var APP_VERSION = 'v1.167.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -31065,7 +31070,7 @@ function isStudent() {
 /* Download and the two Print buttons are deliberately NOT in this list:
    students may keep — and print — a copy of any worksheet they can already
    open, so those buttons stay for everyone. */
-var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'livingAppBtn', 'printQrBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'livingAppBtn', 'livingLibBtn', 'printQrBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
@@ -32341,6 +32346,8 @@ function lappRoleChanged() {
   if (key === lappRoleKey) return;
   lappRoleKey = key;
   if (lapp) lapp.roleChanged();
+  if (llib) llib.roleChanged();
+  llibSeen = Object.create(null);
 }
 function lappWorksheetChanged() {
   if (lapp) lapp.worksheetChanged();
@@ -32397,6 +32404,7 @@ async function lappQrLink(id) {
   var pub = await lappPublish(a);
   if (!pub) return null;
   if (lappRememberPub(a, pub) && !practiceMode) setDirty(true);
+  if (typeof llibRemember === 'function') llibRemember(a.lapp, pub, llibSheet());
   return window.LivingApps.pure.viewerUrl(location.href, pub.hash, pub.token) || null;
 }
 
@@ -32418,6 +32426,7 @@ async function lappQrLinks(anns) {
     if (!link) continue;
     out[a.id] = link;
     if (lappRememberPub(a, pub)) changed = true;
+    if (typeof llibRemember === 'function') llibRemember(a.lapp, pub, llibSheet());
   }
   if (changed && !practiceMode) setDirty(true);
   if (failed) toast('A living app could not be put online, so it prints without its QR code. Check the connection and export again.', 5200);
@@ -32425,6 +32434,194 @@ async function lappQrLinks(anns) {
   return out;
 }
 /* ================= End living apps glue ================= */
+
+/* ================= 📚 Living app library — glue (the window is living-library.js) =================
+   Every living app's own code, remembered in ONE place so the teacher can
+   send any of them to students to revise:
+     users/{teacherUid}/livingApps/{contentHash}  (see living-library.js)
+   An app is remembered whenever its code is made or used by the teacher —
+   every save (manual and auto) hosts the open worksheet's living apps and
+   files them, and so do an export, a print and the stage's 📲 QR. 🔎 Find
+   on all worksheets reads the worksheets saved before this existed.
+   Teacher-only throughout (`wheelTeacher()` in every handler); a student
+   never reads or writes the library, and nothing about a student goes in. */
+var llib = null;
+var LLIB_COLL = 'livingApps';
+var llibSeen = Object.create(null);    // hash|sheet|token written this visit
+var llibSyncing = false;
+var llibSyncAgain = false;
+
+function llibRef() {
+  if (!currentUser || !wheelTeacher()) return null;
+  return db.collection('users').doc(currentUser.uid).collection(LLIB_COLL);
+}
+
+/* The open worksheet, as the library names it — only once it is saved. */
+function llibSheet() {
+  if (!currentDocId) return null;
+  return { id: currentDocId, name: docName, level: wsMeta.level, subject: wsMeta.subject };
+}
+
+/* Files one living app's code. Quiet when nothing changed this visit, and
+   never throws: the library must not get in the way of a save or a print. */
+async function llibRemember(app, pub, sheet) {
+  try {
+    if (!app || !pub || !window.LivingLibrary) return false;
+    var ref = llibRef();
+    if (!ref) return false;
+    var L = window.LivingLibrary.pure;
+    var key = pub.hash + '|' + ((sheet && sheet.id) || '') + '|' + pub.token + '|' + ((sheet && (sheet.name + sheet.level + sheet.subject)) || '') + '|' + (app.title || '');
+    if (llibSeen[key]) return false;
+    var write = L.entryWrite(app, pub, sheet);
+    if (!write) return false;
+    await ref.doc(write.hash).set(write, { merge: true });
+    llibSeen[key] = true;
+    return true;
+  } catch (e) {
+    console.warn('A living app could not be added to the library', e);
+    return false;
+  }
+}
+
+/* After a save: every living app on the open worksheet gets its code (the
+   same content-addressed file an export would make) and goes in the
+   library. The token is kept on the annotation too, so a later print has
+   it without asking Storage. One run at a time; a save during a run asks
+   for one more. Not in practice: the page then holds a child's attempt. */
+async function llibAfterSave() {
+  if (!wheelTeacher() || practiceMode || !window.LivingApps || !window.LivingLibrary) return 0;
+  if (llibSyncing) { llibSyncAgain = true; return 0; }
+  llibSyncing = true;
+  var filed = 0;
+  try {
+    do {
+      llibSyncAgain = false;
+      var sheet = llibSheet();
+      var docAtStart = currentDocId;
+      var list = annotations.filter(annLivingApp);
+      var changed = false;
+      for (var i = 0; i < list.length; i++) {
+        var a = list[i];
+        var pub = null;
+        try { pub = await lappPublish(a); } catch (e) { pub = null; console.warn('A living app could not be hosted for the library', e); }
+        if (!pub) continue;
+        // A worksheet closed mid-run: its apps are filed, but nothing is
+        // written onto whatever is open now.
+        if (currentDocId === docAtStart && lappRememberPub(a, pub)) changed = true;
+        if (await llibRemember(a.lapp, pub, sheet)) filed++;
+      }
+      if (changed && currentDocId === docAtStart && !practiceMode) setDirty(true);
+    } while (llibSyncAgain);
+  } finally {
+    llibSyncing = false;
+  }
+  return filed;
+}
+
+/* 🔎 Every saved worksheet of this teacher's, read for living apps. An
+   app with no hosted copy yet is given one (the file is the same one an
+   export would make, under its own content hash, so a later export of
+   that sheet finds it and makes no second copy). */
+async function llibScan(progress) {
+  if (!wheelTeacher()) throw new Error('Only the teacher can look through the worksheets.');
+  var L = window.LivingLibrary.pure, P = window.LivingApps.pure;
+  var snap = await db.collection(COLLECTION).limit(500).get();
+  var docs = [];
+  snap.forEach(function (d) {
+    var data = d.data() || {};
+    if (data.ownerUid && data.ownerUid !== currentUser.uid) return;
+    // Inline annotations without a living app are not worth parsing.
+    if (!data.annotationsPath && (typeof data.annotations !== 'string' || data.annotations.indexOf('"lapp"') === -1)) return;
+    docs.push({ id: d.id, data: data });
+  });
+  var out = { sheets: docs.length, apps: 0, added: 0, failed: 0 };
+  var seenApps = Object.create(null);
+  for (var i = 0; i < docs.length; i++) {
+    if (typeof progress === 'function') progress(i, docs.length);
+    if (!wheelTeacher()) throw new Error('The teacher signed out.');
+    var d = docs[i];
+    var anns;
+    try { anns = JSON.parse(await readAnnotationJson(d.data) || '[]'); } catch (e) { out.failed++; continue; }
+    var found = L.scanAnnotations(anns, P.contentHash);
+    var sheet = { id: d.id, name: d.data.name, level: d.data.level, subject: d.data.subject };
+    for (var j = 0; j < found.length; j++) {
+      var app = found[j].lapp;
+      if (!seenApps[found[j].hash]) { seenApps[found[j].hash] = true; out.apps++; }
+      var pub = null;
+      try { pub = await lappPublish({ lapp: app }); } catch (e) { pub = null; }
+      if (!pub) { out.failed++; continue; }
+      if (await llibRemember(app, pub, sheet)) out.added++;
+    }
+  }
+  if (typeof progress === 'function') progress(docs.length, docs.length);
+  return out;
+}
+
+async function llibStudents() {
+  if (!wheelTeacher()) return [];
+  var snap = await db.collection(PROFILES_COLLECTION).get();
+  var rows = [];
+  snap.forEach(function (d) { rows.push(Object.assign({ uid: d.id }, d.data() || {})); });
+  return rows;
+}
+
+async function llibRecordSent(hashes, people) {
+  var ref = llibRef();
+  if (!ref) return;
+  var FV = firebase.firestore && firebase.firestore.FieldValue;
+  var now = Date.now();
+  await Promise.all((hashes || []).map(function (h) {
+    if (!window.LivingLibrary.pure.validHash(h)) return null;
+    var upd = { lastSentAt: now, lastSentTo: Math.max(0, people | 0) };
+    if (FV && typeof FV.increment === 'function') upd.sentCount = FV.increment(1);
+    return ref.doc(h).set(upd, { merge: true }).catch(function (e) { console.warn('Could not note the send', e); });
+  }));
+}
+
+function llibInit() {
+  if (llib || !window.LivingLibrary) return llib;
+  llib = window.LivingLibrary.create({
+    teacher: function () { return wheelTeacher(); },
+    listen: function (cb, onErr) {
+      var ref = llibRef();
+      if (!ref) { cb([]); return function () {}; }
+      return ref.onSnapshot(function (snap) {
+        var rows = [];
+        snap.forEach(function (d) { rows.push({ id: d.id, data: d.data() }); });
+        cb(rows);
+      }, function (e) { if (onErr) onErr(e); });
+    },
+    students: llibStudents,
+    scan: llibScan,
+    viewerUrl: function (hash, token) { return window.LivingApps ? window.LivingApps.pure.viewerUrl(location.href, hash, token) : ''; },
+    qrSvg: function (url) {
+      if (!url || !window.QuestionBank || !window.LivingApps) return '';
+      return window.LivingApps.pure.qrSvg(window.QuestionBank.pure.qrMatrix(url));
+    },
+    forget: function (hash) {
+      var ref = llibRef();
+      if (!ref) return Promise.reject(new Error('Only the teacher can change the library.'));
+      Object.keys(llibSeen).forEach(function (k) { if (k.indexOf(hash + '|') === 0) delete llibSeen[k]; });
+      return ref.doc(hash).delete();
+    },
+    recordSent: llibRecordSent,
+    self: function () {
+      return { email: (currentUser && currentUser.email) || '', name: (currentUser && currentUser.displayName) || '' };
+    },
+    openUrl: function (url) { if (url) window.open(url, '_blank', 'noopener'); },
+    copy: async function (text) {
+      try { await navigator.clipboard.writeText(String(text || '')); return true; } catch (e) { return false; }
+    },
+    toast: toast
+  });
+  var btn = $('livingLibBtn');
+  if (btn) btn.addEventListener('click', function () {
+    if (!wheelTeacher()) return;   // hiding the button is never the lock
+    llib.open();
+  });
+  return llib;
+}
+/* ================= End living app library glue ================= */
 
 /* ================= 🏰 Lesson start — glue (the feature itself is lesson-splash.js) =================
    The quest rules the teacher flashes at the start of a lesson: a cover
@@ -34226,6 +34423,7 @@ async function performSave() {
     // Every answer typed onto this worksheet teaches the AI your style — and
     // the button says what went up with it. Auto-save runs the identical pair.
     var styleSum = styleHarvestOnSave();
+    if (typeof llibAfterSave === 'function') llibAfterSave();   // 📚 the living app library
     startLivePresence(); // now it exists, it can advertise that it is live
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
@@ -34296,6 +34494,8 @@ async function autoSave() {
        after it, so hanging the harvest off the dialog alone meant almost
        nothing was ever learned. */
     styleAnnounceSaved(styleHarvestOnSave());
+    // 📚 Every living app on the sheet gets its code and goes in the library.
+    if (typeof llibAfterSave === 'function') llibAfterSave();
   } catch (e) {
     console.error('Auto-save failed', e);
     if (isSharedVisitor() && e && e.code === 'permission-denied') {
@@ -39519,6 +39719,8 @@ loadAiNotePrefs();
 <script>bankQInit();</script>
 <script src="living-apps.js"></script>
 <script>lappInit();</script>
+<script src="living-library.js"></script>
+<script>llibInit();</script>
 <script src="lesson-splash.js"></script>
 <script>lsplashInit();</script>
 <!-- 📲 The Polymath install kit: registers sw.js (top window only) and drives the header's Install app button. -->

@@ -56,6 +56,21 @@ Guidance for Claude when working in this repo.
 - `QuestionBank.pure.qrMatrix(text, fn, level)` defaults to error correction `'L'` (was `'M'`) for every code; the worksheet's page-1 code is `QR_PT` 72.
 - Run `node --test tools/living-apps-tests.mjs` and `node tools/living-apps-check.mjs` (the old long link still opens; a wrong packed token is refused).
 
+## 📚 The living app library (v1.167.0)
+
+- `living-library.js` / `living-library.css` own the window (`window.LivingLibrary`: `create(env)`, `pure`). index.html holds only the glue between `📚 Living app library — glue` and `End living app library glue` (`llibRef`, `llibSheet`, `llibRemember`, `llibAfterSave`, `llibScan`, `llibStudents`, `llibRecordSent`, `llibInit`), `#livingLibBtn` (in `TEACHER_TOOLBAR_IDS`) and `<script>llibInit();</script>` after the module's tag.
+- **Storage:** `users/{teacherUid}/livingApps/{contentHash}`. `entryWrite` gives `{v, hash, token, title, wand, lastAt, sheets:{docId:{name, level, subject, at}}}`, merged with `{merge:true}`, so a second worksheet adds a sheet. `sentCount` / `lastSentAt` come from `llibRecordSent`. **It never holds the app's HTML** (that is the hosted file's) or anything about a student. `readEntry` is the one reader.
+- **Filled by every path that makes a code:** both saves call `llibAfterSave()` AFTER `writeAnnotations`, and `lappQrLink` / `lappQrLinks` call `llibRemember`.
+  - `llibAfterSave` hosts each living app on the open sheet through `lappPublish` and keeps `pub` on the annotation.
+  - It runs one at a time (`llibSyncing` / `llibSyncAgain`), never in practice, and never writes onto a worksheet opened mid-run (`docAtStart`).
+  - `llibSeen` skips writes already made this visit, and is cleared when the person changes.
+- **🔎 `llibScan`** reads only this teacher's `pdfAnnotator` docs (`ownerUid`), through `readAnnotationJson`, finds apps with `scanAnnotations(anns, contentHash)` and hosts any without a copy (the same content-addressed file an export makes).
+- **📨 Sending is the teacher's own Gmail**: `gmailUrl` (`authuser` = the teacher, To = the teacher, students in **Bcc**). There is no server and no mail key.
+  - `sendPlan` keeps a link under `GMAIL_URL_MAX` / `MAILTO_URL_MAX`. When it is too long, it drops the body to the clipboard; the addresses always arrive.
+  - Recipients come from `studentProfiles` with an email (`studentRecipients`; `managed` students have none). "both" counts for either subject. `mergeRecipients` dedupes and keeps the teacher out of Bcc.
+- Teacher-only: `wheelTeacher()` in every glue handler and in `open`. `lappRoleChanged` calls `llib.roleChanged()`. The window's keys stop at `.llBack`, and a capture Escape catches focus that fell back to the page.
+- Run `node --test tools/living-library-tests.mjs` and `node tools/living-library-check.mjs` (real Chromium, an in-memory Firestore/Storage: save files once, scan, QR = viewer link, Gmail URL, forget, phone, student). It is in CI.
+
 ## 🎁 Item ledger, gifts and restores (v1.158.0)
 
 - Server: `type:'items'` (teacher only, in `hero-service.js` TYPES) → `itemsAction` in `functions/hero-repository.js`: `history` (`studentId` or `guests:true`), `gift` (`rarity` key | `'random'`, `itemType`, optional `itemId`, `quantity` 1–20, receipt `id`), `restore` (`dropId` = `ledgerDocId:index`, `again` to restore twice). **Use `itemType`, never `type`** — `type` is the request's own type.

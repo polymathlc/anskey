@@ -3,6 +3,26 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.167.0 — 📚 The living app library: every code remembered, emailed for revision
+
+- **📚 App library** (teacher toolbar, beside 🪄 Living app) lists every living app
+  you have used, each with its own link and QR code and the worksheets it is on
+  (newest first). Search by name or worksheet, or narrow to a level and subject.
+- **It fills itself.** Every save gives each living app on the worksheet its code
+  (the same one an export prints) and files it. **🔎 Find on all worksheets** reads
+  the worksheets saved before this, once.
+- **📨 Send for revision.** Tick the apps, tick the students (everyone who signs in
+  with Google, narrowed by level and subject) and add any other address, such as a
+  parent's. **✉ Open in Gmail** opens the email in your own Gmail, already
+  written: the students are in Bcc, there is a subject, your note, and each app's
+  link on its own line. Read it over and press Send. **Mail app** uses the device's
+  mail app instead, and **📋 Copy** copies the message for WhatsApp or Google
+  Classroom.
+- The library notes how many times each app has been emailed, and when. **✕**
+  forgets an app (it asks first), and its printed codes keep working.
+- It is the teacher's own. Students never see it, and it closes the moment the
+  device is handed over.
+
 ## v1.166.0 — 🏰 Lesson start: today's quest rules, behind a castle gate
 
 - **🏰 Lesson start** (teacher toolbar, beside the Wheel) opens a full-screen
