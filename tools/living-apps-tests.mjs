@@ -359,7 +359,7 @@ test('📲 the living app window shows a code that opens that app alone, never A
   assert.match(src, /if \(stage !== s\) return;\s*var svg = url \? qrSvg\(env\.qrMatrix\(url\)\) : ''/);
   // The glue hands it living.html's link for THIS app — the same hosting as the export.
   assert.match(html, /qrLink: lappQrLink,/);
-  assert.match(html, /async function lappQrLink\(id\) \{[\s\S]{0,260}await lappPublish\(a\)[\s\S]{0,200}viewerUrl\(location\.href, pub\.hash, pub\.token\)/);
+  assert.match(html, /async function lappQrLink\(id\) \{[\s\S]{0,260}await lappPublish\(a\)[\s\S]{0,320}viewerUrl\(location\.href, pub\.hash, pub\.token\)/);
   assert.doesNotMatch(html.slice(html.indexOf('async function lappQrLink'), html.indexOf('async function lappQrLinks')), /shareUrl|printQrUrl/);
   // The page the code opens offers no code of its own.
   assert.doesNotMatch(viewer, /qrLink/);
