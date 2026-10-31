@@ -5840,7 +5840,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.167.0';
+var APP_VERSION = 'v1.167.1';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -31952,6 +31952,34 @@ function rwStudentClasses(s) {
   return s.slot ? [s.slot] : [];
 }
 
+/* ---- A STUDENT'S LEVEL IS THE FIRST THING THEY CHOOSE (v1.167.1) ----
+   In the rewards app a student links their account by choosing level → class
+   → name. A name added here with a level that is not the class's (this window
+   used to prefill the WORKSHEET's level, so a P5 worksheet filed a P6 pupil as
+   P5) or with no level at all was hidden from that student. The rewards app now
+   finds a name by its class whatever its level, and this side writes the level
+   the student will actually choose. `rwNormLevel` is the rewards app's
+   `normLevel`, byte for byte in behaviour — keep the two in step. */
+function rwNormLevel(v) {
+  var t = String(v == null ? '' : v).trim().replace(/\s+/g, ' ');
+  if (!t) return '';
+  var p = t.match(/^(?:p|pri|primary)\s*\.?\s*(\d)$/i);
+  if (p) return 'P' + p[1];
+  var s = t.match(/^(?:s|sec|secondary)\s*\.?\s*(\d)$/i);
+  if (s) return 'S' + s[1];
+  return t;
+}
+
+// The level most of a class is at, or '' when nobody in it has one.
+function rwClassLevel(students) {
+  var tally = {};
+  (students || []).forEach(function (s) {
+    var lv = rwNormLevel(s && s.level);
+    if (lv) tally[lv] = (tally[lv] || 0) + 1;
+  });
+  return Object.keys(tally).sort(function (a, b) { return tally[b] - tally[a] || a.localeCompare(b); })[0] || '';
+}
+
 var RW_DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 function rwClassDayIndex(cls) {
   var m = (cls || '').toLowerCase().match(/\b(mon|tue|wed|thu|fri|sat|sun)/);
@@ -32866,15 +32894,12 @@ function renderRewardAmounts() {
   row.appendChild(all);
 }
 
-// What level is a new name in this class likely to be? The worksheet's level
-// wins; otherwise the level most of the class is already at.
+// What level is a new name in this class likely to be? The level most of the
+// class is already at — that is the level the student will choose in the
+// rewards app. The worksheet's level only when the class has none: a P5
+// worksheet is often taught to a P6 class, and it used to win here.
 function rwSuggestedLevel() {
-  if (wsMeta.level) return wsMeta.level;
-  var tally = {};
-  rwStudentsInClass(rwClass).forEach(function (s) {
-    if (s.level) tally[s.level] = (tally[s.level] || 0) + 1;
-  });
-  return Object.keys(tally).sort(function (a, b) { return tally[b] - tally[a]; })[0] || '';
+  return rwClassLevel(rwStudentsInClass(rwClass)) || rwNormLevel(wsMeta.level);
 }
 
 function renderRewardList() {
@@ -32913,7 +32938,7 @@ function renderRewardList() {
     nm.textContent = s.name || '(no name)';
     var meta = document.createElement('div');
     meta.className = 'rwRowMeta';
-    meta.textContent = [s.level, rwStudentClasses(s).join(', ')].filter(Boolean).join(' · ');
+    meta.textContent = [rwNormLevel(s.level) || 'no level', rwStudentClasses(s).join(', ')].filter(Boolean).join(' · ');
     info.appendChild(nm);
     info.appendChild(meta);
     row.appendChild(info);
@@ -32992,9 +33017,13 @@ async function rwAddStudentToClass() {
   var nameEl = $('rewardNewName');
   var levelEl = $('rewardNewLevel');
   var name = nameEl.value.trim();
-  var level = levelEl.value.trim();
+  var level = rwNormLevel(levelEl.value);
   if (!rwClass) { toast('Pick a class first.'); return; }
   if (!name) { toast('Type a name to add.'); nameEl.focus(); return; }
+  // The rewards app's own Add form requires a level too: it is the first thing
+  // a student chooses when they look for their name.
+  if (!level) { toast('Type ' + name + '’s level (e.g. P5) — students choose their level before they find their name.'); levelEl.focus(); return; }
+  levelEl.value = level;
   var clash = rwStudentsInClass(rwClass).some(function (s) {
     return (s.name || '').toLowerCase() === name.toLowerCase();
   });
