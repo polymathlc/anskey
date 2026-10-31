@@ -3,6 +3,16 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.167.2 — 💍 Both rings can be worn from the treasure bag
+
+- **The bug:** in My Hero, a student with two rings pressed **Equip to Ring 1** on the second one
+  and it took the first ring off, even though Ring 2 was empty. Every ring belongs to either "Ring 1"
+  or "Ring 2", so any student holding two of the same kind hit this. A student with two copies of
+  the same ring could never put the second copy on from the bag at all.
+- **Now** the bag's Equip button puts a ring on whichever ring finger is free, its own first, and
+  only swaps one out when both are full. A spare copy of a ring already worn offers the other ring
+  slot. The teacher's hero journal uses the same rule. Other gear is unchanged.
+
 ## v1.167.1 — 🏆 A name added in the Reward window can be found by the student
 
 - **The bug:** a student added from the Reward window could sign in to the rewards app and not find
