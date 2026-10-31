@@ -3,6 +3,18 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.167.1 — 🏆 A name added in the Reward window can be found by the student
+
+- **The bug:** a student added from the Reward window could sign in to the rewards app and not find
+  their name. There a student chooses level → class → name, and the name had to match on level too.
+  The Reward window prefilled the level from the *worksheet* (a P5 worksheet in a P6 class filed the
+  pupil as P5), and allowed no level at all.
+- **Now** the level box starts on the class's own level, a name needs a level before it can be added,
+  and `p5` or `Primary 5` is saved as `P5`. A student with no level shows *no level* in the list.
+- The rewards app (v1.3.2) was fixed alongside: it finds a name by its class whatever its level, offers
+  **Not sure — show every class**, and shows a name the teacher adds without the student reloading. So
+  students already added with the wrong level, or none, can find themselves today.
+
 ## v1.167.0 — 📚 The living app library: every code remembered, emailed for revision
 
 - **📚 App library** (teacher toolbar, beside 🪄 Living app) lists every living app

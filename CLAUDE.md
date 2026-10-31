@@ -1657,6 +1657,16 @@ in `STUDENT_LEVELS` and nothing else, which is what that one door is for.
 - The window also edits the roster: add a `students` doc for a new name in this class, drop a class
   from a student's `slots`, or delete the `students` doc outright. A student taken out of a class
   keeps their record, marks and history; only *Delete entirely* removes the doc.
+- **A new name's LEVEL is what the student chooses first** (v1.167.1, `rwNormLevel` / `rwClassLevel` /
+  `rwSuggestedLevel`). In the rewards app a student links their account by level → class → name, so a
+  name added here with the wrong level for its class, or none, was invisible to them. The level box is
+  prefilled with the **class's own majority level** (the worksheet's level only when nobody in the class
+  has one — a P5 worksheet taught to a P6 class used to file the pupil as P5), a name cannot be added
+  without a level (the rewards app's own Add form refuses it too), and the level is normalised (`p5` /
+  `Primary 5` → `P5`). A row with no level says *no level*. The rewards app (v1.3.2) now also finds a name
+  by its class whatever its level, so records already written are reachable. `rwNormLevel` is the rewards
+  app's `normLevel`; `tools/reward-roster-tests.mjs` compares them when that repo is checked out beside
+  this one. Run `node --test tools/reward-roster-tests.mjs` after touching any of it.
 - **Students never see any of this** — the button, the window and every award call are behind
   `isAdmin()` and off for `actingStudent` / share-link visitors. Do not add a student-facing earning
   path here; students earn in the rewards app.
