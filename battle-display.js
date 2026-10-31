@@ -26,6 +26,25 @@
     return Array.isArray(definitions) ? definitions : Object.keys(definitions).map(function(key){return Object.assign({key:key},definitions[key]);});
   }
   function slotName(key) { var slot=slots().find(function(row){return row.key===key;});return slot ? slot.name : key || 'Consumable'; }
+  // Where a treasure bag "Equip" button puts this entry, or null when every
+  // copy is already worn. The loadout's two ring selectors take any owned ring,
+  // but the bag button aimed only at the ring's own catalogue position: a second
+  // ring REPLACED the first while the other ring slot stood empty, and a stack
+  // with one copy worn could never put its spare on. An empty fitting slot wins
+  // (the item's own first); with every fitting slot full it replaces the item's
+  // own slot, as before. Non-ring items fit one slot, so for them this is
+  // exactly the item's slot, as it always was.
+  function equipTarget(hero, entry) {
+    var item=entry && Core.itemById(entry.itemId), own=Core.equipmentSlot(item);
+    if (!own) return null;
+    var loadout=Core.loadoutFor(hero || {});
+    var worn=Object.keys(loadout).filter(function(key){return loadout[key]===entry.id;});
+    if (worn.length>=Number(entry.quantity || 0)) return null;
+    var fits=slots().map(function(row){return row.key;}).filter(function(key){return Core.equipmentFits(item,key) && worn.indexOf(key)===-1;});
+    fits=fits.filter(function(key){return key===own;}).concat(fits.filter(function(key){return key!==own;}));
+    var empty=fits.filter(function(key){return !loadout[key];});
+    return empty[0] || fits[0] || (worn.length ? null : own);
+  }
   function equipmentPanel(hero, options) {
     options=options || {};var prefix=options.prefix==='sh'?'sh':'cb', loadout=Core.loadoutFor(hero), inventory=(hero.inventory || []).filter(function(entry){return entry.quantity > 0;});
     function slot(key) {
@@ -134,5 +153,5 @@
     dialog.addEventListener('cancel',function(event){event.preventDefault();closeSockets();});
     render();if(socketDialog===dialog)dialog.showModal();
   }
-  root.ClassroomBattleDisplay = {enemyTeam:enemyTeam,heroTeam:heroTeam,itemIcon:itemIcon,enemyArt:enemyArt,equipmentPanel:equipmentPanel,slotName:slotName,rotation:rotation,treasure:treasure,log:log,socketSummary:socketSummary,socketButton:socketButton,openSockets:openSockets,closeSockets:closeSockets};
+  root.ClassroomBattleDisplay = {enemyTeam:enemyTeam,heroTeam:heroTeam,itemIcon:itemIcon,enemyArt:enemyArt,equipmentPanel:equipmentPanel,slotName:slotName,equipTarget:equipTarget,rotation:rotation,treasure:treasure,log:log,socketSummary:socketSummary,socketButton:socketButton,openSockets:openSockets,closeSockets:closeSockets};
 })(typeof window !== 'undefined' ? window : globalThis);

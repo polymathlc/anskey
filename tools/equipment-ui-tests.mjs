@@ -43,3 +43,34 @@ test('generated boss atlas markup clips one tile and rotation reflects persisted
   assert.match(display.rotation({bossRotation:{round:2,seen:['a','b']}}),/Boss round 2 · 2\//);
   assert.ok(!display.enemyArt({name:'bad',image:'javascript:bad'}).includes('src='));
 });
+
+test('the bag Equip button fills the empty ring slot instead of replacing the worn ring', ()=>{
+  const ringA=Object.values(Core.ITEMS).find(item=>item.slot==='ring1'),ringB=Object.values(Core.ITEMS).filter(item=>item.slot==='ring1')[1];
+  const ringC=Object.values(Core.ITEMS).find(item=>item.slot==='ring2'),helm=Object.values(Core.ITEMS).find(item=>item.slot==='helm');
+  const hero=Core.heroFromStudent({id:'ring-bag',name:'Hero'});
+  const entry=(id,itemId,quantity=1)=>({id,itemId,quantity});
+  hero.inventory=[entry('a',ringA.id),entry('b',ringB.id),entry('c',ringC.id),entry('h',helm.id,2)];
+  const target=(loadout,id)=>{hero.loadout=loadout;return display.equipTarget(hero,hero.inventory.find(e=>e.id===id));};
+  // Nothing worn: every ring goes to its own position first.
+  assert.equal(target({},'a'),'ring1');assert.equal(target({},'c'),'ring2');
+  // The reported fault: a second "Ring 1" ring while Ring 2 is empty.
+  assert.equal(target({ring1:'a'},'b'),'ring2');
+  // A "Ring 2" ring while Ring 2 is taken and Ring 1 is free.
+  assert.equal(target({ring2:'b'},'c'),'ring1');
+  // Both full: replace the item's own position, as before.
+  assert.equal(target({ring1:'a',ring2:'c'},'b'),'ring1');
+  assert.equal(target({ring1:'a',ring2:'b'},'c'),'ring2');
+  // Every copy worn: nothing to equip.
+  assert.equal(target({ring1:'a'},'a'),null);
+  // A stack of two with one copy worn puts the spare on the other ring.
+  hero.inventory[0].quantity=2;
+  assert.equal(target({ring1:'a'},'a'),'ring2');
+  assert.equal(target({ring2:'a'},'a'),'ring1');
+  assert.equal(target({ring1:'a',ring2:'a'},'a'),null);
+  assert.equal(target({ring1:'a',ring2:'c'},'a'),'ring2', 'the spare copy replaces the other ring rather than going nowhere');
+  // Non-ring items are unchanged: their own slot, or nothing once worn, however many copies.
+  assert.equal(target({},'h'),'helm');assert.equal(target({helm:'h'},'h'),null);
+  // Consumables and unknown entries have no slot.
+  assert.equal(display.equipTarget(hero,{id:'p',itemId:'red-potion',quantity:1}),null);
+  assert.equal(display.equipTarget(hero,null),null);
+});

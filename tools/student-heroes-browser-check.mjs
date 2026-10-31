@@ -102,6 +102,23 @@ try{
   const loadoutBefore=await page.evaluate(()=>ClassroomBattleCore.loadoutFor(__heroFixture.hero));
   await page.click('[data-sh-remove-slot="helm"]');await idle();
   check('removing one slot preserves the other gear and pet',await page.evaluate(before=>{const now=ClassroomBattleCore.loadoutFor(__heroFixture.hero);return !now.helm&&now.torso===before.torso&&now.pet===before.pet&&__heroFixture.calls.at(-2)?.slot==='helm';},loadoutBefore));
+  // Rings: the bag's Equip button used to aim only at a ring's own catalogue position, so a
+  // second "Ring 1" ring took the first one off while Ring 2 stood empty, and a stack of two with
+  // one worn could never put its spare on. Both rings must end up worn from the bag alone.
+  const rings=await page.evaluate(()=>{const C=ClassroomBattleCore,h=__heroFixture.hero,r1=Object.values(C.ITEMS).filter(i=>i.slot==='ring1');
+    const a=C.addInventory(h,r1[0].id,1),b=C.addInventory(h,r1[1].id,1);h.loadout={...h.loadout};delete h.loadout.ring1;delete h.loadout.ring2;return {a:a.id,b:b.id,twin:r1[2].id};});
+  await page.click('#shRefresh');await page.waitForSelector('[data-sh-equip="'+rings.a+'"]:not([disabled])');
+  await page.click('[data-sh-equip="'+rings.a+'"]');await idle();
+  check('bag Equip fills Ring 1 first',await page.evaluate(r=>ClassroomBattleCore.loadoutFor(__heroFixture.hero).ring1===r.a,rings));
+  check('a second Ring 1 ring offers the empty Ring 2',await page.locator('[data-sh-equip="'+rings.b+'"]').evaluate(b=>!b.disabled&&b.dataset.shEquipSlot==='ring2'&&b.textContent.includes('Ring 2')));
+  await page.click('[data-sh-equip="'+rings.b+'"]');await idle();
+  check('both rings are worn together, neither replacing the other',await page.evaluate(r=>{const l=ClassroomBattleCore.loadoutFor(__heroFixture.hero);return l.ring1===r.a&&l.ring2===r.b;},rings));
+  check('a worn ring says where it is and cannot be equipped again',await page.locator('[data-sh-equip="'+rings.a+'"]').evaluate(b=>b.disabled&&b.textContent.includes('Equipped in Ring 1')));
+  const twin=await page.evaluate(r=>{const C=ClassroomBattleCore,h=__heroFixture.hero;const t=C.addInventory(h,r.twin,2);h.loadout={...h.loadout,ring1:t.id};delete h.loadout.ring2;h.equipped=t.id;return t.id;},rings);
+  await page.click('#shRefresh');await page.waitForSelector('[data-sh-equip="'+twin+'"]:not([disabled])');
+  check('a stack of two with one worn offers its spare to Ring 2',await page.locator('[data-sh-equip="'+twin+'"]').evaluate(b=>b.dataset.shEquipSlot==='ring2'));
+  await page.click('[data-sh-equip="'+twin+'"]');await idle();
+  check('both copies of a stacked ring are worn',await page.evaluate(id=>{const l=ClassroomBattleCore.loadoutFor(__heroFixture.hero);return l.ring1===id&&l.ring2===id;},twin)&&await page.locator('[data-sh-equip="'+twin+'"]').isDisabled());
   await page.locator('.cbEquipment').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'student-equipment-slots.png'),fullPage:true});
   await page.screenshot({path:path.join(output,'student-my-hero.png'),fullPage:true});
   // Real shared equipment dropdown + workshop, including a committed-but-lost response.
