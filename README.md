@@ -3,6 +3,22 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.171.0 — 🚪 The rune door, premium: the real logo and a door that looks the part
+
+- **The rune now carries the Polymath logo exactly as it is**: traced point by point from the
+  centre's own logo file, two isometric bars crossing into an M, in its own teal and magenta. The
+  door's glow, sparks and the inscription's light use those same two colours.
+- **The door looks the part.** Oak planks with real, lit grain and knots in a heavy frame;
+  wrought-iron straps with scrolled hinges, hammered texture and domed rivets standing off the wood;
+  a brass seam; a ring pull on a rosette. The arch and jambs are rough-hewn, bevelled stone, the
+  inscription is cut into it and gilded, and the keystone carries the logo in enamel.
+- **The rune is a jewel**: a faceted brass star on an iron boss, a gilded bezel, a band of enamel
+  with the rune letters and eight teal and magenta gems, and the logo under glass.
+- **Light**: torchlight pools on the wall, light leaks round the seam and spills under the door, and
+  the inscription now glows clearly as it lights.
+- It runs as smoothly as before: the still stone is drawn once, and only what moves is redrawn.
+- "Welcome, adventurer" is centred again (it had drifted to the right).
+
 ## v1.170.0 — 🔎 Search every button
 
 - **Ctrl+K** (⌘K on a Mac), **/** or the new 🔎 at the start of the toolbar opens a search box.

@@ -1,5 +1,5 @@
 /* =====================================================================
-   🚪 The rune door (v1.168.0) — see rune-door.js
+   🚪 The rune door (v1.168.0, premium look v1.171.0) — see rune-door.js
    ---------------------------------------------------------------------
    Only the STILL picture lives here: sizes, layers, colours and the
    resting state of everything the timelines move. Nothing in this file
@@ -27,8 +27,8 @@
 }
 
 .rdScene {
-  --rd-teal: #4fc3cf;
-  --rd-magenta: #e0218f;
+  --rd-teal: #7ebfca;
+  --rd-magenta: #c60085;
   --rd-gold: #f2c14e;
   --rd-ink: #fff4dc;
   position: absolute;
@@ -85,7 +85,7 @@
 }
 .rdLeafL { left: 0; transform-origin: 0% 50%; }
 .rdLeafR { right: 0; transform-origin: 100% 50%; }
-.rdLeafArt { display: block; width: 100%; height: 100%; }
+.rdLeafArt { display: block; width: 100%; height: 100%; will-change: transform; }
 
 .rdFrame {
   position: absolute;
@@ -95,16 +95,21 @@
   overflow: visible;
   z-index: 2;
   pointer-events: none;
+  /* Its own layer, rastered once: the stone is lit through filters, and
+     nothing that moves may make it paint again (see rune-door.js). */
+  will-change: transform;
 }
 
 .rdFrame text {
   font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', Palatino, Georgia, serif;
   font-weight: 700;
 }
-.rdCarve { fill: #2a2230; }
-.rdCarveHi { fill: #a49bae; opacity: .55; }
-.rdLit { paint-order: stroke; stroke: rgba(255, 255, 255, .35); stroke-width: .4; }
-.rdStepRune { fill: none; stroke: #2a2230; stroke-width: 1.3; stroke-linecap: round; opacity: .35; }
+.rdCarve { filter: drop-shadow(0 .6px .4px rgba(0, 0, 0, .7)); }
+/* The inscription is cut and gilded: the gold is the fill attribute on
+   .rdCarve (a gradient), the cut's shadow is .rdCarveHi just above it. */
+.rdCarveHi { fill: #120d16; opacity: .85; }
+.rdLit { paint-order: stroke; stroke: rgba(255, 255, 255, .6); stroke-width: .55; }
+.rdStepRune { fill: none; stroke: #e2b04a; stroke-width: 1.3; stroke-linecap: round; opacity: .55; }
 
 /* ---- the torches ---- */
 .rdTorch {
@@ -126,7 +131,7 @@
   width: 900%;
   aspect-ratio: 1;
   transform: translate(-50%, -45%);
-  background: radial-gradient(closest-side, rgba(255, 190, 90, .32), rgba(255, 140, 40, .1) 55%, rgba(255, 140, 40, 0));
+  background: radial-gradient(closest-side, rgba(255, 196, 100, .42), rgba(255, 140, 40, .14) 50%, rgba(255, 140, 40, 0));
   mix-blend-mode: screen;
 }
 
@@ -145,6 +150,7 @@
   border-radius: 50% 50% 46% 46% / 62% 62% 38% 38%;
   transform: translateX(-50%);
 }
+.rdFlameGlow  { width: 260%; height: 190%; bottom: -35%; background: radial-gradient(ellipse at 50% 62%, rgba(255, 196, 92, .55), rgba(255, 120, 30, .18) 45%, rgba(255, 100, 20, 0) 70%); filter: blur(3px); }
 .rdFlameOuter { width: 100%; height: 100%; background: radial-gradient(ellipse at 50% 80%, #ffcf5a 0%, #ff7b1c 55%, rgba(255, 60, 0, 0) 75%); filter: blur(1px); }
 .rdFlameMid   { width: 64%; height: 72%; background: radial-gradient(ellipse at 50% 80%, #fff1a8 0%, #ffb02e 70%, rgba(255, 140, 0, 0) 100%); }
 .rdFlameCore  { width: 32%; height: 40%; background: radial-gradient(ellipse at 50% 75%, #ffffff 0%, #fff3c4 60%, rgba(255, 230, 160, 0) 100%); }
@@ -181,8 +187,8 @@
   border-radius: 50%;
   opacity: 0;
 }
-.rdSparkTeal    { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-teal) 45%, rgba(79, 195, 207, 0) 72%); }
-.rdSparkMagenta { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-magenta) 45%, rgba(224, 33, 143, 0) 72%); }
+.rdSparkTeal    { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-teal) 45%, rgba(126, 191, 202, 0) 72%); }
+.rdSparkMagenta { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-magenta) 45%, rgba(198, 0, 133, 0) 72%); }
 
 /* ---- the rune: a real button, over the seam ---- */
 .rdRune {
@@ -197,13 +203,13 @@
   background: transparent;
   cursor: pointer;
   z-index: 6;
-  filter: drop-shadow(0px 0px 0px rgba(79, 195, 207, 0));
+  filter: drop-shadow(0px 0px 0px rgba(126, 191, 202, 0));
   -webkit-tap-highlight-color: transparent;
 }
 .rdRune:focus { outline: none; }
-.rdRune:focus-visible { box-shadow: 0 0 0 4px rgba(255, 244, 220, .85), 0 0 0 8px rgba(79, 195, 207, .6); }
+.rdRune:focus-visible { box-shadow: 0 0 0 4px rgba(255, 244, 220, .85), 0 0 0 8px rgba(126, 191, 202, .6); }
 .rdRuneArt { display: block; width: 100%; height: 100%; overflow: visible; }
-.rdRimDark { fill: none; stroke: #0d0b10; stroke-width: 1.6; stroke-linecap: round; }
+.rdRimDark { fill: none; stroke: #c99a45; stroke-width: 1.5; stroke-linecap: round; }
 .rdRimLit  { fill: none; stroke-width: 1.8; stroke-linecap: round; }
 .rdBack[data-state="opening"] .rdRune { cursor: default; }
 
@@ -221,12 +227,12 @@
   background: radial-gradient(circle, #fff3c4 0 30%, #ffb347 60%, rgba(255, 140, 40, 0) 75%);
   opacity: 0;
 }
-.rdEmber.rdHot { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-teal) 55%, rgba(79, 195, 207, 0) 75%); }
+.rdEmber.rdHot { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-teal) 55%, rgba(126, 191, 202, 0) 75%); }
 
 .rdFlash {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 45%, #ffffff 0%, #fff1c0 30%, rgba(79, 195, 207, .5) 60%, rgba(224, 33, 143, 0) 85%);
+  background: radial-gradient(circle at 50% 45%, #ffffff 0%, #fff1c0 30%, rgba(126, 191, 202, .5) 60%, rgba(198, 0, 133, 0) 85%);
   opacity: 0;
   pointer-events: none;
   z-index: 8;
@@ -333,7 +339,7 @@
   gap: 14px;
   padding: 14px 16px;
   border-radius: 12px;
-  background: rgba(79, 195, 207, .1);
+  background: rgba(126, 191, 202, .1);
   cursor: pointer;
   font-weight: 600;
 }
@@ -357,9 +363,9 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
   transition: transform .2s;
 }
-.rdSwitch input:checked + .rdSwitchTrack { background: linear-gradient(90deg, #4fc3cf, #e0218f); }
+.rdSwitch input:checked + .rdSwitchTrack { background: linear-gradient(90deg, #7ebfca, #c60085); }
 .rdSwitch input:checked + .rdSwitchTrack .rdSwitchKnob { transform: translateX(20px); }
-.rdSwitch input:focus-visible + .rdSwitchTrack { box-shadow: 0 0 0 3px rgba(79, 195, 207, .5); }
+.rdSwitch input:focus-visible + .rdSwitchTrack { box-shadow: 0 0 0 3px rgba(126, 191, 202, .5); }
 
 .rdField {
   display: flex;

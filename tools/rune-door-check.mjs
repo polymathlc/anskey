@@ -17,6 +17,7 @@
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 
 const PW = process.env.PW || '/opt/node22/lib/node_modules/playwright/index.mjs';
 let chromium;
@@ -36,6 +37,34 @@ const ok = (name, cond, note) => {
   else { fail++; console.log('  ✗ ' + name + (note ? '\n      ' + note : '')); }
 };
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: path.join(SHOTS, name + '.png') }); };
+
+/* The mean brightness of a screenshot (a PNG from Playwright: 8-bit,
+   RGB or RGBA, not interlaced), so the check can SEE what it is looking
+   at — a leaf that renders black still has every element in place. */
+function pngMeanLuma(buf) {
+  let p = 8, w = 0, h = 0, ch = 4, idat = [];
+  while (p < buf.length) {
+    const len = buf.readUInt32BE(p), type = buf.toString('ascii', p + 4, p + 8), data = buf.subarray(p + 8, p + 8 + len);
+    if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); ch = data[9] === 6 ? 4 : 3; }
+    if (type === 'IDAT') idat.push(data);
+    p += 12 + len;
+  }
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const stride = w * ch, out = Buffer.alloc(stride * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)], row = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    for (let x = 0; x < stride; x++) {
+      const a = x >= ch ? out[y * stride + x - ch] : 0, b = y ? out[(y - 1) * stride + x] : 0, c = x >= ch && y ? out[(y - 1) * stride + x - ch] : 0;
+      let v = row[x];
+      if (f === 1) v += a; else if (f === 2) v += b; else if (f === 3) v += (a + b) >> 1;
+      else if (f === 4) { const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
+      out[y * stride + x] = v & 255;
+    }
+  }
+  let sum = 0;
+  for (let i = 0; i < out.length; i += ch) sum += 0.2126 * out[i] + 0.7152 * out[i + 1] + 0.0722 * out[i + 2];
+  return sum / (w * h);
+}
 
 const browser = await chromium.launch();
 
@@ -170,7 +199,7 @@ const doorUp = () => !!document.getElementById('runeDoor');
   ok('the door fits on the screen', sealed.stageIn);
   ok('the rune sits over the seam, in the upper half', sealed.runeMid && sealed.runeUpper);
   ok('the arch is carved with the centre\'s name', sealed.letters.replace(/ /g, ' ') === 'POLYMATH LEARNING CENTRE', sealed.letters);
-  ok('its letters will light teal to magenta, like the logo', sealed.firstColor === '#4fc3cf' && sealed.lastColor === '#e0218f', sealed.firstColor + ' → ' + sealed.lastColor);
+  ok('its letters will light teal to magenta, like the logo', sealed.firstColor === '#7ebfca' && sealed.lastColor === '#c60085', sealed.firstColor + ' → ' + sealed.lastColor);
   ok('…and are dark while the door is sealed', sealed.dark);
   ok('the rune has landed and the hint is up', sealed.runeOpacity > 0.95 && sealed.hintOpacity > 0.5 && /Touch the rune/.test(sealed.hint));
   ok('torches burn and embers drift', sealed.flames === 2 && sealed.embers >= 12);
@@ -198,6 +227,17 @@ const doorUp = () => !!document.getElementById('runeDoor');
   });
   ok('the worksheet cannot be touched through the shut door', blocked);
   await shot(page, 'sealed');
+  // Both leaves are really drawn: the right one is the left turned over,
+  // and a lighting filter under a flip renders black in Chrome.
+  const leafBox = await page.evaluate(() => ['.rdLeafL', '.rdLeafR'].map(s => {
+    const r = document.querySelector('#runeDoor ' + s).getBoundingClientRect();
+    return { x: r.left + r.width * 0.1, y: r.top + r.height * 0.62, width: r.width * 0.5, height: r.height * 0.2 };
+  }));
+  const lumaL = pngMeanLuma(await page.screenshot({ clip: leafBox[0] }));
+  const lumaR = pngMeanLuma(await page.screenshot({ clip: leafBox[1] }));
+  ok('both leaves are lit wood, neither renders black', lumaL > 40 && lumaR > 40 && Math.abs(lumaL - lumaR) < 18, 'left ' + lumaL.toFixed(1) + ', right ' + lumaR.toFixed(1));
+  const logoFill = await page.evaluate(() => [...document.querySelectorAll('#runeDoor .rdLogo path')].map(p => p.getAttribute('fill')));
+  ok('the rune carries the logo in the logo file\'s own colours', logoFill.join() === '#991e65,#5b96a1,#7ebfca,#5b96a1,#3a6a70,#c60085,#991e65,#711648', logoFill.join());
 
   // ---- the touch
   await page.click('#runeDoor .rdRune');
@@ -211,7 +251,11 @@ const doorUp = () => !!document.getElementById('runeDoor');
       glow: getComputedStyle(b.querySelector('.rdRune')).filter };
   });
   ok('the rune lights: halo, logo and rim glyphs', lit.halo > 0.6 && lit.logo > 0.8 && lit.rim >= 6, JSON.stringify(lit));
-  ok('it glows in the centre\'s teal', /rgba\(79, 195, 207/.test(lit.glow), lit.glow);
+  // The glow starts in the logo's teal and later breathes towards its
+  // magenta, so a moment caught on the way is judged by which it is nearer.
+  const glowRgb = (lit.glow.match(/rgba?\((\d+), (\d+), (\d+)/) || []).slice(1).map(Number);
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  ok('it glows in the centre\'s teal', glowRgb.length === 3 && dist(glowRgb, [126, 191, 202]) < dist(glowRgb, [198, 0, 133]), lit.glow);
   await shot(page, 'lit');
   await page.waitForTimeout(1300);
   const spin = await page.evaluate(() => {
