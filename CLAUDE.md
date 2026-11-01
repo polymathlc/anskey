@@ -81,6 +81,15 @@ Guidance for Claude when working in this repo.
 - Teacher-only: `wheelTeacher()` in every glue handler and in `open`. `lappRoleChanged` calls `llib.roleChanged()`. The window's keys stop at `.llBack`, and a capture Escape catches focus that fell back to the page.
 - Run `node --test tools/living-library-tests.mjs` and `node tools/living-library-check.mjs` (real Chromium, an in-memory Firestore/Storage: save files once, scan, QR = viewer link, Gmail URL, forget, phone, student). It is in CI.
 
+## 🔎 Command search: find any button by name (v1.170.0)
+
+- `command-search.js` / `command-search.css` own it (`window.CommandSearch`: `create(env)`, `pure`). index.html holds only the glue between `🔎 Command search — glue` and `End command search glue` (`cmdSearchInit`, `cmdSearchOpen`, `cmdSearchRoleChanged`, called from `applyRewardVisibility`), the toolbar's `.cmdSearchBtn` (**no id on purpose** — the favourites bar offers buttons by id) and `<script>cmdSearchInit();</script>` after the module's tag.
+- Keys: **Ctrl/⌘+K** is handled BEFORE the `editingText` return (works mid-typing); **/** after it (never steals a typed slash). Every key inside `#cmdSearch` stops there, and `open()` focuses the field synchronously, or a fast typist's "lasso" fires L, A, S behind it. Closing never leaves focus inside the hidden box.
+- **The buttons are read off the page each time it opens** (`collect()`: `#toolbar`, `.polymath-header`, `#studentBar`, `#authArea`; skips `#favBar`). `available()` drops anything hidden by role (display:none / `hidden` on itself or a container) but keeps buttons that are only inside a closed `.toolbarMenuPanel`. Never add a hand-written list of buttons.
+- **A press is `el.click()`** — the button's own handler and role checks. Never add a second way to run a command from here.
+- Matching is pure (`pure.rank`/`score`): `SYNONYMS` keyed `tool:<data-tool>` / `#id` / `color:<hex>` / `text:<label>`; before `|` are NAMES (count like the label), after are loose words. Words fold (colour/color, plurals); every query word must match (soft verbs like "open" are forgiven); exact > word start > inside > typo (same first letter) > letters in order; initials and typed shortcuts; label > synonym > description; recent use (`polymath.cmdSearchRecent.v1`) only breaks ties.
+- Run `node --test tools/command-search-tests.mjs` and `node tools/command-search-check.mjs` (real Chromium: Ctrl+K, /, lasso → Enter presses it, typing never reaches the tool shortcuts, synonyms on the real toolbar, student sees no teacher buttons, role change closes, phone; in CI).
+
 ## 🕒 Lesson times fold in the worksheet list (v1.169.0)
 
 - The section between `🕒 Lesson times fold (v1.169.0)` and `End lesson times fold` (just before `renderQuestionGroups`): `qSlotSection` builds every lesson time, `qSlotHead` is its folded row (time, level/subject chips from the pure `qSlotSummary`, ★ count, worksheet count), `qSlotSetOpen` / `qSlotsSetAll` / `qSlotsBarSync` (the day bar's `#qSlotAllBtn`), `qSlotDragOpen`.

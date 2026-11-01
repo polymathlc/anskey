@@ -3978,6 +3978,8 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="living-library.css">
 <link rel="stylesheet" href="lesson-splash.css">
 <link rel="stylesheet" href="rune-door.css">
+<!-- 🔎 Command search: find any button by name (command-search.js). -->
+<link rel="stylesheet" href="command-search.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="battle-adventure.css">
 <link rel="stylesheet" href="quest-panel.css">
@@ -4022,6 +4024,11 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 
 <div id="toolbar">
   <div class="tGroup">
+    <!-- 🔎 Search every button (v1.170.0). No id on purpose: the favourites bar
+         offers buttons by id, and a search box is not a tool to pin. -->
+    <button class="toolBtn cmdSearchBtn" type="button" data-key="Ctrl+K" data-label="Search" title="Search every button — type what you want (lasso, rubber, print answers…) and press it from the list">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+    </button>
     <button class="btn" id="uploadBtn" data-key="Ctrl+O" title="Open a PDF from your device">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       <span class="btnLabel">Open PDF</span>
@@ -5911,7 +5918,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.169.0';
+var APP_VERSION = 'v1.170.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32091,6 +32098,7 @@ function applyRewardVisibility() {
   if (typeof rdoorRoleChanged === 'function') rdoorRoleChanged();
   // 🏰 The lesson-start board closes the moment the device is not the teacher's.
   if (typeof lsplashRoleChanged === 'function') lsplashRoleChanged();
+  if (typeof cmdSearchRoleChanged === 'function') cmdSearchRoleChanged();
   // Live cams follow the role too: the teacher's window closes (switching
   // every student's camera off) the moment the device is not the teacher's,
   // and a student's own camera stops on an account change.
@@ -32910,6 +32918,48 @@ function rdoorRoleChanged() {
   if (runeDoor) runeDoor.roleChanged();
 }
 /* ================= End rune door glue ================= */
+
+/* ================= 🔎 Command search — glue (the feature itself is command-search.js) =================
+   Ctrl+K (⌘K) or "/" opens a box that finds any button by what it does —
+   "lasso", "rubber", "print answers", "spin names" — and presses it. The
+   module reads the buttons off the page each time it opens, so it only ever
+   offers what this person can see, and a press is the button's own click(),
+   so every role check stays the button's.
+
+   This glue only creates it (cmdSearchInit, after the module's tag), opens
+   it (cmdSearchOpen, from the toolbar's 🔎 and the keyboard handler) and
+   closes it when the person changes (cmdSearchRoleChanged, from applyRoleUI):
+   a list collected for the teacher must never be pressed by a student the
+   device was handed to. */
+var cmdSearch = null;
+
+function cmdSearchInit() {
+  if (!window.CommandSearch || cmdSearch) return;
+  cmdSearch = CommandSearch.create({
+    toast: function (m) { if (typeof toast === 'function') toast(m); },
+    // A dropdown left open behind the box would sit over the button that is
+    // about to be flashed; close it before the press, as a click outside would.
+    beforePress: function () {
+      if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
+    }
+  });
+  document.querySelectorAll('.cmdSearchBtn').forEach(function (b) {
+    b.addEventListener('click', function () { cmdSearchOpen(); });
+  });
+}
+
+function cmdSearchOpen(seed) {
+  if (!cmdSearch) cmdSearchInit();
+  if (!cmdSearch) return false;
+  if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
+  cmdSearch.open(seed);
+  return true;
+}
+
+function cmdSearchRoleChanged() {
+  if (cmdSearch && cmdSearch.isOpen()) cmdSearch.close();
+}
+/* ================= End command search glue ================= */
 
 /* ================= End live cams glue ================= */
 
@@ -39323,6 +39373,15 @@ document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { e.preventDefault(); lessonExportClose(false); }
     return;
   }
+  // 🔎 Ctrl+K / ⌘K searches every button — from anywhere, even mid-typing,
+  // because that is the moment somebody wonders where a tool went.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (typeof cmdSearchOpen === 'function') {
+      if (cmdSearch && cmdSearch.isOpen()) cmdSearch.close(); else cmdSearchOpen();
+    }
+    return;
+  }
   if (editingText) {
     if (e.key === 'Escape') ae.blur();
     return;
@@ -39336,6 +39395,11 @@ document.addEventListener('keydown', function (e) {
       focusTextAnn(editingId);
       if (document.activeElement === annTextNode(editingId)) return;
     }
+  }
+  // 🔎 "/" opens the button search too — the key every search box answers to.
+  // Only when nothing is being typed (the branches above have returned then).
+  if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (typeof cmdSearchOpen === 'function' && cmdSearchOpen()) { e.preventDefault(); return; }
   }
   // Ahead of the role branches below: full screen is for everyone. Shift, so
   // it does not collide with plain F for fit-to-width.
@@ -40199,6 +40263,8 @@ loadAiNotePrefs();
 <script src="vendor/gsap.min.js"></script>
 <script src="rune-door.js"></script>
 <script>rdoorInit();</script>
+<script src="command-search.js"></script>
+<script>cmdSearchInit();</script>
 <!-- 📲 The Polymath install kit: registers sw.js (top window only) and drives the header's Install app button. -->
 <script defer src="pwa-install.js?v=2.0.0" data-app-name="Polymath Answer Keys" data-app-key="anskey" data-app-icon="assets/app-icons/icon-192.png" data-accent="#E65100" data-sw="sw.js" data-floating="auto"></script>
 <script type="module">

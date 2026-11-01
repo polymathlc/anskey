@@ -3,6 +3,21 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.170.0 — 🔎 Search every button
+
+- **Ctrl+K** (⌘K on a Mac), **/** or the new 🔎 at the start of the toolbar opens a search box.
+  Type what you want and the matching buttons come out, each with its own icon, what it does,
+  where it lives (e.g. *in the Tools menu*) and its keyboard shortcut. **Enter** or a click presses
+  it, and the real button flashes where it sits so you learn where it is.
+- **It understands the words you would use**, not only the button's own name: *rubber* finds the
+  Eraser, *spin names* the Name wheel, *select many* the Lasso, *print worksheet* Print questions,
+  *screenshot* Snip and pin, *new page* Blank page, *marks* Award marks. Typos (*lasoo*, *erasr*),
+  half-typed words (*calcu*), initials (*pa* = Print answers) and shortcuts (*shift+s*) all work,
+  and every word you type must match, so *print answers* never offers Print questions first.
+- With nothing typed it offers what you used recently. ↑ ↓ move, Esc closes.
+- It only ever offers the buttons you can see: a student never sees the teacher's buttons in it,
+  and pressing a result is the button's own click, so it can do nothing the button would refuse.
+
 ## v1.169.0 — 🕒 Each lesson time folds to one row
 
 - **Before:** picking a day in the worksheet list showed every worksheet of every lesson that day in
