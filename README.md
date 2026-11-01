@@ -3,6 +3,18 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.169.0 — 🕒 Each lesson time folds to one row
+
+- **Before:** picking a day in the worksheet list showed every worksheet of every lesson that day in
+  one long column, so finding the 5pm class meant scrolling past the whole 3pm class first.
+- **Now** every lesson time is a single folded row that says what is inside it: the hours, the
+  level(s) and subject(s), how many worksheets, and a ★ when one is marked to open. Tap a row to open
+  just that lesson; tap it again to fold it. The whole-week list works the same way.
+- **▾ Open all / ▸ Fold all** sits in the day bar beside ✕ Whole week.
+- A student's own class opens by itself on their class day. What you open stays open while you use
+  the app (a save or a star no longer snaps it shut), and the list starts folded again next visit.
+- Dragging a worksheet onto a folded lesson opens it, and the lesson it lands in stays open.
+
 ## v1.168.0 — 🚪 The rune door: students open the lesson with the Polymath rune
 
 - **🚪 Rune door** (teacher toolbar, beside 🏰 Lesson start) has one switch: **Show the door to
