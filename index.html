@@ -35,6 +35,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <!-- 🏰 Lesson start: the pixel face for its headings only (lesson-splash.css). -->
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<!-- 🚪 Rune door: the carved capitals of the inscription (rune-door.css). -->
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #FFFFFF;
@@ -3908,6 +3910,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="living-library.css">
 <link rel="stylesheet" href="lesson-splash.css">
+<link rel="stylesheet" href="rune-door.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="battle-adventure.css">
 <link rel="stylesheet" href="quest-panel.css">
@@ -4257,6 +4260,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
       <span class="btnLabel">Wheel</span>
     </button>
     <button class="btn" id="lessonSplashBtn" type="button" title="Lesson start — flash today's quest rules to the class: a cover, the castle gate, then the rules" style="display:none">🏰 <span class="btnLabel">Lesson start</span></button>
+    <button class="btn" id="runeDoorBtn" type="button" title="Rune door — put a sealed medieval door in front of every student; a touch on the Polymath rune lights it, spins it and swings the door open onto the worksheet" style="display:none">🚪 <span class="btnLabel">Rune door</span></button>
     <button class="btn" id="consultLogBtn" type="button" title="Every consult: calls, questions and the answers you recorded" style="display:none">🙋 <span class="btnLabel">Consults</span></button>
     <button class="btn" id="liveCamBtn" title="Live cams — see every student's camera live, so they can hold their answers up to it" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/><circle cx="9" cy="12" r="2.2"/></svg>
@@ -5840,7 +5844,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.167.2';
+var APP_VERSION = 'v1.168.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32013,6 +32017,11 @@ function applyRewardVisibility() {
   if (camBtn) camBtn.style.display = show ? '' : 'none';
   var splashBtn = $('lessonSplashBtn');
   if (splashBtn) splashBtn.style.display = show ? '' : 'none';
+  var doorBtn = $('runeDoorBtn');
+  if (doorBtn) doorBtn.style.display = show ? '' : 'none';
+  // 🚪 The rune door follows the person: the teacher's panel closes on a
+  // handover, and a student's device starts (or stops) listening for it.
+  if (typeof rdoorRoleChanged === 'function') rdoorRoleChanged();
   // 🏰 The lesson-start board closes the moment the device is not the teacher's.
   if (typeof lsplashRoleChanged === 'function') lsplashRoleChanged();
   // Live cams follow the role too: the teacher's window closes (switching
@@ -32745,6 +32754,95 @@ function lsplashRoleChanged() {
   if (lsplash) lsplash.roleChanged();
 }
 /* ================= End lesson start glue ================= */
+
+/* ================= 🚪 Rune door — glue (the feature itself is rune-door.js) =================
+   The teacher ticks one switch and every student meets a sealed medieval
+   door, the Polymath rune at its heart. A touch on the rune lights it in
+   the centre's teal and magenta, spins it, and the door swings open onto
+   the worksheet loaded behind it. rune-door.js owns the scene, the GSAP
+   timelines (the same ones rune-door.html registers as a HyperFrames
+   composition) and the teacher's panel; this block says who is using the
+   device, where the switch is kept and what this device has opened.
+
+   WHERE THE SWITCH LIVES: `runeDoor/main` = {v, on, epoch, inscription,
+   teacherUid, at} — one shared document, like `liveCamRooms/main`, under
+   the shared rules' catch-all (no rules migration). Only the teacher's
+   panel writes it, and only when rdoorRole() is 'teacher'.
+
+   WHAT A DEVICE HAS OPENED: RDOOR_SEEN + the account (and the student's
+   name when the teacher's device is handed over with "Practise as"), on
+   the device. A new epoch — the switch turned on, or 🔁 Show it again —
+   is a door every student meets again.
+
+   rune-door.js loads at the foot of the page, so `runeDoor` stays null
+   until rdoorInit() runs there; every call here is guarded for that. */
+var runeDoor = null;
+var RDOOR_SEEN = 'polymath.runeDoor.seen.v1';
+var rdoorSeenMemory = {};
+
+function rdoorRole() {
+  // The same test the wheel, live cams and the question bank use.
+  if (wheelTeacher()) return 'teacher';
+  if (actingStudent || isSharedVisitor() || (currentUser && !isAdmin(currentUser))) return 'student';
+  return 'none';
+}
+
+function rdoorRef() {
+  try { return db.collection('runeDoor').doc('main'); } catch (e) { return null; }
+}
+
+function rdoorWho() {
+  var uid = currentUser && currentUser.uid ? currentUser.uid : (isSharedVisitor() ? 'share' : '');
+  return uid + (actingStudent && actingStudent.name ? ':' + actingStudent.name : '');
+}
+
+function rdoorSeenKey() { return RDOOR_SEEN + ':' + rdoorWho(); }
+
+function rdoorReadSeen() {
+  var k = rdoorSeenKey();
+  try { var v = localStorage.getItem(k); if (v != null) return v; } catch (e) {}
+  return rdoorSeenMemory[k] || '';
+}
+
+function rdoorWriteSeen(epoch) {
+  var k = rdoorSeenKey();
+  rdoorSeenMemory[k] = String(epoch);
+  try { localStorage.setItem(k, String(epoch)); } catch (e) {}
+}
+
+function rdoorName() {
+  var name = actingStudent ? actingStudent.name
+    : (studentProfile && studentProfile.name) || (currentUser && currentUser.displayName) || '';
+  return String(name || '').split(/\s+/)[0] || '';
+}
+
+function rdoorInit() {
+  if (runeDoor || !window.RuneDoor) return runeDoor;
+  runeDoor = window.RuneDoor.create({
+    role: rdoorRole,
+    doc: function () { return rdoorRef(); },
+    who: rdoorWho,
+    name: rdoorName,
+    readSeen: rdoorReadSeen,
+    writeSeen: rdoorWriteSeen,
+    gsap: function () { return window.gsap; },
+    toast: function (t) { if (typeof toast === 'function') toast(t); }
+  });
+  var btn = $('runeDoorBtn');
+  if (btn) btn.addEventListener('click', rdoorOpen);
+  runeDoor.roleChanged();
+  return runeDoor;
+}
+
+function rdoorOpen() {
+  if (rdoorRole() !== 'teacher') return;   // hiding the button is never the lock
+  if (runeDoor) runeDoor.openPanel();
+}
+
+function rdoorRoleChanged() {
+  if (runeDoor) runeDoor.roleChanged();
+}
+/* ================= End rune door glue ================= */
 
 /* ================= End live cams glue ================= */
 
@@ -39752,6 +39850,9 @@ loadAiNotePrefs();
 <script>llibInit();</script>
 <script src="lesson-splash.js"></script>
 <script>lsplashInit();</script>
+<script src="vendor/gsap.min.js"></script>
+<script src="rune-door.js"></script>
+<script>rdoorInit();</script>
 <!-- 📲 The Polymath install kit: registers sw.js (top window only) and drives the header's Install app button. -->
 <script defer src="pwa-install.js?v=2.0.0" data-app-name="Polymath Answer Keys" data-app-key="anskey" data-app-icon="assets/app-icons/icon-192.png" data-accent="#E65100" data-sw="sw.js" data-floating="auto"></script>
 <script type="module">
