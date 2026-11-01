@@ -149,8 +149,97 @@ test('the doorway, the rune and the push-through agree', () => {
   assert.equal(P.zoomScale(0, 0, 0, 0), 4, 'a scene with no size still has a push');
   assert.match(P.archPath(), /^M90,470V200A110,110 0 0 1 310,200V470Z$/);
   assert.equal((P.starPath(8, 96, 56, 0).match(/L/g) || []).length, 15, 'eight points, sixteen corners');
-  assert.equal(P.logoFaces(false).length, 8, 'two blocks, four faces each');
-  assert.ok(P.logoFaces(false).slice(0, 4).every(f => /^#[0-9a-f]{6}$/i.test(f.fill)));
+  assert.equal(P.logoFaces(false).length, 8, 'two bars: a top, a front, a foot and the shadow in its fold');
+  assert.ok(P.logoFaces(false).every(f => /^#[0-9a-f]{6}$/i.test(f.fill)));
+});
+
+/* ------------------------------------------------------- the logo */
+/* Points read off the centre's own logo file (158 × 144 px) with the
+   colour each one is there. The drawing is the file's, traced: every
+   point must land on a face of that colour, with the faces painted in
+   their order (the teal bar crosses OVER the magenta one). */
+const LOGO_SAMPLES = [
+  [60, 30, '#5b96a1'],  // the teal bar's top
+  [120, 30, '#991e65'], // the magenta bar's top, behind it
+  [96, 40, '#991e65'],  // magenta top where the teal bar has not crossed it
+  [50, 75, '#7ebfca'],  // the teal front
+  [84, 120, '#7ebfca'], // …down to its point at the middle
+  [120, 80, '#c60085'], // the magenta front
+  [88, 120, '#c60085'],
+  [32, 116, '#5b96a1'], // the teal foot
+  [42, 100, '#3a6a70'], // the shadow in its fold
+  [140, 116, '#991e65'],// the magenta foot
+  [126, 100, '#711648'],// the shadow in its fold
+  [86, 40, null],       // the notch between the two tops
+  [60, 118, null],      // the gap under the M
+  [112, 118, null]
+];
+const toBox = (x, y) => [(x - 26) * 100 / 120, (y - 20) * 100 / 120 + 5.83];
+function inside(px, py, d) {
+  const pts = d.replace(/[MZ]/g, '').split('L').map(p => p.split(',').map(Number));
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+test('the logo is the centre\'s own: traced from its file, in its colours', () => {
+  const faces = P.logoFaces(false);
+  for (const [x, y, want] of LOGO_SAMPLES) {
+    const [bx, by] = toBox(x, y);
+    let got = null;
+    faces.forEach(f => { if (inside(bx, by, f.d)) got = f.fill; });
+    assert.equal(got, want, 'logo file pixel ' + x + ',' + y + ' is ' + want + ', the drawing has ' + got);
+  }
+  // The file's own colours, byte for byte, and nothing else.
+  assert.deepEqual([...new Set(faces.map(f => f.fill))].sort(),
+    ['#3a6a70', '#5b96a1', '#711648', '#7ebfca', '#991e65', '#c60085']);
+  assert.equal(P.COLORS.teal, P.LOGO.tealFront, 'the door\'s teal is the logo\'s teal');
+  assert.equal(P.COLORS.magenta, P.LOGO.magentaFront, 'the door\'s magenta is the logo\'s magenta');
+  // The teal bar is painted after (over) the magenta bar's top.
+  const order = faces.map(f => f.part);
+  assert.ok(order.indexOf('tealTop') > order.indexOf('magentaTop'));
+  // Lit, it is the same shape, brighter.
+  P.logoFaces(true).forEach((f, i) => { assert.equal(f.d, faces[i].d); assert.notEqual(f.fill, faces[i].fill); });
+});
+
+/* ------------------------------------------------------- the materials */
+test('a lit surface keeps its texture: the height never clips at 1', () => {
+  // The bump is k2·noise + k3·edge. If that can pass 1 it clips, every
+  // face goes flat and the noise shows only at the edges — which is how
+  // the stone first rendered, as smooth plastic.
+  for (const rough of [0, 0.35, 0.75, 1.2, 3]) {
+    const f = P.reliefFilter('x', { rough });
+    const k2 = +f.match(/k2="([\d.]+)" k3="([\d.]+)" result="bump"/)[1];
+    const k3 = +f.match(/k2="([\d.]+)" k3="([\d.]+)" result="bump"/)[2];
+    assert.ok(k2 + k3 < 1, 'rough ' + rough + ' clips: ' + k2 + ' + ' + k3);
+  }
+});
+
+test('the right leaf is turned over INSIDE its filters, never round them', () => {
+  // A lighting filter on a group with a negative scale renders black in
+  // Chrome, and so does a CSS flip of the SVG — the right leaf went dark.
+  const right = P.leafSvg('t-', 'right');
+  const flips = [...right.matchAll(/<g transform="translate\(400,0\) scale\(-1,1\)">/g)].length;
+  assert.ok(flips >= 6, 'the right leaf is mirrored piece by piece');
+  // No filtered group sits inside a flip: every flip's contents are filter-free.
+  const depthOk = (() => {
+    let i = 0;
+    while ((i = right.indexOf('<g transform="translate(400,0) scale(-1,1)">', i)) >= 0) {
+      let depth = 0, j = i;
+      do {
+        const open = right.indexOf('<g', j + 1), close = right.indexOf('</g>', j + 1);
+        if (open >= 0 && open < close) { depth++; j = open; } else { depth--; j = close; }
+      } while (depth >= 0);
+      if (/filter="url/.test(right.slice(i, j))) return false;
+      i = j;
+    }
+    return true;
+  })();
+  assert.ok(depthOk, 'a filter inside a flipped group renders black');
+  assert.equal(/rdMirror|scaleX\(-1\)/.test(SRC + CSS), false);
+  assert.ok(!/scale\(-1,1\)/.test(P.leafSvg('t-', 'left')), 'the left leaf is drawn as it is');
 });
 
 /* ------------------------------------------------------- the film */
