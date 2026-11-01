@@ -1,0 +1,398 @@
+/* =====================================================================
+   🚪 The rune door (v1.168.0) — see rune-door.js
+   ---------------------------------------------------------------------
+   Only the STILL picture lives here: sizes, layers, colours and the
+   resting state of everything the timelines move. Nothing in this file
+   animates — every motion is a GSAP tween, so the app and the HyperFrames
+   film (rune-door.html) draw the same frame at the same moment.
+
+   The scene is sized from its own box (container units), so the same
+   rules lay out the full-screen door in the app and the 1920 × 1080
+   composition in the film.
+
+   THE DOORWAY IS A HOLE. The wall is one evenodd path with the arch cut
+   out of it, and nothing behind the leaves is opaque, so as they swing
+   the student sees the worksheet that is really loaded behind the door.
+   ===================================================================== */
+
+.rdBack {
+  position: fixed;
+  inset: 0;
+  z-index: 7000;
+  background: transparent;
+  overscroll-behavior: contain;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.rdScene {
+  --rd-teal: #4fc3cf;
+  --rd-magenta: #e0218f;
+  --rd-gold: #f2c14e;
+  --rd-ink: #fff4dc;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
+  font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', Palatino, Georgia, serif;
+  color: var(--rd-ink);
+}
+
+/* The stage: 4 wide to 5 tall, as large as fits with room for the hint. */
+.rdStage {
+  --rd-w: min(86vw, 60vh);
+  --rd-w: min(86cqw, 60cqh);
+  position: absolute;
+  width: var(--rd-w);
+  height: calc(var(--rd-w) * 1.25);
+  left: calc(50% - var(--rd-w) / 2);
+  top: calc(47% - var(--rd-w) * 0.625);
+  will-change: transform;
+}
+
+/* ---- layers, back to front: the light beyond, the leaves, the stone,
+   the torches, the sparks, the rune ---- */
+.rdDoorway {
+  position: absolute;
+  left: 22.5%;
+  top: 18%;
+  width: 55%;
+  height: 76%;
+  perspective: calc(var(--rd-w) * 2.2);
+  perspective-origin: 50% 45%;
+  z-index: 1;
+}
+
+.rdBeyond,
+.rdBeyondArt {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.rdLeaf {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  transform-style: preserve-3d;
+  backface-visibility: visible;
+  filter: brightness(1);
+  pointer-events: none;
+}
+.rdLeafL { left: 0; transform-origin: 0% 50%; }
+.rdLeafR { right: 0; transform-origin: 100% 50%; }
+.rdLeafArt { display: block; width: 100%; height: 100%; }
+
+.rdFrame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.rdFrame text {
+  font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-weight: 700;
+}
+.rdCarve { fill: #2a2230; }
+.rdCarveHi { fill: #a49bae; opacity: .55; }
+.rdLit { paint-order: stroke; stroke: rgba(255, 255, 255, .35); stroke-width: .4; }
+.rdStepRune { fill: none; stroke: #2a2230; stroke-width: 1.3; stroke-linecap: round; opacity: .35; }
+
+/* ---- the torches ---- */
+.rdTorch {
+  position: absolute;
+  top: 33%;
+  width: 7%;
+  aspect-ratio: 40 / 70;
+  z-index: 3;
+  pointer-events: none;
+}
+.rdTorchL { left: 6.5%; }
+.rdTorchR { right: 6.5%; }
+.rdSconce { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.rdTorchLight {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 900%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -45%);
+  background: radial-gradient(closest-side, rgba(255, 190, 90, .32), rgba(255, 140, 40, .1) 55%, rgba(255, 140, 40, 0));
+  mix-blend-mode: screen;
+}
+
+.rdFlame {
+  position: absolute;
+  left: 12%;
+  bottom: 78%;
+  width: 76%;
+  height: 120%;
+  transform-origin: 50% 100%;
+}
+.rdFlame span {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  border-radius: 50% 50% 46% 46% / 62% 62% 38% 38%;
+  transform: translateX(-50%);
+}
+.rdFlameOuter { width: 100%; height: 100%; background: radial-gradient(ellipse at 50% 80%, #ffcf5a 0%, #ff7b1c 55%, rgba(255, 60, 0, 0) 75%); filter: blur(1px); }
+.rdFlameMid   { width: 64%; height: 72%; background: radial-gradient(ellipse at 50% 80%, #fff1a8 0%, #ffb02e 70%, rgba(255, 140, 0, 0) 100%); }
+.rdFlameCore  { width: 32%; height: 40%; background: radial-gradient(ellipse at 50% 75%, #ffffff 0%, #fff3c4 60%, rgba(255, 230, 160, 0) 100%); }
+
+/* ---- the dust thrown up by the leaves ---- */
+.rdDust {
+  position: absolute;
+  left: 18%;
+  width: 64%;
+  bottom: 3%;
+  height: 12%;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255, 226, 170, .7), rgba(255, 226, 170, 0) 70%);
+  opacity: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* ---- the sparks, flung from the rune's centre ---- */
+.rdSparks {
+  position: absolute;
+  left: 50%;
+  top: 47.6%;
+  width: 0;
+  height: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.rdSpark {
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 0;
+}
+.rdSparkTeal    { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-teal) 45%, rgba(79, 195, 207, 0) 72%); }
+.rdSparkMagenta { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-magenta) 45%, rgba(224, 33, 143, 0) 72%); }
+
+/* ---- the rune: a real button, over the seam ---- */
+.rdRune {
+  position: absolute;
+  left: 34.5%;
+  top: 35.2%;
+  width: 31%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  z-index: 6;
+  filter: drop-shadow(0px 0px 0px rgba(79, 195, 207, 0));
+  -webkit-tap-highlight-color: transparent;
+}
+.rdRune:focus { outline: none; }
+.rdRune:focus-visible { box-shadow: 0 0 0 4px rgba(255, 244, 220, .85), 0 0 0 8px rgba(79, 195, 207, .6); }
+.rdRuneArt { display: block; width: 100%; height: 100%; overflow: visible; }
+.rdRimDark { fill: none; stroke: #0d0b10; stroke-width: 1.6; stroke-linecap: round; }
+.rdRimLit  { fill: none; stroke-width: 1.8; stroke-linecap: round; }
+.rdBack[data-state="opening"] .rdRune { cursor: default; }
+
+/* ---- the embers, over the whole screen ---- */
+.rdEmbers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.rdEmber {
+  position: absolute;
+  bottom: 6%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff3c4 0 30%, #ffb347 60%, rgba(255, 140, 40, 0) 75%);
+  opacity: 0;
+}
+.rdEmber.rdHot { background: radial-gradient(circle, #ffffff 0 25%, var(--rd-teal) 55%, rgba(79, 195, 207, 0) 75%); }
+
+.rdFlash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, #ffffff 0%, #fff1c0 30%, rgba(79, 195, 207, .5) 60%, rgba(224, 33, 143, 0) 85%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 8;
+}
+
+/* ---- the words ---- */
+.rdHint,
+.rdWelcome {
+  position: absolute;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9;
+}
+.rdHint {
+  bottom: 3.5%;
+  bottom: 3.5cqh;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: rgba(18, 14, 22, .72);
+  border: 1px solid rgba(242, 193, 78, .45);
+  font-size: clamp(13px, 2.4vmin, 20px);
+  letter-spacing: .08em;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .45);
+}
+.rdHintIcon { color: var(--rd-gold); }
+.rdWelcome {
+  bottom: 3%;
+  bottom: 3cqh;
+  font-size: clamp(22px, 6vmin, 56px);
+  font-weight: 700;
+  letter-spacing: .06em;
+  opacity: 0;
+  background: linear-gradient(90deg, #8ad0d8, #ffffff 45%, #e46cb6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 3px 12px rgba(0, 0, 0, .65));
+}
+
+/* A device that asks for less motion still gets the door and the rune;
+   the hint stays still and nothing swings. */
+.rdReduced .rdHint { opacity: 1; }
+
+/* ---- the film (rune-door.html): the composition is its own box ---- */
+.rdFilm .rdHint { font-size: 30px; }
+.rdFilm .rdWelcome { font-size: 72px; }
+
+/* =====================================================================
+   The teacher's panel
+   ===================================================================== */
+.rdPanelBack {
+  position: fixed;
+  inset: 0;
+  z-index: 6900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(20, 16, 24, .45);
+}
+
+.rdPanel {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 26px 28px 22px;
+  border-radius: 18px;
+  background: var(--bg, #fff);
+  color: var(--ink, #1f1a24);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .3);
+  border: 1px solid rgba(0, 0, 0, .06);
+}
+
+.rdPanelHead {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+.rdPanelSeal {
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #2a2230 0 55%, #1a1520 100%);
+  padding: 4px;
+}
+.rdPanelSeal .rdRuneArt { width: 100%; height: 100%; }
+.rdPanel h2 {
+  margin: 4px 0 8px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 22px;
+  letter-spacing: .04em;
+}
+.rdPanelLead { margin: 0; line-height: 1.55; font-size: 14px; opacity: .8; }
+
+.rdSwitch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(79, 195, 207, .1);
+  cursor: pointer;
+  font-weight: 600;
+}
+.rdSwitch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.rdSwitchTrack {
+  position: relative;
+  flex: 0 0 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: #c9c3cf;
+  transition: background .2s;
+}
+.rdSwitchKnob {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  transition: transform .2s;
+}
+.rdSwitch input:checked + .rdSwitchTrack { background: linear-gradient(90deg, #4fc3cf, #e0218f); }
+.rdSwitch input:checked + .rdSwitchTrack .rdSwitchKnob { transform: translateX(20px); }
+.rdSwitch input:focus-visible + .rdSwitchTrack { box-shadow: 0 0 0 3px rgba(79, 195, 207, .5); }
+
+.rdField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.rdField input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, .18);
+  font: 600 16px/1.3 'Cinzel', Georgia, serif;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.rdPanelRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 22px;
+}
+.rdGrow { flex: 1 1 auto; }
+.rdStatus { margin: 16px 0 0; font-size: 13px; line-height: 1.5; opacity: .75; min-height: 1.5em; }
+.rdStatus.rdBad { color: #b3261e; opacity: 1; }
+
+@media (max-width: 520px) {
+  .rdPanel { padding: 20px 18px 18px; }
+  .rdPanelHead { gap: 12px; }
+  .rdPanelSeal { flex-basis: 56px; width: 56px; height: 56px; }
+}

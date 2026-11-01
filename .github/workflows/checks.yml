@@ -45,6 +45,7 @@ jobs:
           SNIP_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/snip-pin
           GUIDE_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/student-guide
           LS_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/lesson-splash
+          RD_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/rune-door
         run: |
           node tools/wheel-check.mjs
           node tools/classroom-battle-browser-check.mjs
@@ -67,6 +68,7 @@ jobs:
           node tools/living-apps-check.mjs
           node tools/living-library-check.mjs
           node tools/lesson-splash-check.mjs
+          node tools/rune-door-check.mjs
           node tools/model-studio-check.mjs
           node tools/snip-pin-check.mjs
           node tools/student-guide-check.mjs

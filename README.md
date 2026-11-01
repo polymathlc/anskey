@@ -3,6 +3,27 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.168.0 — 🚪 The rune door: students open the lesson with the Polymath rune
+
+- **🚪 Rune door** (teacher toolbar, beside 🏰 Lesson start) has one switch: **Show the door to
+  students**. Every student's screen is then covered by a heavy medieval door in a stone arch,
+  torches flickering either side and embers drifting up. **POLYMATH LEARNING CENTRE** is carved
+  round the arch (the teacher can change the words), the same words run in runes along the step,
+  and over the seam of the two leaves sits the rune: a gold eight-pointed star round the Polymath
+  logo.
+- **A touch on the rune** lights it in the centre's teal and magenta, lights the inscription letter
+  by letter from teal to magenta, spins the rune faster and faster throwing sparks, bursts it into
+  light, and swings both leaves open inward. **The worksheet loaded behind the door is what you see
+  through the doorway** as it opens, then the view pushes through the doorway and the door is gone.
+  The welcome names the student.
+- It opens once per student per device. **🔁 Show it again** brings it back for everyone; turning
+  the switch off takes a door that is still shut off every screen. **👁 Preview** shows it on the
+  teacher's own screen (e.g. the projector) without recording anything.
+- **Made with HyperFrames.** Every motion is a GSAP tween, and `rune-door.html` is a HyperFrames
+  composition of the very same scene: `npx hyperframes render rune-door.html` writes the door as an
+  MP4 (with a worksheet waiting behind it). GSAP 3.13.0 is vendored in `vendor/`.
+- A device that asks for less motion still gets the door and the rune; it fades instead of spinning.
+
 ## v1.167.2 — 💍 Both rings can be worn from the treasure bag
 
 - **The bug:** in My Hero, a student with two rings pressed **Equip to Ring 1** on the second one
