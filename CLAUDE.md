@@ -81,6 +81,14 @@ Guidance for Claude when working in this repo.
 - Teacher-only: `wheelTeacher()` in every glue handler and in `open`. `lappRoleChanged` calls `llib.roleChanged()`. The window's keys stop at `.llBack`, and a capture Escape catches focus that fell back to the page.
 - Run `node --test tools/living-library-tests.mjs` and `node tools/living-library-check.mjs` (real Chromium, an in-memory Firestore/Storage: save files once, scan, QR = viewer link, Gmail URL, forget, phone, student). It is in CI.
 
+## 🕒 Lesson times fold in the worksheet list (v1.169.0)
+
+- The section between `🕒 Lesson times fold (v1.169.0)` and `End lesson times fold` (just before `renderQuestionGroups`): `qSlotSection` builds every lesson time, `qSlotHead` is its folded row (time, level/subject chips from the pure `qSlotSummary`, ★ count, worksheet count), `qSlotSetOpen` / `qSlotsSetAll` / `qSlotsBarSync` (the day bar's `#qSlotAllBtn`), `qSlotDragOpen`.
+- **Every lesson has a heading, even the only one on the day** — it is the door. The heading keeps `.qSlotLine` because `placeQDrag` reads a press on `.qSlotLine` as "top of this class".
+- Folded by default; a student's own class on their own day opens by itself. Choices live in `qSlotOpenState`, keyed by account (+ acting student) / day / slot, bounded by `QSLOT_OPEN_MAX`, **for the visit only — never in storage**, so the next visit starts tidy.
+- A drag over a folded lesson opens it (`qSlotDragOpen`, not remembered); the lesson a card is dropped in is remembered open in `onQDragUp`, or the card vanishes into a folded row.
+- Run `node --test tools/day-slots-tests.mjs` and `node tools/day-slots-check.mjs` (real Chromium: folded rows, level/subject, open/fold, redraw keeps it, Open all, drag, student default, phone; in CI).
+
 ## 🎁 Item ledger, gifts and restores (v1.158.0)
 
 - Server: `type:'items'` (teacher only, in `hero-service.js` TYPES) → `itemsAction` in `functions/hero-repository.js`: `history` (`studentId` or `guests:true`), `gift` (`rarity` key | `'random'`, `itemType`, optional `itemId`, `quantity` 1–20, receipt `id`), `restore` (`dropId` = `ledgerDocId:index`, `again` to restore twice). **Use `itemType`, never `type`** — `type` is the request's own type.

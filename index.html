@@ -1235,6 +1235,73 @@
   .qSlotLine.mine { box-shadow: 0 0 0 2px rgba(184, 121, 28, 0.18); }
   .qSlotSection + .qSlotSection { margin-top: 16px; }
 
+  /* ---------- 🕒 Lesson times fold (v1.169.0) ----------
+     Every lesson time is one folded row — the hours, the level, the subject,
+     how many — and a tap opens just that lesson. The row is the same coloured
+     banner as before, made into a button, so the colours that tell two
+     lessons on a day apart still do. */
+  .qSlotHead {
+    width: calc(100% - 4px);
+    font-family: var(--font);
+    text-align: left;
+    cursor: pointer;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    min-height: 44px;
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+  }
+  .qSlotHead:hover { box-shadow: 0 1px 0 var(--slotLine, var(--line)), 0 2px 8px rgba(0, 0, 0, 0.05); }
+  .qSlotHead:active { transform: translateY(1px); }
+  .qSlotHead:focus-visible { outline: 2px solid var(--slotInk, var(--ink-soft)); outline-offset: 2px; }
+  .qSlotArrow {
+    flex: 0 0 auto;
+    width: 12px;
+    font-size: 0.72rem;
+    line-height: 1;
+    opacity: 0.8;
+  }
+  .qSlotArrow::before { content: '▾'; }
+  .qSlotSection.collapsed .qSlotArrow::before { content: '▸'; }
+  .qSlotTime { white-space: nowrap; }
+  .qSlotWhat {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+  .qSlotHead .qSlotChip { margin-right: 0; line-height: 1.5; }
+  .qSlotNone { font-weight: normal; font-style: italic; color: var(--ink-faint); font-size: 0.7rem; }
+  .qSlotStar {
+    font-size: 0.68rem;
+    font-weight: bold;
+    color: #92600A;
+    background: #FFF6DB;
+    border: 1px solid #F0D58A;
+    border-radius: 999px;
+    padding: 1px 8px;
+    white-space: nowrap;
+  }
+  .qSlotHead .qGroupCount {
+    color: var(--slotInk, var(--ink-faint));
+    background: #fff;
+    border: 1px solid var(--slotLine, var(--line));
+  }
+  /* Folded: the heading alone, with the breathing room under it closed up. */
+  .qSlotSection.collapsed > .qItemRow { display: none; }
+  /* The day bar carries Open all beside Whole week, so its name takes a line
+     of its own and the two buttons sit together under it, at the right. */
+  .qDayFilterBar { flex-wrap: wrap; row-gap: 8px; }
+  .qDayFilterBar .qDayFilterName { flex: 1 0 100%; }
+  .qDayFilterBar .qSlotAllBtn { margin-left: auto; }
+  .qSlotSection.collapsed > .qSlotHead { margin-bottom: 0; }
+  .qSlotSection.collapsed + .qSlotSection { margin-top: 10px; }
+  @media (pointer: coarse) { .qSlotHead { min-height: 48px; padding: 11px 12px; } }
+  @media (max-width: 420px) {
+    .qSlotHead { font-size: 0.72rem; }
+    .qSlotHead .qGroupCount { margin-left: auto; }
+  }
+
   /* The banner in the drawer's head while one day is picked out — it names
      the day and is the way back to the whole week. */
   .qDayFilterBar {
@@ -5844,7 +5911,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.168.0';
+var APP_VERSION = 'v1.169.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -36184,7 +36251,18 @@ function renderDayFilterBar() {
   clear.className = 'qDayFilterClear';
   clear.textContent = '✕ Whole week';
   clear.addEventListener('click', function () { pickDayFilter(qDayFilter); });
+  // Every lesson on the day open at once, or folded back — for the moment the
+  // teacher does want to see the whole day (🕒 Lesson times fold).
+  var all = document.createElement('button');
+  all.type = 'button';
+  all.className = 'qDayFilterClear qSlotAllBtn';
+  all.id = 'qSlotAllBtn';
+  all.addEventListener('click', function () {
+    qSlotsSetAll(qSlotsOpenState() !== 'all');
+  });
+  bar.appendChild(all);
   bar.appendChild(clear);
+  qSlotsBarSync();
   syncDrawerHeadOffset();
 }
 
@@ -36244,9 +36322,11 @@ function renderQuestionList() {
       ? ' · grouped by class day, newest first' + (hasDayPref ? ' · your day first' : '')
       : ' on ' + qDayFilter + ' · by lesson time') +
     (hidden.length ? ' · 🔒 ' + hidden.length + ' hidden' : '') +
-    (canArrangeWorksheets() ? ' · drag ⠿ to rearrange' : '');
+    (canArrangeWorksheets() ? ' · drag ⠿ to rearrange' : '') +
+    ' · tap a lesson time to open it';
   renderQuestionGroups(list, docs);
   renderHiddenGroup(list, hidden);
+  qSlotsBarSync();
   syncDrawerHeadOffset();
 }
 
@@ -36597,11 +36677,289 @@ function docsHiddenHeading(count) {
   return head;
 }
 
+/* ================= 🕒 Lesson times fold (v1.169.0) =================
+   A day can hold three lessons, and each lesson a dozen worksheets, so the
+   list used to be one long column to scroll through looking for the right
+   class. Now every lesson time is a folded row of its own that says what is
+   inside it — the hours, the level and the subject, how many worksheets, and
+   a ★ when one is marked to open — and a tap opens just that lesson.
+
+   Rules this section keeps:
+     · Every lesson time is a section with a heading, even when it is the
+       only one on the day: the heading is the door, and a section with no
+       door could never be folded or opened.
+     · Folded is the default. The one exception is a student's OWN class on
+       their own class day, which opens by itself — that is the lesson they
+       came for, and making them find it twice is the scrolling this replaces.
+     · What the teacher opens or folds is remembered for the visit, per
+       account and per day + lesson time (`qSlotOpenState`), so the list
+       redrawing behind a save, a star, a drag or a filter never snaps a lesson
+       shut under the finger. It is deliberately NOT written to storage: the
+       next visit opens on the tidy folded list that was asked for, not on
+       whatever was left open last week.
+     · The summary is worked out from the worksheets themselves
+       (`qSlotSummary`, pure), never typed anywhere, so it cannot disagree
+       with what opens underneath it.
+     · A folded lesson is still somewhere to drop a dragged worksheet: it
+       opens under the card (`qSlotDragOpen`), and the lesson it lands in is
+       remembered open, or the card would vanish into a folded row the moment
+       it was dropped.
+   ===================================================================== */
+var QSLOT_OPEN_MAX = 120;          // remembered lessons per visit, oldest dropped
+var qSlotOpenState = {};           // 'uid|day|slot' -> { open: bool, at: n }
+var qSlotOpenTick = 0;             // a counter, not a clock: order is all it needs
+
+/* Whose list this is. A device handed to a student ("Practise as") or signed
+   into another account must not inherit the teacher's open lessons. */
+function qSlotOwner() {
+  var uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) || 'anon';
+  var acting = (typeof actingStudent !== 'undefined' && actingStudent)
+    ? (actingStudent.uid || actingStudent.id || actingStudent.name || 'acting') : '';
+  return acting ? uid + '>' + acting : uid;
+}
+
+function qSlotKey(day, slot) {
+  return qSlotOwner() + '|' + String(day || '') + '|' + String(slot);
+}
+
+/* Open or folded: what was chosen this visit, else the default. */
+function qSlotIsOpen(day, slot, dflt) {
+  var rec = qSlotOpenState[qSlotKey(day, slot)];
+  return rec ? !!rec.open : !!dflt;
+}
+
+/* Remember a choice. Bounded, so a visit spent dragging worksheets between
+   every lesson of the week cannot grow it without end. */
+function qSlotRemember(day, slot, open) {
+  qSlotOpenState[qSlotKey(day, slot)] = { open: !!open, at: ++qSlotOpenTick };
+  var keys = Object.keys(qSlotOpenState);
+  if (keys.length <= QSLOT_OPEN_MAX) return;
+  keys.sort(function (a, b) { return qSlotOpenState[a].at - qSlotOpenState[b].at; });
+  keys.slice(0, keys.length - QSLOT_OPEN_MAX).forEach(function (k) { delete qSlotOpenState[k]; });
+}
+
+/* Forget every choice — a new account, or the whole list being reset. */
+function qSlotForgetAll() {
+  qSlotOpenState = {};
+}
+
+/* What a lesson time holds, worked out from its worksheets (pure).
+   `levels` in teaching order, `subjects` as stored ('math' | 'science' |
+   'both') in that order, then counts. A worksheet with no level or no subject
+   is counted as unassigned rather than dropped, so the teacher is told. */
+function qSlotSummary(items, levelOrder) {
+  var order = levelOrder || ['P3', 'P4', 'P5', 'P6', 'S1'];
+  var subjOrder = ['math', 'science', 'both'];
+  var levels = {}, subjects = {};
+  var count = 0, starred = 0, unassigned = 0, hidden = 0;
+  (items || []).forEach(function (it) {
+    var d = (it && it.data) || it || {};
+    count++;
+    if (d.starred) starred++;
+    if (d.hidden) hidden++;
+    if (d.level) levels[d.level] = true;
+    if (d.subject) subjects[d.subject] = true;
+    if (!d.level || !d.subject) unassigned++;
+  });
+  function rank(list, v) { var i = list.indexOf(v); return i === -1 ? 99 : i; }
+  var lv = Object.keys(levels).sort(function (a, b) {
+    return rank(order, a) - rank(order, b) || (a < b ? -1 : a > b ? 1 : 0);
+  });
+  var sj = Object.keys(subjects).sort(function (a, b) {
+    return rank(subjOrder, a) - rank(subjOrder, b) || (a < b ? -1 : a > b ? 1 : 0);
+  });
+  return { levels: lv, subjects: sj, count: count, starred: starred,
+    unassigned: unassigned, hidden: hidden };
+}
+
+/* The same summary in words, for the heading's tooltip and a screen reader:
+   "Monday 3:00 – 4:45pm · P5 Science · 4 worksheets · ★ 1 to open". */
+function qSlotSummaryText(dayName, timeLabel, sum, lvlLabel, subjLabel) {
+  var L = lvlLabel || function (l) { return l; };
+  var S = subjLabel || function (s) { return s; };
+  var bits = [];
+  var when = [dayName, timeLabel].filter(Boolean).join(' ');
+  if (when) bits.push(when);
+  var what = [];
+  if (sum.levels.length) what.push(sum.levels.map(L).join(' / '));
+  if (sum.subjects.length) what.push(sum.subjects.map(S).join(' / '));
+  if (what.length) bits.push(what.join(' '));
+  bits.push(sum.count + ' worksheet' + (sum.count === 1 ? '' : 's'));
+  if (sum.starred) bits.push('★ ' + sum.starred + ' to open');
+  if (sum.unassigned) bits.push('⚠ ' + sum.unassigned + ' unassigned');
+  return bits.join(' · ');
+}
+
+/* Fold or open one lesson section, keeping its heading's arrow and its
+   aria-expanded in step. `remember` is false for the open a drag makes in
+   passing — only a real tap (or a drop) is a choice. */
+function qSlotSetOpen(section, open, remember) {
+  if (!section) return;
+  section.classList.toggle('collapsed', !open);
+  var head = section.querySelector('.qSlotHead');
+  if (head) head.setAttribute('aria-expanded', String(!!open));
+  if (remember) {
+    var g = section.closest('.qDayGroup');
+    qSlotRemember(g ? g.getAttribute('data-day') : '', section.getAttribute('data-slot'), open);
+  }
+}
+
+/* Open or fold every lesson in the list at once (the day view's bar). */
+function qSlotsSetAll(open) {
+  var list = $('qList');
+  if (!list) return;
+  list.querySelectorAll('.qDayGroup:not(.qDropOnly) .qSlotSection:not(.qDropOnly)').forEach(function (s) {
+    qSlotSetOpen(s, open, true);
+  });
+  if (open) {
+    // Opening every lesson inside a folded day would open nothing anybody
+    // can see, so the days come open with them.
+    list.querySelectorAll('.qDayGroup.collapsed').forEach(function (g) { g.classList.remove('collapsed'); });
+  }
+  qSlotsBarSync();
+}
+
+/* The day view's "Open all / Fold all" button says what pressing it does. It
+   is hidden while there is nothing on the day to open. */
+function qSlotsBarSync() {
+  var btn = $('qSlotAllBtn');
+  if (!btn) return;
+  var st = qSlotsOpenState();
+  var list = $('qList');
+  var n = list ? list.querySelectorAll('.qDayGroup:not(.qDropOnly) .qSlotSection:not(.qDropOnly)').length : 0;
+  btn.style.display = n ? '' : 'none';
+  btn.textContent = st === 'all' ? '▸ Fold all' : '▾ Open all';
+  btn.title = st === 'all' ? 'Fold every lesson time back to one line each'
+    : 'Open every lesson time on this day';
+  btn.setAttribute('aria-label', btn.title);
+}
+
+/* Are all, some or none of the lessons on screen open? For the bar's label. */
+function qSlotsOpenState() {
+  var list = $('qList');
+  if (!list) return 'none';
+  var all = list.querySelectorAll('.qDayGroup:not(.qDropOnly) .qSlotSection:not(.qDropOnly)');
+  if (!all.length) return 'none';
+  var open = 0;
+  all.forEach(function (s) { if (!s.classList.contains('collapsed')) open++; });
+  return open === 0 ? 'none' : open === all.length ? 'all' : 'some';
+}
+
+/* A dragged card passing over a folded lesson opens it, so the card can be
+   placed among its worksheets. Not remembered: passing over is not choosing. */
+function qSlotDragOpen(section) {
+  if (section && section.classList.contains('collapsed')) qSlotSetOpen(section, true, false);
+}
+
+/* The heading of one lesson time — a button that opens and folds it, and
+   tells what is inside before anybody opens it. It keeps the `.qSlotLine`
+   class because the drag code reads a press on a `.qSlotLine` as "the top of
+   this class". */
+function qSlotHead(day, slotNum, items, opts) {
+  opts = opts || {};
+  var k = slotNum === null ? SLOT_OTHER : String(slotNum);
+  var sum = qSlotSummary(items, typeof LEVELS !== 'undefined' ? LEVELS : null);
+  var time = slotLabel(slotNum === null ? -1 : slotNum, day);
+  var dayName = day === DAY_UNDATED ? '' : day;
+
+  var head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'qSlotLine qSlotHead' + (opts.mine ? ' mine' : '') + (sum.starred ? ' hasStar' : '');
+  head.setAttribute('data-slot', k);
+  paintSlot(head, slotNum);
+  var words = qSlotSummaryText(dayName, time, sum, levelLabel, subjectLabel);
+  head.title = 'Tap to open or fold — ' + words;
+  head.setAttribute('aria-label', words);
+
+  var arrow = document.createElement('span');
+  arrow.className = 'qSlotArrow';
+  arrow.setAttribute('aria-hidden', 'true');
+  head.appendChild(arrow);
+
+  var when = document.createElement('span');
+  when.className = 'qSlotTime';
+  when.textContent = '🕒 ' + time;
+  head.appendChild(when);
+
+  var what = document.createElement('span');
+  what.className = 'qSlotWhat';
+  sum.levels.forEach(function (l) {
+    var c = document.createElement('span');
+    c.className = 'qItemLevel qSlotChip';
+    c.textContent = levelLabel(l);
+    what.appendChild(c);
+  });
+  sum.subjects.forEach(function (s) {
+    var c = document.createElement('span');
+    c.className = 'qItemSubject qSlotChip ' + s;
+    c.textContent = subjectLabel(s);
+    what.appendChild(c);
+  });
+  if (!sum.levels.length && !sum.subjects.length) {
+    var none = document.createElement('span');
+    none.className = 'qSlotNone';
+    none.textContent = 'no level or subject yet';
+    what.appendChild(none);
+  }
+  head.appendChild(what);
+
+  if (sum.starred) {
+    var st = document.createElement('span');
+    st.className = 'qSlotStar';
+    st.textContent = '★ ' + sum.starred;
+    st.title = sum.starred + ' marked to open';
+    head.appendChild(st);
+  }
+  if (opts.mine) {
+    var mt = document.createElement('span');
+    mt.className = 'qMineTag';
+    mt.textContent = 'your class';
+    head.appendChild(mt);
+  }
+  var n = document.createElement('span');
+  n.className = 'qGroupCount';
+  n.textContent = sum.count;
+  head.appendChild(n);
+
+  head.addEventListener('click', function (e) {
+    // The click that ends a drag lands on whatever is under the finger —
+    // folding the lesson a card was just dropped into is never what was meant.
+    if (typeof qDragEndedAt !== 'undefined' && Date.now() - qDragEndedAt < 350) return;
+    e.stopPropagation();
+    var section = head.closest('.qSlotSection');
+    if (!section) return;
+    qSlotSetOpen(section, section.classList.contains('collapsed'), true);
+    qSlotsBarSync();
+  });
+  return head;
+}
+
+/* One lesson time's section: the heading, then its worksheets (folded away
+   unless it is open). */
+function qSlotSection(day, k, items, opts) {
+  opts = opts || {};
+  var slotNum = k === SLOT_OTHER ? null : parseInt(k, 10);
+  var section = document.createElement('div');
+  section.className = 'qSlotSection';
+  section.setAttribute('data-slot', k);
+  var head = qSlotHead(day, slotNum, items, { mine: !!opts.mine });
+  var bodyId = 'qSlotBody-' + String(day).replace(/[^A-Za-z0-9]/g, '') + '-' + k;
+  head.setAttribute('aria-controls', bodyId);
+  section.id = bodyId;
+  section.appendChild(head);
+  items.sort(questionOrderCmp);
+  items.forEach(function (item) { section.appendChild(questionCard(item)); });
+  qSlotSetOpen(section, qSlotIsOpen(day, k, !!opts.mine), false);
+  return section;
+}
+/* ================= End lesson times fold ================= */
+
 function renderQuestionGroups(list, docs) {
   var mine = (!isAdmin(currentUser) || actingStudent) && studentProfile ? studentProfile : null;
   var myDays = (mine && mine.days) || [];
-  // One day picked out by its dot: nothing is folded away and every lesson
-  // time gets its banner, because the times are what is being looked at.
+  // One day picked out by its dot: the day itself is never folded away.
+  // Every lesson time — on that day or any other — is its own folded row
+  // saying its hours, level and subject (🕒 Lesson times fold, v1.169.0).
   var oneDay = qDayFilter !== 'all';
   var mySlot = mine && (mine.slot === 0 || mine.slot === 1 || mine.slot === 2) ? mine.slot : null;
 
@@ -36671,37 +37029,15 @@ function renderQuestionGroups(list, docs) {
 
     var body = document.createElement('div');
     body.className = 'qDayBody';
-    var manySlots = slotKeys.length > 1;
     slotKeys.forEach(function (k) {
       var items = byDay[day][k];
       var slotNum = k === SLOT_OTHER ? null : parseInt(k, 10);
       var isMySlot = isMyDay && mySlot !== null && slotNum === mySlot;
-      // Every class is a section of its own, named with the day and the time
-      // it holds — that is what a card dropped inside it becomes.
-      var section = document.createElement('div');
-      section.className = 'qSlotSection';
-      section.setAttribute('data-slot', k);
-      // With one class on the day the time adds nothing to the heading — the
-      // banner is there to tell two classes on the same day apart. Picking a
-      // day out with its dot is the exception: the whole point of that view
-      // is the lesson times, so every one of them is named.
-      if (manySlots || isMySlot || oneDay) {
-        var line = document.createElement('div');
-        line.className = 'qSlotLine' + (isMySlot ? ' mine' : '');
-        paintSlot(line, slotNum);
-        var ttl = document.createElement('span');
-        ttl.textContent = '🕒 ' + slotLabel(slotNum === null ? -1 : slotNum, day);
-        line.appendChild(ttl);
-        if (isMySlot) {
-          var mt = document.createElement('span');
-          mt.className = 'qMineTag';
-          mt.textContent = 'your class';
-          line.appendChild(mt);
-        }
-        section.appendChild(line);
-      }
-      items.sort(questionOrderCmp);
-      items.forEach(function (item) { section.appendChild(questionCard(item)); });
+      // Every class is a folded section of its own, named with the time it
+      // holds and the level and subject inside it — tap it to open just that
+      // lesson (🕒 Lesson times fold). A card dropped inside it becomes that
+      // class's.
+      var section = qSlotSection(day, k, items, { mine: isMySlot });
       body.appendChild(section);
     });
     dayWrap.appendChild(body);
@@ -36920,6 +37256,9 @@ function placeQDrag(x, y) {
   }
   var section = under.closest('.qSlotSection');
   if (section) {
+    // A folded lesson opens under the card, so it can be placed among the
+    // worksheets already there (🕒 Lesson times fold).
+    qSlotDragOpen(section);
     // On the class heading: straight to the top of that class. Anywhere else
     // in it: the end.
     if (under.closest('.qSlotLine')) section.insertBefore(qDrag.row, firstRowIn(section));
@@ -36928,10 +37267,14 @@ function placeQDrag(x, y) {
   }
   var first = dayWrap.querySelector('.qSlotSection');
   if (!first) return;
-  if (under.closest('.qDayHead')) first.insertBefore(qDrag.row, firstRowIn(first));
-  else {
+  if (under.closest('.qDayHead')) {
+    qSlotDragOpen(first);
+    first.insertBefore(qDrag.row, firstRowIn(first));
+  } else {
     var sections = dayWrap.querySelectorAll('.qSlotSection');
-    sections[sections.length - 1].appendChild(qDrag.row);
+    var last = sections[sections.length - 1];
+    qSlotDragOpen(last);
+    last.appendChild(qDrag.row);
   }
 }
 
@@ -37071,6 +37414,9 @@ function onQDragUp() {
   endQDragListeners();
   qDrag = null;
   if (!section || !ids.length) { renderQuestionList(); return; }
+  // The lesson the card landed in stays open, or the card would disappear
+  // into a folded row the moment it was let go.
+  qSlotRemember(day, slot, true);
   saveQArrangement(id, day, slot, ids, day !== fromDay || slot !== fromSlot);
 }
 
