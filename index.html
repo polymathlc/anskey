@@ -3980,6 +3980,8 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="rune-door.css">
 <!-- 🔎 Command search: find any button by name (command-search.js). -->
 <link rel="stylesheet" href="command-search.css">
+<!-- ⏺ The "Not recording" warning while the teacher writes (record-nudge.js). -->
+<link rel="stylesheet" href="record-nudge.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="battle-adventure.css">
 <link rel="stylesheet" href="quest-panel.css">
@@ -4805,6 +4807,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
         <audio id="lessonTestAudio" preload="auto" hidden></audio>
       </section>
 
+      <label class="lessonNudgeRow"><input type="checkbox" id="lessonNudgeAgain" checked> Warn me when I write without recording</label>
       <p class="lessonHelp lessonSmall" id="lessonSizeHint">Voice and writing only: under 1 MB a minute.</p>
       <p class="lessonHelp lessonSmall"><strong>A recording is you and your writing, and nothing else.</strong> The AI never answers into it. 🎙 <span class="aiName">Chung GPT</span> Voice AI is a separate button on the toolbar — its replies are never mixed into a recording, so use headphones if you want it while you record.</p>
       <p class="lessonHelp lessonSmall">Arrange pictures and cards first. Changing them ends the recording so the replay stays aligned. Noise reduction depends on your browser and device. Record for as long as you need — it stops when the file is full. Keep this app in front.</p>
@@ -5918,7 +5921,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.171.0';
+var APP_VERSION = 'v1.172.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6727,6 +6730,7 @@ async function loadPdf(bytes, name, contextCheck) {
   autoLearnReset(false);   // …but the page just flushed still has to be read
   wsEpoch++;              // cards still being made belong to the old worksheet
   pdfBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (typeof recNudgeChanged === 'function') setTimeout(recNudgeChanged, 0);   // ⏺ a warning belongs to the sheet it was given on
   docName = name || 'Untitled';
   currentDocId = null;
   annOverflow = false;  // nothing of this worksheet's is in Storage yet
@@ -12171,6 +12175,9 @@ function lessonDevVisibility() {
 }
 function lessonOpenModal() {
   $('lessonModal').classList.add('open');
+  // ⏺ The window is the answer to the warning, and holds its on/off switch.
+  if (typeof recNudgeSyncSwitch === 'function') recNudgeSyncSwitch();
+  if (typeof recNudgeChanged === 'function') recNudgeChanged();
   lessonScreenRender();
   lessonDevOpen();
   // 🏷 A guess at which question is on screen, offered in the title box.
@@ -12256,6 +12263,8 @@ function lessonBar(show) {
   // record button says whether it is recording without a word on it.
   $('lessonRecordBtn').classList.toggle('active', !!lessonCapture);
   if (typeof syncFavActive === 'function') syncFavActive();
+  // ⏺ A recording that has started takes the "Not recording" warning away.
+  if (typeof recNudgeChanged === 'function') recNudgeChanged();
 }
 function lessonView() {
   var area = $('viewerArea'), r = area.getBoundingClientRect();
@@ -17100,6 +17109,8 @@ function attachOverlayHandlers(p) {
       textFocusHeld = false;
       focusTextAnn(a2.id);
       setDirty(true);
+      // ⏺ Writing with no lesson going down? (record-nudge.js decides.)
+      if (typeof recNudgeInk === 'function') recNudgeInk(a2);
       return;
     }
     delete a2._sx; delete a2._sy;
@@ -17120,6 +17131,8 @@ function attachOverlayHandlers(p) {
       pushUndo();
       annotations.push(a2);
       setDirty(true);
+      // ⏺ Writing with no lesson going down? (record-nudge.js decides.)
+      if (typeof recNudgeInk === 'function') recNudgeInk(a2);
       // Keep the already-rendered stroke as the final node instead of
       // rebuilding the whole page overlay — re-rendering every annotation
       // (plus a layout pass per timestamp) made rapid dots very laggy.
@@ -31166,6 +31179,7 @@ function applyRoleUI() {
   if (typeof penSelectCancel === 'function') penSelectCancel();   // a path belongs to the role that started it
   if (typeof snipRoleChanged === 'function') snipRoleChanged();   // a pinned answer is the teacher's alone
   if (window.ConsultAlert) ConsultAlert.roleChanged();   // 🙋 a student asking for help is shown to the teacher alone
+  if (typeof recNudgeChanged === 'function') recNudgeChanged();   // ⏺ the warning is the teacher's alone
   var student = isStudent();
   var hideTools = student && !practiceMode; // practising students get drawing tools
   document.body.classList.toggle('studentMode', hideTools);
@@ -32960,6 +32974,99 @@ function cmdSearchRoleChanged() {
   if (cmdSearch && cmdSearch.isOpen()) cmdSearch.close();
 }
 /* ================= End command search glue ================= */
+
+/* ================= ⏺ Writing without recording — glue (the feature itself is record-nudge.js) =================
+   When the teacher writes on a saved worksheet and no lesson is going down, a
+   small "Not recording" card comes up over the top of the page with
+   ● Record now and Not now. The module decides when (pure.gate / pure.step);
+   this glue only tells it what the app knows:
+
+   - recNudgeInk(a)      from finishPointer, after a stroke or a text box is
+                         really committed (never a stroke that was too small)
+   - recNudgeChanged()   from lessonBar (a recording started or ended),
+                         applyRoleUI (a handover, practice, a sign-out),
+                         loadPdf (another worksheet) and lessonOpenModal
+   - recNudgeRecord()    ● Record now = the toolbar's own record button
+                         (lessonOpen), never a second way to start a recorder:
+                         the window keeps every device rule the recorder has,
+                         and its Start button is lit up for the next tap.
+
+   Teacher only: env.teacher() is lessonTeacher() (admin, no actingStudent, not
+   practice, not a share visitor), and recNudgeRecord asks it again. */
+var recNudge = null;
+var RECNUDGE_CUE_MS = 3600;
+
+function recNudgeTeacher() {
+  return typeof lessonTeacher === 'function' && !!currentUser && lessonTeacher();
+}
+
+// A real dialog in front of the page. Float windows (the calculator, the
+// mindmap, a note) sit beside the work rather than in front of it, so they do
+// not count — a teacher writing with the calculator open still gets warned.
+function recNudgeWindowOpen() {
+  return !!document.querySelector('.modalBack.open:not(.floatWin)');
+}
+
+function recNudgeInit() {
+  if (!window.RecordNudge || recNudge) return;
+  recNudge = RecordNudge.create({
+    teacher: recNudgeTeacher,
+    recording: function () { return typeof lessonCapture !== 'undefined' && !!lessonCapture; },
+    pending: function () { return typeof lessonPending !== 'undefined' && !!lessonPending; },
+    playback: function () {
+      return (typeof lessonPlayback !== 'undefined' && !!lessonPlayback) ||
+        (typeof lessonOpening !== 'undefined' && !!lessonOpening);
+    },
+    windowOpen: recNudgeWindowOpen,
+    docId: function () { return currentDocId || ''; },
+    uid: function () { return currentUser && currentUser.uid || ''; },
+    pages: function () { return Array.isArray(pages) && pages.length > 0; },
+    area: function () {
+      var a = $('viewerArea');
+      return a ? a.getBoundingClientRect() : null;
+    },
+    record: recNudgeRecord,
+    toast: function (m) { if (typeof toast === 'function') toast(m, 4500); }
+  });
+  var box = $('lessonNudgeAgain');
+  if (box) box.addEventListener('change', function () {
+    if (recNudge) recNudge.setEnabled(!!box.checked);
+  });
+  recNudgeSyncSwitch();
+}
+
+function recNudgeInk(a) {
+  if (!recNudge) return;
+  try { recNudge.ink(a); } catch (e) { /* a warning must never cost a stroke */ }
+}
+
+function recNudgeChanged() {
+  if (!recNudge) return;
+  try { recNudge.changed(); } catch (e) {}
+}
+
+function recNudgeSyncSwitch() {
+  var box = $('lessonNudgeAgain');
+  if (box && recNudge) box.checked = recNudge.enabled();
+}
+
+// ● Record now: the same door as the toolbar's ⏺ and Shift+R.
+function recNudgeRecord() {
+  if (!recNudgeTeacher()) return;
+  if (typeof lessonOpen !== 'function') return;
+  var opened = lessonOpen();
+  Promise.resolve(opened).then(function () {
+    var start = $('lessonStartBtn'), modal = $('lessonModal');
+    if (!start || !modal || !modal.classList.contains('open')) return;
+    // Lit up, not focused: the window's own rule is that nothing Enter would
+    // press holds the focus, so a stray key never starts a recording.
+    start.classList.remove('rnCue');
+    void start.offsetWidth;
+    start.classList.add('rnCue');
+    setTimeout(function () { start.classList.remove('rnCue'); }, RECNUDGE_CUE_MS);
+  }).catch(function () {});
+}
+/* ================= End writing without recording glue ================= */
 
 /* ================= End live cams glue ================= */
 
@@ -40265,6 +40372,8 @@ loadAiNotePrefs();
 <script>rdoorInit();</script>
 <script src="command-search.js"></script>
 <script>cmdSearchInit();</script>
+<script src="record-nudge.js"></script>
+<script>recNudgeInit();</script>
 <!-- 📲 The Polymath install kit: registers sw.js (top window only) and drives the header's Install app button. -->
 <script defer src="pwa-install.js?v=2.0.0" data-app-name="Polymath Answer Keys" data-app-key="anskey" data-app-icon="assets/app-icons/icon-192.png" data-accent="#E65100" data-sw="sw.js" data-floating="auto"></script>
 <script type="module">
