@@ -269,7 +269,12 @@ const doorUp = () => !!document.getElementById('runeDoor');
   await shot(page, 'spin');
   await page.waitForTimeout(400);
   const faster = await page.evaluate(() => +gsap.getProperty(document.querySelector('#runeDoor .rdSpin'), 'rotation'));
-  ok('…faster and faster (' + Math.round(faster) + '°)', faster - spin.rot > spin.rot * 0.5, spin.rot + ' → ' + faster);
+  // The spin is a power3.in tween to 1080°. On a slow runner the first
+  // sample lands late (past 720°), where half as much again is past the end
+  // of the tween, so reaching the end from there counts as speeding up too.
+  const SPIN_END = 1080;
+  ok('…faster and faster (' + Math.round(faster) + '°)',
+    faster - spin.rot > spin.rot * 0.5 || (faster > spin.rot && faster >= SPIN_END - 0.5), spin.rot + ' → ' + faster);
 
   await page.waitForTimeout(1350);   // into the swing
   const swing = await page.evaluate(() => {

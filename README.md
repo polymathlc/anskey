@@ -3,6 +3,19 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.174.0 — ⏺ "Not recording" comes up when you write, and can be ignored for the session
+
+- **It came up too rarely.** It waited for the worksheet to be saved, stood down while an older lesson
+  was still waiting to be saved, stood down whenever any window had been opened, and needed three marks
+  inside 45 seconds. Any one of those kept it away for a whole lesson with nothing saying why.
+- **Now two marks within a minute are enough**, on any worksheet — saved or not. On a worksheet that is
+  not saved yet the card says so, and **● Record now** takes you to Save first.
+- Only the Record lesson window itself stops it. Another window that comes up over the card still takes
+  the card away.
+- **☐ Ignore for this session** on the card keeps it quiet until you close the tab or the app; it comes
+  back by itself next time. *Don't warn me* still turns it off on this device, and the Record lesson
+  window's switch turns both back on.
+
 ## v1.173.0 — ⏺ "Not recording": a warning when you write and nothing is recording
 
 - **When you write on a saved worksheet and no lesson is recording, a small card comes up over the

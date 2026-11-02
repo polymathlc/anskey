@@ -1,5 +1,5 @@
 /* =====================================================================
-   ⏺ Writing without recording — the "Not recording" nudge (v1.173.0)
+   ⏺ Writing without recording — the "Not recording" nudge (v1.173.0, v1.174.0)
    A small rounded card over the top of the worksheet area. It never covers
    the toolbar (it is placed against #viewerArea), it never takes the focus,
    and it slides in only where motion is welcome.
@@ -84,11 +84,37 @@
   color: var(--rn-ink);
 }
 #recNudge .rnLater:hover, #recNudge .rnLater:focus-visible { border-color: #FFB74D; background: #FFF3E0; }
-#recNudge .rnOff {
+/* The bottom row: ☐ Ignore for this session on the left, Don't warn me on
+   the right (v1.174.0). */
+#recNudge .rnFoot {
   flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: -2px 0 0 26px;
+}
+#recNudge .rnSession {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  color: var(--rn-ink);
+  font-size: .8rem;
+  cursor: pointer;
+}
+#recNudge .rnSessionBox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--rn-red);
+  cursor: pointer;
+}
+#recNudge .rnOff {
   min-height: 0;
   padding: 0;
-  margin: -2px 0 0 26px;
+  margin: 0;
   border: 0;
   background: none;
   color: var(--rn-soft);
@@ -115,7 +141,7 @@
   #recNudge { padding: 12px 14px; gap: 10px; }
   #recNudge .rnActions { flex: 1 1 100%; }
   #recNudge .rnRec, #recNudge .rnLater { flex: 1 1 0; justify-content: center; }
-  #recNudge .rnOff { margin-left: 0; }
+  #recNudge .rnFoot { margin-left: 0; }
 }
 
 /* A window recording is a recording: nothing to warn about, and nothing of

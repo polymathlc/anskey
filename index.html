@@ -5932,7 +5932,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.173.0';
+var APP_VERSION = 'v1.174.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -33013,9 +33013,13 @@ function cmdSearchRoleChanged() {
 /* ================= End command search glue ================= */
 
 /* ================= ⏺ Writing without recording — glue (the feature itself is record-nudge.js) =================
-   When the teacher writes on a saved worksheet and no lesson is going down, a
+   When the teacher writes on a worksheet and no lesson is going down, a
    small "Not recording" card comes up over the top of the page with
-   ● Record now and Not now. The module decides when (pure.gate / pure.step);
+   ● Record now, Not now, ☐ Ignore for this session and Don't warn me.
+   (v1.174.0: it no longer waits for the sheet to be saved or for an older
+   lesson to finish saving, nor stands down for an unrelated dialog, and two
+   marks in a minute are enough. recNudgeWhy() in the console says why the
+   next mark would not count.) The module decides when (pure.gate / pure.step);
    this glue only tells it what the app knows:
 
    - recNudgeInk(a)      from finishPointer, after a stroke or a text box is
@@ -33037,24 +33041,41 @@ function recNudgeTeacher() {
   return typeof lessonTeacher === 'function' && !!currentUser && lessonTeacher();
 }
 
-// A real dialog in front of the page. Float windows (the calculator, the
-// mindmap, a note) sit beside the work rather than in front of it, so they do
-// not count — a teacher writing with the calculator open still gets warned.
+// The Record window (or the export window) is up: the teacher is already on
+// the way to recording, so a mark made now never counts.
 function recNudgeWindowOpen() {
+  return !!document.querySelector('#lessonModal.open, #lessonExportModal.open');
+}
+
+// Any other real dialog in front of the page. It only takes a card that is
+// already up off the screen: a stroke that reached the page proves nothing
+// was in front of it, so it must never stop a mark counting (a dialog left
+// open — or one whose .open was never cleared — kept the warning away for a
+// whole lesson). Float windows (the calculator, the mindmap, a note) sit
+// beside the work and never count.
+function recNudgeDialogOpen() {
   return !!document.querySelector('.modalBack.open:not(.floatWin)');
 }
+
+// Why the next mark would not bring the warning up ('' = it would).
+function recNudgeWhy() {
+  if (!recNudge) return 'not-loaded';
+  try { return recNudge.why(); } catch (e) { return 'error'; }
+}
+window.recNudgeWhy = recNudgeWhy;
 
 function recNudgeInit() {
   if (!window.RecordNudge || recNudge) return;
   recNudge = RecordNudge.create({
     teacher: recNudgeTeacher,
     recording: function () { return typeof lessonCapture !== 'undefined' && !!lessonCapture; },
-    pending: function () { return typeof lessonPending !== 'undefined' && !!lessonPending; },
     playback: function () {
       return (typeof lessonPlayback !== 'undefined' && !!lessonPlayback) ||
         (typeof lessonOpening !== 'undefined' && !!lessonOpening);
     },
     windowOpen: recNudgeWindowOpen,
+    dialog: recNudgeDialogOpen,
+    onSwitch: recNudgeSyncSwitch,
     docId: function () { return currentDocId || ''; },
     uid: function () { return currentUser && currentUser.uid || ''; },
     pages: function () { return Array.isArray(pages) && pages.length > 0; },
@@ -33087,9 +33108,17 @@ function recNudgeSyncSwitch() {
   if (box && recNudge) box.checked = recNudge.enabled();
 }
 
-// ● Record now: the same door as the toolbar's ⏺ and Shift+R.
+// ● Record now: the same door as the toolbar's ⏺ and Shift+R. A sheet that
+// has not been saved yet cannot carry a lesson, so it goes to the save first
+// (the Save button's own handler) and says so.
 function recNudgeRecord() {
   if (!recNudgeTeacher()) return;
+  if (!currentDocId && Array.isArray(pages) && pages.length) {
+    var save = $('saveBtn');
+    if (typeof toast === 'function') toast('Save this worksheet first — then press ⏺ Record lesson.', 5000);
+    if (save && !save.disabled) save.click();
+    return;
+  }
   if (typeof lessonOpen !== 'function') return;
   var opened = lessonOpen();
   Promise.resolve(opened).then(function () {
