@@ -3,6 +3,29 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.176.0 — 📌 Current worksheet and Next worksheet, loaded from Polymath Online
+
+- **Each Polymath Online class now shows two worksheets in its lesson**: the one the class is on and
+  has yet to finish, tagged **▶ Current worksheet**, and the one after it in the class list, tagged
+  **⏭ Next worksheet**. Both sit at the top of their lesson time, in that order, and each card says its
+  place in the class list (*#3 of 8*). Before the first lesson, worksheet 1 is current and 2 is next.
+- **The next worksheet loads by itself.** The rest of the class list waits in a folded
+  **📥 Queued in class lists** band at the foot of the teacher's list. When the class moves on, the Next
+  worksheet becomes Current and the one after it comes out of the queue as the new Next, on every open
+  device at once, with no reload.
+- **A worksheet is finished when the class moves past it**, either way:
+  - open the Next worksheet (as before, opening worksheet *n* puts the class on *n*), or
+  - tap **✓ Finished · load the next worksheet** under the Current worksheet card.
+  Either one releases to students as far ahead as before (five past the class).
+- **Preparing ahead does not move the class.** Opening a worksheet from the Queued band says
+  *Opened to prepare* and leaves the class where it is, so an answer key can be written weeks early.
+- On a class's own day, its Current and Next PDFs are fetched onto the teacher's device as soon as the
+  app opens, so the next lesson opens even when the Wi-Fi does not.
+- Students see the two tags on what has been released to them. What a student can see is unchanged,
+  and a student never sees the queue or the Finished button.
+- Checks: `tools/online-tests.mjs` (the rules) and `tools/class-queue-check.mjs` (the list in a real
+  browser, on a desktop and a phone).
+
 ## v1.175.0 — 🏰 Homework earns 2 points on the quest rules
 
 - **The lesson start's third rule now reads** *Complete your homework, if any was set — and take note

@@ -1100,6 +1100,76 @@
     margin-bottom: 8px;
   }
 
+  /* ---------- 📌 Current worksheet / Next worksheet (v1.176.0) ----------
+     A class worksheet from Polymath Online says where the class is: the one
+     it has yet to finish wears green "Current worksheet", the one loaded
+     after it wears blue "Next worksheet". Both float to the top of their
+     lesson time. The rest of the class list waits in its own Queued band at
+     the foot of the teacher's list. */
+  .qClassTag {
+    display: inline-block;
+    font-size: 0.66rem;
+    font-weight: bold;
+    letter-spacing: 0.02em;
+    border-radius: 999px;
+    border: 1px solid #DCDAD5;
+    background: #fff;
+    color: #55554F;
+    padding: 3px 10px;
+    margin: 0 6px 8px 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  .qClassTag.current { color: #0B6B4F; border-color: #9ED9C3; background: #EAF8F2; }
+  .qClassTag.next { color: #3346A8; border-color: #C3CBF2; background: #F0F2FD; }
+  .qClassTag.queued { color: #6B6A64; border-style: dashed; }
+  .qItem.classCurrent {
+    border-color: #9ED9C3;
+    box-shadow: 0 0 0 2px rgba(11, 107, 79, 0.14), var(--shadow-card);
+  }
+  .qItem.classNext { border-color: #C3CBF2; }
+  .qFinishBtn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px dashed #9ED9C3;
+    background: #F5FCF9;
+    color: #0B6B4F;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+  }
+  .qFinishBtn:hover { background: #EAF8F2; transform: translateY(-1px); }
+  .qFinishBtn:disabled { opacity: 0.6; cursor: default; transform: none; }
+  @media (pointer: coarse) { .qFinishBtn { padding: 12px; font-size: 0.82rem; } }
+  .qQueuedGroup { margin-bottom: 20px; }
+  .qQueuedGroup.collapsed .qQueuedBody { display: none; }
+  .qQueuedGroup.collapsed .qDayHead { margin-bottom: 0; }
+  .qQueuedGroup.collapsed .qDayHead::after { content: '\25B8'; }
+  .qQueuedNote {
+    font-size: 0.73rem;
+    color: var(--ink-faint);
+    line-height: 1.6;
+    padding: 0 4px 12px;
+  }
+  .qQueuedClass {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+    padding: 10px 4px 6px;
+    border-top: 1px solid var(--line);
+  }
+  .qQueuedClass:first-of-type { border-top: none; padding-top: 0; }
+
   /* ---------- Hidden worksheets ----------
      A worksheet the teacher has filed away out of every student's sight. It is
      the opposite of the gold a starred card wears: grey, dashed and quiet, with
@@ -5932,7 +6002,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.175.0';
+var APP_VERSION = 'v1.176.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -35831,10 +35901,20 @@ function onlineCoursesWatch(user) {
       onlineCoursesSettle();
       // A release that lands while a student has the list open shows up in
       // it without a reload; the teacher's list never depended on it.
-      var sig = Object.keys(next).sort().map(function (id) { return id + ':' + (next[id].releasedThrough) + ':' + (next[id].worksheetIds || []).length; }).join('|');
-      if (!first && sig !== onlineReleaseSig && currentUser && !onlineTeacherHere() && $('qDrawer').classList.contains('open')) loadQuestionsList();
+      // 📌 The class position is in it too: when a class moves on, the
+      // teacher's list moves its Current and Next tags without a reload.
+      var sig = Object.keys(next).sort().map(function (id) { return id + ':' + (next[id].releasedThrough) + ':' + (next[id].currentIndex) + ':' + (next[id].worksheetIds || []).join(','); }).join('|');
+      var changed = !first && sig !== onlineReleaseSig;
+      var drawerOpen = $('qDrawer').classList.contains('open');
+      if (changed && currentUser && !onlineTeacherList() && drawerOpen) loadQuestionsList();
+      else if (changed && onlineTeacherList() && drawerOpen && typeof renderQuestionList === 'function' && typeof qDocs !== 'undefined' && qDocs.length) {
+        renderQuestionList();
+        if (typeof markActiveQuestion === 'function') markActiveQuestion();
+      }
       onlineReleaseSig = sig;
+      onlineNextShown = null;
       onlineNextRender();
+      onlinePreloadNext();
     }, function (err) {
       console.warn('Class lists could not be read', err);
       onlineCoursesLoaded = true; onlineCoursesSettle();
@@ -35874,6 +35954,19 @@ async function onlineWorksheetOpened(id, data) {
   onlineDocCache[id] = data;
   if (!data.onlineCourseId) { onlineNextRender(); return; }
   if (!onlineTeacherHere()) { onlineNextRender(); return; }
+  // 📌 Opened from "Queued in class lists" to prepare its answer key: the
+  // class stays where it is, and this one loads as Next when its turn comes.
+  if (onlinePrepareOnly && onlinePrepareOnly === id) {
+    onlinePrepareOnly = '';
+    var place = onlineDocPlace(id, data);
+    if (place && currentDocId === id) {
+      toast('📥 Opened to prepare · ' + (place.course.title || 'the class') + ' stays on worksheet ' + (onlineClassAt(place.course) + 1) +
+        '. This one loads as the next worksheet when its turn comes.', 6000);
+    }
+    onlineNextRender();
+    return;
+  }
+  onlinePrepareOnly = '';
   var ref = db.collection(ONLINE_COURSES).doc(data.onlineCourseId);
   try {
     var result = await db.runTransaction(async function (tx) {
@@ -35898,6 +35991,229 @@ async function onlineWorksheetOpened(id, data) {
     }
   } catch (e) { console.warn('Class progress not saved', e); }
   onlineNextRender();
+}
+
+/* ---- 📌 Current worksheet and Next worksheet (v1.176.0) ----
+   The class list in Polymath Online is the queue; this app is where the
+   lessons happen. For every class, the teacher's worksheet list holds:
+     · the CURRENT worksheet: the one the class is on and has yet to finish
+       (worksheet 1 before the class has started), tagged "Current
+       worksheet" and pinned to the top of its lesson time,
+     · the NEXT worksheet: the one after it in the class list, loaded into
+       the list by itself, tagged "Next worksheet" just under it, with its
+       PDF fetched ahead on the class's own day so it opens at once,
+     · everything already taught, below them as before.
+   The rest of the class list waits in "📥 Queued in class lists" at the
+   foot of the list. It is one tap away for writing an answer key ahead, and
+   opening one from there does NOT move the class.
+
+   A worksheet is finished when the class moves past it, in one of two ways:
+   the teacher opens the Next worksheet (the rule has always been that
+   opening worksheet n puts the class on n), or taps "✓ Finished · load the
+   next worksheet" under the Current worksheet card. Either way the Next
+   worksheet becomes Current, the one after it loads as Next, and the class
+   lists are watched live, so every open device follows at once. Students
+   see the same two tags on whatever has been released to them; what a
+   student can see is unchanged. */
+var onlinePrepareOnly = '';            // a worksheet opened from Queued: look, do not move the class
+var onlinePreloaded = {};              // worksheet id → true once its PDF was fetched ahead
+var ONLINE_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function onlineCourseIds(course) { return course && Array.isArray(course.worksheetIds) ? course.worksheetIds : []; }
+
+// Where the class is in its list, for the labels: worksheet 1 before it starts.
+function onlineClassAt(course) {
+  var ids = onlineCourseIds(course);
+  if (!ids.length) return -1;
+  var cur = typeof course.currentIndex === 'number' && isFinite(course.currentIndex) ? Math.floor(course.currentIndex) : -1;
+  if (cur < 0) return 0;
+  return Math.min(cur, ids.length - 1);
+}
+
+// 'done' | 'current' | 'next' | 'queued' for place `seq` of a class list.
+function onlineQueueState(course, seq) {
+  var ids = onlineCourseIds(course);
+  if (!(seq >= 0 && seq < ids.length)) return '';
+  var at = onlineClassAt(course);
+  if (seq === at) return 'current';
+  if (seq === at + 1) return 'next';
+  if (seq < at) return 'done';
+  return 'queued';
+}
+
+// The same for one worksheet. Its place is read from the class list itself,
+// so a reorder in the portal moves the tags with it.
+function onlineDocPlace(id, d) {
+  if (!id || !d || !d.onlineCourseId) return null;
+  var course = onlineCourses[d.onlineCourseId];
+  if (!course) return null;
+  var ids = onlineCourseIds(course);
+  var seq = ids.indexOf(id);
+  if (seq < 0) return null;
+  return { course: course, seq: seq, total: ids.length, state: onlineQueueState(course, seq) };
+}
+
+// Only the teacher's own list keeps the queue out of the lessons. A
+// student's list is already cut down to what has been released.
+function onlineTeacherList() { return !!currentUser && isAdmin(currentUser) && !actingStudent; }
+function onlineIsQueued(item) {
+  if (!item || !onlineTeacherList()) return false;
+  var place = onlineDocPlace(item.id, item.data);
+  return !!place && place.state === 'queued';
+}
+
+// Current first, then Next, then the lesson's own order.
+function onlinePinRank(item) {
+  var place = item ? onlineDocPlace(item.id, item.data) : null;
+  if (!place) return 2;
+  return place.state === 'current' ? 0 : place.state === 'next' ? 1 : 2;
+}
+
+// The words on the tag, kept apart from the DOM so they can be tested.
+function onlineTagText(place) {
+  if (!place) return '';
+  var head = place.state === 'current' ? '▶ Current worksheet'
+    : place.state === 'next' ? '⏭ Next worksheet'
+    : place.state === 'queued' ? '📥 Queued'
+    : '';
+  return head;
+}
+// Its place, for the card's small print: "Worksheet 3 of 8 in P5 Maths · Monday".
+function onlinePlaceText(place) {
+  if (!place) return '';
+  return 'Worksheet ' + (place.seq + 1) + ' of ' + place.total + (place.course && place.course.title ? ' in ' + place.course.title : '');
+}
+
+// The tag on a card in the worksheet list, or null for a loose worksheet
+// or one the class has already finished.
+function onlineCardTag(item) {
+  var place = item ? onlineDocPlace(item.id, item.data) : null;
+  if (!place) return null;
+  if (place.state === 'queued' && !onlineTeacherList()) return null;
+  var text = onlineTagText(place);
+  if (!text) return null;
+  var tag = document.createElement('div');
+  tag.className = 'qClassTag ' + place.state;
+  tag.textContent = text;
+  tag.title = onlinePlaceText(place) + ' · ' + (place.state === 'current'
+    ? 'The worksheet ' + (place.course.title || 'this class') + ' is on and has yet to finish.'
+    : place.state === 'next'
+      ? 'Loaded from the class list in Polymath Online, ready for the next lesson.'
+      : 'Waiting its turn in the class list. Opening it here to prepare does not move the class.');
+  return tag;
+}
+
+// What "Finished" writes: the class moves to the worksheet after `id` and
+// releases as far ahead as opening it would. Null when `id` is not the
+// worksheet the class is on, or is the last in the list.
+function onlineFinishUpdate(course, id) {
+  var ids = onlineCourseIds(course);
+  var seq = ids.indexOf(id);
+  if (seq < 0 || seq !== onlineClassAt(course) || seq + 1 >= ids.length) return null;
+  var rel = typeof course.releasedThrough === 'number' ? course.releasedThrough : -1;
+  var nextCur = seq + 1;
+  return {
+    currentIndex: nextCur,
+    currentDocId: ids[nextCur],
+    releasedThrough: Math.max(rel, Math.min(ids.length - 1, nextCur + ONLINE_RELEASE_AHEAD)),
+    lastFinishedIndex: seq,
+    lastFinishedDocId: id
+  };
+}
+
+// The button under the Current worksheet card: the teacher's only.
+function onlineFinishBtn(item) {
+  if (!onlineTeacherHere()) return null;
+  var place = item ? onlineDocPlace(item.id, item.data) : null;
+  if (!place || place.state !== 'current' || place.seq + 1 >= place.total) return null;
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'qFinishBtn';
+  b.textContent = '✓ Finished · load the next worksheet';
+  b.title = 'Worksheet ' + (place.seq + 2) + ' becomes the current worksheet, and worksheet ' +
+    (place.seq + 3 <= place.total ? place.seq + 3 : place.seq + 2) + ' loads as the next one.';
+  b.addEventListener('click', function (e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    onlineFinishCurrent(item.id, item.data, b);
+  });
+  return b;
+}
+
+async function onlineFinishCurrent(id, d, btn) {
+  if (!onlineTeacherHere() || !d || !d.onlineCourseId) return null;
+  if (btn) btn.disabled = true;
+  var ref = db.collection(ONLINE_COURSES).doc(d.onlineCourseId);
+  var result = null;
+  try {
+    result = await db.runTransaction(async function (tx) {
+      var snap = await tx.get(ref);
+      if (!snap.exists) return { gone: true };
+      var c = snap.data();
+      var fields = onlineFinishUpdate(c, id);
+      if (!fields) return { stale: true };
+      var stamp = firebase.firestore.FieldValue.serverTimestamp();
+      tx.set(ref, Object.assign({}, fields, { progressAt: stamp, finishedAt: stamp }), { merge: true });
+      var ids = onlineCourseIds(c);
+      return { fields: fields, total: ids.length, title: c.title || 'this class' };
+    });
+  } catch (e) {
+    console.warn('Class progress not saved', e);
+    toast('Could not move the class on: ' + (e.message || e), 5000);
+    if (btn) btn.disabled = false;
+    return null;
+  }
+  if (!result || result.gone) { toast('That class is no longer in Polymath Online.', 5000); return null; }
+  if (result.stale) {
+    toast('The class has already moved on from this worksheet.', 4500);
+    onlineAfterProgress();
+    return null;
+  }
+  // The live watch brings this back too; written here first so the list
+  // changes the moment the button is pressed, not a round trip later.
+  var local = onlineCourses[d.onlineCourseId];
+  if (local) Object.assign(local, result.fields);
+  var cur = result.fields.currentIndex;
+  toast('✓ Worksheet ' + cur + ' finished · ' + result.title + '. Worksheet ' + (cur + 1) + ' is now the current worksheet' +
+    (cur + 1 < result.total ? ', and worksheet ' + (cur + 2) + ' is loaded as the next one.' : '. It is the last one in the list.'), 6000);
+  onlineAfterProgress();
+  return result.fields;
+}
+
+// Whenever a class moves: the list, the "Up next" card and what is fetched ahead.
+function onlineAfterProgress() {
+  var drawer = typeof $ === 'function' ? $('qDrawer') : null;
+  if (drawer && drawer.classList && drawer.classList.contains('open') && typeof renderQuestionList === 'function' && typeof qDocs !== 'undefined' && qDocs.length) {
+    renderQuestionList();
+    if (typeof markActiveQuestion === 'function') markActiveQuestion();
+  }
+  onlineNextShown = null;
+  onlineNextRender();
+  onlinePreloadNext();
+}
+
+// On a class's own day, its Current and Next worksheets are fetched onto the
+// teacher's device as soon as the lists arrive, so the next lesson opens even
+// when the centre's Wi-Fi does not. Once per worksheet per visit.
+function onlinePreloadNext(now) {
+  if (!onlineTeacherHere()) return [];
+  var today = ONLINE_DAY_NAMES[(now || new Date()).getDay()];
+  var started = [];
+  Object.keys(onlineCourses).forEach(function (cid) {
+    var c = onlineCourses[cid];
+    if (!c || c.archived || c.day !== today) return;
+    var ids = onlineCourseIds(c), at = onlineClassAt(c);
+    if (at < 0) return;
+    [at, at + 1].forEach(function (seq) {
+      var wid = ids[seq];
+      if (!wid || onlinePreloaded[wid]) return;
+      onlinePreloaded[wid] = true;
+      started.push(wid);
+      onlineDocData(wid).then(function (d) {
+        if (d && d.storagePath) return onlinePdfBytes(d.storagePath);
+      }).catch(function () { delete onlinePreloaded[wid]; });
+    });
+  });
+  return started;
 }
 
 /* ---- The next two worksheets ---- */
@@ -36035,7 +36351,7 @@ function onlineNextRender() {
     row.className = 'onlineNextRow';
     var badge = document.createElement('span');
     badge.className = 'onlineNextBadge';
-    badge.textContent = k === 0 ? 'Next' : 'After';
+    badge.textContent = k === 0 ? 'Next worksheet' : 'After that';
     var text = document.createElement('div');
     text.className = 'onlineNextText';
     var name = document.createElement('b');
@@ -36388,9 +36704,17 @@ function docIsHidden(d) { return !!d.hidden; }
 
 function filteredQDocs() {
   return qDocs.filter(function (item) {
-    return !docIsHidden(item.data) &&
+    return !docIsHidden(item.data) && !docIsQueued(item) &&
       docHasSubject(item.data, qSubjectFilter) && docOnDay(item.data, qDayFilter);
   });
+}
+
+/* 📌 A class worksheet whose turn has not come (past the Next worksheet) is
+   the teacher's to prepare, not to teach yet. It waits in its own band at the
+   foot of the list, like Hidden, whatever day or subject is being filtered. */
+function docIsQueued(item) { return typeof onlineIsQueued === 'function' && onlineIsQueued(item); }
+function queuedQDocs() {
+  return qDocs.filter(function (item) { return !docIsHidden(item.data) && docIsQueued(item); });
 }
 
 /* Everything filed away, whatever day or subject is being filtered: a file you
@@ -36515,6 +36839,7 @@ function renderQuestionList() {
   var list = $('qList');
   var docs = filteredQDocs();
   var hidden = hiddenQDocs();
+  var queued = queuedQDocs();
   renderDayDots();
   renderDayFilterBar();
   list.innerHTML = '';
@@ -36527,9 +36852,11 @@ function renderQuestionList() {
     $('qDrawerSub').textContent = (qDayFilter === 'all'
       ? 'Grouped by class day, newest first.'
       : qDayFilter + ' only — tap the dot again for the whole week.') +
+      (queued.length ? ' 📥 ' + queued.length + ' queued.' : '') +
       (hidden.length ? ' 🔒 ' + hidden.length + ' hidden.' : '');
     // Everything the teacher has filed away is still one tap down the list,
     // even on a day that has nothing else on it.
+    renderQueuedGroup(list, queued);
     renderHiddenGroup(list, hidden);
     syncDrawerHeadOffset();
     return;
@@ -36544,10 +36871,12 @@ function renderQuestionList() {
     (qDayFilter === 'all'
       ? ' · grouped by class day, newest first' + (hasDayPref ? ' · your day first' : '')
       : ' on ' + qDayFilter + ' · by lesson time') +
+    (queued.length ? ' · 📥 ' + queued.length + ' queued' : '') +
     (hidden.length ? ' · 🔒 ' + hidden.length + ' hidden' : '') +
     (canArrangeWorksheets() ? ' · drag ⠿ to rearrange' : '') +
     ' · tap a lesson time to open it';
   renderQuestionGroups(list, docs);
+  renderQueuedGroup(list, queued);
   renderHiddenGroup(list, hidden);
   qSlotsBarSync();
   syncDrawerHeadOffset();
@@ -36564,14 +36893,19 @@ window.addEventListener('resize', syncDrawerHeadOffset);
 
 /* Build one card per worksheet — kept separate so the grouped renderer can
    place it under the right day and time-slot heading. */
-function questionCard(item) {
+function questionCard(item, opts) {
+  opts = opts || {};
   var d = item.data;
   var row = document.createElement('div');
   row.className = 'qItemRow';
   row.setAttribute('data-qid', item.id);
   var btn = document.createElement('button');
+  // 📌 Where the class is: Current worksheet / Next worksheet (Polymath Online).
+  var classPlace = typeof onlineDocPlace === 'function' ? onlineDocPlace(item.id, d) : null;
   btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '') +
-    (d.starred ? ' starred' : '') + (d.hidden ? ' hiddenWs' : '');
+    (d.starred ? ' starred' : '') + (d.hidden ? ' hiddenWs' : '') +
+    (classPlace && classPlace.state === 'current' ? ' classCurrent' : '') +
+    (classPlace && classPlace.state === 'next' ? ' classNext' : '');
   btn.setAttribute('data-qid', item.id);
   if (d.starred) {
     // Said in words as well as in gold: the card is read at a glance, but a
@@ -36590,6 +36924,8 @@ function questionCard(item) {
     hTag.textContent = '🔒 Hidden from students';
     btn.appendChild(hTag);
   }
+  var classTag = typeof onlineCardTag === 'function' ? onlineCardTag(item) : null;
+  if (classTag) btn.appendChild(classTag);
   var nm = document.createElement('div');
   nm.className = 'qItemName';
   nm.textContent = d.name || 'Untitled';
@@ -36610,12 +36946,17 @@ function questionCard(item) {
   var bits = [];
   if (isAdmin(currentUser) && (!d.level || !d.subject)) bits.push('⚠ unassigned — hidden from students');
   if (d.wsDate) bits.push(prettyDate(d.wsDate));
+  // 📌 A class worksheet says where it sits in its class list.
+  if (classPlace && typeof onlinePlaceText === 'function') bits.push('#' + (classPlace.seq + 1) + ' of ' + classPlace.total);
   bits.push((d.pageCount || '?') + ' page' + (d.pageCount === 1 ? '' : 's'));
   if (d.videoUrl) bits.push('🎬 recording');
   meta.appendChild(document.createTextNode(bits.join(' · ')));
   btn.appendChild(nm);
   btn.appendChild(meta);
   btn.addEventListener('click', function () {
+    // 📥 From the Queued band the worksheet is opened to prepare, so the
+    // class stays where it is (see 📌 Current worksheet and Next worksheet).
+    if (typeof onlinePrepareOnly !== 'undefined') onlinePrepareOnly = opts.prepare ? item.id : '';
     openSavedDoc(item.id, d).then(markActiveQuestion);
     // The teacher opens the list to fetch one worksheet; once it is on screen
     // the list is a column of the page given away for nothing, so it closes
@@ -36627,6 +36968,9 @@ function questionCard(item) {
   });
   markLiveCard(btn, item.id);
   row.appendChild(btn);
+  // ✓ Finished: the teacher moves the class on without opening anything.
+  var finishBtn = typeof onlineFinishBtn === 'function' ? onlineFinishBtn(item) : null;
+  if (finishBtn) row.appendChild(finishBtn);
   // The star is the teacher's alone — it is an instruction to whoever opens
   // the list next, not a bookmark each reader keeps for themselves.
   if (canStarWorksheets()) {
@@ -36640,7 +36984,7 @@ function questionCard(item) {
   }
   // So is the order of the list — but a hidden worksheet sits in a category of
   // its own, with no day or lesson time to be dragged around inside.
-  if (canArrangeWorksheets() && !d.hidden) {
+  if (canArrangeWorksheets() && !d.hidden && !opts.prepare) {
     row.classList.add('canArrange');
     row.appendChild(dragHandleBtn());
     // A mouse can drag the card itself — there is no scrolling gesture to get
@@ -36756,6 +37100,78 @@ async function toggleWorksheetHidden(item, btn) {
   toast(next
     ? '🔒 “' + (item.data.name || 'Untitled') + '” is hidden — filed under Hidden, out of every student’s list.'
     : '“' + (item.data.name || 'Untitled') + '” is back under its class day, where students can see it.', 4500);
+}
+
+/* 📥 Queued in class lists: the worksheets of a Polymath Online class list
+   past its Next worksheet, grouped by class in teaching order. Folded to start
+   with; tapping a card opens it to prepare, without moving the class. Like
+   Hidden it is not a .qDayGroup, and its cards cannot be dragged. */
+var qQueuedOpen = false;   // kept open across re-renders once the teacher opens it
+function renderQueuedGroup(list, items) {
+  if (!items || !items.length) return;
+  var c = DAY_COLOUR_OTHER;
+  var wrap = document.createElement('div');
+  wrap.className = 'qQueuedGroup' + (qQueuedOpen ? '' : ' collapsed');
+  wrap.style.setProperty('--dayInk', c.ink);
+  wrap.style.setProperty('--dayTint', c.tint);
+  wrap.style.setProperty('--dayLine', c.line);
+
+  var head = document.createElement('button');
+  head.className = 'qDayHead';
+  head.type = 'button';
+  var name = document.createElement('span');
+  name.className = 'qDayName';
+  name.textContent = '📥 Queued in class lists';
+  head.appendChild(name);
+  var n = document.createElement('span');
+  n.className = 'qGroupCount';
+  n.textContent = items.length;
+  head.appendChild(n);
+  head.addEventListener('click', function () {
+    qQueuedOpen = wrap.classList.contains('collapsed');
+    wrap.classList.toggle('collapsed');
+  });
+  wrap.appendChild(head);
+
+  var body = document.createElement('div');
+  body.className = 'qQueuedBody';
+  var note = document.createElement('div');
+  note.className = 'qQueuedNote';
+  note.textContent = 'Waiting their turn in Polymath Online. Each class shows its current worksheet and the next one in its lesson; ' +
+    'the rest wait here and load by themselves as the class moves on. Open one here to prepare its answer key — the class stays where it is.';
+  body.appendChild(note);
+
+  // One heading per class, worksheets in teaching order under it.
+  var byClass = {};
+  items.forEach(function (item) {
+    var place = onlineDocPlace(item.id, item.data);
+    var key = place ? place.course.id || item.data.onlineCourseId : '';
+    if (!byClass[key]) byClass[key] = { course: place ? place.course : null, list: [] };
+    byClass[key].list.push({ item: item, seq: place ? place.seq : 0 });
+  });
+  Object.keys(byClass).sort(function (a, b) {
+    var ca = byClass[a].course || {}, cb = byClass[b].course || {};
+    var da = DAY_ORDER.indexOf(ca.day), dbb = DAY_ORDER.indexOf(cb.day);
+    if (da !== dbb) return (da < 0 ? 99 : da) - (dbb < 0 ? 99 : dbb);
+    var sa = typeof ca.slot === 'number' ? ca.slot : 9, sb = typeof cb.slot === 'number' ? cb.slot : 9;
+    if (sa !== sb) return sa - sb;
+    return String(ca.title || '').localeCompare(String(cb.title || ''));
+  }).forEach(function (key) {
+    var group = byClass[key];
+    var label = document.createElement('div');
+    label.className = 'qQueuedClass';
+    var course = group.course || {};
+    var at = group.course ? onlineClassAt(group.course) : -1;
+    label.textContent = (course.title || 'Class list') +
+      (at >= 0 ? ' · on worksheet ' + (at + 1) + ' of ' + onlineCourseIds(course).length : '') +
+      ' · ' + group.list.length + ' queued';
+    body.appendChild(label);
+    group.list.sort(function (p, q) { return p.seq - q.seq; }).forEach(function (entry) {
+      body.appendChild(questionCard(entry.item, { prepare: true }));
+    });
+  });
+  wrap.appendChild(body);
+  list.appendChild(wrap);
 }
 
 /* The Hidden category: one band at the foot of the list, in the grey that
@@ -37170,7 +37586,11 @@ function qSlotSection(day, k, items, opts) {
   head.setAttribute('aria-controls', bodyId);
   section.id = bodyId;
   section.appendChild(head);
-  items.sort(questionOrderCmp);
+  // 📌 The class's Current worksheet leads its lesson time, its Next right under it.
+  items.sort(function (a, b) {
+    var pin = typeof onlinePinRank === 'function' ? onlinePinRank(a) - onlinePinRank(b) : 0;
+    return pin || questionOrderCmp(a, b);
+  });
   items.forEach(function (item) { section.appendChild(questionCard(item)); });
   qSlotSetOpen(section, qSlotIsOpen(day, k, !!opts.mine), false);
   return section;

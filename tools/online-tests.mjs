@@ -211,3 +211,184 @@ test('after opening, the link replays or prints as asked', async () => {
   await c.onlineRunLinkAction('w1', { action: 'play', rec: '' });
   assert.match(c.toasts.pop(), /no recorded lesson/);
 });
+
+/* ---- 📌 Current worksheet and Next worksheet (v1.176.0) ---- */
+const tenSheets = () => ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10'];
+
+test('the class position for the labels: worksheet 1 before the class starts, clamped to the list', () => {
+  const c = makeContext();
+  assert.equal(c.onlineClassAt({ worksheetIds: [] }), -1, 'an empty list has no current worksheet');
+  assert.equal(c.onlineClassAt({ worksheetIds: tenSheets(), currentIndex: -1 }), 0, 'not started = worksheet 1 is current');
+  assert.equal(c.onlineClassAt({ worksheetIds: tenSheets() }), 0, 'no number at all is not started too');
+  assert.equal(c.onlineClassAt({ worksheetIds: tenSheets(), currentIndex: 4 }), 4);
+  assert.equal(c.onlineClassAt({ worksheetIds: ['a', 'b'], currentIndex: 7 }), 1, 'a list made shorter keeps a real place');
+  assert.equal(c.onlineClassAt(null), -1);
+});
+
+test('done, current, next and queued, in teaching order', () => {
+  const c = makeContext();
+  const course = { worksheetIds: tenSheets(), currentIndex: 2, releasedThrough: 7 };
+  assert.deepEqual(plain(tenSheets().map((_, i) => c.onlineQueueState(course, i))),
+    ['done', 'done', 'current', 'next', 'queued', 'queued', 'queued', 'queued', 'queued', 'queued']);
+  const fresh = { worksheetIds: tenSheets(), currentIndex: -1, releasedThrough: -1 };
+  assert.equal(c.onlineQueueState(fresh, 0), 'current', 'before the first lesson, worksheet 1 is current');
+  assert.equal(c.onlineQueueState(fresh, 1), 'next', 'and worksheet 2 is already loaded as next');
+  const last = { worksheetIds: ['a', 'b', 'c'], currentIndex: 2 };
+  assert.equal(c.onlineQueueState(last, 2), 'current');
+  assert.equal(c.onlineQueueState(last, 3), '', 'nothing past the end');
+  assert.equal(c.onlineQueueState(last, -1), '');
+});
+
+test('a worksheet finds its place from the class list itself, so a reorder moves the tags', () => {
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
+  c.onlineCourses = { k1: { id: 'k1', title: 'P5 Maths · Monday 5pm', worksheetIds: ['w1', 'w2', 'w3', 'w4'], currentIndex: 0 } };
+  let place = c.onlineDocPlace('w2', { onlineCourseId: 'k1', onlineSeq: 3 });
+  assert.equal(place.seq, 1, 'the list wins over a stale onlineSeq');
+  assert.equal(place.state, 'next');
+  assert.equal(place.total, 4);
+  assert.equal(c.onlineTagText(place), '⏭ Next worksheet');
+  assert.equal(c.onlinePlaceText(place), 'Worksheet 2 of 4 in P5 Maths · Monday 5pm');
+  assert.equal(c.onlineTagText(c.onlineDocPlace('w1', { onlineCourseId: 'k1' })), '▶ Current worksheet');
+  assert.equal(c.onlineTagText(c.onlineDocPlace('w4', { onlineCourseId: 'k1' })), '📥 Queued');
+  c.onlineCourses.k1.worksheetIds = ['w2', 'w1', 'w3', 'w4'];
+  place = c.onlineDocPlace('w2', { onlineCourseId: 'k1' });
+  assert.equal(place.state, 'current', 'moved to the top in the portal = now current');
+  assert.equal(c.onlineDocPlace('gone', { onlineCourseId: 'k1' }), null, 'taken out of the list');
+  assert.equal(c.onlineDocPlace('w1', { name: 'loose' }), null, 'not a class worksheet');
+  assert.equal(c.onlineDocPlace('w1', { onlineCourseId: 'unknown' }), null, 'class not loaded');
+});
+
+test('only the teacher\'s own list keeps queued worksheets out of the lessons', () => {
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
+  c.onlineCourses = { k1: { id: 'k1', worksheetIds: tenSheets(), currentIndex: 3, releasedThrough: 8 } };
+  const item = (id) => ({ id, data: { onlineCourseId: 'k1' } });
+  assert.equal(c.onlineIsQueued(item('w4')), false, 'current');
+  assert.equal(c.onlineIsQueued(item('w5')), false, 'next');
+  assert.equal(c.onlineIsQueued(item('w6')), true, 'past the next one');
+  assert.equal(c.onlineIsQueued(item('w1')), false, 'already taught');
+  assert.equal(c.onlineIsQueued({ id: 'x', data: { name: 'loose' } }), false);
+  c.actingStudent = { uid: 's1' };
+  assert.equal(c.onlineIsQueued(item('w6')), false, 'a student on the teacher\'s device sees releases, not the queue');
+  c.actingStudent = null;
+  c.currentUser = { email: 'kid@example.test' };
+  assert.equal(c.onlineIsQueued(item('w6')), false, 'a student\'s list is cut by releases alone');
+  assert.equal(c.onlineCardTag(item('w6')), null, 'and a student is never shown a Queued tag');
+  const tag = c.onlineCardTag(item('w4'));
+  assert.equal(tag.className, 'qClassTag current', 'but does see where the class is');
+});
+
+test('current, then next, lead their lesson time', () => {
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
+  c.onlineCourses = { k1: { id: 'k1', worksheetIds: tenSheets(), currentIndex: 4 } };
+  const rank = (id) => c.onlinePinRank({ id, data: { onlineCourseId: 'k1' } });
+  assert.equal(rank('w5'), 0);
+  assert.equal(rank('w6'), 1);
+  assert.equal(rank('w4'), 2);
+  assert.equal(c.onlinePinRank({ id: 'z', data: {} }), 2, 'a loose worksheet keeps the lesson order');
+});
+
+test('Finished moves the class to the next worksheet, and only from the current one', () => {
+  const c = makeContext();
+  const course = { worksheetIds: tenSheets(), currentIndex: 2, releasedThrough: 7 };
+  assert.deepEqual(plain(c.onlineFinishUpdate(course, 'w3')),
+    { currentIndex: 3, currentDocId: 'w4', releasedThrough: 8, lastFinishedIndex: 2, lastFinishedDocId: 'w3' });
+  assert.equal(c.onlineFinishUpdate(course, 'w2'), null, 'an old worksheet is already finished');
+  assert.equal(c.onlineFinishUpdate(course, 'w5'), null, 'a later one is not the one being taught');
+  assert.equal(c.onlineFinishUpdate(course, 'nope'), null);
+  const fresh = { worksheetIds: tenSheets(), currentIndex: -1, releasedThrough: -1 };
+  assert.deepEqual(plain(c.onlineFinishUpdate(fresh, 'w1')),
+    { currentIndex: 1, currentDocId: 'w2', releasedThrough: 6, lastFinishedIndex: 0, lastFinishedDocId: 'w1' },
+    'finishing worksheet 1 before the class ever opened it still releases as opening worksheet 2 would');
+  assert.equal(c.onlineFinishUpdate({ worksheetIds: ['a', 'b'], currentIndex: 1 }, 'b'), null, 'nothing after the last one');
+  const capped = { worksheetIds: tenSheets(), currentIndex: 7, releasedThrough: 9 };
+  assert.equal(c.onlineFinishUpdate(capped, 'w8').releasedThrough, 9, 'released stays released, capped at the end');
+});
+
+test('the Finished button writes the move and tells the teacher what loaded next', async () => {
+  let written = null;
+  const course = { title: 'P6 Science · Saturday', worksheetIds: tenSheets(), currentIndex: 4, releasedThrough: 9 };
+  const c = makeContext({
+    currentUser: { email: 'teacher@example.test' },
+    db: {
+      collection: () => ({ doc: () => ({}) }),
+      runTransaction: async (fn) => fn({ get: async () => ({ exists: true, data: () => course }), set: (_ref, upd) => { written = upd; Object.assign(course, upd); } })
+    }
+  });
+  c.onlineCourses = { k1: Object.assign({ id: 'k1' }, course) };
+  const fields = await c.onlineFinishCurrent('w5', { onlineCourseId: 'k1' }, null);
+  assert.equal(written.currentIndex, 5);
+  assert.equal(written.currentDocId, 'w6');
+  assert.equal(written.lastFinishedDocId, 'w5');
+  assert.equal(written.progressAt, 'now');
+  assert.equal(written.finishedAt, 'now');
+  assert.equal(fields.currentIndex, 5);
+  assert.equal(c.onlineCourses.k1.currentIndex, 5, 'the list changes at once, before the live watch catches up');
+  assert.match(c.toasts.at(-1), /Worksheet 5 finished.*Worksheet 6 is now the current worksheet, and worksheet 7 is loaded as the next one/);
+  written = null;
+  const again = await c.onlineFinishCurrent('w5', { onlineCourseId: 'k1' }, null);
+  assert.equal(again, null, 'pressed twice (or on two devices): the second press changes nothing');
+  assert.equal(written, null);
+  assert.match(c.toasts.at(-1), /already moved on/);
+});
+
+test('a student can never press Finished', async () => {
+  let ran = false;
+  const c = makeContext({ currentUser: { email: 'kid@example.test' }, db: { collection: () => ({ doc: () => ({}) }), runTransaction: async () => { ran = true; } } });
+  c.onlineCourses = { k1: { id: 'k1', worksheetIds: tenSheets(), currentIndex: 0 } };
+  assert.equal(c.onlineFinishBtn({ id: 'w1', data: { onlineCourseId: 'k1' } }), null);
+  assert.equal(await c.onlineFinishCurrent('w1', { onlineCourseId: 'k1' }, null), null);
+  assert.equal(ran, false);
+});
+
+test('the Finished button sits under the current worksheet only, and not on the last one', () => {
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
+  c.onlineCourses = { k1: { id: 'k1', worksheetIds: ['a', 'b', 'c'], currentIndex: 1 } };
+  assert.ok(c.onlineFinishBtn({ id: 'b', data: { onlineCourseId: 'k1' } }), 'current');
+  assert.equal(c.onlineFinishBtn({ id: 'c', data: { onlineCourseId: 'k1' } }), null, 'next');
+  c.onlineCourses.k1.currentIndex = 2;
+  assert.equal(c.onlineFinishBtn({ id: 'c', data: { onlineCourseId: 'k1' } }), null, 'the last one has nothing to load');
+});
+
+test('a worksheet opened from Queued to prepare does not move the class', async () => {
+  let ran = false;
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' }, db: { collection: () => ({ doc: () => ({}) }), runTransaction: async () => { ran = true; return null; } } });
+  c.onlineCourses = { k1: { id: 'k1', title: 'P5 Maths', worksheetIds: tenSheets(), currentIndex: 1 } };
+  c.currentDocId = 'w8';
+  c.onlinePrepareOnly = 'w8';
+  await c.onlineWorksheetOpened('w8', { onlineCourseId: 'k1' });
+  assert.equal(ran, false, 'no progress written');
+  assert.equal(c.onlinePrepareOnly, '', 'used once');
+  assert.match(c.toasts.at(-1), /Opened to prepare · P5 Maths stays on worksheet 2/);
+  await c.onlineWorksheetOpened('w8', { onlineCourseId: 'k1' });
+  assert.equal(ran, true, 'opened any other way, the old rule applies');
+});
+
+test('on a class\'s own day its current and next PDFs are fetched ahead, once each', () => {
+  const fetched = [];
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
+  c.onlineDocData = async (id) => ({ storagePath: 'pdf/' + id + '.pdf' });
+  c.onlinePdfBytes = async (p) => { fetched.push(p); return new ArrayBuffer(1); };
+  c.onlineCourses = {
+    mon: { id: 'mon', day: 'Monday', worksheetIds: tenSheets(), currentIndex: 3 },
+    tue: { id: 'tue', day: 'Tuesday', worksheetIds: ['t1', 't2'], currentIndex: 0 },
+    old: { id: 'old', day: 'Monday', archived: true, worksheetIds: ['o1', 'o2'] }
+  };
+  const monday = new Date(2026, 10, 2); // 2 November 2026 is a Monday
+  assert.deepEqual(plain(c.onlinePreloadNext(monday)), ['w4', 'w5']);
+  assert.deepEqual(plain(c.onlinePreloadNext(monday)), [], 'not fetched twice');
+  c.onlineCourses.mon.currentIndex = 4;
+  assert.deepEqual(plain(c.onlinePreloadNext(monday)), ['w6'], 'the class moved on: only the newly loaded next one');
+  c.currentUser = { email: 'kid@example.test' };
+  c.onlineCourses.mon.currentIndex = 6;
+  assert.deepEqual(plain(c.onlinePreloadNext(monday)), [], 'never on a student\'s device');
+});
+
+test('the worksheet list is wired to the queue and the tags', () => {
+  assert.match(html, /return !docIsHidden\(item\.data\) && !docIsQueued\(item\) &&/);
+  assert.match(html, /renderQueuedGroup\(list, queued\);\n  renderHiddenGroup\(list, hidden\);/);
+  assert.match(html, /var classTag = typeof onlineCardTag === 'function' \? onlineCardTag\(item\) : null;/);
+  assert.match(html, /var finishBtn = typeof onlineFinishBtn === 'function' \? onlineFinishBtn\(item\) : null;/);
+  assert.match(html, /onlinePrepareOnly = opts\.prepare \? item\.id : '';/);
+  assert.match(html, /var pin = typeof onlinePinRank === 'function' \? onlinePinRank\(a\) - onlinePinRank\(b\) : 0;/);
+  assert.match(html, /body\.appendChild\(questionCard\(entry\.item, \{ prepare: true \}\)\);/);
+});
