@@ -194,7 +194,11 @@ try {
   check('saved 3v3 reopens in the quick wheel with all student and enemy sprites',await page.locator('#wheelQuickDuel [data-enemy-id]').count()===3 && await page.locator('#wheelQuickDuel .cbActiveTeam [data-cba-hero-id]').count()===3 && await page.evaluate(hp=>JSON.stringify(__battleState().enemies)===hp,hp));
   await page.setViewportSize({width:390,height:844});
   check('phone enemy sprites remain visible',await page.evaluate(()=>[...document.querySelectorAll('#wheelQuickDuel .cbEnemySprite,#wheelQuickDuel .cbEnemyMember img')].every(n=>n.getBoundingClientRect().height>=40)));
-  check('team preview fits the phone wheel',await page.evaluate(()=>{const n=document.getElementById('wheelQuickDuel');return n.scrollWidth<=n.clientWidth+2;}));
+  // The wheel re-lays itself out after the resize; on a slow runner the first
+  // frame can still be the desktop width, so give it a moment to settle.
+  const fitsPhone=()=>{const n=document.getElementById('wheelQuickDuel');return n.scrollWidth<=n.clientWidth+2;};
+  await page.waitForFunction(fitsPhone,null,{timeout:4000}).catch(()=>{});
+  check('team preview fits the phone wheel',await page.evaluate(fitsPhone));
   await page.locator('#wheelQuickDuel').screenshot({path:path.join(output,'team-battle-3v3-mobile.png')});
   await page.evaluate(()=>setWheelMin(true));
   await page.locator('#wheelModal').screenshot({path:path.join(output,'team-battle-3v3-compact.png')});
