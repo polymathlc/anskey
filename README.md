@@ -3,6 +3,20 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.173.0 — ⏺ "Not recording": a warning when you write and nothing is recording
+
+- **When you write on a saved worksheet and no lesson is recording, a small card comes up over the
+  top of the page**: *Not recording — your writing is not going into a lesson.* It waits until you
+  are really writing (three marks within 45 seconds), so a single tick or correction never sets it off.
+- **● Record now** opens the Record lesson window straight away, on the camera and microphone you
+  chose last time, with **Start recording** lit up — one more tap and the lesson is going down.
+- **Not now** keeps that worksheet quiet for ten minutes. Left alone, the card fades after 15 seconds
+  and stays away for three minutes. **Don't warn me** turns it off on this device; the Record lesson
+  window has *Warn me when I write without recording* to turn it back on.
+- It is the teacher's only — never a student, a share link, *Practise as* or practice mode — and it
+  never takes the focus, stops a stroke or covers the toolbar. It goes away by itself the moment a
+  recording starts, the Record window opens, or the worksheet or the account changes.
+
 ## v1.172.0 — 🔎 A search bar for every button
 
 - **The search is a real bar now**, first on the toolbar: *Search buttons — lasso, rubber, print…*.

@@ -48,6 +48,7 @@ jobs:
           RD_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/rune-door
           DS_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/day-slots
           CS_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/command-search
+          RN_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/record-nudge
         run: |
           node tools/wheel-check.mjs
           node tools/classroom-battle-browser-check.mjs
@@ -76,6 +77,7 @@ jobs:
           node tools/student-guide-check.mjs
           node tools/day-slots-check.mjs
           node tools/command-search-check.mjs
+          node tools/record-nudge-check.mjs
           node tools/screen-record-check.mjs
           node tools/caption-check.mjs
           node tools/lesson-upload-check.mjs
