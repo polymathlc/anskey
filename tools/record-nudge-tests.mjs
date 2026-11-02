@@ -1,5 +1,5 @@
 /* =====================================================================
-   ⏺ Writing without recording (v1.172.0) — the rules, without a page
+   ⏺ Writing without recording (v1.173.0) — the rules, without a page
    ---------------------------------------------------------------------
    `record-nudge.js` decides everything in two pure functions, `gate` (may
    this mark count at all?) and `step` (what does the warning do now?). This
@@ -393,7 +393,7 @@ test('the version and the notes say so', () => {
   const v = (HTML.match(/var APP_VERSION = '(v[\d.]+)'/) || [])[1];
   assert.ok(v, 'APP_VERSION');
   const [maj, min] = v.slice(1).split('.').map(Number);
-  assert.ok(maj > 1 || (maj === 1 && min >= 172), v);
+  assert.ok(maj > 1 || (maj === 1 && min >= 173), v);
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
   assert.ok(/Not recording/.test(readme));
   const claude = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8');

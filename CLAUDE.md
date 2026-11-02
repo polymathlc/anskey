@@ -90,7 +90,7 @@ Guidance for Claude when working in this repo.
 - Teacher-only: `wheelTeacher()` in every glue handler and in `open`. `lappRoleChanged` calls `llib.roleChanged()`. The window's keys stop at `.llBack`, and a capture Escape catches focus that fell back to the page.
 - Run `node --test tools/living-library-tests.mjs` and `node tools/living-library-check.mjs` (real Chromium, an in-memory Firestore/Storage: save files once, scan, QR = viewer link, Gmail URL, forget, phone, student). It is in CI.
 
-## ⏺ Writing without recording: the "Not recording" warning (v1.172.0)
+## ⏺ Writing without recording: the "Not recording" warning (v1.173.0)
 
 - `record-nudge.js` / `record-nudge.css` own it (`window.RecordNudge`: `create(env)`, `pure`). index.html holds only the glue between `⏺ Writing without recording — glue` and `End writing without recording glue` (`recNudgeInit`, `recNudgeTeacher`, `recNudgeWindowOpen`, `recNudgeInk`, `recNudgeChanged`, `recNudgeSyncSwitch`, `recNudgeRecord`), `#lessonNudgeAgain` in the Record lesson window and `<script>recNudgeInit();</script>` after the module's tag.
 - **Told by:** `finishPointer` at BOTH commit points (the text box, and a stroke inside `!tooSmall` — never a stroke too small to keep), `lessonBar` (a recording started), `applyRoleUI`, `loadPdf` and `lessonOpenModal`. Every call from outside the glue is behind a `typeof` guard (the vm harnesses cut those sections).
@@ -102,12 +102,23 @@ Guidance for Claude when working in this repo.
 
 ## 🔎 Command search: find any button by name (v1.170.0)
 
-- `command-search.js` / `command-search.css` own it (`window.CommandSearch`: `create(env)`, `pure`). index.html holds only the glue between `🔎 Command search — glue` and `End command search glue` (`cmdSearchInit`, `cmdSearchOpen`, `cmdSearchRoleChanged`, called from `applyRewardVisibility`), the toolbar's `.cmdSearchBtn` (**no id on purpose** — the favourites bar offers buttons by id) and `<script>cmdSearchInit();</script>` after the module's tag.
+- `command-search.js` / `command-search.css` own it (`window.CommandSearch`: `create(env)`, `pure`). index.html holds only the glue between `🔎 Command search — glue` and `End command search glue` (`cmdSearchInit`, `cmdSearchOpen`, `cmdSearchIdentity`, `cmdSearchRoleChanged`, called from `applyRewardVisibility`), the toolbar's search bar `.cmdBar` (v1.172.0, replaced `.cmdSearchBtn`; **no ids on purpose** — the favourites bar offers buttons by id) and `<script>cmdSearchInit();</script>` after the module's tag.
 - Keys: **Ctrl/⌘+K** is handled BEFORE the `editingText` return (works mid-typing); **/** after it (never steals a typed slash). Every key inside `#cmdSearch` stops there, and `open()` focuses the field synchronously, or a fast typist's "lasso" fires L, A, S behind it. Closing never leaves focus inside the hidden box.
 - **The buttons are read off the page each time it opens** (`collect()`: `#toolbar`, `.polymath-header`, `#studentBar`, `#authArea`; skips `#favBar`). `available()` drops anything hidden by role (display:none / `hidden` on itself or a container) but keeps buttons that are only inside a closed `.toolbarMenuPanel`. Never add a hand-written list of buttons.
 - **A press is `el.click()`** — the button's own handler and role checks. Never add a second way to run a command from here.
 - Matching is pure (`pure.rank`/`score`): `SYNONYMS` keyed `tool:<data-tool>` / `#id` / `color:<hex>` / `text:<label>`; before `|` are NAMES (count like the label), after are loose words. Words fold (colour/color, plurals); every query word must match (soft verbs like "open" are forgiven); exact > word start > inside > typo (same first letter) > letters in order; initials and typed shortcuts; label > synonym > description; recent use (`polymath.cmdSearchRecent.v1`) only breaks ties.
 - Run `node --test tools/command-search-tests.mjs` and `node tools/command-search-check.mjs` (real Chromium: Ctrl+K, /, lasso → Enter presses it, typing never reaches the tool shortcuts, synonyms on the real toolbar, student sees no teacher buttons, role change closes, phone; in CI).
+
+### 🔎 The search bar (v1.172.0)
+
+- The toolbar's first group is `.tGroup.cmdBarGroup` > `.cmdBar` (`role="search"`) with `.cmdBarInput` (a combobox, `aria-controls="cmdList"`), `.cmdBarClear` and `.cmdBarKey`. **No ids**, like the old `.cmdSearchBtn` it replaced: the favourites bar offers buttons by id. `cmdSearchInit` hands the input to `cmdSearch.attachBar`.
+- **The bar is a second door to the SAME search**, never a second search: `input` points at whichever field is in use (`fieldInput` in the centred box, `bar` under the toolbar), so `refresh` / `rank` / `choose` / `paintActive` are shared. `mode` is `'modal'` or `'docked'`; `where()` says which.
+- Docked: `#cmdSearch.cmdDocked` lets every pointer through (no backdrop), hides the box's own field, and `place()` pins the card under the bar from the pure `dropBox(rect, vw, vh)` (DROP_MIN_W 440 … DROP_MAX_W 620, slid left at the right edge, never shorter than DROP_MIN_H). It re-places on resize and scroll (not the list's own scroll).
+- **`open()` picks the bar when `barUsable()`** (shown, ≥ `BAR_MIN_W`, on screen) and the centred box otherwise (toolbar folded away, lesson screen recording). A focus on a bar too squeezed to read hands its words to `openModal`.
+- The bar's keydown/keyup/keypress stop ALWAYS, open or shut (it is a text field on the toolbar; "lasso" must never reach L, A, S). `onKey` is the one key handler for both fields. Its rows keep the bar's focus (pointerdown prevented); a capture `pointerdown` outside (`onOutside`) and the bar's blur shut the list.
+- `close(pressing, why)`: a press, `'escape'` and `'reset'` empty the bar and blur it; `'blur'` / `'outside'` keep the word. `cmdSearchRoleChanged` calls `reset()` only when `cmdSearchIdentity()` changes (applyRoleUI runs for more than a change of person, and must not wipe the bar mid-typing).
+- The toolbar is `user-select: none`; `.cmdBarInput` sets `user-select: text`, and is 16px on a phone (iOS zooms into a smaller field). Under 560px the bar's group is `flex: 1 1 100%`.
+- Run `node --test tools/command-search-tests.mjs` and `node tools/command-search-check.mjs` (tap → recents under the bar, typing never fires a shortcut, Enter / tap press, ✕, Escape, tap elsewhere keeps the word, a toolbar press shuts it, "/", toolbar folded → centred box, iPad 1024, phone row, student).
 
 ## 🕒 Lesson times fold in the worksheet list (v1.169.0)
 

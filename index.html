@@ -4025,12 +4025,23 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 </header>
 
 <div id="toolbar">
+  <!-- 🔎 The search bar (v1.172.0): find any button by what it does and press
+       it from the list. A real field, first on the toolbar, so it is seen
+       rather than guessed at; Ctrl+K / ⌘K and "/" jump into it. Its own
+       group so a phone can give it a whole row. No ids on purpose: the
+       favourites bar offers buttons by id, and a search box is not a tool to
+       pin. command-search.js wires it (`attachBar`). -->
+  <div class="tGroup cmdBarGroup">
+    <div class="cmdBar" role="search">
+      <svg class="cmdBarGlass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+      <input type="text" class="cmdBarInput" aria-label="Search every button — type what you want and press it from the list"
+             placeholder="Search buttons — lasso, rubber, print…" autocomplete="off" autocorrect="off" autocapitalize="off"
+             spellcheck="false" enterkeyhint="go" role="combobox" aria-expanded="false" aria-controls="cmdList" aria-autocomplete="list">
+      <button type="button" class="cmdBarClear" aria-label="Clear the search" title="Clear the search" hidden>✕</button>
+      <kbd class="cmdBarKey" aria-hidden="true">Ctrl K</kbd>
+    </div>
+  </div>
   <div class="tGroup">
-    <!-- 🔎 Search every button (v1.170.0). No id on purpose: the favourites bar
-         offers buttons by id, and a search box is not a tool to pin. -->
-    <button class="toolBtn cmdSearchBtn" type="button" data-key="Ctrl+K" data-label="Search" title="Search every button — type what you want (lasso, rubber, print answers…) and press it from the list">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
-    </button>
     <button class="btn" id="uploadBtn" data-key="Ctrl+O" title="Open a PDF from your device">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       <span class="btnLabel">Open PDF</span>
@@ -5921,7 +5932,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.172.0';
+var APP_VERSION = 'v1.173.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32940,8 +32951,9 @@ function rdoorRoleChanged() {
    offers what this person can see, and a press is the button's own click(),
    so every role check stays the button's.
 
-   This glue only creates it (cmdSearchInit, after the module's tag), opens
-   it (cmdSearchOpen, from the toolbar's 🔎 and the keyboard handler) and
+   This glue only creates it (cmdSearchInit, after the module's tag, which
+   also hands the module the toolbar's search bar), opens it (cmdSearchOpen,
+   from the keyboard handler: the bar when it can, the centred box when not) and
    closes it when the person changes (cmdSearchRoleChanged, from applyRoleUI):
    a list collected for the teacher must never be pressed by a student the
    device was handed to. */
@@ -32957,9 +32969,10 @@ function cmdSearchInit() {
       if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
     }
   });
-  document.querySelectorAll('.cmdSearchBtn').forEach(function (b) {
-    b.addEventListener('click', function () { cmdSearchOpen(); });
-  });
+  // 🔎 The toolbar's search bar (v1.172.0) is the search's front door; the
+  // module wires its keys, its list and its clear button.
+  var bar = document.querySelector('#toolbar .cmdBarInput');
+  if (bar) cmdSearch.attachBar(bar);
 }
 
 function cmdSearchOpen(seed) {
@@ -32970,8 +32983,32 @@ function cmdSearchOpen(seed) {
   return true;
 }
 
+/* Who is using the page. applyRoleUI runs for more than a change of person
+   (practice starting, a worksheet's role bits), and the bar must not be
+   emptied under somebody's fingers for those — only when the PERSON changes. */
+var cmdSearchWho = null;
+function cmdSearchIdentity() {
+  var admin = false;
+  try { admin = !!(typeof isAdmin === 'function' && isAdmin(currentUser)); } catch (e) { admin = false; }
+  var shared = false;
+  try { shared = !!(typeof isSharedVisitor === 'function' && isSharedVisitor()); } catch (e) { shared = false; }
+  return (currentUser ? currentUser.uid : '') + ':' + (admin ? 'admin' : 'user') + ':' +
+    (typeof actingStudent !== 'undefined' && actingStudent ? (actingStudent.name || 'acting') : '') + ':' +
+    (shared ? 'shared' : '');
+}
 function cmdSearchRoleChanged() {
-  if (cmdSearch && cmdSearch.isOpen()) cmdSearch.close();
+  var who = cmdSearchIdentity();
+  var changed = who !== cmdSearchWho;
+  cmdSearchWho = who;
+  if (!cmdSearch) return;
+  // A change of person shuts the list and empties the bar: a list collected
+  // for the teacher must never be pressed by the student the device is handed
+  // to, and a word the teacher typed must not be left sitting in the bar.
+  if (changed) { cmdSearch.reset(); return; }
+  // The same person with different buttons (practice starting, say): close
+  // the centred box as before; the bar's list re-reads the page on its next
+  // keystroke, so it is simply shut and keeps what was typed.
+  if (cmdSearch.isOpen()) cmdSearch.close(false, cmdSearch.where() === 'docked' ? 'outside' : undefined);
 }
 /* ================= End command search glue ================= */
 

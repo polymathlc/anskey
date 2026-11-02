@@ -1,5 +1,5 @@
 /* =====================================================================
-   ⏺ Writing without recording — the "Not recording" nudge (v1.172.0)
+   ⏺ Writing without recording — the "Not recording" nudge (v1.173.0)
    ---------------------------------------------------------------------
    Zhi Kai explains while writing, and a lesson that was never recorded is
    only found out about afterwards, when there is nothing left to record.

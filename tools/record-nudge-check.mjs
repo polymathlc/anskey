@@ -1,5 +1,5 @@
 /* =====================================================================
-   ⏺ Writing without recording (v1.172.0) — in a real browser
+   ⏺ Writing without recording (v1.173.0) — in a real browser
    ---------------------------------------------------------------------
    `tools/record-nudge-tests.mjs` walks the rules. This asks the page: do
    three REAL pen strokes on a worksheet bring the "Not recording" card up

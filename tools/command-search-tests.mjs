@@ -163,9 +163,16 @@ test('a button is named by its painted label, or a short tooltip that says more'
   assert.equal(P.labelFrom({ dataLabel: 'Pages', tip: 'Show / hide page thumbnails — drag the panel edge' }), 'Show / hide page thumbnails');
 });
 
-test('the page wires it: a toolbar button with no id, Ctrl+K and /, a role change closes it', () => {
-  assert.match(html, /<button class="toolBtn cmdSearchBtn" type="button" data-key="Ctrl\+K"/);
-  assert.doesNotMatch(html, /cmdSearchBtn" id=/, 'no id: the favourites bar must not offer it');
+test('the page wires it: a search bar with no id, Ctrl+K and /, a role change closes it', () => {
+  assert.match(html, /<div class="tGroup cmdBarGroup">\s*<div class="cmdBar" role="search">/);
+  assert.match(html, /<input type="text" class="cmdBarInput"[^>]*role="combobox"[^>]*aria-controls="cmdList"/);
+  const barHtml = html.slice(html.indexOf('<div class="cmdBar"'), html.indexOf('</div>', html.indexOf('<div class="cmdBar"')));
+  assert.doesNotMatch(barHtml, /\sid=/, 'no ids: the favourites bar must not offer the bar or its clear button');
+  assert.match(html, /cmdSearch\.attachBar\(bar\)/);
+  assert.match(html, /if \(changed\) \{ cmdSearch\.reset\(\); return; \}/);
+  // The bar is the toolbar's FIRST thing: it is the door to everything else.
+  const tb = html.indexOf('<div id="toolbar">');
+  assert.ok(tb > 0 && html.indexOf('cmdBarGroup', tb) > tb && html.indexOf('cmdBarGroup', tb) < html.indexOf('id="uploadBtn"', tb));
   assert.match(html, /e\.key\.toLowerCase\(\) === 'k'\) \{\s*e\.preventDefault\(\);\s*if \(typeof cmdSearchOpen/);
   assert.match(html, /e\.key === '\/' && !e\.ctrlKey/);
   assert.match(html, /cmdSearchRoleChanged\(\);/);
@@ -180,5 +187,73 @@ test('the page wires it: a toolbar button with no id, Ctrl+K and /, a role chang
 test('a press is the button\'s own click, and every key stops in the box', () => {
   assert.match(src, /el\.click\(\);/);
   assert.match(src, /root\.addEventListener\('keydown', function \(e\) \{\s*if \(root\.hidden\) return;[^\n]*\n\s*e\.stopPropagation\(\);/);
+  // The bar stops EVERY key, open or shut: it is a text field on the toolbar,
+  // and "lasso" typed into it must never reach the L, A and S shortcuts.
+  assert.match(src, /bar\.addEventListener\('keydown', function \(e\) \{\s*e\.stopPropagation\(\);/);
+  assert.match(src, /bar\.addEventListener\('keyup', function \(e\) \{ e\.stopPropagation\(\); \}\);/);
+  assert.match(src, /bar\.addEventListener\('keypress', function \(e\) \{ e\.stopPropagation\(\); \}\);/);
+  // The bar's own controls are never offered as results.
+  assert.match(src, /#cmdSearch, #favBar, #tooltip, \.cmdBar/);
   assert.doesNotMatch(src, /setTool\(|innerHTML\s*=\s*c\./, 'never a second way to press, never a label as markup');
+});
+
+test('the bar\'s dropdown sits under the bar, wide enough to read and always on screen', () => {
+  const D = P.dropBox;
+  // A 250px bar on a laptop: the list is DROP_MIN_W wide, under the bar's left edge.
+  let b = D({ left: 12, top: 60, right: 262, bottom: 92, width: 250 }, 1280, 860);
+  assert.equal(b.width, P.DROP_MIN_W);
+  assert.equal(b.left, 12);
+  assert.equal(b.top, 92 + P.DROP_GAP);
+  assert.ok(b.maxHeight <= P.DROP_MAX_H && b.maxHeight >= P.DROP_MIN_H);
+  // A bar wider than the minimum: the list matches it, up to the maximum.
+  b = D({ left: 10, top: 60, right: 510, bottom: 92, width: 500 }, 1280, 860);
+  assert.equal(b.width, 500);
+  b = D({ left: 10, top: 60, right: 1010, bottom: 92, width: 1000 }, 1280, 860);
+  assert.equal(b.width, P.DROP_MAX_W);
+  // Near the right edge: slid left so it never runs off the screen.
+  b = D({ left: 900, top: 60, right: 1150, bottom: 92, width: 250 }, 1024, 768);
+  assert.ok(b.left + b.width <= 1024 - P.DROP_MARGIN, JSON.stringify(b));
+  assert.ok(b.left >= P.DROP_MARGIN);
+  // A phone: never wider than the screen less its margins.
+  b = D({ left: 10, top: 120, right: 380, bottom: 156, width: 370 }, 390, 780);
+  assert.equal(b.width, 390 - P.DROP_MARGIN * 2);
+  assert.equal(b.left, P.DROP_MARGIN);
+  assert.ok(b.top + b.maxHeight <= 780 - P.DROP_MARGIN);
+  // A short screen (an iPad with its keyboard up): never shorter than the floor.
+  b = D({ left: 10, top: 60, right: 260, bottom: 92, width: 250 }, 1024, 200);
+  assert.equal(b.maxHeight, P.DROP_MIN_H);
+  // Whole pixels, always.
+  b = D({ left: 10.4, top: 60.2, right: 260.7, bottom: 92.6, width: 250.3 }, 1023.5, 767.5);
+  for (const k of ['left', 'top', 'width', 'maxHeight']) assert.equal(b[k], Math.round(b[k]));
+});
+
+test('the bar\'s shortcut hint says ⌘K on Apple devices and Ctrl K elsewhere', () => {
+  assert.equal(P.shortcutLabel({ platform: 'MacIntel', userAgent: '' }), '⌘K');
+  assert.equal(P.shortcutLabel({ platform: '', userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)' }), '⌘K');
+  assert.equal(P.shortcutLabel({ userAgentData: { platform: 'macOS' }, platform: '', userAgent: '' }), '⌘K');
+  assert.equal(P.shortcutLabel({ platform: 'Win32', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }), 'Ctrl K');
+  assert.equal(P.shortcutLabel({ platform: 'Linux x86_64', userAgent: '' }), 'Ctrl K');
+  assert.equal(P.shortcutLabel(null), 'Ctrl K');
+  assert.equal(P.shortcutLabel(undefined), 'Ctrl K');
+});
+
+test('the bar is the same search as the box: one ranking, one list, one press', () => {
+  // One choose(), one refresh(), one rank() call site in the page half.
+  assert.equal((src.match(/function choose\(/g) || []).length, 1);
+  assert.equal((src.match(/function refresh\(/g) || []).length, 1);
+  assert.equal((src.match(/results = rank\(/g) || []).length, 1);
+  // Ctrl+K / "/" use the bar when it can take the search, the box when not.
+  assert.match(src, /function open\(seed\) \{\s*if \(barUsable\(\)\)/);
+  // A bar too narrow to read hands its words to the centred box.
+  assert.match(src, /if \(!barUsable\(\)\) \{[\s\S]{0,200}openModal\(v\);/);
+});
+
+test('the bar\'s CSS: the field can be selected inside a no-select toolbar, and a phone gives it a row', () => {
+  const css = fs.readFileSync(new URL('../command-search.css', import.meta.url), 'utf8');
+  assert.match(css, /\.cmdBar \.cmdBarInput \{[^}]*user-select: text;[^}]*-webkit-user-select: text;/);
+  assert.match(css, /#cmdSearch\.cmdBack\.cmdDocked \{[^}]*pointer-events: none;/);
+  assert.match(css, /#cmdSearch\.cmdDocked \.cmdCard \{[^}]*position: fixed;[^}]*pointer-events: auto;/);
+  assert.match(css, /#cmdSearch\.cmdDocked \.cmdField \{ display: none; \}/);
+  assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*?\.cmdBarGroup \{ flex: 1 1 100%; \}/);
+  assert.match(css, /\.cmdBar \.cmdBarInput \{ font-size: 16px; \}/, 'iOS zooms into a field under 16px');
 });
