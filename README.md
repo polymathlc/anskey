@@ -3,6 +3,22 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.172.0 — 🔎 A search bar for every button
+
+- **The search is a real bar now**, first on the toolbar: *Search buttons — lasso, rubber, print…*.
+  It used to hide behind a small 🔎 icon and two shortcuts.
+- **Tap it** and the buttons you used most recently drop down under it. **Type** and the matching
+  buttons drop down instead — each with its icon, what it does, where it lives and its shortcut.
+  **Tap one** (or ↑ ↓ and Enter) and it is pressed for you, exactly as if you had found it, and the
+  real button flashes where it sits.
+- **Ctrl+K** (⌘K on a Mac or an iPad keyboard) and **/** jump straight into the bar. With the
+  toolbar folded away they still work: the centred search box opens instead.
+- ✕ clears what you typed; Esc empties it and hands the keys back to the page; tapping somewhere
+  else just shuts the list and keeps your word for next time. Nothing typed in the bar ever fires a
+  tool shortcut.
+- Students have it too, and only ever see their own buttons. On a phone the bar takes a row of its
+  own, full width.
+
 ## v1.171.0 — 🚪 The rune door, premium: the real logo and a door that looks the part
 
 - **The rune now carries the Polymath logo exactly as it is**: traced point by point from the

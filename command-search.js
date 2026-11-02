@@ -33,6 +33,16 @@
 
    Every keystroke inside the box stops there, so typing "lasso" can never
    fire the L, A and S tool shortcuts behind it.
+
+   🔎 THE SEARCH BAR (v1.172.0). The search used to hide behind a 28px icon
+   and two shortcuts nobody would guess. It is a real field on the toolbar
+   now: tap it and the buttons used most recently drop down under it; type
+   and the matches drop down instead; tap one (or ↑ ↓ Enter) and it is
+   pressed. Ctrl+K and "/" jump into the bar. When the bar cannot take it —
+   the toolbar folded away, a lesson recording the screen, a screen so narrow
+   the bar is squeezed — they open the centred box exactly as before, so the
+   shortcut always works. Both are the same search: one ranking, one list,
+   one `choose`, with `input` pointing at whichever field is in use.
    ===================================================================== */
 (function () {
   'use strict';
@@ -476,7 +486,57 @@
     return textWords;
   }
 
+  /* ------------------------------------------------------------------
+     🔎 The search bar's dropdown (v1.172.0), as pure arithmetic so the
+     harness can pin it without a page. Given the bar's rectangle and the
+     screen, where does the list go?
+
+     - Its width is the bar's, or DROP_MIN_W when the bar is narrower (a
+       result row carries an icon, a name, where it lives and a shortcut —
+       squeezed to the bar's 240px every description is an ellipsis), and
+       never more than DROP_MAX_W or the screen less a margin either side.
+     - It starts under the bar's left edge, slid left when it would run off
+       the right of the screen, never past the left margin.
+     - It hangs DROP_GAP below the bar and is never taller than what is left
+       of the screen, nor shorter than DROP_MIN_H (a list one row tall reads as
+       a broken one; it overlaps the bottom edge before it gets that small).
+     ------------------------------------------------------------------ */
+  var BAR_MIN_W = 150;
+  var DROP_MIN_W = 440;
+  var DROP_MAX_W = 620;
+  var DROP_MARGIN = 8;
+  var DROP_GAP = 6;
+  var DROP_MIN_H = 180;
+  var DROP_MAX_H = 560;
+
+  function dropBox(rect, vw, vh) {
+    var avail = Math.max(0, vw - DROP_MARGIN * 2);
+    var w = Math.max(rect.width || 0, DROP_MIN_W);
+    w = Math.min(w, DROP_MAX_W, avail);
+    var left = rect.left;
+    if (left + w > vw - DROP_MARGIN) left = vw - DROP_MARGIN - w;
+    if (left < DROP_MARGIN) left = DROP_MARGIN;
+    var top = rect.bottom + DROP_GAP;
+    var room = vh - top - DROP_MARGIN;
+    var h = Math.min(DROP_MAX_H, Math.max(DROP_MIN_H, room));
+    return { left: Math.round(left), top: Math.round(top), width: Math.round(w), maxHeight: Math.round(h) };
+  }
+
+  /* The bar's own shortcut hint: ⌘K on a Mac, iPhone or iPad (whose hardware
+     keyboards have a ⌘ key), Ctrl K everywhere else. */
+  function shortcutLabel(nav) {
+    var p = '';
+    try {
+      p = String((nav && ((nav.userAgentData && nav.userAgentData.platform) || nav.platform)) || '') + ' ' +
+        String((nav && nav.userAgent) || '');
+    } catch (e) { p = ''; }
+    return /Mac|iPhone|iPad|iPod/i.test(p) ? '⌘K' : 'Ctrl K';
+  }
+
   var pure = {
+    dropBox: dropBox, shortcutLabel: shortcutLabel,
+    BAR_MIN_W: BAR_MIN_W, DROP_MIN_W: DROP_MIN_W, DROP_MAX_W: DROP_MAX_W, DROP_MARGIN: DROP_MARGIN,
+    DROP_GAP: DROP_GAP, DROP_MIN_H: DROP_MIN_H, DROP_MAX_H: DROP_MAX_H,
     norm: norm, stem: stem, words: words, queryWords: queryWords,
     editDistance: editDistance, subsequence: subsequence, wordScore: wordScore,
     prepare: prepare, splitSynonyms: splitSynonyms, score: score, rank: rank, markRanges: markRanges,
@@ -495,6 +555,16 @@
     var commands = [], prepared = [], results = [], active = 0;
     var lastFocus = null;
     var memRecent = [];
+    /* The search bar (v1.172.0). `fieldInput` is the centred box's own field;
+       `bar` is the always-visible field on the toolbar. `input` is whichever
+       one the person is typing into right now, and every function below reads
+       `input`, so the ranking, the marks and the arrow keys are the same code
+       in both places — the bar is a second door, never a second search. */
+    var fieldInput = null;
+    var bar = null, barWrap = null, barClear = null, barKey = null;
+    var mode = 'modal';
+    var outsideOn = false;
+    var placeRaf = 0;
 
     function readRecent() {
       try {
@@ -512,7 +582,7 @@
        closed, or the toolbar is folded away, still means yes. */
     function available(el) {
       if (!el || el.disabled) return false;
-      if (el.closest('#cmdSearch, #favBar, #tooltip')) return false;
+      if (el.closest('#cmdSearch, #favBar, #tooltip, .cmdBar')) return false;
       var n = el;
       while (n && n !== doc.body) {
         if (n.classList && (n.classList.contains('toolbarMenuPanel') || n.id === 'toolbar' || n.id === 'appsPanel')) {
@@ -628,25 +698,41 @@
       emptyEl = root.querySelector('#cmdEmpty');
       hintEl = root.querySelector('#cmdHint');
 
-      input.addEventListener('input', function () { active = 0; refresh(); });
+      fieldInput = input;
+
+      fieldInput.addEventListener('input', function () { active = 0; refresh(); });
       // Every key typed here stops here: "lasso" must never reach the L, A
       // and S tool shortcuts behind the box.
       root.addEventListener('keydown', function (e) {
         if (root.hidden) return;          // a closed box keeps nothing
         e.stopPropagation();
-        if (e.key === 'Escape') { e.preventDefault(); close(); return; }
-        if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return; }
-        if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return; }
-        if (e.key === 'Home' && e.ctrlKey) { e.preventDefault(); active = 0; paintActive(); return; }
-        if (e.key === 'Tab') { e.preventDefault(); move(e.shiftKey ? -1 : 1); return; }
-        if (e.key === 'Enter') { e.preventDefault(); choose(active); return; }
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); close(); }
+        onKey(e);
       });
       root.addEventListener('keyup', function (e) { e.stopPropagation(); });
       root.addEventListener('keypress', function (e) { e.stopPropagation(); });
       root.addEventListener('pointerdown', function (e) {
+        if (mode === 'docked') {
+          // Under the bar there is no backdrop (the root lets every pointer
+          // through), so anything that reaches here is on the card itself: a
+          // press on its padding, its hint or the list's scrollbar must not
+          // take the focus out of the bar, or the blur closes the list.
+          if (e.target !== root) e.preventDefault();
+          return;
+        }
         if (e.target === root) { e.preventDefault(); close(); }
       });
+    }
+
+    /* The keys a list answers to, wherever it is being typed into. The caller
+       has already stopped the key going any further. */
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(false, 'escape'); return; }
+      if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return; }
+      if (e.key === 'Home' && e.ctrlKey) { e.preventDefault(); active = 0; paintActive(); return; }
+      if (e.key === 'Tab') { e.preventDefault(); move(e.shiftKey ? -1 : 1); return; }
+      if (e.key === 'Enter') { e.preventDefault(); choose(active); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); close(false, 'escape'); }
     }
 
     function move(d) {
@@ -790,11 +876,133 @@
       if (env.onPress) { try { env.onPress(c); } catch (e) { /* presentation only */ } }
     }
 
-    function open(seed) {
+    /* ------------------------------------------------------------------
+       Where the list goes. In the centred box (`modal`) it sits under the
+       box's own field; under the bar (`docked`) the card is a dropdown pinned
+       below the bar, as wide as the bar or a comfortable reading width,
+       whichever is wider, and never off either side of the screen.
+       ------------------------------------------------------------------ */
+    function cardEl() { return root ? root.querySelector('.cmdCard') : null; }
+
+    function clearPlacement() {
+      var card = cardEl();
+      if (!card) return;
+      ['left', 'top', 'width', 'maxHeight'].forEach(function (k) { card.style[k] = ''; });
+    }
+
+    function place() {
+      if (mode !== 'docked' || !bar || !isOpen()) return;
+      var card = cardEl();
+      if (!card) return;
+      var win = doc.defaultView || window;
+      var vw = win.innerWidth || doc.documentElement.clientWidth || 1024;
+      var vh = win.innerHeight || doc.documentElement.clientHeight || 768;
+      var r = (barWrap || bar).getBoundingClientRect();
+      var box = pure.dropBox({ left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width }, vw, vh);
+      card.style.left = box.left + 'px';
+      card.style.top = box.top + 'px';
+      card.style.width = box.width + 'px';
+      card.style.maxHeight = box.maxHeight + 'px';
+    }
+
+    function placeSoon() {
+      if (placeRaf) return;
+      var win = doc.defaultView || window;
+      var raf = win.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+      placeRaf = raf(function () { placeRaf = 0; place(); });
+    }
+
+    /* A press anywhere that is not the bar or its list closes the list. The
+       blur usually does that already; this catches a press on something that
+       keeps the focus where it is (the toolbar's own buttons, the page's
+       drawing surface), which would otherwise leave the list hanging open over
+       whatever was pressed. */
+    function onOutside(e) {
+      if (mode !== 'docked' || !isOpen()) return;
+      var t = e.target;
+      if (barWrap && barWrap.contains(t)) return;
+      var card = cardEl();
+      if (card && card.contains(t)) return;
+      close(false, 'outside');
+      if (bar && doc.activeElement === bar) bar.blur();
+    }
+    function onViewport(e) {
+      // The list scrolling inside its own card is not the page moving.
+      if (e && e.target && root && e.target.nodeType === 1 && root.contains(e.target)) return;
+      placeSoon();
+    }
+    function listenOutside(on) {
+      if (on === outsideOn) return;
+      outsideOn = on;
+      var win = doc.defaultView || window;
+      var fn = on ? 'addEventListener' : 'removeEventListener';
+      doc[fn]('pointerdown', onOutside, true);
+      win[fn]('resize', onViewport);
+      win[fn]('scroll', onViewport, true);
+    }
+
+    /* Can the bar take the search right now? It must be on the page, shown
+       (the toolbar can be folded away, or hidden while a lesson records the
+       screen), wide enough to read what is typed, and on screen. */
+    function barUsable() {
+      if (!bar || !doc.contains(bar) || bar.disabled) return false;
+      var r = (barWrap || bar).getBoundingClientRect();
+      if (!r.width || !r.height) return false;
+      if (r.width < BAR_MIN_W) return false;
+      var win = doc.defaultView || window;
+      var vh = win.innerHeight || 768;
+      if (r.bottom <= 0 || r.top >= vh - 120) return false;
+      return true;
+    }
+
+    function syncBar() {
+      if (!barWrap) return;
+      var has = !!(bar && bar.value);
+      barWrap.classList.toggle('hasValue', has);
+      if (barClear) barClear.hidden = !has;
+    }
+
+    function openDocked(seed, fromFocus) {
       build();
-      lastFocus = root.contains(doc.activeElement) ? null : doc.activeElement;
+      if (isOpen() && mode === 'modal') close(false, 'switch');
+      lastFocus = null;
       commands = collect();
       prepared = commands.map(prepare);
+      mode = 'docked';
+      input = bar;
+      root.classList.add('cmdDocked');
+      fieldInput.setAttribute('aria-expanded', 'false');
+      root.hidden = false;
+      doc.body.classList.add('cmdOpen');
+      doc.body.classList.add('cmdDockedOpen');
+      if (typeof seed === 'string') bar.value = seed;
+      bar.setAttribute('aria-expanded', 'true');
+      if (barWrap) barWrap.classList.add('open');
+      syncBar();
+      active = 0;
+      refresh();
+      place();
+      listenOutside(true);
+      if (!fromFocus) {
+        // Inside the key press that opened it, like the box: the next letter a
+        // quick typist presses has to land in the bar.
+        try { bar.focus({ preventScroll: true }); } catch (e) { bar.focus(); }
+        try { bar.select(); } catch (e) { /* nothing to select */ }
+      }
+    }
+
+    function openModal(seed) {
+      build();
+      if (isOpen() && mode === 'docked') close(false, 'switch');
+      lastFocus = root.contains(doc.activeElement) ? null : doc.activeElement;
+      if (lastFocus === bar) lastFocus = null;
+      commands = collect();
+      prepared = commands.map(prepare);
+      mode = 'modal';
+      input = fieldInput;
+      root.classList.remove('cmdDocked');
+      clearPlacement();
+      fieldInput.setAttribute('aria-expanded', 'true');
       root.hidden = false;
       doc.body.classList.add('cmdOpen');
       input.value = typeof seed === 'string' ? seed : '';
@@ -806,12 +1014,52 @@
       input.select();
     }
 
-    function close(pressing) {
+    /* Ctrl+K, "/" and the old 🔎: the bar when it can take it, the centred box
+       when it cannot (the toolbar folded away, a phone where the bar is
+       squeezed, a lesson recording the screen). */
+    function open(seed) {
+      if (barUsable()) {
+        if (isOpen() && mode === 'docked') {
+          if (typeof seed === 'string') { bar.value = seed; syncBar(); active = 0; refresh(); }
+          try { bar.focus({ preventScroll: true }); } catch (e) { bar.focus(); }
+          return;
+        }
+        openDocked(seed, false);
+        return;
+      }
+      openModal(seed);
+    }
+
+    /* `why`: 'escape' / 'reset' empty the bar and give the keys back to the
+       page; 'blur' / 'outside' leave what was typed, so tapping away and back
+       picks up where it was; `pressing` empties it, the job being done. */
+    function close(pressing, why) {
       if (!root || root.hidden) return;
+      var wasDocked = mode === 'docked';
       root.hidden = true;
       doc.body.classList.remove('cmdOpen');
+      doc.body.classList.remove('cmdDockedOpen');
       results = [];
-      if (!pressing && lastFocus && lastFocus.focus && doc.contains(lastFocus) && !root.contains(lastFocus) &&
+      listenOutside(false);
+      if (wasDocked) {
+        root.classList.remove('cmdDocked');
+        clearPlacement();
+        mode = 'modal';
+        input = fieldInput;
+        if (bar) {
+          bar.setAttribute('aria-expanded', 'false');
+          bar.removeAttribute('aria-activedescendant');
+          if (pressing || why === 'escape' || why === 'reset') {
+            bar.value = '';
+            if (doc.activeElement === bar) bar.blur();
+          }
+        }
+        if (barWrap) barWrap.classList.remove('open');
+        syncBar();
+        return;
+      }
+      fieldInput.setAttribute('aria-expanded', 'false');
+      if (why !== 'switch' && !pressing && lastFocus && lastFocus.focus && doc.contains(lastFocus) && !root.contains(lastFocus) &&
           lastFocus !== doc.body) {
         try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* gone */ }
       }
@@ -823,7 +1071,93 @@
     }
 
     function isOpen() { return !!root && !root.hidden; }
-    function toggle() { if (isOpen()) close(); else open(); }
+    function toggle() { if (isOpen()) close(false, 'escape'); else open(); }
+    function where() { return isOpen() ? mode : ''; }
+
+    /* A change of person: shut whichever list is open and empty the bar. */
+    function reset() {
+      if (isOpen()) close(false, 'reset');
+      if (bar && bar.value) {
+        bar.value = '';
+        if (doc.activeElement === bar) bar.blur();
+      }
+      syncBar();
+    }
+
+    /* ------------------------------------------------------------------
+       🔎 THE SEARCH BAR (v1.172.0). The toolbar's search field is wired here,
+       once. A tap on it shows the recent buttons straight away; typing ranks
+       the page's buttons exactly as the box does; ↑ ↓ Enter, or a tap on a
+       row, presses the button. Every key typed into the bar stops at the bar,
+       or "lasso" would fire the L, A and S tool shortcuts behind it — the same
+       rule as the box, for the same reason.
+       ------------------------------------------------------------------ */
+    function attachBar(el) {
+      if (!el || bar === el) return;
+      bar = el;
+      barWrap = el.closest('.cmdBar') || el.parentElement;
+      barClear = barWrap ? barWrap.querySelector('.cmdBarClear') : null;
+      barKey = barWrap ? barWrap.querySelector('.cmdBarKey') : null;
+      if (barKey) barKey.textContent = pure.shortcutLabel((doc.defaultView || window).navigator);
+      bar.setAttribute('aria-expanded', 'false');
+
+      bar.addEventListener('focus', function () {
+        if (isOpen() && mode === 'docked') return;
+        if (!barUsable()) {
+          // Squeezed or off screen: the centred box takes over, carrying
+          // whatever was typed.
+          var v = bar.value;
+          bar.blur();
+          openModal(v);
+          return;
+        }
+        openDocked(null, true);
+      });
+      bar.addEventListener('input', function () {
+        if (!isOpen() || mode !== 'docked') { openDocked(null, true); return; }
+        syncBar();
+        active = 0;
+        refresh();
+        place();
+      });
+      bar.addEventListener('keydown', function (e) {
+        e.stopPropagation();
+        if (!isOpen() || mode !== 'docked') {
+          if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); openDocked(null, true); return; }
+          if (e.key === 'Escape') { e.preventDefault(); bar.value = ''; syncBar(); bar.blur(); }
+          return;
+        }
+        onKey(e);
+      });
+      bar.addEventListener('keyup', function (e) { e.stopPropagation(); });
+      bar.addEventListener('keypress', function (e) { e.stopPropagation(); });
+      bar.addEventListener('blur', function () {
+        // Wait one turn: a press on a row keeps the focus (its pointerdown is
+        // prevented), but the focus may also be on its way somewhere real.
+        setTimeout(function () {
+          if (mode === 'docked' && isOpen() && doc.activeElement !== bar) close(false, 'blur');
+        }, 0);
+      });
+      if (barWrap) {
+        // A tap on the bar's padding or its magnifier is a tap on the field.
+        barWrap.addEventListener('pointerdown', function (e) {
+          if (e.target === bar || (barClear && barClear.contains(e.target))) return;
+          e.preventDefault();
+          try { bar.focus({ preventScroll: true }); } catch (err) { bar.focus(); }
+        });
+      }
+      if (barClear) {
+        barClear.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+        barClear.addEventListener('click', function (e) {
+          e.preventDefault();
+          bar.value = '';
+          syncBar();
+          if (isOpen() && mode === 'docked') { active = 0; refresh(); place(); }
+          else { try { bar.focus({ preventScroll: true }); } catch (err) { bar.focus(); } }
+        });
+      }
+      syncBar();
+    }
 
     /* For the browser check: what the box would offer for a query. */
     function query(q) {
@@ -833,7 +1167,12 @@
       });
     }
 
-    return { open: open, close: close, toggle: toggle, isOpen: isOpen, query: query, collect: collect };
+    if (env.bar) attachBar(env.bar);
+
+    return {
+      open: open, close: close, toggle: toggle, isOpen: isOpen, query: query, collect: collect,
+      attachBar: attachBar, where: where, reset: reset, barUsable: barUsable, place: place
+    };
   }
 
   window.CommandSearch = { create: create, pure: pure };
