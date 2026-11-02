@@ -50,6 +50,13 @@ Guidance for Claude when working in this repo.
 - **The gate** (`enterGate`): doors slide shut (`GATE.shut`), shake + dust + bar drops, the cover is swapped for the board BEHIND the shut gate, the bar lifts, the doors open (`GATE.open`). The CSS transition times must equal `GATE` (the test reads both). Reduced motion skips the gate. Every key pressed in it stops there.
 - Run `node --test tools/lesson-splash-tests.mjs` and `node tools/lesson-splash-check.mjs` (real Chromium: teacher-only button, stickers off the title and on screen, doors closing across the full width, the bar, the rules, edit/reorder/save/cancel/empty refusal, account + device copies, a second device, handover/sign-out, iPad, phone, reduced motion; in CI).
 
+### 🏰 Homework earns +2 (v1.175.0)
+
+- `DEFAULT.items[2]` is `HOMEWORK` (*Complete your homework, if any was set — and take note of any new homework*, `+2 points`). The board's `v` is `VERSION` (2).
+- `upgrade(data)` (pure, inside `clean`) lifts a board below v2: ONLY a line whose text is exactly `HOMEWORK_V1.text` with an empty reward (`isOldHomework`) becomes `HOMEWORK`'s text and reward. It never edits its input, keeps `at`, and never looks at a v2 board — so a teacher who removes the points after the lift keeps them removed. Never lift by "contains homework": a line the teacher rewrote is theirs.
+- The rewards on the board are text shown to the class; they award nothing by themselves (points still go through the wheel / Reward window).
+- Run `node --test tools/lesson-splash-tests.mjs` and `node tools/lesson-splash-check.mjs` (a v1 board from the account shows +2 and writes nothing).
+
 ## 🚪 The rune door (v1.168.0)
 
 - `rune-door.js` / `rune-door.css` own the feature (`window.RuneDoor`: `create(env)`, `scene`, `introTimeline` / `idleTimeline` / `ambientTimeline` / `openTimeline` / `filmTimeline`, `composition`, `pure`). index.html holds only the glue between `🚪 Rune door — glue` and `End rune door glue` (`rdoorRole`, `rdoorRef`, `rdoorWho`, `rdoorSeenKey`, `rdoorReadSeen` / `rdoorWriteSeen`, `rdoorName`, `rdoorInit`, `rdoorOpen`, `rdoorRoleChanged`), `#runeDoorBtn` (shown by `applyRewardVisibility`, which also calls `rdoorRoleChanged`), the Cinzel font link and `vendor/gsap.min.js` + `rune-door.js` + `<script>rdoorInit();</script>` after the lesson-start tags.

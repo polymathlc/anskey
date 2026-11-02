@@ -174,7 +174,7 @@ async function waitFor(page, fn, arg, ms = 5000) {
   ok('the rules heading shows', board.title === 'Quest rules', board.title);
   ok('the online students\' rule is there, with its 2 points', /Online students/i.test(board.rules[0] || '') && /camera for the whole lesson/i.test(board.rules[0]) && /\+2 points/.test(board.rules[0]), board.rules[0]);
   ok('the physical students\' rule is there, with its 2 points', /Physical students/i.test(board.rules[1] || '') && /focus and keep quiet/i.test(board.rules[1]) && /\+2 points/.test(board.rules[1]), board.rules[1]);
-  ok('the homework line is there, with no reward', /homework, if any/i.test(board.rules[2] || '') && !/points/.test(board.rules[2]), board.rules[2]);
+  ok('the homework line is there, with its 2 points', /complete your homework, if any was set/i.test(board.rules[2] || '') && /\+2 points/.test(board.rules[2]), board.rules[2]);
   ok('the board is peppered with stickers too (' + board.n + ')', board.n >= 8);
   ok('and none of them sits on the rules', board.clash === 0, board.clash + ' clash');
   ok('the rules fit on the screen', board.inside);
@@ -253,6 +253,28 @@ async function waitFor(page, fn, arg, ms = 5000) {
   ok('signing out closes it', await waitFor(two.page, () => !document.getElementById('lessonSplash')));
   ok('no page errors', two.errors.length === 0, two.errors.join('\n'));
   await two.ctx.close();
+}
+
+/* ------------------------------------------------------------ a board saved before v1.175.0 */
+{
+  console.log('A board saved before homework earned points');
+  const v1 = JSON.stringify({
+    v: 1, kicker: 'Polymath · Wheel Quest', cover: "Today's Quest", title: 'Quest rules', at: 1000,
+    items: [
+      { icon: '📹', who: 'Online students', text: 'Turn on your camera for the whole lesson.', reward: '+2 points' },
+      { icon: '🤫', who: 'Physical students', text: 'Focus and keep quiet.', reward: '+2 points' },
+      { icon: '📝', who: 'Everyone', text: 'Take note of any homework, if any.', reward: '' }
+    ]
+  });
+  const old = await boot({ width: 1280, height: 800 }, { cloud: v1 });
+  await old.page.click('#lessonSplashBtn');
+  await waitFor(old.page, () => !!document.getElementById('lessonSplash'));
+  await old.page.waitForTimeout(150);
+  const line = await old.page.evaluate(() => { const d = lsplash.data(); return d && d.items[2]; });
+  ok('the old homework line now earns +2 points', line && line.reward === '+2 points' && /complete your homework, if any was set/i.test(line.text), JSON.stringify(line));
+  ok('and nothing was written just for reading it', await old.page.evaluate(() => !window.__lsWrites));
+  ok('no page errors', old.errors.length === 0, old.errors.join('\n'));
+  await old.ctx.close();
 }
 
 /* ------------------------------------------------------------ a phone and an iPad */

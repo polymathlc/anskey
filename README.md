@@ -3,6 +3,17 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.175.0 — 🏰 Homework earns 2 points on the quest rules
+
+- **The lesson start's third rule now reads** *Complete your homework, if any was set — and take note
+  of any new homework*, with **+2 points** beside it like the camera and the quiet rules.
+- **A board you saved before this release is updated by itself**, but only when its homework line is
+  still exactly the old wording with no reward. A line you rewrote, or already gave a reward, is left
+  as you wrote it, and once a board is saved again it is never changed for you (take the points off and
+  they stay off).
+- The points on the board are what the class is told; you still give them out the usual way (the wheel's
+  points or the Reward window).
+
 ## v1.174.0 — ⏺ "Not recording" comes up when you write, and can be ignored for the session
 
 - **It came up too rarely.** It waited for the worksheet to be saved, stood down while an older lesson

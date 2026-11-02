@@ -57,15 +57,31 @@
     items: 8
   };
 
+  /* The shape's version. v2 (v1.175.0) gave the homework line its points:
+     "+2 points for completing homework, if any was set". A v1 board that
+     still carries the untouched v1 homework line is lifted ONCE by
+     `upgrade`; a board saved as v2 is never touched again, so a teacher who
+     takes the points off afterwards keeps them off. */
+  var VERSION = 2;
+
+  /* The homework line as v1 shipped it, and as it reads now. */
+  var HOMEWORK_V1 = { icon: '📝', who: 'Everyone', text: 'Take note of any homework, if any.', reward: '' };
+  var HOMEWORK = {
+    icon: '📝',
+    who: 'Everyone',
+    text: 'Complete your homework, if any was set — and take note of any new homework.',
+    reward: '+2 points'
+  };
+
   var DEFAULT = {
-    v: 1,
+    v: VERSION,
     kicker: 'Polymath · Wheel Quest',
     cover: "Today's Quest",
     title: 'Quest rules',
     items: [
       { icon: '📹', who: 'Online students', text: 'Turn on your camera for the whole lesson.', reward: '+2 points' },
       { icon: '🤫', who: 'Physical students', text: 'Focus and keep quiet.', reward: '+2 points' },
-      { icon: '📝', who: 'Everyone', text: 'Take note of any homework, if any.', reward: '' }
+      { icon: HOMEWORK.icon, who: HOMEWORK.who, text: HOMEWORK.text, reward: HOMEWORK.reward }
     ]
   };
 
@@ -120,10 +136,43 @@
      item with nothing in it is dropped; a list with nothing left is
      refused, because an empty quest board is not something anybody meant
      to show a class. */
+  /* Is this line the v1 homework line exactly as it shipped (the text and
+     the empty reward, whatever icon or "who" was left beside it)? Only that
+     line is lifted: one the teacher rewrote, or already gave a reward, is
+     theirs and stays as it is. */
+  function isOldHomework(item) {
+    if (!item || typeof item !== 'object') return false;
+    return cleanLine(item.text, LIMITS.text) === HOMEWORK_V1.text && !cleanLine(item.reward, LIMITS.reward);
+  }
+
+  /* An older board → this version's board. Pure; returns a NEW object and
+     never edits what it was given. Only a board stamped below VERSION (or
+     with no version at all) is looked at. */
+  function upgrade(data) {
+    if (!data || typeof data !== 'object') return data;
+    var v = Number(data.v) || 1;
+    if (v >= VERSION) return data;
+    var out = {};
+    for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) out[k] = data[k];
+    if (Array.isArray(data.items)) {
+      out.items = data.items.map(function (it) {
+        if (!isOldHomework(it)) return it;
+        var next = {};
+        for (var key in it) if (Object.prototype.hasOwnProperty.call(it, key)) next[key] = it[key];
+        next.text = HOMEWORK.text;
+        next.reward = HOMEWORK.reward;
+        return next;
+      });
+    }
+    out.v = VERSION;
+    return out;
+  }
+
   function clean(data) {
     if (!data || typeof data !== 'object') return null;
+    data = upgrade(data);
     var out = {
-      v: 1,
+      v: VERSION,
       kicker: cleanLine(data.kicker, LIMITS.kicker),
       cover: cleanLine(data.cover, LIMITS.cover),
       title: cleanLine(data.title, LIMITS.title),
@@ -302,7 +351,8 @@
   }
 
   var pure = {
-    DEFAULT: DEFAULT, LIMITS: LIMITS, GATE: GATE, HERO_FORMS: HERO_FORMS,
+    DEFAULT: DEFAULT, LIMITS: LIMITS, GATE: GATE, VERSION: VERSION,
+    HOMEWORK: HOMEWORK, HOMEWORK_V1: HOMEWORK_V1, upgrade: upgrade, isOldHomework: isOldHomework, HERO_FORMS: HERO_FORMS,
     BOSS_ATLASES: BOSS_ATLASES, HERO_SCALE: HERO_SCALE,
     rng: rng, cleanLine: cleanLine, clean: clean, defaults: defaults, same: same, newer: newer,
     stickerPicks: stickerPicks, stickerSpots: stickerSpots, spriteStyle: spriteStyle,
