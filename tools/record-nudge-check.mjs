@@ -128,10 +128,11 @@ async function stroke(page, i) {
   await stroke(page, 0);
   ok('one stroke is written…', (await strokes(page)) === 1);
   ok('…and one stroke is not "writing" — no warning yet', !(await shown(page)));
+  ok('…and the reason it is not up yet is only the count', await page.evaluate(() => recNudgeWhy() === ''));
   await stroke(page, 1);
-  await stroke(page, 2);
-  ok('three strokes are kept on the page', (await strokes(page)) === 3);
-  ok('three strokes bring up "Not recording"', await shown(page));
+  ok('two strokes are kept on the page', (await strokes(page)) === 2);
+  ok('two strokes within a minute bring up "Not recording" (v1.174.0: was three in 45 s)', await shown(page));
+  ok('the card offers "Ignore for this session"', await page.evaluate(() => /Ignore for this session/.test(document.getElementById('recNudge').textContent) && !document.querySelector('#recNudge .rnSessionBox').checked));
   const text = await page.evaluate(() => document.getElementById('recNudge').textContent);
   ok('it says what is wrong and offers Record now', /Not recording/.test(text) && /Record now/.test(text) && /Not now/.test(text), text);
   ok('it never took the focus', await page.evaluate(() => !document.getElementById('recNudge').contains(document.activeElement)));
@@ -228,10 +229,58 @@ async function stroke(page, i) {
   ok('…and practising never brings it up', !(await shown(page)));
   await page.evaluate(() => { practiceMode = false; applyRoleUI(); });
 
-  // An unsaved worksheet: nothing to attach a lesson to.
+  // v1.174.0 — the three things that kept it away for Zhi Kai's lesson.
+  // 1. An older lesson waiting to be saved is not a recording.
+  await page.click('#recNudge .rnLater').catch(() => {});
+  await page.evaluate(() => { lessonPending = { id: 'old', uid: currentUser.uid, docId: 'doc-x' }; currentDocId = 'doc-8'; recNudgeChanged(); });
+  for (let i = 0; i < 3; i++) await page.evaluate(() => recNudgeInk({ type: 'pen' }));
+  ok('a lesson from earlier still waiting to save does NOT keep it away', await shown(page));
+  await page.evaluate(() => { lessonPending = null; });
+  await page.click('#recNudge .rnLater');
+
+  // 2. An unrelated dialog left open (the notes window here) never stops a
+  //    mark counting — but one coming up over a card takes the card down.
+  await page.evaluate(() => { currentDocId = 'doc-9'; recNudgeChanged(); document.getElementById('notesModal').classList.add('open'); });
+  for (let i = 0; i < 3; i++) await page.evaluate(() => recNudgeInk({ type: 'pen' }));
+  ok('a dialog left open does NOT stop the marks counting', await shown(page));
+  await page.waitForTimeout(1300);
+  ok('…but a dialog over a card that is up takes the card down', !(await shown(page)));
+  await page.evaluate(() => document.getElementById('notesModal').classList.remove('open'));
+
+  // 3. A worksheet not saved yet is warned about, and says to save first.
   await page.evaluate(() => { currentDocId = null; recNudgeChanged(); });
-  for (let i = 0; i < 4; i++) await stroke(page, i);
-  ok('an unsaved worksheet is never warned about', !(await shown(page)));
+  for (let i = 0; i < 3; i++) await stroke(page, i);
+  ok('an unsaved worksheet IS warned about now', await shown(page));
+  ok('…and the card says to save it to record', await page.evaluate(() => /save this worksheet/i.test(document.querySelector('#recNudge .rnSub').textContent)));
+  await page.evaluate(() => { window.__saveClicks = 0; document.getElementById('saveBtn').addEventListener('click', () => { window.__saveClicks++; }, true); });
+  await page.click('#recNudge .rnRec');
+  await page.waitForTimeout(300);
+  ok('Record now on an unsaved sheet presses Save (the Record window cannot take it yet)',
+    await page.evaluate(() => window.__saveClicks === 1 && !document.getElementById('lessonModal').classList.contains('open')));
+  await page.evaluate(() => { const m = document.querySelector('.modalBack.open:not(.floatWin)'); if (m) m.classList.remove('open'); });
+
+  // ☐ Ignore for this session.
+  await page.evaluate(() => { currentDocId = 'doc-10'; recNudgeChanged(); });
+  for (let i = 0; i < 3; i++) await page.evaluate(() => recNudgeInk({ type: 'pen' }));
+  ok('a tenth worksheet: up again', await shown(page));
+  await page.waitForTimeout(400);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'session-box.png') });
+  await page.click('#recNudge .rnSessionBox');
+  ok('ticking "Ignore for this session" hides it', !(await shown(page)));
+  ok('…remembers it for this tab only (sessionStorage), not for the device',
+    await page.evaluate(() => sessionStorage.getItem('polymath.recordNudge.session.v1') === '1' && localStorage.getItem('polymath.recordNudge.v1') === null));
+  ok('…and recNudgeWhy() says so', await page.evaluate(() => recNudgeWhy() === 'session-off'));
+  await page.evaluate(() => { currentDocId = 'doc-11'; recNudgeChanged(); });
+  for (let i = 0; i < 4; i++) await page.evaluate(() => recNudgeInk({ type: 'pen' }));
+  ok('ignored for the session: another worksheet stays quiet too', !(await shown(page)));
+  await page.evaluate(() => { lessonOpenModal(); });
+  ok('the Record window shows the switch off while ignored', await page.evaluate(() => !document.getElementById('lessonNudgeAgain').checked));
+  await page.click('#lessonNudgeAgain');
+  ok('ticking it there ends the session ignore', await page.evaluate(() => recNudge.enabled() && sessionStorage.getItem('polymath.recordNudge.session.v1') === null));
+  await page.evaluate(() => lessonCloseModal());
+  await page.evaluate(() => { currentDocId = 'doc-12'; recNudgeChanged(); });
+  for (let i = 0; i < 2; i++) await page.evaluate(() => recNudgeInk({ type: 'pen' }));
+  ok('and it comes up again', await shown(page));
 
   ok('no uncaught error along the way', errors.length === 0, errors.join('\n      '));
   await ctx.close();

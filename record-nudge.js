@@ -1,5 +1,5 @@
 /* =====================================================================
-   ⏺ Writing without recording — the "Not recording" nudge (v1.173.0)
+   ⏺ Writing without recording — the "Not recording" nudge (v1.173.0, v1.174.0)
    ---------------------------------------------------------------------
    Zhi Kai explains while writing, and a lesson that was never recorded is
    only found out about afterwards, when there is nothing left to record.
@@ -7,7 +7,8 @@
    down, a small warning comes up over the top of the page:
 
        ● Not recording — your writing is not going into a lesson.
-         [● Record now]  [Not now]                       Don't warn me
+         [● Record now]  [Not now]
+         ☐ Ignore for this session                       Don't warn me
 
    ● Record now presses the app's own record button (the glue's `record`,
    which is `lessonOpen`): the Record lesson window opens on the camera and
@@ -46,15 +47,23 @@
   /* ---------------------------------------------------------------------
      Numbers. Each one is a judgement about a teacher mid-lesson.
      --------------------------------------------------------------------- */
-  var STROKES = 3;                       // marks before it is "writing"
-  var WINDOW_MS = 45 * 1000;             // …within this long
+  // v1.174.0: two marks in a minute (was three in 45 s). Zhi Kai wrote on a
+  // page without recording and nothing came up; a teacher explaining writes a
+  // word or two and then talks, so the old window often closed before the
+  // third mark landed.
+  var STROKES = 2;                       // marks before it is "writing"
+  var WINDOW_MS = 60 * 1000;             // …within this long
   var SHOW_MS = 15 * 1000;               // untouched, it goes away after this
-  var IDLE_SNOOZE_MS = 3 * 60 * 1000;    // …and keeps away this long
+  var IDLE_SNOOZE_MS = 2 * 60 * 1000;    // …and keeps away this long
   var LATER_SNOOZE_MS = 10 * 60 * 1000;  // "Not now" on this worksheet
   var RECORD_SNOOZE_MS = 60 * 1000;      // Record now pressed, window closed again
   var MARKS_MAX = 32;                    // the mark list never grows without end
   var SNOOZE_MAX = 64;                   // nor does the snooze map
   var PREF_KEY = 'polymath.recordNudge.v1';
+  // "Ignore for this session": this tab only (sessionStorage survives a
+  // reload of the same tab and ends when the tab or the app is closed).
+  var SESSION_KEY = 'polymath.recordNudge.session.v1';
+  var UNSAVED_DOC = 'unsaved';           // the snooze key for a sheet with no id yet
   var GAP_PX = 12;                       // from the top of the worksheet area
 
   // What counts as WRITING: the lesson recorder's own list (LESSON_TYPES).
@@ -63,14 +72,26 @@
 
   // Why it is NOT asking, in the order they are checked. The browser check and
   // the harness read these words, so they are part of the contract.
+  //
+  // v1.174.0 took three gates OUT, because each one could keep the warning
+  // away for a whole lesson with nothing on screen saying why:
+  //   - 'pending'  a lesson from earlier waiting to be saved (or a device
+  //                backup of one) is not a recording — the teacher writing
+  //                now is still not being recorded;
+  //   - 'unsaved'  a worksheet that has not been saved yet is exactly where a
+  //                lesson is most easily lost — the card says to save first;
+  //   - any open dialog — a stroke that reached the page proves nothing was
+  //                in front of it. Only the Record window itself (and the
+  //                export window) stop a mark counting; any other dialog only
+  //                takes a card that is already up off the screen.
   var WHY = {
     off: 'off',                  // the teacher said "Don't warn me"
+    session: 'session-off',      // "Ignore for this session" is ticked
     teacher: 'not-teacher',      // a student, a visitor, practice, a handover
     recording: 'recording',      // a lesson is going down — the whole point
-    pending: 'pending',          // a finished lesson is waiting to be saved
     playback: 'playback',        // a lesson is being watched
-    window: 'window-open',       // the Record window (or any dialog) is up
-    unsaved: 'unsaved',          // nothing to attach a lesson to yet
+    window: 'window-open',       // the Record window (or the export) is up
+    dialog: 'dialog-open',       // another dialog came up over a card already shown
     pages: 'no-pages',           // no worksheet open at all
     ink: 'not-ink'               // what was made is not writing
   };
@@ -83,10 +104,12 @@
   }
 
   // One worksheet for one person: a snooze given on one sheet, or by one
-  // account, is never read on another.
+  // account, is never read on another. A sheet not saved yet is keyed
+  // UNSAVED_DOC, so "Not now" works on it too (it used to have no key at all,
+  // and a snooze with no key was never kept).
   function docKey(uid, docId) {
-    if (!uid || !docId) return '';
-    return String(uid) + '/' + String(docId);
+    if (!uid) return '';
+    return String(uid) + '/' + String(docId || UNSAVED_DOC);
   }
 
   // Only marks inside the window count, oldest first, never more than MARKS_MAX.
@@ -124,21 +147,41 @@
     return { on: true };
   }
 
+  // The session switch as it is stored: '1' is "ignored for this session".
+  function cleanSession(raw) {
+    return raw === '1' || raw === 1 || raw === true;
+  }
+
+  // What the card's second line says. A sheet with no id cannot carry a
+  // lesson yet, so the card says what to do about that rather than nothing.
+  function subText(saved) {
+    return saved ? 'Your writing is not going into a lesson.'
+      : 'Your writing is not going into a lesson — save this worksheet to record one.';
+  }
+
   /* gate(ctx) → '' when a mark may count, otherwise WHY it may not.
-     ctx: { on, teacher, recording, pending, playback, windowOpen, docId,
-            pages, ann } — every field read as a plain truthy flag. */
+     ctx: { on, session, teacher, recording, playback, windowOpen, pages, ann }
+     — every field read as a plain truthy flag. `pending`, `docId` and
+     `dialog` are deliberately NOT read here (see WHY above). */
   function gate(ctx) {
     var c = ctx || {};
     if (c.on === false) return WHY.off;
+    if (c.session) return WHY.session;
     if (!c.teacher) return WHY.teacher;
     if (c.recording) return WHY.recording;
-    if (c.pending) return WHY.pending;
     if (c.playback) return WHY.playback;
     if (c.windowOpen) return WHY.window;
     if (!c.pages) return WHY.pages;
-    if (!c.docId) return WHY.unsaved;
     if ('ann' in c && !isInk(c.ann)) return WHY.ink;
     return '';
+  }
+
+  /* standWhy(ctx) → why a card ALREADY UP must go: everything gate() says,
+     plus any other dialog coming up over the page. */
+  function standWhy(ctx) {
+    var w = gate(ctx);
+    if (w) return w;
+    return ctx && ctx.dialog ? WHY.dialog : '';
   }
 
   function initialState() {
@@ -219,6 +262,9 @@
       case 'off':
         s.last = WHY.off;
         return hide(0);
+      case 'session':
+        s.last = WHY.session;
+        return hide(0);
       case 'on':
         s.last = ''; s.marks = [];
         return { state: s, effect: '' };
@@ -241,16 +287,18 @@
   var pure = {
     STROKES: STROKES, WINDOW_MS: WINDOW_MS, SHOW_MS: SHOW_MS, IDLE_SNOOZE_MS: IDLE_SNOOZE_MS,
     LATER_SNOOZE_MS: LATER_SNOOZE_MS, RECORD_SNOOZE_MS: RECORD_SNOOZE_MS, MARKS_MAX: MARKS_MAX,
-    SNOOZE_MAX: SNOOZE_MAX, PREF_KEY: PREF_KEY, GAP_PX: GAP_PX, INK_TYPES: INK_TYPES.slice(), WHY: WHY,
+    SNOOZE_MAX: SNOOZE_MAX, PREF_KEY: PREF_KEY, SESSION_KEY: SESSION_KEY, UNSAVED_DOC: UNSAVED_DOC,
+    GAP_PX: GAP_PX, INK_TYPES: INK_TYPES.slice(), WHY: WHY,
     isInk: isInk, docKey: docKey, trimMarks: trimMarks, pruneSnooze: pruneSnooze,
-    snoozedUntil: snoozedUntil, cleanPref: cleanPref, gate: gate, initialState: initialState,
-    step: step, place: place
+    snoozedUntil: snoozedUntil, cleanPref: cleanPref, cleanSession: cleanSession, subText: subText,
+    gate: gate, standWhy: standWhy, initialState: initialState, step: step, place: place
   };
 
   /* ---------------------------------------------------------------------
      The box
      --------------------------------------------------------------------- */
   var memoryPref = null;   // where storage is blocked, the switch lives here
+  var memorySession = null; // and the session switch here
 
   function readPref() {
     try {
@@ -258,6 +306,20 @@
       if (raw !== null) return cleanPref(raw);
     } catch (e) {}
     return memoryPref || { on: true };
+  }
+  function readSession() {
+    try {
+      var raw = window.sessionStorage.getItem(SESSION_KEY);
+      if (raw !== null) return cleanSession(raw);
+    } catch (e) {}
+    return !!memorySession;
+  }
+  function writeSession(ignored) {
+    memorySession = !!ignored;
+    try {
+      if (ignored) window.sessionStorage.setItem(SESSION_KEY, '1');
+      else window.sessionStorage.removeItem(SESSION_KEY);
+    } catch (e) {}
   }
   function writePref(on) {
     memoryPref = { on: !!on };
@@ -270,9 +332,9 @@
   /* create(env)
      env.teacher()      → may this person be warned at all (lessonTeacher)
      env.recording()    → a lesson is going down
-     env.pending()      → a finished lesson waits to be saved
      env.playback()     → a lesson is being watched
-     env.windowOpen()   → a dialog (the Record window included) is up
+     env.windowOpen()   → the Record window (or the export window) is up
+     env.dialog()       → any other dialog is up (only takes a card down)
      env.docId() / env.uid() / env.pages()
      env.area()         → the worksheet area's DOMRect (or null)
      env.record()       → press the record button (lessonOpen)
@@ -290,11 +352,12 @@
     function ctx(ann) {
       var c = {
         on: readPref().on,
+        session: readSession(),
         teacher: !!call('teacher', false),
         recording: !!call('recording', false),
-        pending: !!call('pending', false),
         playback: !!call('playback', false),
         windowOpen: !!call('windowOpen', false),
+        dialog: !!call('dialog', false),
         docId: call('docId', ''),
         pages: !!call('pages', false)
       };
@@ -349,7 +412,29 @@
       off.title = 'Turn this warning off on this device — the Record lesson window can turn it back on';
       off.textContent = 'Don’t warn me';
 
-      root.appendChild(dot); root.appendChild(text); root.appendChild(actions); root.appendChild(off);
+      // ☐ Ignore for this session: quiet until this tab (or the installed
+      // app) is closed, then back by itself — unlike "Don't warn me".
+      var sess = document.createElement('label');
+      sess.className = 'rnSession';
+      sess.title = 'No more recording warnings until you close this tab';
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'rnSessionBox';
+      box.setAttribute('data-rn-session', '1');
+      var word = document.createElement('span');
+      word.textContent = 'Ignore for this session';
+      sess.appendChild(box); sess.appendChild(word);
+
+      var foot = document.createElement('div');
+      foot.className = 'rnFoot';
+      foot.appendChild(sess); foot.appendChild(off);
+
+      root.appendChild(dot); root.appendChild(text); root.appendChild(actions); root.appendChild(foot);
+
+      box.addEventListener('change', function (e) {
+        e.stopPropagation();
+        if (box.checked) ignoreSession();
+      });
 
       root.addEventListener('click', function (e) {
         var b = e.target && e.target.closest ? e.target.closest('[data-rn]') : null;
@@ -408,6 +493,10 @@
     function show() {
       if (!build()) return;
       root.hidden = false;
+      var sub = root.querySelector('.rnSub');
+      if (sub) sub.textContent = subText(!!call('docId', ''));
+      var sb = root.querySelector('.rnSessionBox');
+      if (sb) sb.checked = false;
       root.classList.remove('rnIn');
       // Measured once visible, then slid in (CSS honours reduced motion).
       placeNow();
@@ -429,7 +518,7 @@
       timer = setInterval(function () {
         // Something around it changed while it was up (a recording started
         // by Shift+R, a dialog opened, the role changed): it goes.
-        apply(step(state, { type: 'context', now: now(), key: key(), why: gate(ctx()) }));
+        apply(step(state, { type: 'context', now: now(), key: key(), why: standWhy(ctx()) }));
         apply(step(state, { type: 'tick', now: now() }));
       }, 1000);
     }
@@ -442,7 +531,7 @@
     }
     function changed() {
       if (destroyed) return;
-      apply(step(state, { type: 'context', now: now(), key: key(), why: gate(ctx()) }));
+      apply(step(state, { type: 'context', now: now(), key: key(), why: standWhy(ctx()) }));
     }
 
     /* ---- what the teacher tells it ---- */
@@ -462,9 +551,31 @@
         try { env.toast('Recording warning off. Turn it back on in the Record lesson window.'); } catch (e) {}
       }
     }
+    function ignoreSession() {
+      writeSession(true);
+      apply(step(state, { type: 'session', now: now() }));
+      if (typeof env.toast === 'function') {
+        try { env.toast('No more recording warnings until you close this tab.'); } catch (e) {}
+      }
+      if (typeof env.onSwitch === 'function') { try { env.onSwitch(); } catch (e) {} }
+    }
+    // The Record window's switch: on means on for good AND not ignored for
+    // this session; off is "Don't warn me".
     function setEnabled(on) {
       writePref(!!on);
+      if (on) writeSession(false);
       apply(step(state, { type: on ? 'on' : 'off', now: now() }));
+    }
+    // Why the next mark would not count right now ('' = it would): the
+    // glue puts this on window.recNudgeWhy() so "it did not come up" can be
+    // answered from the console instead of guessed at.
+    function why() {
+      var c = ctx(null);
+      delete c.ann;
+      var w = gate(c);
+      if (w) return w;
+      if (snoozedUntil(state, key(), now())) return 'snoozed';
+      return '';
     }
 
     function destroy() {
@@ -481,8 +592,11 @@
       recordNow: recordNow,
       later: later_,
       turnOff: turnOff,
+      ignoreSession: ignoreSession,
       setEnabled: setEnabled,
-      enabled: function () { return readPref().on; },
+      enabled: function () { return readPref().on && !readSession(); },
+      sessionIgnored: function () { return readSession(); },
+      why: why,
       isShown: function () { return !!(root && !root.hidden); },
       state: function () { return copy(state); },
       tick: function () { apply(step(state, { type: 'tick', now: now() })); },

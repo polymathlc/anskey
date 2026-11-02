@@ -1,5 +1,5 @@
 /* =====================================================================
-   ⏺ Writing without recording (v1.173.0) — the rules, without a page
+   ⏺ Writing without recording (v1.173.0, v1.174.0) — the rules, without a page
    ---------------------------------------------------------------------
    `record-nudge.js` decides everything in two pure functions, `gate` (may
    this mark count at all?) and `step` (what does the warning do now?). This
@@ -31,8 +31,11 @@ function load() {
 const RN = load();
 const P = RN.pure;
 
-const OK = { on: true, teacher: true, recording: false, pending: false, playback: false, windowOpen: false, docId: 'doc1', pages: true };
+const OK = { on: true, session: false, teacher: true, recording: false, playback: false, windowOpen: false, docId: 'doc1', pages: true };
 const ink = (now, key = 'u/doc1', why = '') => ({ type: 'ink', now, key, why });
+// STROKES marks a second apart from `t`, on `key` — the count that shows it.
+const burst = (t, key = 'u/doc1', n = P.STROKES) => Array.from({ length: n }, (_, i) => ink(t + i * 1000, key));
+const SHOW_AT = P.STROKES - 1;   // the index of the effect that shows it
 function run(events, state) {
   let s = state || P.initialState();
   const effects = [];
@@ -48,15 +51,48 @@ test('gate: a teacher writing on a saved worksheet with nothing recording may be
 
 test('gate: every reason not to ask, in its own words', () => {
   assert.equal(P.gate(Object.assign({}, OK, { on: false })), 'off');
+  assert.equal(P.gate(Object.assign({}, OK, { session: true })), 'session-off');
   assert.equal(P.gate(Object.assign({}, OK, { teacher: false })), 'not-teacher');
   assert.equal(P.gate(Object.assign({}, OK, { recording: true })), 'recording');
-  assert.equal(P.gate(Object.assign({}, OK, { pending: true })), 'pending');
   assert.equal(P.gate(Object.assign({}, OK, { playback: true })), 'playback');
   assert.equal(P.gate(Object.assign({}, OK, { windowOpen: true })), 'window-open');
   assert.equal(P.gate(Object.assign({}, OK, { pages: false })), 'no-pages');
-  assert.equal(P.gate(Object.assign({}, OK, { docId: '' })), 'unsaved');
   assert.equal(P.gate(Object.assign({}, OK, { ann: { type: 'ainote' } })), 'not-ink');
   assert.equal(P.gate(Object.assign({}, OK, { ann: null })), 'not-ink');
+});
+
+// v1.174.0: Zhi Kai wrote without recording and nothing came up. Each of
+// these kept it away silently, so none of them may refuse a mark any more.
+test('gate: an unsaved sheet, an older lesson waiting to save and an unrelated dialog never refuse a mark', () => {
+  assert.equal(P.gate(Object.assign({}, OK, { docId: '' })), '');
+  assert.equal(P.gate(Object.assign({}, OK, { pending: true })), '');
+  assert.equal(P.gate(Object.assign({}, OK, { dialog: true })), '');
+  assert.equal(P.gate(Object.assign({}, OK, { docId: '', pending: true, dialog: true, ann: { type: 'pen' } })), '');
+  assert.ok(!('pending' in P.WHY) && !('unsaved' in P.WHY));
+});
+
+test('standWhy: another dialog only takes a card that is already up away', () => {
+  assert.equal(P.standWhy(OK), '');
+  assert.equal(P.standWhy(Object.assign({}, OK, { dialog: true })), 'dialog-open');
+  assert.equal(P.standWhy(Object.assign({}, OK, { recording: true, dialog: true })), 'recording');
+  assert.equal(P.standWhy(Object.assign({}, OK, { session: true })), 'session-off');
+});
+
+test('cleanSession and subText', () => {
+  assert.equal(P.cleanSession('1'), true);
+  assert.equal(P.cleanSession(null), false);
+  assert.equal(P.cleanSession('0'), false);
+  assert.equal(P.SESSION_KEY, 'polymath.recordNudge.session.v1');
+  assert.ok(/save this worksheet/i.test(P.subText(false)));
+  assert.ok(!/save/i.test(P.subText(true)));
+});
+
+test('"session" hides it like "off" and is remembered as the reason', () => {
+  let r = run(burst(1000).concat([{ type: 'session', now: 9000 }]));
+  assert.equal(r.effects[SHOW_AT], 'show');
+  assert.equal(r.effects[SHOW_AT + 1], 'hide');
+  assert.equal(r.state.last, 'session-off');
+  assert.equal(r.state.shown, false);
 });
 
 test('gate: the person comes before everything — a student is never told about recording', () => {
@@ -96,7 +132,9 @@ test('docKey: one worksheet for one person, nothing for half a key', () => {
   assert.notEqual(P.docKey('u1', 'd1'), P.docKey('u2', 'd1'));
   assert.notEqual(P.docKey('u1', 'd1'), P.docKey('u1', 'd2'));
   assert.equal(P.docKey('', 'd1'), '');
-  assert.equal(P.docKey('u1', ''), '');
+  // An unsaved sheet has a key of its own, so "Not now" sticks there too.
+  assert.equal(P.docKey('u1', ''), 'u1/' + P.UNSAVED_DOC);
+  assert.notEqual(P.docKey('u1', ''), P.docKey('u1', 'd1'));
 });
 
 test('trimMarks keeps only the window, oldest first, bounded', () => {
@@ -145,21 +183,27 @@ test('marks spread wider than the window never add up', () => {
 });
 
 test('a mark that may not count is not counted', () => {
-  const r = run([ink(1000), ink(2000, 'u/doc1', 'recording'), ink(3000), ink(4000, 'u/doc1', 'not-ink')]);
+  const evs = [];
+  for (let i = 0; i < P.STROKES - 1; i++) {
+    evs.push(ink(1000 + i * 2000));
+    evs.push(ink(2000 + i * 2000, 'u/doc1', i % 2 ? 'not-ink' : 'recording'));
+  }
+  const r = run(evs);
   assert.ok(r.effects.every(e => e === ''));
-  assert.equal(r.state.marks.length, 2);
+  assert.equal(r.state.marks.length, P.STROKES - 1);
 });
 
 test('another worksheet starts the count again', () => {
-  const r = run([ink(1000, 'u/a'), ink(2000, 'u/a'), ink(3000, 'u/b'), ink(4000, 'u/b')]);
+  const r = run(burst(1000, 'u/a', P.STROKES - 1).concat(burst(50000, 'u/b', P.STROKES - 1)));
   assert.ok(r.effects.every(e => e === ''));
   assert.equal(r.state.key, 'u/b');
-  assert.equal(r.state.marks.length, 2);
+  assert.equal(r.state.marks.length, P.STROKES - 1);
 });
 
 test('writing on with the warning up keeps it up and restarts its clock', () => {
-  let r = run([ink(1000), ink(2000), ink(3000)]);
-  assert.equal(r.state.shownAt, 3000);
+  let r = run(burst(1000));
+  const at = 1000 + SHOW_AT * 1000;
+  assert.equal(r.state.shownAt, at);
   r = run([ink(10000)], r.state);
   assert.deepEqual(r.effects, ['']);
   assert.equal(r.state.shown, true);
@@ -169,43 +213,44 @@ test('writing on with the warning up keeps it up and restarts its clock', () => 
 
 /* ---------------- step: when it goes ---------------- */
 test('untouched, it goes after SHOW_MS — and stays away for IDLE_SNOOZE_MS', () => {
-  let r = run([ink(1000), ink(2000), ink(3000)]);
-  r = run([{ type: 'tick', now: 3000 + P.SHOW_MS - 1 }], r.state);
+  let r = run(burst(1000));
+  const at = 1000 + SHOW_AT * 1000;
+  r = run([{ type: 'tick', now: at + P.SHOW_MS - 1 }], r.state);
   assert.deepEqual(r.effects, ['']);
-  r = run([{ type: 'tick', now: 3000 + P.SHOW_MS }], r.state);
+  r = run([{ type: 'tick', now: at + P.SHOW_MS }], r.state);
   assert.deepEqual(r.effects, ['hide']);
-  const t0 = 3000 + P.SHOW_MS;
-  r = run([ink(t0 + 10), ink(t0 + 20), ink(t0 + 30)], r.state);
+  const t0 = at + P.SHOW_MS;
+  r = run(burst(t0 + 10), r.state);
   assert.ok(r.effects.every(e => e === ''), 'snoozed');
   assert.equal(r.state.last, 'snoozed');
   const after = t0 + P.IDLE_SNOOZE_MS + 1;
-  r = run([ink(after), ink(after + 1), ink(after + 2)], r.state);
-  assert.deepEqual(r.effects, ['', '', 'show']);
+  r = run(burst(after), r.state);
+  assert.equal(r.effects[SHOW_AT], 'show');
 });
 
 test('"Not now" keeps this worksheet quiet for LATER_SNOOZE_MS, and only this one', () => {
-  let r = run([ink(1000), ink(2000), ink(3000), { type: 'later', now: 4000 }]);
-  assert.equal(r.effects[3], 'hide');
+  let r = run(burst(1000).concat([{ type: 'later', now: 20000 }]));
+  assert.equal(r.effects[P.STROKES], 'hide');
   assert.equal(r.state.shown, false);
-  r = run([ink(5000), ink(6000), ink(7000)], r.state);
+  r = run(burst(21000), r.state);
   assert.ok(r.effects.every(e => e === ''));
   // Another worksheet is not snoozed.
-  r = run([ink(8000, 'u/other'), ink(9000, 'u/other'), ink(10000, 'u/other')], r.state);
-  assert.deepEqual(r.effects, ['', '', 'show']);
+  r = run(burst(40000, 'u/other'), r.state);
+  assert.equal(r.effects[SHOW_AT], 'show');
   // And the first comes back once the snooze has run out.
-  const back = 4000 + P.LATER_SNOOZE_MS + 1;
-  r = run([{ type: 'later', now: back - 2 }, ink(back), ink(back + 1), ink(back + 2)], r.state);
-  assert.equal(r.effects[3], 'show');
+  const back = 20000 + P.LATER_SNOOZE_MS + 1;
+  r = run([{ type: 'later', now: back - 2 }].concat(burst(back)), r.state);
+  assert.equal(r.effects[SHOW_AT + 1], 'show');
 });
 
 test('"Record now" hides it with a short snooze for the window to be used', () => {
-  let r = run([ink(1000), ink(2000), ink(3000), { type: 'record', now: 4000 }]);
-  assert.equal(r.effects[3], 'hide');
-  r = run([ink(5000), ink(6000), ink(7000)], r.state);
+  let r = run(burst(1000).concat([{ type: 'record', now: 20000 }]));
+  assert.equal(r.effects[P.STROKES], 'hide');
+  r = run(burst(21000), r.state);
   assert.ok(r.effects.every(e => e === ''), 'not straight back while the window is being used');
-  const back = 4000 + P.RECORD_SNOOZE_MS + 1;
-  r = run([ink(back), ink(back + 1), ink(back + 2)], r.state);
-  assert.equal(r.effects[2], 'show');
+  const back = 20000 + P.RECORD_SNOOZE_MS + 1;
+  r = run(burst(back), r.state);
+  assert.equal(r.effects[SHOW_AT], 'show');
   assert.ok(P.RECORD_SNOOZE_MS < P.LATER_SNOOZE_MS, 'pressing Record is not saying no');
 });
 
@@ -295,7 +340,11 @@ test('record-nudge.js opens no device, starts no recorder and writes nothing but
   const writes = SRC.match(/localStorage\.(setItem|removeItem)\(([^,)]*)/g) || [];
   assert.ok(writes.length > 0);
   assert.ok(writes.every(w => /PREF_KEY/.test(w)), writes.join(' | '));
-  assert.ok(!/sessionStorage|indexedDB/.test(SRC));
+  // The session switch is the ONLY thing in sessionStorage.
+  const sess = SRC.match(/sessionStorage\.(setItem|removeItem)\(([^,)]*)/g) || [];
+  assert.ok(sess.length > 0);
+  assert.ok(sess.every(w => /SESSION_KEY/.test(w)), sess.join(' | '));
+  assert.ok(!/indexedDB/.test(SRC));
 });
 
 test('the box never takes the focus and keeps its keys', () => {
@@ -366,9 +415,27 @@ test('Record now is the toolbar\'s own door — lessonOpen — and asks for the 
   assert.ok(HTML.includes("$('lessonRecordBtn').addEventListener('click', lessonOpen);"));
 });
 
-test('float windows do not count as a dialog in front of the page', () => {
+test('only the Record (and export) window refuses a mark; other dialogs only take a card down, float windows never', () => {
   const w = between('function recNudgeWindowOpen() {', '\n}');
-  assert.ok(w.includes(".modalBack.open:not(.floatWin)"));
+  assert.ok(w.includes('#lessonModal.open') && w.includes('#lessonExportModal.open'));
+  assert.ok(!w.includes('.modalBack.open'), 'an unrelated dialog must never stop a mark counting');
+  const d = between('function recNudgeDialogOpen() {', '\n}');
+  assert.ok(d.includes('.modalBack.open:not(.floatWin)'));
+  const init = between('function recNudgeInit() {', '\nfunction recNudgeInk');
+  assert.ok(/dialog: recNudgeDialogOpen/.test(init) && /windowOpen: recNudgeWindowOpen/.test(init));
+  assert.ok(!/pending:/.test(init), 'a lesson waiting to save is not a recording');
+});
+
+test('the card carries "Ignore for this session" beside "Don\'t warn me"', () => {
+  assert.ok(/Ignore for this session/.test(SRC));
+  assert.ok(/rnSessionBox/.test(SRC) && /ignoreSession\(\)/.test(SRC));
+  assert.ok(/\.rnFoot/.test(CSS) && /\.rnSession\b/.test(CSS));
+});
+
+test('Record now on an unsaved sheet goes to Save first, and recNudgeWhy says why it stays away', () => {
+  const r = between('function recNudgeRecord() {', '\n}\n');
+  assert.ok(/!currentDocId/.test(r) && /saveBtn/.test(r) && /\.click\(\)/.test(r));
+  assert.ok(/window\.recNudgeWhy = recNudgeWhy/.test(HTML));
 });
 
 test('the Record window carries the switch that brings it back', () => {
@@ -393,7 +460,7 @@ test('the version and the notes say so', () => {
   const v = (HTML.match(/var APP_VERSION = '(v[\d.]+)'/) || [])[1];
   assert.ok(v, 'APP_VERSION');
   const [maj, min] = v.slice(1).split('.').map(Number);
-  assert.ok(maj > 1 || (maj === 1 && min >= 173), v);
+  assert.ok(maj > 1 || (maj === 1 && min >= 174), v);
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
   assert.ok(/Not recording/.test(readme));
   const claude = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8');
