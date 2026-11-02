@@ -43,8 +43,10 @@ test('the default rules are the three the teacher asked for', () => {
   assert.match(d.items[1].who, /physical/i);
   assert.match(d.items[1].text, /focus and keep quiet/i);
   assert.equal(d.items[1].reward, '+2 points');
-  assert.match(d.items[2].text, /homework, if any/i);
-  assert.equal(d.items[2].reward, '');
+  assert.match(d.items[2].text, /complete your homework, if any was set/i);
+  assert.match(d.items[2].text, /take note of any new homework/i);
+  assert.equal(d.items[2].reward, '+2 points', 'completing homework earns 2 points (v1.175.0)');
+  assert.equal(d.v, P.VERSION);
   // defaults() hands out a copy: editing it never edits the next open.
   d.items[0].text = 'changed';
   assert.notEqual(P.defaults().items[0].text, 'changed');
@@ -56,7 +58,64 @@ test('clean keeps the shape and refuses what is not rules', () => {
   assert.equal(P.clean({ items: [] }), null);
   assert.equal(P.clean({ items: [{ icon: '⭐', who: '  ', text: '' }] }), null, 'a line with only an icon is nothing');
   const c = plain(P.clean({ title: '', cover: '', items: [{ who: ' Online\n students ', text: 'Camera\ton.', reward: 7 }] }));
-  assert.deepEqual(c, { v: 1, kicker: '', cover: "Today's Quest", title: 'Quest rules', items: [{ icon: '', who: 'Online students', text: 'Camera on.', reward: '7' }] });
+  assert.deepEqual(c, { v: 2, kicker: '', cover: "Today's Quest", title: 'Quest rules', items: [{ icon: '', who: 'Online students', text: 'Camera on.', reward: '7' }] });
+});
+
+test('a v1 board with the untouched homework line is lifted to +2 points', () => {
+  const old = {
+    v: 1, kicker: 'Polymath · Wheel Quest', cover: "Today's Quest", title: 'Quest rules', at: 5,
+    items: [
+      { icon: '📹', who: 'Online students', text: 'Turn on your camera for the whole lesson.', reward: '+2 points' },
+      { icon: '🤫', who: 'Physical students', text: 'Focus and keep quiet.', reward: '+2 points' },
+      { icon: '📝', who: 'Everyone', text: 'Take note of any homework, if any.', reward: '' }
+    ]
+  };
+  const frozen = JSON.stringify(old);
+  const c = P.clean(old);
+  assert.equal(JSON.stringify(old), frozen, 'upgrade never edits what it was given');
+  assert.equal(c.v, 2);
+  assert.equal(c.at, 5, 'the stamp is kept, so the device and the account still agree on which is newer');
+  assert.equal(c.items[2].text, P.HOMEWORK.text);
+  assert.equal(c.items[2].reward, '+2 points');
+  assert.equal(c.items[0].reward, '+2 points', 'the other lines are untouched');
+  assert.equal(c.items[1].text, 'Focus and keep quiet.');
+  assert.equal(P.same(old, P.defaults()), true, 'an untouched v1 board IS today\'s default board');
+});
+
+test('an unversioned board (saved before the field mattered) is lifted the same way', () => {
+  const c = P.clean({ items: [{ icon: '📝', who: 'Everyone', text: '  Take note of any homework,   if any. ', reward: '  ' }] });
+  assert.equal(c.items[0].reward, '+2 points');
+  assert.equal(c.items[0].text, P.HOMEWORK.text);
+});
+
+test('the teacher\'s own homework line is never lifted', () => {
+  const rewritten = P.clean({ v: 1, items: [{ who: 'Everyone', text: 'Copy the homework from the board.', reward: '' }] });
+  assert.equal(rewritten.items[0].reward, '', 'a rewritten line keeps its (empty) reward');
+  assert.equal(rewritten.items[0].text, 'Copy the homework from the board.');
+  const rewarded = P.clean({ v: 1, items: [{ who: 'Everyone', text: 'Take note of any homework, if any.', reward: '+1 point' }] });
+  assert.equal(rewarded.items[0].reward, '+1 point', 'a reward the teacher chose is kept');
+  assert.equal(rewarded.items[0].text, 'Take note of any homework, if any.');
+});
+
+test('a v2 board is never lifted again: points taken off stay off', () => {
+  const mine = { v: 2, items: [{ icon: '📝', who: 'Everyone', text: 'Take note of any homework, if any.', reward: '' }] };
+  const c = P.clean(mine);
+  assert.equal(c.items[0].reward, '');
+  assert.equal(c.items[0].text, 'Take note of any homework, if any.');
+  // and cleaning a clean board changes nothing (the editor's draft round-trips)
+  assert.deepEqual(plain(P.clean(c)), plain(c));
+  assert.deepEqual(plain(P.clean(P.clean(P.defaults()))), plain(P.clean(P.defaults())));
+});
+
+test('upgrade and isOldHomework are pure and safe on rubbish', () => {
+  assert.equal(P.upgrade(null), null);
+  assert.equal(P.upgrade('x'), 'x');
+  assert.equal(P.isOldHomework(null), false);
+  assert.equal(P.isOldHomework({ text: 'Take note of any homework, if any.' }), true);
+  assert.equal(P.isOldHomework({ text: 'Take note of any homework, if any.', reward: '+2 points' }), false);
+  const v1NoItems = P.upgrade({ v: 1, title: 'x' });
+  assert.equal(v1NoItems.v, 2);
+  assert.equal(v1NoItems.items, undefined);
 });
 
 test('clean caps by characters, never splitting an emoji', () => {
