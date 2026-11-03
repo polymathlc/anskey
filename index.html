@@ -6008,7 +6008,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.177.0';
+var APP_VERSION = 'v1.178.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -35437,11 +35437,12 @@ async function openSavedDoc(id, data) {
     }
     var url = await storage.ref(data.storagePath).getDownloadURL();
     // 🎓 A class worksheet fetched ahead by the "Up next" card opens from here.
-    var ahead = typeof onlineCachedPdf === 'function' ? await onlineCachedPdf(data.storagePath) : null;
+    var ahead = typeof onlineCachedPdf === 'function' ? await onlineCachedPdf(data.storagePath, data.pdfVersion) : null;
     var resp;
     if (ahead) resp = new Response(ahead);
     else try {
-      resp = await fetch(url);
+      // 🔁 A replaced PDF (v1.177.0) is checked with the server, never taken from the HTTP cache.
+      resp = await fetch(url, data.pdfVersion ? { cache: 'no-cache' } : undefined);
     } catch (netErr) {
       // fetch() only throws before an HTTP status exists: the browser blocked
       // the cross-origin download (storage bucket missing its one-time CORS
@@ -35958,7 +35959,7 @@ var onlineReleaseSig = '';
 var onlineNextOpen = true;             // the card's own open/closed state, this session
 var onlineNextShown = null;            // { courseId, ids }
 var onlineDocCache = {};               // worksheet id → its pdfAnnotator data, for the card
-var onlinePdfMemory = {};              // storagePath → Promise<ArrayBuffer>
+var onlinePdfMemory = {};              // storagePath + pdfVersion → Promise<ArrayBuffer>
 
 function onlineTeacherHere() { return !!currentUser && isAdmin(currentUser) && !actingStudent && !practiceMode && !isSharedVisitor(); }
 
@@ -36285,7 +36286,7 @@ function onlinePreloadNext(now) {
       onlinePreloaded[wid] = true;
       started.push(wid);
       onlineDocData(wid).then(function (d) {
-        if (d && d.storagePath) return onlinePdfBytes(d.storagePath);
+        if (d && d.storagePath) return onlinePdfBytes(d.storagePath, d.pdfVersion);
       }).catch(function () { delete onlinePreloaded[wid]; });
     });
   });
@@ -36320,33 +36321,53 @@ async function onlineDocData(id) {
 
 // One fetch per file per session, and a copy in the browser's cache so the
 // next lesson opens from this device even when the centre's Wi-Fi does not.
-function onlinePdfBytes(storagePath) {
+// 🔁 A PDF replaced in Polymath Online keeps its storage path (every save here
+// writes that path back), and gets a new `pdfVersion` instead: the version is
+// part of the key, so a replaced worksheet is never served from an old copy,
+// and the old copy is dropped once the new one is kept (v1.177.0).
+function onlinePdfKey(storagePath, version) {
+  return storagePath + (version ? '#v' + version : '');
+}
+function onlinePdfCacheUrl(storagePath, version) {
+  return 'https://polymath-online.invalid/' + encodeURIComponent(storagePath) + (version ? '?v=' + encodeURIComponent(String(version)) : '');
+}
+function onlinePdfBytes(storagePath, version) {
   if (!storagePath) return Promise.reject(new Error('This worksheet has no PDF.'));
-  if (!onlinePdfMemory[storagePath]) {
-    onlinePdfMemory[storagePath] = (async function () {
-      var cacheKey = 'https://polymath-online.invalid/' + encodeURIComponent(storagePath);
+  var key = onlinePdfKey(storagePath, version);
+  if (!onlinePdfMemory[key]) {
+    onlinePdfMemory[key] = (async function () {
+      var cacheKey = onlinePdfCacheUrl(storagePath, version);
       var store = null;
       try { if (window.caches) store = await caches.open(ONLINE_PDF_CACHE); } catch (e) { store = null; }
       if (store) {
         try { var hit = await store.match(cacheKey); if (hit) return await hit.arrayBuffer(); } catch (e) {}
       }
       var url = await storage.ref(storagePath).getDownloadURL();
-      var resp = await fetch(url);
+      var resp = await fetch(url, version ? { cache: 'no-cache' } : undefined);
       if (!resp.ok) throw new Error('download failed (HTTP ' + resp.status + ')');
       var buf = await resp.arrayBuffer();
       if (store) {
-        try { await store.put(cacheKey, new Response(buf.slice(0), { headers: { 'Content-Type': 'application/pdf' } })); } catch (e) {}
+        try {
+          await store.put(cacheKey, new Response(buf.slice(0), { headers: { 'Content-Type': 'application/pdf' } }));
+          // Earlier copies of the same file (before it was replaced) go.
+          var base = onlinePdfCacheUrl(storagePath, null);
+          var old = await store.keys();
+          await Promise.all(old.filter(function (req) {
+            return req.url !== cacheKey && (req.url === base || req.url.indexOf(base + '?v=') === 0);
+          }).map(function (req) { return store.delete(req); }));
+        } catch (e) {}
       }
       return buf;
     })();
-    onlinePdfMemory[storagePath].catch(function () { delete onlinePdfMemory[storagePath]; });
+    onlinePdfMemory[key].catch(function () { delete onlinePdfMemory[key]; });
   }
-  return onlinePdfMemory[storagePath];
+  return onlinePdfMemory[key];
 }
 // Asked by openSavedDoc: a worksheet already fetched ahead opens from here.
-async function onlineCachedPdf(storagePath) {
-  if (!storagePath || !onlinePdfMemory[storagePath]) return null;
-  try { var buf = await onlinePdfMemory[storagePath]; return buf.slice(0); } catch (e) { return null; }
+async function onlineCachedPdf(storagePath, version) {
+  var key = storagePath ? onlinePdfKey(storagePath, version) : '';
+  if (!key || !onlinePdfMemory[key]) return null;
+  try { var buf = await onlinePdfMemory[key]; return buf.slice(0); } catch (e) { return null; }
 }
 
 function onlineFileName(name) {
@@ -36356,7 +36377,7 @@ async function onlineDownload(id) {
   try {
     var d = await onlineDocData(id);
     if (!d) { toast('That worksheet is no longer there.'); return; }
-    var buf = await onlinePdfBytes(d.storagePath);
+    var buf = await onlinePdfBytes(d.storagePath, d.pdfVersion);
     var url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
     var a = document.createElement('a');
     a.href = url; a.download = onlineFileName(d.name);
@@ -36369,7 +36390,7 @@ async function onlinePrint(id) {
     var d = await onlineDocData(id);
     if (!d) { toast('That worksheet is no longer there.'); return; }
     toast('Preparing “' + (d.name || 'worksheet') + '” for printing…');
-    var buf = await onlinePdfBytes(d.storagePath);
+    var buf = await onlinePdfBytes(d.storagePath, d.pdfVersion);
     var url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
     var frame = document.createElement('iframe');
     frame.className = 'onlinePrintFrame';
@@ -36450,7 +36471,7 @@ function onlineNextRender() {
       if (!d) { sub.textContent = 'Removed from the list'; return; }
       sub.textContent = d.name || 'Untitled';
       // Fetched and kept now, so it opens, downloads and prints at once.
-      return onlinePdfBytes(d.storagePath).then(function () {
+      return onlinePdfBytes(d.storagePath, d.pdfVersion).then(function () {
         sub.textContent = (d.name || 'Untitled') + ' · ready';
       });
     }).catch(function () { sub.textContent = sub.textContent.replace(' · ready', '') + ' · will load when opened'; });

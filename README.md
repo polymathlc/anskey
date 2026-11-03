@@ -3,7 +3,7 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
-## v1.177.0 — 🔳 Read QR: drag over a QR code and open it in a window here
+## v1.178.0 — 🔳 Read QR: drag over a QR code and open it in a window here
 
 - **A 🔳 Read QR button** on the toolbar, beside Snip & pin (**Shift+Q**). Press it and drag a box round
   any QR code on screen: on the worksheet, on a pinned snip, on a living app's own code card, on any
@@ -25,6 +25,19 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
   codes) and `tools/qr-reader-check.mjs` (real Chromium: drag → window → the site loads, move, resize
   from edges and corners, fill, fold, no-code, text and `javascript:` codes, a picture off the
   worksheet, a change of person, a phone).
+
+## v1.177.0 — 🔁 Replaced worksheet PDFs open as the new file
+
+- **A worksheet PDF replaced in Polymath Online** (its *Replace PDF* button on the admin class page)
+  keeps its storage path, so every Ans Key save still writes the same `storagePath`, and gets a new
+  `pdfVersion` (milliseconds) on its `pdfAnnotator` document.
+- **The class worksheet cache follows that version.** `onlinePdfBytes(storagePath, version)` and
+  `onlineCachedPdf(storagePath, version)` key on path plus version, so the Up next card, Download,
+  Print and opening the worksheet never hand back the old file; the device keeps only the newest copy
+  in `polymath-online-worksheets-v1`. Opening a replaced worksheet checks with the server instead of
+  the browser's HTTP cache. Worksheets that were never replaced behave exactly as before.
+- Tests: `tools/online-tests.mjs` (versioned cache, old copy dropped, every caller passes `pdfVersion`).
+
 
 ## v1.176.0 — 📌 Current worksheet and Next worksheet, loaded from Polymath Online
 

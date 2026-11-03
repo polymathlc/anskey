@@ -392,3 +392,48 @@ test('the worksheet list is wired to the queue and the tags', () => {
   assert.match(html, /var pin = typeof onlinePinRank === 'function' \? onlinePinRank\(a\) - onlinePinRank\(b\) : 0;/);
   assert.match(html, /body\.appendChild\(questionCard\(entry\.item, \{ prepare: true \}\)\);/);
 });
+
+test('🔁 a replaced worksheet PDF (new pdfVersion) is fetched again and the old copy is dropped', async () => {
+  const kept = new Map();
+  const store = {
+    async match(key) { return kept.has(key) ? { arrayBuffer: async () => kept.get(key) } : undefined; },
+    async put(key, resp) { kept.set(key, resp.body); },
+    async keys() { return [...kept.keys()].map((url) => ({ url })); },
+    async delete(req) { kept.delete(req.url); }
+  };
+  const downloads = [];
+  let content = 'old';
+  const c = makeContext({
+    caches: { open: async () => store },
+    fetch: async (url, opts) => { downloads.push(opts || null); const body = content; return { ok: true, arrayBuffer: async () => body }; },
+    Response: class { constructor(body) { this.body = body; } }
+  });
+  c.window = c;
+  c.ONLINE_PDF_CACHE = 'test-cache';
+  const path = 'pdf-annotator/w1.pdf';
+  assert.equal(await c.onlinePdfBytes(path), 'old');
+  assert.equal(await c.onlinePdfBytes(path), 'old', 'kept for the session');
+  assert.equal(downloads.length, 1);
+  assert.equal(downloads[0], null, 'a never-replaced file downloads as before');
+  // Replaced in Polymath Online: same path, a new version.
+  content = 'new';
+  assert.equal(await c.onlinePdfBytes(path, 1762150000000), 'new', 'the new version is downloaded, not the kept old copy');
+  assert.equal(downloads.length, 2);
+  assert.equal(downloads[1].cache, 'no-cache', 'and checked with the server, past the HTTP cache');
+  assert.deepEqual([...kept.keys()], ['https://polymath-online.invalid/' + encodeURIComponent(path) + '?v=1762150000000'], 'only the new copy stays on the device');
+  assert.equal(await c.onlineCachedPdf(path, 1762150000000), 'new', 'opening it hands over the new version fetched ahead');
+  assert.equal(await c.onlineCachedPdf(path, 1762150000001), null, 'never a copy of another version');
+  // A fresh session on the same device opens the new version from the device.
+  const again = makeContext({ caches: { open: async () => store }, fetch: async () => { throw new Error('no network needed'); }, Response: class { constructor(b) { this.body = b; } } });
+  again.window = again;
+  again.ONLINE_PDF_CACHE = 'test-cache';
+  assert.equal(await again.onlinePdfBytes(path, 1762150000000), 'new');
+});
+
+test('🔁 every place that fetches a class PDF passes its pdfVersion', () => {
+  const calls = html.match(/onlinePdfBytes\([^)]*\)/g).filter((s) => !/function onlinePdfBytes/.test(s) && !/storagePath, version\)$/.test(s));
+  assert.ok(calls.length >= 4);
+  calls.forEach((s) => assert.match(s, /\.pdfVersion\)$/, s));
+  assert.match(html, /onlineCachedPdf\(data\.storagePath, data\.pdfVersion\)/);
+  assert.match(html, /resp = await fetch\(url, data\.pdfVersion \? \{ cache: 'no-cache' \} : undefined\);/);
+});
