@@ -53,6 +53,23 @@ await page.waitForTimeout(1200);
 ok('the page loads with no uncaught error', errors.length === 0, errors.join('\n      '));
 ok('the library module is loaded and wired', await page.evaluate(() => !!(window.LivingLibrary && llib)));
 
+/* 📝 v1.181.0: a living question is painted by the question bank's own
+   painter, so what it holds is read off the blocks handed to it. */
+await page.evaluate(() => {
+  window.__qbq = [];
+  // QuestionBank is frozen, so the spy is a copy with one function wrapped.
+  const QB = window.QuestionBank, orig = QB.paintQuestion;
+  window.QuestionBank = Object.assign({}, QB, { paintQuestion: function (q) { window.__qbq.push(JSON.parse(JSON.stringify(q))); return orig.apply(QB, arguments); } });
+  window.__qLast = () => window.__qbq[window.__qbq.length - 1] || { blocks: [] };
+  window.__qText = (q) => q.blocks.filter(b => b.type === 'text').map(b => {
+    const lab = (b.part ? '(' + b.part + ')' : '') + (b.subPart ? '(' + b.subPart + ')' : '');
+    const t = b.content.replace(/<\/p><p>/g, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'");
+    return (lab ? lab + ' ' : '') + t + (b.marks ? '  [' + b.marks + ']' : '');
+  });
+  window.__qLines = (q) => q.blocks.filter(b => b.type === 'plainanswer').map(b => b.lines);
+  window.__qKinds = (q) => q.blocks.map(b => b.type);
+});
+
 /* A page, a teacher, a Firestore and a Storage that live in memory. */
 await page.evaluate(() => {
   const W = 600, H = 780;
@@ -348,34 +365,28 @@ await page.waitForTimeout(250);
 const q1 = await page.evaluate(() => {
   const app = annotations.find(annLivingApp);
   const lq = annotations.filter(annLivingQuestion);
-  const texts = lq.filter(a => a.type === 'text');
-  const lines = lq.filter(a => a.type === 'line');
   const answers = annotations.filter(a => a.type === 'text' && !annLivingQuestion(a));
   const path = 'users/teacher-1/livingApps/' + (app && app.lapp.hash);
   const entry = window.__ll.docs[path];
-  const inside = annotations.every(a => a.type === 'line'
-    ? a.x1 >= 0 && a.x2 <= 600 && a.y1 >= 0 && a.y1 <= 780
-    : a.x >= 0 && a.y >= 0 && a.x + a.w <= 600 && a.y + (a.h || 0) <= 780);
-  const groups = {};
-  lq.forEach(a => { if (a.grp) groups[a.grp] = (groups[a.grp] || 0) + 1; });
-  const ordered = texts.slice().sort((a, b) => a.y - b.y).map(t => t.text);
+  const inside = annotations.every(a => a.x >= 0 && a.y >= 0 && a.x + a.w <= 600 && a.y + (a.h || 0) <= 780);
+  const q = window.__qLast();
   return {
-    app: app && { lq: app.lq, src: app.src.slice(0, 21), ratio: app.ratio, pub: !!app.lapp.pub, y: app.y, h: app.h },
-    texts: ordered, lines: lines.length, lineXs: lines.every(l => l.y1 === l.y2 && l.x2 - l.x1 > 400 && l.color === LivingQuestion.pure.LINE_COLOR),
+    app: app && { lq: app.lq, src: app.src.slice(0, 21), ratio: app.ratio, pub: !!app.lapp.pub, x: app.x, y: app.y, w: app.w, h: app.h, lqr: app.lqr },
+    texts: window.__qText(q), lines: window.__qLines(q), kinds: window.__qKinds(q), pieces: lq.length,
     answers: answers.map(a => a.text), answerColor: answers.every(a => a.color === LivingQuestion.pure.ANSWER_COLOR),
-    groups: Object.values(groups), sameQ: new Set(lq.map(a => a.lq)).size === 1 && lq.length > 0 && app && app.lq === lq[0].lq,
+    answersOn: answers.every(a => app && a.x >= app.x && a.x + a.w <= app.x + app.w + 0.5 && a.y >= app.y && a.y <= app.y + app.h),
     entry, inside, undo: undoStack.length, puts: window.__ll.puts(), sel: selectedId === (app && app.id)
   };
 });
 ok('☁ the app goes into the cloud library first — hosted once, filed with inLibrary', q1.entry && q1.entry.inLibrary === true && q1.puts === putsBefore + 1 && q1.app && q1.app.pub, JSON.stringify(q1.entry));
 ok('…with what its question holds, and never its HTML', q1.entry && q1.entry.question && q1.entry.question.parts === 2 && q1.entry.question.lines === 6 && q1.entry.question.figure === true &&
   !JSON.stringify(q1.entry).includes('polymath-question'), JSON.stringify(q1.entry && q1.entry.question));
-ok('📝 the question’s words go on the page in text boxes, in order, with their marks', q1.texts.length === 3 && /^The diagram below/.test(q1.texts[0]) && q1.texts[1] === '(a) What fills the tank when the submarine dives?  [1]' && /^\(b\) Explain .*\[2\]$/.test(q1.texts[2]), JSON.stringify(q1.texts));
-ok('…its diagram is the picture that carries the app (a PNG, in the figure’s shape plus the wand strip)', q1.app && q1.app.lq && q1.app.src === 'data:image/png;base64' && q1.app.ratio > 2 && q1.app.ratio < 3.2, JSON.stringify(q1.app));
-ok('…six ruled working lines, light grey, margin to margin', q1.lines === 6 && q1.lineXs, JSON.stringify(q1));
-ok('…each part and its lines are one group (3 and 5 pieces)', q1.groups.sort().join(',') === '3,5', JSON.stringify(q1.groups));
-ok('…the model answers sit in the working space as the teacher’s own (no lq)', q1.answers.length === 2 && q1.answerColor && q1.answers[0] === 'Sea water.', JSON.stringify(q1.answers));
-ok('…all of it inside the page, as one undo step, with the app selected', q1.inside && q1.undo === 1 && q1.sel && q1.sameQ, JSON.stringify({ inside: q1.inside, undo: q1.undo, sel: q1.sel }));
+ok('📝 the question is painted in the question bank’s format: its words, its diagram, each part with its marks', q1.texts.length === 3 && /^The diagram below/.test(q1.texts[0]) && q1.texts[1] === '(a) What fills the tank when the submarine dives?  [1]' && /^\(b\) Explain .*\[2\]$/.test(q1.texts[2]) &&
+  q1.kinds.join() === 'text,image,text,plainanswer,text,plainanswer', JSON.stringify(q1));
+ok('…ONE picture that carries the app, with the tiny wand’s corner at its top right', q1.app && q1.app.lq && q1.pieces === 1 && /^data:image\/(jpeg|png)/.test(q1.app.src) && q1.app.lqr && q1.app.lqr.x > 0.85 && q1.app.lqr.y < 0.05 && q1.app.lqr.s < 0.12, JSON.stringify(q1.app));
+ok('…six ruled working lines under the parts, by their marks', q1.lines.reduce((a, b) => a + b, 0) === 6, JSON.stringify(q1.lines));
+ok('…the model answers sit on the painted lines as the teacher’s own (no lq)', q1.answers.length === 2 && q1.answerColor && q1.answers[0] === 'Sea water.' && q1.answersOn, JSON.stringify(q1.answers));
+ok('…all of it inside the page, as one undo step, with the app selected', q1.inside && q1.undo === 1 && q1.sel, JSON.stringify({ inside: q1.inside, undo: q1.undo, sel: q1.sel, app: q1.app }));
 await shot('question-on-page');
 const undone = await page.evaluate(() => { undo(); return annotations.length; });
 ok('one ↶ takes the whole question back off', undone === 0);
@@ -387,8 +398,8 @@ const practiceQ = await page.evaluate(() => {
   endPractice();
   return kept;
 });
-ok('practice keeps the question’s words, lines and app as locked copies — and hides the model answers', practiceQ.length === 10 && practiceQ.every(a => a.locked && a.lq) && practiceQ.filter(a => a.app).length === 1, JSON.stringify(practiceQ));
-ok('the questions print keeps them too', await page.evaluate(() => annotations.filter(a => annBankQ(a) || annLivingApp(a) || annLivingQuestion(a)).length === 10));
+ok('practice keeps the question as a locked copy — and hides the model answers', practiceQ.length === 1 && practiceQ.every(a => a.locked && a.lq) && practiceQ.filter(a => a.app).length === 1, JSON.stringify(practiceQ));
+ok('the questions print keeps it too', await page.evaluate(() => annotations.filter(a => annBankQ(a) || annLivingApp(a) || annLivingQuestion(a)).length === 1));
 
 console.log('\n☁ Library only, then from the library onto a worksheet');
 const APP_LOOSE = '<!doctype html><title>Magnet Lab</title><div id="stage" class="wand-target">N S</div><button class="btn-wand">🪄</button>';
@@ -455,10 +466,11 @@ await page.click('.llRow[data-hash="' + loose.hash + '"] .llAsQ');
 await page.waitForFunction(() => !document.querySelector('.llBack'), null, { timeout: 8000 }).catch(() => {});
 const asQ = await page.evaluate((n) => {
   const added = annotations.slice(n);
-  return { texts: added.filter(a => a.type === 'text').map(a => a.text), lines: added.filter(a => a.type === 'line').length, apps: added.filter(annLivingApp).length, lq: added.every(annLivingQuestion) };
+  const q = window.__qLast();
+  return { texts: window.__qText(q), lines: window.__qLines(q), pieces: added.length, apps: added.filter(annLivingApp).length, lq: added.every(annLivingQuestion), corner: !!(added[0] && added[0].lqr) };
 }, n2);
 ok('📝 As a question from the library: an app with no question block is read — its few words with its title', asQ.texts.join() === 'Magnet Lab\nN S', JSON.stringify(asQ));
-ok('…five lines exactly, all of it part of the question', asQ.lines === 5 && asQ.apps === 1 && asQ.lq, JSON.stringify(asQ));
+ok('…five lines exactly, all of it one picture of the question', asQ.lines.join() === '5' && asQ.pieces === 1 && asQ.apps === 1 && asQ.lq && asQ.corner, JSON.stringify(asQ));
 
 // 📝 v1.180.0 — an app with NO question block, written the way most apps
 // are: a heading, a wand line, the question in paragraphs, an SVG diagram
@@ -501,21 +513,22 @@ const rich = await page.evaluate(async (html) => {
     if (d[i] < 60 && d[i + 1] > 90 && d[i + 1] < 140 && d[i + 2] > 190) blue++;
     if (d[i] < 140 && d[i + 1] < 150 && d[i + 2] < 160 && Math.abs(d[i] - d[i + 2]) < 30) dark++;
   }
+  const q = window.__qLast();
   return {
     pageNum, ms: Date.now() - t0,
-    texts: added.filter(a => a.type === 'text').map(a => a.text),
-    lines: added.filter(a => a.type === 'line').length,
+    texts: window.__qText(q), kinds: window.__qKinds(q),
+    lines: window.__qLines(q),
     apps: added.filter(annLivingApp).length, lq: added.every(annLivingQuestion),
     notCover: pic.src !== cover.src, w: img.naturalWidth, h: img.naturalHeight, red, blue, dark,
     frames: document.querySelectorAll('iframe.laHarvest').length,
-    onPage: added.every(a => a.type === 'line' ? (a.y1 <= 780 && a.y1 >= 0) : (a.y >= 0 && a.y + (a.h || 0) <= 781))
+    onPage: added.every(a => a.y >= 0 && a.y + (a.h || 0) <= 781)
   };
 }, APP_RICH);
 ok('📝 an app with no block: its question goes on the page, not its heading, its wand line or its hidden answer',
   rich.texts[0] === 'Ali left a beaker of crushed ice in the sun and recorded its temperature every minute.' && !rich.texts.join('\n').includes('Answer:') && !rich.texts.join('\n').includes('🪄') && !rich.texts.join('\n').includes('Reset'),
   JSON.stringify(rich.texts));
-ok('…its parts in their own boxes, with their marks', rich.texts[1] === '(a) What is the state of the water at 0 minutes?  [1]' && rich.texts[2] === '(b) Explain why the temperature stays at 0 °C for a while.  [2]', JSON.stringify(rich.texts));
-ok('…working space under each part by its marks (2 + 4 lines)', rich.lines === 6 && rich.apps === 1 && rich.lq, JSON.stringify(rich));
+ok('…its parts, with their marks', rich.texts[1] === '(a) What is the state of the water at 0 minutes?  [1]' && rich.texts[2] === '(b) Explain why the temperature stays at 0 °C for a while.  [2]', JSON.stringify(rich.texts));
+ok('…working space under each part by its marks (2 + 4 lines), and the table as a real table', rich.lines.join() === '2,4' && rich.apps === 1 && rich.lq && rich.kinds.join() === 'text,image,table,text,plainanswer,text,plainanswer', JSON.stringify(rich));
 ok('…the picture is what the app DRAWS, not the cover: the diagram in its stylesheet’s red', rich.notCover && rich.red > 500, JSON.stringify({ red: rich.red, w: rich.w, h: rich.h }));
 ok('…the canvas it painted in requestAnimationFrame', rich.blue > 500, JSON.stringify({ blue: rich.blue }));
 ok('…and its results table', rich.dark > 300, JSON.stringify({ dark: rich.dark }));

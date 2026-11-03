@@ -3,6 +3,14 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.181.0 — 📝 Living questions in the question bank's format, a tiny 🪄 and a small QR
+
+- **As a question is laid out exactly like a question from the Science portal's question bank.** It is painted by the same painter (`QuestionBank.paintQuestion`): the question's words, the diagram, the table as a real table, each part with its [marks] on the right, and ruled working lines under each part. It is one picture on the page, not loose text boxes and lines.
+- **The app's own furniture stays off the paper.** Keyboard hints ("Ctrl + Enter checks"), "Stuck on (b)?" scaffolds, model working, checker summaries ("Answers: (a) ? (b) ?", "6 lines"), labels like "Question", details/hint/help boxes and live status lines are no longer read as the question.
+- **The big "Tap to bring it alive" panel is gone.** A living app or a living question carries just a tiny 🪄 at its top right; a tap anywhere on it still brings the app alive. ➕ Add to page shows the app's title with the tiny wand at once, then what the app draws (its diagrams and tables) under the title.
+- **On paper the QR code is a small plain square in that top-right corner**, with no pad, border or label. Apps added before this release keep their old cover and QR place.
+- Model answers (when ticked) are written on the painted working lines, as the teacher's own text boxes.
+
 ## v1.180.0 — 📝 "As a question" reads the app itself
 
 - An app with no question block is now run once, out of sight, in its own sandbox, and read as it is drawn. Before, "As a question" put only the app's title and a generic living-app window on the page.

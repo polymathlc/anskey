@@ -67,27 +67,12 @@
 
   /* The page, in page units (a PDF point at 100%). */
   var MARGIN = 40;
-  var ITEM_GAP = 12;
-  var PART_GAP = 6;                 // a part's words to its first line
-  var LINE_GAP = 24;                // ruled lines, the comfortable spacing
-  var LINE_GAP_MIN = 17;            // …and the tightest a child can still write in
-  var FIG_SHARE = 0.38;             // the figure's share of the page height, at most
-  var FIG_SHARE_MIN = 0.2;
-  var FIG_WIDTH_SHARE = 0.86;       // a figure never runs from margin to margin
-  var LINE_COLOR = '#9AA3AD';
-  var LINE_WIDTH = 0.75;
   var TEXT_SIZE = 14;
   var ANSWER_COLOR = '#1F5FBF';
 
-  /* The figure's cover: a gold strip down the left (the wand on screen, the
-     QR code on paper) beside the diagram on white. */
+  /* The figure: every picture the app draws, set side by side as one. */
   var FIG_COVER_MAX_W = 1400;
   var FIG_COVER_MAX_H = 900;
-  var FIG_STRIP_SHARE = 0.4;        // of the cover's width, the widest the strip need be
-  var FIG_STRIP_PAD = 0.08;         // of the cover's width, the code's inset and pad
-  var STRIP_RW_MIN = 400;           // the narrowest a wide figure is placed, in points
-  var STRIP_RW_MAX = 560;           // the widest any figure is placed
-  var STRIP_RW_PER_RATIO = 150;     // a figure is at least this × its shape wide
 
   var AI_LINKS = [
     { id: 'chatgpt', label: 'ChatGPT', url: 'https://chatgpt.com/', q: 'https://chatgpt.com/?q=' },
@@ -314,102 +299,6 @@
     return t.trim();
   }
 
-  /* Where everything goes. `o`:
-       pageW, pageH      the page
-       top               where the teacher is looking (page units)
-       stemH             the stem box's measured height (0 = no stem)
-       figRatio          the figure picture's width ÷ height (0 = no figure)
-       stemLines         working lines under the stem
-       parts             [{ h, lines }] — each part's measured height and lines
-     Returns { items, bottom, fits, lineGap, startY, figH, trimmed }:
-       items: { kind: 'stem'|'figure'|'part'|'lines', i?, x, y, w, h, ys? }
-     The rule: start where the teacher is looking; if it does not fit, start
-     at the top margin; then tighten the lines to LINE_GAP_MIN; then shrink
-     the figure; and only then drop working lines — evenly, never a part's
-     last one — and say how many (`trimmed`). It never puts anything off the
-     page. */
-  function layout(o) {
-    o = o || {};
-    var pw = Number(o.pageW) > 0 ? Number(o.pageW) : 600;
-    var ph = Number(o.pageH) > 0 ? Number(o.pageH) : 800;
-    var margin = Math.min(MARGIN, pw * 0.08);
-    var contentW = Math.max(60, pw - margin * 2);
-    var floorY = ph - margin * 0.75;
-    var top = isFinite(o.top) ? Math.max(margin * 0.75, Math.min(ph * 0.7, Number(o.top))) : margin;
-    var stemH = Math.max(0, Number(o.stemH) || 0);
-    var ratio = Number(o.figRatio) > 0 ? Number(o.figRatio) : 0;
-    var parts = (o.parts || []).map(function (p) { return { h: Math.max(0, Number(p && p.h) || 0), lines: clampInt(p && p.lines, 0, LINES_MAX, 0) }; });
-    var stemLines = clampInt(o.stemLines, 0, LINES_MAX, 0);
-
-    function attempt(startY, gap, figShare, counts) {
-      var y = startY, items = [], figH = 0;
-      if (stemH) { items.push({ kind: 'stem', x: r2(margin), y: r2(y), w: r2(contentW), h: r2(stemH) }); y += stemH + ITEM_GAP; }
-      if (ratio) {
-        var fw = Math.min(contentW * FIG_WIDTH_SHARE, ph * figShare * ratio);
-        var fh = fw / ratio;
-        figH = fh;
-        items.push({ kind: 'figure', x: r2(margin + (contentW - fw) / 2), y: r2(y), w: r2(fw), h: r2(fh) });
-        y += fh + ITEM_GAP;
-      }
-      if (counts.stem) {
-        var ys0 = [];
-        for (var k0 = 1; k0 <= counts.stem; k0++) ys0.push(r2(y + k0 * gap));
-        items.push({ kind: 'lines', i: -1, x: r2(margin), y: r2(y), w: r2(contentW), h: r2(counts.stem * gap + 4), ys: ys0 });
-        y += counts.stem * gap + 4 + ITEM_GAP;
-      }
-      parts.forEach(function (p, i) {
-        items.push({ kind: 'part', i: i, x: r2(margin), y: r2(y), w: r2(contentW), h: r2(p.h) });
-        y += p.h;
-        var n = counts.parts[i];
-        if (n) {
-          y += PART_GAP;
-          var ys = [];
-          for (var k = 1; k <= n; k++) ys.push(r2(y + k * gap));
-          items.push({ kind: 'lines', i: i, x: r2(margin), y: r2(y), w: r2(contentW), h: r2(n * gap + 4), ys: ys });
-          y += n * gap + 4;
-        }
-        y += ITEM_GAP;
-      });
-      var bottom = y - ITEM_GAP;
-      return { items: items, bottom: r2(bottom), fits: bottom <= floorY, lineGap: gap, startY: r2(startY), figH: r2(figH) };
-    }
-
-    var full = { stem: stemLines, parts: parts.map(function (p) { return p.lines; }) };
-    var tries = [
-      [top, LINE_GAP, FIG_SHARE],
-      [margin, LINE_GAP, FIG_SHARE],
-      [margin, LINE_GAP_MIN, FIG_SHARE],
-      [margin, LINE_GAP_MIN, (FIG_SHARE + FIG_SHARE_MIN) / 2],
-      [margin, LINE_GAP_MIN, FIG_SHARE_MIN]
-    ];
-    var res;
-    for (var t = 0; t < tries.length; t++) {
-      res = attempt(tries[t][0], tries[t][1], tries[t][2], full);
-      if (res.fits) { res.trimmed = 0; return res; }
-    }
-    // Drop working lines one at a time from whichever block has the most,
-    // never below one line where there was at least one.
-    var counts = { stem: full.stem, parts: full.parts.slice() };
-    var dropped = 0;
-    for (var guard = 0; guard < 400; guard++) {
-      var bestI = -2, bestN = 1;
-      if (counts.stem > bestN) { bestI = -1; bestN = counts.stem; }
-      counts.parts.forEach(function (n, i) { if (n > bestN) { bestI = i; bestN = n; } });
-      if (bestI === -2) break;
-      if (bestI === -1) counts.stem--; else counts.parts[bestI]--;
-      dropped++;
-      res = attempt(margin, LINE_GAP_MIN, FIG_SHARE_MIN, counts);
-      if (res.fits) break;
-    }
-    res.trimmed = dropped;
-    return res;
-  }
-
-  /* One working line, as the page stores a line. */
-  function lineAnn(x, y, w) {
-    return { type: 'line', x1: r2(x), y1: r2(y), x2: r2(x + w), y2: r2(y), color: LINE_COLOR, width: LINE_WIDTH };
-  }
-
   /* The app taken back out of whatever was pasted: an AI's reply wraps it
      in prose and a ```html fence; a file is already bare. The longest
      fenced block that holds markup wins; otherwise everything from the
@@ -572,8 +461,25 @@
   }
 
   /* Words that are the app's own controls, not the question: a line
-     telling you to press the wand or a button. */
-  var CHROME_LINE_RE = /🪄|\bmagic wand\b|\b(?:tap|press|click|use) (?:the )?(?:wand|button|slider)\b/i;
+     telling you to press the wand or a button, a keyboard shortcut, a hint
+     or a model answer's heading, a checker's summary. (v1.181.0: an app's
+     own furniture had been read as the question — "Ctrl + Enter checks",
+     "Stuck on (b)? Four small questions", "Model working", "6 lines".) */
+  var CHROME_LINE_RE = new RegExp([
+    '🪄', '\\bmagic wand\\b',
+    '\\b(?:tap|press|click|use|drag|hold|slide) (?:the |a |on )?(?:wand|button|slider|picture|diagram|play|start|reset|here)\\b',
+    '\\b(?:ctrl|cmd|⌘|shift|alt)\\s*\\+', '\\b(?:enter|return)\\b[^.?!]{0,24}\\bcheck',
+    '\\bpress (?:enter|return|space)\\b', '\\bstuck\\b', '\\bhints?\\b', '\\bmodel (?:working|answers?|solutions?)\\b',
+    '\\bblurred\\b', '\\btry again\\b', '\\bshow (?:me|the answer|answers?|working)\\b', '\\breveal\\b',
+    '\\bcheck (?:my|your|the) (?:answer|working)s?\\b', '\\bwell done\\b', '\\bcorrect!', '\\bnot quite\\b',
+    '\\bsmall questions?\\b', '\\banswer them in order\\b'
+  ].join('|'), 'i');
+  /* A line that is a label, not words: "Question", "6 lines", "1.",
+     "Answers: (a) ? (b) ?", a bare bullet. */
+  var LABEL_LINE_RE = /^(?:(?:the )?(?:question|questions|q\d*|task|activity|problem|working|answers?|answer key|hints?|notes?|instructions?|your answer|explanation|solution|the experiment|experiment|results?|marks?|score|level|topic)\s*:?|\d+\s*(?:lines?|marks?|m)|\d+\s*[.)]|[•·▪◦\-–—*]|answers?\s*:.*|(?:\(\s*[a-h]\s*\)\s*[?_…]+\s*)+)\s*$/i;
+  /* A line that ENDS a part: after it, until the next part, everything is
+     the app's help, not the question. */
+  var STOP_LINE_RE = /\bstuck\b|\bhints?\b|\bmodel (?:working|answers?|solutions?)\b|\bsmall questions?\b|\bstep by step\b|\bscaffold/i;
   /* "(a) …", "(ii) …", "a) …", "b. …" — a part. Two letters at most, or a
      roman numeral, so "(1)" "(2)" options of a multiple choice stay words. */
   var PART_RE = /^\s*\(\s*([a-h]|i{1,3}|iv|vi{0,3}|ix|x)\s*\)\s*(.*)$/i;
@@ -602,21 +508,34 @@
     h.blocks.forEach(function (b) {
       if (b.kind !== 'text') return;
       b.text.split('\n').forEach(function (l) {
-        l = l.trim();
-        if (l && !(CHROME_LINE_RE.test(l) && l.length < 160)) lines.push(l);
+        l = l.replace(/\s+/g, ' ').trim();
+        if (!l) return;
+        // A stop line is kept as a marker: it closes the part it follows.
+        if (STOP_LINE_RE.test(l) && l.length < 200 && !PART_RE.test(l)) { lines.push({ stop: true }); return; }
+        if (CHROME_LINE_RE.test(l) && l.length < 160) return;
+        if (LABEL_LINE_RE.test(l)) return;
+        // "Question" run into the words after it ("QuestionMr Murthu…").
+        l = l.replace(/^(?:question|task)\s*:?\s*(?=[A-Z(])/i, '');
+        if (l) lines.push(l);
       });
     });
     // The app's own heading is its name, not the question.
-    while (lines.length && (sameWords(lines[0], title) || sameWords(lines[0], h.title))) lines.shift();
-    var stem = [], parts = [], cur = null;
+    while (lines.length && (lines[0].stop || sameWords(lines[0], title) || sameWords(lines[0], h.title))) lines.shift();
+    var stem = [], parts = [], cur = null, closed = false;
     lines.forEach(function (l) {
+      if (l.stop) { closed = true; return; }
       var m = l.match(PART_RE) || l.match(PART_RE_BARE);
       if (m && parts.length < PARTS_MAX) {
         var mk = takeMarks(m[2]);
-        cur = { label: '(' + m[1].toLowerCase() + ')', text: mk.text, marks: mk.marks };
+        // The same part read twice (a checker's echo of it) is one part.
+        var label = '(' + m[1].toLowerCase() + ')';
+        if (parts.some(function (p) { return p.label === label; })) { closed = true; return; }
+        cur = { label: label, text: mk.text, marks: mk.marks };
         parts.push(cur);
+        closed = false;
         return;
       }
+      if (closed) return;
       if (cur) {
         var more = takeMarks(l);
         cur.text = (cur.text ? cur.text + '\n' : '') + more.text;
@@ -660,6 +579,72 @@
     Object.keys(spec).forEach(function (k) { out[k] = spec[k]; });
     out.graphics = graphics;
     return out;
+  }
+
+  /* 📝 THE QUESTION IN THE QUESTION BANK'S OWN SHAPE (v1.181.0). The
+     portal's questions go on paper through QuestionBank.paintQuestion —
+     words, the diagram, the table, each part with its marks on the right,
+     ruled lines under it — and a living question is now painted by the
+     very same painter, so the two look the same on a worksheet. This turns
+     a spec into the blocks that painter reads. `figure` is the picture
+     (a data: URL) of everything the app draws that is not a table; each
+     table goes in as a real table. The working lines carry a `tag`
+     ('q' for the stem, 'p0', 'p1'… for the parts) so the page can find
+     them again for the model answers. */
+  function escHtml(v) {
+    return str(v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function parasHtml(t) {
+    return str(t).split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean)
+      .map(function (l) { return '<p>' + escHtml(l) + '</p>'; }).join('');
+  }
+  var ROMANS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'];
+  /* "(a)" → { part: 'a' }, "(ii)" → { subPart: 'ii' }, "(a)(i)" → both;
+     anything else is written in front of the part's words. */
+  function partKey(label) {
+    var t = str(label).toLowerCase().replace(/\s+/g, '');
+    var m = t.match(/^\(([a-h])\)(?:\((i{1,3}|iv|vi{0,3})\))?$/);
+    if (m) return { part: m[1], subPart: m[2] || '', prefix: '' };
+    var r = t.match(/^\((i{1,3}|iv|vi{0,3})\)$/);
+    if (r && ROMANS.indexOf(r[1]) >= 0) return { part: '', subPart: r[1], prefix: '' };
+    return { part: '', subPart: '', prefix: str(label).trim() };
+  }
+  function tableBlock(g) {
+    var rows = (g.rows || []).map(function (r) {
+      return (r.cells || []).map(function (c) { return r.head ? '<b>' + escHtml(c) + '</b>' : escHtml(c); });
+    });
+    return { type: 'table', data: rows };
+  }
+  function questionBlocks(spec, figure) {
+    spec = spec || { parts: [] };
+    var parts = spec.parts || [];
+    var blocks = [];
+    var stem = str(spec.stem).trim();
+    if (stem) blocks.push({ type: 'text', content: parasHtml(stem), marks: parts.length ? 0 : (spec.marks || 0) });
+    if (figure) blocks.push({ type: 'image', url: figure });
+    (spec.graphics || []).forEach(function (g) { if (g && g.kind === 'table' && g.rows && g.rows.length) blocks.push(tableBlock(g)); });
+    if (!parts.length && spec.lines) blocks.push({ type: 'plainanswer', lines: clampInt(spec.lines, 1, LINES_MAX, DEFAULT_LINES), tag: 'q' });
+    parts.forEach(function (p, i) {
+      var k = partKey(p.label);
+      var words = str(p.text).trim();
+      var content = parasHtml(k.prefix ? k.prefix + ' ' + words : words);
+      var b = { type: 'text', content: content, marks: p.marks || 0 };
+      if (k.part) b.part = k.part;
+      if (k.subPart) b.subPart = k.subPart;
+      blocks.push(b);
+      if (p.lines) blocks.push({ type: 'plainanswer', lines: clampInt(p.lines, 1, LINES_MAX, DEFAULT_PART_LINES), tag: 'p' + i });
+    });
+    return { blocks: blocks };
+  }
+  /* The plain picture of an app put on the page as itself (➕ Add to page):
+     its title in bold, then what it draws. */
+  function appBlocks(app, graphics, figure) {
+    var blocks = [{ type: 'text', content: '<p><b>' + escHtml(cleanLine(app && app.title, TITLE_MAX) || 'Living app') + '</b></p>' }];
+    if (figure) blocks.push({ type: 'image', url: figure });
+    (graphics || []).forEach(function (g) { if (g && g.kind === 'table' && g.rows && g.rows.length) blocks.push(tableBlock(g)); });
+    return { blocks: blocks };
   }
 
   /* Does putting this app on paper need it run first? */
@@ -727,61 +712,16 @@
 
   var pure = {
     VERSION: VERSION, SPEC_ID: SPEC_ID, DEFAULT_LINES: DEFAULT_LINES, DEFAULT_PART_LINES: DEFAULT_PART_LINES,
-    LINES_MAX: LINES_MAX, PARTS_MAX: PARTS_MAX, FIGURE_MAX: FIGURE_MAX, MARGIN: MARGIN, LINE_GAP: LINE_GAP,
-    LINE_GAP_MIN: LINE_GAP_MIN, LINE_COLOR: LINE_COLOR, LINE_WIDTH: LINE_WIDTH, TEXT_SIZE: TEXT_SIZE,
+    LINES_MAX: LINES_MAX, PARTS_MAX: PARTS_MAX, FIGURE_MAX: FIGURE_MAX, MARGIN: MARGIN, TEXT_SIZE: TEXT_SIZE,
     ANSWER_COLOR: ANSWER_COLOR, AI_LINKS: AI_LINKS, AI_URL_MAX: AI_URL_MAX, LEVELS: LEVELS, SUBJECTS: SUBJECTS,
-    FIG_STRIP_SHARE: FIG_STRIP_SHARE, FIG_STRIP_PAD: FIG_STRIP_PAD,
     cleanLine: cleanLine, cleanBlock: cleanBlock, cleanSvg: cleanSvg, svgSize: svgSize, svgForImage: svgForImage,
     readSpec: readSpec, cleanSpec: cleanSpec, questionOf: questionOf, figureOf: figureOf, fallbackSpec: fallbackSpec, specFor: specFor, summary: summary,
-    stemText: stemText, partText: partText, layout: layout, lineAnn: lineAnn, extractHtml: extractHtml,
-    buildPrompt: buildPrompt, aiLink: aiLink, autoLabel: autoLabel, stripWidth: stripWidth,
+    stemText: stemText, partText: partText, extractHtml: extractHtml,
+    buildPrompt: buildPrompt, aiLink: aiLink, autoLabel: autoLabel,
     cleanHarvest: cleanHarvest, specFromHarvest: specFromHarvest, mergeHarvest: mergeHarvest, needsHarvest: needsHarvest,
-    composeBoxes: composeBoxes, tableColumns: tableColumns, wrapCell: wrapCell, HARVEST_GRAPHICS_MAX: HARVEST_GRAPHICS_MAX
+    composeBoxes: composeBoxes, tableColumns: tableColumns, wrapCell: wrapCell, HARVEST_GRAPHICS_MAX: HARVEST_GRAPHICS_MAX,
+    questionBlocks: questionBlocks, appBlocks: appBlocks, partKey: partKey, CHROME_LINE_RE: CHROME_LINE_RE, LABEL_LINE_RE: LABEL_LINE_RE, STOP_LINE_RE: STOP_LINE_RE
   };
-
-  /* How wide the gold strip is for a figure of fw × fh pixels. On paper the
-     QR code is drawn on the cover's LEFT by LivingApps.pure.qrOnCover: up to
-     the cover's height (less its label), up to a third of its width, and a
-     few points in from the edge. The strip has to hold all of that, or the
-     code lands on the diagram:
-       • a code limited by the cover's height needs a strip a little wider
-         than the cover is tall: fh plus FIG_STRIP_PAD of the whole width;
-       • a code limited by a third of the width needs FIG_STRIP_SHARE of it.
-     Whichever is smaller is enough, because the code takes the smaller of
-     its two limits too. tools/living-question-tests.mjs measures the real
-     qrOnCover against the strip across cover sizes and shapes. */
-  function stripWidth(fw, fh) {
-    var w = Math.max(1, fw), h = Math.max(1, fh);
-    var byHeight = (h + FIG_STRIP_PAD * w) / (1 - FIG_STRIP_PAD);
-    var byWidth = FIG_STRIP_SHARE / (1 - FIG_STRIP_SHARE) * w;
-    var safe = Math.min(byHeight, byWidth);
-    // With the real qrOnCover to hand, the strip is cut to exactly what the
-    // code needs at every width the cover is placed at (a code capped at its
-    // 86-point size needs far less than the rule above) — never more than
-    // the rule, which is always enough.
-    var qr = root.LivingApps && root.LivingApps.pure && root.LivingApps.pure.qrOnCover;
-    if (typeof qr !== 'function') return Math.round(safe);
-    function fits(sw) {
-      var total = w + sw;
-      // A wide cover is never placed narrow: the layout gives a figure at
-      // least a fifth of the page's height, so its width is at least that
-      // times its shape (capped at the column a page offers).
-      var from = Math.max(120, Math.min(STRIP_RW_MIN, STRIP_RW_PER_RATIO * total / h));
-      for (var rw = from; rw <= STRIP_RW_MAX; rw += 20) {
-        var rh = rw * h / total;
-        var pad = qr(0, 0, rw, rh);
-        if (pad.padX + pad.padW + 2 > rw * sw / total) return false;
-      }
-      return true;
-    }
-    if (!fits(safe)) return Math.round(safe);
-    var lo = 0, hi = safe;
-    for (var k = 0; k < 24; k++) {
-      var mid = (lo + hi) / 2;
-      if (fits(mid)) hi = mid; else lo = mid;
-    }
-    return Math.round(Math.max(hi, h * 0.2));
-  }
 
   /* ---------------------------------------------------------------
      Painting — needs a DOM.
@@ -813,34 +753,6 @@
       img.onerror = function () { reject(new Error('That figure could not be drawn.')); };
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgForImage(clean, W, H, svgMax));
     });
-  }
-
-  function roundRect(x, X, Y, W, H, R) {
-    x.beginPath();
-    x.moveTo(X + R, Y);
-    x.arcTo(X + W, Y, X + W, Y + H, R);
-    x.arcTo(X + W, Y + H, X, Y + H, R);
-    x.arcTo(X, Y + H, X, Y, R);
-    x.arcTo(X, Y, X + W, Y, R);
-    x.closePath();
-  }
-  function star(x, cx, cy, R, r, fill) {
-    x.beginPath();
-    for (var i = 0; i < 8; i++) {
-      var ang = -Math.PI / 2 + i * Math.PI / 4;
-      var rad = i % 2 ? r : R;
-      var px = cx + Math.cos(ang) * rad, py = cy + Math.sin(ang) * rad;
-      if (i) x.lineTo(px, py); else x.moveTo(px, py);
-    }
-    x.closePath();
-    x.fillStyle = fill;
-    x.fill();
-  }
-
-  /* The figure as the picture that carries the app: the gold strip with the
-     wand on the left, the diagram on white beside it. { src, ratio, w, h }. */
-  function paintFigureCover(svg) {
-    return svgToPng(svg, FIG_COVER_MAX_W, FIG_COVER_MAX_H).then(coverFromFigure);
   }
 
   /* 📝 The pictures an app draws (v1.180.0), each drawn on its own canvas
@@ -947,56 +859,55 @@
       return { canvas: out, w: out.width, h: out.height, count: got.length };
     });
   }
-  function paintGraphicsCover(graphics) {
-    return paintGraphics(graphics).then(function (fig) {
-      if (!fig) return null;
-      var pic = coverFromFigure(fig);
-      pic.count = fig.count;
+  /* 📝 The pictures that are not tables, as one figure (a data: URL), or ''. */
+  function figureSrc(spec) {
+    if (spec && spec.figure) {
+      return svgToPng(spec.figure, FIG_COVER_MAX_W, FIG_COVER_MAX_H).then(function (r) { return { src: r.src, count: 1 }; },
+        function (e) { try { console.warn('The question’s diagram could not be drawn', e); } catch (x) {} return { src: '', count: 0 }; });
+    }
+    var pics = ((spec && spec.graphics) || []).filter(function (g) { return g && g.kind !== 'table'; });
+    if (!pics.length) return Promise.resolve({ src: '', count: 0 });
+    return paintGraphics(pics).then(function (fig) {
+      if (!fig) return { src: '', count: 0 };
+      try { return { src: fig.canvas.toDataURL('image/png'), count: fig.count }; } catch (e) { return { src: '', count: 0 }; }
+    }, function () { return { src: '', count: 0 }; });
+  }
+  /* Paints blocks through the question bank's own painter, with the white
+     gutter on the right and the tiny 🪄 in its corner. Resolves
+     { src, ratio, w, h, corner, tags }. */
+  function paintBlocks(q) {
+    var QB = root.QuestionBank, LA = root.LivingApps;
+    if (!QB || typeof QB.paintQuestion !== 'function') return Promise.reject(new Error('The question painter is not loaded.'));
+    var gutter = (LA && LA.pure && LA.pure.CORNER_GUTTER) || 64;
+    var corner = null;
+    return QB.paintQuestion(q, {
+      gutter: gutter,
+      decorate: function (ctx, info) {
+        if (!LA || !LA.pure) return;
+        corner = LA.pure.cornerFor(info.w, info.h, info.gutter);
+        if (typeof LA.drawCornerWand === 'function') LA.drawCornerWand(ctx, info.w, info.h, corner);
+      }
+    }).then(function (pic) {
+      pic.corner = corner;
       return pic;
     });
   }
-
-  /* The figure, painted with the gold strip that carries the wand and the
-     printed QR code. fig = { canvas, w, h }. */
-  function coverFromFigure(fig) {
-    var sw = stripWidth(fig.w, fig.h);
-    var W = fig.w + sw, H = fig.h;
-    var c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    var x = c.getContext('2d');
-    x.fillStyle = '#FFFFFF';
-    x.fillRect(0, 0, W, H);
-    x.drawImage(fig.canvas, sw, 0);
-    // The strip: warm gold, rounded on the inside edge.
-    var g = x.createLinearGradient(0, 0, sw, H);
-    g.addColorStop(0, '#FFE7A3');
-    g.addColorStop(1, '#F6C343');
-    x.fillStyle = g;
-    roundRect(x, 0, 0, sw, H, Math.min(18, sw * 0.12));
-    x.fill();
-    x.fillRect(0, 0, Math.min(18, sw * 0.12), H);
-    // The wand, drawn (an emoji draws differently on every device).
-    var s = Math.min(sw, H) / 120;
-    var cx = sw / 2, cy = H / 2 - 10 * s;
-    x.save();
-    x.lineCap = 'round';
-    x.strokeStyle = '#FFFFFF'; x.lineWidth = 11 * s;
-    x.beginPath(); x.moveTo(cx - 16 * s, cy - 16 * s); x.lineTo(cx + 26 * s, cy + 26 * s); x.stroke();
-    x.strokeStyle = '#2D1F14'; x.lineWidth = 6 * s;
-    x.beginPath(); x.moveTo(cx - 16 * s, cy - 16 * s); x.lineTo(cx + 26 * s, cy + 26 * s); x.stroke();
-    x.restore();
-    star(x, cx - 22 * s, cy - 22 * s, 15 * s, 5 * s, '#FFFFFF');
-    star(x, cx - 22 * s, cy - 22 * s, 12 * s, 4 * s, '#B07A00');
-    star(x, cx + 20 * s, cy - 30 * s, 6 * s, 2 * s, '#FFFFFF');
-    star(x, cx - 34 * s, cy + 14 * s, 5 * s, 1.8 * s, '#FFFFFF');
-    x.fillStyle = '#5A3E00';
-    x.textAlign = 'center';
-    x.textBaseline = 'alphabetic';
-    var fs = Math.max(11, Math.round(Math.min(sw / 7.5, H / 9)));
-    x.font = '700 ' + fs + 'px system-ui, -apple-system, "Segoe UI", sans-serif';
-    x.fillText('Tap to bring', cx, cy + 46 * s + fs * 0.4);
-    x.fillText('it alive', cx, cy + 46 * s + fs * 1.5);
-    return { src: c.toDataURL('image/png'), ratio: W / H, w: W, h: H, strip: sw };
+  function withCounts(q, fig) {
+    return paintBlocks(q).then(function (pic) {
+      pic.count = fig.count;
+      pic.tables = q.blocks.filter(function (b) { return b.type === 'table'; }).length;
+      return pic;
+    });
+  }
+  /* 📝 As a question: the whole question as ONE picture in the bank's
+     format. Resolves the painted picture plus `count` (pictures in the
+     figure) and `tables`. */
+  function paintQuestionPicture(spec) {
+    return figureSrc(spec).then(function (fig) { return withCounts(questionBlocks(spec, fig.src), fig); });
+  }
+  /* ➕ Add to page: the app as itself — its title and what it draws. */
+  function paintAppPicture(app, spec) {
+    return figureSrc(spec).then(function (fig) { return withCounts(appBlocks(app, spec && spec.graphics, fig.src), fig); });
   }
 
   /* ---------------------------------------------------------------
@@ -1181,7 +1092,7 @@
     };
   }
 
-  var api = { pure: pure, create: create, svgToPng: svgToPng, paintFigureCover: paintFigureCover, paintGraphics: paintGraphics, paintGraphicsCover: paintGraphicsCover };
+  var api = { pure: pure, create: create, svgToPng: svgToPng, paintGraphics: paintGraphics, paintQuestionPicture: paintQuestionPicture, paintAppPicture: paintAppPicture };
   root.LivingQuestion = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

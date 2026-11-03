@@ -131,89 +131,145 @@ test('a figure’s shape comes from its viewBox, else its size, else 5 : 3', () 
   assert.equal((sized.match(/width=/g) || []).length, 1, 'the old size is replaced, not doubled');
 });
 
-test('the layout never places a figure narrower than the strip assumes', () => {
-  for (const ratio of [0.5, 1, 2, 3, 6]) {
-    const r = Q.layout({ pageW: 595, pageH: 842, top: 40, stemH: 300, figRatio: ratio, parts: [{ h: 40, lines: 16 }, { h: 40, lines: 16 }] });
-    const fig = r.items.find(i => i.kind === 'figure');
-    assert.ok(fig.w >= Math.min(400, 150 * ratio) - 0.5, ratio + ': ' + fig.w);
+/* ---------------- 🪄 the corner and the bank's format (v1.181.0) ---------------- */
+test('🪄 the corner is a small square at the top right, inside the gutter, and cleanCorner is its one door', () => {
+  for (const [w, h] of [[664, 90], [664, 600], [664, 2400], [664, 64]]) {
+    const c = LA.cornerFor(w, h, LA.CORNER_GUTTER);
+    const left = c.x * w, size = c.s * w, top = c.y * h;
+    assert.ok(left >= 600 - 0.5, `${w}×${h}: the square starts in the gutter (${left})`);
+    assert.ok(left + size <= w + 0.01, 'never off the right edge');
+    assert.ok(top + size <= h + 0.01, 'never off the bottom');
+    assert.ok(size <= LA.CORNER_GUTTER, 'small: never wider than the gutter');
+    assert.deepEqual(plain(LA.cleanCorner(c)), plain(c));
+  }
+  assert.equal(LA.cleanCorner(null), null);
+  assert.equal(LA.cleanCorner({ x: 0.9, y: 0, s: 0.2 }), null, 'a square past the edge');
+  assert.equal(LA.cleanCorner({ x: 'a', y: 0, s: 0.1 }), null);
+  assert.equal(LA.cleanCorner({ x: 0.5, y: 0, s: 0.9 }), null, 'no big rectangle');
+});
+
+test('🪄 on paper the code takes the corner: a plain square inside the picture, top right, sized with it', () => {
+  const c = LA.cornerFor(664, 500, LA.CORNER_GUTTER);
+  const rect = { x: 36, y: 100, w: 523, h: 523 * 500 / 664 };
+  const q = LA.qrInCorner(rect, c);
+  assert.ok(q.x >= rect.x + rect.w * 600 / 664 - 0.5, 'in the gutter, off the question');
+  assert.ok(q.x + q.size <= rect.x + rect.w + 0.01);
+  assert.ok(q.y + q.size <= rect.y + rect.h + 0.01, 'at the top');
+  assert.ok(q.y + q.size >= rect.y + rect.h - 12, 'right at the top');
+  assert.ok(q.size > 30 && q.size < 60, 'a small code a phone still reads: ' + q.size);
+  const big = LA.qrInCorner({ x: 0, y: 0, w: 1046, h: 1046 * 500 / 664 }, c);
+  assert.ok(Math.abs(big.size - q.size * 2) < 0.1, 'it grows with the picture');
+  assert.equal(LA.qrInCorner(rect, null), null, 'no corner, no square: the old cover keeps its old place');
+});
+
+test('🪄 drawQrOnPdf draws a plain square with no pad, no border and no label in a corner', () => {
+  const rects = [], texts = [];
+  const page = { drawRectangle: (o) => rects.push(o), drawText: (t) => texts.push(t), node: { lookup: () => null, set() {} } };
+  const lib = { rgb: (r, g, b) => ({ r, g, b }), PDFName: { of: (x) => x }, PDFString: { of: (x) => x } };
+  const doc = { context: { register: (x) => x, obj: (x) => x } };
+  const font = { widthOfTextAtSize: () => 10 };
+  const matrix = [[true, false], [false, true]];
+  const runs = (m) => [{ r: 0, c: 0, len: 1 }, { r: 1, c: 1, len: 1 }];
+  const corner = LA.cornerFor(664, 500, LA.CORNER_GUTTER);
+  const LAfull = (0, eval)('null') || null;   // keep the lint quiet
+  const ctx = { console, Math, JSON, Object, Array, String, Number, RegExp, Promise, isFinite, encodeURIComponent, decodeURIComponent };
+  ctx.window = ctx; ctx.globalThis = ctx; vm.createContext(ctx); vm.runInContext(LA_SRC, ctx);
+  const ok = ctx.LivingApps.drawQrOnPdf(doc, page, 'https://x.test/living.html?a', lib, font, { x: 0, y: 0, w: 523, h: 394 }, () => matrix, runs, corner);
+  assert.equal(ok, true);
+  assert.ok(!rects[0].borderColor && !rects[0].borderWidth, 'no border round it');
+  assert.equal(rects[0].width, rects[0].height, 'a square');
+  assert.equal(texts.length, 0, 'no label under it');
+  // An older cover with no corner keeps its pad and its label.
+  rects.length = 0;
+  ctx.LivingApps.drawQrOnPdf(doc, page, 'https://x.test/living.html?a', lib, font, { x: 0, y: 0, w: 523, h: 226 }, () => matrix, runs);
+  assert.ok(rects[0].borderColor, 'the old place is unchanged');
+  void LAfull;
+});
+
+test('📝 a question goes on paper in the question bank’s own shape: words, picture, table, parts with marks and ruled lines', () => {
+  const spec = {
+    stem: 'Mr Murthu pours tea.\nThe results are below.', marks: 0, lines: 0, answer: '',
+    graphics: [{ kind: 'svg', svg: '<svg/>' }, { kind: 'table', rows: [{ head: true, cells: ['d', '50'] }, { head: false, cells: ['T <b>', ''] }] }],
+    parts: [
+      { label: '(a)', text: 'State the relationship.', marks: 1, lines: 2, answer: 'It falls.' },
+      { label: '(ii)', text: 'Explain.', marks: 2, lines: 4, answer: '' },
+      { label: 'Q3', text: 'Why?', marks: 0, lines: 0, answer: '' }
+    ]
+  };
+  const q = plain(Q.questionBlocks(spec, 'data:image/png;base64,AAAA'));
+  assert.deepEqual(q.blocks.map(b => b.type), ['text', 'image', 'table', 'text', 'plainanswer', 'text', 'plainanswer', 'text']);
+  assert.equal(q.blocks[0].content, '<p>Mr Murthu pours tea.</p><p>The results are below.</p>');
+  assert.equal(q.blocks[1].url, 'data:image/png;base64,AAAA');
+  assert.deepEqual(q.blocks[2].data, [['<b>d</b>', '<b>50</b>'], ['T &lt;b&gt;', '']], 'escaped; the head row bold');
+  assert.equal(q.blocks[3].part, 'a');
+  assert.equal(q.blocks[3].marks, 1, 'the marks go to the painter, which writes [1] at the right');
+  assert.deepEqual({ lines: q.blocks[4].lines, tag: q.blocks[4].tag }, { lines: 2, tag: 'p0' });
+  assert.equal(q.blocks[5].subPart, 'ii');
+  assert.equal(q.blocks[7].content, '<p>Q3 Why?</p>', 'a label the painter cannot number is written in front');
+  // A question with no parts gets its lines under the words, tagged for its answer.
+  const one = plain(Q.questionBlocks({ stem: 'Explain.', marks: 3, lines: 6, parts: [] }, ''));
+  assert.deepEqual(one.blocks.map(b => b.type), ['text', 'plainanswer']);
+  assert.equal(one.blocks[0].marks, 3);
+  assert.deepEqual({ lines: one.blocks[1].lines, tag: one.blocks[1].tag }, { lines: 6, tag: 'q' });
+  // ➕ Add to page: the title in bold and what the app draws.
+  const app = plain(Q.appBlocks({ title: 'Ballast & tank' }, spec.graphics, 'data:image/png;base64,AAAA'));
+  assert.deepEqual(app.blocks.map(b => b.type), ['text', 'image', 'table']);
+  assert.equal(app.blocks[0].content, '<p><b>Ballast &amp; tank</b></p>');
+});
+
+test('📝 part labels: letters, roman numerals, both, and anything else', () => {
+  assert.deepEqual(plain(Q.partKey('(a)')), { part: 'a', subPart: '', prefix: '' });
+  assert.deepEqual(plain(Q.partKey('(b)(iii)')), { part: 'b', subPart: 'iii', prefix: '' });
+  assert.deepEqual(plain(Q.partKey('(iv)')), { part: '', subPart: 'iv', prefix: '' });
+  assert.deepEqual(plain(Q.partKey('Q2')), { part: '', subPart: '', prefix: 'Q2' });
+});
+
+test('📝 an app’s own furniture is not the question: shortcuts, hints, model working, checkers and scaffolds are left out', () => {
+  // What the teh tarik app read as in v1.180.0 (Zhi Kai's screenshot).
+  const text = ['Teh tarik: the pulled tea',
+    'QuestionMr Murthu is famous for making ‘teh tarik’. He transferred hot tea from one container into another. The results are as shown in the table below.',
+    'Model working', '6 lines', 'Answers: (a) ? (b) ?',
+    '(a) Based on the results, state the relationship between distance d and the final temperature.',
+    'Ctrl + Enter checks',
+    '(b) Explain your answer in (a).', 'Ctrl + Enter checks',
+    'Stuck on (b)? Four small questions', 'Answer them in order. Together they make the explanation.',
+    '1.', '1. Which is hotter: the tea or the surrounding air?', '2.', '2. Which way does heat move?',
+    'Model working', 'Blurred lines appear as the picture acts them out', '1.', 'The experiment', '1.', '2.'];
+  const spec = Q.specFromHarvest({ title: 'Teh tarik: the pulled tea' }, { title: '', blocks: text.map(t => ({ kind: 'text', text: t })) });
+  assert.equal(spec.stem, 'Mr Murthu is famous for making ‘teh tarik’. He transferred hot tea from one container into another. The results are as shown in the table below.');
+  assert.deepEqual(plain(spec.parts.map(p => [p.label, p.text])), [
+    ['(a)', 'Based on the results, state the relationship between distance d and the final temperature.'],
+    ['(b)', 'Explain your answer in (a).']
+  ]);
+  for (const t of ['Question', '6 lines', '1.', 'Answers: (a) ? (b) ?', '(a) ? (b) ?', 'The experiment']) assert.ok(Q.LABEL_LINE_RE.test(t), t);
+  for (const t of ['Ctrl + Enter checks', 'Press Enter to check', 'Show me the answer']) assert.ok(Q.CHROME_LINE_RE.test(t), t);
+  for (const t of ['Model working', 'Stuck on (b)? Four small questions', 'Hint: think about heat']) assert.ok(Q.STOP_LINE_RE.test(t), t);
+  // A real question line is never furniture.
+  for (const t of ['(a) State one way to make the tea cooler. [1]', 'Which material is the best conductor of heat?', 'The table shows the results.']) {
+    assert.ok(!Q.LABEL_LINE_RE.test(t) && !Q.CHROME_LINE_RE.test(t) && !Q.STOP_LINE_RE.test(t), t);
   }
 });
 
-test('the gold strip holds the printed QR code — it never lands on the diagram', () => {
-  const shapes = [[1400, 900], [1200, 600], [1400, 300], [1400, 240], [800, 900], [400, 900], [300, 900]];
-  for (const [w, h] of shapes) {
-    const sw = Q.stripWidth(w, h);
-    const total = w + sw;
-    assert.ok(sw <= total * Q.FIG_STRIP_SHARE + 1, `${w}×${h}: strip ${sw} of ${total}`);
-    assert.ok(sw >= h * 0.2, 'room for the wand and its words on screen');
-    // Every width the cover is really placed at on a page: layout() gives a
-    // figure at least a fifth of the page's height, so a wide one is never
-    // placed narrow.
-    const ratio = total / h;
-    for (const rw of [200, 260, 320, 400, 447, 520].filter(x => x >= Math.min(400, 150 * ratio) || x >= 400)) {
-      const rh = rw * h / total;
-      const pad = LA.qrOnCover(0, 0, rw, rh);
-      const strip = rw * sw / total;
-      assert.ok(pad.padX + pad.padW <= strip + 0.5, `${w}×${h} at ${rw}pt: code ends at ${(pad.padX + pad.padW).toFixed(1)}, strip ${strip.toFixed(1)}`);
-    }
-  }
+test('🪄 the harvest bridge leaves the app’s help out: details, hint and model-working boxes, live regions', () => {
+  const b = LA.HARVEST_BRIDGE;
+  assert.match(b, /DETAILS\|SUMMARY\|KBD/);
+  assert.match(b, /CHROME_WORDS = \/\^\(btn\|/, 'not "wand": the wand’s TARGET (#stage.wand-target) is the diagram');
+  assert.ok(!/\|wand\|/.test(b.slice(b.indexOf('CHROME_WORDS'), b.indexOf('CHROME_WORDS') + 400)));
+  assert.match(b, /hints\?\|tips\?\|help\|stuck\|scaffolds\?/);
+  assert.ok(b.includes('model[\\s_-]*(working|answer|solution)'), 'a model-working box');
+  assert.match(b, /aria-live/);
+  assert.match(b, /if \(boxy\) buf \+= " ";/, 'an inline box is a word of its own ("Question" + "Mr Murthu")');
 });
 
-/* ---------------- the layout ---------------- */
-const items = (r, kind) => r.items.filter(i => i.kind === kind);
-test('a question is laid out from where the teacher is looking, top to bottom, with even lines', () => {
-  const r = Q.layout({ pageW: 600, pageH: 800, top: 120, stemH: 40, figRatio: 2, parts: [{ h: 20, lines: 2 }, { h: 30, lines: 3 }] });
-  assert.equal(r.fits, true);
-  assert.equal(r.trimmed, 0);
-  assert.equal(r.startY, 120);
-  const order = plain(r.items.map(i => i.kind + (i.i != null ? i.i : '')));
-  assert.deepEqual(order, ['stem', 'figure', 'part0', 'lines0', 'part1', 'lines1']);
-  let y = 0;
-  r.items.forEach(i => { assert.ok(i.y >= y, 'never above the one before'); y = i.y; });
-  const fig = items(r, 'figure')[0];
-  assert.ok(Math.abs(fig.w / fig.h - 2) < 0.01, 'the figure keeps its shape');
-  assert.ok(Math.abs(fig.x + fig.w / 2 - 300) < 0.01, 'the figure is centred');
-  items(r, 'lines').forEach(l => {
-    assert.ok(l.ys.every((y2, k) => k === 0 || Math.abs(y2 - l.ys[k - 1] - r.lineGap) < 0.02), 'evenly spaced');
-    assert.ok(l.ys[0] > items(r, 'part').find(p => p.i === l.i).y, 'lines under their part');
-  });
-  assert.deepEqual(plain(items(r, 'lines').map(l => l.ys.length)), [2, 3]);
+test('🪄 the bank’s painter keeps a gutter, a decorate hook and the working lines’ places — and paints a bank question as before', () => {
+  const QB = fs.readFileSync(new URL('question-bank.js', ROOT), 'utf8');
+  assert.match(QB, /function paintQuestion\(q, opts\) \{/);
+  assert.match(QB, /var gutter = Math\.max\(0, Math\.min\(240, Number\(opts\.gutter\) \|\| 0\)\);/, 'no opts = no gutter = the bank question unchanged');
+  assert.match(QB, /opts\.decorate\(ctx, \{ w: CW, h: h, contentW: PIC_W, pad: PIC_PAD, gutter: gutter \}\)/);
+  assert.match(QB, /ruledOp\(b\.lines > 0 \? Math\.min\(OPEN_LINES_MAX \+ 4, b\.lines \| 0\) : 3, '', 0, b\.tag \? String\(b\.tag\) : ''\);/, 'a portal block keeps its three lines');
+  assert.match(QB, /paintQuestion\(snap\)\.then/, 'the bank still calls it with no options');
 });
 
-test('too low on the page, it starts at the top margin instead', () => {
-  const r = Q.layout({ pageW: 600, pageH: 800, top: 600, stemH: 40, figRatio: 2, parts: [{ h: 20, lines: 4 }] });
-  assert.equal(r.fits, true);
-  assert.equal(r.startY, Q.MARGIN);
-  assert.equal(r.lineGap, Q.LINE_GAP);
-});
-
-test('a long question tightens its lines, then shrinks its figure, and only then drops lines — never off the page', () => {
-  const r = Q.layout({ pageW: 600, pageH: 800, top: 40, stemH: 200, figRatio: 1, parts: [{ h: 40, lines: 16 }, { h: 40, lines: 16 }, { h: 40, lines: 2 }] });
-  assert.equal(r.lineGap, Q.LINE_GAP_MIN);
-  assert.ok(r.trimmed > 0);
-  assert.equal(r.fits, true);
-  assert.ok(r.bottom <= 800);
-  const counts = items(r, 'lines').map(l => l.ys.length);
-  assert.ok(counts.every(n => n >= 1), 'every part keeps at least one line: ' + counts);
-  assert.ok(Math.abs(counts[0] - counts[1]) <= 1, 'lines dropped evenly: ' + counts);
-  r.items.forEach(i => (i.ys || [i.y + i.h]).forEach(y => assert.ok(y <= 800, i.kind + ' at ' + y)));
-  const tight = Q.layout({ pageW: 600, pageH: 800, top: 40, stemH: 120, figRatio: 1.5, parts: [{ h: 20, lines: 14 }] });
-  assert.equal(tight.trimmed, 0);
-  assert.equal(tight.lineGap, Q.LINE_GAP_MIN, 'tighter lines before any are dropped');
-});
-
-test('a stem with its own lines, and a question with no figure', () => {
-  const r = Q.layout({ pageW: 500, pageH: 700, top: 50, stemH: 30, figRatio: 0, stemLines: 3, parts: [] });
-  assert.deepEqual(plain(r.items.map(i => i.kind)), ['stem', 'lines']);
-  assert.equal(items(r, 'lines')[0].i, -1);
-  assert.equal(items(r, 'lines')[0].ys.length, 3);
-});
-
-test('a working line is an ordinary line annotation: light, thin, level', () => {
-  assert.deepEqual(plain(Q.lineAnn(40, 100.123, 520)), { type: 'line', x1: 40, y1: 100.12, x2: 560, y2: 100.12, color: Q.LINE_COLOR, width: Q.LINE_WIDTH });
-});
-
-/* ---------------- an AI's reply ---------------- */
 test('the app is taken out of an AI’s reply, fences and prose and all', () => {
   const app = '<!doctype html>\n<html><body><p>x</p></body></html>';
   assert.equal(Q.extractHtml('Sure! Here it is:\n```html\n' + app + '\n```\nEnjoy.'), app + '\n');
@@ -358,18 +414,18 @@ test('a living question’s pieces are the worksheet: practice and the questions
   assert.match(HTML, /askedHere\.length\) lines\.push\('These questions are also on this page/);
 });
 
-test('the question goes on as ordinary annotations, never a new type, in one undo step', () => {
+test('the question goes on as ONE ordinary living app picture, never a new type, in one undo step', () => {
   const add = section('async function lappAddQuestion(cover, app, opts) {', '\n}\n');
   assert.equal((add.match(/pushUndo\(\);/g) || []).length, 1);
   assert.match(add, /type: 'ainote', kind: 'paste',[\s\S]{0,300}lapp: app, lq: qid/);
-  assert.match(add, /type: 'text'/);
-  assert.match(add, /LQ\.lineAnn\(it\.x, y, it\.w\)/);
-  assert.ok(!/type: 'question'|kind: 'question'|kind: 'lq'/.test(add));
-  // The model answers are the teacher's: no lq, no group.
-  const ans = add.slice(add.indexOf('// ✍ The model answer'), add.indexOf('// A figure-less question'));
+  assert.match(add, /lappSetCorner\(appAnn, pic\.corner\);/, 'the tiny wand’s corner, where the QR code goes on paper');
+  assert.ok(!/type: 'line'|lineAnn|type: 'question'|kind: 'question'|kind: 'lq'/.test(add), 'no loose lines or boxes: the bank’s format, painted');
+  // The model answers are the teacher's: no lq, no group, on the painted lines.
+  const ans = add.slice(add.indexOf('// ✍ The model answers'), add.indexOf('selectedId = appAnn.id;'));
   assert.match(ans, /color: LQ\.ANSWER_COLOR/);
+  assert.match(ans, /pic\.tags/);
   assert.ok(!/lq:|grp:/.test(ans), 'an answer is not part of the question');
-  assert.match(add, /if \(!wheelTeacher\(\) \|\| practiceMode \|\| !pdfDoc \|\| pages\.indexOf\(page\) === -1\) return 0;/, 'asked again after drawing the figure');
+  assert.match(add, /if \(!wheelTeacher\(\) \|\| practiceMode \|\| !pdfDoc \|\| pages\.indexOf\(page\) === -1\) return 0;/, 'asked again after painting');
 });
 
 test('a window over the library or the adder takes its own Escape', () => {
@@ -525,15 +581,21 @@ test('📝 the harvest bridge: inside the sandbox, after the wand, before the au
   assert.match(h, /if \(f\.parentNode\) f\.parentNode\.removeChild\(f\);/, 'always taken down');
 });
 
-test('📝 the glue reads the app before it falls back to the cover', () => {
-  const qf = section('async function lappQuestionFor(app, cover, say) {', '\n}\n');
+test('📝 the glue reads the app before it falls back to the cover, for a question and for a plain app', () => {
+  const qf = section('async function lappPictureFor(app, cover, asQuestion, say) {', '\n}\n');
   assert.match(qf, /LQ\.needsHarvest\(spec\)[\s\S]{0,200}window\.LivingApps\.harvest\(app\.html\)/);
   assert.match(qf, /spec = LQ\.mergeHarvest\(spec, app, raw\);/);
-  assert.match(qf, /paintFigureCover\(spec\.figure\)[\s\S]*paintGraphicsCover\(spec\.graphics\)/, 'a block’s figure first, then what the app draws');
-  assert.match(qf, /var pic = cover, drew = 'cover';/, 'the cover only when nothing else could be drawn');
+  assert.match(qf, /asQuestion \? await window\.LivingQuestion\.paintQuestionPicture\(spec\) : await window\.LivingQuestion\.paintAppPicture\(app, spec\)/);
+  assert.match(qf, /pic: painted \? pic : cover/, 'the plain cover only when nothing could be painted');
   const add = section('async function lappAddQuestion(cover, app, opts) {', '\n}\n');
-  assert.match(add, /var got = await lappQuestionFor\(app, cover, true\);/);
-  assert.ok(add.indexOf('lappQuestionFor') < add.indexOf('if (!wheelTeacher() || practiceMode || !pdfDoc || pages.indexOf(page) === -1) return 0;'), 'asked again after the app was read');
+  assert.match(add, /var got = await lappPictureFor\(app, cover, true, true\);/);
+  assert.ok(add.indexOf('lappPictureFor') < add.indexOf('if (!wheelTeacher() || practiceMode || !pdfDoc || pages.indexOf(page) === -1) return 0;'), 'asked again after the app was read');
+  const page = section('function lappAddToPage(cover, app) {', '\n}\n');
+  assert.match(page, /lappSetCorner\(a, cover\.corner\);/);
+  assert.match(page, /lappRepaintLater\(a\.id, app, cover, false\);/, '➕ Add to page swaps in what the app draws');
+  const later = section('function lappRepaintLater(id, app, cover, asQuestion) {', '\n}\n');
+  assert.match(later, /if \(!cur \|\| cur\.lapp !== app \|\| !wheelTeacher\(\) \|\| practiceMode\) return;/, 'a late picture never lands on another app or another person’s page');
   const upd = section('function lappUpdateOnPage(id, cover, app) {', '\n}\n');
-  assert.match(upd, /lappQuestionFor\(app, cover, false\)/, 'a changed app repaints what it draws');
+  assert.match(upd, /lappRepaintLater\(a\.id, app, cover, annLivingQuestion\(a\)\);/, 'a changed app repaints what it draws');
+  assert.match(HTML, /window\.QuestionBank\.pure\.qrMatrix, window\.QuestionBank\.pure\.qrRuns, a\.lqr\);/, 'the corner reaches the PDF');
 });

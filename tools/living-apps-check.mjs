@@ -143,13 +143,18 @@ ok('the preview runs it in a scripts-only sandbox with its CSP', prevFrame && pr
 await shot('adder');
 await page.click('.laAdder [data-la="add"]');
 await page.waitForFunction(() => annotations.some(annLivingApp), null, { timeout: 6000 }).catch(() => {});
+const plainCard = await page.evaluate(() => { const a = annotations.find(annLivingApp); return a ? { src: a.src.slice(0, 22), lqr: a.lqr } : null; });
+ok('🪄 it lands at once as its title with the tiny wand in the top-right corner — no "Tap to bring it alive" panel',
+  plainCard && plainCard.src === 'data:image/png;base64,' && plainCard.lqr && plainCard.lqr.x > 0.85 && plainCard.lqr.y < 0.2 && plainCard.lqr.s < 0.12, JSON.stringify(plainCard));
+// …then the page swaps in what the app draws, painted like a bank question.
+await page.waitForFunction(() => { const a = annotations.find(annLivingApp); return a && /^data:image\/jpeg/.test(a.src); }, null, { timeout: 12000 }).catch(() => {});
 await page.waitForTimeout(200);
 const added = await page.evaluate(() => {
   const a = annotations.find(annLivingApp);
   const g = a && pages[0].svg.querySelector('g[data-id="' + a.id + '"]');
   const box = g && g.querySelector('.pastePic');
   return a ? {
-    kind: a.kind, src: a.src.slice(0, 23), srcLen: a.src.length, ratio: a.ratio, w: a.w, h: a.h,
+    kind: a.kind, src: a.src.slice(0, 23), srcLen: a.src.length, ratio: a.ratio, w: a.w, h: a.h, lqr: a.lqr,
     inside: a.x >= 0 && a.y >= 0 && a.x + a.w <= 600 && a.y + a.h <= 780,
     title: a.lapp.title, html: a.lapp.html.length, data: box && box.getAttribute('data-lapp'),
     chrome: g.querySelectorAll('.aiNoteHead, .aiNoteBtn, button').length,
@@ -157,8 +162,8 @@ const added = await page.evaluate(() => {
   } : null;
 });
 ok('➕ puts it on the page as a frameless picture carrying the app', added && added.kind === 'paste' && added.data === '1' && added.chrome === 0 && added.html > 500, JSON.stringify(added));
-ok('…its cover is a painted picture in its own shape, on the paper',
-  added && added.src === 'data:image/jpeg;base64,' && added.srcLen > 5000 && Math.abs(added.w / added.h - added.ratio) < 0.02 && added.inside, JSON.stringify(added));
+ok('…then its picture is what the app draws, in its own shape, on the paper, the wand’s corner kept',
+  added && added.src === 'data:image/jpeg;base64,' && added.srcLen > 5000 && Math.abs(added.w / added.h - added.ratio) < 0.02 && added.inside && added.lqr && added.lqr.x > 0.85, JSON.stringify(added));
 ok('…the adder closes, one undo step and a save to come', added && !added.adder && added.dirty === true && added.undo >= 1);
 
 console.log('\n🪄 Bring alive');

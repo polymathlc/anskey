@@ -865,10 +865,10 @@
         ctx.drawImage(img, (indent || 0) + (maxW - w) / 2, y + 5, w, h);
       } });
     }
-    function ruledOp(n, label, indent) {
+    function ruledOp(n, label, indent, tag) {
       var lines = Math.max(1, n | 0);
       var top = label ? 20 : 4;
-      ops.push({ h: top + lines * RULE_GAP + 4, draw: function (ctx, y) {
+      ops.push({ h: top + lines * RULE_GAP + 4, tag: tag || '', rule: { lines: lines, top: top, indent: indent || 0 }, draw: function (ctx, y) {
         if (label) {
           ctx.fillStyle = SOFT; ctx.font = '700 12px ' + FAMILY;
           ctx.fillText(label, (indent || 0), y + 14);
@@ -1069,7 +1069,10 @@
           break;
         case 'plainanswer':
           if (newPart) { labelOp(lab); newPart = false; }
-          ruledOp(3, '', 0);
+          // A block may say how many lines it wants (a living question's
+          // working space, by its marks); the portal's own blocks say
+          // nothing and keep their three.
+          ruledOp(b.lines > 0 ? Math.min(OPEN_LINES_MAX + 4, b.lines | 0) : 3, '', 0, b.tag ? String(b.tag) : '');
           marksOp(n);
           gap(6);
           break;
@@ -1148,42 +1151,66 @@
   /* Paints the question and hands back a picture of it. A picture that
      cannot be read back (a host that sent no CORS header) is painted again
      without its pictures, as a placeholder, rather than failing the add. */
-  function paintQuestion(q) {
+  /* opts (all optional — a bank question passes none and paints exactly as
+     it always has):
+       gutter    CSS px of white added on the RIGHT of the picture, beside
+                 the question (a living question keeps its 🪄 there, and the
+                 printed QR code)
+       decorate  function (ctx, info) called last, in CSS px, with the
+                 canvas untransformed but for the scale: info = { w, h,
+                 contentW, pad, gutter }
+       Resolves { src, ratio, w, h, gutter, tags } — `tags` gives, for every
+       block that carried a `tag`, where its ruled lines landed (CSS px from
+       the picture's top-left): { x, y, w, lines, gap, first }. */
+  function paintQuestion(q, opts) {
     if (typeof document === 'undefined') return Promise.reject(new Error('No document to paint in'));
     var urls = questionImageUrls(q);
     return Promise.all(urls.map(loadImage)).then(function (imgs) {
       var images = {};
       urls.forEach(function (u, i) { if (imgs[i]) images[u] = imgs[i]; });
-      var out = paintWith(q, images);
-      if (!out) out = paintWith(q, {});
+      var out = paintWith(q, images, opts);
+      if (!out) out = paintWith(q, {}, opts);
       if (!out) throw new Error('The question could not be drawn');
       return out;
     });
   }
-  function paintWith(q, images) {
+  function paintWith(q, images, opts) {
+    opts = opts || {};
+    var gutter = Math.max(0, Math.min(240, Number(opts.gutter) || 0));
+    var CW = PIC_W + gutter;
     var scratch = document.createElement('canvas').getContext('2d');
     var ops = buildOps(q, scratch, images);
     var total = PIC_PAD * 2 + ops.reduce(function (s, op) { return s + op.h; }, 0);
     var h = Math.max(60, Math.min(PIC_MAX_H, Math.ceil(total)));
     var cvs = document.createElement('canvas');
-    cvs.width = PIC_W * PIC_SCALE;
+    cvs.width = CW * PIC_SCALE;
     cvs.height = h * PIC_SCALE;
     var ctx = cvs.getContext('2d');
     ctx.scale(PIC_SCALE, PIC_SCALE);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, PIC_W, h);
+    ctx.fillRect(0, 0, CW, h);
     ctx.textBaseline = 'alphabetic';
+    ctx.save();
     ctx.translate(PIC_PAD, 0);
     var y = PIC_PAD;
+    var tags = {};
     ops.forEach(function (op) {
+      if (op.tag && op.rule) {
+        tags[op.tag] = { x: PIC_PAD + op.rule.indent, y: y, w: PIC_W - PIC_PAD * 2 - op.rule.indent,
+          lines: op.rule.lines, gap: RULE_GAP, first: y + op.rule.top + RULE_GAP };
+      }
       if (y > h) return;
       try { op.draw(ctx, y); } catch (e) { /* one bad step costs that step, never the question */ }
       y += op.h;
     });
+    ctx.restore();
+    if (typeof opts.decorate === 'function') {
+      try { opts.decorate(ctx, { w: CW, h: h, contentW: PIC_W, pad: PIC_PAD, gutter: gutter }); } catch (e) { /* the question still stands */ }
+    }
     try {
       var src = cvs.toDataURL('image/jpeg', PIC_QUALITY);
       if (!/^data:image\/jpeg/.test(src)) src = cvs.toDataURL('image/png');
-      return { src: src, ratio: PIC_W / h, w: PIC_W, h: h };
+      return { src: src, ratio: CW / h, w: CW, h: h, gutter: gutter, tags: tags };
     } catch (e) {
       return null;   // tainted by a picture with no CORS header
     }
