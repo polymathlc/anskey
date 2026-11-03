@@ -4052,6 +4052,8 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="command-search.css">
 <!-- ⏺ The "Not recording" warning while the teacher writes (record-nudge.js). -->
 <link rel="stylesheet" href="record-nudge.css">
+<!-- 🔳 Read QR: drag over a QR code, open it in a window here (qr-reader.js). -->
+<link rel="stylesheet" href="qr-reader.css">
 <link rel="stylesheet" href="hero-skill-tree.css">
 <link rel="stylesheet" href="battle-adventure.css">
 <link rel="stylesheet" href="quest-panel.css">
@@ -4139,6 +4141,10 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <button class="btn" id="snipBtn" data-key="Shift+A" title="Snip and pin — drag over part of the page and it stays pinned on screen while you move on, so the class can keep copying it">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M12 8.5v5"/><path d="M9.5 11.5l2.5 2.5 2.5-2.5"/><line x1="9" y1="16.5" x2="15" y2="16.5"/></svg>
       <span class="btnLabel">Snip &amp; pin</span>
+    </button>
+    <button class="btn" id="qrReadBtn" data-key="Shift+Q" title="Read QR — drag a box round a QR code and what it points to opens in a window here, which you can move and resize">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5.6" y="5.6" width="1.8" height="1.8" fill="currentColor" stroke="none"/><rect x="16.6" y="5.6" width="1.8" height="1.8" fill="currentColor" stroke="none"/><rect x="5.6" y="16.6" width="1.8" height="1.8" fill="currentColor" stroke="none"/><path d="M14 14h3v3"/><path d="M21 14v.01"/><path d="M14 21h.01"/><path d="M17.5 21H21v-3.5"/><path d="M17.5 17.5h.01"/></svg>
+      <span class="btnLabel">Read QR</span>
     </button>
   </div>
   <div class="tSep"></div>
@@ -6002,7 +6008,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.176.0';
+var APP_VERSION = 'v1.177.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -31261,6 +31267,7 @@ function applyRoleUI() {
   if (typeof snipRoleChanged === 'function') snipRoleChanged();   // a pinned answer is the teacher's alone
   if (window.ConsultAlert) ConsultAlert.roleChanged();   // 🙋 a student asking for help is shown to the teacher alone
   if (typeof recNudgeChanged === 'function') recNudgeChanged();   // ⏺ the warning is the teacher's alone
+  if (typeof qrReadRoleChanged === 'function') qrReadRoleChanged();   // 🔳 a QR window belongs to the person who opened it
   var student = isStudent();
   var hideTools = student && !practiceMode; // practising students get drawing tools
   document.body.classList.toggle('studentMode', hideTools);
@@ -33203,6 +33210,75 @@ function recNudgeRecord() {
   }).catch(function () {});
 }
 /* ================= End writing without recording glue ================= */
+
+/* ================= 🔳 Read QR — glue (the feature itself is qr-reader.js) =================
+   🔳 Read QR (Shift+Q) puts a drag layer over the screen; a box dragged round
+   a QR code is read and what it points to opens in a window inside the app,
+   moved by its bar and resized from any edge (qr-reader.js owns all of it).
+   This glue only tells the module what the app knows:
+
+   - paintWorksheet   the SAME painter 📸 Snip & pin uses (snipPaintRegion):
+                      the page plus every annotation on it, sharper than the
+                      screen, so a small printed code still reads
+   - isWorksheetNode  the worksheet's own canvases and overlays are skipped
+                      when the module draws the other pictures on screen
+   - identity         who is using the app; a different person closes every
+                      window (qrReadRoleChanged, from applyRoleUI)
+
+   It is for EVERYONE — a student or a share-link visitor reading a code on
+   their own worksheet is exactly what it is for — so the button is not in
+   TEACHER_TOOLBAR_IDS. Nothing read is stored or sent anywhere. */
+var qrRead = null;
+
+function qrReadIdentity() {
+  var uid = currentUser && currentUser.uid || '';
+  var acting = typeof actingStudent !== 'undefined' && actingStudent ? (actingStudent.id || actingStudent.name || 'acting') : '';
+  var shared = typeof isSharedVisitor === 'function' && isSharedVisitor() ? 'share' : '';
+  return [uid, acting, shared].join('|');
+}
+
+async function qrReadPaintWorksheet(rect, k, ctx) {
+  if (typeof snipPaintRegion !== 'function') return false;
+  return !!(await snipPaintRegion(rect, k, ctx));
+}
+
+function qrReadIsWorksheetNode(n) {
+  var host = $('pagesContainer');
+  return !!(host && n && host.contains(n));
+}
+
+function qrReadInit() {
+  if (!window.QrReader || qrRead) return;
+  qrRead = QrReader.create({
+    identity: qrReadIdentity,
+    button: function () { return $('qrReadBtn'); },
+    scroller: function () { return $('viewerArea'); },
+    paintWorksheet: qrReadPaintWorksheet,
+    isWorksheetNode: qrReadIsWorksheetNode,
+    isLivingLink: function (url) { return /\/living\.html(?:[?#]|$)/.test(url); },
+    beforeStart: function () {
+      if (typeof editingId !== 'undefined' && editingId && typeof commitActiveTextEdit === 'function') commitActiveTextEdit();
+      if (typeof closeToolbarMenus === 'function') closeToolbarMenus(false);
+      if (typeof snipLayerOn !== 'undefined' && snipLayerOn && typeof snipCancel === 'function') snipCancel();
+    },
+    onBlockedPopup: function () { toast('The browser blocked the new tab — allow pop-ups for this site, or copy the link'); },
+    toast: function (m) { if (typeof toast === 'function') toast(m); }
+  });
+  var b = $('qrReadBtn');
+  if (b) b.addEventListener('click', function () { qrReadStart(); });
+}
+
+function qrReadStart() {
+  if (!qrRead) qrReadInit();
+  if (!qrRead) { toast('The QR reader did not load — reload the page and try again'); return false; }
+  return qrRead.start();
+}
+
+function qrReadRoleChanged() {
+  if (!qrRead) return;
+  try { qrRead.roleChanged(); } catch (e) {}
+}
+/* ================= End Read QR glue ================= */
 
 /* ================= End live cams glue ================= */
 
@@ -40020,6 +40096,12 @@ document.addEventListener('keydown', function (e) {
     if (snipTeacher()) snipStart();
     return;
   }
+  // Shift+Q reads a QR code — plain Q is free for a tool; this is for everyone.
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'q') {
+    e.preventDefault();
+    if (typeof qrReadStart === 'function') qrReadStart();
+    return;
+  }
   // An unfinished Pen-select path owns Enter, Esc, Backspace / Delete and undo
   // until it is closed or cancelled — for whoever is holding the tool.
   if (typeof penSelectKey === 'function' && penSelectKey(e)) return;
@@ -40234,6 +40316,36 @@ function snipDrawBox() {
   b.style.left = (r.x - lr.left) + 'px'; b.style.top = (r.y - lr.top) + 'px';
   b.style.width = r.w + 'px'; b.style.height = r.h + 'px';
 }
+/* Paint the worksheet under a screen rectangle onto `ctx` at `k` output
+   pixels per screen pixel. Shared by 📸 Snip & pin and 🔳 Read QR, so the two
+   can never disagree about what is under a box. Returns the first page it
+   painted, or null when the box is over no page at all. */
+async function snipPaintRegion(rect, k, ctx) {
+  var parts = [];
+  if (!Array.isArray(pages)) return null;
+  pages.forEach(function (p) {
+    var el = p.svg || p.canvas || p.wrap;
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    var part = snipPagePart(rect, { x: r.left, y: r.top, w: r.width, h: r.height }, p.baseW, p.baseH);
+    if (part) parts.push({ p: p, part: part, screenW: r.width });
+  });
+  if (!parts.length) return null;
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].p, part = parts[i].part;
+    var record = { ref: p, num: p.num, baseW: p.baseW, baseH: p.baseH, pdfPage: p.page, fallback: null, background: null };
+    if (!p.page && p.canvas && p.canvas.width && p.canvas.height) record.fallback = p.canvas;
+    // Painted only as sharp as this box needs: output pixels per page unit.
+    var perUnit = k * parts[i].screenW / p.baseW;
+    var painted = await aiViewPaintPage(record, annotations, null, Math.ceil(Math.max(p.baseW, p.baseH) * perUnit));
+    try {
+      var fx = painted.width / p.baseW, fy = painted.height / p.baseH;
+      ctx.drawImage(painted, part.src.x * fx, part.src.y * fy, part.src.w * fx, part.src.h * fy,
+        part.dst.x * k, part.dst.y * k, part.dst.w * k, part.dst.h * k);
+    } finally { painted.width = painted.height = 0; }
+  }
+  return parts[0].p;
+}
 async function snipCapture(rect) {
   var out = null, parts = [];
   pages.forEach(function (p) {
@@ -40250,19 +40362,7 @@ async function snipCapture(rect) {
   out.height = Math.max(1, Math.round(rect.h * k));
   var ctx = out.getContext('2d');
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, out.width, out.height);
-  for (var i = 0; i < parts.length; i++) {
-    var p = parts[i].p, part = parts[i].part;
-    var record = { ref: p, num: p.num, baseW: p.baseW, baseH: p.baseH, pdfPage: p.page, fallback: null, background: null };
-    if (!p.page && p.canvas && p.canvas.width && p.canvas.height) record.fallback = p.canvas;
-    // Painted only as sharp as this snip needs: output pixels per page unit.
-    var perUnit = k * parts[i].screenW / p.baseW;
-    var painted = await aiViewPaintPage(record, annotations, null, Math.ceil(Math.max(p.baseW, p.baseH) * perUnit));
-    try {
-      var fx = painted.width / p.baseW, fy = painted.height / p.baseH;
-      ctx.drawImage(painted, part.src.x * fx, part.src.y * fy, part.src.w * fx, part.src.h * fy,
-        part.dst.x * k, part.dst.y * k, part.dst.w * k, part.dst.h * k);
-    } finally { painted.width = painted.height = 0; }
-  }
+  await snipPaintRegion(rect, k, ctx);
   try { return { src: out.toDataURL('image/jpeg', SNIP_QUALITY), page: parts[0].p.num }; }
   finally { out.width = out.height = 0; }
 }
@@ -40860,6 +40960,8 @@ loadAiNotePrefs();
 <script>cmdSearchInit();</script>
 <script src="record-nudge.js"></script>
 <script>recNudgeInit();</script>
+<script src="qr-reader.js"></script>
+<script>qrReadInit();</script>
 <!-- 📲 The Polymath install kit: registers sw.js (top window only) and drives the header's Install app button. -->
 <script defer src="pwa-install.js?v=2.0.0" data-app-name="Polymath Answer Keys" data-app-key="anskey" data-app-icon="assets/app-icons/icon-192.png" data-accent="#E65100" data-sw="sw.js" data-floating="auto"></script>
 <script type="module">
