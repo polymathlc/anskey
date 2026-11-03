@@ -652,3 +652,124 @@ test('📝 the glue reads the app before it falls back to the cover, for a quest
   assert.match(upd, /lappRepaintLater\(a\.id, app, cover, annLivingQuestion\(a\)\);/, 'a changed app repaints what it draws');
   assert.match(HTML, /window\.QuestionBank\.pure\.qrMatrix, window\.QuestionBank\.pure\.qrRuns, a\.lqr\);/, 'the corner reaches the PDF');
 });
+
+/* 📝 v1.183.0 — the whole question, in reading order. The harvest of a real
+   app ("Alisha's frozen meat") as the bridge returns it: its heading, its
+   wand instructions (which say "model answer"), the opening paragraph, a
+   diagram, (a) on its own line, a lead-in, a second diagram, (b). */
+const ALISHA = {
+  title: 'Thawing and Cooking Meat',
+  blocks: [
+    { kind: 'text', text: 'Alisha’s frozen meat: thawing and cooking', head: 1 },
+    { kind: 'text', text: 'Pick up the magic wand and tap a picture. It comes alive and acts out the model answer, one line per tap. You can write and submit your own answers first, or use the wand straight away.' },
+    { kind: 'text', text: 'Alisha took a slab of frozen meat from the freezer and thawed it on a tray as shown in the diagram below. Thawing is a process by which a frozen substance becomes soft as a result of warming up.' },
+    { kind: 'svg', svg: SVG_DRAWN, w: 810, h: 211 },
+    { kind: 'text', text: '(a)' },
+    { kind: 'text', text: 'Which tray, plastic or metal, should be used so that the slab of frozen meat can be thawed in a shorter time? Explain your answer. [1]' },
+    { kind: 'text', text: 'After the meat was thawed, Alisha cut the slab of meat into four thin slices and cooked them on a hot plate as shown in the diagram below.' },
+    { kind: 'svg', svg: SVG_DRAWN, w: 810, h: 227 },
+    { kind: 'text', text: '(b)' },
+    { kind: 'text', text: 'Would the sliced meat cook faster or slower than the whole slab of meat on the hot plate? Explain your answer. [2]' }
+  ]
+};
+
+test('📝 the opening paragraph is the stem — a "model answer" in the app’s own instructions no longer swallows it', () => {
+  const spec = Q.specFromHarvest({ title: 'Thawing and Cooking Meat' }, ALISHA);
+  assert.match(spec.stem, /^Alisha took a slab of frozen meat/);
+  assert.match(spec.stem, /warming up\.$/);
+  assert.doesNotMatch(spec.stem, /magic wand|frozen meat: thawing/i, 'neither the wand help nor the app’s heading is the question');
+  assert.equal(spec.parts.length, 2);
+  assert.equal(spec.parts[0].label, '(a)');
+  assert.equal(spec.parts[0].marks, 1);
+  assert.doesNotMatch(spec.parts[0].text, /After the meat was thawed/, 'a lead-in is never glued onto the part before it');
+  assert.equal(spec.parts[1].marks, 2);
+});
+
+test('📝 the flow keeps the app’s order: words, picture, (a) and its lines, the lead-in, the next picture, (b) and its lines', () => {
+  const spec = Q.specFromHarvest({ title: 'Thawing and Cooking Meat' }, ALISHA);
+  assert.deepEqual(plain(spec.flow).map(it => it.t + (it.p != null ? it.p : it.g != null ? '#' + it.g : '')),
+    ['text', 'fig#0', 'part0', 'answer0', 'text', 'fig#1', 'part1', 'answer1']);
+  assert.match(spec.flow[4].text, /^After the meat was thawed/);
+  const q = Q.questionBlocks(spec, '', ['data:A', 'data:B']);
+  assert.deepEqual(plain(q.blocks).map(b => b.type + (b.url ? ':' + b.url : '') + (b.part ? ':' + b.part : '') + (b.tag ? ':' + b.tag : '')),
+    ['text', 'image:data:A', 'text:a', 'plainanswer:p0', 'text', 'image:data:B', 'text:b', 'plainanswer:p1']);
+  assert.match(q.blocks[4].content, /After the meat was thawed/);
+});
+
+test('📝 pictures with no words between them stay one picture; a table is its own table', () => {
+  const spec = Q.specFromHarvest({ title: 'Circuits' }, { blocks: [
+    { kind: 'text', text: 'Ali set up two circuits as shown below.' },
+    { kind: 'svg', svg: SVG_DRAWN, w: 300, h: 160 },
+    { kind: 'svg', svg: SVG_DRAWN, w: 300, h: 160 },
+    { kind: 'table', rows: [{ head: true, cells: ['Bulb', 'Lit?'] }, { cells: ['A', 'yes'] }] },
+    { kind: 'text', text: '(a) Which bulb lights up? [1]' }
+  ] });
+  assert.deepEqual(plain(Q.flowGroups(spec)), [[0, 1]]);
+  const q = Q.questionBlocks(spec, '', ['data:AB']);
+  assert.deepEqual(plain(q.blocks).map(b => b.type), ['text', 'image', 'table', 'text', 'plainanswer']);
+});
+
+test('📝 a picture inside an open part keeps the part’s words after it and its working lines under it', () => {
+  const spec = Q.specFromHarvest({ title: 'Graph' }, { blocks: [
+    { kind: 'text', text: 'Mei Ling heated some water.' },
+    { kind: 'text', text: '(a) Look at the graph below.' },
+    { kind: 'svg', svg: SVG_DRAWN, w: 300, h: 160 },
+    { kind: 'text', text: 'What happened to the temperature after 4 minutes? [2]' },
+    { kind: 'text', text: '(b) Why? [1]' }
+  ] });
+  assert.deepEqual(plain(spec.flow).map(it => it.t), ['text', 'part', 'fig', 'text', 'answer', 'part', 'answer']);
+  assert.equal(spec.parts[0].marks, 2);
+  assert.equal(spec.parts[0].text, 'Look at the graph below.');
+});
+
+test('📝 help after a part still closes it, and help before any part is only a line of help', () => {
+  const spec = Q.specFromHarvest({ title: 'Tea' }, { blocks: [
+    { kind: 'text', text: 'Model answer' },
+    { kind: 'text', text: 'Mr Tan pours hot tea into a cup.' },
+    { kind: 'text', text: '(a) Why does the cup get warm? [1]' },
+    { kind: 'text', text: 'Stuck on (a)?' },
+    { kind: 'text', text: 'Think about conduction.' }
+  ] });
+  assert.equal(spec.stem, 'Mr Tan pours hot tea into a cup.');
+  assert.equal(spec.parts.length, 1);
+  assert.doesNotMatch(JSON.stringify(spec.flow), /conduction/);
+});
+
+test('📝 cleanFlow is the one door: unknown items, a part out of range or placed twice, and a flow that loses a part', () => {
+  const spec = { parts: [{ label: '(a)', text: 'x', marks: 1, lines: 2 }], graphics: [{ kind: 'svg', svg: SVG_DRAWN }],
+    flow: [{ t: 'text', text: 'Hi' }, { t: 'html', text: '<b>' }, { t: 'fig', g: 7 }, { t: 'fig', g: 0 }, { t: 'part', p: 0 }, { t: 'part', p: 0 }, { t: 'part', p: 3 }, { t: 'answer', p: 0 }] };
+  assert.deepEqual(plain(Q.cleanFlow(spec)), [{ t: 'text', text: 'Hi' }, { t: 'fig', g: 0 }, { t: 'part', p: 0 }, { t: 'answer', p: 0 }]);
+  assert.equal(Q.cleanFlow({ parts: [{ label: '(a)' }, { label: '(b)' }], flow: [{ t: 'part', p: 0 }] }), null, 'a flow that drops a part is not trusted');
+  assert.equal(Q.cleanFlow({ parts: [] }), null);
+  // No flow (an app with a question block): the old layout, exactly.
+  const old = Q.questionBlocks({ stem: 'S', parts: [{ label: '(a)', text: 'x', marks: 1, lines: 2 }] }, 'data:F');
+  assert.deepEqual(plain(old.blocks).map(b => b.type), ['text', 'image', 'text', 'plainanswer']);
+});
+
+test('📝 a question with no parts: its words, its pictures in place, then the room to write, with the marks on its last words', () => {
+  const spec = Q.specFromHarvest({ title: 'Pulley' }, { blocks: [
+    { kind: 'text', text: 'A pulley lifts a 40 kg load.' },
+    { kind: 'svg', svg: SVG_DRAWN, w: 300, h: 160 },
+    { kind: 'text', text: 'How much force is needed? [3]' }
+  ] });
+  assert.deepEqual(plain(spec.flow).map(it => it.t), ['text', 'fig', 'text', 'lines']);
+  const q = Q.questionBlocks(spec, '', ['data:P']);
+  assert.deepEqual(plain(q.blocks).map(b => b.type), ['text', 'image', 'text', 'plainanswer']);
+  assert.equal(q.blocks[2].marks, 3);
+  assert.doesNotMatch(q.blocks[2].content, /\[3\]/);
+});
+
+test('📝 a long line about the wand is the app’s help; a long question that says “tap” is not', () => {
+  assert.equal(Q.isChromeLine('Pick up the magic wand and tap a picture. It comes alive and acts out the model answer, one line per tap. You can write and submit your own answers first, or use the wand straight away.'), true);
+  assert.equal(Q.isChromeLine('Tap the button'), true);
+  assert.equal(Q.isChromeLine('Siti used a tap to fill a tank with water. She noticed that when she opened the tap fully the water level rose faster. Use the diagram to explain how the rate of flow changes the time it takes to fill the tank completely.'), false);
+});
+
+test('🏷 the bridge marks headings, so the app’s own title never becomes the question', () => {
+  assert.match(LA.HARVEST_BRIDGE, /\/\^H\(\[1-6\]\)\$\/\.exec\(tag\)/);
+  assert.match(LA.HARVEST_BRIDGE, /if \(head\) b\.head = head;/);
+  assert.match(LA.HARVEST_BRIDGE, /head = wasHead;/);
+  const kept = Q.cleanHarvest({ blocks: [{ kind: 'text', text: 'Title', head: 1 }, { kind: 'text', text: 'Words', head: 'x' }] });
+  assert.equal(kept.blocks[0].head, 1);
+  assert.equal(kept.blocks[1].head, undefined);
+});

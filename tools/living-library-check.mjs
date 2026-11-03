@@ -570,6 +570,40 @@ await shot('question-read-off-app');
 await page.evaluate(() => { annotations.splice(0, annotations.length, ...window.__keptAnns); renderAllOverlays(); });
 ok('…and the page’s other work is back as it was', await page.evaluate((n) => annotations.length === n, nRich));
 
+// 📝 v1.183.0 — the question's story, in the order the app tells it: the
+// opening paragraph before the first diagram (an app's wand instructions
+// that say "model answer" must not swallow it), (a), the lead-in, the
+// second diagram, (b). Built the way Zhi Kai's "Alisha's frozen meat" is.
+const APP_STORY = '<!doctype html><html><head><title>Thawing and Cooking Meat</title><style>.m{fill:#E01B24}.p{fill:#1C71D8}</style></head><body>' +
+  '<h1 class="worksheet-title">Alisha’s frozen meat: thawing and cooking</h1>' +
+  '<p class="lede">Pick up the magic wand and tap a picture. It comes alive and acts out the model answer, one line per tap. You can write and submit your own answers first, or use the wand straight away.</p>' +
+  '<article><p>Alisha took a slab of frozen meat from the freezer and thawed it on a tray as shown in the diagram below. Thawing is a process by which a frozen substance becomes soft as a result of warming up.</p>' +
+  '<div class="figure-stage"><svg viewBox="0 0 300 120" width="300" height="120"><rect class="m" x="20" y="20" width="160" height="80"/></svg></div>' +
+  '<div class="part"><span class="part-label">(a)</span><p>Which tray, plastic or metal, should be used so that the slab of frozen meat can be thawed in a shorter time? Explain your answer. [1]</p></div>' +
+  '<button class="btn-wand" data-polymath-wand>🪄</button></article>' +
+  '<article><p>After the meat was thawed, Alisha cut the slab of meat into four thin slices and cooked them on a hot plate as shown in the diagram below.</p>' +
+  '<div class="figure-stage"><svg viewBox="0 0 300 120" width="300" height="120"><rect class="p" x="20" y="20" width="200" height="60"/></svg></div>' +
+  '<div class="part"><span class="part-label">(b)</span><p>Would the sliced meat cook faster or slower than the whole slab of meat on the hot plate? Explain your answer. [2]</p></div></article>' +
+  '</body></html>';
+const story = await page.evaluate(async (html) => {
+  window.__keptAnns = annotations.splice(0);
+  renderAllOverlays();
+  document.querySelector('.pageWrap').scrollIntoView();
+  const app = LivingApps.pure.normalizeApp({ html }).app;
+  const cover = { src: 'data:image/png;base64,iVBORw0KGgo=', ratio: 2.3 };
+  await lappAddQuestion(cover, app, {});
+  const q = window.__qLast();
+  const out = { texts: window.__qText(q), kinds: window.__qKinds(q), lines: window.__qLines(q) };
+  annotations.splice(0, annotations.length, ...window.__keptAnns);
+  renderAllOverlays();
+  return out;
+}, APP_STORY);
+ok('📝 the opening paragraph comes first, before the first diagram — not the app’s heading or its wand help',
+  /^Alisha took a slab of frozen meat/.test(story.texts[0] || '') && !story.texts.join('\n').includes('magic wand') && !story.texts.join('\n').includes('thawing and cooking'), JSON.stringify(story.texts));
+ok('…then (a), its lines, the lead-in, the second diagram, (b) and its lines — in the app’s own order',
+  story.kinds.join() === 'text,image,text,plainanswer,text,image,text,plainanswer' && /^After the meat was thawed/.test(story.texts[2] || '') && /^\(a\)/.test(story.texts[1] || '') && /^\(b\)/.test(story.texts[3] || '') && story.lines.join() === '2,4',
+  JSON.stringify(story));
+
 console.log('\n📋 The AI prompt');
 await page.evaluate(() => $('livingLibBtn').click());
 await page.waitForSelector('.llBack.in .llPromptBtn', { timeout: 3000 }).catch(() => {});

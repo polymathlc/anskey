@@ -4,6 +4,15 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.184.0 — 📝 A living question keeps its opening paragraph and every lead-in, in order
+
+- **"As a question" now puts the whole question on the paper, in the app's own order.** The opening paragraph comes first ("Alisha took a slab of frozen meat…"), then the first diagram, then (a) and its working lines, then the lead-in ("After the meat was thawed…"), then the second diagram, then (b).
+- The opening paragraph had been dropped whenever the app's own wand instructions mentioned a "model answer". That line closed the question before (a) began. A help line before any part is now just a line of help.
+- A lead-in after a finished part is no longer glued onto that part. A part is finished once its marks are read, such as "[1]".
+- Each diagram now sits where the app shows it, instead of all diagrams being squeezed into one picture under the stem. Pictures with no words between them still sit side by side.
+- The app's own heading is never the question: the bridge marks headings, and the leading ones are left out.
+- Questions already on a page keep their old layout until they are added again.
+
 ## v1.183.0 — ⏺ "Not recording" keeps reminding until you record
 
 - **It never goes away by itself any more.** Write one stroke or type in a text box on the worksheet
