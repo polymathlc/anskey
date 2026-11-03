@@ -275,7 +275,7 @@ test('a tap opens the question for a student, but a pen in a writer’s hand sti
 });
 
 test('the questions print keeps the bank questions, practice keeps them locked, and the QR code is opt-in', () => {
-  assert.match(html, /(?:anns|printAnns)\s*[:=] answers \? answerAnnotations\(\) : answerAnnotations\(\)\.filter\(function \(a\) \{ return annBankQ\(a\) \|\| annLivingApp\(a\); \}\)[,;][\s\S]{0,120}qr: printQrUrl\(\)/);
+  assert.match(html, /(?:anns|printAnns)\s*[:=] answers \? answerAnnotations\(\) : answerAnnotations\(\)\.filter\(function \(a\) \{ return annBankQ\(a\) \|\| annLivingApp\(a\) \|\| annLivingQuestion\(a\); \}\)[,;][\s\S]{0,120}qr: printQrUrl\(\)/);
   assert.match(html, /buildAnnotatedPdf\(false, \{ qr: printQrUrl\(\)(?:, lappQr: await lappQrLinks\(annotations\))? \}\)/);
   assert.match(html, /if \(opts\.qr && window\.QuestionBank && outDoc\.getPageCount\(\)\)/);
   assert.match(html, /annotations = bankQPracticeCopies\(teacherAnswers\)(?:\.concat\(lappPracticeCopies\(teacherAnswers\)\))?;/);

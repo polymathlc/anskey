@@ -323,3 +323,20 @@
   color: #3b2a00;
   font-weight: 700;
 }
+
+/* ---- ☁ library first, 📝 as a question, 📋 the AI prompt (v1.179.0) ---- */
+.laGhost { background: transparent; }
+.laPromptRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.laPromptNote { font-size: 12.5px; color: #55585a; line-height: 1.5; }
+.laFootLeft { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 360px; }
+.laAsQ {
+  display: inline-flex; align-items: flex-start; gap: 8px;
+  font-size: 13.5px; font-weight: 600; line-height: 1.45; cursor: pointer;
+}
+.laAsQ input { margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--la-blue); flex: none; }
+.laAsQSub { font-weight: 400; color: #3f4244; padding-left: 24px; }
+.laAsQ[hidden] { display: none; }
+@media (max-width: 640px) {
+  .laFootBtns { width: 100%; flex-wrap: wrap; }
+  .laFootBtns .laBtn { flex: 1 1 auto; }
+}

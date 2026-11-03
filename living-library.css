@@ -306,3 +306,15 @@
 @media (prefers-reduced-motion: reduce) {
   .llBack, .llCard, .llRow { transition: none; }
 }
+
+/* ---- ☁ the library is where an app lives (v1.179.0) ---- */
+.llHeadActs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.llWhere { min-width: 0; }
+.llAdd { border-color: rgba(31, 111, 178, 0.35); color: var(--ll-blue); font-weight: 600; }
+.llAdd:hover:not(:disabled) { background: rgba(31, 111, 178, 0.08); }
+.llAsQ { color: #7A4B00; border-color: rgba(242, 183, 5, 0.6); background: rgba(255, 210, 90, 0.14); }
+.llAsQ:hover:not(:disabled) { background: rgba(255, 210, 90, 0.3); }
+.llLoose { background: rgba(255, 210, 90, 0.2); color: #6B4A00; }
+.llQ { background: rgba(31, 111, 178, 0.08); color: #1F4E79; }
+.llNew { background: var(--ll-gold); border-color: var(--ll-gold); color: #3A2A00; font-weight: 650; }
+.llNew:hover:not(:disabled) { background: #E0A800; }

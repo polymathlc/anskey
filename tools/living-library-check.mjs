@@ -284,7 +284,239 @@ await page.click('.llRow .llDanger');
 await page.waitForFunction(() => document.querySelectorAll('.llRow').length === 1, null, { timeout: 2000 }).catch(() => {});
 ok('…and Forget removes it from the library', await page.evaluate(h => window.__ll.deletes.includes('users/teacher-1/livingApps/' + h) && document.querySelectorAll('.llRow').length === 1, firstHash));
 
+console.log('\n☁ Library first (v1.179.0)');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(250);
+// The hosted copies are served from the fake Storage, the way the bucket's
+// CORS-open download link serves them in class.
+await page.evaluate(() => {
+  const realFetch = window.fetch;
+  window.__ll.fetched = [];
+  window.fetch = async (url, opt) => {
+    const u = String(url);
+    if (u.startsWith('https://firebasestorage.googleapis.com/')) {
+      window.__ll.fetched.push(u);
+      const m = /\/o\/([^?]+)\?alt=media&token=([^&]+)/.exec(u);
+      const pth = m && decodeURIComponent(m[1]);
+      const obj = pth && window.__ll.objects[pth];
+      if (!obj || obj.token !== decodeURIComponent(m[2])) return new Response('gone', { status: 404 });
+      return new Response(obj.body, { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return realFetch(url, opt);
+  };
+});
+const FIGURE = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 200'><rect x='20' y='40' width='160' height='90' rx='12' fill='none' stroke='#222' stroke-width='3'/><circle cx='300' cy='90' r='50' fill='none' stroke='#222' stroke-width='3'/><text x='40' y='170' font-size='18'>Tank A</text></svg>";
+const QUESTION = {
+  title: 'Ballast tanks', stem: 'The diagram below shows a submarine and its ballast tank.', figure: FIGURE,
+  parts: [
+    { label: '(a)', text: 'What fills the tank when the submarine dives?', marks: 1, lines: 2, answer: 'Sea water.' },
+    { label: '(b)', text: 'Explain why the submarine rises when air is pumped in.', marks: 2, lines: 4, answer: 'The air pushes the water out, so it weighs less than the water it displaces.' }
+  ]
+};
+const APP_Q = '<!doctype html><html><head><title>Ballast Tank Lab</title></head><body><div id="stage" class="wand-target">sub</div>' +
+  '<button class="btn-wand" data-polymath-wand data-wand-target="#stage">🪄</button>' +
+  '<script type="application/json" id="polymath-question">' + JSON.stringify(QUESTION) + '</script>' +
+  '<script>window.polymathWand = function () {};</script></body></html>';
+const REPLY = 'Here is your living app!\n\n```html\n' + APP_Q + '\n```\n\nPaste it into Ans Key.';
+await page.evaluate(() => { annotations = []; undoStack = []; renderAllOverlays(); $('livingAppBtn').click(); });
+await page.waitForSelector('.laAdder', { timeout: 3000 }).catch(() => {});
+await page.evaluate((reply) => {
+  const ta = document.querySelector('.laAdder .laPaste');
+  ta.value = reply;
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+}, REPLY);
+await page.waitForFunction(() => !document.querySelector('.laAdder [data-la="add"]').disabled, null, { timeout: 3000 }).catch(() => {});
+const adder = await page.evaluate(() => ({
+  info: document.querySelector('.laInfo').textContent,
+  title: document.querySelector('.laAdder .laTitle').value,
+  asq: !!document.querySelector('.laAdder [data-la="asq"]')?.checked,
+  answersRow: !document.querySelector('.laAdder [data-la="answersRow"]')?.hidden,
+  add: document.querySelector('.laAdder [data-la="add"]').textContent,
+  lib: !!document.querySelector('.laAdder [data-la="lib"]'),
+  prompt: !!document.querySelector('.laAdder [data-la="prompt"]')
+}));
+ok('an AI’s whole reply is pasted and the app is taken out of it', /taken out of the pasted reply/.test(adder.info) && adder.title === 'Ballast Tank Lab', JSON.stringify(adder));
+ok('…its question is read: 2 parts, 6 working lines, 3 marks and a diagram', /📝 a question: 2 parts · 6 working lines · 3 marks · a diagram/.test(adder.info), adder.info);
+ok('…so 📝 As a question is ticked, with the model answers offered', adder.asq && adder.answersRow && /Save and add the question/.test(adder.add), JSON.stringify(adder));
+ok('…beside ☁ Library only and 📋 AI prompt', adder.lib && adder.prompt);
+await page.check('.laAdder [data-la="answers"]');
+await shot('adder-question');
+const putsBefore = await page.evaluate(() => window.__ll.puts());
+await page.click('.laAdder [data-la="add"]');
+await page.waitForFunction(() => !document.querySelector('.laAdder') && annotations.some(annLivingApp), null, { timeout: 8000 }).catch(() => {});
+await page.waitForTimeout(250);
+const q1 = await page.evaluate(() => {
+  const app = annotations.find(annLivingApp);
+  const lq = annotations.filter(annLivingQuestion);
+  const texts = lq.filter(a => a.type === 'text');
+  const lines = lq.filter(a => a.type === 'line');
+  const answers = annotations.filter(a => a.type === 'text' && !annLivingQuestion(a));
+  const path = 'users/teacher-1/livingApps/' + (app && app.lapp.hash);
+  const entry = window.__ll.docs[path];
+  const inside = annotations.every(a => a.type === 'line'
+    ? a.x1 >= 0 && a.x2 <= 600 && a.y1 >= 0 && a.y1 <= 780
+    : a.x >= 0 && a.y >= 0 && a.x + a.w <= 600 && a.y + (a.h || 0) <= 780);
+  const groups = {};
+  lq.forEach(a => { if (a.grp) groups[a.grp] = (groups[a.grp] || 0) + 1; });
+  const ordered = texts.slice().sort((a, b) => a.y - b.y).map(t => t.text);
+  return {
+    app: app && { lq: app.lq, src: app.src.slice(0, 21), ratio: app.ratio, pub: !!app.lapp.pub, y: app.y, h: app.h },
+    texts: ordered, lines: lines.length, lineXs: lines.every(l => l.y1 === l.y2 && l.x2 - l.x1 > 400 && l.color === LivingQuestion.pure.LINE_COLOR),
+    answers: answers.map(a => a.text), answerColor: answers.every(a => a.color === LivingQuestion.pure.ANSWER_COLOR),
+    groups: Object.values(groups), sameQ: new Set(lq.map(a => a.lq)).size === 1 && lq.length > 0 && app && app.lq === lq[0].lq,
+    entry, inside, undo: undoStack.length, puts: window.__ll.puts(), sel: selectedId === (app && app.id)
+  };
+});
+ok('☁ the app goes into the cloud library first — hosted once, filed with inLibrary', q1.entry && q1.entry.inLibrary === true && q1.puts === putsBefore + 1 && q1.app && q1.app.pub, JSON.stringify(q1.entry));
+ok('…with what its question holds, and never its HTML', q1.entry && q1.entry.question && q1.entry.question.parts === 2 && q1.entry.question.lines === 6 && q1.entry.question.figure === true &&
+  !JSON.stringify(q1.entry).includes('polymath-question'), JSON.stringify(q1.entry && q1.entry.question));
+ok('📝 the question’s words go on the page in text boxes, in order, with their marks', q1.texts.length === 3 && /^The diagram below/.test(q1.texts[0]) && q1.texts[1] === '(a) What fills the tank when the submarine dives?  [1]' && /^\(b\) Explain .*\[2\]$/.test(q1.texts[2]), JSON.stringify(q1.texts));
+ok('…its diagram is the picture that carries the app (a PNG, in the figure’s shape plus the wand strip)', q1.app && q1.app.lq && q1.app.src === 'data:image/png;base64' && q1.app.ratio > 2 && q1.app.ratio < 3.2, JSON.stringify(q1.app));
+ok('…six ruled working lines, light grey, margin to margin', q1.lines === 6 && q1.lineXs, JSON.stringify(q1));
+ok('…each part and its lines are one group (3 and 5 pieces)', q1.groups.sort().join(',') === '3,5', JSON.stringify(q1.groups));
+ok('…the model answers sit in the working space as the teacher’s own (no lq)', q1.answers.length === 2 && q1.answerColor && q1.answers[0] === 'Sea water.', JSON.stringify(q1.answers));
+ok('…all of it inside the page, as one undo step, with the app selected', q1.inside && q1.undo === 1 && q1.sel && q1.sameQ, JSON.stringify({ inside: q1.inside, undo: q1.undo, sel: q1.sel }));
+await shot('question-on-page');
+const undone = await page.evaluate(() => { undo(); return annotations.length; });
+ok('one ↶ takes the whole question back off', undone === 0);
+await page.evaluate(() => redo());
+
+const practiceQ = await page.evaluate(() => {
+  startPractice();
+  const kept = annotations.map(a => ({ t: a.type, lq: !!a.lq, locked: !!a.locked, app: annLivingApp(a) }));
+  endPractice();
+  return kept;
+});
+ok('practice keeps the question’s words, lines and app as locked copies — and hides the model answers', practiceQ.length === 10 && practiceQ.every(a => a.locked && a.lq) && practiceQ.filter(a => a.app).length === 1, JSON.stringify(practiceQ));
+ok('the questions print keeps them too', await page.evaluate(() => annotations.filter(a => annBankQ(a) || annLivingApp(a) || annLivingQuestion(a)).length === 10));
+
+console.log('\n☁ Library only, then from the library onto a worksheet');
+const APP_LOOSE = '<!doctype html><title>Magnet Lab</title><div id="stage" class="wand-target">N S</div><button class="btn-wand">🪄</button>';
+await page.evaluate(() => $('livingAppBtn').click());
+await page.waitForSelector('.laAdder', { timeout: 3000 }).catch(() => {});
+await page.fill('.laAdder .laPaste', APP_LOOSE);
+await page.waitForFunction(() => !document.querySelector('.laAdder [data-la="lib"]').disabled, null, { timeout: 3000 }).catch(() => {});
+const before = await page.evaluate(() => annotations.length);
+await page.click('.laAdder [data-la="lib"]');
+await page.waitForFunction(() => !document.querySelector('.laAdder'), null, { timeout: 8000 }).catch(() => {});
+const loose = await page.evaluate((n) => {
+  const h = LivingApps.pure.contentHash('<!doctype html><title>Magnet Lab</title><div id="stage" class="wand-target">N S</div><button class="btn-wand">🪄</button>');
+  return { entry: window.__ll.docs['users/teacher-1/livingApps/' + h], added: annotations.length - n, hash: h };
+}, before);
+ok('☁ Library only files it in the cloud and puts nothing on the page', loose.entry && loose.entry.inLibrary && !loose.entry.sheets && loose.added === 0, JSON.stringify(loose));
+ok('…under the worksheet’s level and subject', loose.entry && loose.entry.level === 'P5' && loose.entry.subject === 'science');
+
+// The worksheet the first app came from is DELETED: nothing in the
+// library depends on it.
+await page.evaluate(() => { Object.keys(window.__ll.docs).filter(k => k.startsWith('pdfAnnotator/')).forEach(k => delete window.__ll.docs[k]); });
+await page.evaluate(() => $('livingLibBtn').click());
+await page.waitForSelector('.llBack.in', { timeout: 3000 }).catch(() => {});
+await page.waitForFunction(h => !!document.querySelector('.llRow[data-hash="' + h + '"]'), loose.hash, { timeout: 3000 }).catch(() => {});
+const row = await page.evaluate(h => {
+  const r = document.querySelector('.llRow[data-hash="' + h + '"]');
+  return r && { text: r.textContent, add: !!r.querySelector('.llAdd:not(.llAsQ)'), asq: !!r.querySelector('.llAsQ'), disabled: r.querySelector('.llAdd').disabled };
+}, loose.hash);
+ok('the library lists it as in the library, on no worksheet yet, with ➕ and 📝', row && /Not on a worksheet yet/.test(row.text) && row.add && row.asq && !row.disabled, JSON.stringify(row));
+await page.selectOption('.llWhere', 'loose');
+ok('“On no worksheet” shows only the apps that live in the library alone', await page.evaluate(h => {
+  const rows = [...document.querySelectorAll('.llRow')];
+  return rows.length >= 1 && rows.every(r => /Not on a worksheet yet/.test(r.textContent)) && rows.some(r => r.getAttribute('data-hash') === h);
+}, loose.hash));
+await page.selectOption('.llWhere', 'question');
+ok('“With a question” shows the ballast app', await page.evaluate(() => [...document.querySelectorAll('.llRow .llAppTitle')].map(n => n.textContent).join('|').includes('Ballast Tank Lab')));
+await page.selectOption('.llWhere', '');
+await shot('library-loose');
+const beforePlace = await page.evaluate(() => ({ n: annotations.length, puts: window.__ll.puts() }));
+await page.click('.llRow[data-hash="' + loose.hash + '"] .llAdd:not(.llAsQ)');
+await page.waitForFunction(() => !document.querySelector('.llBack'), null, { timeout: 8000 }).catch(() => {});
+const placed = await page.evaluate((b) => {
+  const added = annotations.slice(b.n);
+  const a = added.find(annLivingApp);
+  return { added: added.length, title: a && a.lapp.title, pub: a && a.lapp.pub, fetched: window.__ll.fetched.length, puts: window.__ll.puts() - b.puts, lq: !!(a && a.lq) };
+}, beforePlace);
+ok('➕ Add to page fetches the hosted copy and puts the app on the page', placed.added === 1 && placed.title === 'Magnet Lab' && placed.fetched >= 1 && !placed.lq, JSON.stringify(placed));
+ok('…already carrying its code, so nothing is uploaded again', placed.pub && placed.pub.hash === loose.hash && placed.puts === 0, JSON.stringify(placed));
+const linkStill = await page.evaluate(async (h) => {
+  const e = window.__ll.docs['users/teacher-1/livingApps/' + h];
+  const url = LivingApps.pure.viewerUrl(location.href, e.hash, e.token);
+  const code = LivingApps.pure.parseViewerQuery(url.slice(url.indexOf('?')));
+  const res = await fetch(LivingApps.pure.mediaUrl(code.hash, code.token));
+  const read = LivingApps.pure.readPublished(await res.text(), code.hash);
+  return { url, ok: read.ok, title: read.app && read.app.title };
+}, loose.hash);
+ok('its QR code’s link opens the cloud copy, with every worksheet deleted', linkStill.ok && linkStill.title === 'Magnet Lab' && /living\.html\?/.test(linkStill.url), JSON.stringify(linkStill));
+
+// 📝 the same library app as a question: no block, so its title is the
+// question and it gets the default working lines.
+await page.evaluate(() => $('livingLibBtn').click());
+await page.waitForFunction(h => !!document.querySelector('.llRow[data-hash="' + h + '"] .llAsQ'), loose.hash, { timeout: 3000 }).catch(() => {});
+const n2 = await page.evaluate(() => annotations.length);
+await page.click('.llRow[data-hash="' + loose.hash + '"] .llAsQ');
+await page.waitForFunction(() => !document.querySelector('.llBack'), null, { timeout: 8000 }).catch(() => {});
+const asQ = await page.evaluate((n) => {
+  const added = annotations.slice(n);
+  return { texts: added.filter(a => a.type === 'text').map(a => a.text), lines: added.filter(a => a.type === 'line').length, apps: added.filter(annLivingApp).length, lq: added.every(annLivingQuestion) };
+}, n2);
+ok('📝 As a question from the library: an app with no question block gets its title as the question', asQ.texts.join() === 'Magnet Lab', JSON.stringify(asQ));
+ok('…five lines exactly, all of it part of the question', asQ.lines === 5 && asQ.apps === 1 && asQ.lq, JSON.stringify(asQ));
+
+console.log('\n📋 The AI prompt');
+await page.evaluate(() => $('livingLibBtn').click());
+await page.waitForSelector('.llBack.in .llPromptBtn', { timeout: 3000 }).catch(() => {});
+await page.click('.llPromptBtn');
+await page.waitForSelector('.lqBack', { timeout: 3000 }).catch(() => {});
+const prm = await page.evaluate(() => {
+  const out = document.querySelector('.lqOut').value;
+  return { out, level: document.querySelector('.lqLevel').value, subject: document.querySelector('.lqSubject').value, z: getComputedStyle(document.querySelector('.lqBack')).zIndex };
+});
+ok('📋 opens over the library with a prompt for this worksheet’s level and subject', prm.level === 'P5' && prm.subject === 'science' && /Primary 5 Science/.test(prm.out) && Number(prm.z) > 4300, JSON.stringify({ level: prm.level, subject: prm.subject, z: prm.z }));
+ok('…asking for the wand, the sandbox rules and the question block this app reads',
+  /class="btn-wand"/.test(prm.out) && /window\.polymathWand/.test(prm.out) && /id="polymath-question"/.test(prm.out) && /no fetch/.test(prm.out) && /localStorage/.test(prm.out), prm.out.slice(0, 200));
+const toolBefore2 = await page.evaluate(() => typeof tool !== 'undefined' ? tool : '');
+await page.fill('.lqTopic', 'How a lever balances');
+await page.type('.lqTopic', ' p');
+ok('typing a topic rewrites the prompt and never reaches the worksheet’s shortcuts', await page.evaluate(t => /How a lever balances p/.test(document.querySelector('.lqOut').value) && (typeof tool !== 'undefined' ? tool : '') === t, toolBefore2));
+await page.click('.lqFoot .lqPrimary');
+await page.waitForTimeout(150);
+ok('📋 Copy prompt puts it on the clipboard', await page.evaluate(() => window.__llClip === document.querySelector('.lqOut').value && window.__llClip.length > 2000));
+await page.click('.lqOpens [data-ai="chatgpt"]');
+await page.waitForTimeout(150);
+ok('…and Copy and open ChatGPT opens it with the prompt typed in', await page.evaluate(() => {
+  const u = window.__ll.opened[window.__ll.opened.length - 1] || '';
+  return u.startsWith('https://chatgpt.com/?q=') && decodeURIComponent(u.slice(23)).includes('How a lever balances');
+}));
+await shot('prompt');
+await page.keyboard.press('Escape');
+ok('Escape closes the prompt and leaves the library open', await page.evaluate(() => !document.querySelector('.lqBack') && !!document.querySelector('.llBack')));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(250);
+
+console.log('\n📋 Over the adder');
+await page.evaluate(() => $('livingAppBtn').click());
+await page.waitForSelector('.laAdder [data-la="prompt"]', { timeout: 3000 }).catch(() => {});
+await page.click('.laAdder [data-la="prompt"]');
+await page.waitForSelector('.lqBack', { timeout: 3000 }).catch(() => {});
+ok('📋 AI prompt opens from the adder too', await page.evaluate(() => !!document.querySelector('.lqBack') && /polymath-question/.test(document.querySelector('.lqOut').value)));
+await page.keyboard.press('Escape');
+ok('…and Escape closes only the prompt, keeping the adder', await page.evaluate(() => !document.querySelector('.lqBack') && !!document.querySelector('.laAdder')));
+await page.keyboard.press('Escape');
+console.log('\n☁ No worksheet open');
+const noSheet = await page.evaluate(() => {
+  const keep = pdfDoc;
+  pdfDoc = null;
+  $('livingAppBtn').click();
+  const a = document.querySelector('.laAdder');
+  const r = { opened: !!a, add: a && a.querySelector('[data-la="add"]').textContent, lib: !!(a && a.querySelector('[data-la="lib"]')), asq: !!(a && a.querySelector('[data-la="asq"]')) };
+  lapp.close();
+  pdfDoc = keep;
+  return r;
+});
+ok('with no worksheet open the adder still opens — and saves to the library alone', noSheet.opened && /Save to library/.test(noSheet.add) && !noSheet.lib && !noSheet.asq, JSON.stringify(noSheet));
+
 console.log('\n📱 A phone');
+await page.evaluate(() => $('livingLibBtn').click());
+await page.waitForSelector('.llBack.in', { timeout: 3000 }).catch(() => {});
+await page.waitForTimeout(400);
 await page.setViewportSize({ width: 390, height: 780 });
 await page.waitForTimeout(250);
 const phone = await page.evaluate(() => {
@@ -311,12 +543,20 @@ const student = await page.evaluate(async () => {
   const n = await llibAfterSave();
   let scan = '';
   try { await llibScan(); } catch (e) { scan = e.message; }
+  let place = '';
+  try { await llibPlace({ hash: 'la1-1-1', token: '5d0c2c1e-7a4b-4f7e-9b1a-0c0000000001' }, {}); } catch (e) { place = e.message; }
+  let save = '';
+  try { await llibSaveApp({ title: 'x', html: '<p>x</p>' }); } catch (e) { save = e.message; }
+  const prompt = lqOpenPrompt();
+  const q = await lappAddQuestion({ src: 'data:image/png;base64,iVBORw0KGgo=', ratio: 2 }, { title: 'x', html: '<p>x</p>' });
   return {
+    place, save, prompt, q, promptWin: !!document.querySelector('.lqBack'),
     hidden: getComputedStyle($('livingLibBtn')).display === 'none', opened, win: !!document.querySelector('.llBack.in'),
     n, sets: window.__ll.sets.length - before, scan
   };
 });
 ok('a student has no library button', student.hidden);
+ok('…and cannot add from it, save to it, ask for the prompt or add a question', /teacher/.test(student.place) && /teacher/.test(student.save) && student.prompt === false && !student.promptWin && !student.q, JSON.stringify(student));
 ok('…cannot open it, file into it or search with it', student.opened === false && !student.win && student.n === 0 && student.sets === 0 && /teacher/.test(student.scan), JSON.stringify(student));
 
 const handover = await page.evaluate(async () => {
