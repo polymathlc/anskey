@@ -35,6 +35,8 @@
 /* The quest is the main window: the duel gets the wide column and big sprites. */
 #wheelCard .whSide .cbQuickDuel { min-height:280px; }
 #wheelCard .whSide .cbQuickDuel img,#wheelCard .whSide .cbQuickDuel canvas { transform:scale(1.25); transform-origin:center bottom; }
+/* A 2v2 / 3v3 row is three cards side by side: a sprite scaled past its own card pokes out of the duel on a phone (v1.184.0). */
+#wheelCard .whSide .cbQuickDuel .cbEnemyTeam img,#wheelCard .whSide .cbQuickDuel .cbEnemyTeam canvas,#wheelCard .whSide .cbQuickDuel .cbActiveTeam img,#wheelCard .whSide .cbQuickDuel .cbActiveTeam canvas { transform:none; }
 #wheelMissionDock .mmPanel { margin:0; border-radius:2px; border:3px solid #bea16a; box-shadow:inset 3px 3px #443754,3px 3px #080e20; }
 #wheelMissionDock .mmMachine { width:108px; height:108px; }
 #wheelMissionDock .mmHeading h3 { font-family:ui-monospace,monospace; font-size:18px; color:#fff0ba; }
