@@ -362,7 +362,7 @@ const putsBefore = await page.evaluate(() => window.__ll.puts());
 await page.click('.laAdder [data-la="add"]');
 await page.waitForFunction(() => !document.querySelector('.laAdder') && annotations.some(annLivingApp), null, { timeout: 8000 }).catch(() => {});
 await page.waitForTimeout(250);
-const q1 = await page.evaluate(() => {
+const q1 = await page.evaluate(async () => {
   const app = annotations.find(annLivingApp);
   const lq = annotations.filter(annLivingQuestion);
   const answers = annotations.filter(a => a.type === 'text' && !annLivingQuestion(a));
@@ -370,7 +370,32 @@ const q1 = await page.evaluate(() => {
   const entry = window.__ll.docs[path];
   const inside = annotations.every(a => a.x >= 0 && a.y >= 0 && a.x + a.w <= 600 && a.y + (a.h || 0) <= 780);
   const q = window.__qLast();
+  // 📲 The corner of the picture on screen: the app is hosted, so its QR.
+  let cornerDark = 0, cornerAll = 0, labelDark = 0, viewerQr = false;
+  if (app && app.lqr) {
+    const im = new Image();
+    await new Promise(r => { im.onload = r; im.onerror = r; im.src = app.src; });
+    const cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+    const cx = cv.getContext('2d'); cx.drawImage(im, 0, 0);
+    const X = Math.round(app.lqr.x * cv.width), Y = Math.round(app.lqr.y * cv.height), S = Math.round(app.lqr.s * cv.width);
+    const dd = cx.getImageData(X, Y, S, S).data;
+    for (let i = 0; i < dd.length; i += 4) { cornerAll++; if (dd[i] < 80 && dd[i + 1] < 80 && dd[i + 2] < 80) cornerDark++; }
+    const lab = cx.getImageData(Math.max(0, X - 12), Y + S, Math.min(cv.width - X + 12, S + 24), Math.round(S * 0.3)).data;
+    for (let i = 0; i < lab.length; i += 4) if (lab[i] < 150 && lab[i + 1] < 150 && lab[i + 2] < 150) labelDark++;
+    const P = LivingApps.pure;
+    const url = P.viewerUrl(location.href, app.lapp.pub.hash, app.lapp.pub.token);
+    const m = QuestionBank.pure.qrMatrix(url), n = m.length, cell = S / (n + 2);
+    let agree = 0, total = 0;
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) {
+      const px = Math.floor(X + (1 + k + 0.5) * cell), py = Math.floor(Y + (1 + r + 0.5) * cell);
+      const v = cx.getImageData(px, py, 1, 1).data;
+      const dark = v[0] < 128;
+      total++; if (dark === !!m[r][k]) agree++;
+    }
+    viewerQr = agree / total > 0.97;
+  }
   return {
+    corner: { dark: cornerAll ? cornerDark / cornerAll : 0, labelDark, viewerQr },
     app: app && { lq: app.lq, src: app.src.slice(0, 21), ratio: app.ratio, pub: !!app.lapp.pub, x: app.x, y: app.y, w: app.w, h: app.h, lqr: app.lqr },
     texts: window.__qText(q), lines: window.__qLines(q), kinds: window.__qKinds(q), pieces: lq.length,
     answers: answers.map(a => a.text), answerColor: answers.every(a => a.color === LivingQuestion.pure.ANSWER_COLOR),
@@ -384,6 +409,8 @@ ok('…with what its question holds, and never its HTML', q1.entry && q1.entry.q
 ok('📝 the question is painted in the question bank’s format: its words, its diagram, each part with its marks', q1.texts.length === 3 && /^The diagram below/.test(q1.texts[0]) && q1.texts[1] === '(a) What fills the tank when the submarine dives?  [1]' && /^\(b\) Explain .*\[2\]$/.test(q1.texts[2]) &&
   q1.kinds.join() === 'text,image,text,plainanswer,text,plainanswer', JSON.stringify(q1));
 ok('…ONE picture that carries the app, with the tiny wand’s corner at its top right', q1.app && q1.app.lq && q1.pieces === 1 && /^data:image\/(jpeg|png)/.test(q1.app.src) && q1.app.lqr && q1.app.lqr.x > 0.85 && q1.app.lqr.y < 0.05 && q1.app.lqr.s < 0.12, JSON.stringify(q1.app));
+ok('📲 the corner on screen IS the app’s QR code — the same code the paper and the stage print — in a plain square', q1.corner.viewerQr && q1.corner.dark > 0.25 && q1.corner.dark < 0.75, JSON.stringify(q1.corner));
+ok('…with “living app” and the wand in small type under it', q1.corner.labelDark > 40, JSON.stringify(q1.corner));
 ok('…six ruled working lines under the parts, by their marks', q1.lines.reduce((a, b) => a + b, 0) === 6, JSON.stringify(q1.lines));
 ok('…the model answers sit on the painted lines as the teacher’s own (no lq)', q1.answers.length === 2 && q1.answerColor && q1.answers[0] === 'Sea water.' && q1.answersOn, JSON.stringify(q1.answers));
 ok('…all of it inside the page, as one undo step, with the app selected', q1.inside && q1.undo === 1 && q1.sel, JSON.stringify({ inside: q1.inside, undo: q1.undo, sel: q1.sel, app: q1.app }));
@@ -479,6 +506,9 @@ ok('…five lines exactly, all of it one picture of the question', asQ.lines.joi
 // it but the controls and the hidden answer goes on the paper.
 const APP_RICH = '<!doctype html><html><head><title>Ice Lab</title><style>.tank{fill:#E01B24;stroke:#000}.lbl{font:18px sans-serif;fill:#111}' +
   'table{border-collapse:collapse}td,th{border:1px solid #888;padding:4px}</style></head><body>' +
+  '<header class="top"><img alt="Polymath Learning Centre" width="120" height="60" src="data:image/svg+xml,' + encodeURIComponent('<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'120\' height=\'60\'><rect width=\'120\' height=\'60\' fill=\'#C60085\'/></svg>') + '"></header>' +
+  '<div class="brand"><svg width="120" height="60"><rect width="120" height="60" fill="#C60085"/></svg><span>POLYMATH</span></div>' +
+  '<svg class="site-logo" width="90" height="50"><rect width="90" height="50" fill="#C60085"/></svg>' +
   '<h1>Ice Lab</h1><p>Tap the 🪄 magic wand to watch the ice melt.</p>' +
   '<p>Ali left a beaker of crushed ice in the sun and recorded its temperature every minute.</p>' +
   '<svg viewBox="0 0 300 160" width="300" height="160"><rect class="tank" x="20" y="20" width="160" height="100"/><text class="lbl" x="30" y="150">beaker</text></svg>' +
@@ -507,8 +537,9 @@ const rich = await page.evaluate(async (html) => {
   const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
   const x = c.getContext('2d'); x.drawImage(img, 0, 0);
   const d = x.getImageData(0, 0, c.width, c.height).data;
-  let red = 0, blue = 0, dark = 0;
+  let red = 0, blue = 0, dark = 0, magenta = 0;
   for (let i = 0; i < d.length; i += 4) {
+    if (d[i] > 170 && d[i + 1] < 40 && d[i + 2] > 100 && d[i + 2] < 160) magenta++;
     if (d[i] > 200 && d[i + 1] < 60 && d[i + 2] < 60) red++;
     if (d[i] < 60 && d[i + 1] > 90 && d[i + 1] < 140 && d[i + 2] > 190) blue++;
     if (d[i] < 140 && d[i + 1] < 150 && d[i + 2] < 160 && Math.abs(d[i] - d[i + 2]) < 30) dark++;
@@ -519,7 +550,8 @@ const rich = await page.evaluate(async (html) => {
     texts: window.__qText(q), kinds: window.__qKinds(q),
     lines: window.__qLines(q),
     apps: added.filter(annLivingApp).length, lq: added.every(annLivingQuestion),
-    notCover: pic.src !== cover.src, w: img.naturalWidth, h: img.naturalHeight, red, blue, dark,
+    notCover: pic.src !== cover.src, w: img.naturalWidth, h: img.naturalHeight, red, blue, dark, magenta,
+    texts2: window.__qText(q).join('\n'),
     frames: document.querySelectorAll('iframe.laHarvest').length,
     onPage: added.every(a => a.y >= 0 && a.y + (a.h || 0) <= 781)
   };
@@ -532,6 +564,7 @@ ok('…working space under each part by its marks (2 + 4 lines), and the table a
 ok('…the picture is what the app DRAWS, not the cover: the diagram in its stylesheet’s red', rich.notCover && rich.red > 500, JSON.stringify({ red: rich.red, w: rich.w, h: rich.h }));
 ok('…the canvas it painted in requestAnimationFrame', rich.blue > 500, JSON.stringify({ blue: rich.blue }));
 ok('…and its results table', rich.dark > 300, JSON.stringify({ dark: rich.dark }));
+ok('🏷 the app’s logo stays off the paper: a header picture, a brand box and a logo SVG, and the centre’s name', rich.magenta < 20 && !/POLYMATH/.test(rich.texts2), JSON.stringify({ magenta: rich.magenta, texts: rich.texts2 }));
 ok('…everything on the paper, and the reading frame taken down', rich.onPage && rich.frames === 0, JSON.stringify(rich));
 await shot('question-read-off-app');
 await page.evaluate(() => { annotations.splice(0, annotations.length, ...window.__keptAnns); renderAllOverlays(); });

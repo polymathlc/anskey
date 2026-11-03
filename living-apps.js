@@ -158,7 +158,7 @@
     '(function(){',
     '  "use strict";',
     '  var SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|BUTTON|INPUT|SELECT|TEXTAREA|OPTION|LABEL|NAV|IFRAME|AUDIO|VIDEO|OBJECT|EMBED|DIALOG|HEAD|META|LINK|TITLE|DETAILS|SUMMARY|KBD|FORM|MENU|ASIDE|FOOTER)$/;',
-    '  var CHROME_WORDS = /^(btn|button|buttons|controls?|toolbar|toolbars|hints?|tips?|help|stuck|scaffolds?|scaffolding|feedback|solutions?|reveal|reveals|answers|answerkey|working|workings|status|toast|toasts|badge|badges|chip|chips|pill|pills|kicker|eyebrow|tag|tags|kbd|shortcut|shortcuts|instructions?|nav|tabs?|steps|stepper|checks?|checker|marking|score|scores|progress|meta|stats)$/i;',
+    '  var CHROME_WORDS = /^(btn|button|buttons|controls?|toolbar|toolbars|hints?|tips?|help|stuck|scaffolds?|scaffolding|feedback|solutions?|reveal|reveals|answers|answerkey|working|workings|status|toast|toasts|badge|badges|chip|chips|pill|pills|kicker|eyebrow|tag|tags|kbd|shortcut|shortcuts|instructions?|nav|tabs?|steps|stepper|checks?|checker|marking|score|scores|progress|meta|stats|logo|logos|logotype|brand|branding|wordmark|masthead|emblem)$/i;',
     '  var SKIP_ROLE = /^(button|slider|toolbar|menu|menubar|tablist|tab|switch|checkbox|radio|spinbutton|navigation|dialog|status|alert|progressbar)$/;',
     '  var MAX_NODES = 8000, MAX_TEXT = 6000, MAX_GRAPHICS = 8, MAX_SVG = 400000, MAX_PNG = 2500000, MIN_W = 36, MIN_H = 28;',
     '  var SVG_PROPS = ["fill","fill-opacity","fill-rule","stroke","stroke-width","stroke-opacity","stroke-dasharray","stroke-linecap","stroke-linejoin","opacity","font-size","font-family","font-weight","font-style","text-anchor","dominant-baseline","letter-spacing","visibility","display","marker-start","marker-mid","marker-end","stop-color","stop-opacity"];',
@@ -181,6 +181,18 @@
     '    for (var i = 0; i < bits.length; i++) if (bits[i] && CHROME_WORDS.test(bits[i])) return true;',
     '    var live = el.getAttribute && el.getAttribute("aria-live");',
     '    return live === "polite" || live === "assertive";',
+    '  }',
+    '  var LOGO_WORDS = /(^|[^a-z])(logo|logos|logotype|brand|branding|wordmark|emblem|masthead|crest|polymath)([^a-z]|$)/i;',
+    '  function logo(el){',
+    '    if (!el.getAttribute) return false;',
+    '    var c = typeof el.className === "string" ? el.className : (el.className && el.className.baseVal) || "";',
+    '    var src = el.getAttribute("src") || "";',
+    '    if (/^data:/i.test(src)) src = "";',
+    '    var words = [c, el.id || "", el.getAttribute("alt") || "", el.getAttribute("aria-label") || "", el.getAttribute("title") || "", src.split(/[?#]/)[0].split("/").pop()].join(" ");',
+    '    if (LOGO_WORDS.test(words)) return true;',
+    '    var t = el.querySelector && el.querySelector("title");',
+    '    if (t && LOGO_WORDS.test(t.textContent || "")) return true;',
+    '    return !!(el.closest && el.closest("header,[role=banner]"));',
     '  }',
     '  function clean(t){ return String(t || "").replace(/[ \\t ]+/g, " ").replace(/ *\\n */g, "\\n").replace(/\\n{3,}/g, "\\n\\n").trim(); }',
     '  function numberSvg(clone, orig){',
@@ -264,6 +276,7 @@
     '      var block = !/^inline/.test(disp) && disp !== "contents";',
     '      var boxy = /^inline-/.test(disp);',
     '      var r = el.getBoundingClientRect ? el.getBoundingClientRect() : { width: 0, height: 0 };',
+    '      if (/^(SVG|CANVAS|IMG|PICTURE)$/.test(tag) && logo(el)) return;',
     '      if (tag === "SVG") { if (r.width >= MIN_W && r.height >= MIN_H) graphic(svgOf(el, r)); return; }',
     '      if (tag === "CANVAS") { if (r.width >= MIN_W && r.height >= MIN_H) graphic(canvasOf(el, r)); return; }',
     '      if (tag === "IMG") { if (r.width >= MIN_W && r.height >= MIN_H) graphic(imgOf(el, r)); return; }',
@@ -606,22 +619,48 @@
     var padY = ry + Math.max(2, (rh - padH) / 2);
     return { x: r2(padX + pad), y: r2(padY + label), size: r2(size), padX: r2(padX), padY: r2(padY), padW: r2(padW), padH: r2(padH) };
   }
-  /* 🪄 THE CORNER (v1.181.0). A living app's picture keeps a small square
-     at its TOP RIGHT: the tiny wand on screen, the QR code on paper. It sits
-     in a white gutter beside the question, so neither ever covers a word.
-     Kept on the annotation as `lqr` — fractions of the picture's own width
-     and height, so it follows every resize. */
-  var CORNER_GUTTER = 64;          // CSS px of gutter beside a 600 px question
+  /* 🪄 THE CORNER (v1.181.0, v1.182.0). A living app's picture keeps a
+     small square at its TOP RIGHT, in a white gutter beside the question,
+     so it never covers a word: the QR code that opens the app, drawn into
+     the picture itself whenever the app already has its hosted copy, with
+     "living app" in small type under it and the premium wand beside those
+     words. On paper the QR is drawn again, as vector squares, on exactly
+     the same square. Kept on the annotation as `lqr` — the SQUARE, as
+     fractions of the picture's own width and height, so it follows every
+     resize. The label sits under it, inside the picture. */
+  var CORNER_GUTTER = 84;          // CSS px of gutter beside a 600 px question
   var CORNER_INSET = 6;
+  var CORNER_LABEL_H = 14;         // the "🪄 living app" line under the square
+  var CORNER_LABEL = 'living app';
+  /* The height a picture needs so its corner gets the full square and its
+     label: what paintCover makes a short card at least. */
+  function cornerMinHeight(gutter) {
+    var g = Math.max(24, Number(gutter) || CORNER_GUTTER);
+    return CORNER_INSET * 2 + (g - CORNER_INSET * 2) + CORNER_LABEL_H;
+  }
   function cornerFor(w, h, gutter) {
     var W = Math.max(1, Number(w) || 0), H = Math.max(1, Number(h) || 0);
     var g = Math.max(24, Math.min(W * 0.4, Number(gutter) || CORNER_GUTTER));
-    var size = Math.max(12, Math.min(g - CORNER_INSET * 2, H - CORNER_INSET * 2));
+    var size = Math.max(12, Math.min(g - CORNER_INSET * 2, H - CORNER_INSET * 2 - CORNER_LABEL_H));
     return {
       x: Math.round((W - CORNER_INSET - size) / W * 10000) / 10000,
       y: Math.round(CORNER_INSET / H * 10000) / 10000,
       s: Math.round(size / W * 10000) / 10000
     };
+  }
+  /* Where the label goes, in the picture's own pixels: the line under the
+     square, as wide as the gutter allows, centred on the square. */
+  function cornerLabelBox(w, h, corner) {
+    var c = cleanCorner(corner);
+    if (!c) return null;
+    var W = Math.max(1, Number(w) || 0), H = Math.max(1, Number(h) || 0);
+    var size = c.s * W, top = c.y * H + size + 2;
+    var room = H - top - 1;
+    if (room < 7) return null;
+    var lh = Math.min(CORNER_LABEL_H - 2, room);
+    var cx = c.x * W + size / 2;
+    var half = Math.min(W - cx - 1, size / 2 + CORNER_INSET);
+    return { x: r2(cx - half), y: r2(top), w: r2(half * 2), h: r2(lh), cx: r2(cx) };
   }
   /* The one door into `lqr`: three fractions, the square inside the box. */
   function cleanCorner(c) {
@@ -704,6 +743,23 @@
       '<rect width="' + size + '" height="' + size + '" fill="#fff"/><path fill="#111" d="' + d + '"/></svg>';
   }
 
+  /* 📲 The QR matrix a living app's corner shows, or null: only an app
+     that already has its hosted copy (publishedFor — the hash must match the
+     html, so a changed app never shows the old code), for the SAME viewer
+     link the printed code and the stage's code use. `matrixOf` defaults to
+     the question bank's QR maker. */
+  function qrMatrixFor(app, pageHref, matrixOf) {
+    var pub = publishedFor(app);
+    if (!pub) return null;
+    var href = pageHref != null ? pageHref : (root.location ? root.location.href : '');
+    var url = viewerUrl(href, pub.hash, pub.token);
+    if (!url) return null;
+    var make = typeof matrixOf === 'function' ? matrixOf
+      : (root.QuestionBank && root.QuestionBank.pure && root.QuestionBank.pure.qrMatrix);
+    if (typeof make !== 'function') return null;
+    try { var m = make(url); return m && m.length ? m : null; } catch (e) { return null; }
+  }
+
   var pure = {
     MAX_CHARS: MAX_CHARS, TITLE_MAX: TITLE_MAX, COVER_W: COVER_W, COVER_H: COVER_H, CSP: CSP, WAND_BRIDGE: WAND_BRIDGE, HARVEST_BRIDGE: HARVEST_BRIDGE,
     escapeHtml: escapeHtml, cleanTitle: cleanTitle, titleFromHtml: titleFromHtml, titleFromFileName: titleFromFileName,
@@ -714,16 +770,18 @@
     validHash: validHash, validToken: validToken, publishPath: publishPath, publishPayload: publishPayload,
     tokenFromDownloadUrl: tokenFromDownloadUrl, mediaUrl: mediaUrl, viewerUrl: viewerUrl,
     parseViewerQuery: parseViewerQuery, packCode: packCode, unpackCode: unpackCode, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover, qrSvg: qrSvg,
-    CORNER_GUTTER: CORNER_GUTTER, cornerFor: cornerFor, cleanCorner: cleanCorner, qrInCorner: qrInCorner
+    CORNER_GUTTER: CORNER_GUTTER, CORNER_LABEL: CORNER_LABEL, CORNER_LABEL_H: CORNER_LABEL_H, cornerFor: cornerFor, cornerMinHeight: cornerMinHeight,
+    cornerLabelBox: cornerLabelBox, cleanCorner: cleanCorner, qrInCorner: qrInCorner, qrMatrixFor: qrMatrixFor
   };
 
   /* ---------------------------------------------------------------
      The cover — the picture that sits on the page.
      --------------------------------------------------------------- */
-  function star(x, cx, cy, R, r, fill, stroke) {
+  function star(x, cx, cy, R, r, fill, stroke, points) {
+    var n = (points || 4) * 2;
     x.beginPath();
-    for (var i = 0; i < 8; i++) {
-      var ang = -Math.PI / 2 + i * Math.PI / 4;
+    for (var i = 0; i < n; i++) {
+      var ang = -Math.PI / 2 + i * Math.PI * 2 / n;
       var rad = i % 2 === 0 ? R : r;
       var px = cx + Math.cos(ang) * rad, py = cy + Math.sin(ang) * rad;
       if (i === 0) x.moveTo(px, py); else x.lineTo(px, py);
@@ -731,37 +789,144 @@
     x.closePath();
     x.fillStyle = fill;
     x.fill();
-    if (stroke) { x.lineWidth = Math.max(1.5, R * 0.08); x.strokeStyle = stroke; x.stroke(); }
+    if (stroke) { x.lineWidth = Math.max(0.6, R * 0.07); x.strokeStyle = stroke; x.stroke(); }
   }
-  /* 🪄 The tiny wand (v1.181.0): a dark stick, a cream tip and a gold star,
-     drawn — an emoji draws differently on every device — into a square of
-     side `size` whose top-left is (x, y). No box round it. */
+  function grad(x, x0, y0, x1, y1, stops) {
+    var g = x.createLinearGradient(x0, y0, x1, y1);
+    stops.forEach(function (st) { g.addColorStop(st[0], st[1]); });
+    return g;
+  }
+  /* 🪄 THE PREMIUM WAND (v1.182.0): a black lacquer stick with a soft
+     highlight down its length, two gold ferrules and a gold grip cap, and a
+     faceted four-point gold star with a warm halo and two small glints —
+     drawn, never an emoji (an emoji draws differently on every device), into
+     a square of side `size` whose top-left is (X, Y). No box round it. */
   function drawWand(x, X, Y, size) {
     var u = size / 100;
+    function P(px, py) { return [X + px * u, Y + py * u]; }
     x.save();
     x.lineCap = 'round';
-    x.lineWidth = 15 * u; x.strokeStyle = '#FFFFFF';
-    x.beginPath(); x.moveTo(X + 40 * u, Y + 40 * u); x.lineTo(X + 92 * u, Y + 92 * u); x.stroke();
-    x.lineWidth = 9 * u; x.strokeStyle = '#2D1F14';
-    x.beginPath(); x.moveTo(X + 40 * u, Y + 40 * u); x.lineTo(X + 92 * u, Y + 92 * u); x.stroke();
-    x.lineWidth = 9 * u; x.strokeStyle = '#F6E7C8';
-    x.beginPath(); x.moveTo(X + 40 * u, Y + 40 * u); x.lineTo(X + 54 * u, Y + 54 * u); x.stroke();
+    // The stick: from just under the star to the bottom-right.
+    var a = P(40, 40), b = P(90, 90);
+    x.lineWidth = 13 * u; x.strokeStyle = 'rgba(0,0,0,0.12)';
+    x.beginPath(); x.moveTo(a[0] + 1.6 * u, a[1] + 2.4 * u); x.lineTo(b[0] + 1.6 * u, b[1] + 2.4 * u); x.stroke();
+    x.lineWidth = 10 * u;
+    x.strokeStyle = grad(x, a[0] - 5 * u, a[1] + 5 * u, a[0] + 5 * u, a[1] - 5 * u, [[0, '#050505'], [0.55, '#2b2b30'], [1, '#0c0c0e']]);
+    x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke();
+    x.lineWidth = 2.2 * u; x.strokeStyle = 'rgba(255,255,255,0.38)';
+    x.beginPath(); x.moveTo(a[0] + 6 * u, a[1] + 3.2 * u); x.lineTo(b[0] - 3 * u, b[1] - 5.8 * u); x.stroke();
+    // Gold ferrules and the grip cap.
+    var gold = grad(x, X, Y, X + size, Y + size, [[0, '#FFF3C4'], [0.35, '#F4C542'], [0.7, '#B7861C'], [1, '#FCE7A0']]);
+    [[47, 47], [74, 74]].forEach(function (f) {
+      var c = P(f[0], f[1]);
+      x.lineCap = 'butt';
+      x.lineWidth = 12 * u; x.strokeStyle = gold;
+      x.beginPath(); x.moveTo(c[0] - 2.2 * u, c[1] - 2.2 * u); x.lineTo(c[0] + 2.2 * u, c[1] + 2.2 * u); x.stroke();
+    });
+    x.lineCap = 'round';
+    var cap = P(91, 91);
+    x.fillStyle = gold;
+    x.beginPath(); x.arc(cap[0], cap[1], 6 * u, 0, Math.PI * 2); x.fill();
     x.restore();
-    star(x, X + 32 * u, Y + 32 * u, 27 * u, 10 * u, '#F6C343', '#8A5E00');
-    star(x, X + 74 * u, Y + 16 * u, 9 * u, 3.4 * u, '#F6C343');
-    star(x, X + 14 * u, Y + 74 * u, 7 * u, 2.6 * u, '#F2B705');
+    // The halo, the star and its facets.
+    var sc = P(30, 30);
+    x.save();
+    var halo = x.createRadialGradient(sc[0], sc[1], 0, sc[0], sc[1], 34 * u);
+    halo.addColorStop(0, 'rgba(255,214,102,0.55)');
+    halo.addColorStop(0.45, 'rgba(255,200,64,0.18)');
+    halo.addColorStop(1, 'rgba(255,200,64,0)');
+    x.fillStyle = halo;
+    x.beginPath(); x.arc(sc[0], sc[1], 34 * u, 0, Math.PI * 2); x.fill();
+    x.restore();
+    star(x, sc[0], sc[1], 27 * u, 7.5 * u,
+      grad(x, sc[0] - 27 * u, sc[1] - 27 * u, sc[0] + 27 * u, sc[1] + 27 * u, [[0, '#FFF6CF'], [0.4, '#F7C948'], [0.75, '#C8901A'], [1, '#F9DA7A']]),
+      '#7A5200', 4);
+    // Facets: the lit upper-left halves of the star's points.
+    x.save();
+    x.fillStyle = 'rgba(255,255,255,0.45)';
+    x.beginPath();
+    x.moveTo(sc[0], sc[1] - 27 * u); x.lineTo(sc[0], sc[1]); x.lineTo(sc[0] - 27 * u, sc[1]);
+    x.lineTo(sc[0] - 5.3 * u, sc[1] - 5.3 * u); x.closePath(); x.fill();
+    x.restore();
+    star(x, sc[0], sc[1], 5 * u, 1.8 * u, '#FFFFFF', null, 4);
+    var g1 = P(70, 14), g2 = P(12, 70), g3 = P(60, 34);
+    star(x, g1[0], g1[1], 8 * u, 1.9 * u, '#F7C948', null, 4);
+    star(x, g2[0], g2[1], 6 * u, 1.5 * u, '#E9B43A', null, 4);
+    star(x, g3[0], g3[1], 3.6 * u, 1 * u, '#FFE7A3', null, 4);
   }
-  /* The wand in a picture's corner, from cornerFor's fractions. */
-  function drawCornerWand(x, W, H, corner) {
+  /* Draws a QR matrix as squares in a square (X, Y, size) on a canvas, with
+     a one-module quiet zone — exactly the code drawQrOnPdf puts on paper. */
+  function drawQrSquare(x, matrix, X, Y, size) {
+    var n = matrix.length, quiet = 1, cell = size / (n + quiet * 2);
+    x.save();
+    x.fillStyle = '#FFFFFF';
+    x.fillRect(X, Y, size, size);
+    // ONE path, filled once: separate fills leave anti-aliased hairline
+    // seams between touching rows, which a phone camera can misread.
+    x.fillStyle = '#111111';
+    x.beginPath();
+    for (var r = 0; r < n; r++) {
+      var row = matrix[r] || [], c = 0;
+      while (c < n) {
+        if (!row[c]) { c++; continue; }
+        var st = c;
+        while (c < n && row[c]) c++;
+        x.rect(X + (quiet + st) * cell, Y + (quiet + r) * cell, (c - st) * cell, cell);
+      }
+    }
+    x.fill('nonzero');
+    x.restore();
+  }
+  function roundRectPath(x, X, Y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    x.beginPath();
+    x.moveTo(X + r, Y);
+    x.arcTo(X + w, Y, X + w, Y + h, r);
+    x.arcTo(X + w, Y + h, X, Y + h, r);
+    x.arcTo(X, Y + h, X, Y, r);
+    x.arcTo(X, Y, X + w, Y, r);
+    x.closePath();
+  }
+  /* 🪄 THE CORNER (v1.182.0): the QR code in its small square — or, for an
+     app with no hosted copy yet, a soft gold-edged square with the wand in
+     it, which paper still covers with the code — and under it "living app"
+     in small type with the premium wand beside the words. From cornerFor's
+     fractions, in the picture's own pixels. */
+  var LABEL_FONT = '600 9px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif';
+  function drawCornerBadge(x, W, H, corner, matrix) {
     var c = cleanCorner(corner);
     if (!c) return;
-    var size = c.s * W;
-    var k = 0.82;
-    drawWand(x, c.x * W + size * (1 - k) / 2, c.y * H + size * (1 - k) / 2, size * k);
+    var size = c.s * W, X = c.x * W, Y = c.y * H;
+    if (matrix && matrix.length) drawQrSquare(x, matrix, X, Y, size);
+    else {
+      x.save();
+      roundRectPath(x, X + 0.5, Y + 0.5, size - 1, size - 1, Math.max(3, size * 0.12));
+      x.fillStyle = '#FFFBEF'; x.fill();
+      x.lineWidth = 1; x.strokeStyle = '#E8C766'; x.stroke();
+      x.restore();
+      drawWand(x, X + size * 0.16, Y + size * 0.16, size * 0.68);
+    }
+    var lb = cornerLabelBox(W, H, c);
+    if (!lb) return;
+    x.save();
+    var px = Math.max(6, Math.min(9, lb.h * 0.82));
+    x.font = LABEL_FONT.replace('9px', px.toFixed(2) + 'px');
+    x.textBaseline = 'middle';
+    var icon = px * 1.25, gap = px * 0.3;
+    var tw = x.measureText(CORNER_LABEL).width;
+    var total = icon + gap + tw;
+    if (total > lb.w) { px = Math.max(5, px * lb.w / total); x.font = LABEL_FONT.replace('9px', px.toFixed(2) + 'px'); icon = px * 1.25; gap = px * 0.3; tw = x.measureText(CORNER_LABEL).width; total = icon + gap + tw; }
+    var left = lb.cx - total / 2, mid = lb.y + lb.h / 2;
+    drawWand(x, left, mid - icon / 2, icon);
+    x.fillStyle = '#5b5446';
+    x.fillText(CORNER_LABEL, left + icon + gap, mid + 0.5);
+    x.restore();
   }
+  /* Kept for callers from v1.181.0: the corner, with no code. */
+  function drawCornerWand(x, W, H, corner, matrix) { drawCornerBadge(x, W, H, corner, matrix); }
   /* The plain picture (v1.181.0): the app's title, in the question bank's
-     own type, on white, with the tiny wand at its top right. It is what
-     goes on the page the moment an app is added; the page then swaps in the
+     own type, on white, with the corner at its top right. It is what goes
+     on the page the moment an app is added; the page then swaps in the
      picture of what the app really draws (index.html, lappPictureFor). */
   var PLAIN_W = 600, PLAIN_SCALE = 2, PLAIN_PAD = 14, PLAIN_PX = 17;
   var PLAIN_FONT = '-apple-system, "Segoe UI", Helvetica, Arial, sans-serif';
@@ -775,7 +940,7 @@
         var lines = wrapLines(title, PLAIN_W - PLAIN_PAD * 2, function (t) { return probe.measureText(t).width; }, 3);
         var lh = PLAIN_PX * 1.42;
         var W = PLAIN_W + CORNER_GUTTER;
-        var H = Math.max(CORNER_GUTTER, Math.ceil(PLAIN_PAD * 2 + lines.length * lh));
+        var H = Math.max(cornerMinHeight(CORNER_GUTTER), Math.ceil(PLAIN_PAD * 2 + lines.length * lh));
         var c = document.createElement('canvas');
         c.width = W * PLAIN_SCALE; c.height = H * PLAIN_SCALE;
         var x = c.getContext('2d');
@@ -787,8 +952,9 @@
         x.textBaseline = 'alphabetic';
         lines.forEach(function (ln, k) { x.fillText(ln, PLAIN_PAD, PLAIN_PAD + k * lh + PLAIN_PX * 1.02); });
         var corner = cornerFor(W, H, CORNER_GUTTER);
-        drawCornerWand(x, W, H, corner);
-        resolve({ src: c.toDataURL('image/png'), ratio: W / H, w: W, h: H, corner: corner });
+        var matrix = qrMatrixFor(app);
+        drawCornerBadge(x, W, H, corner, matrix);
+        resolve({ src: c.toDataURL('image/png'), ratio: W / H, w: W, h: H, corner: corner, qr: !!matrix });
       } catch (e) { reject(e); }
     });
   }
@@ -1499,7 +1665,7 @@
     });
   }
 
-  var api = { create: create, pure: pure, paintCover: paintCover, drawQrOnPdf: drawQrOnPdf, harvest: harvest, drawWand: drawWand, drawCornerWand: drawCornerWand };
+  var api = { create: create, pure: pure, paintCover: paintCover, drawQrOnPdf: drawQrOnPdf, harvest: harvest, drawWand: drawWand, drawCornerWand: drawCornerWand, drawCornerBadge: drawCornerBadge, drawQrSquare: drawQrSquare };
   root.LivingApps = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -6009,7 +6009,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.181.0';
+var APP_VERSION = 'v1.182.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32616,7 +32616,7 @@ async function lappPictureFor(app, cover, asQuestion, say) {
   }
   var pic = null;
   try {
-    pic = asQuestion ? await window.LivingQuestion.paintQuestionPicture(spec) : await window.LivingQuestion.paintAppPicture(app, spec);
+    pic = asQuestion ? await window.LivingQuestion.paintQuestionPicture(spec, app) : await window.LivingQuestion.paintAppPicture(app, spec);
   } catch (e) {
     pic = null;
     console.warn('The app could not be painted', e);
