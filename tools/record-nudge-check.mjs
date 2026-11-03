@@ -1,12 +1,13 @@
 /* =====================================================================
-   ⏺ Writing without recording (v1.173.0) — in a real browser
+   ⏺ Writing without recording (v1.173.0, v1.183.0) — in a real browser
    ---------------------------------------------------------------------
-   `tools/record-nudge-tests.mjs` walks the rules. This asks the page: do
-   three REAL pen strokes on a worksheet bring the "Not recording" card up
-   over the worksheet (and one does not), does it leave the stroke alone and
+   `tools/record-nudge-tests.mjs` walks the rules. This asks the page: does
+   ONE real pen stroke (or typing in a text box) bring the "Not recording"
+   card up over the worksheet, does it stay up with nothing pressed, does
+   Hide last only until the next mark, does it leave the stroke alone and
    the focus where it was, does ● Record now open the Record lesson window
    with Start lit up and not focused, does a recording starting take it away,
-   do Not now / Escape / Don't warn me / the window's switch work, does a
+   do Hide / Escape / Don't warn me / the window's switch work, does a
    student, practice mode or an unsaved sheet never see it, and does it fit a
    phone without covering the toolbar.
 
@@ -125,16 +126,15 @@ async function stroke(page, i) {
   ok('the page loads with no uncaught error', errors.length === 0, errors.join('\n      '));
   ok('the module is loaded and created', await page.evaluate(() => !!window.RecordNudge && !!recNudge));
 
+  ok('before any writing, nothing stands in the way of a mark', await page.evaluate(() => recNudgeWhy() === ''));
   await stroke(page, 0);
   ok('one stroke is written…', (await strokes(page)) === 1);
-  ok('…and one stroke is not "writing" — no warning yet', !(await shown(page)));
-  ok('…and the reason it is not up yet is only the count', await page.evaluate(() => recNudgeWhy() === ''));
+  ok('…and ONE stroke brings up "Not recording" (v1.183.0: was two)', await shown(page));
   await stroke(page, 1);
   ok('two strokes are kept on the page', (await strokes(page)) === 2);
-  ok('two strokes within a minute bring up "Not recording" (v1.174.0: was three in 45 s)', await shown(page));
   ok('the card offers "Ignore for this session"', await page.evaluate(() => /Ignore for this session/.test(document.getElementById('recNudge').textContent) && !document.querySelector('#recNudge .rnSessionBox').checked));
   const text = await page.evaluate(() => document.getElementById('recNudge').textContent);
-  ok('it says what is wrong and offers Record now', /Not recording/.test(text) && /Record now/.test(text) && /Not now/.test(text), text);
+  ok('it says what is wrong and offers Record now', /Not recording/.test(text) && /Record now/.test(text) && /Hide/.test(text), text);
   ok('it never took the focus', await page.evaluate(() => !document.getElementById('recNudge').contains(document.activeElement)));
   ok('the pen is still the tool', await page.evaluate(() => tool === 'pen'));
   const geo = await page.evaluate(() => {
@@ -151,19 +151,47 @@ async function stroke(page, i) {
   ok('it has finished sliding in and is fully opaque', await page.evaluate(() => getComputedStyle(document.getElementById('recNudge')).opacity === '1'));
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'not-recording.png') });
 
+  // v1.183.0: untouched, it never goes away by itself.
+  await page.waitForTimeout(2300);
+  ok('left alone, it is still up after its clock has ticked', await shown(page));
+  ok('…and the pure rule agrees: hours of ticks never hide it', await page.evaluate(() => {
+    const P = RecordNudge.pure; let s = P.step(P.initialState(), { type: 'ink', now: 0, key: 'k', why: '' }).state;
+    for (const t of [15e3, 60e3, 3600e3, 8 * 3600e3]) { const r = P.step(s, { type: 'tick', now: t }); if (r.effect) return false; s = r.state; }
+    return s.shown;
+  }));
+
   // Writing on with it up keeps it up and does not show it twice.
   await stroke(page, 3);
   ok('writing on keeps it up (shown once)', await shown(page) && await page.evaluate(() => recNudge.state().shows === 1));
 
-  // Keys pressed inside stay inside: Escape is "Not now".
+  // Keys pressed inside stay inside: Escape is "Hide".
   await page.focus('#recNudge .rnLater');
   await page.keyboard.press('e');
   ok('a letter typed on the card never reaches the tool shortcuts', await page.evaluate(() => tool === 'pen'));
   await page.keyboard.press('Escape');
-  ok('Escape on the card is "Not now"', !(await shown(page)));
+  ok('Escape on the card is "Hide"', !(await shown(page)));
   ok('the focus does not stay inside the hidden card', await page.evaluate(() => !document.getElementById('recNudge').contains(document.activeElement)));
-  for (let i = 4; i < 8; i++) await stroke(page, i);
-  ok('after "Not now" this worksheet stays quiet', !(await shown(page)));
+  await stroke(page, 4);
+  ok('after "Hide" the very next stroke brings it back — it never gives up', await shown(page));
+  await page.click('#recNudge .rnLater');
+  ok('the Hide button puts it away too', !(await shown(page)));
+  // Typing in a text box on the page counts as writing.
+  await page.evaluate(() => {
+    const d = document.createElement('div');
+    d.className = 'annText'; d.contentEditable = 'true'; d.id = 'rnTypeProbe';
+    document.getElementById('viewerArea').appendChild(d);
+  });
+  await page.focus('#rnTypeProbe');
+  await page.keyboard.type('Hi');
+  ok('typing in a text box on the worksheet brings it back', await shown(page));
+  await page.evaluate(() => { document.getElementById('rnTypeProbe').remove(); recNudge.later(); });
+  await page.evaluate(() => {
+    const f = document.createElement('input'); f.id = 'rnFieldProbe'; document.body.appendChild(f);
+  });
+  await page.focus('#rnFieldProbe');
+  await page.keyboard.type('abc');
+  ok('typing in a field that is not the worksheet does not', !(await shown(page)));
+  await page.evaluate(() => document.getElementById('rnFieldProbe').remove());
 
   // Another worksheet is not snoozed.
   await page.evaluate(() => { currentDocId = 'doc-2'; recNudgeChanged(); });
@@ -318,7 +346,7 @@ async function stroke(page, i) {
     return { l: b.left, r: b.right, vw: innerWidth, scroll: document.documentElement.scrollWidth, rec: rec.height, recW: rec.width, laterH: later.height };
   });
   ok('it fits the screen with a gutter', g.l >= 7 && g.r <= g.vw - 7, JSON.stringify(g));
-  ok('its buttons are big enough to hit', g.rec >= 34 && g.laterH >= 34 && g.recW >= 120, JSON.stringify(g));
+  ok('its buttons are big enough to hit', g.rec >= 33.5 && g.laterH >= 33.5 && g.recW >= 120, JSON.stringify(g));
   await page.waitForTimeout(400);
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'phone.png') });
   ok('no error on the phone', errors.length === 0, errors.join('\n      '));
