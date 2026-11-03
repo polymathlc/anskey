@@ -6009,7 +6009,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.179.0';
+var APP_VERSION = 'v1.180.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32520,16 +32520,17 @@ function lappUpdateOnPage(id, cover, app) {
   editModeId = a.id;
   renderAllOverlays();
   setDirty(true);
-  /* 📝 A living question's picture is the app's DIAGRAM, not the painted
-     cover: a changed app repaints it from the new app's figure. */
-  var fig = annLivingQuestion(a) && window.LivingQuestion ? window.LivingQuestion.pure.figureOf(app) : '';
-  if (fig) {
-    window.LivingQuestion.paintFigureCover(fig).then(function (pic) {
+  /* 📝 A living question's picture is what the app DRAWS — its block's
+     figure, else the diagrams, tables and pictures read off it — not the
+     painted cover: a changed app repaints it from the new app. */
+  if (annLivingQuestion(a) && window.LivingQuestion) {
+    lappQuestionFor(app, cover, false).then(function (got) {
+      if (got.drew === 'cover') return;
       var cur = annotations.find(function (x) { return x.id === id; });
-      if (!cur || cur.lapp !== app) return;   // changed again, or gone, meanwhile
-      cur.src = pic.src;
-      cur.ratio = round2(pic.ratio);
-      cur.h = round2(cur.w / pic.ratio);
+      if (!cur || cur.lapp !== app || !wheelTeacher() || practiceMode) return;   // changed again, gone, or handed over meanwhile
+      cur.src = got.pic.src;
+      cur.ratio = round2(got.pic.ratio);
+      cur.h = round2(cur.w / got.pic.ratio);
       renderAllOverlays();
       setDirty(true);
     }).catch(function (e) { console.warn('The question’s diagram could not be repainted', e); });
@@ -32560,6 +32561,37 @@ function lappCanPlace() {
        space with NO `lq` — they are the teacher's answers, hidden in
        practice like every other answer.
    It is ONE undo step. */
+/* 📝 What an app puts on paper (v1.180.0): its question and its picture.
+   An app with a question block keeps its own words; one without — most of
+   the apps a teacher already has — is RUN once, invisibly, in its own
+   sandbox (LivingApps.harvest) and read as it is drawn: its words become
+   the question and its parts, and its SVG diagrams, canvases, pictures and
+   tables become ONE figure beside the gold strip. A block with no figure
+   borrows the app's pictures the same way. Only when the app draws nothing
+   does the painted cover go on, as before — and only then.
+   Resolves { spec, pic, drew: 'figure'|'graphics'|'cover', read }. */
+async function lappQuestionFor(app, cover, say) {
+  var LQ = window.LivingQuestion.pure;
+  var spec = LQ.specFor(app);
+  var raw = null;
+  if (LQ.needsHarvest(spec) && window.LivingApps && typeof window.LivingApps.harvest === 'function') {
+    if (say) toast('📝 Reading the question, its diagrams and tables off the app…', 3200);
+    try { raw = await window.LivingApps.harvest(app.html); } catch (e) { raw = null; console.warn('The app could not be read', e); }
+    spec = LQ.mergeHarvest(spec, app, raw);
+  }
+  var pic = cover, drew = 'cover';
+  if (spec.figure) {
+    try { pic = await window.LivingQuestion.paintFigureCover(spec.figure); drew = 'figure'; }
+    catch (e) { pic = cover; console.warn('The question’s diagram could not be drawn', e); if (say) toast('The app’s diagram could not be drawn here, so its cover goes on instead.', 4200); }
+  } else if (spec.graphics && spec.graphics.length) {
+    try {
+      var g = await window.LivingQuestion.paintGraphicsCover(spec.graphics);
+      if (g && g.src) { pic = g; drew = 'graphics'; }
+    } catch (e) { console.warn('The app’s pictures could not be drawn', e); }
+  }
+  return { spec: spec, pic: pic, drew: drew, read: !!raw };
+}
+
 function lappMeasureText(p, a) {
   var node = p.svg && p.svg.querySelector('[data-id="' + a.id + '"] .annText');
   var est = Math.max(1, Math.ceil(String(a.text || '').length * a.fontSize * 0.52 / Math.max(60, a.w))) * a.fontSize * 1.4;
@@ -32575,12 +32607,9 @@ async function lappAddQuestion(cover, app, opts) {
   var page = mmTargetPage();
   if (!pdfDoc || !page) { toast('Open a worksheet — or add a blank page — first.', 4000); return 0; }
   var LQ = window.LivingQuestion.pure;
-  var spec = LQ.specFor(app);
-  var pic = cover;
-  if (spec.figure) {
-    try { pic = await window.LivingQuestion.paintFigureCover(spec.figure); }
-    catch (e) { pic = cover; console.warn('The question’s diagram could not be drawn', e); toast('The app’s diagram could not be drawn here, so its cover goes on instead.', 4200); }
-  }
+  var got = await lappQuestionFor(app, cover, true);
+  var spec = got.spec;
+  var pic = got.pic;
   // The await gave the teacher time to do something else: check again.
   if (!wheelTeacher() || practiceMode || !pdfDoc || pages.indexOf(page) === -1) return 0;
   if (!pic || !pic.src) return 0;
@@ -32674,8 +32703,13 @@ async function lappAddQuestion(cover, app, opts) {
   editModeId = appAnn.id;
   renderAllOverlays();
   setDirty(true);
+  var readBits = [];
+  if (spec.harvested) readBits.push('its words');
+  if (got.drew === 'graphics') readBits.push((pic.count || 1) === 1 ? 'its picture' : (pic.count + ' pictures and tables'));
+  if (got.read && got.drew === 'cover') readBits.push('no picture it draws could be copied, so its cover goes on');
   if (plan.trimmed) toast('📝 The question needed more room than this page has, so ' + plan.trimmed + ' working line' + (plan.trimmed === 1 ? ' was' : 's were') + ' left out. ➕ Blank page gives it a page of its own.', 6400);
   else if (!plan.fits) toast('📝 The question runs to the bottom of the page — ➕ Blank page gives it a page of its own.', 5200);
+  else if (readBits.length) toast('📝 Read off the app: ' + readBits.join(', ') + '. Tap the picture to bring it alive.', 4800);
   return page.num;
 }
 

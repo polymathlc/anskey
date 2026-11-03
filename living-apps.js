@@ -144,6 +144,151 @@
     '})();'
   ].join('\n');
 
+
+  /* 📝 The trusted half of "as a question" (v1.180.0), inside the sandbox
+     beside the wand. Asked {polymath:'harvest'} by the page that owns the
+     frame — and nobody else — it reads the app AS IT IS DRAWN: its words in
+     reading order (headings, paragraphs, list items; never a button, a
+     slider, a label, a wand or anything hidden), every table as rows of
+     cells, every inline SVG with its computed colours written onto it (an
+     SVG drawn as a picture never sees the app's stylesheet), every canvas
+     and every picture as a PNG. It replies {polymath:'harvest-result'}.
+     It sends nothing anywhere else, and the page cleans everything it gets
+     (LivingQuestion.pure.cleanHarvest) before any of it reaches paper. */
+  var HARVEST_BRIDGE = [
+    '(function(){',
+    '  "use strict";',
+    '  var SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|BUTTON|INPUT|SELECT|TEXTAREA|OPTION|LABEL|NAV|IFRAME|AUDIO|VIDEO|OBJECT|EMBED|DIALOG|HEAD|META|LINK|TITLE)$/;',
+    '  var SKIP_ROLE = /^(button|slider|toolbar|menu|menubar|tablist|tab|switch|checkbox|radio|spinbutton|navigation|dialog|status|alert|progressbar)$/;',
+    '  var MAX_NODES = 8000, MAX_TEXT = 6000, MAX_GRAPHICS = 8, MAX_SVG = 400000, MAX_PNG = 2500000, MIN_W = 36, MIN_H = 28;',
+    '  var SVG_PROPS = ["fill","fill-opacity","fill-rule","stroke","stroke-width","stroke-opacity","stroke-dasharray","stroke-linecap","stroke-linejoin","opacity","font-size","font-family","font-weight","font-style","text-anchor","dominant-baseline","letter-spacing","visibility","display","marker-start","marker-mid","marker-end","stop-color","stop-opacity"];',
+    '  function css(el){ try { return window.getComputedStyle(el); } catch (e) { return null; } }',
+    '  function hidden(el, s){',
+    '    if (!s) return false;',
+    '    if (s.display === "none" || s.visibility === "hidden" || s.visibility === "collapse") return true;',
+    '    if (Number(s.opacity) === 0) return true;',
+    '    if (el.getAttribute && (el.getAttribute("aria-hidden") === "true" || el.hasAttribute("hidden") || el.hasAttribute("data-polymath-skip"))) return true;',
+    '    return false;',
+    '  }',
+    '  function chrome(el){',
+    '    var role = el.getAttribute && el.getAttribute("role");',
+    '    if (role && SKIP_ROLE.test(role)) return true;',
+    '    if (el.getAttribute && (el.hasAttribute("data-polymath-wand") || el.hasAttribute("data-wand") || el.hasAttribute("data-polymath-play"))) return true;',
+    '    var c = typeof el.className === "string" ? el.className : "";',
+    '    return /(^|\\s)(btn-wand|wand|btn-play|controls?|toolbar|polymath-skip)(\\s|$)/.test(c);',
+    '  }',
+    '  function clean(t){ return String(t || "").replace(/[ \\t ]+/g, " ").replace(/ *\\n */g, "\\n").replace(/\\n{3,}/g, "\\n\\n").trim(); }',
+    '  function numberSvg(clone, orig){',
+    '    var s = css(orig);',
+    '    if (s) {',
+    '      var bits = [];',
+    '      for (var i = 0; i < SVG_PROPS.length; i++) {',
+    '        var v = s.getPropertyValue(SVG_PROPS[i]);',
+    '        if (v && v !== "normal" && v !== "auto") bits.push(SVG_PROPS[i] + ":" + v);',
+    '      }',
+    '      var own = clone.getAttribute("style");',
+    '      clone.setAttribute("style", bits.join(";") + (own ? ";" + own : ""));',
+    '    }',
+    '    var a = orig.children || [], b = clone.children || [];',
+    '    for (var k = 0; k < a.length && k < b.length; k++) numberSvg(b[k], a[k]);',
+    '  }',
+    '  function svgOf(el, r){',
+    '    var c = el.cloneNode(true);',
+    '    try { numberSvg(c, el); } catch (e) {}',
+    '    var w = Math.round(r.width), h = Math.round(r.height);',
+    '    if (!c.getAttribute("viewBox")) c.setAttribute("viewBox", "0 0 " + w + " " + h);',
+    '    c.setAttribute("width", w); c.setAttribute("height", h);',
+    '    c.setAttribute("xmlns", "http://www.w3.org/2000/svg");',
+    '    var out = "";',
+    '    try { out = new XMLSerializer().serializeToString(c); } catch (e) { out = c.outerHTML || ""; }',
+    '    if (!out || out.length > MAX_SVG) return null;',
+    '    return { kind: "svg", svg: out, w: w, h: h };',
+    '  }',
+    '  function pngOf(src, w, h){ return src && src.length <= MAX_PNG && /^data:image\\//.test(src) ? { kind: "png", src: src, w: w, h: h } : null; }',
+    '  function canvasOf(el, r){',
+    '    try { return pngOf(el.toDataURL("image/png"), Math.round(r.width), Math.round(r.height)); } catch (e) { return null; }',
+    '  }',
+    '  function imgOf(el, r){',
+    '    var src = el.currentSrc || el.src || "";',
+    '    if (/^data:image\\//.test(src)) return pngOf(src, Math.round(r.width), Math.round(r.height));',
+    '    try {',
+    '      if (!el.complete || !el.naturalWidth) return null;',
+    '      var c = document.createElement("canvas");',
+    '      c.width = Math.min(1600, el.naturalWidth); c.height = Math.round(c.width * el.naturalHeight / el.naturalWidth);',
+    '      c.getContext("2d").drawImage(el, 0, 0, c.width, c.height);',
+    '      return pngOf(c.toDataURL("image/png"), Math.round(r.width), Math.round(r.height));',
+    '    } catch (e) {}',
+    '    return /^https:\\/\\//.test(src) ? { kind: "url", src: src, w: Math.round(r.width), h: Math.round(r.height) } : null;',
+    '  }',
+    '  function cellText(td){ return clean(td.innerText != null ? td.innerText : td.textContent).replace(/\\n+/g, " "); }',
+    '  function tableOf(el){',
+    '    var rows = [], trs = el.querySelectorAll("tr");',
+    '    for (var i = 0; i < trs.length && rows.length < 30; i++) {',
+    '      var tr = trs[i], s = css(tr);',
+    '      if (hidden(tr, s)) continue;',
+    '      var cells = [], head = false, tds = tr.children;',
+    '      for (var j = 0; j < tds.length && cells.length < 10; j++) {',
+    '        if (!/^(TD|TH)$/.test(tds[j].tagName)) continue;',
+    '        if (tds[j].tagName === "TH") head = true;',
+    '        var inp = tds[j].querySelector("input,select,textarea");',
+    '        cells.push(inp && !cellText(tds[j]) ? "" : cellText(tds[j]));',
+    '      }',
+    '      if (cells.length) rows.push({ head: head || tr.parentNode.tagName === "THEAD", cells: cells });',
+    '    }',
+    '    var cap = el.querySelector("caption");',
+    '    return rows.length ? { kind: "table", rows: rows, caption: cap ? cellText(cap) : "" } : null;',
+    '  }',
+    '  function harvest(){',
+    '    var blocks = [], buf = "", nodes = 0, graphics = 0, textLen = 0;',
+    '    function flush(){',
+    '      var t = clean(buf); buf = "";',
+    '      if (!t || textLen > MAX_TEXT) return;',
+    '      textLen += t.length;',
+    '      blocks.push({ kind: "text", text: t });',
+    '    }',
+    '    function graphic(g){ if (g && graphics < MAX_GRAPHICS) { graphics++; flush(); blocks.push(g); } }',
+    '    function walk(node, depth, li){',
+    '      if (nodes++ > MAX_NODES || depth > 60) return;',
+    '      if (node.nodeType === 3) { buf += node.nodeValue; return; }',
+    '      if (node.nodeType !== 1) return;',
+    '      var el = node, tag = String(el.tagName || "").toUpperCase();',
+    '      if (SKIP.test(tag) || el.id === "polymath-question") return;',
+    '      var s = css(el);',
+    '      if (hidden(el, s) || chrome(el)) return;',
+    '      var disp = s ? s.display : "block";',
+    '      var block = !/^inline/.test(disp) && disp !== "contents";',
+    '      var r = el.getBoundingClientRect ? el.getBoundingClientRect() : { width: 0, height: 0 };',
+    '      if (tag === "SVG") { if (r.width >= MIN_W && r.height >= MIN_H) graphic(svgOf(el, r)); return; }',
+    '      if (tag === "CANVAS") { if (r.width >= MIN_W && r.height >= MIN_H) graphic(canvasOf(el, r)); return; }',
+    '      if (tag === "IMG") { if (r.width >= MIN_W && r.height >= MIN_H) graphic(imgOf(el, r)); return; }',
+    '      if (tag === "TABLE") { var t = tableOf(el); if (t && graphics < MAX_GRAPHICS) { graphics++; flush(); blocks.push(t); } return; }',
+    '      if (tag === "BR") { buf += "\\n"; return; }',
+    '      if (block) flush();',
+    '      if (tag === "LI") {',
+    '        var p = el.parentNode, ord = p && p.tagName === "OL";',
+    '        if (ord) { var n = 1, sib = el; while ((sib = sib.previousElementSibling)) if (sib.tagName === "LI") n++; buf += n + ". "; }',
+    '        else buf += "• ";',
+    '      }',
+    '      var kids = el.childNodes;',
+    '      for (var i = 0; i < kids.length; i++) walk(kids[i], depth + 1);',
+    '      if (block) flush();',
+    '    }',
+    '    if (document.body) walk(document.body, 0);',
+    '    flush();',
+    '    return { blocks: blocks, title: clean(document.title), w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight };',
+    '  }',
+    '  window.addEventListener("message", function(e){',
+    '    if (e.source !== parent) return;',
+    '    var d = e.data;',
+    '    if (!d || d.polymath !== "harvest") return;',
+    '    var out;',
+    '    try { out = harvest(); } catch (err) { out = { blocks: [], error: String(err && err.message || err) }; }',
+    '    out.polymath = "harvest-result"; out.id = d.id;',
+    '    try { parent.postMessage(out, "*"); } catch (e2) {}',
+    '  });',
+    '})();'
+  ].join('\n');
+
   /* ---------------------------------------------------------------
      Pure helpers — no DOM, so tools/living-apps-tests.mjs runs them.
      --------------------------------------------------------------- */
@@ -240,6 +385,7 @@
       '<meta http-equiv="Content-Security-Policy" content="' + escapeHtml(CSP) + '">' +
       '<meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<script>' + WAND_BRIDGE + '<\/script>' +
+      '<script>' + HARVEST_BRIDGE + '<\/script>' +
       '</head><body>' + String(html || '') + '</body></html>';
   }
   /* Word-wrap a title into at most `maxLines` lines with a measuring
@@ -508,7 +654,7 @@
   }
 
   var pure = {
-    MAX_CHARS: MAX_CHARS, TITLE_MAX: TITLE_MAX, COVER_W: COVER_W, COVER_H: COVER_H, CSP: CSP, WAND_BRIDGE: WAND_BRIDGE,
+    MAX_CHARS: MAX_CHARS, TITLE_MAX: TITLE_MAX, COVER_W: COVER_W, COVER_H: COVER_H, CSP: CSP, WAND_BRIDGE: WAND_BRIDGE, HARVEST_BRIDGE: HARVEST_BRIDGE,
     escapeHtml: escapeHtml, cleanTitle: cleanTitle, titleFromHtml: titleFromHtml, titleFromFileName: titleFromFileName,
     looksLikeHtml: looksLikeHtml, hasScript: hasScript, hasWand: hasWand, utf8Bytes: utf8Bytes, sizeText: sizeText,
     contentHash: contentHash, normalizeApp: normalizeApp, validApp: validApp, sandboxDocument: sandboxDocument,
@@ -1278,7 +1424,66 @@
     '<circle cx="7" cy="7" r="1.5" fill="#FFFFFF"/></svg>';
   var SPARK_SVG = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0.6L8.7 5.3L13.4 7L8.7 8.7L7 13.4L5.3 8.7L0.6 7L5.3 5.3Z" fill="#F6C343"/><circle cx="7" cy="7" r="1.4" fill="#FFFFFF"/></svg>';
 
-  var api = { create: create, pure: pure, paintCover: paintCover, drawQrOnPdf: drawQrOnPdf };
+  /* 📝 Read an app as it is drawn (v1.180.0). The app runs ONCE more, in
+     a sandboxed frame of its own (the same document, CSP and bridge as the
+     stage — never allow-same-origin), laid out at a worksheet-ish size and
+     kept invisible but ON the screen: a frame scrolled off the screen is
+     throttled by the browser, so an app that draws in requestAnimationFrame
+     would hand back an empty canvas. When the app says it is ready (the
+     wand bridge's wand-ready, else its load plus a little) it is given
+     HARVEST_SETTLE_MS to draw, then asked. Resolves the raw reply, or null
+     on a timeout or with no DOM; the frame is always taken down. */
+  var HARVEST_SETTLE_MS = 900;
+  var HARVEST_LOAD_GRACE_MS = 1800;
+  var HARVEST_WAIT_MS = 9000;
+  var HARVEST_W = 900;
+  var HARVEST_H = 1200;
+  function harvest(html, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      if (typeof document === 'undefined' || !document.body || !html) { resolve(null); return; }
+      var settle = opts.settleMs != null ? opts.settleMs : HARVEST_SETTLE_MS;
+      var f = document.createElement('iframe');
+      f.setAttribute('sandbox', 'allow-scripts');
+      f.setAttribute('aria-hidden', 'true');
+      f.setAttribute('title', 'Reading the app');
+      f.tabIndex = -1;
+      f.className = 'laHarvest';
+      f.style.cssText = 'position:fixed;left:0;top:0;width:' + (opts.width || HARVEST_W) + 'px;height:' + (opts.height || HARVEST_H) +
+        'px;border:0;opacity:0;pointer-events:none;z-index:-1;background:#fff;';
+      var id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      var done = false, asked = false, timers = [];
+      function finish(v) {
+        if (done) return;
+        done = true;
+        timers.forEach(clearTimeout);
+        window.removeEventListener('message', onMsg);
+        if (f.parentNode) f.parentNode.removeChild(f);
+        resolve(v);
+      }
+      function ask() {
+        if (asked || done) return;
+        asked = true;
+        timers.push(setTimeout(function () {
+          try { f.contentWindow.postMessage({ polymath: 'harvest', id: id }, '*'); } catch (e) { finish(null); }
+        }, settle));
+      }
+      function onMsg(e) {
+        if (!f.contentWindow || e.source !== f.contentWindow) return;
+        var d = e.data;
+        if (!d || typeof d !== 'object') return;
+        if (d.polymath === 'wand-ready') ask();
+        else if (d.polymath === 'harvest-result' && d.id === id) finish(d);
+      }
+      window.addEventListener('message', onMsg);
+      f.addEventListener('load', function () { timers.push(setTimeout(ask, HARVEST_LOAD_GRACE_MS)); });
+      timers.push(setTimeout(function () { finish(null); }, opts.waitMs || HARVEST_WAIT_MS));
+      f.srcdoc = sandboxDocument(html);
+      document.body.appendChild(f);
+    });
+  }
+
+  var api = { create: create, pure: pure, paintCover: paintCover, drawQrOnPdf: drawQrOnPdf, harvest: harvest };
   root.LivingApps = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

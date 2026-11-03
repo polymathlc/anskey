@@ -119,6 +119,24 @@ Guidance for Claude when working in this repo.
 - Teacher only: `wheelTeacher()` in `llibSaveApp`, `llibPlace`, `lappAddQuestion`, `lqOpenPrompt`, `lappCanPlace`; `isTeacher()` in the library's `place`. `lappRoleChanged` closes the prompt.
 - Run `node --test tools/living-question-tests.mjs tools/living-library-tests.mjs tools/living-apps-tests.mjs` and `node tools/living-library-check.mjs` (real Chromium: AI reply pasted → library → question on the page, practice, library only, worksheets deleted then the code still opens, ➕ / 📝 from the library, the prompt, Escape layering, no worksheet, student) and `node tools/living-apps-check.mjs`.
 
+### 📝 An app with no question block is READ as it is drawn (v1.180.0)
+
+- **What changed.** "As a question" on an app with no block used to place `fallbackSpec`: only the title, plus the painted cover. Now `lappQuestionFor(app, cover, say)` in the glue runs `LivingApps.harvest(html)` whenever `LQ.needsHarvest(spec)`, which means there is no block, or the block has no figure.
+- **The harvest frame.** It is the stage's sandbox: `allow-scripts`, `sandboxDocument`, never `allow-same-origin`. It sits ON screen (`left:0;top:0;opacity:0;z-index:-1`), because an off-screen frame is throttled and a requestAnimationFrame canvas would come back empty. It asks once `wand-ready` arrives (or after its load grace) plus `HARVEST_SETTLE_MS`, times out at `HARVEST_WAIT_MS`, and is always removed.
+- **`HARVEST_BRIDGE`** is a second trusted script after `WAND_BRIDGE` and before the author's markup. It answers only `parent` and writes nothing.
+  - It walks the drawn DOM in reading order and returns `{kind:'text'|'svg'|'png'|'url'|'table'}` blocks.
+  - It skips controls (`SKIP` tags, `SKIP_ROLE`, wand/play/`.controls`, `data-polymath-skip`) and anything hidden, including opacity 0 and `aria-hidden`.
+  - It writes each SVG's computed paint and font onto the clone (`SVG_PROPS`), because an SVG drawn as an `<img>` never sees the app's stylesheet.
+- **`LivingQuestion.pure.cleanHarvest` is the ONE door.** It allows SVG through `cleanSvg(v, HARVEST_SVG_MAX)`, PNG data URLs only, https URLs only, at most `HARVEST_GRAPHICS_MAX` pictures, and capped table cells.
+- **`specFromHarvest`** turns the cleaned blocks into the question:
+  - It drops the heading that equals the title and any wand or button line (`CHROME_LINE_RE`).
+  - `(a)` / `(ii)` / `a)` start parts (`PART_RE`), but `(1)`–`(4)` multiple-choice options stay words. Trailing `[2]` / `(2 marks)` gives the marks, and `partLines(marks)` gives the lines.
+  - Fewer than 4 words puts the title first.
+- **`mergeHarvest`:** a block's own words always win. A block with no figure borrows `graphics`, and the function never edits its input.
+- **The figure.** `paintGraphicsCover` draws each graphic on its own canvas (an SVG via `svgToPng`, a table via `tableCanvas`, a picture via `imageCanvas`; a picture that taints the canvas is dropped). It sets them in rows with the pure `composeBoxes`, then `coverFromFigure` adds the same gold strip as `paintFigureCover`, so `stripWidth` and the QR rule are unchanged.
+- **Fallbacks and updates.** The cover is used only when `drew === 'cover'`. `lappUpdateOnPage` repaints through `lappQuestionFor`.
+- **Run** `node --test tools/living-question-tests.mjs` and `node tools/living-library-check.mjs`. The browser check reads a real app with a stylesheet-coloured SVG, a requestAnimationFrame canvas, a table, parts, buttons and a hidden answer, and checks the picture's pixels.
+
 ## ⏺ Writing without recording: the "Not recording" warning (v1.173.0, v1.174.0)
 
 - `record-nudge.js` / `record-nudge.css` own it (`window.RecordNudge`: `create(env)`, `pure`). index.html holds only the glue between `⏺ Writing without recording — glue` and `End writing without recording glue` (`recNudgeInit`, `recNudgeTeacher`, `recNudgeWindowOpen`, `recNudgeInk`, `recNudgeChanged`, `recNudgeSyncSwitch`, `recNudgeRecord`), `#lessonNudgeAgain` in the Record lesson window and `<script>recNudgeInit();</script>` after the module's tag.

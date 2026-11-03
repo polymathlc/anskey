@@ -3,6 +3,17 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.180.0 — 📝 "As a question" reads the app itself
+
+- An app with no question block is now run once, out of sight, in its own sandbox, and read as it is drawn. Before, "As a question" put only the app's title and a generic living-app window on the page.
+- What goes on the page:
+  - **The question:** the app's words go in a text box. The app's heading, any "tap the wand" line, its buttons, sliders and labels, and anything hidden (such as an answer) are left out.
+  - **The parts:** lines starting (a), (b), (i) and so on each get their own box, with their [marks], and ruled working lines under each part sized by the marks.
+  - **The figure:** the app's SVG diagrams (in the app's own colours), its canvases (even ones drawn by animation), its pictures and its tables become one figure. The figure sits beside the gold strip that carries the printed QR code, and a tap on it still brings the app alive.
+- An app *with* a question block keeps its own words. If that block has no figure, it borrows the pictures the app draws.
+- The cover goes on only when the app draws nothing that can be copied.
+- When you change an app, its question's picture is redrawn from the new app.
+
 ## v1.179.0 — ☁ The living app library is where an app lives, 📝 an app as a question, 📋 a prompt for any AI
 
 - **Adding a living app saves it to your library in the cloud first.** The app is hosted (the same

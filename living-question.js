@@ -54,6 +54,14 @@
   var MARKS_MAX = 50;
   var ANSWER_MAX = 3000;
   var FIGURE_MAX = 200000;          // characters of SVG
+  var HARVEST_SVG_MAX = 400000;     // an SVG read off a running app carries its computed styles, so more
+  var HARVEST_BLOCKS_MAX = 80;
+  var HARVEST_GRAPHICS_MAX = 8;
+  var HARVEST_TEXT_MAX = 1600;      // one block of words
+  var HARVEST_PNG_MAX = 3000000;    // characters of a data: URL
+  var TABLE_ROWS_MAX = 30;
+  var TABLE_COLS_MAX = 10;
+  var TABLE_CELL_MAX = 200;
   var DEFAULT_LINES = 5;            // an app with no block still gets somewhere to write
   var DEFAULT_PART_LINES = 3;
 
@@ -143,12 +151,12 @@
      runs no script and loads nothing), so this is tidiness and size, not the
      lock — but a figure stored on an annotation is read by every device the
      worksheet opens on, so it is kept clean anyway. */
-  function cleanSvg(v) {
+  function cleanSvg(v, max) {
     var s = str(v).replace(/^﻿/, '').trim();
     if (!s) return '';
     s = s.replace(/<\?xml[\s\S]*?\?>/gi, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<!DOCTYPE[^>]*>/gi, '').trim();
     if (!/^<svg[\s>]/i.test(s) || !/<\/svg>\s*$/i.test(s)) return '';
-    if (s.length > FIGURE_MAX) return '';
+    if (s.length > (max || FIGURE_MAX)) return '';
     s = s.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
       .replace(/<script\b[^>]*\/>/gi, '')
       .replace(/<foreignObject\b[\s\S]*?<\/foreignObject\s*>/gi, '')
@@ -178,8 +186,8 @@
 
   /* An <svg> drawn as a picture needs an explicit size, or some browsers
      draw it at 300 × 150 whatever its viewBox says. */
-  function svgForImage(svg, w, h) {
-    var s = cleanSvg(svg);
+  function svgForImage(svg, w, h, max) {
+    var s = cleanSvg(svg, max);
     if (!s) return '';
     var size = svgSize(s);
     var W = Math.max(1, Math.round(w || size.w)), H = Math.max(1, Math.round(h || size.h));
@@ -289,7 +297,8 @@
     if (lines) bits.push(lines + (lines === 1 ? ' working line' : ' working lines'));
     if (marks) bits.push(marks + (marks === 1 ? ' mark' : ' marks'));
     if (spec.figure) bits.push('a diagram');
-    return { parts: spec.parts.length, lines: lines, marks: marks, figure: !!spec.figure, answers: answers, text: bits.join(' · ') };
+    else if (spec.graphics && spec.graphics.length) bits.push(spec.graphics.length === 1 ? 'a picture' : spec.graphics.length + ' pictures');
+    return { parts: spec.parts.length, lines: lines, marks: marks, figure: !!spec.figure || !!(spec.graphics && spec.graphics.length), answers: answers, text: bits.join(' · ') };
   }
 
   /* What one text box says. */
@@ -513,6 +522,209 @@
     return a.url;
   }
 
+
+  /* ---------------------------------------------------------------
+     📝 An app with no question block (v1.180.0). Most apps a teacher
+     already has were written before the block existed, and an AI does
+     not always add it — so "as a question" put the bare title on the page
+     and the generic cover beside it, and the question, its diagram and
+     its tables were nowhere. Now the app is RUN once in its sandbox and
+     read as it is drawn (LivingApps.harvest, HARVEST_BRIDGE): its words,
+     tables, SVG diagrams, canvases and pictures. cleanHarvest is the ONE
+     door those come through — everything else here reads only what it
+     returns.
+     --------------------------------------------------------------- */
+  var PNG_RE = /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+\/=]+$/;
+  var URL_RE = /^https:\/\/[^\s"'<>\\]+$/;
+  function dim(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.min(4000, Math.round(n)) : 0; }
+  function cleanHarvest(raw) {
+    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.blocks)) return null;
+    var blocks = [], graphics = 0;
+    raw.blocks.slice(0, HARVEST_BLOCKS_MAX * 2).forEach(function (b) {
+      if (blocks.length >= HARVEST_BLOCKS_MAX || !b || typeof b !== 'object') return;
+      if (b.kind === 'text') {
+        var t = cleanBlock(b.text, HARVEST_TEXT_MAX);
+        if (t) blocks.push({ kind: 'text', text: t });
+        return;
+      }
+      if (graphics >= HARVEST_GRAPHICS_MAX) return;
+      var w = dim(b.w), h = dim(b.h), g = null;
+      if (b.kind === 'svg') {
+        var svg = cleanSvg(b.svg, HARVEST_SVG_MAX);
+        if (svg) g = { kind: 'svg', svg: svg, w: w, h: h };
+      } else if (b.kind === 'png') {
+        var src = str(b.src);
+        if (src.length <= HARVEST_PNG_MAX && PNG_RE.test(src)) g = { kind: 'png', src: src, w: w, h: h };
+      } else if (b.kind === 'url') {
+        var u = str(b.src);
+        if (u.length <= 2000 && URL_RE.test(u)) g = { kind: 'url', src: u, w: w, h: h };
+      } else if (b.kind === 'table') {
+        var rows = (Array.isArray(b.rows) ? b.rows : []).slice(0, TABLE_ROWS_MAX).map(function (r) {
+          var cells = (r && Array.isArray(r.cells) ? r.cells : []).slice(0, TABLE_COLS_MAX).map(function (c) { return cleanLine(c, TABLE_CELL_MAX); });
+          return { head: !!(r && r.head), cells: cells };
+        }).filter(function (r) { return r.cells.length && r.cells.some(Boolean); });
+        if (rows.length) g = { kind: 'table', rows: rows, caption: cleanLine(b.caption, TABLE_CELL_MAX) };
+      }
+      if (g) { graphics++; blocks.push(g); }
+    });
+    if (!blocks.length) return null;
+    return { title: cleanLine(raw.title, TITLE_MAX), blocks: blocks };
+  }
+
+  /* Words that are the app's own controls, not the question: a line
+     telling you to press the wand or a button. */
+  var CHROME_LINE_RE = /🪄|\bmagic wand\b|\b(?:tap|press|click|use) (?:the )?(?:wand|button|slider)\b/i;
+  /* "(a) …", "(ii) …", "a) …", "b. …" — a part. Two letters at most, or a
+     roman numeral, so "(1)" "(2)" options of a multiple choice stay words. */
+  var PART_RE = /^\s*\(\s*([a-h]|i{1,3}|iv|vi{0,3}|ix|x)\s*\)\s*(.*)$/i;
+  var PART_RE_BARE = /^\s*([a-h])[).]\s+(\S.*)$/;
+  /* "[2]", "(2 marks)", "[1m]" at the end of a line. */
+  var MARKS_RE = /\s*[\[(]\s*(\d{1,2})\s*(?:m|marks?)?\s*[\])]\s*$/i;
+  function wordCount(t) { return (str(t).match(/[A-Za-z0-9À-￿]+/g) || []).length; }
+  function sameWords(a, b) {
+    var x = str(a).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(), y = str(b).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return !!x && x === y;
+  }
+  function takeMarks(t) {
+    var m = str(t).match(MARKS_RE);
+    return m ? { text: str(t).slice(0, m.index).trim(), marks: clampInt(m[1], 0, MARKS_MAX, 0) } : { text: str(t), marks: 0 };
+  }
+  function partLines(marks) { return marks ? Math.max(2, Math.min(8, marks * 2)) : DEFAULT_PART_LINES; }
+
+  /* The question an app shows, as a spec — the same shape cleanSpec gives,
+     plus `graphics` (the diagrams and tables, in order) and
+     `harvested: true`. Null when the harvest holds nothing. */
+  function specFromHarvest(app, raw) {
+    var h = cleanHarvest(raw);
+    if (!h) return null;
+    var title = cleanLine(app && app.title, TITLE_MAX) || h.title || 'Living app';
+    var lines = [];
+    h.blocks.forEach(function (b) {
+      if (b.kind !== 'text') return;
+      b.text.split('\n').forEach(function (l) {
+        l = l.trim();
+        if (l && !(CHROME_LINE_RE.test(l) && l.length < 160)) lines.push(l);
+      });
+    });
+    // The app's own heading is its name, not the question.
+    while (lines.length && (sameWords(lines[0], title) || sameWords(lines[0], h.title))) lines.shift();
+    var stem = [], parts = [], cur = null;
+    lines.forEach(function (l) {
+      var m = l.match(PART_RE) || l.match(PART_RE_BARE);
+      if (m && parts.length < PARTS_MAX) {
+        var mk = takeMarks(m[2]);
+        cur = { label: '(' + m[1].toLowerCase() + ')', text: mk.text, marks: mk.marks };
+        parts.push(cur);
+        return;
+      }
+      if (cur) {
+        var more = takeMarks(l);
+        cur.text = (cur.text ? cur.text + '\n' : '') + more.text;
+        if (more.marks) cur.marks = more.marks;
+      } else stem.push(l);
+    });
+    var stemText = cleanBlock(stem.join('\n'), STEM_MAX);
+    var stemMarks = 0;
+    if (!parts.length) { var sm = takeMarks(stemText); stemText = sm.text; stemMarks = sm.marks; }
+    var said = wordCount(stemText) + parts.reduce(function (n, p) { return n + wordCount(p.text); }, 0);
+    // Too few words to stand on their own (a readout, a label): the title
+    // goes first so the question still says what it is about.
+    if (said < 4) stemText = cleanBlock(title + (stemText ? '\n' + stemText : ''), STEM_MAX);
+    var graphics = h.blocks.filter(function (b) { return b.kind !== 'text'; });
+    return {
+      v: VERSION,
+      title: title,
+      stem: stemText,
+      figure: '',
+      graphics: graphics,
+      parts: parts.map(function (p, i) {
+        return { label: cleanLabel(p.label, i), text: cleanBlock(p.text, PART_TEXT_MAX), marks: p.marks, lines: partLines(p.marks), answer: '' };
+      }),
+      lines: parts.length ? 0 : (stemMarks ? partLines(stemMarks) : DEFAULT_LINES),
+      marks: stemMarks,
+      answer: '',
+      harvested: true
+    };
+  }
+
+  /* An app WITH a block keeps its block — the teacher's (or the AI's) own
+     words win — but a block with no figure borrows the pictures the app
+     draws, so the diagram is still on the paper. */
+  function mergeHarvest(spec, app, raw) {
+    if (!spec || spec.fallback) return specFromHarvest(app, raw) || spec;
+    if (spec.figure) return spec;
+    var h = cleanHarvest(raw);
+    var graphics = h ? h.blocks.filter(function (b) { return b.kind !== 'text'; }) : [];
+    if (!graphics.length) return spec;
+    var out = {};
+    Object.keys(spec).forEach(function (k) { out[k] = spec[k]; });
+    out.graphics = graphics;
+    return out;
+  }
+
+  /* Does putting this app on paper need it run first? */
+  function needsHarvest(spec) { return !spec || !!spec.fallback || !spec.figure; }
+
+  /* How the pictures sit together: greedy rows, each picture at its own
+     size (capped), rows no wider than maxW. Pure, so the test can pin it.
+     items: [{ w, h }] → { w, h, boxes: [{ x, y, w, h }] } */
+  var COMPOSE_MAX_W = 1400;
+  var COMPOSE_ITEM_MAX_H = 820;
+  var COMPOSE_GAP = 32;
+  function composeBoxes(items, maxW, gap) {
+    maxW = maxW || COMPOSE_MAX_W;
+    gap = gap == null ? COMPOSE_GAP : gap;
+    var boxes = [], rows = [], row = null;
+    (items || []).forEach(function (it, i) {
+      var w = Math.max(1, Number(it && it.w) || 1), h = Math.max(1, Number(it && it.h) || 1);
+      var k = Math.min(1, maxW / w, COMPOSE_ITEM_MAX_H / h);
+      w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+      if (!row || row.w + gap + w > maxW) { row = { items: [], w: 0, h: 0 }; rows.push(row); }
+      row.items.push({ i: i, w: w, h: h });
+      row.w += (row.items.length > 1 ? gap : 0) + w;
+      row.h = Math.max(row.h, h);
+    });
+    var W = 0, y = 0;
+    rows.forEach(function (r) { W = Math.max(W, r.w); });
+    rows.forEach(function (r, ri) {
+      var x = Math.round((W - r.w) / 2);
+      r.items.forEach(function (it) {
+        boxes[it.i] = { x: x, y: y + Math.round((r.h - it.h) / 2), w: it.w, h: it.h };
+        x += it.w + gap;
+      });
+      y += r.h + (ri < rows.length - 1 ? gap : 0);
+    });
+    return { w: Math.max(1, W), h: Math.max(1, y), boxes: boxes };
+  }
+
+  /* A table's columns, sized from the longest word run in each, capped,
+     so a long cell wraps rather than stretching the table off the paper.
+     measure(text) → width. Pure. */
+  var TABLE_COL_MAX = 380;
+  var TABLE_COL_MIN = 70;
+  var TABLE_PAD = 16;
+  function tableColumns(rows, measure) {
+    var n = 0;
+    rows.forEach(function (r) { n = Math.max(n, r.cells.length); });
+    var cols = [];
+    for (var c = 0; c < n; c++) {
+      var w = TABLE_COL_MIN;
+      rows.forEach(function (r) { w = Math.max(w, measure(r.cells[c] || '') + TABLE_PAD * 2); });
+      cols.push(Math.min(TABLE_COL_MAX, Math.ceil(w)));
+    }
+    return cols;
+  }
+  function wrapCell(text, width, measure) {
+    var words = str(text).split(/\s+/).filter(Boolean), out = [], line = '';
+    words.forEach(function (wd) {
+      var t = line ? line + ' ' + wd : wd;
+      if (!line || measure(t) <= width) line = t;
+      else { out.push(line); line = wd; }
+    });
+    if (line) out.push(line);
+    return out.length ? out : [''];
+  }
+
   var pure = {
     VERSION: VERSION, SPEC_ID: SPEC_ID, DEFAULT_LINES: DEFAULT_LINES, DEFAULT_PART_LINES: DEFAULT_PART_LINES,
     LINES_MAX: LINES_MAX, PARTS_MAX: PARTS_MAX, FIGURE_MAX: FIGURE_MAX, MARGIN: MARGIN, LINE_GAP: LINE_GAP,
@@ -522,7 +734,9 @@
     cleanLine: cleanLine, cleanBlock: cleanBlock, cleanSvg: cleanSvg, svgSize: svgSize, svgForImage: svgForImage,
     readSpec: readSpec, cleanSpec: cleanSpec, questionOf: questionOf, figureOf: figureOf, fallbackSpec: fallbackSpec, specFor: specFor, summary: summary,
     stemText: stemText, partText: partText, layout: layout, lineAnn: lineAnn, extractHtml: extractHtml,
-    buildPrompt: buildPrompt, aiLink: aiLink, autoLabel: autoLabel, stripWidth: stripWidth
+    buildPrompt: buildPrompt, aiLink: aiLink, autoLabel: autoLabel, stripWidth: stripWidth,
+    cleanHarvest: cleanHarvest, specFromHarvest: specFromHarvest, mergeHarvest: mergeHarvest, needsHarvest: needsHarvest,
+    composeBoxes: composeBoxes, tableColumns: tableColumns, wrapCell: wrapCell, HARVEST_GRAPHICS_MAX: HARVEST_GRAPHICS_MAX
   };
 
   /* How wide the gold strip is for a figure of fw × fh pixels. On paper the
@@ -574,9 +788,9 @@
      --------------------------------------------------------------- */
 
   /* An SVG figure as a PNG data URL on white, at most maxW wide. */
-  function svgToPng(svg, maxW, maxH) {
+  function svgToPng(svg, maxW, maxH, svgMax) {
     return new Promise(function (resolve, reject) {
-      var clean = cleanSvg(svg);
+      var clean = cleanSvg(svg, svgMax);
       if (!clean) { reject(new Error('That figure is not a usable SVG.')); return; }
       var size = svgSize(clean);
       var mw = maxW || FIG_COVER_MAX_W, mh = maxH || FIG_COVER_MAX_H;
@@ -597,7 +811,7 @@
         } catch (e) { reject(e); }
       };
       img.onerror = function () { reject(new Error('That figure could not be drawn.')); };
-      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgForImage(clean, W, H));
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgForImage(clean, W, H, svgMax));
     });
   }
 
@@ -626,46 +840,163 @@
   /* The figure as the picture that carries the app: the gold strip with the
      wand on the left, the diagram on white beside it. { src, ratio, w, h }. */
   function paintFigureCover(svg) {
-    return svgToPng(svg, FIG_COVER_MAX_W, FIG_COVER_MAX_H).then(function (fig) {
-      var sw = stripWidth(fig.w, fig.h);
-      var W = fig.w + sw, H = fig.h;
-      var c = document.createElement('canvas');
-      c.width = W; c.height = H;
-      var x = c.getContext('2d');
-      x.fillStyle = '#FFFFFF';
-      x.fillRect(0, 0, W, H);
-      x.drawImage(fig.canvas, sw, 0);
-      // The strip: warm gold, rounded on the inside edge.
-      var g = x.createLinearGradient(0, 0, sw, H);
-      g.addColorStop(0, '#FFE7A3');
-      g.addColorStop(1, '#F6C343');
-      x.fillStyle = g;
-      roundRect(x, 0, 0, sw, H, Math.min(18, sw * 0.12));
-      x.fill();
-      x.fillRect(0, 0, Math.min(18, sw * 0.12), H);
-      // The wand, drawn (an emoji draws differently on every device).
-      var s = Math.min(sw, H) / 120;
-      var cx = sw / 2, cy = H / 2 - 10 * s;
-      x.save();
-      x.lineCap = 'round';
-      x.strokeStyle = '#FFFFFF'; x.lineWidth = 11 * s;
-      x.beginPath(); x.moveTo(cx - 16 * s, cy - 16 * s); x.lineTo(cx + 26 * s, cy + 26 * s); x.stroke();
-      x.strokeStyle = '#2D1F14'; x.lineWidth = 6 * s;
-      x.beginPath(); x.moveTo(cx - 16 * s, cy - 16 * s); x.lineTo(cx + 26 * s, cy + 26 * s); x.stroke();
-      x.restore();
-      star(x, cx - 22 * s, cy - 22 * s, 15 * s, 5 * s, '#FFFFFF');
-      star(x, cx - 22 * s, cy - 22 * s, 12 * s, 4 * s, '#B07A00');
-      star(x, cx + 20 * s, cy - 30 * s, 6 * s, 2 * s, '#FFFFFF');
-      star(x, cx - 34 * s, cy + 14 * s, 5 * s, 1.8 * s, '#FFFFFF');
-      x.fillStyle = '#5A3E00';
-      x.textAlign = 'center';
-      x.textBaseline = 'alphabetic';
-      var fs = Math.max(11, Math.round(Math.min(sw / 7.5, H / 9)));
-      x.font = '700 ' + fs + 'px system-ui, -apple-system, "Segoe UI", sans-serif';
-      x.fillText('Tap to bring', cx, cy + 46 * s + fs * 0.4);
-      x.fillText('it alive', cx, cy + 46 * s + fs * 1.5);
-      return { src: c.toDataURL('image/png'), ratio: W / H, w: W, h: H, strip: sw };
+    return svgToPng(svg, FIG_COVER_MAX_W, FIG_COVER_MAX_H).then(coverFromFigure);
+  }
+
+  /* 📝 The pictures an app draws (v1.180.0), each drawn on its own canvas
+     and set side by side in rows (composeBoxes), as ONE figure — so the
+     layout, the gold strip and the printed QR code are exactly a block
+     figure's. A picture that cannot be drawn (a cross-site photograph the
+     browser will not let a canvas read) is left out, never the rest. */
+  var GRAPHIC_SCALE = 2;            // CSS pixels → canvas pixels, for crisp lines on paper
+  function blankCanvas(w, h) {
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+    var x = c.getContext('2d');
+    x.fillStyle = '#FFFFFF';
+    x.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+  function loadImage(src, cross) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      if (cross) img.crossOrigin = 'anonymous';
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('That picture could not be loaded.')); };
+      img.src = src;
     });
+  }
+  function imageCanvas(g) {
+    return loadImage(g.src, g.kind === 'url').then(function (img) {
+      var nw = img.naturalWidth || g.w || 1, nh = img.naturalHeight || g.h || 1;
+      var w = g.w ? g.w * GRAPHIC_SCALE : nw, h = g.w ? w * nh / nw : nh;
+      var k = Math.min(1, FIG_COVER_MAX_W / w, FIG_COVER_MAX_H / h);
+      var c = blankCanvas(w * k, h * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      if (g.kind === 'url') c.toDataURL('image/png');   // throws now if the picture tainted it
+      return c;
+    });
+  }
+  var TABLE_FONT = 30;
+  var TABLE_LINE = 40;
+  function tableCanvas(g) {
+    var probe = document.createElement('canvas').getContext('2d');
+    var font = TABLE_FONT + 'px system-ui, -apple-system, "Segoe UI", sans-serif';
+    var bold = '700 ' + font;
+    function measure(t) { probe.font = bold; return probe.measureText(t).width; }
+    var cols = tableColumns(g.rows, measure);
+    var heights = g.rows.map(function (r) {
+      var most = 1;
+      cols.forEach(function (cw, i) { most = Math.max(most, wrapCell(r.cells[i] || '', cw - TABLE_PAD * 2, measure).length); });
+      return most * TABLE_LINE + TABLE_PAD * 1.2;
+    });
+    var capH = g.caption ? TABLE_LINE + 10 : 0;
+    var W = cols.reduce(function (a, b) { return a + b; }, 0) + 4;
+    var H = heights.reduce(function (a, b) { return a + b; }, 0) + capH + 4;
+    var c = blankCanvas(W, H);
+    var x = c.getContext('2d');
+    x.textBaseline = 'top';
+    x.fillStyle = '#1A1A1A';
+    if (g.caption) { x.font = bold; x.fillText(g.caption, 2, 4); }
+    var y = capH + 2;
+    g.rows.forEach(function (r, ri) {
+      var cx = 2;
+      if (r.head) { x.fillStyle = '#F1F3F5'; x.fillRect(2, y, W - 4, heights[ri]); }
+      cols.forEach(function (cw, ci) {
+        x.font = r.head ? bold : font;
+        x.fillStyle = '#1A1A1A';
+        wrapCell(r.cells[ci] || '', cw - TABLE_PAD * 2, function (t) { x.font = r.head ? bold : font; return x.measureText(t).width; }).forEach(function (ln, li) {
+          x.fillText(ln, cx + TABLE_PAD, y + TABLE_PAD * 0.6 + li * TABLE_LINE);
+        });
+        x.strokeStyle = '#7C8792'; x.lineWidth = 2;
+        x.strokeRect(cx, y, cw, heights[ri]);
+        cx += cw;
+      });
+      y += heights[ri];
+    });
+    return Promise.resolve(c);
+  }
+  function graphicCanvas(g) {
+    if (g.kind === 'svg') {
+      var w = (g.w || 500) * GRAPHIC_SCALE, h = (g.h || 300) * GRAPHIC_SCALE;
+      var k = Math.min(1, FIG_COVER_MAX_W / w, FIG_COVER_MAX_H / h);
+      return svgToPng(g.svg, w * k, h * k, HARVEST_SVG_MAX).then(function (r) { return r.canvas; });
+    }
+    if (g.kind === 'png' || g.kind === 'url') return imageCanvas(g);
+    if (g.kind === 'table') return tableCanvas(g);
+    return Promise.reject(new Error('unknown picture'));
+  }
+  function paintGraphics(graphics) {
+    var list = (graphics || []).slice(0, HARVEST_GRAPHICS_MAX);
+    return Promise.all(list.map(function (g) {
+      return graphicCanvas(g).then(function (c) { return c; }, function (e) { try { console.warn('A picture in the app could not be drawn', e); } catch (x) {} return null; });
+    })).then(function (canvases) {
+      var got = canvases.filter(Boolean);
+      if (!got.length) return null;
+      var plan = composeBoxes(got.map(function (c) { return { w: c.width, h: c.height }; }));
+      var out = blankCanvas(plan.w, plan.h);
+      var x = out.getContext('2d');
+      got.forEach(function (c, i) { var b = plan.boxes[i]; x.drawImage(c, b.x, b.y, b.w, b.h); });
+      // The whole figure is kept to the cover's own size.
+      var k = Math.min(1, FIG_COVER_MAX_W / plan.w, (FIG_COVER_MAX_H * 1.6) / plan.h);
+      if (k < 1) {
+        var small = blankCanvas(plan.w * k, plan.h * k);
+        small.getContext('2d').drawImage(out, 0, 0, small.width, small.height);
+        out = small;
+      }
+      return { canvas: out, w: out.width, h: out.height, count: got.length };
+    });
+  }
+  function paintGraphicsCover(graphics) {
+    return paintGraphics(graphics).then(function (fig) {
+      if (!fig) return null;
+      var pic = coverFromFigure(fig);
+      pic.count = fig.count;
+      return pic;
+    });
+  }
+
+  /* The figure, painted with the gold strip that carries the wand and the
+     printed QR code. fig = { canvas, w, h }. */
+  function coverFromFigure(fig) {
+    var sw = stripWidth(fig.w, fig.h);
+    var W = fig.w + sw, H = fig.h;
+    var c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var x = c.getContext('2d');
+    x.fillStyle = '#FFFFFF';
+    x.fillRect(0, 0, W, H);
+    x.drawImage(fig.canvas, sw, 0);
+    // The strip: warm gold, rounded on the inside edge.
+    var g = x.createLinearGradient(0, 0, sw, H);
+    g.addColorStop(0, '#FFE7A3');
+    g.addColorStop(1, '#F6C343');
+    x.fillStyle = g;
+    roundRect(x, 0, 0, sw, H, Math.min(18, sw * 0.12));
+    x.fill();
+    x.fillRect(0, 0, Math.min(18, sw * 0.12), H);
+    // The wand, drawn (an emoji draws differently on every device).
+    var s = Math.min(sw, H) / 120;
+    var cx = sw / 2, cy = H / 2 - 10 * s;
+    x.save();
+    x.lineCap = 'round';
+    x.strokeStyle = '#FFFFFF'; x.lineWidth = 11 * s;
+    x.beginPath(); x.moveTo(cx - 16 * s, cy - 16 * s); x.lineTo(cx + 26 * s, cy + 26 * s); x.stroke();
+    x.strokeStyle = '#2D1F14'; x.lineWidth = 6 * s;
+    x.beginPath(); x.moveTo(cx - 16 * s, cy - 16 * s); x.lineTo(cx + 26 * s, cy + 26 * s); x.stroke();
+    x.restore();
+    star(x, cx - 22 * s, cy - 22 * s, 15 * s, 5 * s, '#FFFFFF');
+    star(x, cx - 22 * s, cy - 22 * s, 12 * s, 4 * s, '#B07A00');
+    star(x, cx + 20 * s, cy - 30 * s, 6 * s, 2 * s, '#FFFFFF');
+    star(x, cx - 34 * s, cy + 14 * s, 5 * s, 1.8 * s, '#FFFFFF');
+    x.fillStyle = '#5A3E00';
+    x.textAlign = 'center';
+    x.textBaseline = 'alphabetic';
+    var fs = Math.max(11, Math.round(Math.min(sw / 7.5, H / 9)));
+    x.font = '700 ' + fs + 'px system-ui, -apple-system, "Segoe UI", sans-serif';
+    x.fillText('Tap to bring', cx, cy + 46 * s + fs * 0.4);
+    x.fillText('it alive', cx, cy + 46 * s + fs * 1.5);
+    return { src: c.toDataURL('image/png'), ratio: W / H, w: W, h: H, strip: sw };
   }
 
   /* ---------------------------------------------------------------
@@ -850,7 +1181,7 @@
     };
   }
 
-  var api = { pure: pure, create: create, svgToPng: svgToPng, paintFigureCover: paintFigureCover };
+  var api = { pure: pure, create: create, svgToPng: svgToPng, paintFigureCover: paintFigureCover, paintGraphics: paintGraphics, paintGraphicsCover: paintGraphicsCover };
   root.LivingQuestion = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

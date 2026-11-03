@@ -457,8 +457,72 @@ const asQ = await page.evaluate((n) => {
   const added = annotations.slice(n);
   return { texts: added.filter(a => a.type === 'text').map(a => a.text), lines: added.filter(a => a.type === 'line').length, apps: added.filter(annLivingApp).length, lq: added.every(annLivingQuestion) };
 }, n2);
-ok('📝 As a question from the library: an app with no question block gets its title as the question', asQ.texts.join() === 'Magnet Lab', JSON.stringify(asQ));
+ok('📝 As a question from the library: an app with no question block is read — its few words with its title', asQ.texts.join() === 'Magnet Lab\nN S', JSON.stringify(asQ));
 ok('…five lines exactly, all of it part of the question', asQ.lines === 5 && asQ.apps === 1 && asQ.lq, JSON.stringify(asQ));
+
+// 📝 v1.180.0 — an app with NO question block, written the way most apps
+// are: a heading, a wand line, the question in paragraphs, an SVG diagram
+// styled by the app's own stylesheet, a canvas drawn in requestAnimationFrame,
+// a results table, parts (a) and (b), buttons and a hidden answer. All of
+// it but the controls and the hidden answer goes on the paper.
+const APP_RICH = '<!doctype html><html><head><title>Ice Lab</title><style>.tank{fill:#E01B24;stroke:#000}.lbl{font:18px sans-serif;fill:#111}' +
+  'table{border-collapse:collapse}td,th{border:1px solid #888;padding:4px}</style></head><body>' +
+  '<h1>Ice Lab</h1><p>Tap the 🪄 magic wand to watch the ice melt.</p>' +
+  '<p>Ali left a beaker of crushed ice in the sun and recorded its temperature every minute.</p>' +
+  '<svg viewBox="0 0 300 160" width="300" height="160"><rect class="tank" x="20" y="20" width="160" height="100"/><text class="lbl" x="30" y="150">beaker</text></svg>' +
+  '<canvas id="cv" width="220" height="120" style="width:220px;height:120px"></canvas>' +
+  '<table><caption>Results</caption><tr><th>Time / min</th><th>Temperature / °C</th></tr><tr><td>0</td><td>0</td></tr><tr><td>6</td><td>14</td></tr></table>' +
+  '<p>(a) What is the state of the water at 0 minutes? [1]</p><p>(b) Explain why the temperature stays at 0 °C for a while. [2]</p>' +
+  '<button class="btn-wand">🪄</button><button>Reset</button><input type="range"><div style="display:none">Answer: it is melting</div>' +
+  '<script>requestAnimationFrame(function(){var x=document.getElementById("cv").getContext("2d");x.fillStyle="#1C71D8";x.fillRect(10,10,200,100);});</script>' +
+  '</body></html>';
+const nRich = await page.evaluate(() => annotations.length);
+const rich = await page.evaluate(async (html) => {
+  // On a page of its own, as a teacher starting a fresh question would.
+  window.__keptAnns = annotations.splice(0);
+  renderAllOverlays();
+  document.querySelector('.pageWrap').scrollIntoView();
+  const n0 = annotations.length;
+  const app = LivingApps.pure.normalizeApp({ html }).app;
+  const cover = { src: 'data:image/png;base64,iVBORw0KGgo=', ratio: 2.3 };
+  const t0 = Date.now();
+  const pageNum = await lappAddQuestion(cover, app, {});
+  const added = annotations.slice(n0);
+  const pic = added.find(annLivingApp);
+  // What the picture holds: the stylesheet's red, the canvas's blue and the table's dark lines.
+  const img = new Image();
+  await new Promise(r => { img.onload = r; img.onerror = r; img.src = pic.src; });
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+  const d = x.getImageData(0, 0, c.width, c.height).data;
+  let red = 0, blue = 0, dark = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i] > 200 && d[i + 1] < 60 && d[i + 2] < 60) red++;
+    if (d[i] < 60 && d[i + 1] > 90 && d[i + 1] < 140 && d[i + 2] > 190) blue++;
+    if (d[i] < 140 && d[i + 1] < 150 && d[i + 2] < 160 && Math.abs(d[i] - d[i + 2]) < 30) dark++;
+  }
+  return {
+    pageNum, ms: Date.now() - t0,
+    texts: added.filter(a => a.type === 'text').map(a => a.text),
+    lines: added.filter(a => a.type === 'line').length,
+    apps: added.filter(annLivingApp).length, lq: added.every(annLivingQuestion),
+    notCover: pic.src !== cover.src, w: img.naturalWidth, h: img.naturalHeight, red, blue, dark,
+    frames: document.querySelectorAll('iframe.laHarvest').length,
+    onPage: added.every(a => a.type === 'line' ? (a.y1 <= 780 && a.y1 >= 0) : (a.y >= 0 && a.y + (a.h || 0) <= 781))
+  };
+}, APP_RICH);
+ok('📝 an app with no block: its question goes on the page, not its heading, its wand line or its hidden answer',
+  rich.texts[0] === 'Ali left a beaker of crushed ice in the sun and recorded its temperature every minute.' && !rich.texts.join('\n').includes('Answer:') && !rich.texts.join('\n').includes('🪄') && !rich.texts.join('\n').includes('Reset'),
+  JSON.stringify(rich.texts));
+ok('…its parts in their own boxes, with their marks', rich.texts[1] === '(a) What is the state of the water at 0 minutes?  [1]' && rich.texts[2] === '(b) Explain why the temperature stays at 0 °C for a while.  [2]', JSON.stringify(rich.texts));
+ok('…working space under each part by its marks (2 + 4 lines)', rich.lines === 6 && rich.apps === 1 && rich.lq, JSON.stringify(rich));
+ok('…the picture is what the app DRAWS, not the cover: the diagram in its stylesheet’s red', rich.notCover && rich.red > 500, JSON.stringify({ red: rich.red, w: rich.w, h: rich.h }));
+ok('…the canvas it painted in requestAnimationFrame', rich.blue > 500, JSON.stringify({ blue: rich.blue }));
+ok('…and its results table', rich.dark > 300, JSON.stringify({ dark: rich.dark }));
+ok('…everything on the paper, and the reading frame taken down', rich.onPage && rich.frames === 0, JSON.stringify(rich));
+await shot('question-read-off-app');
+await page.evaluate(() => { annotations.splice(0, annotations.length, ...window.__keptAnns); renderAllOverlays(); });
+ok('…and the page’s other work is back as it was', await page.evaluate((n) => annotations.length === n, nRich));
 
 console.log('\n📋 The AI prompt');
 await page.evaluate(() => $('livingLibBtn').click());

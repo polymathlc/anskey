@@ -385,3 +385,155 @@ test('the module loads before living apps, with its stylesheet, and is syntax-ch
   assert.ok(fs.readFileSync(new URL('tools/check-syntax.mjs', ROOT), 'utf8').includes("'living-question.js'"));
   assert.match(fs.readFileSync(new URL('living-question.css', ROOT), 'utf8'), /\.lqBack \{[\s\S]{0,400}z-index: 4400;/);
 });
+
+/* ---- 📝 An app with no question block is READ as it is drawn (v1.180.0) ---- */
+const SVG_DRAWN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="300" height="160"><rect x="10" y="10" width="120" height="80" style="fill:rgb(220,40,40);stroke:rgb(0,0,0)"/><text x="20" y="130" style="font-size:18px">Tank</text></svg>';
+const HARVEST = {
+  title: 'Ice Lab',
+  blocks: [
+    { kind: 'text', text: 'Ice Lab' },
+    { kind: 'text', text: 'Tap the 🪄 magic wand to watch the ice melt.' },
+    { kind: 'text', text: 'Ali left a beaker of ice in the sun.\nHe recorded its temperature every minute.' },
+    { kind: 'svg', svg: SVG_DRAWN, w: 300, h: 160 },
+    { kind: 'table', caption: 'Results', rows: [{ head: true, cells: ['Time / min', 'Temperature / °C'] }, { head: false, cells: ['0', '0'] }, { head: false, cells: ['5', '12'] }] },
+    { kind: 'text', text: '(a) What state is the water in at 0 minutes? [1]' },
+    { kind: 'text', text: '(b) Explain why the temperature rises after 4 minutes. (2 marks)' },
+    { kind: 'png', src: 'data:image/png;base64,iVBORw0KGgo=', w: 200, h: 100 }
+  ]
+};
+
+test('📝 specFromHarvest: the app’s words become the question and its parts, its pictures the figure', () => {
+  const spec = Q.specFromHarvest({ title: 'Ice Lab', html: '<p>x</p>' }, HARVEST);
+  assert.equal(spec.harvested, true);
+  assert.equal(spec.stem, 'Ali left a beaker of ice in the sun.\nHe recorded its temperature every minute.', 'the heading and the wand line are not the question');
+  assert.deepEqual(plain(spec.parts.map(p => [p.label, p.text, p.marks, p.lines])), [
+    ['(a)', 'What state is the water in at 0 minutes?', 1, 2],
+    ['(b)', 'Explain why the temperature rises after 4 minutes.', 2, 4]
+  ]);
+  assert.equal(spec.lines, 0, 'the working lines go under the parts');
+  assert.deepEqual(plain(spec.graphics.map(g => g.kind)), ['svg', 'table', 'png'], 'every picture and table, in order');
+  assert.equal(spec.figure, '');
+  assert.match(Q.summary(spec).text, /2 parts · 6 working lines · 3 marks · 3 pictures/);
+});
+
+test('📝 a question with no parts gets working space by its marks, and a bare readout gets its title', () => {
+  const one = Q.specFromHarvest({ title: 'Pulley' }, { blocks: [{ kind: 'text', text: 'How much force lifts the 40 kg load? [3]' }] });
+  assert.equal(one.stem, 'How much force lifts the 40 kg load?');
+  assert.equal(one.marks, 3);
+  assert.equal(one.lines, 6);
+  const bare = Q.specFromHarvest({ title: 'Magnet Lab' }, { blocks: [{ kind: 'text', text: 'N S' }] });
+  assert.equal(bare.stem, 'Magnet Lab\nN S', 'too few words to stand alone: the title says what it is about');
+  assert.equal(bare.lines, Q.DEFAULT_LINES);
+  const pics = Q.specFromHarvest({ title: 'Circuit' }, { blocks: [{ kind: 'svg', svg: SVG_DRAWN, w: 300, h: 160 }] });
+  assert.equal(pics.stem, 'Circuit');
+  assert.equal(pics.graphics.length, 1);
+  assert.equal(Q.specFromHarvest({ title: 'x' }, { blocks: [] }), null);
+  assert.equal(Q.specFromHarvest({ title: 'x' }, null), null);
+  // (1) (2) (3) (4) of a multiple choice are words, not parts.
+  const mcq = Q.specFromHarvest({ title: 'MCQ' }, { blocks: [{ kind: 'text', text: 'Which is a conductor?\n(1) wood\n(2) copper' }] });
+  assert.equal(mcq.parts.length, 0);
+  assert.match(mcq.stem, /\(2\) copper/);
+});
+
+test('📝 cleanHarvest is the one door: scripts, handlers, http and odd data are dropped', () => {
+  const h = Q.cleanHarvest({
+    title: '<b>Lab</b>',
+    blocks: [
+      { kind: 'text', text: '<img src=x onerror=alert(1)>Hello' },
+      { kind: 'svg', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>alert(1)</script><rect onclick="x()" width="5" height="5"/></svg>', w: 10, h: 10 },
+      { kind: 'svg', svg: '<div>not svg</div>' },
+      { kind: 'png', src: 'data:text/html;base64,PHA+', w: 1, h: 1 },
+      { kind: 'png', src: 'data:image/png;base64,AAAA"onload="x', w: 1, h: 1 },
+      { kind: 'url', src: 'http://example.com/a.png' },
+      { kind: 'url', src: 'javascript:alert(1)' },
+      { kind: 'url', src: 'https://example.com/a.png', w: 50, h: 40 },
+      { kind: 'table', rows: [{ cells: ['<i>a</i>', 'x'.repeat(500)] }, { cells: [] }] },
+      { kind: 'frame', src: 'x' },
+      null
+    ]
+  });
+  assert.equal(h.title, 'Lab');
+  assert.equal(h.blocks[0].text, 'Hello');
+  const svg = h.blocks.find(b => b.kind === 'svg').svg;
+  assert.ok(!/script|onclick/i.test(svg), svg);
+  assert.equal(h.blocks.filter(b => b.kind === 'svg').length, 1);
+  assert.equal(h.blocks.filter(b => b.kind === 'png').length, 0);
+  assert.deepEqual(plain(h.blocks.filter(b => b.kind === 'url').map(b => b.src)), ['https://example.com/a.png']);
+  const t = h.blocks.find(b => b.kind === 'table');
+  assert.equal(t.rows.length, 1);
+  assert.equal(t.rows[0].cells[0], 'a');
+  assert.ok(t.rows[0].cells[1].length <= 200);
+  // At most HARVEST_GRAPHICS_MAX pictures, however many the app draws.
+  const many = Q.cleanHarvest({ blocks: Array.from({ length: 20 }, () => ({ kind: 'svg', svg: SVG_DRAWN, w: 30, h: 30 })) });
+  assert.equal(many.blocks.length, Q.HARVEST_GRAPHICS_MAX);
+});
+
+test('📝 mergeHarvest: a block keeps its words; one with no figure borrows the app’s pictures', () => {
+  const withFig = Q.cleanSpec({ stem: 'Look at the diagram.', figure: FIGURE });
+  assert.equal(Q.needsHarvest(withFig), false, 'a block with a figure never runs the app');
+  assert.equal(Q.mergeHarvest(withFig, { title: 'x' }, HARVEST), withFig);
+  const noFig = Q.cleanSpec({ stem: 'Use the table in the app.', parts: [{ text: 'Name it.', lines: 2 }] });
+  assert.equal(Q.needsHarvest(noFig), true);
+  const m = Q.mergeHarvest(noFig, { title: 'x' }, HARVEST);
+  assert.equal(m.stem, 'Use the table in the app.', 'the block’s own words win');
+  assert.equal(m.parts.length, 1);
+  assert.deepEqual(plain(m.graphics.map(g => g.kind)), ['svg', 'table', 'png']);
+  assert.equal(noFig.graphics, undefined, 'never edits its input');
+  const fb = Q.fallbackSpec({ title: 'Ice Lab' });
+  assert.equal(Q.needsHarvest(fb), true);
+  assert.equal(Q.mergeHarvest(fb, { title: 'Ice Lab' }, HARVEST).harvested, true);
+  assert.equal(Q.mergeHarvest(fb, { title: 'Ice Lab' }, null), fb, 'nothing read: the title as before');
+});
+
+test('📝 composeBoxes sets pictures side by side in rows, never overlapping, never wider than the row', () => {
+  const p = Q.composeBoxes([{ w: 600, h: 300 }, { w: 500, h: 400 }, { w: 900, h: 200 }, { w: 3000, h: 1500 }], 1400, 32);
+  assert.ok(p.w <= 1400);
+  p.boxes.forEach((b, i) => {
+    assert.ok(b.x >= 0 && b.x + b.w <= p.w && b.y >= 0 && b.y + b.h <= p.h, 'inside: ' + i);
+    p.boxes.forEach((c, j) => {
+      if (i >= j) return;
+      const apart = b.x + b.w <= c.x || c.x + c.w <= b.x || b.y + b.h <= c.y || c.y + c.h <= b.y;
+      assert.ok(apart, 'boxes ' + i + ' and ' + j + ' overlap');
+    });
+  });
+  assert.ok(p.boxes[1].x > p.boxes[0].x && p.boxes[1].y < p.boxes[0].y + p.boxes[0].h, 'two that fit share a row');
+  assert.ok(p.boxes[2].y > p.boxes[0].y, 'one that does not starts the next');
+  assert.ok(Math.abs(p.boxes[3].w / p.boxes[3].h - 2) < 0.02, 'a big picture is shrunk in proportion');
+  const cols = Q.tableColumns([{ cells: ['a', 'x'.repeat(100)] }], t => t.length * 10);
+  assert.ok(cols[0] >= 70 && cols[1] <= 380);
+  assert.deepEqual(plain(Q.wrapCell('one two three four', 100, t => t.length * 10)), ['one two', 'three four']);
+});
+
+test('📝 the harvest bridge: inside the sandbox, after the wand, before the author, answering only its parent', () => {
+  const doc = LA.sandboxDocument('<p>app</p>');
+  const csp = doc.indexOf('Content-Security-Policy'), wand = doc.indexOf('polymath:wand'), harvest = doc.indexOf('harvest-result'), author = doc.indexOf('<p>app</p>');
+  assert.ok(csp > 0 && csp < wand && wand < harvest && harvest < author, 'trusted head first');
+  const B = LA.HARVEST_BRIDGE;
+  assert.ok(!/<\/script/i.test(B), 'cannot close its own script tag');
+  assert.match(B, /if \(e\.source !== parent\) return;/);
+  assert.ok(!/fetch\(|XMLHttpRequest|sendBeacon|WebSocket|localStorage|innerHTML\s*=/.test(B), 'reads and replies, nothing else');
+  assert.match(B, /data-polymath-skip/);
+  assert.match(B, /BUTTON\|INPUT\|SELECT\|TEXTAREA/, 'controls are not the question');
+  new Function(B);   // it parses
+  // The frame it runs in: the stage's own sandbox, never same-origin, on screen but invisible.
+  const h = LA_SRC.slice(LA_SRC.indexOf('function harvest(html, opts)'), LA_SRC.indexOf('var api = {'));
+  assert.match(h, /f\.setAttribute\('sandbox', 'allow-scripts'\);/);
+  assert.ok(!/allow-same-origin/.test(h));
+  assert.match(h, /f\.srcdoc = sandboxDocument\(html\);/);
+  assert.match(h, /e\.source !== f\.contentWindow/);
+  assert.ok(/position:fixed;left:0;top:0;/.test(h) && /opacity:0;pointer-events:none/.test(h), 'on the screen, or the browser throttles its drawing');
+  assert.match(h, /if \(f\.parentNode\) f\.parentNode\.removeChild\(f\);/, 'always taken down');
+});
+
+test('📝 the glue reads the app before it falls back to the cover', () => {
+  const qf = section('async function lappQuestionFor(app, cover, say) {', '\n}\n');
+  assert.match(qf, /LQ\.needsHarvest\(spec\)[\s\S]{0,200}window\.LivingApps\.harvest\(app\.html\)/);
+  assert.match(qf, /spec = LQ\.mergeHarvest\(spec, app, raw\);/);
+  assert.match(qf, /paintFigureCover\(spec\.figure\)[\s\S]*paintGraphicsCover\(spec\.graphics\)/, 'a block’s figure first, then what the app draws');
+  assert.match(qf, /var pic = cover, drew = 'cover';/, 'the cover only when nothing else could be drawn');
+  const add = section('async function lappAddQuestion(cover, app, opts) {', '\n}\n');
+  assert.match(add, /var got = await lappQuestionFor\(app, cover, true\);/);
+  assert.ok(add.indexOf('lappQuestionFor') < add.indexOf('if (!wheelTeacher() || practiceMode || !pdfDoc || pages.indexOf(page) === -1) return 0;'), 'asked again after the app was read');
+  const upd = section('function lappUpdateOnPage(id, cover, app) {', '\n}\n');
+  assert.match(upd, /lappQuestionFor\(app, cover, false\)/, 'a changed app repaints what it draws');
+});
