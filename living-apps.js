@@ -44,7 +44,6 @@
   var TITLE_MAX = 90;
   var COVER_W = 1200;
   var COVER_H = 520;
-  var COVER_QUALITY = 0.9;
   var SPELL_MS = 1150;                 // the wand's sweep before the app shows
   var CAST_DELAY_MS = 520;             // after the frame loads, before the first cast
   var HINT_MS = 3600;
@@ -158,7 +157,8 @@
   var HARVEST_BRIDGE = [
     '(function(){',
     '  "use strict";',
-    '  var SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|BUTTON|INPUT|SELECT|TEXTAREA|OPTION|LABEL|NAV|IFRAME|AUDIO|VIDEO|OBJECT|EMBED|DIALOG|HEAD|META|LINK|TITLE)$/;',
+    '  var SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|BUTTON|INPUT|SELECT|TEXTAREA|OPTION|LABEL|NAV|IFRAME|AUDIO|VIDEO|OBJECT|EMBED|DIALOG|HEAD|META|LINK|TITLE|DETAILS|SUMMARY|KBD|FORM|MENU|ASIDE|FOOTER)$/;',
+    '  var CHROME_WORDS = /^(btn|button|buttons|controls?|toolbar|toolbars|hints?|tips?|help|stuck|scaffolds?|scaffolding|feedback|solutions?|reveal|reveals|answers|answerkey|working|workings|status|toast|toasts|badge|badges|chip|chips|pill|pills|kicker|eyebrow|tag|tags|kbd|shortcut|shortcuts|instructions?|nav|tabs?|steps|stepper|checks?|checker|marking|score|scores|progress|meta|stats)$/i;',
     '  var SKIP_ROLE = /^(button|slider|toolbar|menu|menubar|tablist|tab|switch|checkbox|radio|spinbutton|navigation|dialog|status|alert|progressbar)$/;',
     '  var MAX_NODES = 8000, MAX_TEXT = 6000, MAX_GRAPHICS = 8, MAX_SVG = 400000, MAX_PNG = 2500000, MIN_W = 36, MIN_H = 28;',
     '  var SVG_PROPS = ["fill","fill-opacity","fill-rule","stroke","stroke-width","stroke-opacity","stroke-dasharray","stroke-linecap","stroke-linejoin","opacity","font-size","font-family","font-weight","font-style","text-anchor","dominant-baseline","letter-spacing","visibility","display","marker-start","marker-mid","marker-end","stop-color","stop-opacity"];',
@@ -174,8 +174,13 @@
     '    var role = el.getAttribute && el.getAttribute("role");',
     '    if (role && SKIP_ROLE.test(role)) return true;',
     '    if (el.getAttribute && (el.hasAttribute("data-polymath-wand") || el.hasAttribute("data-wand") || el.hasAttribute("data-polymath-play"))) return true;',
-    '    var c = typeof el.className === "string" ? el.className : "";',
-    '    return /(^|\\s)(btn-wand|wand|btn-play|controls?|toolbar|polymath-skip)(\\s|$)/.test(c);',
+    '    var c = typeof el.className === "string" ? el.className : (el.className && el.className.baseVal) || "";',
+    '    if (/(^|\\s)(btn-wand|btn-play|polymath-skip)(\\s|$)/.test(c)) return true;',
+    '    if (/model[\\s_-]*(working|answer|solution)/i.test(c + " " + (el.id || ""))) return true;',
+    '    var bits = (c + " " + (el.id || "")).split(/[\\s_-]+/);',
+    '    for (var i = 0; i < bits.length; i++) if (bits[i] && CHROME_WORDS.test(bits[i])) return true;',
+    '    var live = el.getAttribute && el.getAttribute("aria-live");',
+    '    return live === "polite" || live === "assertive";',
     '  }',
     '  function clean(t){ return String(t || "").replace(/[ \\t ]+/g, " ").replace(/ *\\n */g, "\\n").replace(/\\n{3,}/g, "\\n\\n").trim(); }',
     '  function numberSvg(clone, orig){',
@@ -257,6 +262,7 @@
     '      if (hidden(el, s) || chrome(el)) return;',
     '      var disp = s ? s.display : "block";',
     '      var block = !/^inline/.test(disp) && disp !== "contents";',
+    '      var boxy = /^inline-/.test(disp);',
     '      var r = el.getBoundingClientRect ? el.getBoundingClientRect() : { width: 0, height: 0 };',
     '      if (tag === "SVG") { if (r.width >= MIN_W && r.height >= MIN_H) graphic(svgOf(el, r)); return; }',
     '      if (tag === "CANVAS") { if (r.width >= MIN_W && r.height >= MIN_H) graphic(canvasOf(el, r)); return; }',
@@ -264,6 +270,7 @@
     '      if (tag === "TABLE") { var t = tableOf(el); if (t && graphics < MAX_GRAPHICS) { graphics++; flush(); blocks.push(t); } return; }',
     '      if (tag === "BR") { buf += "\\n"; return; }',
     '      if (block) flush();',
+    '      if (boxy) buf += " ";',
     '      if (tag === "LI") {',
     '        var p = el.parentNode, ord = p && p.tagName === "OL";',
     '        if (ord) { var n = 1, sib = el; while ((sib = sib.previousElementSibling)) if (sib.tagName === "LI") n++; buf += n + ". "; }',
@@ -271,6 +278,7 @@
     '      }',
     '      var kids = el.childNodes;',
     '      for (var i = 0; i < kids.length; i++) walk(kids[i], depth + 1);',
+    '      if (boxy) buf += " ";',
     '      if (block) flush();',
     '    }',
     '    if (document.body) walk(document.body, 0);',
@@ -598,18 +606,61 @@
     var padY = ry + Math.max(2, (rh - padH) / 2);
     return { x: r2(padX + pad), y: r2(padY + label), size: r2(size), padX: r2(padX), padY: r2(padY), padW: r2(padW), padH: r2(padH) };
   }
+  /* 🪄 THE CORNER (v1.181.0). A living app's picture keeps a small square
+     at its TOP RIGHT: the tiny wand on screen, the QR code on paper. It sits
+     in a white gutter beside the question, so neither ever covers a word.
+     Kept on the annotation as `lqr` — fractions of the picture's own width
+     and height, so it follows every resize. */
+  var CORNER_GUTTER = 64;          // CSS px of gutter beside a 600 px question
+  var CORNER_INSET = 6;
+  function cornerFor(w, h, gutter) {
+    var W = Math.max(1, Number(w) || 0), H = Math.max(1, Number(h) || 0);
+    var g = Math.max(24, Math.min(W * 0.4, Number(gutter) || CORNER_GUTTER));
+    var size = Math.max(12, Math.min(g - CORNER_INSET * 2, H - CORNER_INSET * 2));
+    return {
+      x: Math.round((W - CORNER_INSET - size) / W * 10000) / 10000,
+      y: Math.round(CORNER_INSET / H * 10000) / 10000,
+      s: Math.round(size / W * 10000) / 10000
+    };
+  }
+  /* The one door into `lqr`: three fractions, the square inside the box. */
+  function cleanCorner(c) {
+    if (!c || typeof c !== 'object') return null;
+    var x = Number(c.x), y = Number(c.y), sz = Number(c.s);
+    if (![x, y, sz].every(function (n) { return isFinite(n); })) return null;
+    if (sz <= 0 || sz > 0.5 || x < 0 || y < 0 || x + sz > 1.0001 || y > 1) return null;
+    return { x: x, y: y, s: sz };
+  }
+  /* Where the code goes on paper, in PDF points (origin bottom-left), for a
+     picture whose box is rect and whose corner is c: a plain square, no
+     pad, no label — the gutter round it is white already. */
+  function qrInCorner(rect, c) {
+    c = cleanCorner(c);
+    if (!c || !rect) return null;
+    var size = c.s * rect.w;
+    var x = rect.x + c.x * rect.w;
+    var top = rect.y + rect.h - c.y * rect.h;
+    size = Math.min(size, top - rect.y);
+    if (!(size > 4)) return null;
+    return { x: r2(x), y: r2(top - size), size: r2(size) };
+  }
+
   /* Draws the code on a pdf-lib page with a link over the whole cover.
      `matrixOf(url)` is the QR maker (QuestionBank.pure.qrMatrix on the page),
      `runsOf(matrix)` its run-length helper. Returns false and draws nothing
      without them. */
-  function drawQrOnPdf(pdfDoc, page, url, lib, font, rect, matrixOf, runsOf) {
+  function drawQrOnPdf(pdfDoc, page, url, lib, font, rect, matrixOf, runsOf, corner) {
     var matrix = typeof matrixOf === 'function' ? matrixOf(url) : null;
     if (!matrix || !page || !lib || !rect || typeof runsOf !== 'function') return false;
-    var at = qrOnCover(rect.x, rect.y, rect.w, rect.h);
-    var rgb = lib.rgb, n = matrix.length, quiet = 2;
+    var rgb = lib.rgb, n = matrix.length;
+    // 🪄 A picture with a corner (v1.181.0) gets a small plain square there.
+    var sq = qrInCorner(rect, corner);
+    var at = sq || qrOnCover(rect.x, rect.y, rect.w, rect.h);
+    var quiet = sq ? 1 : 2;
     var cell = at.size / (n + quiet * 2);
-    page.drawRectangle({ x: at.padX, y: at.padY, width: at.padW, height: at.padH, color: rgb(1, 1, 1),
-      borderColor: rgb(0.85, 0.72, 0.3), borderWidth: 0.8 });
+    page.drawRectangle(sq
+      ? { x: at.x, y: at.y, width: at.size, height: at.size, color: rgb(1, 1, 1) }
+      : { x: at.padX, y: at.padY, width: at.padW, height: at.padH, color: rgb(1, 1, 1), borderColor: rgb(0.85, 0.72, 0.3), borderWidth: 0.8 });
     runsOf(matrix).forEach(function (run) {
       page.drawRectangle({
         x: at.x + (quiet + run.c) * cell,
@@ -617,7 +668,7 @@
         width: run.len * cell + 0.01, height: cell + 0.01, color: rgb(0, 0, 0)
       });
     });
-    if (font) {
+    if (font && !sq) {
       var fs = Math.max(4.6, Math.min(6.2, at.size / 13));
       var tw = font.widthOfTextAtSize(QR_LABEL, fs);
       page.drawText(QR_LABEL, { x: at.x + (at.size - tw) / 2, y: at.padY + 3, size: fs, font: font, color: rgb(0.3, 0.3, 0.28) });
@@ -662,21 +713,13 @@
     BUCKET: BUCKET, VIEWER_PAGE: VIEWER_PAGE, QR_LABEL: QR_LABEL,
     validHash: validHash, validToken: validToken, publishPath: publishPath, publishPayload: publishPayload,
     tokenFromDownloadUrl: tokenFromDownloadUrl, mediaUrl: mediaUrl, viewerUrl: viewerUrl,
-    parseViewerQuery: parseViewerQuery, packCode: packCode, unpackCode: unpackCode, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover, qrSvg: qrSvg
+    parseViewerQuery: parseViewerQuery, packCode: packCode, unpackCode: unpackCode, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover, qrSvg: qrSvg,
+    CORNER_GUTTER: CORNER_GUTTER, cornerFor: cornerFor, cleanCorner: cleanCorner, qrInCorner: qrInCorner
   };
 
   /* ---------------------------------------------------------------
      The cover — the picture that sits on the page.
      --------------------------------------------------------------- */
-  function roundRect(x, X, Y, W, H, R) {
-    x.beginPath();
-    x.moveTo(X + R, Y);
-    x.arcTo(X + W, Y, X + W, Y + H, R);
-    x.arcTo(X + W, Y + H, X, Y + H, R);
-    x.arcTo(X, Y + H, X, Y, R);
-    x.arcTo(X, Y, X + W, Y, R);
-    x.closePath();
-  }
   function star(x, cx, cy, R, r, fill, stroke) {
     x.beginPath();
     for (var i = 0; i < 8; i++) {
@@ -690,89 +733,62 @@
     x.fill();
     if (stroke) { x.lineWidth = Math.max(1.5, R * 0.08); x.strokeStyle = stroke; x.stroke(); }
   }
-  /* A seeded scatter so the same title paints the same sparkles. */
-  function seeded(seed) {
-    var s = 0;
-    for (var i = 0; i < seed.length; i++) s = (s * 31 + seed.charCodeAt(i)) >>> 0;
-    return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  /* 🪄 The tiny wand (v1.181.0): a dark stick, a cream tip and a gold star,
+     drawn — an emoji draws differently on every device — into a square of
+     side `size` whose top-left is (x, y). No box round it. */
+  function drawWand(x, X, Y, size) {
+    var u = size / 100;
+    x.save();
+    x.lineCap = 'round';
+    x.lineWidth = 15 * u; x.strokeStyle = '#FFFFFF';
+    x.beginPath(); x.moveTo(X + 40 * u, Y + 40 * u); x.lineTo(X + 92 * u, Y + 92 * u); x.stroke();
+    x.lineWidth = 9 * u; x.strokeStyle = '#2D1F14';
+    x.beginPath(); x.moveTo(X + 40 * u, Y + 40 * u); x.lineTo(X + 92 * u, Y + 92 * u); x.stroke();
+    x.lineWidth = 9 * u; x.strokeStyle = '#F6E7C8';
+    x.beginPath(); x.moveTo(X + 40 * u, Y + 40 * u); x.lineTo(X + 54 * u, Y + 54 * u); x.stroke();
+    x.restore();
+    star(x, X + 32 * u, Y + 32 * u, 27 * u, 10 * u, '#F6C343', '#8A5E00');
+    star(x, X + 74 * u, Y + 16 * u, 9 * u, 3.4 * u, '#F6C343');
+    star(x, X + 14 * u, Y + 74 * u, 7 * u, 2.6 * u, '#F2B705');
   }
+  /* The wand in a picture's corner, from cornerFor's fractions. */
+  function drawCornerWand(x, W, H, corner) {
+    var c = cleanCorner(corner);
+    if (!c) return;
+    var size = c.s * W;
+    var k = 0.82;
+    drawWand(x, c.x * W + size * (1 - k) / 2, c.y * H + size * (1 - k) / 2, size * k);
+  }
+  /* The plain picture (v1.181.0): the app's title, in the question bank's
+     own type, on white, with the tiny wand at its top right. It is what
+     goes on the page the moment an app is added; the page then swaps in the
+     picture of what the app really draws (index.html, lappPictureFor). */
+  var PLAIN_W = 600, PLAIN_SCALE = 2, PLAIN_PAD = 14, PLAIN_PX = 17;
+  var PLAIN_FONT = '-apple-system, "Segoe UI", Helvetica, Arial, sans-serif';
   function paintCover(app) {
     return new Promise(function (resolve, reject) {
       try {
+        var probe = document.createElement('canvas').getContext('2d');
+        if (!probe) throw new Error('No canvas');
+        probe.font = '700 ' + PLAIN_PX + 'px ' + PLAIN_FONT;
+        var title = String(app && app.title || 'Living app');
+        var lines = wrapLines(title, PLAIN_W - PLAIN_PAD * 2, function (t) { return probe.measureText(t).width; }, 3);
+        var lh = PLAIN_PX * 1.42;
+        var W = PLAIN_W + CORNER_GUTTER;
+        var H = Math.max(CORNER_GUTTER, Math.ceil(PLAIN_PAD * 2 + lines.length * lh));
         var c = document.createElement('canvas');
-        c.width = COVER_W; c.height = COVER_H;
+        c.width = W * PLAIN_SCALE; c.height = H * PLAIN_SCALE;
         var x = c.getContext('2d');
-        if (!x) throw new Error('No canvas');
-        // The paper and its soft science-blue to gold wash.
+        x.scale(PLAIN_SCALE, PLAIN_SCALE);
         x.fillStyle = '#FFFFFF';
-        x.fillRect(0, 0, COVER_W, COVER_H);
-        var g = x.createLinearGradient(0, 0, COVER_W, COVER_H);
-        g.addColorStop(0, '#EEF6FD');
-        g.addColorStop(0.55, '#FFFDF6');
-        g.addColorStop(1, '#FFF3D6');
-        roundRect(x, 10, 10, COVER_W - 20, COVER_H - 20, 44);
-        x.fillStyle = g;
-        x.fill();
-        x.lineWidth = 6;
-        x.strokeStyle = '#F2B705';
-        x.stroke();
-        roundRect(x, 26, 26, COVER_W - 52, COVER_H - 52, 32);
-        x.lineWidth = 2;
-        x.setLineDash([10, 12]);
-        x.strokeStyle = 'rgba(31, 111, 178, 0.35)';
-        x.stroke();
-        x.setLineDash([]);
-        // Sparkles scattered over the right half.
-        var rnd = seeded(String(app && app.title || 'Living app'));
-        for (var i = 0; i < 26; i++) {
-          var sx = 560 + rnd() * 600, sy = 50 + rnd() * 420, sr = 5 + rnd() * 14;
-          star(x, sx, sy, sr, sr * 0.36, 'rgba(242, 183, 5, ' + (0.25 + rnd() * 0.55).toFixed(2) + ')');
-        }
-        // The wand: a dark stick with a cream tip, and a big gold star.
-        var wx = 150, wy = 150;
-        x.save();
-        x.lineCap = 'round';
-        x.lineWidth = 34; x.strokeStyle = '#FFFFFF';
-        x.beginPath(); x.moveTo(wx + 40, wy + 40); x.lineTo(wx + 230, wy + 230); x.stroke();
-        x.lineWidth = 22; x.strokeStyle = '#2D1F14';
-        x.beginPath(); x.moveTo(wx + 40, wy + 40); x.lineTo(wx + 230, wy + 230); x.stroke();
-        x.lineWidth = 22; x.strokeStyle = '#F6E7C8';
-        x.beginPath(); x.moveTo(wx + 40, wy + 40); x.lineTo(wx + 82, wy + 82); x.stroke();
-        x.restore();
-        x.save();
-        x.shadowColor = 'rgba(255, 210, 90, 0.9)';
-        x.shadowBlur = 40;
-        star(x, wx + 18, wy + 18, 74, 27, '#F6C343', '#8A5E00');
-        x.restore();
-        x.beginPath(); x.arc(wx + 18, wy + 18, 12, 0, Math.PI * 2); x.fillStyle = '#FFFFFF'; x.fill();
-        star(x, wx + 130, wy - 40, 18, 6, '#F6C343');
-        star(x, wx - 60, wy + 120, 13, 5, '#F6C343');
-        star(x, wx + 70, wy + 300, 10, 4, '#64B5F6');
-        // The chip.
-        var font = '"Sora", "Century Gothic", "Didact Gothic", -apple-system, "Segoe UI", sans-serif';
-        x.font = '600 26px ' + font;
-        var chip = '🪄 LIVING APP';
-        var cw = x.measureText(chip).width + 44;
-        roundRect(x, 460, 96, cw, 52, 26);
-        x.fillStyle = '#1F6FB2';
-        x.fill();
-        x.fillStyle = '#FFFFFF';
-        x.textBaseline = 'middle';
-        x.fillText(chip, 482, 123);
-        // The title.
-        x.fillStyle = '#1A1A1A';
-        x.font = '700 58px ' + font;
-        var lines = wrapLines(app && app.title || 'Living app', 650, function (s) { return x.measureText(s).width; }, 2);
-        var ty = lines.length > 1 ? 218 : 240;
-        lines.forEach(function (ln, k) { x.fillText(ln, 460, ty + k * 70); });
-        // The instruction.
-        x.font = '400 30px ' + font;
-        x.fillStyle = '#55585A';
-        x.fillText('Tap to bring this question alive', 460, lines.length > 1 ? 384 : 340);
-        x.font = '600 24px ' + font;
-        x.fillStyle = '#8A5E00';
-        x.fillText(app && app.wand ? '✨ It has its own magic wand' : '✨ Interactive — try it yourself', 460, lines.length > 1 ? 432 : 392);
-        resolve({ src: c.toDataURL('image/jpeg', COVER_QUALITY), ratio: COVER_W / COVER_H });
+        x.fillRect(0, 0, W, H);
+        x.fillStyle = '#1d1d1f';
+        x.font = '700 ' + PLAIN_PX + 'px ' + PLAIN_FONT;
+        x.textBaseline = 'alphabetic';
+        lines.forEach(function (ln, k) { x.fillText(ln, PLAIN_PAD, PLAIN_PAD + k * lh + PLAIN_PX * 1.02); });
+        var corner = cornerFor(W, H, CORNER_GUTTER);
+        drawCornerWand(x, W, H, corner);
+        resolve({ src: c.toDataURL('image/png'), ratio: W / H, w: W, h: H, corner: corner });
       } catch (e) { reject(e); }
     });
   }
@@ -1115,7 +1131,7 @@
               toast(st.editId
                 ? '🪄 Living app updated — tap it to see it alive.'
                 : asQuestion
-                  ? '📝 “' + res.app.title + '” is on the page as a question — its diagram is the picture a tap brings alive.'
+                  ? '📝 “' + res.app.title + '” is on the page as a question — tap it, or its 🪄, to bring it alive.'
                   : '🪄 “' + res.app.title + '” is on the page — select it and press 🪄 Bring alive, or a student just taps it.', 4800);
             } else reset();
           });
@@ -1483,7 +1499,7 @@
     });
   }
 
-  var api = { create: create, pure: pure, paintCover: paintCover, drawQrOnPdf: drawQrOnPdf, harvest: harvest };
+  var api = { create: create, pure: pure, paintCover: paintCover, drawQrOnPdf: drawQrOnPdf, harvest: harvest, drawWand: drawWand, drawCornerWand: drawCornerWand };
   root.LivingApps = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
