@@ -13,7 +13,7 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
   right-hand columns give the total, the % and a ▲ ▬ ▼ trend (newer papers against older).
 - Filter by level, sort weakest first, show the objectives not tested yet (coverage), tap a cell for the
   questions behind it (*Q3 1/2 · Q5 blank (2)*), 📋 copy the table into a spreadsheet, or 🖨 print it.
-- Study Buddy (v1.77.0) files each maths question under an objective of the year printed on the paper,
+- Study Buddy (v1.78.0) files each maths question under an objective of the year printed on the paper,
   falling back to earlier years only, never later, inside the marking call it already makes, and saves
   each worksheet's marks on the student's roster row (`tutorLos`). Papers marked before arrive the next
   time the student opens Study Buddy. Read only here.

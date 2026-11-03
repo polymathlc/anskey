@@ -2,7 +2,7 @@
    📐 THE OBJECTIVE TABLE — one student's maths marks by learning
    objective, worksheet by worksheet (Ans Key v1.186.0)
 
-   Study Buddy (polymathlc/tutor v1.77.0) files every maths question it
+   Study Buddy (polymathlc/tutor v1.78.0) files every maths question it
    marks under ONE objective of the MOE Primary Mathematics Syllabus — the
    year printed on the paper first, then earlier years, never a later one —
    and keeps one small entry per marked worksheet on the student's roster

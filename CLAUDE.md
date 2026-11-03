@@ -5,7 +5,7 @@ Guidance for Claude when working in this repo.
 ## 📐 The objective table (v1.186.0)
 
 - `lo-marks.js` (`window.LoMarks`), `lo-marks.css` and `tools/lo-marks-tests.mjs` are **byte for byte Study
-  Buddy's** (`polymathlc/tutor` v1.77.0). The catalogue `MATH_TREE` is the maths app's `MOE_SYLLABUS` (P1–P6,
+  Buddy's** (`polymathlc/tutor` v1.78.0). The catalogue `MATH_TREE` is the maths app's `MOE_SYLLABUS` (P1–P6,
   240 objectives; the test compares it when polymathlc/math is checked out beside). Ids are for ever — append,
   never renumber. Change the files in tutor and copy them here (or the other way), never fork.
 - Study Buddy is the ONE writer: `studentProfiles/{uid}.tutorLos.{worksheetId}` = `{ v, ws, sub:'math', lvl, at,
