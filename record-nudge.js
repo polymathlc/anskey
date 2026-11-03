@@ -1,5 +1,5 @@
 /* =====================================================================
-   ⏺ Writing without recording — the "Not recording" nudge (v1.173.0, v1.174.0)
+   ⏺ Writing without recording — the "Not recording" nudge (v1.173.0, v1.174.0, v1.183.0)
    ---------------------------------------------------------------------
    Zhi Kai explains while writing, and a lesson that was never recorded is
    only found out about afterwards, when there is nothing left to record.
@@ -7,7 +7,7 @@
    down, a small warning comes up over the top of the page:
 
        ● Not recording — your writing is not going into a lesson.
-         [● Record now]  [Not now]
+         [● Record now]  [Hide]
          ☐ Ignore for this session                       Don't warn me
 
    ● Record now presses the app's own record button (the glue's `record`,
@@ -25,17 +25,21 @@
    - It never interrupts. It does not take the focus, it does not stop a
      stroke, it does not swallow a key the page needs, and it never covers
      the toolbar. It sits at the top of the worksheet's own area.
-   - It asks only once the teacher is REALLY writing: `STROKES` marks inside
-     `WINDOW_MS`. A single correction, a tick or a dot is not a lesson.
-   - It goes away by itself: when a recording starts, when the Record window
-     opens, when the person or the worksheet changes, and after `SHOW_MS`
-     untouched (a short snooze, `IDLE_SNOOZE_MS`, so it does not bounce
-     straight back on the next stroke). "Not now" snoozes THIS worksheet for
-     `LATER_SNOOZE_MS`. "Don't warn me" turns it off on this device; the
-     Record lesson window has the switch to turn it back on.
-   - Snoozes live for the visit only (memory). The off switch is the only
-     thing written to storage (`PREF_KEY`), and a blocked storage keeps it
-     for the visit instead.
+   - v1.183.0: IT NEVER GIVES UP BY ITSELF. Zhi Kai forgot to record again
+     after the card had quietly gone away. Now ANY mark — one stroke, one
+     typed word (`STROKES` is 1) — brings it up, and it stays up until a
+     recording starts. Nothing times it out (`SHOW_MS` is 0, `IDLE_SNOOZE_MS`
+     0) and nothing snoozes it (`LATER_SNOOZE_MS`, `RECORD_SNOOZE_MS` 0):
+     "Hide" (and Escape) put it away only until the next mark, and so does
+     Record now when the Record window is closed without starting.
+   - It steps aside, never away: while the Record window is open, while
+     another dialog is in front of the page, during playback, and when the
+     person or the worksheet changes. The next mark after that brings it back.
+   - It STOPS only when the teacher says so: ☐ Ignore for this session (this
+     tab) or "Don't warn me" (this device; the Record lesson window has the
+     switch to turn it back on). Those two switches are the only things
+     written to storage (`SESSION_KEY`, `PREF_KEY`), and a blocked storage
+     keeps them for the visit instead.
 
    The decisions are PURE (`pure.gate`, `pure.step`) so
    `tools/record-nudge-tests.mjs` can walk every rule without a page, and the
@@ -47,16 +51,17 @@
   /* ---------------------------------------------------------------------
      Numbers. Each one is a judgement about a teacher mid-lesson.
      --------------------------------------------------------------------- */
-  // v1.174.0: two marks in a minute (was three in 45 s). Zhi Kai wrote on a
-  // page without recording and nothing came up; a teacher explaining writes a
-  // word or two and then talks, so the old window often closed before the
-  // third mark landed.
-  var STROKES = 2;                       // marks before it is "writing"
+  // v1.174.0: two marks in a minute (was three in 45 s).
+  // v1.183.0: ONE mark — any stroke or any typing — and no time-out or
+  // snooze at all. Zhi Kai forgot to record again after the card had gone
+  // away by itself; the only things that stop it now are a recording and the
+  // two switches the teacher ticks.
+  var STROKES = 1;                       // marks before it is "writing"
   var WINDOW_MS = 60 * 1000;             // …within this long
-  var SHOW_MS = 15 * 1000;               // untouched, it goes away after this
-  var IDLE_SNOOZE_MS = 2 * 60 * 1000;    // …and keeps away this long
-  var LATER_SNOOZE_MS = 10 * 60 * 1000;  // "Not now" on this worksheet
-  var RECORD_SNOOZE_MS = 60 * 1000;      // Record now pressed, window closed again
+  var SHOW_MS = 0;                       // 0 = it never goes away by itself
+  var IDLE_SNOOZE_MS = 0;                // …so there is no idle snooze
+  var LATER_SNOOZE_MS = 0;               // "Hide": only until the next mark
+  var RECORD_SNOOZE_MS = 0;              // Record now, window closed: next mark
   var MARKS_MAX = 32;                    // the mark list never grows without end
   var SNOOZE_MAX = 64;                   // nor does the snooze map
   var PREF_KEY = 'polymath.recordNudge.v1';
@@ -105,7 +110,7 @@
 
   // One worksheet for one person: a snooze given on one sheet, or by one
   // account, is never read on another. A sheet not saved yet is keyed
-  // UNSAVED_DOC, so "Not now" works on it too (it used to have no key at all,
+  // UNSAVED_DOC, so a snooze works on it too (it used to have no key at all,
   // and a snooze with no key was never kept).
   function docKey(uid, docId) {
     if (!uid) return '';
@@ -202,8 +207,8 @@
      events:
        { type:'ink', now, key, why }      a mark was made ('' why = it counts)
        { type:'context', now, key, why }  something changed around it
-       { type:'tick', now }               the clock, for SHOW_MS
-       { type:'later', now }              "Not now"
+       { type:'tick', now }               the clock (SHOW_MS 0 = never hides)
+       { type:'later', now }              "Hide" (until the next mark)
        { type:'record', now }             "Record now"
        { type:'off' } / { type:'on' }     the device switch
   */
@@ -253,7 +258,7 @@
         return { state: s, effect: '' };
       }
       case 'tick':
-        if (s.shown && now - s.shownAt >= SHOW_MS) return hide(IDLE_SNOOZE_MS);
+        if (SHOW_MS > 0 && s.shown && now - s.shownAt >= SHOW_MS) return hide(IDLE_SNOOZE_MS);
         return { state: s, effect: '' };
       case 'later':
         return hide(LATER_SNOOZE_MS);
@@ -401,8 +406,8 @@
       later.type = 'button';
       later.className = 'rnLater';
       later.setAttribute('data-rn', 'later');
-      later.title = 'Do not ask again on this worksheet for ten minutes';
-      later.textContent = 'Not now';
+      later.title = 'Hide it until you write or type again — tick the box below to stop it';
+      later.textContent = 'Hide';
       actions.appendChild(rec); actions.appendChild(later);
 
       var off = document.createElement('button');
@@ -451,7 +456,7 @@
         root.addEventListener(t, function (e) { e.stopPropagation(); }, { passive: t === 'touchstart' });
       });
       // Every key pressed inside stays inside, or a letter fires a one-letter
-      // tool shortcut; Escape is "Not now".
+      // tool shortcut; Escape is "Hide" (until the next mark).
       root.addEventListener('keydown', function (e) {
         e.stopPropagation();
         if (e.key === 'Escape') { e.preventDefault(); later_(); }

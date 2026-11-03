@@ -6009,7 +6009,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.182.0';
+var APP_VERSION = 'v1.183.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -33370,15 +33370,19 @@ function cmdSearchRoleChanged() {
 /* ================= ⏺ Writing without recording — glue (the feature itself is record-nudge.js) =================
    When the teacher writes on a worksheet and no lesson is going down, a
    small "Not recording" card comes up over the top of the page with
-   ● Record now, Not now, ☐ Ignore for this session and Don't warn me.
+   ● Record now, Hide, ☐ Ignore for this session and Don't warn me.
    (v1.174.0: it no longer waits for the sheet to be saved or for an older
-   lesson to finish saving, nor stands down for an unrelated dialog, and two
-   marks in a minute are enough. recNudgeWhy() in the console says why the
-   next mark would not count.) The module decides when (pure.gate / pure.step);
+   lesson to finish saving, nor stands down for an unrelated dialog.
+   v1.183.0: it never goes away by itself — ONE stroke or any typing brings
+   it up, Hide lasts only until the next mark, and only the two switches or a
+   recording stop it. recNudgeWhy() in the console says why the next mark
+   would not count.) The module decides when (pure.gate / pure.step);
    this glue only tells it what the app knows:
 
    - recNudgeInk(a)      from finishPointer, after a stroke or a text box is
-                         really committed (never a stroke that was too small)
+                         really committed (never a stroke that was too small),
+                         and from recNudgeTyping — every word typed into a
+                         text box on the page (v1.183.0)
    - recNudgeChanged()   from lessonBar (a recording started or ended),
                          applyRoleUI (a handover, practice, a sign-out),
                          loadPdf (another worksheet) and lessonOpenModal
@@ -33445,7 +33449,21 @@ function recNudgeInit() {
   if (box) box.addEventListener('change', function () {
     if (recNudge) recNudge.setEnabled(!!box.checked);
   });
+  // v1.183.0: typing is writing too. A text box being typed into on the page
+  // tells the warning on every input, not only when the box was first made.
+  document.addEventListener('input', recNudgeTyping, true);
   recNudgeSyncSwitch();
+}
+
+// An input event from a text annotation on the worksheet (a contenteditable
+// .annText inside #viewerArea). Fields in dialogs, the search bar and the
+// toolbar are not the worksheet and never count.
+function recNudgeTyping(e) {
+  var t = e && e.target;
+  if (!t || !t.closest || !recNudge) return;
+  var node = t.closest('.annText[contenteditable="true"]');
+  if (!node || !node.closest('#viewerArea')) return;
+  recNudgeInk({ type: 'text' });
 }
 
 function recNudgeInk(a) {

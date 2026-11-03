@@ -4,6 +4,17 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.183.0 — ⏺ "Not recording" keeps reminding until you record
+
+- **It never goes away by itself any more.** Write one stroke or type in a text box on the worksheet
+  without a lesson recording, and the "Not recording" card comes up. It stays up, however long you
+  leave it, until a recording starts.
+- **"Hide"** (was "Not now") and Escape put it away only until you write or type again. Closing
+  the Record lesson window without starting, opening another window or changing worksheet also
+  only step it aside until the next mark.
+- **Only you can stop it:** tick ☐ **Ignore for this session** (until you close the tab) or press
+  **Don't warn me** (this device; the Record lesson window turns it back on).
+
 ## v1.182.0 — The living app's corner: the QR in a square, "living app" under it, and no logo on paper
 
 - **The corner of a living app or living question is now its QR code** in a small plain square, with **"living app"** in small type under it and a premium wand beside the words. It replaces the big wand. The code on screen is the same code the printed sheet carries.
