@@ -43,6 +43,7 @@ jobs:
           LL_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/living-library
           MS_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/model-studio
           SNIP_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/snip-pin
+          QR_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/qr-reader
           GUIDE_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/student-guide
           LS_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/lesson-splash
           RD_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/rune-door
@@ -75,6 +76,7 @@ jobs:
           node tools/rune-door-check.mjs
           node tools/model-studio-check.mjs
           node tools/snip-pin-check.mjs
+          node tools/qr-reader-check.mjs
           node tools/student-guide-check.mjs
           node tools/day-slots-check.mjs
           node tools/class-queue-check.mjs

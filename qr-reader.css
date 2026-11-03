@@ -1,0 +1,349 @@
+/* =====================================================================
+   🔳 READ QR — the drag layer and the windows (qr-reader.js)
+   ---------------------------------------------------------------------
+   The layer covers the whole screen (a code can be on the worksheet, on a
+   pinned snip or on a living app's own code card), above the living app
+   stage. The windows sit just under the layer and over the stage, so a link
+   read off the stage's code opens where it can be seen.
+   ===================================================================== */
+
+#qrLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 4400;
+  cursor: crosshair;
+  touch-action: none;
+  background: rgba(23, 50, 77, 0.10);
+  -webkit-user-select: none;
+  user-select: none;
+}
+#qrLayer[hidden] { display: none; }
+#qrLayer.drawing { background: transparent; }
+
+#qrLayer .qrBox {
+  position: fixed;
+  display: none;
+  border: 2px solid #12a37a;
+  border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgba(23, 50, 77, 0.30), inset 0 0 0 1px #ffffffcc;
+  pointer-events: none;
+  overflow: hidden;
+}
+#qrLayer.drawing .qrBox,
+#qrLayer.reading .qrBox { display: block; }
+
+/* The four corner brackets of a camera's QR viewfinder. */
+#qrLayer .qrBox::before,
+#qrLayer .qrBox::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  pointer-events: none;
+  background:
+    linear-gradient(#12a37a, #12a37a) top left / 16px 3px no-repeat,
+    linear-gradient(#12a37a, #12a37a) top left / 3px 16px no-repeat,
+    linear-gradient(#12a37a, #12a37a) top right / 16px 3px no-repeat,
+    linear-gradient(#12a37a, #12a37a) top right / 3px 16px no-repeat,
+    linear-gradient(#12a37a, #12a37a) bottom left / 16px 3px no-repeat,
+    linear-gradient(#12a37a, #12a37a) bottom left / 3px 16px no-repeat,
+    linear-gradient(#12a37a, #12a37a) bottom right / 16px 3px no-repeat,
+    linear-gradient(#12a37a, #12a37a) bottom right / 3px 16px no-repeat;
+}
+#qrLayer .qrBox::after { display: none; }
+
+/* While it reads, a line sweeps the box. */
+#qrLayer .qrBoxScan {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #12a37a, transparent);
+  opacity: 0;
+}
+#qrLayer.reading .qrBoxScan {
+  opacity: 1;
+  animation: qrSweep 1.1s ease-in-out infinite alternate;
+}
+@keyframes qrSweep {
+  from { top: 0; }
+  to { top: calc(100% - 3px); }
+}
+
+#qrLayer .qrHint {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  padding: 10px 12px 10px 16px;
+  border-radius: 14px;
+  background: #17324d;
+  color: #fff;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  box-shadow: 0 8px 28px #172b4d40;
+  cursor: default;
+}
+#qrLayer.drawing .qrHint { opacity: 0.35; pointer-events: none; }
+#qrLayer .qrHint.busy { background: #0f6e53; }
+#qrLayer .qrHint.miss { background: #8a3b12; }
+#qrLayer .qrHintIcon { font-size: 1.1rem; }
+#qrLayer .qrHint button {
+  flex: none;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: #ffffff26;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+#qrLayer .qrHint button:hover { background: #ffffff3d; }
+
+/* ---------------- the windows ---------------- */
+
+#qrWins {
+  position: fixed;
+  inset: 0;
+  z-index: 4350;
+  pointer-events: none;
+}
+
+.qrWin {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #d5dde8;
+  border-radius: 14px;
+  box-shadow: 0 18px 50px #172b4d38, 0 2px 6px #172b4d1f;
+  /* NOT overflow: hidden — a rounded, clipped box is not hit where it is
+     rounded, so its corners could not be grabbed. The head and the body
+     round themselves instead, and the edges reach just outside. */
+  overflow: visible;
+  pointer-events: auto;
+  color: #17324d;
+  font-size: 0.9rem;
+}
+.qrWin.flash { animation: qrFlash 0.7s ease-out; }
+@keyframes qrFlash {
+  0% { box-shadow: 0 0 0 0 #12a37a99, 0 18px 50px #172b4d38; }
+  100% { box-shadow: 0 0 0 14px #12a37a00, 0 18px 50px #172b4d38; }
+}
+.qrWin.maximised { border-radius: 10px; }
+
+.qrwHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 6px 0 14px;
+  background: #f3f7fb;
+  border-bottom: 1px solid #e3e9f1;
+  border-radius: 13px 13px 0 0;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.qrWin.dragging .qrwHead { cursor: grabbing; }
+.qrwTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.qrwTools { flex: none; display: flex; gap: 2px; }
+.qrwBtn {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #17324d;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.qrwBtn:hover { background: #e2eaf3; }
+.qrwBtn[data-qrw="close"]:hover { background: #fde2e2; color: #b42318; }
+
+.qrwBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 0 0 13px 13px;
+}
+.qrWin.minimised .qrwHead { border-bottom: 0; border-radius: 11px; }
+.qrWin.maximised .qrwHead { border-radius: 9px 9px 0 0; }
+.qrWin.maximised .qrwBody { border-radius: 0 0 9px 9px; }
+.qrWin.minimised .qrwBody,
+.qrWin.minimised .qrwEdge,
+.qrWin.minimised .qrwGrip { display: none; }
+.qrWin.minimised { border-radius: 12px; }
+
+.qrwFrameWrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.qrwUrl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid #edf1f6;
+  font-size: 0.78rem;
+  color: #50647a;
+}
+.qrwAddr {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.qrwStage { position: relative; flex: 1 1 auto; min-height: 0; background: #fff; }
+.qrwFrame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+.qrwSpin {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #ffffffd9;
+  color: #50647a;
+  pointer-events: none;
+}
+.qrwStage.loading .qrwSpin { display: flex; }
+.qrwDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 3px solid #12a37a;
+  border-right-color: transparent;
+  animation: qrSpin 0.8s linear infinite;
+}
+@keyframes qrSpin { to { transform: rotate(360deg); } }
+
+.qrwFoot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 14px;
+  border-top: 1px solid #edf1f6;
+  background: #fafcfe;
+  font-size: 0.76rem;
+  color: #6b7c90;
+}
+.qrWin.slow .qrwFoot { background: #fff6e5; color: #8a5a00; }
+.qrwNote { min-width: 0; }
+.qrwLink {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid #cfe3da;
+  border-radius: 9px;
+  background: #eaf7f2;
+  color: #0f6e53;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qrwLink:hover { background: #d8f0e6; }
+
+.qrwTextWrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.qrwLead { margin: 0; color: #50647a; line-height: 1.5; }
+.qrwText {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #f5f8fb;
+  border: 1px solid #e3e9f1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 0.9rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.qrwWifi {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 0;
+}
+.qrwWifi dt { color: #6b7c90; }
+.qrwWifi dd { margin: 0; font-weight: 600; -webkit-user-select: text; user-select: text; }
+.qrwTextRow { display: flex; justify-content: flex-end; }
+
+/* While the window is moved or resized a shield covers the frame, or the
+   frame swallows the pointer the moment it crosses into the page inside. */
+.qrwShield { position: absolute; inset: 40px 0 0 0; display: none; }
+.qrWin.dragging .qrwShield { display: block; cursor: inherit; }
+
+/* Eight resize edges plus a visible corner grip. */
+.qrwEdge { position: absolute; z-index: 2; touch-action: none; }
+.qrwEdge-n { top: -3px; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
+.qrwEdge-s { bottom: -3px; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
+.qrwEdge-e { right: -3px; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
+.qrwEdge-w { left: -3px; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
+.qrwEdge-ne { top: -3px; right: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
+.qrwEdge-sw { bottom: -3px; left: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
+.qrwEdge-nw { top: -3px; left: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
+.qrwEdge-se { bottom: -3px; right: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
+.qrwGrip {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 55%, #9fb0c3 55% 62%, transparent 62% 72%, #9fb0c3 72% 79%, transparent 79%);
+  border-bottom-right-radius: 12px;
+}
+.qrWin.maximised .qrwEdge,
+.qrWin.maximised .qrwGrip { display: none; }
+
+@media (max-width: 560px) {
+  #qrLayer .qrHint { top: 10px; font-size: 0.8rem; padding: 8px 10px 8px 12px; }
+  .qrwBtn { width: 34px; height: 34px; }
+  .qrwHead { height: 40px; padding-left: 10px; }
+  .qrwFoot .qrwNote { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #qrLayer.reading .qrBoxScan { animation: none; top: 50%; }
+  .qrWin.flash { animation: none; }
+  .qrwDot { animation: none; }
+}
+
+@media print {
+  #qrLayer, #qrWins { display: none !important; }
+}

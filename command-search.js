@@ -81,6 +81,7 @@
     '#livingAppBtn': 'living app interactive simulation simulator html app wand magic diagram',
     '#livingLibBtn': 'living app library apps qr codes email revision list',
     '#snipBtn': 'snip, screenshot | snip snipping screenshot crop capture pin clip cut out',
+    '#qrReadBtn': 'read qr, scan qr, qr code | qr qrcode scan scanner barcode code link url website open link reader',
     '#dayMenuBtn': 'day class day weekday monday tuesday wednesday thursday friday saturday schedule',
     '#selectionMenuBtn': 'tools menu selection select lasso highlighter',
     '#expandToolsBtn': 'expand tools show all tools toolbar layout',
