@@ -309,6 +309,47 @@ test('the catalogue is the maths app\'s MOE_SYLLABUS, wherever polymathlc/math i
   }
 });
 
+test('✏️ the table reads weakest topic first and most marks lost too', () => {
+  const s = sheets([
+    ws('A', T0, [row('P5.FR.2.6', 1, 4, 4), row('P5.FR.2.5', 4, 4, 4), row('P5.WN.1.1', 3, 4, 6)])
+  ]);
+  assert.deepEqual(LM.SORT_KEYS, ['syllabus', 'weak', 'weaktopic', 'lost']);
+  const wt = LM.matrix(s, { sort: 'weaktopic' });
+  assert.equal(wt.sort, 'weaktopic');
+  assert.ok(!wt.flat, 'the topics keep their objectives under them');
+  assert.ok(wt.groups[0].pct <= wt.groups[wt.groups.length - 1].pct, 'the weakest topic is first');
+  assert.equal(wt.groups.find(g => g.rows.some(r => r.id === 'P5.FR.2.6')).rows[0].id, 'P5.FR.2.6', 'and its weakest objective first');
+  const lost = LM.matrix(s, { sort: 'lost' });
+  assert.equal(lost.flat[0].id, 'P5.FR.2.6', '3 marks lost');
+  assert.equal(lost.flat[1].id, 'P5.WN.1.1', '1 lost attempted and 2 left blank');
+  assert.equal(LM.lostOf({ tot: 6, att: 4, got: 3 }), 3);
+  assert.equal(LM.matrix(s, { sort: 'nonsense' }).sort, 'syllabus');
+});
+
+test('✏️ a row says which mistakes it stands for, and becomes a practice group', () => {
+  const s = sheets([ws('A', T0, [row('P5.FR.2.6', 1, 4, 4, '3=1/2 4=0/2'), row('P5.FR.2.5', 4, 4, 4)])]);
+  const m = LM.matrix(s, {});
+  const r = m.rows.find(x => x.id === 'P5.FR.2.6');
+  assert.deepEqual(LM.selOf(r).los, ['P5.FR.2.6']);
+  assert.equal(r.tkey, 'P5.FR Fractions: Four Operations');
+  const g = LM.groupOf(r);
+  assert.equal(g.code, 'P5.FR.2.6');
+  assert.equal(g.pct, 25);
+  assert.match(g.qs, /Q3 1\/2/);
+  const grp = m.groups[0];
+  const gsel = LM.selOf(Object.assign({}, grp, { kind: 'group' }));
+  assert.ok(gsel.los.length >= 2, 'a topic stands for every objective of it in the syllabus');
+  assert.ok(gsel.los.indexOf('P5.FR.2.6') >= 0);
+  assert.deepEqual(gsel.tkeys, ['P5.FR Fractions: Four Operations']);
+  const gg = LM.groupOf(grp, 'group');
+  assert.equal(gg.kind, 'topic');
+  assert.match(gg.key, /^g:/);
+  const per = LM.sheetGroups(s[0]);
+  assert.equal(per.length, 2, 'one worksheet\'s report has a group per objective it tested');
+  assert.ok(per.every(x => /^w:/.test(x.key)));
+  assert.deepEqual(LM.sheetGroups(null), []);
+});
+
 test('lo-marks.js, its CSS and this test are the same files in Study Buddy and Ans Key, wherever both are checked out', () => {
   const parent = new URL('../../', import.meta.url);
   for (const f of ['lo-marks.js', 'lo-marks.css', 'tools/lo-marks-tests.mjs']) {

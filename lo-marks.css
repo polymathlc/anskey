@@ -101,3 +101,12 @@
   .lmScroll { max-height: none; overflow: visible; border: 0; }
   .lmTable thead th, .lmObj, .lmFoot th, .lmFoot td { position: static; }
 }
+
+/* ✏️ Row heads and worksheet numbers that open the practice window /
+   the worksheet's report (v1.79.0). */
+.lmGo { cursor: pointer; }
+.lmGo:hover, .lmGo:focus { background: #FFF8E1 !important; }
+.lmGo:focus { outline: 2px solid #C9A227; outline-offset: -2px; }
+.lmObj.lmGo .lmText::after, .lmGroupH.lmGo .lmGroupName::after { content: ' ✏️'; font-size: 0.85em; opacity: 0.55; }
+.lmGroupPct { margin-left: 6px; padding: 0 5px; border-radius: 5px; font-size: 10px; font-weight: 700; }
+.lmPractise { margin-left: 0; border-color: #C9A227; background: #FFF6D8; font-weight: 600; }

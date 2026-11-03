@@ -55,6 +55,11 @@
   var QS_MAX = 40;
   var HI_PCT = 80;
   var MID_PCT = 50;
+  /* ✏️ The orders the table can be read in. 'weak' and 'lost' list the
+     objectives flat; 'weaktopic' keeps them under their topics and puts
+     the weakest topic first. */
+  var SORT_KEYS = ['syllabus', 'weak', 'weaktopic', 'lost'];
+  var SORT_NAMES = { syllabus: 'Syllabus order', weak: 'Weakest objective first', weaktopic: 'Weakest topic first', lost: 'Most marks lost' };
   var TREND_STEP = 15;     // percentage points between the older and newer half
   var UNLISTED = 'Not on the syllabus list';
 
@@ -805,18 +810,18 @@
         if (r.lo && e) {
           row = rowFor('o:' + e.id, function () {
             return { key: 'o:' + e.id, kind: 'lo', id: e.id, code: e.code, text: e.text, level: e.level,
-                     sub: e.sub, topic: e.topic, gkey: e.gkey, order: e.order };
+                     sub: e.sub, topic: e.topic, gkey: e.gkey, tkey: e.tkey, tname: e.tname, order: e.order };
           });
         } else if (e) {
           row = rowFor('t:' + e.tkey, function () {
             return { key: 't:' + e.tkey, kind: 'topic', id: '', code: '', text: 'Topic only — no single objective',
-                     level: e.level, sub: e.sub, topic: e.topic, gkey: e.gkey, order: e.order + 99 };
+                     level: e.level, sub: e.sub, topic: e.topic, gkey: e.gkey, tkey: e.tkey, tname: e.tname, order: e.order + 99 };
           });
         } else {
           var name = r.tp || 'No topic named';
           row = rowFor('p:' + name.toLowerCase(), function () {
             return { key: 'p:' + name.toLowerCase(), kind: 'unlisted', id: '', code: '', text: name, level: '',
-                     sub: '', topic: UNLISTED, gkey: '~', order: 1e12 };
+                     sub: '', topic: UNLISTED, gkey: '~', tkey: '', tname: '', order: 1e12 };
           });
         }
         if (!row.cells[ci]) row.cells[ci] = emptyCell();
@@ -829,7 +834,7 @@
         if (lvls.indexOf(e.level) < 0 || by['o:' + e.id]) return;
         rowFor('o:' + e.id, function () {
           return { key: 'o:' + e.id, kind: 'lo', id: e.id, code: e.code, text: e.text, level: e.level,
-                   sub: e.sub, topic: e.topic, gkey: e.gkey, order: e.order };
+                   sub: e.sub, topic: e.topic, gkey: e.gkey, tkey: e.tkey, tname: e.tname, order: e.order };
         });
       });
     }
@@ -850,6 +855,7 @@
       var g = gby[row.gkey];
       if (!g) {
         g = gby[row.gkey] = { key: row.gkey, level: row.level, sub: row.sub, topic: row.topic, rows: [],
+                              tkey: row.tkey || '', tname: row.tname || '', order: row.order,
                               cells: cols.map(function () { return null; }) };
         groups.push(g);
       }
@@ -879,18 +885,86 @@
     var listed = rows.filter(function (r) { return r.kind === 'lo'; }).length;
     var model = {
       cols: colTotals, rows: rows, groups: groups, level: level || 'all',
-      levels: levelsIn(sheets), sort: opts.sort === 'weak' ? 'weak' : 'syllabus',
+      levels: levelsIn(sheets), sort: SORT_KEYS.indexOf(opts.sort) >= 0 ? opts.sort : 'syllabus',
       total: { got: all.got, att: all.att, tot: all.tot, q: all.q, pct: pct(all.got, all.att) },
       tested: tested, listed: listed, weak: weak,
       syllabusCount: level ? catalogue().list.filter(function (e) { return e.level === level; }).length : catalogue().list.length
     };
+    var pOf = function (r) { return r.pct === null ? 1e9 : r.pct; };
     if (model.sort === 'weak') {
       model.flat = rows.slice().sort(function (a, b) {
-        var pa = a.pct === null ? 1e9 : a.pct, pb = b.pct === null ? 1e9 : b.pct;
-        return (pa - pb) || (b.att - a.att) || (a.order - b.order);
+        return (pOf(a) - pOf(b)) || (b.att - a.att) || (a.order - b.order);
+      });
+    } else if (model.sort === 'lost') {
+      model.flat = rows.slice().sort(function (a, b) {
+        return (lostOf(b) - lostOf(a)) || (pOf(a) - pOf(b)) || (a.order - b.order);
+      });
+    } else if (model.sort === 'weaktopic') {
+      /* ✏️ The TOPICS weakest first, and inside each topic its objectives
+         weakest first — the order to practise in when a whole topic is
+         the thing to fix. */
+      model.groups = groups.slice().sort(function (a, b) {
+        return (pOf(a) - pOf(b)) || (lostOf(b) - lostOf(a)) || (a.order - b.order);
+      });
+      model.groups.forEach(function (g) {
+        g.rows = g.rows.slice().sort(function (a, b) { return (pOf(a) - pOf(b)) || (a.order - b.order); });
       });
     }
     return model;
+  }
+
+  /* Marks given away on a row: what it carried, less what it earned. A
+     blank counts — under exam conditions a blank IS marks lost. */
+  function lostOf(r) {
+    var tot = Number(r && r.tot) || 0, att = Number(r && r.att) || 0, got = Number(r && r.got) || 0;
+    return Math.max(0, Math.max(tot, att) - got);
+  }
+
+  /* ---- ✏️ WHICH MISTAKES A ROW STANDS FOR ----
+     The selector lo-practice.js `matches` reads: an objective row is its
+     own id; a topic row is every objective of that topic in the syllabus
+     plus the mistakes filed to the topic alone; a "topic only" row is
+     just the latter; an unplaced row is its name. */
+  function selOf(r) {
+    if (!r) return { los: [], tkeys: [], topics: [] };
+    if (r.kind === 'lo') return { los: [r.id], tkeys: [], topics: [] };
+    if (r.kind === 'topic') return { los: [], tkeys: r.tkey ? [r.tkey] : [], topics: [r.topic, r.tname].filter(Boolean) };
+    if (r.kind === 'group') {
+      var ids = catalogue().list.filter(function (e) { return e.gkey === r.key; }).map(function (e) { return e.id; });
+      (r.rows || []).forEach(function (x) { if (x.id && ids.indexOf(x.id) < 0) ids.push(x.id); });
+      return { los: ids, tkeys: r.tkey ? [r.tkey] : [], topics: [r.topic, r.tname].filter(Boolean) };
+    }
+    return { los: [], tkeys: [], topics: [r.text].filter(Boolean) };
+  }
+  /* A row of the table as one group of the practice window. */
+  function groupOf(r, kind) {
+    var k = kind || r.kind;
+    var qs = [];
+    (r.cells || []).forEach(function (c) { if (c && c.qs) qs = qs.concat(c.qs); });
+    return {
+      key: (k === 'group' ? 'g:' : '') + String(r.key || ''),
+      kind: k === 'group' ? 'topic' : r.kind,
+      code: k === 'group' ? '' : (r.id || ''),
+      title: k === 'group' ? ((r.sub && r.sub !== r.topic ? r.sub + ' · ' : '') + r.topic) : r.text,
+      topic: k === 'group' ? '' : (r.sub && r.sub !== r.topic ? r.sub + ': ' : '') + (r.topic || ''),
+      level: r.level || '',
+      order: Number(r.order) || 0,
+      got: r.got || 0, att: r.att || 0, tot: r.tot || 0, pct: r.pct === undefined ? null : r.pct,
+      q: r.q || 0,
+      qs: qs.length ? qsText(qs) : '',
+      sel: selOf(k === 'group' ? Object.assign({}, r, { kind: 'group' }) : r)
+    };
+  }
+  /* ONE worksheet's objectives, as groups — the per-worksheet report.
+     `sheet` is one of sheetsOf()'s entries. */
+  function sheetGroups(sheet) {
+    if (!sheet || !Array.isArray(sheet.rows)) return [];
+    var m = matrix([sheet], { level: 'all' });
+    return m.rows.map(function (r) {
+      var g = groupOf(r);
+      g.key = 'w:' + g.key;
+      return g;
+    });
   }
 
   /* ---- THE TABLE AS TEXT, tab-separated, for pasting into a spreadsheet ---- */
@@ -972,7 +1046,20 @@
     t.title = TREND_TITLES[r.trend || ''];
     tr.appendChild(t);
   }
-  function tableNode(doc, model, onPick) {
+  /* ✏️ A row head that opens the practice window. A real button inside
+     the <th> would push the dense table wider; the head itself becomes the
+     control, with a role, a tab stop and Enter/Space, so it is as reachable
+     as a button from the keyboard. */
+  function goable(el, title, fn) {
+    el.classList.add('lmGo');
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.title = title + '\n' + (el.title || '');
+    el.addEventListener('click', fn);
+    el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); fn(); } });
+  }
+  function tableNode(doc, model, onPick, hooks) {
+    hooks = hooks || {};
     var wrap = make(doc, 'div', 'lmScroll');
     var table = make(doc, 'table', 'lmTable');
     var thead = make(doc, 'thead');
@@ -986,6 +1073,7 @@
       th.appendChild(make(doc, 'span', 'lmColNo', String(i + 1)));
       th.appendChild(make(doc, 'span', 'lmColName', str(c.ws, 26)));
       th.appendChild(make(doc, 'span', 'lmColDate', dateText(c.at)));
+      if (hooks.onSheet) goable(th, 'Open this worksheet\'s learning-objective report', function () { hooks.onSheet(c); });
       hr.appendChild(th);
     });
     hr.appendChild(make(doc, 'th', 'lmSumH', 'Total'));
@@ -1004,12 +1092,13 @@
       th.appendChild(make(doc, 'span', 'lmText', r.text));
       if (showTopic && r.topic) th.appendChild(make(doc, 'span', 'lmTopicTag', (r.level ? r.level + ' ' : '') + r.topic));
       th.title = (r.id ? r.id + ' — ' : '') + r.text + (r.topic ? '\n' + (r.level ? r.level + ' · ' : '') + (r.sub ? r.sub + ' · ' : '') + r.topic : '');
+      if (hooks.onRow) goable(th, 'Practise the mistakes on this objective', function () { hooks.onRow(r, 'row'); });
       tr.appendChild(th);
       r.cells.forEach(function (c, ci) { tr.appendChild(cellNode(doc, c, model.cols[ci], r, onPick, false)); });
       sumCells(doc, tr, r);
       return tr;
     };
-    if (model.sort === 'weak' && model.flat) {
+    if (model.flat) {
       model.flat.forEach(function (r) { tbody.appendChild(objRow(r, true)); });
     } else {
       model.groups.forEach(function (g) {
@@ -1018,6 +1107,8 @@
         gh.scope = 'rowgroup';
         gh.appendChild(make(doc, 'span', 'lmGroupLv', g.level || '—'));
         gh.appendChild(make(doc, 'span', 'lmGroupName', (g.sub && g.sub !== g.topic ? g.sub + ' · ' : '') + g.topic));
+        if (g.pct !== null && g.pct !== undefined) gh.appendChild(make(doc, 'span', 'lmGroupPct lm-' + band(g.pct), g.pct + '%'));
+        if (hooks.onRow) goable(gh, 'Practise every mistake in this topic', function () { hooks.onRow(g, 'group'); });
         gr.appendChild(gh);
         g.cells.forEach(function (c, ci) {
           gr.appendChild(cellNode(doc, c, model.cols[ci], { id: '', text: g.topic }, onPick, true));
@@ -1086,10 +1177,10 @@
       bar.appendChild(chips);
       var sortSel = make(doc, 'select', 'lmSelect');
       sortSel.setAttribute('aria-label', 'Order the objectives');
-      [['syllabus', 'Syllabus order'], ['weak', 'Weakest first']].forEach(function (o) {
-        var op = make(doc, 'option', null, o[1]);
-        op.value = o[0];
-        if (state.sort === o[0]) op.selected = true;
+      SORT_KEYS.forEach(function (k) {
+        var op = make(doc, 'option', null, SORT_NAMES[k]);
+        op.value = k;
+        if (state.sort === k) op.selected = true;
         sortSel.appendChild(op);
       });
       sortSel.addEventListener('change', function () { state.sort = sortSel.value; draw(); });
@@ -1112,6 +1203,18 @@
         else done();
       });
       bar.appendChild(copy);
+      /* ✏️ Every mistake on the table, in the order it is being read in,
+         as practice questions — and the sheet to print them on. */
+      if (typeof opts.onPractice === 'function') {
+        var prac = make(doc, 'button', 'lmCopy lmPractise', '✏️ Practise / print mistakes');
+        prac.type = 'button';
+        prac.title = 'Every mistake on these objectives as a fresh practice question with its answer and working — printable';
+        prac.addEventListener('click', function () {
+          var pm = matrix(state.sheets, { level: state.level, untested: false, sort: state.sort });
+          opts.onPractice(pm, { level: state.level, sort: state.sort });
+        });
+        bar.appendChild(prac);
+      }
       host.appendChild(bar);
       var sum = make(doc, 'div', 'lmSummary');
       var lvWord = model.level === 'all' ? '' : model.level + ' ';
@@ -1135,9 +1238,15 @@
         host.appendChild(make(doc, 'div', 'lmEmptyNote', 'Nothing at this level yet.'));
         return;
       }
-      var detail = make(doc, 'div', 'lmDetail', 'Tap a cell to see the questions behind it.');
+      var detail = make(doc, 'div', 'lmDetail', 'Tap a cell to see the questions behind it.' +
+        (opts.onRow ? ' Tap an objective or a topic to practise its mistakes' + (opts.onSheet ? ', or a worksheet number for that paper\'s report.' : '.') : ''));
       detail.setAttribute('aria-live', 'polite');
-      host.appendChild(tableNode(doc, model, function (words) { detail.textContent = words; detail.classList.add('on'); }));
+      host.appendChild(tableNode(doc, model, function (words) { detail.textContent = words; detail.classList.add('on'); }, {
+        onRow: typeof opts.onRow === 'function' ? function (r, kind) { opts.onRow(r, kind, model); } : null,
+        onSheet: typeof opts.onSheet === 'function' ? function (c) {
+          opts.onSheet(state.sheets.filter(function (s) { return s.id === c.id; })[0] || null, c);
+        } : null
+      }));
       host.appendChild(detail);
       var legend = make(doc, 'div', 'lmLegend');
       legend.appendChild(make(doc, 'span', null, 'Each cell: marks got / marks attempted on that objective in that paper.'));
@@ -1185,6 +1294,11 @@
     matrix: matrix,
     tsv: tsv,
     tableNode: tableNode,
-    mount: mount
+    mount: mount,
+    SORT_KEYS: SORT_KEYS,
+    lostOf: lostOf,
+    selOf: selOf,
+    groupOf: groupOf,
+    sheetGroups: sheetGroups
   };
 });

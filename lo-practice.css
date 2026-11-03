@@ -1,0 +1,145 @@
+/* ✏️ PRACTISE THE MISTAKES BEHIND AN OBJECTIVE — the window drawn by
+   lo-practice.js. Byte for byte the same file in polymathlc/tutor and
+   polymathlc/anskey. Every colour sits beside the number or word it
+   colours, so nothing is read from colour alone. */
+.lpBack {
+  position: fixed; inset: 0; z-index: 10050; display: none; align-items: flex-start; justify-content: center;
+  background: rgba(20, 22, 26, 0.45); padding: 24px 12px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.lpBack.open { display: flex; }
+.lpCard {
+  width: min(880px, 100%); background: var(--bg, #fff); color: var(--ink, #1F1F1C); border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22); display: flex; flex-direction: column; max-height: calc(100vh - 48px);
+}
+.lpHead { display: flex; align-items: center; gap: 10px; padding: 16px 18px 4px; }
+.lpTitle { margin: 0; font-size: 1.12rem; line-height: 1.3; flex: 1; overflow-wrap: anywhere; }
+.lpX {
+  font: inherit; border: 0; background: transparent; font-size: 1.1rem; cursor: pointer; padding: 6px 8px;
+  border-radius: 8px; color: var(--ink-soft, #55554F);
+}
+.lpX:hover { background: var(--bg-soft, #F6F6F3); }
+.lpSub { padding: 0 18px 6px; font-size: 0.82rem; color: var(--ink-soft, #55554F); line-height: 1.5; }
+.lpBar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 6px 18px 10px;
+  border-bottom: 1px solid var(--line, #E2E2DD);
+}
+.lpSelect {
+  font: inherit; font-size: 0.82rem; padding: 5px 8px; border-radius: 8px;
+  border: 1px solid var(--line, #E2E2DD); background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+}
+.lpCheck { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--ink-soft, #55554F); cursor: pointer; }
+.lpPrintBtn, .lpMake, .lpDone, .lpMini {
+  font: inherit; font-size: 0.82rem; padding: 6px 12px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line, #E2E2DD); background: var(--bg-soft, #F6F6F3); color: var(--ink, #1F1F1C);
+}
+.lpPrintBtn { margin-left: auto; border-color: #1F4E79; color: #1F4E79; background: #fff; font-weight: 600; }
+.lpMake { border-color: #C9A227; background: #FFF6D8; font-weight: 600; }
+.lpDone { background: #1F4E79; border-color: #1F4E79; color: #fff; font-weight: 600; }
+.lpMini { font-size: 0.76rem; padding: 4px 9px; }
+.lpBody { padding: 10px 18px 6px; overflow-y: auto; flex: 1; }
+.lpFoot {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 18px 14px;
+  border-top: 1px solid var(--line, #E2E2DD);
+}
+.lpFootNote { flex: 1; font-size: 0.8rem; color: var(--ink-soft, #55554F); min-width: 160px; }
+.lpEmpty { padding: 26px 8px; text-align: center; color: var(--ink-faint, #8A8A84); font-size: 0.9rem; line-height: 1.6; }
+
+.lpGroup { margin: 6px 0 18px; scroll-margin-top: 8px; }
+.lpGroupHead {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 8px 10px; border-radius: 10px;
+  background: #F4F6F9; border-left: 5px solid #9AA5B1;
+}
+.lpGroupHead.lpB-lo { border-left-color: #B3261E; }
+.lpGroupHead.lpB-mid { border-left-color: #B26A00; }
+.lpGroupHead.lpB-hi { border-left-color: #2E7D32; }
+.lpCode { font-size: 0.72rem; font-weight: 700; color: #1F4E79; font-variant-numeric: tabular-nums; }
+.lpGroupTitle { font-weight: 600; font-size: 0.92rem; flex: 1 1 260px; overflow-wrap: anywhere; }
+.lpGroupStats { font-size: 0.78rem; color: var(--ink-soft, #55554F); font-variant-numeric: tabular-nums; }
+.lpGroupTopic { flex-basis: 100%; font-size: 0.74rem; color: var(--ink-faint, #8A8A84); }
+.lpQs { font-size: 0.76rem; color: var(--ink-soft, #55554F); padding: 4px 10px 0; overflow-wrap: anywhere; }
+
+.lpItem {
+  margin: 8px 0 0 10px; padding: 10px 12px; border: 1px solid var(--line, #E2E2DD); border-radius: 12px;
+  background: var(--bg, #fff);
+}
+.lpItemTop { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 0.76rem; }
+.lpFrom { color: var(--ink-soft, #55554F); flex: 1; overflow-wrap: anywhere; }
+.lpVerdict { padding: 1px 8px; border-radius: 999px; font-weight: 600; }
+.lpV-wrong { background: #FDECEA; color: #8C1D18; }
+.lpV-partial { background: #FFF3E0; color: #7A4A00; }
+.lpV-skipped { background: #EEF0F3; color: #4A5462; }
+.lpOrig { margin: 6px 0 0; font-size: 0.82rem; }
+.lpOrig > summary { cursor: pointer; color: #1F4E79; font-size: 0.78rem; }
+.lpOrigQ { white-space: pre-wrap; margin: 6px 0 4px; line-height: 1.5; color: var(--ink-soft, #55554F); overflow-wrap: anywhere; }
+.lpOrigOpts { font-size: 0.78rem; color: var(--ink-soft, #55554F); margin-bottom: 4px; }
+.lpOrigLine { font-size: 0.8rem; margin: 2px 0; overflow-wrap: anywhere; }
+.lpPrac {
+  margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: #FBFAF4; border: 1px dashed #D9CF9E;
+}
+.lpPracLabel { font-size: 0.74rem; font-weight: 700; color: #7A5B00; margin-bottom: 4px; }
+.lpPracQ { white-space: pre-wrap; line-height: 1.55; font-size: 0.92rem; overflow-wrap: anywhere; }
+.lpOpts { margin: 6px 0 0; padding-left: 0; list-style: none; font-size: 0.88rem; line-height: 1.6; }
+.lpKey { margin-top: 8px; }
+.lpKey > summary { cursor: pointer; font-size: 0.8rem; color: #1F4E79; font-weight: 600; }
+.lpKeyAns { margin: 6px 0 2px; font-size: 0.88rem; }
+.lpSteps { margin: 4px 0 0; padding-left: 20px; font-size: 0.86rem; line-height: 1.6; }
+.lpSteps li { overflow-wrap: anywhere; }
+.lpTools { margin-top: 8px; display: flex; gap: 6px; }
+.lpWait { font-size: 0.84rem; color: var(--ink-soft, #55554F); }
+.lpWarn { font-size: 0.8rem; color: #8C1D18; margin: 4px 0; }
+
+.lpSumWrap { overflow-x: auto; margin: 4px 0 14px; border: 1px solid var(--line, #E2E2DD); border-radius: 10px; }
+.lpSum { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.lpSum th, .lpSum td { padding: 5px 8px; border-bottom: 1px solid #EEEEEA; text-align: right; vertical-align: top; }
+.lpSum th { background: #F4F6F9; font-weight: 600; }
+.lpSum th:first-child, .lpSum td:first-child { text-align: left; }
+.lpSumObj b { color: #1F4E79; font-size: 0.74rem; }
+.lpSumQs { display: block; font-size: 0.72rem; color: var(--ink-faint, #8A8A84); }
+.lpSum tr.lpB-lo td:nth-child(4) { color: #8C1D18; font-weight: 700; }
+.lpSum tr.lpB-mid td:nth-child(4) { color: #7A4A00; font-weight: 700; }
+.lpSum tr.lpB-hi td:nth-child(4) { color: #1E5E22; font-weight: 700; }
+.lpSumGo { cursor: pointer; }
+.lpSumGo:hover td, .lpSumGo:focus td { background: #FBFAF4; }
+
+/* Clickable rows in the hosts' tables (the 📐 table and My progress). */
+.lpRowGo { cursor: pointer; }
+.lpRowGo:hover > *, .lpRowGo:focus > * { background-color: #FFF8E1 !important; }
+.lpRowGo:focus { outline: 2px solid #C9A227; outline-offset: -2px; }
+.lpGoMark { font-size: 0.72em; margin-left: 6px; color: #7A5B00; white-space: nowrap; }
+
+/* ---- the printed sheet ---- */
+.lpSheet { font-family: Georgia, 'Times New Roman', serif; color: #000; font-size: 12pt; line-height: 1.45; }
+.lpSheetHead { border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
+.lpSheetTitle { font-size: 16pt; font-weight: 700; }
+.lpSheetSub { font-size: 10pt; color: #333; }
+.lpSheetH { font-size: 13pt; font-weight: 700; margin: 16px 0 8px; }
+.lpSheetGroup { font-size: 10.5pt; font-weight: 700; margin: 14px 0 6px; padding: 3px 6px; background: #EEE; }
+.lpSheetGroup span { font-weight: 400; }
+.lpSheetQ, .lpSheetKey { display: flex; gap: 8px; margin: 0 0 10px; break-inside: avoid; page-break-inside: avoid; }
+.lpSheetQn { font-weight: 700; min-width: 24px; }
+.lpSheetQb { flex: 1; }
+.lpSheetOpts { list-style: none; padding: 0; margin: 4px 0; }
+.lpSheetWork { height: 110px; border: 1px solid #BBB; border-radius: 4px; margin: 6px 0 4px; }
+.lpSheetAns { text-align: right; font-size: 11pt; }
+.lpSheetNote { font-size: 9pt; color: #555; font-style: italic; }
+.lpSheetMis { margin: 0 0 10px; font-size: 10.5pt; break-inside: avoid; page-break-inside: avoid; }
+.lpSheetKeyAns { font-weight: 700; }
+.lpSheetKeyAns span { font-weight: 400; font-size: 10pt; color: #333; }
+.lpSheetSteps { margin: 2px 0 0; padding-left: 20px; font-size: 11pt; }
+.lpBreak { break-before: page; page-break-before: always; }
+.lpSumTable { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 10px; }
+.lpSumTable th, .lpSumTable td { border: 1px solid #999; padding: 3px 5px; text-align: right; vertical-align: top; }
+.lpSumTable th:first-child, .lpSumTable td:first-child { text-align: left; }
+.lpSumTopic { font-size: 8.5pt; color: #444; }
+.lpSumTable tr.lpB-lo td:nth-child(4) { font-weight: 700; }
+
+@media (max-width: 560px) {
+  .lpBack { padding: 0; }
+  .lpCard { border-radius: 0; max-height: none; min-height: 100vh; }
+  .lpItem { margin-left: 0; }
+  .lpPrintBtn { margin-left: 0; }
+}
+@media print {
+  .lpBack { display: none !important; }
+  .lpSheetWork { border-color: #999; }
+}

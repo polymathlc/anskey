@@ -4,6 +4,20 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.187.0 — ✏️ Practise a student's mistakes straight from the objective table
+
+- In **📐 Objectives**, every objective and every topic is now tappable. It opens that student's maths
+  mistakes on it (from the roster row's `tutorMistakes` mirror), each written again as a **fresh practice
+  question** on the same skill with its **answer key and worked solution**, never algebra (model drawing, units
+  and parts, the unitary method).
+- **Sort** weakest objective first, weakest topic first or by most marks lost; the practice window adds most
+  mistakes and newest. **✏️ Practise / print mistakes** opens every mistake on the table.
+- **Tap a worksheet number** for that paper's learning-objective report, with **⬇ Export PDF**. The practice
+  sheet prints questions first, then the answer key and working on pages of their own.
+- `lo-practice.js` / `.css` / `tools/lo-practice-tests.mjs` are byte for byte Study Buddy's (v1.79.0). The model is
+  `loPracticeAsk` in index.html (Ans Key's own `askGemini`, grounded on the teacher's notes), handed to
+  `LoView.open` as `ask`; lo-view.js and lo-practice.js never name it. Maths only, so subjects never mix.
+
 ## v1.186.0 — 📐 Each student's maths marks by learning objective, paper by paper
 
 - **📐 Objectives** on every row of the **Students** window (teacher only, beside 🧩 Gaps) opens a dense
