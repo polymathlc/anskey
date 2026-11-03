@@ -56,9 +56,33 @@ test('it only reads: no write anywhere, and nothing drawn as markup', () => {
 test('the Students window opens it for the teacher, and the files are loaded', () => {
   assert.match(HTML, /<link rel="stylesheet" href="lo-marks\.css">/);
   assert.match(HTML, /<link rel="stylesheet" href="lo-view\.css">/);
-  assert.match(HTML, /<script src="lo-marks\.js"><\/script>\n<script src="lo-view\.js"><\/script>/);
+  assert.match(HTML, /<script src="lo-marks\.js"><\/script>\n<script src="lo-practice\.js"><\/script>\n<script src="lo-view\.js"><\/script>/);
+  assert.match(HTML, /<link rel="stylesheet" href="lo-practice\.css">/);
   assert.ok(HTML.indexOf('src="lo-marks.js"') < HTML.indexOf('src="lo-view.js"'), 'the table is loaded before the window');
-  assert.match(HTML, /LoView\.open\(\{ db: db, uid: uid, profile: p, collection: PROFILES_COLLECTION, toast: toast,\s*isTeacher: function \(\) \{ return !!\(currentUser && isAdmin\(currentUser\) && !actingStudent\); \} \}\);/);
+  assert.match(HTML, /LoView\.open\(\{ db: db, uid: uid, profile: p, collection: PROFILES_COLLECTION, toast: toast,\s*isTeacher: function \(\) \{ return !!\(currentUser && isAdmin\(currentUser\) && !actingStudent\); \},/);
+  assert.match(HTML, /ask: loPracticeAsk,\s*parse: function \(raw\) \{ return _parseAIJson\(raw\); \} \}\);/);
+  assert.match(HTML, /function loPracticeAsk\(prompt, opts\) \{[\s\S]{0,200}aiGrounding\('teach'/);
   assert.match(HTML, /'📐 Objectives \(' \+ loN \+ '\)'/);
   assert.match(CSS, /\.loBack\.open/);
+});
+
+test('✏️ the practice window reads the roster row\'s maths mistakes, and nothing of another subject', () => {
+  globalThis.LoPractice = require('../lo-practice.js');
+  const rows = LV.pure.mistakesOf({ tutorMistakes: [
+    { q: 'What is 3/4 of 20?', n: '5', doc: 'WA1', sub: 'math', lo: 'P4.FR.1.2', v: 'wrong', ans: '15', mine: '12', id: 'a' },
+    { q: 'Why does ice melt?', n: '2', doc: 'Sci 1', sub: 'science', lo: '', v: 'wrong', id: 'b' },
+    'junk', null
+  ] });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].lo, 'P4.FR.1.2');
+  assert.equal(rows[0].ws, 'WA1');
+  assert.deepEqual(LV.pure.mistakesOf(null), []);
+  assert.deepEqual(LV.pure.mistakesOf({}), []);
+});
+
+test('✏️ the model is handed in by the Students window — lo-view.js never names one', () => {
+  assert.match(SRC, /ask: o\.ask/);
+  assert.match(SRC, /onRow: h\.onRow, onSheet: h\.onSheet, onPractice: h\.onPractice/);
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/askGemini|fetch\(/.test(code));
 });

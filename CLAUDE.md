@@ -2,6 +2,12 @@
 
 Guidance for Claude when working in this repo.
 
+## ✏️ Practice from the objective table (v1.187.0)
+
+`lo-practice.js`/`.css`/`tools/lo-practice-tests.mjs` are byte for byte Study Buddy's. `LoView.open` takes `ask`
+(`loPracticeAsk` in index.html, grounded — notes-tests flags any ungrounded askGemini caller) and `parse`; lo-view.js
+reads `profile.tutorMistakes` (maths only) and passes `onRow`/`onSheet`/`onPractice` to `LoMarks.mount`.
+
 ## 📐 The objective table (v1.186.0)
 
 - `lo-marks.js` (`window.LoMarks`), `lo-marks.css` and `tools/lo-marks-tests.mjs` are **byte for byte Study

@@ -4065,6 +4065,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="gap-view.css">
 <link rel="stylesheet" href="lo-marks.css">
 <link rel="stylesheet" href="lo-view.css">
+<link rel="stylesheet" href="lo-practice.css">
 <link rel="stylesheet" href="compact-wheel.css">
 </head>
 <body>
@@ -5951,6 +5952,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <script src="concept-tags.js"></script>
 <script src="gap-view.js"></script>
 <script src="lo-marks.js"></script>
+<script src="lo-practice.js"></script>
 <script src="lo-view.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -6016,7 +6018,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.186.0';
+var APP_VERSION = 'v1.187.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -20566,6 +20568,15 @@ function guidanceBlock() {
    used to RETRIEVE the exemplars rather than serving the same six every time;
    omitting it is the old behaviour byte for byte, so every existing call site
    is unaffected. */
+/* ✏️ v1.187.0: the practice window's one ask (lo-practice.js writes a fresh
+   question on the skill a student's mistake tested). Grounded on the
+   teacher's notes and style like every other teaching ask, so the working
+   comes out in this centre's own model-drawing wording. */
+function loPracticeAsk(prompt, opts) {
+  var o = Object.assign({}, opts || {});
+  o.system = String(o.system || '') + aiGrounding('teach', { q: String(prompt || '').slice(0, 1200) });
+  return window.askGemini(prompt, o);
+}
 function aiGrounding(kind, opts) {
   notesLedgerReset();
   var guide = guidanceBlock();
@@ -32107,7 +32118,10 @@ function studentAdminRow(uid, p) {
       : 'No maths worksheet marked by objective yet — the table fills in after the next one is marked in Study Buddy';
     loBtn.addEventListener('click', function () {
       LoView.open({ db: db, uid: uid, profile: p, collection: PROFILES_COLLECTION, toast: toast,
-                    isTeacher: function () { return !!(currentUser && isAdmin(currentUser) && !actingStudent); } });
+                    isTeacher: function () { return !!(currentUser && isAdmin(currentUser) && !actingStudent); },
+                    // ✏️ v1.187.0: the practice window asks Ans Key's own model.
+                    ask: loPracticeAsk,
+                    parse: function (raw) { return _parseAIJson(raw); } });
     });
     row.appendChild(loBtn);
   }

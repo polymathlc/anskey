@@ -24,7 +24,14 @@
      as well as from a button.
    - EVERYTHING IS textContent (lo-marks.js draws it so too): the rows were
      written on a child's device.
-   - THE NUMBERS ARE PLAIN CODE. No model is asked anything.
+   - THE NUMBERS ARE PLAIN CODE. No model is asked anything to draw them.
+   - ✏️ v1.187.0: every objective, topic and worksheet number is a door
+     into lo-practice.js (byte for byte Study Buddy's file): the student's
+     mistakes on it — read off the roster row's `tutorMistakes` mirror,
+     maths only — each written again as a fresh practice question with its
+     answer key and working (no algebra), sortable, printable as a sheet or
+     a PDF. The model is the one Ans Key already uses, handed in by the
+     Students window as `opts.ask`; this file never names it.
    ===================================================================== */
 (function (root, factory) {
   var api = factory(root);
@@ -32,6 +39,85 @@
   if (root) root.LoView = api;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this), function (root) {
   'use strict';
+
+  function LP() {
+    if (root && root.LoPractice) return root.LoPractice;
+    if (typeof LoPractice !== 'undefined') return LoPractice; // eslint-disable-line no-undef
+    return null;
+  }
+
+  /* ---- PURE: the student's maths mistakes, in lo-practice's shape ---- */
+  function mistakesOf(profile) {
+    var P = LP();
+    if (!P || !profile) return [];
+    var rows = Array.isArray(profile.tutorMistakes) ? profile.tutorMistakes : [];
+    return P.norm(rows, 'math', 'mirror');
+  }
+
+  /* ✏️ The window over the mistakes behind some rows of the table. */
+  function practise(groups, how) {
+    var P = LP();
+    var o = state.opts || {};
+    if (!P || typeof o.ask !== 'function') {
+      if (o.toast) o.toast('The practice window is not available here.');
+      return;
+    }
+    var book = mistakesOf(state.profile);
+    groups.forEach(function (g) {
+      g.mistakes = book.filter(function (m) { return P.matches(m, g.sel); });
+    });
+    var name = (state.profile && state.profile.name) || 'This student';
+    P.open({
+      doc: document,
+      title: how.title,
+      printTitle: how.printTitle || '',
+      subtitle: how.subtitle || ('Each of ' + name + '’s mistakes written again as a fresh question on the same skill, with the answer and the ' +
+        'working in model drawing and units — never algebra. Print it, or choose “Save as PDF” in the print dialog.'),
+      name: name,
+      sub: 'math',
+      level: how.level || '',
+      groups: groups,
+      sort: how.sort || 'weak',
+      report: !!how.report,
+      ask: o.ask,
+      parse: o.parse,
+      emptyText: how.emptyText || ''
+    });
+  }
+  function hooks() {
+    var L = LM();
+    if (!L || !LP() || !state.opts || typeof state.opts.ask !== 'function') return {};
+    return {
+      onRow: function (r, kind) {
+        var rows = kind === 'group' ? (r.rows || []) : [r];
+        practise(rows.map(function (x) { return L.groupOf(x); }), {
+          title: kind === 'group'
+            ? '✏️ ' + (r.sub && r.sub !== r.topic ? r.sub + ' · ' : '') + r.topic + ' — practise the mistakes'
+            : '✏️ ' + (r.id ? r.id + ' ' : '') + r.text,
+          sort: kind === 'group' ? 'weak' : 'syllabus'
+        });
+      },
+      onSheet: function (sheet) {
+        if (!sheet) return;
+        var groups = L.sheetGroups(sheet);
+        groups.forEach(function (g) { g.sel = Object.assign({}, g.sel, { ws: sheet.ws }); });
+        practise(groups, {
+          report: true, sort: 'syllabus', level: sheet.lvl || '',
+          title: '📐 ' + sheet.ws + ' — learning objective report',
+          printTitle: sheet.ws + ' — learning objective report' + (state.profile && state.profile.name ? ' — ' + state.profile.name : ''),
+          subtitle: 'Every objective this paper tested, with its marks. Tap a row to jump to its mistakes, each written again as a fresh ' +
+            'practice question with the answer and working. ⬇ Export PDF prints it, or saves it as a PDF.'
+        });
+      },
+      onPractice: function (model, how) {
+        var sortMap = { weak: 'weak', weaktopic: 'weak', lost: 'lost', syllabus: 'syllabus' };
+        practise(model.rows.map(function (x) { return L.groupOf(x); }), {
+          sort: sortMap[how && how.sort] || 'weak',
+          title: '✏️ Maths' + (how && how.level && how.level !== 'all' ? ' ' + how.level : '') + ' — every mistake as practice'
+        });
+      }
+    };
+  }
 
   function LM() {
     if (root && root.LoMarks) return root.LoMarks;
@@ -131,8 +217,10 @@
     var sheets = sheetsOf(state.profile);
     if (state.view) { state.view.update(sheets, name); return; }
     body.innerHTML = '';
+    var h = hooks();
     state.view = L.mount(body, {
       sheets: sheets, name: name, doc: document,
+      onRow: h.onRow, onSheet: h.onSheet, onPractice: h.onPractice,
       emptyText: 'No maths worksheet has been marked by objective yet. The table fills in after ' + name +
         '’s next maths worksheet is marked in Study Buddy, and papers marked earlier arrive the next time ' + name +
         ' opens Study Buddy.'
@@ -167,5 +255,5 @@
     }
   }
 
-  return { open: open, close: closeView, count: count, pure: { sheetsOf: sheetsOf } };
+  return { open: open, close: closeView, count: count, pure: { sheetsOf: sheetsOf, mistakesOf: mistakesOf } };
 });
