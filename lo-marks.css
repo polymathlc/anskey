@@ -1,0 +1,103 @@
+/* 📐 MARKS BY LEARNING OBJECTIVE — the dense objective × worksheet table
+   drawn by lo-marks.js. Byte for byte the same file in polymathlc/tutor and
+   polymathlc/anskey. Every colour is paired with the number it colours, so
+   nothing is read from colour alone. */
+.lmBar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 8px; }
+.lmChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lmChip {
+  font: inherit; font-size: 0.78rem; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line, #E2E2DD); background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+}
+.lmChip.on { background: #1F4E79; border-color: #1F4E79; color: #fff; }
+.lmSelect {
+  font: inherit; font-size: 0.8rem; padding: 4px 8px; border-radius: 8px;
+  border: 1px solid var(--line, #E2E2DD); background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+}
+.lmCheck { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--ink-soft, #55554F); cursor: pointer; }
+.lmCopy {
+  font: inherit; font-size: 0.8rem; padding: 4px 10px; border-radius: 8px; cursor: pointer; margin-left: auto;
+  border: 1px solid var(--line, #E2E2DD); background: var(--bg-soft, #F6F6F3); color: var(--ink, #1F1F1C);
+}
+.lmSummary { font-size: 0.8rem; color: var(--ink-soft, #55554F); margin: 2px 0 6px; line-height: 1.45; }
+.lmWeak { font-size: 0.78rem; line-height: 1.7; margin: 0 0 8px; color: var(--ink, #1F1F1C); }
+.lmWeakItem { padding: 1px 6px; border-radius: 6px; display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.lmEmptyNote { padding: 22px 8px; text-align: center; color: var(--ink-faint, #8A8A84); font-size: 0.88rem; line-height: 1.6; }
+
+.lmScroll {
+  max-width: 100%; max-height: 70vh; overflow: auto; -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line, #E2E2DD); border-radius: 10px; background: var(--bg, #fff);
+}
+.lmTable {
+  border-collapse: separate; border-spacing: 0; font-size: 11px; line-height: 1.25;
+  font-variant-numeric: tabular-nums; color: var(--ink, #1F1F1C); min-width: 100%;
+}
+.lmTable th, .lmTable td { border-right: 1px solid #EEEEEA; border-bottom: 1px solid #EEEEEA; padding: 2px 4px; }
+.lmTable thead th {
+  position: sticky; top: 0; z-index: 2; background: #F4F6F9; vertical-align: bottom; font-weight: 600;
+}
+.lmTable thead .lmCorner { left: 0; z-index: 3; text-align: left; min-width: 220px; }
+.lmColH { width: 38px; min-width: 38px; max-width: 38px; text-align: center; padding: 3px 1px; }
+.lmColNo { display: block; font-size: 9px; color: #6B7686; }
+.lmColName {
+  display: block; writing-mode: vertical-rl; transform: rotate(180deg); margin: 2px auto;
+  max-height: 120px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600;
+}
+.lmColDate { display: block; font-size: 9px; color: #6B7686; white-space: nowrap; font-weight: 400; }
+.lmSumH { min-width: 42px; text-align: center; }
+
+.lmObj {
+  position: sticky; left: 0; z-index: 1; background: var(--bg, #fff); text-align: left; font-weight: 400;
+  min-width: 220px; max-width: 300px;
+}
+.lmCode { font-weight: 700; color: #1F4E79; margin-right: 4px; white-space: nowrap; }
+.lmText { color: var(--ink, #1F1F1C); }
+.lmTopicTag { display: block; font-size: 9.5px; color: #6B7686; }
+.lmGroup .lmObj, .lmGroup td { background: #EEF3F9; }
+.lmGroupH { font-weight: 700; }
+.lmGroupLv {
+  display: inline-block; font-size: 9.5px; font-weight: 700; color: #fff; background: #1F4E79;
+  border-radius: 4px; padding: 0 4px; margin-right: 5px;
+}
+.lmGroupName { color: #1F2D3D; }
+.lmGrpCell { font-style: italic; }
+.lmUntested .lmText, .lmUntested .lmCode { color: #9A9A94; }
+.lmK-topic .lmText, .lmK-unlisted .lmText { font-style: italic; }
+
+.lmCell { text-align: center; white-space: nowrap; cursor: pointer; min-width: 38px; }
+.lmCell:focus { outline: 2px solid #1F4E79; outline-offset: -2px; }
+.lmEmpty { cursor: default; background: transparent; }
+.lmSum { text-align: center; white-space: nowrap; font-weight: 600; background: #FAFAF8; }
+.lmPct { text-align: center; white-space: nowrap; font-weight: 700; }
+.lmTrend { text-align: center; font-size: 10px; }
+.lmT-up { color: #1F6B2A; }
+.lmT-down { color: #A3261E; }
+.lmT-steady, .lmT-new { color: #6B7686; }
+.lmFoot th, .lmFoot td { position: sticky; bottom: 0; background: #F4F6F9; font-weight: 700; border-top: 1px solid #D8DDE4; }
+.lmFoot .lmObj { z-index: 2; }
+
+.lm-hi { background: #E3F2E5; color: #1D5B25; }
+.lm-mid { background: #FCF0D6; color: #7A5410; }
+.lm-lo { background: #FBE1DE; color: #8E2219; }
+.lm-blank { background: #F3F3F1; color: #8A8A84; }
+.lmGroup .lm-hi { background: #D3EBD7; }
+.lmGroup .lm-mid { background: #F8E5BC; }
+.lmGroup .lm-lo { background: #F6CDC8; }
+
+.lmDetail {
+  white-space: pre-line; font-size: 0.8rem; color: var(--ink-soft, #55554F); margin: 8px 0 4px;
+  padding: 8px 10px; border-radius: 8px; background: var(--bg-soft, #F6F6F3); line-height: 1.5;
+}
+.lmDetail.on { color: var(--ink, #1F1F1C); }
+.lmLegend { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 0.74rem; color: var(--ink-soft, #55554F); margin-top: 6px; }
+.lmKey { padding: 1px 6px; border-radius: 5px; }
+
+@media (max-width: 560px) {
+  .lmTable thead .lmCorner, .lmObj { min-width: 140px; max-width: 170px; }
+  .lmTable { font-size: 10.5px; }
+  .lmCopy { margin-left: 0; }
+}
+@media print {
+  .lmBar, .lmDetail { display: none; }
+  .lmScroll { max-height: none; overflow: visible; border: 0; }
+  .lmTable thead th, .lmObj, .lmFoot th, .lmFoot td { position: static; }
+}

@@ -4063,6 +4063,8 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="consult-alert.css">
 <link rel="stylesheet" href="consult-answer.css">
 <link rel="stylesheet" href="gap-view.css">
+<link rel="stylesheet" href="lo-marks.css">
+<link rel="stylesheet" href="lo-view.css">
 <link rel="stylesheet" href="compact-wheel.css">
 </head>
 <body>
@@ -5948,6 +5950,8 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <script src="consult-alert.js"></script>
 <script src="concept-tags.js"></script>
 <script src="gap-view.js"></script>
+<script src="lo-marks.js"></script>
+<script src="lo-view.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -6012,7 +6016,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.185.0';
+var APP_VERSION = 'v1.186.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32088,6 +32092,24 @@ function studentAdminRow(uid, p) {
                      isTeacher: function () { return !!(currentUser && isAdmin(currentUser) && !actingStudent); } });
     });
     row.appendChild(gapBtn);
+  }
+  /* 📐 THE OBJECTIVE TABLE (v1.186.0): this student's maths marks by MOE
+     learning objective, worksheet by worksheet, from the entries Study
+     Buddy writes on their roster row — see lo-view.js. The label says how
+     many papers are in it, so an empty one says so before it is opened. */
+  if (typeof LoView !== 'undefined' && LoView && LoView.open) {
+    var loN = LoView.count(p);
+    var loBtn = document.createElement('button');
+    loBtn.className = 'btn stuLoBtn';
+    loBtn.textContent = loN ? '📐 Objectives (' + loN + ')' : '📐 Objectives';
+    loBtn.title = loN
+      ? 'See ' + (p.name || 'this student') + '’s maths marks by learning objective across ' + loN + ' marked worksheet' + (loN === 1 ? '' : 's')
+      : 'No maths worksheet marked by objective yet — the table fills in after the next one is marked in Study Buddy';
+    loBtn.addEventListener('click', function () {
+      LoView.open({ db: db, uid: uid, profile: p, collection: PROFILES_COLLECTION, toast: toast,
+                    isTeacher: function () { return !!(currentUser && isAdmin(currentUser) && !actingStudent); } });
+    });
+    row.appendChild(loBtn);
   }
   var actBtn = document.createElement('button');
   actBtn.className = 'btn btnPrimary';

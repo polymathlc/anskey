@@ -1,0 +1,39 @@
+/* 📐 THE OBJECTIVE TABLE (v1.186.0) — the window around lo-marks.css's
+   table. Wide on purpose: the table is for reading a term at a glance. */
+.loBack {
+  position: fixed; inset: 0; z-index: 140;
+  background: rgba(20, 24, 32, 0.42);
+  display: none; align-items: flex-start; justify-content: center;
+  padding: 28px 12px; overflow-y: auto;
+}
+.loBack.open { display: flex; }
+.loCard {
+  background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+  border-radius: var(--radius, 14px); box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.14));
+  width: min(1280px, 100%); max-width: 100%; min-width: 0;
+  display: flex; flex-direction: column;
+}
+.loHead {
+  display: flex; align-items: center; gap: 8px; padding: 14px 18px;
+  border-bottom: 1px solid var(--line, #ECECEA);
+}
+.loTitle { margin: 0; font-size: 1.05rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.loClose, .loPrint {
+  border: 0; background: none; font-size: 1.05rem; cursor: pointer; color: var(--ink-faint, #8A8A84);
+  width: 36px; height: 36px; border-radius: 10px;
+}
+.loClose:hover, .loPrint:hover { background: var(--bg-soft, #F6F6F3); }
+.loIntro { padding: 10px 18px 0; font-size: 0.82rem; color: var(--ink-soft, #55554F); line-height: 1.5; }
+.loBody { padding: 8px 18px 18px; min-width: 0; }
+@media (max-width: 560px) {
+  .loBack { padding: 0; }
+  .loCard { border-radius: 0; min-height: 100%; }
+  .loHead, .loIntro, .loBody { padding-left: 12px; padding-right: 12px; }
+}
+@media print {
+  body.loPrinting > *:not(.loBack) { display: none !important; }
+  body.loPrinting .loBack { position: static; display: block; background: none; padding: 0; }
+  body.loPrinting .loCard { box-shadow: none; width: 100%; }
+  body.loPrinting .loClose, body.loPrinting .loPrint { display: none; }
+}
+.stuLoBtn { white-space: nowrap; }
