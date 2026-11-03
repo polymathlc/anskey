@@ -127,11 +127,27 @@
     };
   }
 
+  /* What the library notes about the question an app carries (never the
+     question itself — that is in the hosted file, with the app). */
+  function cleanQuestion(q) {
+    if (!q || typeof q !== 'object') return null;
+    var n = function (v, hi) { var x = Math.floor(Number(v) || 0); return Math.max(0, Math.min(hi, x)); };
+    var out = { parts: n(q.parts, 20), lines: n(q.lines, 400), marks: n(q.marks, 999), figure: !!q.figure };
+    return out.parts || out.lines || out.marks || out.figure ? out : null;
+  }
+  function cleanLevel(l) { var t = cleanText(l, 8).toUpperCase(); return LEVELS.indexOf(t) >= 0 ? t : ''; }
+  function cleanSubject(s) { var t = cleanText(s, 12).toLowerCase(); return t === 'science' || t === 'math' || t === 'both' ? t : ''; }
+
   /* The fields one remember writes: merged into the entry with
      { merge: true }, so a second worksheet ADDS a sheet rather than
      replacing the first, and the token is always the newest. Null when
-     the app has no hosted copy — there is no code to remember yet. */
-  function entryWrite(app, pub, sheet, now) {
+     the app has no hosted copy — there is no code to remember yet.
+     ☁ `extra` (v1.178.0) is the library's own note when an app is ADDED
+     rather than found on a worksheet: `inLibrary`, when it was added, the
+     level and subject it was added under and what its question holds. An
+     app added with no worksheet open has no `sheets` at all, and is still
+     a whole entry: its code opens the hosted copy, which no worksheet owns. */
+  function entryWrite(app, pub, sheet, now, extra) {
     if (!app || !pub || !validHash(pub.hash) || !validToken(pub.token)) return null;
     var t = typeof now === 'number' ? now : Date.now();
     var out = {
@@ -146,6 +162,14 @@
     if (s) {
       out.sheets = {};
       out.sheets[sheet.id] = s;
+    }
+    if (extra && typeof extra === 'object') {
+      if (extra.library) { out.inLibrary = true; out.addedAt = t; }
+      var lv = cleanLevel(extra.level), sj = cleanSubject(extra.subject);
+      if (lv) out.level = lv;
+      if (sj) out.subject = sj;
+      var q = cleanQuestion(extra.question);
+      if (q) out.question = q;
     }
     return out;
   }
@@ -165,11 +189,16 @@
     });
     sheets.sort(function (a, b) { return b.at - a.at || a.name.localeCompare(b.name); });
     var levels = [], subjects = [];
+    var ownLevel = cleanLevel(d.level), ownSubject = cleanSubject(d.subject);
+    if (ownLevel) levels.push(ownLevel);
+    if (ownSubject) subjects.push(ownSubject);
     sheets.forEach(function (s) {
       if (s.level && levels.indexOf(s.level) === -1) levels.push(s.level);
       if (s.subject && subjects.indexOf(s.subject) === -1) subjects.push(s.subject);
     });
     var lastAt = stampMs(d.lastAt);
+    var addedAt = stampMs(d.addedAt);
+    if (addedAt > lastAt) lastAt = addedAt;
     sheets.forEach(function (s) { if (s.at > lastAt) lastAt = s.at; });
     return {
       hash: hash,
@@ -181,8 +210,30 @@
       subjects: subjects.sort(),
       lastAt: lastAt,
       sentCount: Math.max(0, Math.floor(Number(d.sentCount) || 0)),
-      lastSentAt: stampMs(d.lastSentAt)
+      lastSentAt: stampMs(d.lastSentAt),
+      inLibrary: !!d.inLibrary,
+      addedAt: addedAt,
+      level: ownLevel,
+      subject: ownSubject,
+      question: cleanQuestion(d.question)
     };
+  }
+
+  /* "2 parts · 6 lines · 3 marks" for a row. */
+  function questionText(q) {
+    if (!q) return '';
+    var bits = [];
+    if (q.parts) bits.push(countText(q.parts, 'part'));
+    if (q.lines) bits.push(countText(q.lines, 'line'));
+    if (q.marks) bits.push(countText(q.marks, 'mark'));
+    if (q.figure) bits.push('diagram');
+    return bits.join(' · ');
+  }
+  /* "on 3 worksheets" / "in the library only". */
+  function whereText(e) {
+    if (!e) return '';
+    if (!e.sheets.length) return 'Not on a worksheet yet — in your library only';
+    return 'On ' + countText(e.sheets.length, 'worksheet');
   }
 
   /* Newest first: the app from the last lesson is the one being looked for. */
@@ -204,8 +255,10 @@
     return (list || []).filter(function (e) {
       if (f.level && e.levels.indexOf(f.level) === -1) return false;
       if (f.subject && e.subjects.indexOf(f.subject) === -1 && e.subjects.indexOf('both') === -1) return false;
+      if (f.where === 'loose' && e.sheets.length) return false;
+      if (f.where === 'question' && !e.question) return false;
       if (!words.length) return true;
-      var hay = wordsOf(e.title + ' ' + e.sheets.map(function (s) { return s.name + ' ' + s.level; }).join(' ')).join(' ');
+      var hay = wordsOf(e.title + ' ' + e.sheets.map(function (s) { return s.name + ' ' + s.level; }).join(' ') + ' ' + (e.level || '') + (e.sheets.length ? '' : ' library')).join(' ');
       return words.every(function (w) { return hay.indexOf(w) !== -1; });
     });
   }
@@ -368,7 +421,8 @@
     validHash: validHash, validToken: validToken, validDocId: validDocId, stampMs: stampMs, subjectWord: subjectWord,
     cleanSheet: cleanSheet, entryWrite: entryWrite, readEntry: readEntry, sortEntries: sortEntries, filterEntries: filterEntries,
     studentRecipients: studentRecipients, mergeRecipients: mergeRecipients, sheetLine: sheetLine, composeMessage: composeMessage,
-    gmailUrl: gmailUrl, mailtoUrl: mailtoUrl, sendPlan: sendPlan, scanAnnotations: scanAnnotations, agoText: agoText, countText: countText
+    gmailUrl: gmailUrl, mailtoUrl: mailtoUrl, sendPlan: sendPlan, scanAnnotations: scanAnnotations, agoText: agoText, countText: countText,
+    cleanQuestion: cleanQuestion, cleanLevel: cleanLevel, cleanSubject: cleanSubject, questionText: questionText, whereText: whereText
   };
 
   /* ---------------------------------------------------------------
@@ -386,6 +440,13 @@
        openUrl(url)         opens a link in a new tab
        copy(text)           Promise<bool>
        toast(msg, ms)
+       ☁ v1.178.0 — the library is where an app lives:
+       canPlace()           true when a worksheet page can take an app now
+       place(entry, opts)   Promise<bool> — fetch the hosted app and put it on
+                            the page; opts.asQuestion adds its words, working
+                            lines and diagram; opts.answers its model answers
+       newApp()             opens the adder, saving to the library
+       openPrompt()         the 📋 AI prompt window
      }
      --------------------------------------------------------------- */
   function create(env) {
@@ -439,8 +500,22 @@
       var head = el('div', 'llHead');
       var titles = el('div', 'llTitles');
       titles.appendChild(el('h2', 'llTitle', '📚 Living app library'));
-      var sub = el('p', 'llSub', 'Every living app’s own link and QR code, kept as you save. Tick apps and students and they get an email to revise them.');
+      var sub = el('p', 'llSub', 'Every living app lives here, in the cloud — not on a worksheet, so deleting a worksheet never breaks its link or QR code. Put any of them on a worksheet, as an app or as a whole question, or tick apps and students to email them for revision.');
       titles.appendChild(sub);
+      var headActs = el('div', 'llHeadActs');
+      if (typeof env.newApp === 'function') {
+        headActs.appendChild(button('➕ New app', 'llBtn llNew', 'Add a living app to the library — paste one, choose a file, or paste an AI’s reply', function () {
+          if (!isTeacher()) { say('Adding a living app is the teacher’s own.'); return; }
+          close();
+          call('newApp');
+        }));
+      }
+      if (typeof env.openPrompt === 'function') {
+        headActs.appendChild(button('📋 AI prompt', 'llBtn llGhost llPromptBtn', 'A prompt for ChatGPT, Claude or Gemini that makes them write a living app in exactly this shape — wand, sandbox rules and its question on paper', function () {
+          call('openPrompt');
+        }));
+      }
+      if (headActs.firstChild) titles.appendChild(headActs);
       head.appendChild(titles);
       var x = button('✕', 'llClose', 'Close (Esc)', function () { close(); });
       x.setAttribute('aria-label', 'Close');
@@ -468,6 +543,12 @@
       option(subj, '', 'All subjects');
       SUBJECTS.forEach(function (s) { option(subj, s.id, s.label); });
       bar.appendChild(subj);
+      var where = el('select', 'llWhere');
+      where.setAttribute('aria-label', 'Which apps');
+      option(where, '', 'Every app');
+      option(where, 'loose', 'On no worksheet');
+      option(where, 'question', 'With a question');
+      bar.appendChild(where);
       appsCol.appendChild(bar);
 
       var tools = el('div', 'llTools');
@@ -562,7 +643,7 @@
       body.appendChild(sendCol);
 
       S = {
-        back: back, card: card, list: list, status: status, search: search, lvl: lvl, subj: subj,
+        back: back, card: card, list: list, status: status, search: search, lvl: lvl, subj: subj, where: where, placing: '',
         picked: Object.create(null), who: Object.create(null), entries: [], shown: [], students: [], shownStudents: [],
         studentsState: 'loading', whoBox: who, whoLvl: whoLvl, whoSubj: whoSubj, extra: extra, extraSaid: extraSaid,
         subjIn: subjIn, note: note, sum: sum, gmail: gmail, mailApp: mailApp, copyBtn: copyBtn, pickedBox: picked,
@@ -570,6 +651,7 @@
       };
 
       search.addEventListener('input', function () { renderApps(); });
+      where.addEventListener('change', function () { renderApps(); });
       lvl.addEventListener('change', function () {
         // The class being revised is usually the class being emailed.
         if (!S.whoLvl.value) { S.whoLvl.value = lvl.value; renderStudents(); }
@@ -599,6 +681,8 @@
       // page) still belongs to the window, never to the worksheet.
       var onDocKey = function (e) {
         if (!S || S.back !== back || e.key !== 'Escape' || back.contains(e.target)) return;
+        // A window opened OVER the library (📋 the AI prompt) takes its own Escape.
+        if (e.target && e.target.closest && e.target.closest('.lqBack')) return;
         e.preventDefault();
         e.stopPropagation();
         if (S.asking) { S.asking = ''; renderApps(); return; }
@@ -680,7 +764,7 @@
 
     function renderApps() {
       if (!S) return;
-      var f = { q: S.search.value, level: S.lvl.value, subject: S.subj.value };
+      var f = { q: S.search.value, level: S.lvl.value, subject: S.subj.value, where: S.where.value };
       S.shown = filterEntries(S.entries, f);
       var list = S.list;
       while (list.firstChild) list.removeChild(list.firstChild);
@@ -690,7 +774,7 @@
         S.status.textContent = '';
         var empty = el('div', 'llEmpty');
         empty.appendChild(el('p', null, 'No living apps in the library yet.'));
-        empty.appendChild(el('p', 'llSmall', 'Every living app is added the next time its worksheet saves. 🔎 Find on all worksheets looks through the ones already saved.'));
+        empty.appendChild(el('p', 'llSmall', '➕ New app adds one straight to the library. Apps already on worksheets are added the next time each worksheet saves, and 🔎 Find on all worksheets looks through the ones already saved.'));
         list.appendChild(empty);
       } else {
         var picks = Object.keys(S.picked).length;
@@ -737,10 +821,18 @@
         sheets.appendChild(chip);
       });
       if (e.sheets.length > SHEETS_SHOWN) sheets.appendChild(el('span', 'llSheet llMore', '+' + (e.sheets.length - SHEETS_SHOWN) + ' more'));
-      if (!e.sheets.length) sheets.appendChild(el('span', 'llSheet llMore', 'Not on a saved worksheet'));
+      if (!e.sheets.length) {
+        var loose = el('span', 'llSheet llLoose');
+        var tagL = [e.level, subjectWord(e.subject)].filter(Boolean).join(' ');
+        if (tagL) loose.appendChild(el('b', null, tagL));
+        loose.appendChild(document.createTextNode('☁ Not on a worksheet yet'));
+        sheets.appendChild(loose);
+      }
+      if (e.question) sheets.appendChild(el('span', 'llSheet llQ', '📝 ' + questionText(e.question)));
       main.appendChild(sheets);
       var meta = [];
-      if (e.lastAt) meta.push('Last on a worksheet ' + agoText(e.lastAt));
+      if (e.sheets.length && e.lastAt) meta.push('Last on a worksheet ' + agoText(e.lastAt));
+      else if (e.addedAt) meta.push('Added ' + agoText(e.addedAt));
       if (e.sentCount) meta.push('emailed ' + countText(e.sentCount, 'time') + (e.lastSentAt ? ', last ' + agoText(e.lastSentAt) : ''));
       main.appendChild(el('div', 'llMeta', meta.join(' · ')));
       row.appendChild(main);
@@ -751,6 +843,20 @@
         side.appendChild(button('Cancel', 'llBtn llGhost', null, function () { S.asking = ''; renderApps(); }));
         side.appendChild(button('Forget', 'llBtn llDanger', null, function () { forget(e); }));
       } else {
+        if (typeof env.place === 'function') {
+          var canPut = !!call('canPlace');
+          var busy = S.placing === e.hash;
+          var addB = button(busy ? '⏳ Adding…' : '➕ Add to page', 'llBtn llAdd', canPut
+            ? 'Put this app on the page in view — the picture with its magic wand'
+            : 'Open a worksheet (or add a blank page) to put apps on it', function () { place(e, false); });
+          addB.disabled = !canPut || !!S.placing;
+          side.appendChild(addB);
+          var asQ = button('📝 As a question', 'llBtn llAdd llAsQ', canPut
+            ? 'Put it on the page as a question: its words in a text box, its diagram as the picture a tap brings alive, and ruled working lines under each part'
+            : 'Open a worksheet (or add a blank page) to put apps on it', function () { place(e, true); });
+          asQ.disabled = !canPut || !!S.placing;
+          side.appendChild(asQ);
+        }
         side.appendChild(button('▶ Open', 'llBtn llGhost', 'Open the app as a student will', function () {
           var u = link(e);
           if (u) call('openUrl', u);
@@ -763,6 +869,28 @@
       }
       row.appendChild(side);
       return row;
+    }
+
+    /* ➕ From the library onto the page: the hosted copy is fetched (the
+       worksheet the app was first on may be long gone) and goes on the
+       page in view, alone or as a whole question. */
+    function place(e, asQuestion) {
+      if (!S || S.placing) return;
+      if (!isTeacher()) { say('Putting a living app on a worksheet is the teacher’s own.'); return; }
+      if (!call('canPlace')) { say('Open a worksheet — or add a blank page — first.', 4000); return; }
+      var s = S;
+      s.placing = e.hash;
+      renderApps();
+      Promise.resolve(call('place', e, { asQuestion: !!asQuestion, answers: false })).then(function (ok) {
+        if (S !== s) return;
+        s.placing = '';
+        if (ok) close(); else renderApps();
+      }, function (err) {
+        if (S !== s) return;
+        s.placing = '';
+        renderApps();
+        say('Could not put that app on the page: ' + cleanText(err && err.message || err, 140), 5600);
+      });
     }
 
     function forget(e) {

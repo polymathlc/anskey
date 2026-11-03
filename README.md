@@ -3,6 +3,38 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.178.0 — ☁ The living app library is where an app lives, 📝 an app as a question, 📋 a prompt for any AI
+
+- **Adding a living app saves it to your library in the cloud first.** The app is hosted (the same
+  content-addressed file a print makes, which belongs to no worksheet) and filed in
+  `users/{you}/livingApps` before anything goes on a page. Its link and QR code open that hosted copy,
+  so **deleting a worksheet — or every worksheet it was ever on — never breaks a code**.
+- **No worksheet needed.** With nothing open, the adder says **☁ Save to library**; with a worksheet
+  open it offers **➕ Save and put on the page** beside **☁ Library only**. 📚 App library has
+  **➕ New app** too.
+- **From the library onto any worksheet.** Each app in 📚 App library has **➕ Add to page** and
+  **📝 As a question**: the hosted copy is fetched and put on the page in view. A new filter shows
+  apps **On no worksheet** or **With a question**.
+- **📝 As a question** turns one app into a question on the paper: its words in a text box, its
+  diagram as the picture a tap brings alive (with a gold strip for the wand on screen and the QR code
+  on paper, never over the diagram), each part with its marks, and ruled working lines under each
+  part. Each part and its lines move as one group; the whole question is one undo step; it starts
+  where you are looking and tightens its lines (then leaves a few out, and says so) rather than run
+  off the page. ✍ It can also write the app's model answers in the working space — as your own
+  answers, hidden while students practise.
+- Practice keeps the question's words, lines and picture as locked copies, and the questions-only
+  print keeps them. The style training never learns a question's words as an answer, and the answer
+  key is told them as questions.
+- **📋 AI prompt** (in the adder and the library): one prompt for ChatGPT, Claude or Gemini that makes
+  them write a living app in exactly the shape this app reads — one self-contained file, the 🪄 wand
+  the stage looks for, nothing the sandbox refuses, and the question block
+  (`<script type="application/json" id="polymath-question">`) with its figure, parts, marks, lines and
+  model answers. Pick the level, subject and topic; **Copy**, or **Copy and open** ChatGPT / Claude
+  (typed in) / Gemini. Paste the AI's whole reply into the adder — the app is taken out of it.
+- Checks: `tools/living-question-tests.mjs` (the question block, the layout, the QR strip, the prompt,
+  the wiring) and `tools/living-library-check.mjs` (a pasted AI reply → library → page as a question,
+  library only, a deleted worksheet, from the library onto the page, the prompt, a student).
+
 ## v1.177.0 — 🔁 Replaced worksheet PDFs open as the new file
 
 - **A worksheet PDF replaced in Polymath Online** (its *Replace PDF* button on the admin class page)

@@ -209,7 +209,7 @@ test('adding and changing an app is the teacher’s, asked again in every handle
   assert.match(html, /function lappUpdateOnPage\(id, cover, app\) \{\s*if \(!wheelTeacher\(\)\)/);
   assert.match(html, /function lappEdit\(id\) \{\s*if \(!lapp \|\| !wheelTeacher\(\)\) return false;/);
   assert.match(src, /function openAdder\(opts\) \{[\s\S]{0,80}if \(!teacher\(\)\)/);
-  assert.match(src, /function commitAdder\(\) \{[\s\S]{0,200}if \(!teacher\(\)\)/);
+  assert.match(src, /function commitAdder\(mode\) \{[\s\S]{0,200}if \(!teacher\(\)\)/);
 });
 
 test('a tap brings it alive for a student, but a pen in a writer’s hand still writes', () => {
@@ -231,7 +231,7 @@ test('its bar offers 🪄 Bring alive and ✎ Change app beside Lock and Remove'
 test('practice keeps living apps as locked copies, and the questions print keeps them', () => {
   assert.match(html, /annotations = bankQPracticeCopies\(teacherAnswers\)\.concat\(lappPracticeCopies\(teacherAnswers\)\);/);
   assert.match(html, /function lappPracticeCopies\(list\) \{[\s\S]{0,300}c\.locked = true;/);
-  assert.match(html, /answerAnnotations\(\)\.filter\(function \(a\) \{ return annBankQ\(a\) \|\| annLivingApp\(a\); \}\)/);
+  assert.match(html, /answerAnnotations\(\)\.filter\(function \(a\) \{ return annBankQ\(a\) \|\| annLivingApp\(a\) \|\| annLivingQuestion\(a\); \}\)/);
 });
 
 test('a stage does not outlive its worksheet or its person', () => {

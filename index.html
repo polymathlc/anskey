@@ -4046,6 +4046,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="living-library.css">
+<link rel="stylesheet" href="living-question.css">
 <link rel="stylesheet" href="lesson-splash.css">
 <link rel="stylesheet" href="rune-door.css">
 <!-- 🔎 Command search: find any button by name (command-search.js). -->
@@ -4128,11 +4129,11 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v15H5.5A1.5 1.5 0 0 1 4 17.5z"/><path d="M10 4h4.5A1.5 1.5 0 0 1 16 5.5V19h-6"/><path d="M16 7.2l2.9-.8a1.2 1.2 0 0 1 1.5.9l2 9.6a1.2 1.2 0 0 1-.9 1.4L18.6 19"/><line x1="6.5" y1="8" x2="7.8" y2="8"/><line x1="12.3" y1="8" x2="13.7" y2="8"/></svg>
       <span class="btnLabel">Question bank</span>
     </button>
-    <button class="btn" id="livingAppBtn" title="Living app — add an interactive HTML app (a living diagram, a simulator) to this page. A tap on it, or 🪄 Bring alive, waves the magic wand and brings the question alive.">
+    <button class="btn" id="livingAppBtn" title="Living app — add an interactive HTML app (a living diagram, a simulator). It is saved to your cloud library first, then goes on this page — as a picture with a magic wand, or as a whole question with its working lines.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9l11 11"/><path d="M5.5 2.5l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1z"/><path d="M15 3.5v2"/><path d="M14 4.5h2"/><path d="M19 8.5v2"/><path d="M18 9.5h2"/></svg>
       <span class="btnLabel">Living app</span>
     </button>
-    <button class="btn" id="livingLibBtn" title="Living app library — every living app's own link and QR code, remembered as you save. Tick apps and students to email them for revision.">
+    <button class="btn" id="livingLibBtn" title="Living app library — every living app lives here in the cloud, not on a worksheet: its own link and QR code, ➕ add it to any worksheet (as an app or a whole question), 📋 an AI prompt, and emails for revision.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/><path d="M17.5 2.5l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z"/></svg>
       <span class="btnLabel">App library</span>
     </button>
@@ -6002,7 +6003,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.177.0';
+var APP_VERSION = 'v1.178.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6646,6 +6647,16 @@ function annBankQ(a) {
 function annLivingApp(a) {
   return annPastePic(a) && !!a.lapp && typeof a.lapp === 'object' && typeof a.lapp.html === 'string' &&
     a.lapp.html.trim().length > 0;
+}
+/* 📝 A LIVING QUESTION'S OWN PIECES (v1.178.0): the question's words, its
+   parts and their ruled working lines, put on the page with a living app by
+   📝 As a question. They carry `lq` (the question's id): they are the
+   WORKSHEET, not the teacher's answers, so practice keeps them as locked
+   copies and the questions-only print keeps them — and the style corpus
+   never learns a question's words as an answer. The model answers that can
+   go in the working space carry no `lq`: they are answers. */
+function annLivingQuestion(a) {
+  return !!(a && typeof a.lq === 'string' && a.lq);
 }
 /* 🔢 " #123" when the question carries the portal's number, '' otherwise. */
 function bankQNoText(a) {
@@ -20963,6 +20974,7 @@ function styleHarvestTyped(anns, docId, meta) {
   (anns || []).forEach(function (a) {
     if (!a || a.type !== 'text' || !styleWorthLearning(a.text, !!a.aiQ)) return;
     if (annHoldsMistake(a)) return;   // wrong on purpose — not this teacher's answer
+    if (typeof annLivingQuestion === 'function' && annLivingQuestion(a)) return; // a living question's own words — the question, not an answer
     out.push({
       k: styleSampleKey(docId, a.id, a.text),
       src: 'typed',
@@ -23069,7 +23081,7 @@ function autoLearnWorthReading(anns) {
   var ink = 0, words = false;
   (anns || []).forEach(function (a) {
     if (!a) return;
-    if (a.type === 'text') { if (styleWorthLearning(a.text)) words = true; return; }
+    if (a.type === 'text') { if (!(typeof annLivingQuestion === 'function' && annLivingQuestion(a)) && styleWorthLearning(a.text)) words = true; return; }
     if (a.type === 'pen' || a.type === 'highlight') ink++;
   });
   return words || ink >= AUTO_INK_MIN;
@@ -30666,13 +30678,18 @@ async function runAnswerKey(keyAnns, detailed) {
         imgs.push({ mimeType: 'image/jpeg', data: prevJpeg });
         labels.push('image ' + imgs.length + ' = the page before, for context only — do not key it');
       }
-      var typed = pageAnns.filter(function (a) { return a.type === 'text' && a.text; })
+      var typed = pageAnns.filter(function (a) { return a.type === 'text' && a.text && !annLivingQuestion(a); })
                           .map(function (a) { return a.text; });
+      // 📝 A living question's words are not printed in the PDF — they are
+      // text boxes — so the key is told them as the questions they are.
+      var askedHere = pageAnns.filter(function (a) { return a.type === 'text' && a.text && annLivingQuestion(a); })
+                              .map(function (a) { return a.text; });
       var lines = [];
       var subj = wsMeta && wsMeta.subject ? subjectLabel(wsMeta.subject) : '';
       var lvl = wsMeta && wsMeta.level ? levelLabel(wsMeta.level) : '';
       if (subj || lvl) lines.push('Worksheet: ' + [lvl, subj].filter(Boolean).join(' ') + '.');
       lines.push('Attached: ' + labels.join('; ') + '.');
+      if (askedHere.length) lines.push('These questions are also on this page (added as text, not printed in the image): "' + askedHere.join('" / "') + '". Key them too.');
       if (typed.length) lines.push('The teacher also typed on this page: "' + typed.join('" / "') + '"');
       if (!pageAnns.length) lines.push(blank
         ? 'This is the blank worksheet exactly as it is printed — there are no answers on it to read. Work every answer out yourself from the question.'
@@ -32496,7 +32513,163 @@ function lappUpdateOnPage(id, cover, app) {
   editModeId = a.id;
   renderAllOverlays();
   setDirty(true);
+  /* 📝 A living question's picture is the app's DIAGRAM, not the painted
+     cover: a changed app repaints it from the new app's figure. */
+  var fig = annLivingQuestion(a) && window.LivingQuestion ? window.LivingQuestion.pure.figureOf(app) : '';
+  if (fig) {
+    window.LivingQuestion.paintFigureCover(fig).then(function (pic) {
+      var cur = annotations.find(function (x) { return x.id === id; });
+      if (!cur || cur.lapp !== app) return;   // changed again, or gone, meanwhile
+      cur.src = pic.src;
+      cur.ratio = round2(pic.ratio);
+      cur.h = round2(cur.w / pic.ratio);
+      renderAllOverlays();
+      setDirty(true);
+    }).catch(function (e) { console.warn('The question’s diagram could not be repainted', e); });
+  }
   return true;
+}
+
+/* Can a living app go on a page right now? Silent — the adder asks it to
+   decide between "Save and put on the page" and "Save to library". */
+function lappCanPlace() {
+  return wheelTeacher() && !practiceMode && !!pdfDoc && !!mmTargetPage();
+}
+
+/* ================= 📝 As a question (v1.178.0) =================
+   One living app, put on the page as a whole QUESTION: its words in a text
+   box, its diagram (the app's `figure`, else its painted cover) as the
+   picture that carries the app — so a tap on the diagram still brings it
+   alive — each part in its own text box with its marks, and ruled working
+   lines under each part. living-question.js reads the app's question block
+   and decides where everything goes (`layout`); this puts the pieces on the
+   page as ordinary annotations:
+     • the text boxes and the lines carry `lq` (annLivingQuestion), so
+       practice and the questions-only print keep them as the worksheet;
+     • each part and its lines share a `grp`, so the block moves as one;
+     • the picture is an ordinary living app (annLivingApp), never a new
+       annotation type;
+     • model answers, when asked for, are ordinary text boxes in the working
+       space with NO `lq` — they are the teacher's answers, hidden in
+       practice like every other answer.
+   It is ONE undo step. */
+function lappMeasureText(p, a) {
+  var node = p.svg && p.svg.querySelector('[data-id="' + a.id + '"] .annText');
+  var est = Math.max(1, Math.ceil(String(a.text || '').length * a.fontSize * 0.52 / Math.max(60, a.w))) * a.fontSize * 1.4;
+  var h = node ? Math.max(node.scrollHeight || 0, a.fontSize * 1.6) : est;
+  return round2(Math.max(a.fontSize * 1.6, h || est));
+}
+
+async function lappAddQuestion(cover, app, opts) {
+  opts = opts || {};
+  if (!wheelTeacher()) { toast('Adding a living app is the teacher’s own.'); return 0; }
+  if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return 0; }
+  if (!window.LivingApps || !window.LivingQuestion || !app) return 0;
+  var page = mmTargetPage();
+  if (!pdfDoc || !page) { toast('Open a worksheet — or add a blank page — first.', 4000); return 0; }
+  var LQ = window.LivingQuestion.pure;
+  var spec = LQ.specFor(app);
+  var pic = cover;
+  if (spec.figure) {
+    try { pic = await window.LivingQuestion.paintFigureCover(spec.figure); }
+    catch (e) { pic = cover; console.warn('The question’s diagram could not be drawn', e); toast('The app’s diagram could not be drawn here, so its cover goes on instead.', 4200); }
+  }
+  // The await gave the teacher time to do something else: check again.
+  if (!wheelTeacher() || practiceMode || !pdfDoc || pages.indexOf(page) === -1) return 0;
+  if (!pic || !pic.src) return 0;
+  var r = page.wrap ? page.wrap.getBoundingClientRect() : null;
+  var anchorY = r ? Math.max(0, -r.top) / (scale || 1) + 24 : undefined;
+  var pw = page.baseW || 600, ph = page.baseH || 800;
+  var qid = 'q' + newAnnId();
+  var now = Date.now();
+  var margin = Math.min(LQ.MARGIN, pw * 0.08);
+  var contentW = round2(Math.max(60, pw - margin * 2));
+
+  pushUndo();
+  var made = [];
+  function textBox(text, extra) {
+    var a = Object.assign({
+      id: newAnnId(), page: page.num, type: 'text', color: '#1A1A1A', fontSize: LQ.TEXT_SIZE,
+      x: margin, y: isFinite(anchorY) ? anchorY : margin, w: contentW, h: 0, text: text, kw: [], ts: now
+    }, extra || {});
+    annotations.push(a);
+    made.push(a);
+    return a;
+  }
+  // 1. The words, so they can be measured as the page draws them.
+  var stemText = LQ.stemText(spec);
+  var stemGrp = 'g' + qid + 's';
+  var stem = stemText ? textBox(stemText, { lq: qid, grp: spec.lines ? stemGrp : undefined }) : null;
+  if (stem && !stem.grp) delete stem.grp;
+  var partBoxes = spec.parts.map(function (part, i) {
+    var t = LQ.partText(part);
+    var b = textBox(t || part.label, { lq: qid, grp: 'g' + qid + 'p' + i });
+    if (!part.lines) delete b.grp;
+    return b;
+  });
+  renderOverlay(page);
+  if (stem) stem.h = lappMeasureText(page, stem);
+  partBoxes.forEach(function (b) { b.h = lappMeasureText(page, b); });
+
+  // 2. Where everything goes.
+  var plan = LQ.layout({
+    pageW: pw, pageH: ph, top: anchorY,
+    stemH: stem ? stem.h : 0,
+    figRatio: pic.ratio || 0,
+    stemLines: spec.lines,
+    parts: spec.parts.map(function (part, i) { return { h: partBoxes[i].h, lines: part.lines }; })
+  });
+  var appAnn = null;
+  plan.items.forEach(function (it) {
+    if (it.kind === 'stem' && stem) { stem.x = it.x; stem.y = it.y; stem.w = it.w; }
+    else if (it.kind === 'part' && partBoxes[it.i]) { partBoxes[it.i].x = it.x; partBoxes[it.i].y = it.y; partBoxes[it.i].w = it.w; }
+    else if (it.kind === 'figure') {
+      appAnn = {
+        id: newAnnId(), page: page.num, type: 'ainote', kind: 'paste',
+        x: it.x, y: it.y, w: it.w, h: it.h,
+        ratio: round2(Math.max(0.05, pic.ratio || 2.3)),
+        color: '#F2B705', title: app.title || 'Living app', text: '', src: pic.src,
+        lapp: app, lq: qid, ts: now
+      };
+      annotations.push(appAnn);
+      made.push(appAnn);
+    } else if (it.kind === 'lines') {
+      var grp = it.i === -1 ? stemGrp : 'g' + qid + 'p' + it.i;
+      it.ys.forEach(function (y) {
+        var ln = Object.assign({ id: newAnnId(), page: page.num, lq: qid, grp: grp, ts: now }, LQ.lineAnn(it.x, y, it.w));
+        annotations.push(ln);
+        made.push(ln);
+      });
+      // ✍ The model answer, written on the first working line — the
+      // teacher's answer, so no `lq` and no group.
+      var ans = it.i === -1 ? spec.answer : (spec.parts[it.i] && spec.parts[it.i].answer);
+      if (opts.answers && ans && it.ys.length) {
+        var gap = it.ys.length > 1 ? it.ys[1] - it.ys[0] : plan.lineGap;
+        annotations.push({
+          id: newAnnId(), page: page.num, type: 'text', color: LQ.ANSWER_COLOR, fontSize: Math.max(11, Math.min(LQ.TEXT_SIZE, Math.round(gap * 0.62))),
+          x: round2(it.x + 6), y: round2(it.ys[0] - gap + 3), w: round2(it.w - 12), h: 0, text: ans, kw: [], ts: now
+        });
+      }
+    }
+  });
+  // A figure-less question still carries its app: the cover goes in the
+  // stem's corner rather than vanishing.
+  if (!appAnn) {
+    var box = window.LivingApps.pure.placeOnPage(pw, ph, cover.ratio, 0, plan.bottom + 12);
+    appAnn = {
+      id: newAnnId(), page: page.num, type: 'ainote', kind: 'paste',
+      x: box.x, y: box.y, w: box.w, h: box.h, ratio: round2(Math.max(0.05, cover.ratio || 2.3)),
+      color: '#F2B705', title: app.title || 'Living app', text: '', src: cover.src, lapp: app, lq: qid, ts: now
+    };
+    annotations.push(appAnn);
+  }
+  selectedId = appAnn.id;
+  editModeId = appAnn.id;
+  renderAllOverlays();
+  setDirty(true);
+  if (plan.trimmed) toast('📝 The question needed more room than this page has, so ' + plan.trimmed + ' working line' + (plan.trimmed === 1 ? ' was' : 's were') + ' left out. ➕ Blank page gives it a page of its own.', 6400);
+  else if (!plan.fits) toast('📝 The question runs to the bottom of the page — ➕ Blank page gives it a page of its own.', 5200);
+  return page.num;
 }
 
 function lappInit() {
@@ -32504,11 +32677,13 @@ function lappInit() {
   lapp = window.LivingApps.create({
     role: bankQRole,
     toast: toast,
-    canAdd: function () {
-      if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return false; }
-      if (!pdfDoc) { toast('Open a worksheet — or add a blank page — first.', 4000); return false; }
-      return true;
-    },
+    /* ☁ Library first (v1.178.0): with no page to put it on, the adder
+       still opens and saves to the library alone. */
+    canAdd: function () { return true; },
+    canPlace: lappCanPlace,
+    saveToLibrary: llibSaveApp,
+    addAsQuestion: lappAddQuestion,
+    openPrompt: lqOpenPrompt,
     addToPage: lappAddToPage,
     updateOnPage: lappUpdateOnPage,
     findAnnotation: lappFind,
@@ -32538,7 +32713,7 @@ function lappEdit(id) {
 /* While practising, living apps stay on the page as LOCKED copies, exactly
    like the bank's questions: they are the worksheet, not the answers. */
 function lappPracticeCopies(list) {
-  return (list || []).filter(function (a) { return annLivingApp(a) && !annBankQ(a); }).map(function (a) {
+  return (list || []).filter(function (a) { return (annLivingApp(a) || annLivingQuestion(a)) && !annBankQ(a); }).map(function (a) {
     var c = JSON.parse(JSON.stringify(a));
     c.locked = true;
     return c;
@@ -32554,6 +32729,7 @@ function lappRoleChanged() {
   lappRoleKey = key;
   if (lapp) lapp.roleChanged();
   if (llib) llib.roleChanged();
+  if (lqWin) lqWin.closePrompt();
   llibSeen = Object.create(null);
 }
 function lappWorksheetChanged() {
@@ -32764,6 +32940,75 @@ async function llibScan(progress) {
   return out;
 }
 
+/* ☁ THE LIBRARY IS WHERE AN APP LIVES (v1.178.0). Adding an app — from
+   the adder, from 📚 ➕ New app, with or without a worksheet open — first
+   hosts it (the same content-addressed file a print makes, which belongs to
+   no worksheet) and files it here with `inLibrary`. Its link and QR code
+   open that hosted file, so deleting every worksheet it was ever on breaks
+   nothing. Throws when it cannot: the adder says so in words. */
+async function llibSaveApp(app) {
+  if (!wheelTeacher()) throw new Error('Only the teacher can add to the library.');
+  if (!app || !window.LivingApps || !window.LivingLibrary) throw new Error('The library is not ready yet.');
+  var ref = llibRef();
+  if (!ref) throw new Error('Sign in as the teacher to use the library.');
+  var pub = await lappPublish({ lapp: app });
+  if (!pub) throw new Error('The app could not be put online.');
+  var extra = { library: true, question: window.LivingQuestion ? window.LivingQuestion.pure.questionOf(app) : null };
+  if (pdfDoc && wsMeta) { extra.level = wsMeta.level; extra.subject = wsMeta.subject; }
+  var write = window.LivingLibrary.pure.entryWrite(app, pub, null, Date.now(), extra);
+  if (!write) throw new Error('The app could not be filed.');
+  // Not yet signed out, handed over or switched account mid-upload?
+  if (!wheelTeacher() || llibRef() === null) throw new Error('The teacher is no longer signed in.');
+  await ref.doc(write.hash).set(write, { merge: true });
+  return pub;
+}
+
+/* ➕ From the library onto the page in view: the hosted copy is fetched by
+   its code (rebuilt from the bucket and the hash — never a URL from
+   anywhere else), checked, and put on the page as an app or as a whole
+   question. The worksheet it was first on may be long deleted. */
+async function llibPlace(entry, opts) {
+  opts = opts || {};
+  if (!wheelTeacher()) throw new Error('Putting a living app on a worksheet is the teacher’s own.');
+  if (!lappCanPlace()) throw new Error(practiceMode ? 'End practice first.' : 'Open a worksheet — or add a blank page — first.');
+  var P = window.LivingApps.pure;
+  var url = entry && P.mediaUrl(entry.hash, entry.token);
+  if (!url) throw new Error('That app has no hosted copy to fetch.');
+  var res;
+  try { res = await fetch(url, { cache: 'no-cache' }); }
+  catch (e) { throw new Error('The library could not be reached — check the connection.'); }
+  if (!res.ok) throw new Error(res.status === 404 || res.status === 403 ? 'The hosted copy of that app is gone. Add it again with ➕ New app.' : 'The library answered ' + res.status + '.');
+  var read = P.readPublished(await res.text(), entry.hash);
+  if (!read.ok) throw new Error(read.message);
+  var app = read.app;
+  app.at = Date.now();
+  app.pub = { hash: entry.hash, token: entry.token };
+  var cover = await window.LivingApps.paintCover(app);
+  if (!lappCanPlace()) throw new Error('The worksheet changed while the app was on its way.');
+  var done = opts.asQuestion ? await lappAddQuestion(cover, app, { answers: !!opts.answers }) : lappAddToPage(cover, app);
+  if (done) toast(opts.asQuestion
+    ? '📝 “' + app.title + '” is on page ' + done + ' as a question, from your library.'
+    : '🪄 “' + app.title + '” is on page ' + done + ', from your library.', 4600);
+  return !!done;
+}
+
+/* 📋 The AI prompt window (living-question.js), made the first time it is
+   asked for. Teacher only, like every door to adding an app. */
+var lqWin = null;
+function lqOpenPrompt(opts) {
+  if (!wheelTeacher()) { toast('The living app prompt is the teacher’s own.'); return false; }
+  if (!window.LivingQuestion) return false;
+  if (!lqWin) lqWin = window.LivingQuestion.create({
+    copy: async function (text) {
+      try { await navigator.clipboard.writeText(String(text || '')); return true; } catch (e) { return false; }
+    },
+    openUrl: function (url) { if (url) window.open(url, '_blank', 'noopener'); },
+    toast: toast,
+    defaults: function () { return { level: (wsMeta && wsMeta.level) || '', subject: (wsMeta && wsMeta.subject) || '' }; }
+  });
+  return lqWin.openPrompt(opts || {});
+}
+
 async function llibStudents() {
   if (!wheelTeacher()) return [];
   var snap = await db.collection(PROFILES_COLLECTION).get();
@@ -32812,6 +33057,13 @@ function llibInit() {
       return ref.doc(hash).delete();
     },
     recordSent: llibRecordSent,
+    canPlace: lappCanPlace,
+    place: llibPlace,
+    newApp: function () {
+      if (!wheelTeacher() || !lapp) return;
+      lapp.openAdder({ libraryOnly: !lappCanPlace() });
+    },
+    openPrompt: function () { lqOpenPrompt(); },
     self: function () {
       return { email: (currentUser && currentUser.email) || '', name: (currentUser && currentUser.displayName) || '' };
     },
@@ -38964,7 +39216,7 @@ async function runPrint(kind) {
   try {
     /* The bank's questions are part of the worksheet, so the questions-only
        print keeps them — everything else written on the page goes. */
-    var printAnns = answers ? answerAnnotations() : answerAnnotations().filter(function (a) { return annBankQ(a) || annLivingApp(a); });
+    var printAnns = answers ? answerAnnotations() : answerAnnotations().filter(function (a) { return annBankQ(a) || annLivingApp(a) || annLivingQuestion(a); });
     var outBytes = await buildAnnotatedPdf(false, {
       anns: printAnns,
       qr: printQrUrl(),
@@ -40868,6 +41120,7 @@ loadAiNotePrefs();
 <script src="question-apps.js"></script>
 <script src="question-bank.js"></script>
 <script>bankQInit();</script>
+<script src="living-question.js"></script>
 <script src="living-apps.js"></script>
 <script>lappInit();</script>
 <script src="living-library.js"></script>

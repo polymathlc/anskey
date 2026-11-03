@@ -48,6 +48,7 @@
   var SPELL_MS = 1150;                 // the wand's sweep before the app shows
   var CAST_DELAY_MS = 520;             // after the frame loads, before the first cast
   var HINT_MS = 3600;
+  var LIBRARY_WAIT_MS = 9000;          // ☁ how long a page waits on the library save
 
   /* The frame's policy. Wider than the question bank's in exactly two ways,
      both for how teachers' apps are really written: pictures may come from
@@ -670,7 +671,7 @@
         docListener = true;
         document.addEventListener('keydown', function (e) {
           if (e.key !== 'Escape' || !(adder || stage)) return;
-          if (e.target && e.target.closest && e.target.closest('.laBack')) return;
+          if (e.target && e.target.closest && e.target.closest('.laBack, .lqBack')) return;
           e.preventDefault();
           e.stopPropagation();
           closeTop();
@@ -695,7 +696,15 @@
       closeAdder();
       var existing = opts.editId && typeof env.findAnnotation === 'function' ? env.findAnnotation(opts.editId) : null;
       var start = existing && existing.lapp ? existing.lapp : null;
-      var st = { html: start ? start.html : '', title: start ? start.title : '', titleTyped: !!start, file: '', editId: existing ? existing.id : '', previewTimer: 0, busy: false };
+      /* ☁ Library first (v1.178.0): every app added goes into the teacher's
+         cloud library before anything else, so a worksheet is no longer
+         where an app LIVES. With no page to put it on (no worksheet open,
+         practice, or opened from the library's ➕ New app) the adder saves
+         to the library alone. */
+      var canPlace = !!existing || (!opts.libraryOnly && (typeof env.canPlace === 'function' ? !!env.canPlace() : true));
+      var hasLibrary = typeof env.saveToLibrary === 'function';
+      var st = { html: start ? start.html : '', title: start ? start.title : '', titleTyped: !!start, file: '', editId: existing ? existing.id : '', previewTimer: 0, busy: false,
+        canPlace: canPlace, hasLibrary: hasLibrary, asq: false, asqTouched: false, spec: null };
       var back = overlay('laAdderBack', st.editId ? 'Change the living app' : 'Add a living app');
       var card = document.createElement('div');
       card.className = 'laCard laAdder';
@@ -716,7 +725,11 @@
               '<span class="laDropSub">…or drop it here</span>' +
             '</label>' +
             '<div class="laOr"><span>or paste its code</span></div>' +
-            '<textarea class="laPaste" data-la="paste" spellcheck="false" placeholder="<!doctype html> …"></textarea>' +
+            '<textarea class="laPaste" data-la="paste" spellcheck="false" placeholder="<!doctype html> … — or an AI’s whole reply; the app is taken out of it"></textarea>' +
+            (typeof env.openPrompt === 'function'
+              ? '<div class="laPromptRow"><button type="button" class="laBtn laGhost" data-la="prompt" title="A prompt for ChatGPT, Claude or Gemini that makes them write a living app in exactly this shape — with its wand and its question on paper">📋 AI prompt</button>' +
+                '<span class="laPromptNote">Ask any AI to write one, then paste its reply here.</span></div>'
+              : '') +
             '<label class="laField"><span>Title on the page</span>' +
               '<input type="text" class="laTitle" data-la="title" maxlength="' + TITLE_MAX + '" placeholder="Taken from the app’s own title"></label>' +
             '<div class="laInfo" data-la="info" aria-live="polite"></div>' +
@@ -727,10 +740,18 @@
           '</div>' +
         '</div>' +
         '<div class="laFoot">' +
-          '<span class="laSafe">🔒 The app runs in a sealed frame: it cannot read the worksheet, sign anyone in or send anything anywhere.</span>' +
+          '<div class="laFootLeft">' +
+            (st.canPlace && !st.editId && typeof env.addAsQuestion === 'function'
+              ? '<label class="laAsQ" title="Puts the question’s words in a text box, the app’s diagram as the picture a tap brings alive, and ruled working lines under each part — the app becomes a question on the paper"><input type="checkbox" data-la="asq"> 📝 As a question — text, working lines and the app’s diagram</label>' +
+                '<label class="laAsQ laAsQSub" data-la="answersRow" hidden><input type="checkbox" data-la="answers"> ✍ Write its model answers in the working space (hidden while students practise)</label>'
+              : '') +
+            '<span class="laSafe">' + (st.hasLibrary ? '☁ Saved to your library in the cloud first — its link and QR code never depend on a worksheet. ' : '') +
+              '🔒 The app runs in a sealed frame: it cannot read the worksheet, sign anyone in or send anything anywhere.</span>' +
+          '</div>' +
           '<div class="laFootBtns">' +
             '<button type="button" class="laBtn" data-la="cancel">Cancel</button>' +
-            '<button type="button" class="laBtn laPrimary" data-la="add" disabled>' + (st.editId ? '✓ Update the app' : '➕ Put on the page') + '</button>' +
+            (st.canPlace && !st.editId && st.hasLibrary ? '<button type="button" class="laBtn" data-la="lib" disabled title="Save it to your library without putting it on this page">☁ Library only</button>' : '') +
+            '<button type="button" class="laBtn laPrimary" data-la="add" disabled>' + addLabel(st) + '</button>' +
           '</div>' +
         '</div>';
       back.appendChild(card);
@@ -738,13 +759,29 @@
 
       var q = function (k) { return card.querySelector('[data-la="' + k + '"]'); };
       var paste = q('paste'), titleBox = q('title'), file = q('file'), drop = q('drop'), info = q('info'), addBtn = q('add');
+      var libBtn = q('lib'), asqBox = q('asq'), answersBox = q('answers'), answersRow = q('answersRow');
       if (st.html) paste.value = st.html;
       if (st.title) titleBox.value = st.title;
 
       function refresh(immediate) {
-        var res = normalizeApp({ html: st.html, title: st.title });
+        var res = normalizeApp({ html: unwrapHtml(st.html), title: st.title });
+        st.spec = null;
+        var LQ = root.LivingQuestion;
+        if (res.ok && LQ) {
+          var sr = LQ.pure.readSpec(res.app.html);
+          st.spec = sr.ok ? sr.spec : null;
+          st.specError = sr.ok || sr.reason === 'none' ? '' : sr.message;
+          // An app that carries a question goes on as one, unless the
+          // teacher has said otherwise.
+          if (asqBox && !st.asqTouched) asqBox.checked = !!st.spec;
+        }
+        if (asqBox) {
+          st.asq = !!asqBox.checked;
+          var sum = st.spec && LQ ? LQ.pure.summary(st.spec) : null;
+          if (answersRow) answersRow.hidden = !(st.asq && sum && sum.answers);
+        }
         if (!st.titleTyped) {
-          var guess = titleFromHtml(st.html) || (st.file ? titleFromFileName(st.file) : '');
+          var guess = titleFromHtml(unwrapHtml(st.html)) || (st.file ? titleFromFileName(st.file) : '');
           if (guess && titleBox.value !== guess) { titleBox.value = guess; st.title = guess; }
         }
         if (!st.html.trim()) {
@@ -755,11 +792,16 @@
           info.textContent = res.message;
         } else {
           info.className = 'laInfo good';
-          info.textContent = '✓ ' + sizeText(st.html.length) + (st.file ? ' · ' + st.file : '') +
-            (hasScript(st.html) ? ' · runs its own script' : ' · no script') +
-            (res.app.wand ? ' · 🪄 has a magic wand' : '');
+          info.textContent = '✓ ' + sizeText(res.app.html.length) + (st.file ? ' · ' + st.file : '') +
+            (hasScript(res.app.html) ? ' · runs its own script' : ' · no script') +
+            (res.app.wand ? ' · 🪄 has a magic wand' : '') +
+            (st.spec ? ' · 📝 a question: ' + (root.LivingQuestion.pure.summary(st.spec).text || 'its words') : '') +
+            (st.specError ? ' · ⚠ ' + st.specError : '') +
+            (res.app.html.length !== st.html.length ? ' · taken out of the pasted reply' : '');
         }
         addBtn.disabled = !res.ok || st.busy;
+        if (libBtn) libBtn.disabled = !res.ok || st.busy;
+        if (!st.busy) addBtn.textContent = addLabel(st);
         clearTimeout(st.previewTimer);
         st.previewTimer = setTimeout(function () { drawPreview(res); }, immediate ? 0 : 450);
       }
@@ -829,44 +871,112 @@
       });
       q('close').addEventListener('click', closeAdder);
       q('cancel').addEventListener('click', closeAdder);
-      addBtn.addEventListener('click', function () { commitAdder(); });
+      addBtn.addEventListener('click', function () { commitAdder(st.canPlace || st.editId ? 'page' : 'library'); });
+      if (libBtn) libBtn.addEventListener('click', function () { commitAdder('library'); });
+      if (asqBox) asqBox.addEventListener('change', function () { st.asqTouched = true; refresh(true); });
+      var promptBtn = q('prompt');
+      if (promptBtn) promptBtn.addEventListener('click', function () {
+        try { env.openPrompt({ topic: st.title || '' }); } catch (e) {}
+      });
       refresh(true);
       setTimeout(function () { focusIn(st.editId ? titleBox : drop); }, 30);
       return true;
     }
-    function commitAdder() {
+    function addLabel(st) {
+      if (st.editId) return '✓ Update the app';
+      if (!st.canPlace) return st.hasLibrary ? '☁ Save to library' : '➕ Put on the page';
+      if (st.asq) return st.hasLibrary ? '📝 Save and add the question' : '📝 Add the question';
+      return st.hasLibrary ? '➕ Save and put on the page' : '➕ Put on the page';
+    }
+    /* An AI's reply pasted whole: the app is taken out of it. */
+    function unwrapHtml(html) {
+      var LQ = root.LivingQuestion;
+      try { return LQ ? LQ.pure.extractHtml(html) : String(html || ''); } catch (e) { return String(html || ''); }
+    }
+    /* ☁ The library save, bounded: a slow connection must never hold a page
+       up for ever. A save still running when the time is up carries on in
+       the background (the next worksheet save files it anyway). */
+    function saveToLibrary(app) {
+      if (typeof env.saveToLibrary !== 'function') return Promise.resolve({ pub: null, skipped: true });
+      var p;
+      try { p = Promise.resolve(env.saveToLibrary(app)); } catch (e) { p = Promise.reject(e); }
+      return new Promise(function (resolve) {
+        var done = false;
+        var t = setTimeout(function () { if (!done) { done = true; resolve({ pub: null, slow: true }); } }, LIBRARY_WAIT_MS);
+        p.then(function (pub) { if (done) return; done = true; clearTimeout(t); resolve({ pub: pub || null }); },
+          function (err) { if (done) return; done = true; clearTimeout(t); resolve({ pub: null, error: err }); });
+      });
+    }
+    function commitAdder(mode) {
       if (!adder) return;
       var st = adder.st;
       if (st.busy) return;
       if (!teacher()) { toast('Adding a living app is the teacher’s own.'); closeAdder(); return; }
-      var res = normalizeApp({ html: st.html, title: st.title, at: Date.now() });
+      var res = normalizeApp({ html: unwrapHtml(st.html), title: st.title, at: Date.now() });
       if (!res.ok) { toast(res.message, 4500); return; }
+      mode = mode === 'library' ? 'library' : 'page';
+      var asQuestion = mode === 'page' && !st.editId && !!st.asq && typeof env.addAsQuestion === 'function';
+      var withAnswers = asQuestion && !!(adder.card.querySelector('[data-la="answers"]') || {}).checked;
       st.busy = true;
       var addBtn = adder.card.querySelector('[data-la="add"]');
+      var libBtn = adder.card.querySelector('[data-la="lib"]');
+      var busyBtn = mode === 'library' && libBtn ? libBtn : addBtn;
       addBtn.disabled = true;
-      addBtn.textContent = '✨ Painting the cover…';
-      paintCover(res.app).then(function (cover) {
+      if (libBtn) libBtn.disabled = true;
+      busyBtn.textContent = st.hasLibrary ? '☁ Saving to your library…' : '✨ Painting the cover…';
+      function reset() {
+        st.busy = false;
         if (!adder || adder.st !== st) return;
-        var done;
-        if (st.editId) done = typeof env.updateOnPage === 'function' && env.updateOnPage(st.editId, cover, res.app);
-        else done = typeof env.addToPage === 'function' && env.addToPage(cover, res.app);
-        st.busy = false;
-        if (done) {
+        addBtn.disabled = false;
+        if (libBtn) { libBtn.disabled = false; libBtn.textContent = '☁ Library only'; }
+        addBtn.textContent = addLabel(st);
+      }
+      saveToLibrary(res.app).then(function (saved) {
+        if (!adder || adder.st !== st) { st.busy = false; return null; }
+        if (!teacher()) { st.busy = false; closeAdder(); return null; }
+        var pub = saved && saved.pub;
+        if (pub && pub.hash === res.app.hash && pub.token) res.app.pub = { hash: pub.hash, token: pub.token };
+        if (mode === 'library') {
+          if (!pub) {
+            reset();
+            toast(saved && saved.slow
+              ? 'The library is taking a while to answer — check the connection, then press ☁ again.'
+              : 'Could not save it to your library just now' + (saved && saved.error && saved.error.message ? ': ' + String(saved.error.message).slice(0, 120) : '') + '.', 5600);
+            return null;
+          }
+          st.busy = false;
           closeAdder();
-          toast(st.editId
-            ? '🪄 Living app updated — tap it to see it alive.'
-            : '🪄 “' + res.app.title + '” is on the page — select it and press 🪄 Bring alive, or a student just taps it.', 4800);
-        } else {
-          addBtn.disabled = false;
-          addBtn.textContent = st.editId ? '✓ Update the app' : '➕ Put on the page';
+          toast('☁ “' + res.app.title + '” is in your library — its link and QR code work from anywhere. 📚 App library puts it on any worksheet.', 5600);
+          if (typeof env.librarySaved === 'function') { try { env.librarySaved(res.app, pub); } catch (e) {} }
+          return null;
         }
-      }).catch(function () {
-        st.busy = false;
-        if (adder && adder.st === st) {
-          addBtn.disabled = false;
-          addBtn.textContent = st.editId ? '✓ Update the app' : '➕ Put on the page';
+        if (st.hasLibrary && !pub && !saved.skipped) {
+          toast(saved && saved.slow
+            ? 'The library is slow to answer — the app goes on the page now and into the library when the worksheet saves.'
+            : 'It could not reach your library just now — it goes on the page now and into the library when the worksheet saves.', 5200);
         }
-        toast('The cover could not be painted on this device.', 4000);
+        busyBtn.textContent = '✨ Painting the cover…';
+        return paintCover(res.app).then(function (cover) {
+          if (!adder || adder.st !== st) { st.busy = false; return; }
+          var done;
+          if (st.editId) done = typeof env.updateOnPage === 'function' && env.updateOnPage(st.editId, cover, res.app);
+          else if (asQuestion) done = env.addAsQuestion(cover, res.app, { answers: withAnswers });
+          else done = typeof env.addToPage === 'function' && env.addToPage(cover, res.app);
+          return Promise.resolve(done).then(function (ok) {
+            st.busy = false;
+            if (ok) {
+              closeAdder();
+              toast(st.editId
+                ? '🪄 Living app updated — tap it to see it alive.'
+                : asQuestion
+                  ? '📝 “' + res.app.title + '” is on the page as a question — its diagram is the picture a tap brings alive.'
+                  : '🪄 “' + res.app.title + '” is on the page — select it and press 🪄 Bring alive, or a student just taps it.', 4800);
+            } else reset();
+          });
+        });
+      }).catch(function (err) {
+        reset();
+        toast(err && err.message && /figure|SVG/i.test(err.message) ? err.message : 'The cover could not be painted on this device.', 4000);
       });
     }
     function closeAdder() {
