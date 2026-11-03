@@ -4062,6 +4062,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="student-heroes.css">
 <link rel="stylesheet" href="consult-alert.css">
 <link rel="stylesheet" href="consult-answer.css">
+<link rel="stylesheet" href="gap-view.css">
 <link rel="stylesheet" href="compact-wheel.css">
 </head>
 <body>
@@ -5945,6 +5946,8 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <script src="shape-snap.js"></script>
 <script src="consult-answer.js"></script>
 <script src="consult-alert.js"></script>
+<script src="concept-tags.js"></script>
+<script src="gap-view.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -6009,7 +6012,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.184.0';
+var APP_VERSION = 'v1.185.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32067,6 +32070,25 @@ function studentAdminRow(uid, p) {
     adminSave({ lsChangesUsed: 0 }, (p.name || 'Student') + ' can change their level/subject once again.');
   });
   row.appendChild(unlockBtn);
+  /* 🧩 THE GAP VIEW (v1.185.0): this student's weak concepts from the
+     concept tags Study Buddy writes on their roster row, and whether each
+     is improving — see gap-view.js. Shown on every row, with how many
+     tagged mistakes there are, so a row with none says so rather than
+     opening an empty window by surprise. */
+  if (typeof GapView !== 'undefined' && GapView && GapView.open) {
+    var gapN = GapView.count(p);
+    var gapBtn = document.createElement('button');
+    gapBtn.className = 'btn stuGapBtn';
+    gapBtn.textContent = gapN ? '🧩 Gaps (' + gapN + ')' : '🧩 Gaps';
+    gapBtn.title = gapN
+      ? 'See ' + (p.name || 'this student') + '’s weak concepts and whether they are improving'
+      : 'No tagged mistakes yet — they appear after the next worksheet is marked in Study Buddy';
+    gapBtn.addEventListener('click', function () {
+      GapView.open({ db: db, uid: uid, profile: p, collection: PROFILES_COLLECTION, toast: toast,
+                     isTeacher: function () { return !!(currentUser && isAdmin(currentUser) && !actingStudent); } });
+    });
+    row.appendChild(gapBtn);
+  }
   var actBtn = document.createElement('button');
   actBtn.className = 'btn btnPrimary';
   actBtn.textContent = 'Practise as';

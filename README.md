@@ -4,6 +4,20 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.185.0 — 🧩 Each student's weak concepts, and whether they are improving
+
+- **🧩 Gaps** on every row of the **Students** window (teacher only) opens that student's gap view.
+  Study Buddy (v1.76.0) now tags every wrong or partly right answer it marks with ONE concept from a
+  fixed list for its subject (*Sign or direction error*, *Forgot or wrong units*, *Misread the
+  question*, *Unlike denominators*…) plus a one-line reason, and saves each worksheet's tags with the
+  student, the worksheet and the date.
+- **Top weak concepts first**, ranked by how often they turn up (recent papers count more), each with a
+  trend: **Improving**, **Still there**, **Getting worse** or **New**. The trend compares how often the
+  gap turns up *per question* on the earlier papers against the recent ones, so a busy month of papers
+  never reads as "getting worse". A small bar per paper shows it at a glance.
+- **The actual mistakes behind each gap**: the worksheet, the question number, the date, the reason,
+  what the student wrote, the answer and the question's picture where the mistake book has one.
+- Filter by subject. It only reads; nothing here writes the student's record.
 ## v1.184.0 — 📝 A living question keeps its opening paragraph and every lead-in, in order
 
 - **"As a question" now puts the whole question on the paper, in the app's own order.** The opening paragraph comes first ("Alisha took a slab of frozen meat…"), then the first diagram, then (a) and its working lines, then the lead-in ("After the meat was thawed…"), then the second diagram, then (b).

@@ -2,6 +2,22 @@
 
 Guidance for Claude when working in this repo.
 
+## 🧩 The gap view and 🎯 concept tags (v1.185.0)
+
+- `concept-tags.js` (`window.ConceptTags`) is **byte for byte Study Buddy's** (`polymathlc/tutor` v1.76.0): the
+  fixed tag catalogue per subject plus topic extras, `clean`, `sheetEntry`, `summarize` (trend by RATE per
+  attempted question, older half of the papers vs newer half), `fromMistakes`, `hintBlock`. Pure, no calls.
+  Copy changes across from tutor; `tools/concept-tags-tests.mjs` is the same file in both repos and compares
+  the two copies when both are checked out side by side. **A tag id is for ever.**
+- Study Buddy is the ONLY writer: `studentProfiles/{uid}.tutorGaps.{worksheetId}` =
+  `{ ws, sub, lvl, at, n, w, tags: [{ t, q, why, v, top, p, mid }] }` (one entry per marked worksheet, a re-mark
+  replaces it, 80 kept), and `tutorMistakes` rows now carry `id` / `tg` / `why` so `mid` links a slip to its
+  mirror row (picture, what they wrote, the answer).
+- `gap-view.js` / `gap-view.css` (`window.GapView` {open, close, count, pure}) draw the per-student page from
+  `pure.viewModel(profile, subject, now)`; textContent only, https pictures only, no writes, `open` refuses
+  unless `isTeacher()`. Opened from `studentAdminRow`'s **🧩 Gaps** button (re-reads the live row).
+- Run `node --test tools/gap-view-tests.mjs tools/concept-tags-tests.mjs`.
+
 ## 📲 Installable app (Polymath install kit v2.0.0) — v1.161.0
 
 - **The files.** `pwa-install.js` (the installer), `sw.js` (the offline-fallback worker, scope `/anskey/`), `offline.html` (self-contained: no outside files), `manifest.webmanifest` (name **Polymath Answer Keys**, short name **Answer Keys**, theme `#FFE0B2` = `--accent`), `assets/app-icons/` (192/512 `any`, 192/512 `maskable`, 180 opaque `apple-touch-icon`, 32 favicon; drawn by the kit from its app registry), the head tags at the top of `index.html` (each appears once; the comment above them explains the iPad full-screen reason), and the `<script defer src="pwa-install.js?v=2.0.0" data-app-key="anskey" …>` tag just before the Firebase AI module at the end of the page. It must stay a classic script, not `type="module"`.

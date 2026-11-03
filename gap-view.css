@@ -1,0 +1,103 @@
+/* 🧩 THE GAP VIEW (v1.185.0) — one student's weak concepts. Built by
+   gap-view.js with textContent only. Violet, never the red of a wrong
+   answer: a gap is a thing to teach, not a cross. */
+.gapBack {
+  position: fixed; inset: 0; z-index: 140;
+  background: rgba(20, 18, 30, 0.42);
+  display: none; align-items: flex-start; justify-content: center;
+  padding: 40px 16px; overflow-y: auto;
+}
+.gapBack.open { display: flex; }
+.gapCard {
+  background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+  border-radius: var(--radius, 14px); box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.14));
+  width: min(780px, 100%); max-width: 100%;
+  display: flex; flex-direction: column;
+}
+.gapHead {
+  display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+  border-bottom: 1px solid var(--line, #ECECEA);
+}
+.gapTitle { margin: 0; font-size: 1.1rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.gapClose {
+  border: 0; background: none; font-size: 1.1rem; cursor: pointer; color: var(--ink-faint, #8A8A84);
+  width: 36px; height: 36px; border-radius: 10px;
+}
+.gapClose:hover { background: var(--bg-soft, #F6F6F3); }
+.gapBody { padding: 16px 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.gapIntro { font-size: 0.86rem; color: var(--ink-soft, #55554F); line-height: 1.55; }
+.gapEmpty { padding: 28px 8px; text-align: center; color: var(--ink-faint, #8A8A84); line-height: 1.6; }
+.gapH { margin: 6px 0 0; font-size: 0.95rem; }
+.gapChips { display: flex; flex-wrap: wrap; gap: 8px; }
+.gapChip {
+  font: inherit; font-size: 0.82rem; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line, #ECECEA); background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+}
+.gapChip.on { background: #3B2F73; border-color: #3B2F73; color: #fff; }
+.gapItem {
+  border: 1px solid #DED7F5; background: #FAF9FE; border-radius: 14px; padding: 14px 14px 10px;
+  display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.gapItemHead { display: flex; align-items: flex-start; gap: 12px; }
+.gapRank {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+  background: #3B2F73; color: #fff; font-weight: 700; font-size: 0.9rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.gapItemWords { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gapItemLabel { font-size: 1rem; color: #2C2257; overflow-wrap: anywhere; }
+.gapItemMeta { font-size: 0.8rem; color: var(--ink-faint, #8A8A84); line-height: 1.45; }
+.gapTrend {
+  flex: 0 0 auto; font-size: 0.75rem; font-weight: 700; white-space: nowrap;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid transparent;
+}
+.gapTrend.gapUp { background: #EFF8EF; color: #1F5F23; border-color: #CFE7D0; }
+.gapTrend.gapSteady { background: #F4F4F1; color: #55554F; border-color: #E2E2DD; }
+.gapTrend.gapDown { background: #FDF4E3; color: #7A5410; border-color: #E7BD72; }
+.gapTrend.gapNew { background: #EEF0FA; color: #36409A; border-color: #C8CFEE; }
+.gapRate { font-size: 0.82rem; color: var(--ink-soft, #55554F); }
+.gapSpark {
+  display: flex; align-items: flex-end; gap: 3px; height: 34px; padding: 2px 0;
+  border-bottom: 1px solid #E5E0F7; overflow: hidden;
+}
+.gapBar { flex: 1 1 0; max-width: 18px; min-width: 3px; background: #6E5BC8; border-radius: 3px 3px 0 0; }
+.gapBar.none { background: #DCD6F2; }
+.gapItemFix { font-size: 0.82rem; color: #4A3F86; line-height: 1.5; }
+.gapItemList summary, .gapMore summary {
+  cursor: pointer; font-size: 0.84rem; font-weight: 600; color: #3B2F73; padding: 4px 0;
+}
+.gapMore { display: flex; flex-direction: column; gap: 10px; }
+.gapMore > .gapItem { margin-top: 10px; }
+.gapMist {
+  border-top: 1px dashed #DED7F5; padding: 10px 0 6px; display: flex; flex-direction: column; gap: 6px;
+}
+.gapMist.done { opacity: 0.7; }
+.gapMistTop { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 0.8rem; }
+.gapMistQ { font-weight: 700; }
+.gapMistWs { color: var(--ink-soft, #55554F); overflow-wrap: anywhere; }
+.gapMistAt { color: var(--ink-faint, #8A8A84); }
+.gapMistV { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.gapMistV.wrong { background: #FCEDEB; color: #8C2E1D; }
+.gapMistV.partial { background: #FDF4E3; color: #7A5410; }
+.gapMistV.done { background: #EFF8EF; color: #1F5F23; }
+.gapMistWhy { font-size: 0.86rem; line-height: 1.5; color: #2C2257; }
+.gapMistPair { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.gapMistBox {
+  background: var(--bg, #fff); border: 1px solid var(--line, #ECECEA); border-radius: 10px;
+  padding: 7px 10px; font-size: 0.82rem; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+  overflow-wrap: anywhere;
+}
+.gapMistBox b { font-size: 0.72rem; color: var(--ink-faint, #8A8A84); text-transform: uppercase; letter-spacing: .04em; }
+.gapMistPic { display: block; max-width: 340px; }
+.gapMistPic img {
+  display: block; max-width: 100%; max-height: 220px; border-radius: 10px;
+  border: 1px solid var(--line, #ECECEA); background: #fff;
+}
+.gapMistNote { font-size: 0.76rem; color: var(--ink-faint, #8A8A84); }
+.stuGapBtn { white-space: nowrap; }
+@media (max-width: 640px) {
+  .gapBack { padding: 0; }
+  .gapCard { border-radius: 0; min-height: 100%; }
+  .gapHead, .gapBody { padding-left: 16px; padding-right: 16px; }
+  .gapItemHead { flex-wrap: wrap; }
+}
