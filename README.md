@@ -4,6 +4,20 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.186.0 — 📐 Each student's maths marks by learning objective, paper by paper
+
+- **📐 Objectives** on every row of the **Students** window (teacher only, beside 🧩 Gaps) opens a dense
+  table for that student: every MOE Primary Mathematics objective they were tested on down the side
+  (grouped by level, sub-strand and topic, with subtotals), every marked worksheet across the top in the
+  order it was marked, and in each cell the marks got over the marks attempted, coloured by rate. The
+  right-hand columns give the total, the % and a ▲ ▬ ▼ trend (newer papers against older).
+- Filter by level, sort weakest first, show the objectives not tested yet (coverage), tap a cell for the
+  questions behind it (*Q3 1/2 · Q5 blank (2)*), 📋 copy the table into a spreadsheet, or 🖨 print it.
+- Study Buddy (v1.78.0) files each maths question under an objective of the year printed on the paper,
+  falling back to earlier years only, never later, inside the marking call it already makes, and saves
+  each worksheet's marks on the student's roster row (`tutorLos`). Papers marked before arrive the next
+  time the student opens Study Buddy. Read only here.
+
 ## v1.185.0 — 🧩 Each student's weak concepts, and whether they are improving
 
 - **🧩 Gaps** on every row of the **Students** window (teacher only) opens that student's gap view.

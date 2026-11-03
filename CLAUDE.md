@@ -2,6 +2,20 @@
 
 Guidance for Claude when working in this repo.
 
+## 📐 The objective table (v1.186.0)
+
+- `lo-marks.js` (`window.LoMarks`), `lo-marks.css` and `tools/lo-marks-tests.mjs` are **byte for byte Study
+  Buddy's** (`polymathlc/tutor` v1.78.0). The catalogue `MATH_TREE` is the maths app's `MOE_SYLLABUS` (P1–P6,
+  240 objectives; the test compares it when polymathlc/math is checked out beside). Ids are for ever — append,
+  never renumber. Change the files in tutor and copy them here (or the other way), never fork.
+- Study Buddy is the ONE writer: `studentProfiles/{uid}.tutorLos.{worksheetId}` = `{ v, ws, sub:'math', lvl, at,
+  r:[{ l, k, p, q, x, g, a, s }] }` (objective id, topic key, unplaced words, questions, marks on paper, got,
+  attempted, `"3=2/2 5=-/1"`). `LoMarks.sheetsOf` reads it safely; `matrix` builds the table; `mount` draws it
+  with textContent only.
+- `lo-view.js` / `lo-view.css` (`window.LoView`) is the window, opened from the 📐 Objectives button on
+  `studentAdminRow` (teacher only, `open` refuses again). It draws the row it was handed, then the live row.
+  It writes nothing. Tests: `tools/lo-view-tests.mjs`.
+
 ## 🧩 The gap view and 🎯 concept tags (v1.185.0)
 
 - `concept-tags.js` (`window.ConceptTags`) is **byte for byte Study Buddy's** (`polymathlc/tutor` v1.76.0): the
