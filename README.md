@@ -3,6 +3,18 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+## v1.177.0 — 🔁 Replaced worksheet PDFs open as the new file
+
+- **A worksheet PDF replaced in Polymath Online** (its *Replace PDF* button on the admin class page)
+  keeps its storage path, so every Ans Key save still writes the same `storagePath`, and gets a new
+  `pdfVersion` (milliseconds) on its `pdfAnnotator` document.
+- **The class worksheet cache follows that version.** `onlinePdfBytes(storagePath, version)` and
+  `onlineCachedPdf(storagePath, version)` key on path plus version, so the Up next card, Download,
+  Print and opening the worksheet never hand back the old file; the device keeps only the newest copy
+  in `polymath-online-worksheets-v1`. Opening a replaced worksheet checks with the server instead of
+  the browser's HTTP cache. Worksheets that were never replaced behave exactly as before.
+- Tests: `tools/online-tests.mjs` (versioned cache, old copy dropped, every caller passes `pdfVersion`).
+
 ## v1.176.0 — 📌 Current worksheet and Next worksheet, loaded from Polymath Online
 
 - **Each Polymath Online class now shows two worksheets in its lesson**: the one the class is on and
