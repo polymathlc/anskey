@@ -472,7 +472,9 @@
     '\\bpress (?:enter|return|space)\\b', '\\bstuck\\b', '\\bhints?\\b', '\\bmodel (?:working|answers?|solutions?)\\b',
     '\\bblurred\\b', '\\btry again\\b', '\\bshow (?:me|the answer|answers?|working)\\b', '\\breveal\\b',
     '\\bcheck (?:my|your|the) (?:answer|working)s?\\b', '\\bwell done\\b', '\\bcorrect!', '\\bnot quite\\b',
-    '\\bsmall questions?\\b', '\\banswer them in order\\b'
+    '\\bsmall questions?\\b', '\\banswer them in order\\b',
+    // The centre's own name off a logo or a header strap (v1.182.0).
+    '^\\s*polymath(?:\\s+learning(?:\\s+cent(?:re|er))?)?\\s*$', '^\\s*learning\\s+cent(?:re|er)\\s*$'
   ].join('|'), 'i');
   /* A line that is a label, not words: "Question", "6 lines", "1.",
      "Answers: (a) ? (b) ?", a bare bullet. */
@@ -873,27 +875,32 @@
     }, function () { return { src: '', count: 0 }; });
   }
   /* Paints blocks through the question bank's own painter, with the white
-     gutter on the right and the tiny 🪄 in its corner. Resolves
-     { src, ratio, w, h, corner, tags }. */
-  function paintBlocks(q) {
+     gutter on the right and the corner at its top right (v1.182.0): the
+     app's QR code in a small square, "living app" in small type under it
+     and the premium wand beside the words. Resolves
+     { src, ratio, w, h, corner, tags, qr }. */
+  function paintBlocks(q, app) {
     var QB = root.QuestionBank, LA = root.LivingApps;
     if (!QB || typeof QB.paintQuestion !== 'function') return Promise.reject(new Error('The question painter is not loaded.'));
-    var gutter = (LA && LA.pure && LA.pure.CORNER_GUTTER) || 64;
+    var gutter = (LA && LA.pure && LA.pure.CORNER_GUTTER) || 84;
     var corner = null;
+    var matrix = LA && LA.pure && typeof LA.pure.qrMatrixFor === 'function' ? LA.pure.qrMatrixFor(app) : null;
     return QB.paintQuestion(q, {
       gutter: gutter,
       decorate: function (ctx, info) {
         if (!LA || !LA.pure) return;
         corner = LA.pure.cornerFor(info.w, info.h, info.gutter);
-        if (typeof LA.drawCornerWand === 'function') LA.drawCornerWand(ctx, info.w, info.h, corner);
+        if (typeof LA.drawCornerBadge === 'function') LA.drawCornerBadge(ctx, info.w, info.h, corner, matrix);
+        else if (typeof LA.drawCornerWand === 'function') LA.drawCornerWand(ctx, info.w, info.h, corner);
       }
     }).then(function (pic) {
       pic.corner = corner;
+      pic.qr = !!matrix;
       return pic;
     });
   }
-  function withCounts(q, fig) {
-    return paintBlocks(q).then(function (pic) {
+  function withCounts(q, fig, app) {
+    return paintBlocks(q, app).then(function (pic) {
       pic.count = fig.count;
       pic.tables = q.blocks.filter(function (b) { return b.type === 'table'; }).length;
       return pic;
@@ -902,12 +909,12 @@
   /* 📝 As a question: the whole question as ONE picture in the bank's
      format. Resolves the painted picture plus `count` (pictures in the
      figure) and `tables`. */
-  function paintQuestionPicture(spec) {
-    return figureSrc(spec).then(function (fig) { return withCounts(questionBlocks(spec, fig.src), fig); });
+  function paintQuestionPicture(spec, app) {
+    return figureSrc(spec).then(function (fig) { return withCounts(questionBlocks(spec, fig.src), fig, app); });
   }
   /* ➕ Add to page: the app as itself — its title and what it draws. */
   function paintAppPicture(app, spec) {
-    return figureSrc(spec).then(function (fig) { return withCounts(appBlocks(app, spec && spec.graphics, fig.src), fig); });
+    return figureSrc(spec).then(function (fig) { return withCounts(appBlocks(app, spec && spec.graphics, fig.src), fig, app); });
   }
 
   /* ---------------------------------------------------------------

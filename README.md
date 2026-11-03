@@ -3,6 +3,13 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
+
+## v1.182.0 — The living app's corner: the QR in a square, "living app" under it, and no logo on paper
+
+- **The corner of a living app or living question is now its QR code** in a small plain square, with **"living app"** in small type under it and a premium wand beside the words. It replaces the big wand. The code on screen is the same code the printed sheet carries.
+- An app that is not online yet shows a soft gold square with the wand. It still prints with its code once the teacher exports it.
+- **The app's logo is left off the paper.** Pictures marked as a logo or brand, pictures in the app's header, and a bare "Polymath Learning Centre" line are skipped when the app is read.
+
 ## v1.181.0 — 📝 Living questions in the question bank's format, a tiny 🪄 and a small QR
 
 - **As a question is laid out exactly like a question from the Science portal's question bank.** It is painted by the same painter (`QuestionBank.paintQuestion`): the question's words, the diagram, the table as a real table, each part with its [marks] on the right, and ruled working lines under each part. It is one picture on the page, not loose text boxes and lines.

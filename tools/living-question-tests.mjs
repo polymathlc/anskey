@@ -133,12 +133,13 @@ test('a figure’s shape comes from its viewBox, else its size, else 5 : 3', () 
 
 /* ---------------- 🪄 the corner and the bank's format (v1.181.0) ---------------- */
 test('🪄 the corner is a small square at the top right, inside the gutter, and cleanCorner is its one door', () => {
-  for (const [w, h] of [[664, 90], [664, 600], [664, 2400], [664, 64]]) {
+  const W = 600 + LA.CORNER_GUTTER;
+  for (const [w, h] of [[W, 90], [W, 600], [W, 2400], [W, 64]]) {
     const c = LA.cornerFor(w, h, LA.CORNER_GUTTER);
     const left = c.x * w, size = c.s * w, top = c.y * h;
     assert.ok(left >= 600 - 0.5, `${w}×${h}: the square starts in the gutter (${left})`);
     assert.ok(left + size <= w + 0.01, 'never off the right edge');
-    assert.ok(top + size <= h + 0.01, 'never off the bottom');
+    assert.ok(top + size + LA.CORNER_LABEL_H <= h + 0.01, 'never off the bottom, with room for “living app” under it');
     assert.ok(size <= LA.CORNER_GUTTER, 'small: never wider than the gutter');
     assert.deepEqual(plain(LA.cleanCorner(c)), plain(c));
   }
@@ -148,16 +149,54 @@ test('🪄 the corner is a small square at the top right, inside the gutter, and
   assert.equal(LA.cleanCorner({ x: 0.5, y: 0, s: 0.9 }), null, 'no big rectangle');
 });
 
+test('📲 the corner keeps a line for “living app” under the square, centred on it, inside the picture', () => {
+  assert.equal(LA.CORNER_LABEL, 'living app');
+  const W = 600 + LA.CORNER_GUTTER;
+  for (const h of [LA.cornerMinHeight(LA.CORNER_GUTTER), 300, 2000]) {
+    const c = LA.cornerFor(W, h, LA.CORNER_GUTTER);
+    const lb = LA.cornerLabelBox(W, h, c);
+    const size = c.s * W, top = c.y * h;
+    assert.ok(lb, 'a label box at height ' + h);
+    assert.ok(lb.y >= top + size, 'under the square, never over the code');
+    assert.ok(lb.y + lb.h <= h + 0.01, 'inside the picture');
+    assert.ok(lb.x >= 600 - 0.5 - 6, 'in the gutter, off the question');
+    assert.ok(lb.x + lb.w <= W + 0.01, 'never off the right edge');
+    assert.ok(Math.abs(lb.cx - (c.x * W + size / 2)) < 0.02, 'centred on the square');
+  }
+  const full = LA.cornerFor(W, LA.cornerMinHeight(LA.CORNER_GUTTER), LA.CORNER_GUTTER);
+  assert.ok(Math.abs(full.s * W - (LA.CORNER_GUTTER - 12)) < 0.1, 'a card at cornerMinHeight gets the whole square');
+  assert.equal(LA.cornerLabelBox(W, 100, null), null);
+});
+
+test('📲 qrMatrixFor gives the corner the SAME viewer link the paper and the stage use, and only for a hosted app', () => {
+  const html = '<!doctype html><html><body><p>Hi</p></body></html>';
+  const app = LA.normalizeApp({ title: 'T', html }).app;
+  const hash = LA.contentHash(app.html);
+  const token = '0f8fad5b-d9cb-469f-a165-70867728950e';
+  const seen = [];
+  const make = (url) => { seen.push(url); return [[1, 0], [0, 1]]; };
+  assert.equal(LA.qrMatrixFor(app, 'https://x.test/anskey/index.html', make), null, 'no hosted copy, no code');
+  app.pub = { hash, token };
+  const m = LA.qrMatrixFor(app, 'https://x.test/anskey/index.html?ws=1', make);
+  assert.deepEqual(m, [[1, 0], [0, 1]]);
+  assert.equal(seen[0], LA.viewerUrl('https://x.test/anskey/index.html', hash, token), 'the viewer link, the one printed codes open');
+  app.pub = { hash: 'deadbeef', token };
+  assert.equal(LA.qrMatrixFor(app, 'https://x.test/', make), null, 'a changed app never shows the old code');
+  app.pub = { hash, token };
+  assert.equal(LA.qrMatrixFor(app, 'https://x.test/', () => { throw new Error('x'); }), null, 'a QR maker that throws gives no code, never an error');
+});
+
 test('🪄 on paper the code takes the corner: a plain square inside the picture, top right, sized with it', () => {
-  const c = LA.cornerFor(664, 500, LA.CORNER_GUTTER);
-  const rect = { x: 36, y: 100, w: 523, h: 523 * 500 / 664 };
+  const W = 600 + LA.CORNER_GUTTER;
+  const c = LA.cornerFor(W, 500, LA.CORNER_GUTTER);
+  const rect = { x: 36, y: 100, w: 523, h: 523 * 500 / W };
   const q = LA.qrInCorner(rect, c);
-  assert.ok(q.x >= rect.x + rect.w * 600 / 664 - 0.5, 'in the gutter, off the question');
+  assert.ok(q.x >= rect.x + rect.w * 600 / W - 0.5, 'in the gutter, off the question');
   assert.ok(q.x + q.size <= rect.x + rect.w + 0.01);
   assert.ok(q.y + q.size <= rect.y + rect.h + 0.01, 'at the top');
   assert.ok(q.y + q.size >= rect.y + rect.h - 12, 'right at the top');
   assert.ok(q.size > 30 && q.size < 60, 'a small code a phone still reads: ' + q.size);
-  const big = LA.qrInCorner({ x: 0, y: 0, w: 1046, h: 1046 * 500 / 664 }, c);
+  const big = LA.qrInCorner({ x: 0, y: 0, w: 1046, h: 1046 * 500 / W }, c);
   assert.ok(Math.abs(big.size - q.size * 2) < 0.1, 'it grows with the picture');
   assert.equal(LA.qrInCorner(rect, null), null, 'no corner, no square: the old cover keeps its old place');
 });
@@ -259,6 +298,20 @@ test('🪄 the harvest bridge leaves the app’s help out: details, hint and mod
   assert.ok(b.includes('model[\\s_-]*(working|answer|solution)'), 'a model-working box');
   assert.match(b, /aria-live/);
   assert.match(b, /if \(boxy\) buf \+= " ";/, 'an inline box is a word of its own ("Question" + "Mr Murthu")');
+});
+
+test('🏷 the harvest leaves the app’s logo off the paper: logo / brand words on the picture, its alt or file name, or a picture in the header', () => {
+  const b = LA.HARVEST_BRIDGE;
+  const m = b.match(/var LOGO_WORDS = (\/.*\/i);/);
+  assert.ok(m, 'LOGO_WORDS is in the bridge');
+  const re = eval(m[1].replace(/\\\\/g, '\\'));
+  for (const t of ['logo', 'site-logo', 'Polymath Learning Centre', 'brand mark', 'polymath-logo.png', 'wordmark', 'Masthead']) assert.ok(re.test(t), t);
+  for (const t of ['diagram', 'tray', 'slab of meat', 'catalogue', 'brandy glass']) assert.ok(!re.test(t), 'not a logo: ' + t);
+  assert.ok(b.includes('if (/^(SVG|CANVAS|IMG|PICTURE)$/.test(tag) && logo(el)) return;'), 'asked of every picture before it is copied');
+  assert.ok(b.includes('el.closest("header,[role=banner]")'), 'a picture in the app’s header is its brand');
+  assert.match(b, /\|meta\|stats\|logo\|logos\|logotype\|brand\|branding\|wordmark\|masthead\|emblem\)\$/, 'a logo or brand box, words and all');
+  for (const t of ['POLYMATH', 'Polymath Learning Centre', 'LEARNING CENTRE']) assert.ok(Q.CHROME_LINE_RE.test(t), 'the centre’s name off a header: ' + t);
+  assert.ok(!Q.CHROME_LINE_RE.test('Polymath the cat sat on the tray.'));
 });
 
 test('🪄 the bank’s painter keeps a gutter, a decorate hook and the working lines’ places — and paints a bank question as before', () => {
@@ -585,7 +638,7 @@ test('📝 the glue reads the app before it falls back to the cover, for a quest
   const qf = section('async function lappPictureFor(app, cover, asQuestion, say) {', '\n}\n');
   assert.match(qf, /LQ\.needsHarvest\(spec\)[\s\S]{0,200}window\.LivingApps\.harvest\(app\.html\)/);
   assert.match(qf, /spec = LQ\.mergeHarvest\(spec, app, raw\);/);
-  assert.match(qf, /asQuestion \? await window\.LivingQuestion\.paintQuestionPicture\(spec\) : await window\.LivingQuestion\.paintAppPicture\(app, spec\)/);
+  assert.match(qf, /asQuestion \? await window\.LivingQuestion\.paintQuestionPicture\(spec, app\) : await window\.LivingQuestion\.paintAppPicture\(app, spec\)/);
   assert.match(qf, /pic: painted \? pic : cover/, 'the plain cover only when nothing could be painted');
   const add = section('async function lappAddQuestion(cover, app, opts) {', '\n}\n');
   assert.match(add, /var got = await lappPictureFor\(app, cover, true, true\);/);
