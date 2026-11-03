@@ -324,7 +324,7 @@
   font-weight: 700;
 }
 
-/* ---- ☁ library first, 📝 as a question, 📋 the AI prompt (v1.178.0) ---- */
+/* ---- ☁ library first, 📝 as a question, 📋 the AI prompt (v1.179.0) ---- */
 .laGhost { background: transparent; }
 .laPromptRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .laPromptNote { font-size: 12.5px; color: #55585a; line-height: 1.5; }

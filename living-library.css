@@ -307,7 +307,7 @@
   .llBack, .llCard, .llRow { transition: none; }
 }
 
-/* ---- ☁ the library is where an app lives (v1.178.0) ---- */
+/* ---- ☁ the library is where an app lives (v1.179.0) ---- */
 .llHeadActs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .llWhere { min-width: 0; }
 .llAdd { border-color: rgba(31, 111, 178, 0.35); color: var(--ll-blue); font-weight: 600; }

@@ -696,7 +696,7 @@
       closeAdder();
       var existing = opts.editId && typeof env.findAnnotation === 'function' ? env.findAnnotation(opts.editId) : null;
       var start = existing && existing.lapp ? existing.lapp : null;
-      /* ☁ Library first (v1.178.0): every app added goes into the teacher's
+      /* ☁ Library first (v1.179.0): every app added goes into the teacher's
          cloud library before anything else, so a worksheet is no longer
          where an app LIVES. With no page to put it on (no worksheet open,
          practice, or opened from the library's ➕ New app) the adder saves

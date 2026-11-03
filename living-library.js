@@ -142,7 +142,7 @@
      { merge: true }, so a second worksheet ADDS a sheet rather than
      replacing the first, and the token is always the newest. Null when
      the app has no hosted copy — there is no code to remember yet.
-     ☁ `extra` (v1.178.0) is the library's own note when an app is ADDED
+     ☁ `extra` (v1.179.0) is the library's own note when an app is ADDED
      rather than found on a worksheet: `inLibrary`, when it was added, the
      level and subject it was added under and what its question holds. An
      app added with no worksheet open has no `sheets` at all, and is still
@@ -440,7 +440,7 @@
        openUrl(url)         opens a link in a new tab
        copy(text)           Promise<bool>
        toast(msg, ms)
-       ☁ v1.178.0 — the library is where an app lives:
+       ☁ v1.179.0 — the library is where an app lives:
        canPlace()           true when a worksheet page can take an app now
        place(entry, opts)   Promise<bool> — fetch the hosted app and put it on
                             the page; opts.asQuestion adds its words, working

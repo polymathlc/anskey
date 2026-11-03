@@ -284,7 +284,7 @@ await page.click('.llRow .llDanger');
 await page.waitForFunction(() => document.querySelectorAll('.llRow').length === 1, null, { timeout: 2000 }).catch(() => {});
 ok('…and Forget removes it from the library', await page.evaluate(h => window.__ll.deletes.includes('users/teacher-1/livingApps/' + h) && document.querySelectorAll('.llRow').length === 1, firstHash));
 
-console.log('\n☁ Library first (v1.178.0)');
+console.log('\n☁ Library first (v1.179.0)');
 await page.keyboard.press('Escape');
 await page.waitForTimeout(250);
 // The hosted copies are served from the fake Storage, the way the bucket's

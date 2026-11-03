@@ -3,7 +3,7 @@
 Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
-## v1.178.0 — ☁ The living app library is where an app lives, 📝 an app as a question, 📋 a prompt for any AI
+## v1.179.0 — ☁ The living app library is where an app lives, 📝 an app as a question, 📋 a prompt for any AI
 
 - **Adding a living app saves it to your library in the cloud first.** The app is hosted (the same
   content-addressed file a print makes, which belongs to no worksheet) and filed in
@@ -35,6 +35,29 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
   the wiring) and `tools/living-library-check.mjs` (a pasted AI reply → library → page as a question,
   library only, a deleted worksheet, from the library onto the page, the prompt, a student).
 
+## v1.178.0 — 🔳 Read QR: drag over a QR code and open it in a window here
+
+- **A 🔳 Read QR button** on the toolbar, beside Snip & pin (**Shift+Q**). Press it and drag a box round
+  any QR code on screen: on the worksheet, on a pinned snip, on a living app's own code card, on any
+  picture. What the code points to opens in a **window inside the app**.
+- **The window** moves by its title bar, **resizes from every edge and corner**, fills the screen (▢ or a
+  double-tap on the bar), folds to its bar (–), reloads (⟳), goes back to where the code pointed (←),
+  opens in a new tab (↗) and copies the link (📋). Up to four can be open at once; the same code read
+  twice raises the open one. Where the last window stood is remembered on the device.
+- **A snug box still reads.** The code's white margin is put back before it is read, the worksheet is
+  painted sharper than the screen (the same painter Snip & pin uses), and a light code on a dark card
+  reads too. A box with no code in it says so, and the layer stays up to try again.
+- **Only a web link opens in the window.** Text, an email address, a phone number or a Wi-Fi code is
+  shown as words with a Copy button (a Wi-Fi code shows its network and password); a `javascript:` or
+  `data:` link is never opened. Some sites refuse to be shown inside another app; the window always
+  has ↗ Open in a new tab for those.
+- It is for everyone: teacher, students and share-link visitors. A change of person closes every window.
+  Nothing read is stored or sent anywhere.
+- Checks: `tools/qr-reader-tests.mjs` (the geometry, the safety rules and the shipped decoder on real
+  codes) and `tools/qr-reader-check.mjs` (real Chromium: drag → window → the site loads, move, resize
+  from edges and corners, fill, fold, no-code, text and `javascript:` codes, a picture off the
+  worksheet, a change of person, a phone).
+
 ## v1.177.0 — 🔁 Replaced worksheet PDFs open as the new file
 
 - **A worksheet PDF replaced in Polymath Online** (its *Replace PDF* button on the admin class page)
@@ -46,6 +69,7 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
   in `polymath-online-worksheets-v1`. Opening a replaced worksheet checks with the server instead of
   the browser's HTTP cache. Worksheets that were never replaced behave exactly as before.
 - Tests: `tools/online-tests.mjs` (versioned cache, old copy dropped, every caller passes `pdfVersion`).
+
 
 ## v1.176.0 — 📌 Current worksheet and Next worksheet, loaded from Polymath Online
 
