@@ -433,7 +433,14 @@
       if (blocks.length >= HARVEST_BLOCKS_MAX || !b || typeof b !== 'object') return;
       if (b.kind === 'text') {
         var t = cleanBlock(b.text, HARVEST_TEXT_MAX);
-        if (t) blocks.push({ kind: 'text', text: t });
+        if (t) {
+          var tb = { kind: 'text', text: t };
+          // A heading's level (1–6) rides along: the app's own title is
+          // its name, not the question (v1.183.0).
+          var hd = clampInt(b.head, 0, 6, 0);
+          if (hd) tb.head = hd;
+          blocks.push(tb);
+        }
         return;
       }
       if (graphics >= HARVEST_GRAPHICS_MAX) return;
@@ -500,72 +507,206 @@
   function partLines(marks) { return marks ? Math.max(2, Math.min(8, marks * 2)) : DEFAULT_PART_LINES; }
 
   /* The question an app shows, as a spec — the same shape cleanSpec gives,
-     plus `graphics` (the diagrams and tables, in order) and
-     `harvested: true`. Null when the harvest holds nothing. */
+     plus `graphics` (the diagrams and tables, in order), `flow` (the
+     question in READING ORDER) and `harvested: true`. Null when the
+     harvest holds nothing.
+
+     📝 v1.183.0 — EVERYTHING THE QUESTION SAYS, WHERE IT SAYS IT. A real
+     question is a story told between its parts: "Alisha took a slab of
+     frozen meat…" before the first diagram, "(a) …", then "After the meat
+     was thawed, Alisha cut the slab…" and a second diagram before "(b)".
+     Two faults lost that story:
+       • a STOP line ("…acts out the model answer…") seen BEFORE any part
+         closed the stem, so every word up to (a) was thrown away — the
+         opening paragraph never reached the paper;
+       • a lead-in after a finished part was glued onto that part's words,
+         and every picture was squeezed into ONE figure under the stem, so
+         the second diagram sat above the paragraph that introduces it.
+     Now the flow keeps the order the app draws it in: words, a picture,
+     a part and its working lines, the next lead-in, the next picture, the
+     next part. A part is FINISHED once its marks are read ("[1]") or a
+     picture / a new part follows it; words after a finished part are the
+     next lead-in, never more of the part.
+
+     flow items:
+       { t: 'text', text }   words that are not a part (stem or lead-in)
+       { t: 'fig', g }       graphics[g] (a table, a diagram, a picture)
+       { t: 'part', p }      parts[p]'s words
+       { t: 'answer', p }    parts[p]'s working lines
+       { t: 'lines' }        the stem's own working lines (no parts) */
+  var STOP_LINE_LEN = 120;
+  var CHROME_LINE_LEN = 320;
+  function isChromeLine(l) {
+    if (!CHROME_LINE_RE.test(l)) return false;
+    // A long line is the question's own words that happen to say "tap" —
+    // unless it is plainly talking about the app's wand or its buttons.
+    if (l.length < 160) return true;
+    return l.length < CHROME_LINE_LEN && /\b(?:magic wand|wand|tap (?:a|the) picture|button|one line per tap|submit)\b/i.test(l);
+  }
   function specFromHarvest(app, raw) {
     var h = cleanHarvest(raw);
     if (!h) return null;
     var title = cleanLine(app && app.title, TITLE_MAX) || h.title || 'Living app';
-    var lines = [];
+    // 1. The harvest as one stream: lines of words and graphics, in order.
+    var items = [], graphics = [];
     h.blocks.forEach(function (b) {
-      if (b.kind !== 'text') return;
+      if (b.kind !== 'text') { graphics.push(b); items.push({ g: graphics.length - 1 }); return; }
       b.text.split('\n').forEach(function (l) {
         l = l.replace(/\s+/g, ' ').trim();
         if (!l) return;
         // A stop line is kept as a marker: it closes the part it follows.
-        if (STOP_LINE_RE.test(l) && l.length < 200 && !PART_RE.test(l)) { lines.push({ stop: true }); return; }
-        if (CHROME_LINE_RE.test(l) && l.length < 160) return;
+        if (STOP_LINE_RE.test(l) && l.length < STOP_LINE_LEN && !PART_RE.test(l)) { items.push({ stop: true }); return; }
+        if (isChromeLine(l)) return;
         if (LABEL_LINE_RE.test(l)) return;
         // "Question" run into the words after it ("QuestionMr Murthu…").
         l = l.replace(/^(?:question|task)\s*:?\s*(?=[A-Z(])/i, '');
-        if (l) lines.push(l);
+        if (l) items.push({ text: l, head: b.head || 0 });
       });
     });
-    // The app's own heading is its name, not the question.
-    while (lines.length && (lines[0].stop || sameWords(lines[0], title) || sameWords(lines[0], h.title))) lines.shift();
-    var stem = [], parts = [], cur = null, closed = false;
-    lines.forEach(function (l) {
-      if (l.stop) { closed = true; return; }
+    // 2. The app's own heading is its name, not the question: drop the
+    //    leading headings (and stop markers) before the first real words.
+    while (items.length) {
+      var f = items[0];
+      if (f.stop) { items.shift(); continue; }
+      if (f.text && (f.head || sameWords(f.text, title) || sameWords(f.text, h.title))) { items.shift(); continue; }
+      break;
+    }
+    // A bare "(a)" on its own line, followed by its words: one line.
+    var joined = [];
+    items.forEach(function (it) {
+      var prev = joined[joined.length - 1];
+      if (it.text && prev && prev.text && !prev.joinedPart) {
+        var pm = prev.text.match(PART_RE) || prev.text.match(/^\s*\(?([a-h])\)\s*$/i);
+        if (pm && !str(pm[2]).trim() && !PART_RE.test(it.text)) {
+          prev.text = prev.text.trim() + ' ' + it.text;
+          prev.joinedPart = true;
+          return;
+        }
+      }
+      joined.push({ text: it.text, head: it.head, g: it.g, stop: it.stop });
+    });
+    items = joined;
+    // 3. Walk it.
+    var flow = [], parts = [], stemLines = [], cur = null, done = false, closed = false, curFig = false;
+    function pushText(t) {
+      var last = flow[flow.length - 1];
+      if (last && last.t === 'text') last.text += '\n' + t;
+      else flow.push({ t: 'text', text: t });
+      if (!parts.length) stemLines.push(t);
+    }
+    function finish() {
+      if (cur) { flow.push({ t: 'answer', p: parts.indexOf(cur) }); cur = null; done = false; curFig = false; }
+    }
+    items.forEach(function (it) {
+      if (it.stop) {
+        // Help that follows a part: everything until the next part is the
+        // app's scaffold. Before any part it is only a line of help.
+        if (cur || parts.length) { finish(); closed = true; }
+        return;
+      }
+      if (it.g != null) {
+        if (closed) return;
+        if (cur && done) finish();
+        // A picture inside an open part (its marks not read yet) belongs to
+        // that part: its working lines go under the picture, and words
+        // after it are still the part's ("…the graph below. <graph> What
+        // does it show? [2]").
+        flow.push({ t: 'fig', g: it.g });
+        if (cur) curFig = true;
+        return;
+      }
+      var l = it.text;
       var m = l.match(PART_RE) || l.match(PART_RE_BARE);
       if (m && parts.length < PARTS_MAX) {
         var mk = takeMarks(m[2]);
-        // The same part read twice (a checker's echo of it) is one part.
         var label = '(' + m[1].toLowerCase() + ')';
-        if (parts.some(function (p) { return p.label === label; })) { closed = true; return; }
+        // The same part read twice (a checker's echo of it) is one part.
+        if (parts.some(function (p) { return p.label === label; })) { finish(); closed = true; return; }
+        finish();
         cur = { label: label, text: mk.text, marks: mk.marks };
         parts.push(cur);
+        flow.push({ t: 'part', p: parts.length - 1 });
+        done = !!mk.marks;
+        curFig = false;
         closed = false;
         return;
       }
       if (closed) return;
-      if (cur) {
+      if (cur && !done) {
         var more = takeMarks(l);
-        cur.text = (cur.text ? cur.text + '\n' : '') + more.text;
-        if (more.marks) cur.marks = more.marks;
-      } else stem.push(l);
+        if (curFig) { if (more.text) pushText(more.text); }
+        else cur.text = (cur.text ? cur.text + '\n' : '') + more.text;
+        if (more.marks) { cur.marks = more.marks; done = true; }
+        return;
+      }
+      if (cur && done) finish();
+      pushText(l);
     });
-    var stemText = cleanBlock(stem.join('\n'), STEM_MAX);
+    finish();
+    // The words before the first part, and the stem's own marks / lines.
+    var stemText = cleanBlock(stemLines.join('\n'), STEM_MAX);
     var stemMarks = 0;
-    if (!parts.length) { var sm = takeMarks(stemText); stemText = sm.text; stemMarks = sm.marks; }
+    if (!parts.length) {
+      var sm = takeMarks(stemText); stemText = sm.text; stemMarks = sm.marks;
+      // The flow's words lose the marks too.
+      for (var fi = flow.length - 1; fi >= 0; fi--) {
+        if (flow[fi].t === 'text') { flow[fi].text = takeMarks(flow[fi].text).text; break; }
+      }
+    }
     var said = wordCount(stemText) + parts.reduce(function (n, p) { return n + wordCount(p.text); }, 0);
     // Too few words to stand on their own (a readout, a label): the title
     // goes first so the question still says what it is about.
-    if (said < 4) stemText = cleanBlock(title + (stemText ? '\n' + stemText : ''), STEM_MAX);
-    var graphics = h.blocks.filter(function (b) { return b.kind !== 'text'; });
+    if (said < 4) {
+      stemText = cleanBlock(title + (stemText ? '\n' + stemText : ''), STEM_MAX);
+      if (flow.length && flow[0].t === 'text') flow[0].text = title + '\n' + flow[0].text;
+      else flow.unshift({ t: 'text', text: title });
+    }
+    flow.forEach(function (it) { if (it.t === 'text') it.text = cleanBlock(it.text, STEM_MAX); });
+    flow = flow.filter(function (it) { return it.t !== 'text' || it.text; });
+    var lines = parts.length ? 0 : (stemMarks ? partLines(stemMarks) : DEFAULT_LINES);
+    if (!parts.length) flow.push({ t: 'lines' });
     return {
       v: VERSION,
       title: title,
       stem: stemText,
       figure: '',
       graphics: graphics,
+      flow: flow,
       parts: parts.map(function (p, i) {
         return { label: cleanLabel(p.label, i), text: cleanBlock(p.text, PART_TEXT_MAX), marks: p.marks, lines: partLines(p.marks), answer: '' };
       }),
-      lines: parts.length ? 0 : (stemMarks ? partLines(stemMarks) : DEFAULT_LINES),
+      lines: lines,
       marks: stemMarks,
       answer: '',
       harvested: true
     };
+  }
+
+  /* The flow, made safe: only the item kinds questionBlocks knows, each
+     pointing at a real part / graphic, every part placed once. Null when
+     the flow cannot be trusted — the caller then lays the question out
+     the old way (stem, one figure, the parts). */
+  function cleanFlow(spec) {
+    var flow = spec && spec.flow;
+    if (!Array.isArray(flow) || !flow.length) return null;
+    var parts = (spec.parts || []).length, graphics = (spec.graphics || []).length;
+    var seenPart = {}, seenAnswer = {}, out = [];
+    for (var i = 0; i < flow.length && out.length < 200; i++) {
+      var it = flow[i];
+      if (!it || typeof it !== 'object') continue;
+      if (it.t === 'text') { var t = cleanBlock(it.text, STEM_MAX); if (t) out.push({ t: 'text', text: t }); }
+      else if (it.t === 'fig') { var g = clampInt(it.g, -1, 999, -1); if (g >= 0 && g < graphics) out.push({ t: 'fig', g: g }); }
+      else if (it.t === 'part' || it.t === 'answer') {
+        var p = clampInt(it.p, -1, 99, -1);
+        if (p < 0 || p >= parts) continue;
+        var seen = it.t === 'part' ? seenPart : seenAnswer;
+        if (seen[p]) continue;
+        seen[p] = true;
+        out.push({ t: it.t, p: p });
+      } else if (it.t === 'lines') out.push({ t: 'lines' });
+    }
+    for (var k = 0; k < parts; k++) if (!seenPart[k]) return null;
+    return out;
   }
 
   /* An app WITH a block keeps its block — the teacher's (or the AI's) own
@@ -619,24 +760,73 @@
     });
     return { type: 'table', data: rows };
   }
-  function questionBlocks(spec, figure) {
+  /* The pictures of a flow, grouped: pictures with no words between them
+     sit together in ONE image (side by side, as the app drew them); a
+     table is its own real table. Returns [[g, g…], …] in order. Pure. */
+  function flowGroups(spec, flow) {
+    flow = flow || cleanFlow(spec);
+    var graphics = (spec && spec.graphics) || [], groups = [], cur = null;
+    (flow || []).forEach(function (it) {
+      var g = it.t === 'fig' ? graphics[it.g] : null;
+      if (g && g.kind !== 'table') {
+        if (!cur) { cur = []; groups.push(cur); }
+        cur.push(it.g);
+      } else cur = null;
+    });
+    return groups;
+  }
+  function partBlock(p) {
+    var k = partKey(p.label);
+    var words = str(p.text).trim();
+    var b = { type: 'text', content: parasHtml(k.prefix ? k.prefix + ' ' + words : words), marks: p.marks || 0 };
+    if (k.part) b.part = k.part;
+    if (k.subPart) b.subPart = k.subPart;
+    return b;
+  }
+  function answerBlock(p, i) {
+    return p.lines ? { type: 'plainanswer', lines: clampInt(p.lines, 1, LINES_MAX, DEFAULT_PART_LINES), tag: 'p' + i } : null;
+  }
+  /* figure: ONE picture of every non-table graphic (the old layout, and
+     an app with a block). figs: the flow's picture groups, painted, in
+     flowGroups order — when the spec carries a trusted flow, the question
+     is laid out in READING ORDER (v1.183.0). */
+  function questionBlocks(spec, figure, figs) {
     spec = spec || { parts: [] };
     var parts = spec.parts || [];
     var blocks = [];
+    var flow = cleanFlow(spec);
+    if (flow) {
+      var graphics = spec.graphics || [], gi = -1, inGroup = false, placed = {};
+      flow.forEach(function (it) {
+        if (it.t === 'fig') {
+          var g = graphics[it.g];
+          if (g && g.kind === 'table') { inGroup = false; if (g.rows && g.rows.length) blocks.push(tableBlock(g)); return; }
+          if (!inGroup) { gi++; inGroup = true; var src = figs && figs[gi]; if (src) blocks.push({ type: 'image', url: src }); }
+          return;
+        }
+        inGroup = false;
+        if (it.t === 'text') blocks.push({ type: 'text', content: parasHtml(it.text), marks: 0 });
+        else if (it.t === 'part') blocks.push(partBlock(parts[it.p]));
+        else if (it.t === 'answer') { placed[it.p] = true; var ab = answerBlock(parts[it.p], it.p); if (ab) blocks.push(ab); }
+        else if (it.t === 'lines' && !parts.length && spec.lines) blocks.push({ type: 'plainanswer', lines: clampInt(spec.lines, 1, LINES_MAX, DEFAULT_LINES), tag: 'q' });
+      });
+      // A part whose working lines the flow never placed still gets them.
+      parts.forEach(function (p, i) { if (!placed[i]) { var ab = answerBlock(p, i); if (ab) blocks.push(ab); } });
+      // The stem's marks (a question with no parts) go on its last words.
+      if (!parts.length && spec.marks) {
+        for (var k = blocks.length - 1; k >= 0; k--) if (blocks[k].type === 'text') { blocks[k].marks = spec.marks; break; }
+      }
+      return { blocks: blocks };
+    }
     var stem = str(spec.stem).trim();
     if (stem) blocks.push({ type: 'text', content: parasHtml(stem), marks: parts.length ? 0 : (spec.marks || 0) });
     if (figure) blocks.push({ type: 'image', url: figure });
     (spec.graphics || []).forEach(function (g) { if (g && g.kind === 'table' && g.rows && g.rows.length) blocks.push(tableBlock(g)); });
     if (!parts.length && spec.lines) blocks.push({ type: 'plainanswer', lines: clampInt(spec.lines, 1, LINES_MAX, DEFAULT_LINES), tag: 'q' });
     parts.forEach(function (p, i) {
-      var k = partKey(p.label);
-      var words = str(p.text).trim();
-      var content = parasHtml(k.prefix ? k.prefix + ' ' + words : words);
-      var b = { type: 'text', content: content, marks: p.marks || 0 };
-      if (k.part) b.part = k.part;
-      if (k.subPart) b.subPart = k.subPart;
-      blocks.push(b);
-      if (p.lines) blocks.push({ type: 'plainanswer', lines: clampInt(p.lines, 1, LINES_MAX, DEFAULT_PART_LINES), tag: 'p' + i });
+      blocks.push(partBlock(p));
+      var ab = answerBlock(p, i);
+      if (ab) blocks.push(ab);
     });
     return { blocks: blocks };
   }
@@ -722,7 +912,7 @@
     buildPrompt: buildPrompt, aiLink: aiLink, autoLabel: autoLabel,
     cleanHarvest: cleanHarvest, specFromHarvest: specFromHarvest, mergeHarvest: mergeHarvest, needsHarvest: needsHarvest,
     composeBoxes: composeBoxes, tableColumns: tableColumns, wrapCell: wrapCell, HARVEST_GRAPHICS_MAX: HARVEST_GRAPHICS_MAX,
-    questionBlocks: questionBlocks, appBlocks: appBlocks, partKey: partKey, CHROME_LINE_RE: CHROME_LINE_RE, LABEL_LINE_RE: LABEL_LINE_RE, STOP_LINE_RE: STOP_LINE_RE
+    questionBlocks: questionBlocks, appBlocks: appBlocks, cleanFlow: cleanFlow, flowGroups: flowGroups, isChromeLine: isChromeLine, partKey: partKey, CHROME_LINE_RE: CHROME_LINE_RE, LABEL_LINE_RE: LABEL_LINE_RE, STOP_LINE_RE: STOP_LINE_RE
   };
 
   /* ---------------------------------------------------------------
@@ -910,6 +1100,21 @@
      format. Resolves the painted picture plus `count` (pictures in the
      figure) and `tables`. */
   function paintQuestionPicture(spec, app) {
+    var flow = spec && !spec.figure ? cleanFlow(spec) : null;
+    if (flow) {
+      // In reading order: each run of pictures painted on its own.
+      var groups = flowGroups(spec, flow);
+      return Promise.all(groups.map(function (ids) {
+        var list = ids.map(function (i) { return spec.graphics[i]; });
+        return paintGraphics(list).then(function (fig) {
+          if (!fig) return { src: '', count: 0 };
+          try { return { src: fig.canvas.toDataURL('image/png'), count: fig.count }; } catch (e) { return { src: '', count: 0 }; }
+        }, function () { return { src: '', count: 0 }; });
+      })).then(function (figs) {
+        var count = figs.reduce(function (n, f) { return n + (f.count || 0); }, 0);
+        return withCounts(questionBlocks(spec, '', figs.map(function (f) { return f.src; })), { count: count }, app);
+      });
+    }
     return figureSrc(spec).then(function (fig) { return withCounts(questionBlocks(spec, fig.src), fig, app); });
   }
   /* ➕ Add to page: the app as itself — its title and what it draws. */

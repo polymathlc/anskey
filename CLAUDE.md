@@ -154,6 +154,16 @@ Guidance for Claude when working in this repo.
 - **The app's logo stays off the paper.** The bridge's `logo(el)` (`LOGO_WORDS` on class / id / alt / aria-label / title / file name / an SVG's `<title>`, or a picture inside `header` / `[role=banner]`) is asked of every SVG / CANVAS / IMG / PICTURE. `CHROME_WORDS` also drops logo / brand / wordmark / masthead boxes, and `CHROME_LINE_RE` drops a bare "Polymath (Learning Centre)" line.
 - Run `node --test tools/living-question-tests.mjs` and `node tools/living-library-check.mjs` (the corner on screen must decode as the viewer link's matrix; a magenta header logo, brand box and logo SVG must leave no pixel on the picture).
 
+### 📝 The whole question, in reading order (v1.184.0)
+
+- **`specFromHarvest` builds `spec.flow`**: `{t:'text'}` (stem or lead-in), `{t:'fig', g}` (an index into `graphics`), `{t:'part', p}`, `{t:'answer', p}` (that part's working lines) and `{t:'lines'}` (the stem's own lines when there are no parts). `stem` is still the words before the first part, and each part's `text` is only its own words.
+- **A stop line closes a part only once a part has started** (`STOP_LINE_LEN` 120). Before any part it is only help. Zhi Kai's "Alisha's frozen meat" lost its whole opening paragraph to "…acts out the model answer…" in the wand instructions.
+- **A part is finished once its marks are read** (or a new part opens). Words after a finished part are the next lead-in, never more of the part. A picture inside an OPEN part keeps the part's words after it, and the working lines go under it.
+- `isChromeLine` drops a long line only when it plainly talks about the wand, a button or submitting (up to `CHROME_LINE_LEN`). The bridge marks headings (`head`: H1–H6, or a block with a title / heading class word). `cleanHarvest` keeps the level, and the LEADING headings are dropped: they are the app's name.
+- **`cleanFlow` is the one door**: known kinds only, real indexes only, each part once. If any part is missing, it returns null and the old layout is used (stem, one figure, parts). An app with a question block has no flow, so it keeps the old layout exactly.
+- `questionBlocks(spec, figure, figs)` lays the flow out. `flowGroups` groups pictures with no words between them into ONE image, and `paintQuestionPicture` paints each group on its own. A table is still a real table. The tags `q` / `p0` / `p1` are unchanged, so model answers still land on their lines.
+- Run `node --test tools/living-question-tests.mjs` and `node tools/living-library-check.mjs` (`APP_STORY`: the opening paragraph first, then the two diagrams and the lead-in in order).
+
 ## ⏺ Writing without recording: the "Not recording" warning (v1.173.0, v1.174.0, v1.183.0)
 
 - `record-nudge.js` / `record-nudge.css` own it (`window.RecordNudge`: `create(env)`, `pure`). index.html holds only the glue between `⏺ Writing without recording — glue` and `End writing without recording glue` (`recNudgeInit`, `recNudgeTeacher`, `recNudgeWindowOpen`, `recNudgeInk`, `recNudgeChanged`, `recNudgeSyncSwitch`, `recNudgeRecord`), `#lessonNudgeAgain` in the Record lesson window and `<script>recNudgeInit();</script>` after the module's tag.
