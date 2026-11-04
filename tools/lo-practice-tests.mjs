@@ -202,7 +202,133 @@ test('a practice question is remembered per mistake', () => {
   const b = LP.fromMistake(book({ question: 'Something else entirely' }));
   assert.notEqual(LP.cacheKey(a), LP.cacheKey(b));
   assert.equal(LP.cacheKey(a), LP.cacheKey(LP.fromMistake(book())));
-  assert.match(LP.cacheKey(a), /^lp1:/);
+  assert.match(LP.cacheKey(a), /^lp2:/, 'v2 keys: a question written for NO picture is never shown beside one');
+  const withFig = LP.fromMistake(book({ blocks: [{ type: 'text', text: 'Look.' }, { type: 'image', path: 'tutor-mistakes/u/f0.png' }] }));
+  assert.notEqual(LP.cacheKey(withFig), LP.cacheKey(a), 'a mistake that gains its figure is written again');
+});
+
+/* ---- 🖼 v2: the question as Rapid add stores it ---- */
+const BAR = 'The bar graph shows the different ways the Primary 3 students travel to school daily. How many more students walk than take ' +
+  'the train to school daily? [The bar graph is titled \'Number of students in Primary 3\'. The vertical axis is labelled \'Number of students\', ' +
+  'from 0 to 120, with each small interval representing 4 students. The bars show Walk: 80, By car: 72, By bus: 100, By train: 48.]';
+
+test('🖼 a mistake keeps its pictures: blocks in order, figures, the whole-question crop, the page', () => {
+  const m = LP.fromMistake(book({
+    question: BAR,
+    blocks: [{ type: 'text', text: 'The bar graph shows how pupils travel.' }, { type: 'image', path: 'tutor-mistakes/u/a_f0.png' },
+             { type: 'text', text: 'How many more walk than take the train?' }, { type: 'image', path: 'tutor-mistakes/u/a_f1.png', role: 'options' }],
+    figUrls: ['https://firebasestorage.googleapis.com/f0', 'https://firebasestorage.googleapis.com/f1'],
+    imagePath: 'tutor-mistakes/u/a.jpg', shot: 'question'
+  }));
+  assert.deepEqual(m.blocks.map(b => b.t), ['text', 'img', 'text', 'img']);
+  assert.equal(m.blocks[1].pic.src, 'tutor-mistakes/u/a_f0.png');
+  assert.equal(m.blocks[1].pic.alt, 'https://firebasestorage.googleapis.com/f0', 'the minted link is the second source, in order');
+  assert.equal(m.figs.length, 1, 'a picture of the OPTIONS is not a figure to ask a new question about');
+  assert.equal(m.popts, true);
+  assert.equal(m.qimg.src, 'tutor-mistakes/u/a.jpg');
+  assert.equal(m.pimg, null);
+  assert.equal(LP.tierOf(m), 'blocks');
+  const page = LP.fromMistake(book({ question: BAR, imagePath: 'tutor-mistakes/u/b.jpg', shot: 'page' }));
+  assert.equal(LP.tierOf(page), 'page');
+  assert.equal(LP.tierOf(LP.fromMistake(book())), 'text');
+  const mir = LP.fromMirror({ q: BAR, n: '30', doc: 'P3 EOY', sub: 'math', figs: ['https://x.test/f.png', 'javascript:alert(1)'], img: 'https://x.test/q.jpg', sh: 'question' });
+  assert.equal(mir.figs.length, 1, 'the mirror keeps only https links');
+  assert.equal(mir.qimg.src, 'https://x.test/q.jpg');
+  assert.equal(LP.tierOf(mir), 'question');
+});
+
+test('🖼 only safe picture sources are ever drawn', () => {
+  assert.equal(LP.picSrc('javascript:alert(1)'), '');
+  assert.equal(LP.picSrc('http://plain.test/x.png'), '', 'never plain http');
+  assert.equal(LP.picSrc('data:text/html;base64,AAAA'), '');
+  assert.equal(LP.picSrc('data:image/png;base64,AAAA'), 'data:image/png;base64,AAAA');
+  assert.equal(LP.picSrc('https://ok.test/a.png'), 'https://ok.test/a.png');
+  assert.equal(LP.picSrc('tutor-mistakes/u1/abc_f0.png'), 'tutor-mistakes/u1/abc_f0.png');
+  assert.equal(LP.picSrc('../../etc/passwd'), '', 'a path never climbs');
+  assert.equal(LP.picSrc('<img onerror=x>'), '');
+});
+
+test('🖼 a figure written out in square brackets comes off the wording once the figure is drawn', () => {
+  const t = LP.stripFigureNotes(BAR);
+  assert.doesNotMatch(t, /\[|Walk: 80/);
+  assert.match(t, /How many more students walk than take the train to school daily\?$/);
+  assert.equal(LP.stripFigureNotes('Find the total. [2 marks]'), 'Find the total. [2 marks]', 'the paper\'s own marks stay');
+  assert.ok(LP.needsFigure(LP.fromMistake(book({ question: BAR }))));
+  assert.ok(LP.needsFigure(LP.fromMistake(book({ question: 'The figure below is made of 4 squares. Find its perimeter.' }))));
+  assert.ok(!LP.needsFigure(LP.fromMistake(book())), 'a word problem needs no picture');
+  assert.ok(LP.wantsRebuild(LP.fromMistake(book({ question: BAR }))), 'text that leans on a figure is set out again');
+  assert.ok(!LP.wantsRebuild(LP.fromMistake(book({ question: BAR, blocks: [{ type: 'text', text: 'x' }, { type: 'image', path: 'p/f.png' }] }))),
+    'one with its figure cut already is not');
+  assert.ok(!LP.wantsRebuild(LP.fromMistake(book({ question: BAR, imagePath: 'p/q.jpg', shot: 'question' }))));
+});
+
+test('🖼 the practice prompt keeps the figure and forbids describing it', () => {
+  const m = LP.fromMistake(book({ question: BAR, blocks: [{ type: 'text', text: 'x' }, { type: 'image', path: 'p/f.png' }] }));
+  const withFig = LP.practicePrompt(m, { sub: 'math', figs: 1, seen: true });
+  assert.match(withFig, /\[\[FIG 1\]\]/);
+  assert.match(withFig, /NEVER describe the figure/);
+  assert.match(withFig, /attached/);
+  assert.doesNotMatch(withFig, /make complete sense with NO picture/);
+  const none = LP.practicePrompt(LP.fromMistake(book()), { sub: 'math' });
+  assert.match(none, /NO picture/);
+  assert.match(none, /Never put a description of a figure in square brackets/);
+});
+
+test('🖼 a reply comes back as blocks: text, the figure where it was marked, the ask', () => {
+  const p = LP.cleanPractice({ question: 'The bar graph shows how pupils travel.\n[[FIG 1]]\nHow many more go by bus than by car?', answer: '28', working: ['100 − 72 = 28'] }, 1);
+  assert.deepEqual(p.blocks.map(b => b.t), ['text', 'fig', 'text']);
+  assert.equal(p.blocks[1].i, 0);
+  assert.doesNotMatch(p.question, /FIG/);
+  assert.equal(p.figs, 1);
+  const unmarked = LP.cleanPractice({ question: 'The bar graph shows how pupils travel. How many go by bus or by car altogether? [The bars show Bus: 100, Car: 72.]', answer: '172', working: ['100 + 72 = 172'] }, 1);
+  assert.deepEqual(unmarked.blocks.map(b => b.t), ['text', 'fig', 'text'], 'no marker: the figure goes before the ask');
+  assert.doesNotMatch(unmarked.blocks.map(b => b.text || '').join(' '), /\[The bars/, 'and the bracketed description goes');
+  const refused = LP.cleanPractice({ question: 'Ali has 5 apples. How many?', figure: false, answer: '5', working: ['5'] }, 1);
+  assert.equal(refused.blocks.length, 0, 'a reply that said it needs no figure is printed without one');
+  const noFigs = LP.cleanPractice({ question: 'A [[FIG 1]] B?', answer: '1', working: ['1'] }, 0);
+  assert.equal(noFigs.blocks.length, 0);
+  assert.equal(noFigs.question, 'A  B?'.replace('  ', '  '));
+});
+
+test('🖼 the figure rides along to the model as a picture', async () => {
+  let seen = null;
+  const m = LP.fromMistake(book({ question: BAR, blocks: [{ type: 'image', path: 'p/f.png' }, { type: 'text', text: 'How many more walk?' }] }));
+  const p = await LP.makePractice(m, { sub: 'math', figs: 1, seen: true, images: [{ mimeType: 'image/jpeg', data: 'AAA' }] },
+    async (prompt, opts) => { seen = opts; return JSON.stringify({ question: '[[FIG 1]]\nHow many more go by bus than by train?', answer: '52', working: ['100 − 48 = 52'] }); }, JSON.parse);
+  assert.equal(seen.images.length, 1);
+  assert.deepEqual(p.blocks.map(b => b.t), ['fig', 'text']);
+});
+
+test('🖼 the printed sheet prints the figures, and never a link it was not given', () => {
+  const m = LP.fromMistake(book({ question: BAR, blocks: [{ type: 'text', text: 'The bar graph.' }, { type: 'image', path: 'p/f.png' }, { type: 'text', text: 'How many?' }] }));
+  const p = LP.cleanPractice({ question: 'Graph:\n[[FIG 1]]\nHow many by bus?', answer: '100', working: ['Read the bar: 100'] }, 1);
+  const pic = pc => (pc && pc.src === 'p/f.png' ? 'https://cdn.test/f.png?a=1&b="2"' : '');
+  const html = LP.sheetHtml({ title: 'P', groups: [{ title: 't', items: [{ m, p }, { m, p: null }] }], withKey: true, withMistakes: true, pic });
+  assert.equal((html.match(/<img src="https:\/\/cdn\.test\/f\.png\?a=1&amp;b=&quot;2&quot;"/g) || []).length, 4,
+    'the practice question, the not-yet-written one and both entries under My mistakes each print the figure, escaped');
+  assert.doesNotMatch(html, /Walk: 80/, 'with the figure printed the bracketed description is gone');
+  const nolinks = LP.sheetHtml({ title: 'P', groups: [{ title: 't', items: [{ m, p }] }], withKey: false, pic: () => 'javascript:x' });
+  assert.doesNotMatch(nolinks, /<img/);
+  assert.match(nolinks, /How many by bus/, 'a figure that cannot be named leaves its wording standing');
+  assert.match(LP.questionHtml(LP.fromMistake(book({ question: BAR })), pic), /Walk: 80/, 'text only: the description is all there is, so it stays');
+});
+
+test('✍️ an answer is checked the way a pupil writes it', () => {
+  assert.equal(LP.answerMatches('32', '32'), true);
+  assert.equal(LP.answerMatches('32 students', ' 32 '), true);
+  assert.equal(LP.answerMatches('(1) 32', '32'), true, 'the key\'s last number is its answer');
+  assert.equal(LP.answerMatches('1200', '1,200'), true);
+  assert.equal(LP.answerMatches('3/4', '0.75'), true);
+  assert.equal(LP.answerMatches('2 1/2', '2½'), true);
+  assert.equal(LP.answerMatches('2 h 30 min', '2 h 30 min'), true);
+  assert.equal(LP.answerMatches('32', '36'), false);
+  assert.equal(LP.answerMatches('32', ''), false);
+  assert.equal(LP.answerMatches('', '32'), null, 'no key: nothing to check against');
+  assert.equal(LP.optionIsKey('(1) 32', { label: '1', text: '32' }, 0), true);
+  assert.equal(LP.optionIsKey('(1) 32', { label: '2', text: '36' }, 1), false);
+  assert.equal(LP.optionIsKey('2', { label: '2', text: '36' }, 1), true);
+  assert.equal(LP.optionIsKey('B', { label: '', text: '36' }, 1), true);
+  assert.equal(LP.optionIsKey('36', { label: '2', text: '36' }, 1), true, 'a key that names the option by its text');
 });
 
 test('the file never reaches a model or the network by itself', () => {

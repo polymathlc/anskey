@@ -107,6 +107,75 @@
 .lpRowGo:focus { outline: 2px solid #C9A227; outline-offset: -2px; }
 .lpGoMark { font-size: 0.72em; margin-left: 6px; color: #7A5B00; white-space: nowrap; }
 
+/* 🖼 v2 — the question as Rapid add stores it: wording, then the figure
+   where it was printed, cut out and redrawn clean. `contain`, never
+   `cover`: a crop that is cut is a figure with a label missing. */
+.lpQ { margin: 4px 0; }
+.lpQText { white-space: pre-wrap; line-height: 1.55; overflow-wrap: anywhere; margin: 2px 0; }
+.lpFig { margin: 8px 0; text-align: center; }
+.lpFig img {
+  display: inline-block; max-width: 100%; max-height: 340px; width: auto; height: auto; object-fit: contain;
+  background: #fff; border: 1px solid var(--line, #E2E2DD); border-radius: 8px; padding: 4px;
+}
+.lpFigWhole img { max-height: 520px; }
+.lpFigOpts img { max-height: 220px; }
+.lpWords { margin: 4px 0; font-size: 0.78rem; }
+.lpWords > summary { cursor: pointer; color: #1F4E79; }
+
+/* ✍️ trying it */
+.lpTryWrap { margin-top: 8px; }
+.lpTryWrap > summary { cursor: pointer; font-size: 0.8rem; color: #1F4E79; font-weight: 600; }
+.lpTry { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.lpTryOpts { display: flex; flex-wrap: wrap; gap: 6px; }
+.lpTryOpt {
+  font: inherit; font-size: 0.86rem; padding: 6px 12px; border-radius: 10px; cursor: pointer; text-align: left;
+  border: 1px solid var(--line, #E2E2DD); background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+}
+.lpTryOpt:hover { border-color: #1F4E79; }
+.lpTryOpt.on { border-color: #1F4E79; background: #EAF1F8; font-weight: 600; }
+.lpTryLine { display: flex; gap: 6px; width: 100%; }
+.lpTryIn {
+  font: inherit; font-size: 0.9rem; padding: 6px 10px; border-radius: 10px; flex: 1; min-width: 0;
+  border: 1px solid var(--line, #E2E2DD); background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+}
+.lpTryIn:focus { outline: 2px solid #C9A227; outline-offset: 0; }
+.lpTryRes { font-size: 0.84rem; min-height: 1em; }
+.lpTryRes:empty { display: none; }
+.lpTryOk { color: #1E5E22; font-weight: 700; }
+.lpTryNo { color: #8C1D18; font-weight: 600; }
+.lpTryUn { color: var(--ink-soft, #55554F); }
+.lpTryKey { padding: 6px 10px; border-radius: 8px; background: #F4F6F9; width: 100%; box-sizing: border-box; }
+
+/* 👆 the hover card over a coloured cell of the objective table */
+.lpPv {
+  position: fixed; z-index: 10060; max-height: min(78vh, 640px); overflow-y: auto; box-sizing: border-box;
+  background: var(--bg, #fff); color: var(--ink, #1F1F1C); border: 1px solid var(--line, #E2E2DD);
+  border-radius: 14px; box-shadow: 0 16px 44px rgba(0, 0, 0, 0.24); padding: 10px 12px 12px; font-size: 0.86rem;
+}
+.lpPv[hidden] { display: none; }
+.lpPvHead { display: flex; align-items: flex-start; gap: 6px; }
+.lpPvTitle { flex: 1; font-weight: 700; font-size: 0.86rem; line-height: 1.35; overflow-wrap: anywhere; }
+.lpPvX { padding: 2px 6px; font-size: 0.9rem; }
+.lpPvSub { font-size: 0.74rem; color: var(--ink-soft, #55554F); margin: 2px 0 4px; }
+.lpPvQs { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
+.lpPvQ { font-size: 0.72rem; padding: 1px 7px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.lpPvQy { background: #E6F2E7; color: #1E5E22; }
+.lpPvQp { background: #FFF3E0; color: #7A4A00; }
+.lpPvQn { background: #FDECEA; color: #8C1D18; }
+.lpPvQb { background: #EEF0F3; color: #4A5462; }
+.lpPvTabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 6px; }
+.lpPvTab {
+  font: inherit; font-size: 0.74rem; padding: 2px 9px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line, #E2E2DD); background: var(--bg-soft, #F6F6F3); color: var(--ink, #1F1F1C);
+}
+.lpPvTab.on { background: #1F4E79; border-color: #1F4E79; color: #fff; }
+.lpPvCard { border-top: 1px solid var(--line, #E2E2DD); padding-top: 6px; }
+.lpPvCard .lpFig img { max-height: 260px; }
+.lpPvCard .lpFigWhole img { max-height: 360px; }
+.lpPvAsk { font-size: 0.78rem; font-weight: 700; color: #7A5B00; margin-top: 6px; }
+.lpPvEmpty { padding: 10px 2px; color: var(--ink-soft, #55554F); line-height: 1.5; }
+.lpPvFoot { margin-top: 10px; display: flex; justify-content: flex-end; }
+
 /* ---- the printed sheet ---- */
 .lpSheet { font-family: Georgia, 'Times New Roman', serif; color: #000; font-size: 12pt; line-height: 1.45; }
 .lpSheetHead { border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
@@ -132,6 +201,10 @@
 .lpSumTable th:first-child, .lpSumTable td:first-child { text-align: left; }
 .lpSumTopic { font-size: 8.5pt; color: #444; }
 .lpSumTable tr.lpB-lo td:nth-child(4) { font-weight: 700; }
+.lpSheetFig { margin: 6px 0; break-inside: avoid; page-break-inside: avoid; }
+.lpSheetFig img { display: block; max-width: 100%; max-height: 9cm; width: auto; height: auto; margin: 0 auto; }
+.lpSheetWhole img { max-height: 14cm; }
+.lpSheetMisQ { margin: 2px 0; }
 
 @media (max-width: 560px) {
   .lpBack { padding: 0; }
@@ -140,6 +213,6 @@
   .lpPrintBtn { margin-left: 0; }
 }
 @media print {
-  .lpBack { display: none !important; }
+  .lpBack, .lpPv { display: none !important; }
   .lpSheetWork { border-color: #999; }
 }

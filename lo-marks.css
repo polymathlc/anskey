@@ -65,6 +65,8 @@
 
 .lmCell { text-align: center; white-space: nowrap; cursor: pointer; min-width: 38px; }
 .lmCell:focus { outline: 2px solid #1F4E79; outline-offset: -2px; }
+/* 👆 a cell that opens its questions */
+.lmCellGo:hover { outline: 2px solid #C9A227; outline-offset: -2px; filter: saturate(1.25); }
 .lmEmpty { cursor: default; background: transparent; }
 .lmSum { text-align: center; white-space: nowrap; font-weight: 600; background: #FAFAF8; }
 .lmPct { text-align: center; white-space: nowrap; font-weight: 700; }

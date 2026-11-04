@@ -115,8 +115,42 @@
           sort: sortMap[how && how.sort] || 'weak',
           title: '✏️ Maths' + (how && how.level && how.level !== 'all' ? ' ' + how.level : '') + ' — every mistake as practice'
         });
-      }
+      },
+      /* 👆 v1.188.0 — a COLOURED CELL: tap it for that paper's questions on
+         that objective (with the figures Study Buddy cut out and cleaned);
+         point at it for a card with the question itself, to try there. */
+      onCell: cellOpen,
+      onCellHover: function (pick, how) {
+        var P = LP();
+        if (!P || !pick || !how || !how.td) return;
+        P.preview({
+          doc: document, anchor: how.td,
+          title: pick.title, sub: pick.sheet,
+          items: cellMistakes(pick), qs: pick.qs,
+          onOpen: function () { cellOpen(pick); }
+        });
+      },
+      onCellLeave: function () { var P = LP(); if (P) P.hidePreview(true); }
     };
+  }
+  /* PURE apart from the roster row: the student's mistakes behind one cell. */
+  function cellMistakes(pick) {
+    var P = LP();
+    if (!P || !pick) return [];
+    return mistakesOf(state.profile).filter(function (m) { return P.matches(m, pick.sel); });
+  }
+  function cellOpen(pick) {
+    var P = LP();
+    if (!pick) return;
+    if (P) P.hidePreview(false);
+    practise(pick.groups, {
+      sort: 'syllabus',
+      title: '✏️ ' + pick.title + ' — ' + pick.sheet,
+      subtitle: 'The questions this paper asked on ' + (pick.groups.length > 1 ? 'these objectives' : 'this objective') +
+        (pick.qs && pick.qs.length ? ' (' + pick.qs.map(function (q) { return 'Q' + q.n; }).join(', ') + ')' : '') +
+        ', each one missed with its figure, and a fresh practice question on the same skill with the answer and working in model drawing and units — never algebra.',
+      emptyText: 'Nothing was missed here — every question this paper asked on it was right. 🎉'
+    });
   }
 
   function LM() {
@@ -186,6 +220,8 @@
   }
 
   function closeView() {
+    var P = LP();
+    if (P && P.hidePreview) P.hidePreview(false);
     if (!state.el) return;
     state.el.classList.remove('open');
     state.open = false;
@@ -221,6 +257,7 @@
     state.view = L.mount(body, {
       sheets: sheets, name: name, doc: document,
       onRow: h.onRow, onSheet: h.onSheet, onPractice: h.onPractice,
+      onCell: h.onCell, onCellHover: h.onCellHover, onCellLeave: h.onCellLeave,
       emptyText: 'No maths worksheet has been marked by objective yet. The table fills in after ' + name +
         '’s next maths worksheet is marked in Study Buddy, and papers marked earlier arrive the next time ' + name +
         ' opens Study Buddy.'
@@ -255,5 +292,5 @@
     }
   }
 
-  return { open: open, close: closeView, count: count, pure: { sheetsOf: sheetsOf, mistakesOf: mistakesOf } };
+  return { open: open, close: closeView, count: count, pure: { sheetsOf: sheetsOf, mistakesOf: mistakesOf, cellMistakes: cellMistakes } };
 });
