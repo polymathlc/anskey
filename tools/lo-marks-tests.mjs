@@ -272,6 +272,43 @@ test('mount draws the table, the chips filter it, a tapped cell names its questi
   assert.match(host.textContent, /No maths worksheet has been marked by objective yet/);
 });
 
+test('👆 a coloured cell opens THAT paper\'s questions on that objective, and hovering asks for the card', async () => {
+  const doc = fakeDoc();
+  doc.defaultView = { matchMedia: () => ({ matches: true }) };
+  const host = doc.createElement('div');
+  const S = sheets([
+    ws('WA1', T0, [row('P5.FR.2.6', 1, 2, 2, '1=1/2'), row('P5.FR.2.5', 2, 2, 2, '4=2/2')]),
+    ws('WA2', T0 + DAY, [row('P5.FR.2.6', 0, 3, 3, '7=0/3')])
+  ]);
+  const picks = [], hovers = [];
+  LM.mount(host, { sheets: S, doc, onCell: (pick, how) => picks.push({ pick, how }), onCellHover: (pick, how) => hovers.push({ pick, how }) });
+  const cells = host.all(n => n.tagName === 'td' && /lmCell/.test(n.className) && !/lmEmpty|lmGrpCell|lmFootCell/.test(n.className));
+  const zero = cells.find(c => c.textContent === '0/3');
+  assert.ok(/lmCellGo/.test(zero.className), 'a cell with a door looks like one');
+  zero.fire('click');
+  assert.equal(picks.length, 1);
+  const pk = picks[0].pick;
+  assert.equal(pk.groups.length, 1);
+  assert.deepEqual(pk.groups[0].sel.los, ['P5.FR.2.6']);
+  assert.equal(pk.groups[0].sel.ws, 'WA2', 'narrowed to the paper the cell is in');
+  assert.ok(pk.groups[0].sel.docId, 'by its id too');
+  assert.equal(pk.groups[0].got, 0);
+  assert.equal(pk.groups[0].att, 3, 'the group carries THAT cell\'s marks, not the row\'s');
+  assert.deepEqual(pk.qs.map(q => q.n), ['7']);
+  assert.match(pk.sheet, /^WA2/);
+  zero.fire('mouseenter');
+  await new Promise(r => setTimeout(r, 380));
+  assert.equal(hovers.length, 1, 'a hover asks for the card after a short pause');
+  assert.equal(hovers[0].how.td, zero);
+  const grp = host.all(n => n.tagName === 'td' && /lmGrpCell/.test(n.className) && n.textContent === '3/4')[0];
+  assert.ok(grp, 'the topic cell of WA1');
+  grp.fire('click');
+  const gp = picks[1].pick;
+  assert.deepEqual(gp.groups.map(g => g.sel.los[0]).sort(), ['P5.FR.2.5', 'P5.FR.2.6'], 'a topic cell is the objectives that paper tested');
+  assert.deepEqual(gp.qs.map(q => q.n).sort(), ['1', '4']);
+  assert.equal(LM.cellPick(null), null);
+});
+
 test('one paper\'s level is picked for you', () => {
   const doc = fakeDoc();
   const host = doc.createElement('div');

@@ -1013,7 +1013,53 @@
     if (text != null) n.textContent = text;
     return n;
   }
-  function cellNode(doc, c, col, row, onPick, isGroup) {
+  /* ---- 👆 WHAT ONE COLOURED CELL STANDS FOR ----
+     A cell is one objective (or a topic of them) on ONE paper. This is the
+     practice window's selection for it — the row's objectives, narrowed to
+     that worksheet — plus the cell's own questions (`qs`, decoded) and a
+     title. A topic cell keeps only the objectives that paper really
+     tested, so its card is that paper's questions and nothing else. Pure. */
+  function cellPick(row, kind, col, ci) {
+    if (!row || !col) return null;
+    var isGroup = kind === 'group';
+    var rows = isGroup ? (row.rows || []).filter(function (x) { return x.cells && x.cells[ci]; }) : [row];
+    if (isGroup && !rows.length) rows = row.rows || [];
+    var narrow = function (sel) { return Object.assign({}, sel, { docId: col.id || '', ws: col.ws || '' }); };
+    var groups = rows.map(function (x) {
+      var g = groupOf(x);
+      var c = x.cells ? x.cells[ci] : null;
+      g.key = 'c:' + ci + ':' + g.key;
+      g.sel = narrow(g.sel);
+      if (c) {
+        g.got = c.got; g.att = c.att; g.tot = c.tot; g.q = c.q;
+        g.pct = pct(c.got, c.att);
+        g.qs = c.qs && c.qs.length ? qsText(c.qs) : '';
+      }
+      return g;
+    });
+    var cell = row.cells ? row.cells[ci] : null;
+    var qs = [];
+    if (isGroup) rows.forEach(function (x) { var c = x.cells && x.cells[ci]; if (c && c.qs) qs = qs.concat(c.qs); });
+    else if (cell && cell.qs) qs = cell.qs.slice();
+    var seen = {};
+    qs = qs.filter(function (q) { var k = q.n + '|' + q.got + '|' + q.tot; if (seen[k]) return false; seen[k] = 1; return true; });
+    var name = isGroup ? ((row.sub && row.sub !== row.topic ? row.sub + ' · ' : '') + row.topic) : ((row.id ? row.id + ' ' : '') + row.text);
+    return {
+      groups: groups,
+      qs: qs,
+      sel: groups.length === 1 ? groups[0].sel : narrow(selOf(isGroup ? Object.assign({}, row, { kind: 'group' }) : row)),
+      title: name,
+      sheet: col.ws + (col.at ? ' · ' + dateText(col.at) : ''),
+      cell: cell
+    };
+  }
+  /* A pointer that can HOVER. A phone's tap fires mouseenter too, and a
+     card that opened on the way to a click would be opened twice. */
+  function canHover(doc) {
+    var w = doc && doc.defaultView;
+    try { return !!(w && w.matchMedia && w.matchMedia('(hover: hover) and (pointer: fine)').matches); } catch (e) { return false; }
+  }
+  function cellNode(doc, c, col, row, onPick, isGroup, hooks, ci) {
     var td = make(doc, 'td', 'lmCell' + (isGroup ? ' lmGrpCell' : ''));
     if (!c) { td.classList.add('lmEmpty'); return td; }
     var p = pct(c.got, c.att);
@@ -1025,15 +1071,39 @@
       td.classList.add('lm-blank');
     }
     var words = (col ? col.ws + (col.at ? ' · ' + dateText(col.at) : '') + '\n' : '') +
-      (row ? (row.id ? row.id + ' ' : '') + row.text + '\n' : '') +
+      (row ? (row.id ? row.id + ' ' : '') + (row.text || row.topic || '') + '\n' : '') +
       (c.att > 0 ? fmt(c.got) + ' of ' + fmt(c.att) + ' marks on what was attempted (' + p + '%)' : 'Left blank') +
       (c.tot > c.att ? ' · ' + fmt(c.tot - c.att) + ' mark' + (c.tot - c.att === 1 ? '' : 's') + ' left blank' : '') +
       (c.qs && c.qs.length ? '\n' + qsText(c.qs) : '');
-    td.title = words;
+    hooks = hooks || {};
+    var kind = isGroup ? 'group' : 'row';
+    /* 👆 With a question card to show, the native tooltip would sit on top
+       of it, so the words move to the accessible name instead. */
+    if (hooks.onCellHover) td.setAttribute('aria-label', words.replace(/\n/g, ' · '));
+    else td.title = words;
     td.tabIndex = 0;
     td.setAttribute('role', 'button');
-    td.addEventListener('click', function () { onPick(words); });
-    td.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onPick(words); } });
+    var pick = function (how) {
+      onPick(words);
+      if (hooks.onCell) hooks.onCell(row, kind, col, ci, c, td, how);
+    };
+    td.addEventListener('click', function () { pick('click'); });
+    td.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick('key'); } });
+    if (hooks.onCellHover) {
+      td.classList.add('lmCellGo');
+      var t = 0;
+      td.addEventListener('mouseenter', function () {
+        if (!canHover(doc)) return;
+        clearTimeout(t);
+        t = setTimeout(function () { hooks.onCellHover(row, kind, col, ci, c, td); }, 320);
+      });
+      td.addEventListener('mouseleave', function () {
+        clearTimeout(t);
+        if (hooks.onCellLeave) hooks.onCellLeave(row, kind, col, ci, c, td);
+      });
+    } else if (hooks.onCell) {
+      td.classList.add('lmCellGo');
+    }
     return td;
   }
   function sumCells(doc, tr, r) {
@@ -1094,7 +1164,7 @@
       th.title = (r.id ? r.id + ' — ' : '') + r.text + (r.topic ? '\n' + (r.level ? r.level + ' · ' : '') + (r.sub ? r.sub + ' · ' : '') + r.topic : '');
       if (hooks.onRow) goable(th, 'Practise the mistakes on this objective', function () { hooks.onRow(r, 'row'); });
       tr.appendChild(th);
-      r.cells.forEach(function (c, ci) { tr.appendChild(cellNode(doc, c, model.cols[ci], r, onPick, false)); });
+      r.cells.forEach(function (c, ci) { tr.appendChild(cellNode(doc, c, model.cols[ci], r, onPick, false, hooks, ci)); });
       sumCells(doc, tr, r);
       return tr;
     };
@@ -1111,7 +1181,7 @@
         if (hooks.onRow) goable(gh, 'Practise every mistake in this topic', function () { hooks.onRow(g, 'group'); });
         gr.appendChild(gh);
         g.cells.forEach(function (c, ci) {
-          gr.appendChild(cellNode(doc, c, model.cols[ci], { id: '', text: g.topic }, onPick, true));
+          gr.appendChild(cellNode(doc, c, model.cols[ci], g, onPick, true, hooks, ci));
         });
         sumCells(doc, gr, g);
         tbody.appendChild(gr);
@@ -1238,11 +1308,23 @@
         host.appendChild(make(doc, 'div', 'lmEmptyNote', 'Nothing at this level yet.'));
         return;
       }
-      var detail = make(doc, 'div', 'lmDetail', 'Tap a cell to see the questions behind it.' +
+      var detail = make(doc, 'div', 'lmDetail', (opts.onCell
+        ? 'Tap a coloured cell to open its questions' + (opts.onCellHover ? ' — or point at one to preview the question and try it there' : '') + '.'
+        : 'Tap a cell to see the questions behind it.') +
         (opts.onRow ? ' Tap an objective or a topic to practise its mistakes' + (opts.onSheet ? ', or a worksheet number for that paper\'s report.' : '.') : ''));
       detail.setAttribute('aria-live', 'polite');
       host.appendChild(tableNode(doc, model, function (words) { detail.textContent = words; detail.classList.add('on'); }, {
         onRow: typeof opts.onRow === 'function' ? function (r, kind) { opts.onRow(r, kind, model); } : null,
+        /* 👆 a coloured cell: tap → its questions; hover → a card to try one */
+        onCell: typeof opts.onCell === 'function' ? function (r, kind, col, ci, c, td, how) {
+          opts.onCell(cellPick(r, kind, col, ci), { row: r, kind: kind, col: col, td: td, how: how, model: model });
+        } : null,
+        onCellHover: typeof opts.onCellHover === 'function' ? function (r, kind, col, ci, c, td) {
+          opts.onCellHover(cellPick(r, kind, col, ci), { row: r, kind: kind, col: col, td: td, model: model });
+        } : null,
+        onCellLeave: typeof opts.onCellLeave === 'function' ? function (r, kind, col, ci, c, td) {
+          opts.onCellLeave({ row: r, kind: kind, col: col, td: td });
+        } : null,
         onSheet: typeof opts.onSheet === 'function' ? function (c) {
           opts.onSheet(state.sheets.filter(function (s) { return s.id === c.id; })[0] || null, c);
         } : null
@@ -1273,6 +1355,7 @@
     ROWS_MAX: ROWS_MAX,
     QS_MAX: QS_MAX,
     UNLISTED: UNLISTED,
+    cellPick: cellPick,
     MATH_TREE: MATH_TREE,
     catalogue: catalogue,
     entries: entries,

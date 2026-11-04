@@ -2,6 +2,17 @@
 
 Guidance for Claude when working in this repo.
 
+## 🖼 The question with its figure, and 👆 the cells open (v1.188.0)
+
+`lo-practice.js` / `.css` / `tools/lo-practice-tests.mjs` and `lo-marks.js` / `.css` / `tools/lo-marks-tests.mjs` are byte for
+byte Study Buddy's (v1.80.0) — see the 🖼 v2 note at the top of lo-practice.js. The practice window and the hover card draw
+each mistake with the figures Study Buddy cut out and cleaned (the mirror row's `figs` / `img` / `sh`, links only), and a
+fresh practice question is asked of the SAME figure (`[[FIG n]]` blocks). In `lo-view.js` a coloured cell is a door:
+`onCell: cellOpen` opens the practice window on that paper's questions for that objective, `onCellHover` opens
+`LoPractice.preview` (the question, its figure and a ✍️ try box). Ans Key passes no `rebuild` — a teacher's device never
+writes a student's pictures. The lo-* files now load with `?v=1.188.0`. Run `node --test tools/lo-view-tests.mjs
+tools/lo-practice-tests.mjs tools/lo-marks-tests.mjs`.
+
 ## ✏️ Practice from the objective table (v1.187.0)
 
 `lo-practice.js`/`.css`/`tools/lo-practice-tests.mjs` are byte for byte Study Buddy's. `LoView.open` takes `ask`
