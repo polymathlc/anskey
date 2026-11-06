@@ -145,7 +145,7 @@ async function setup(pendingGuest = false, pendingQuest = false) {
     window.wheelRandom = () => 0;
     applyRewardVisibility();
   });
-  await page.click('#wheelBtn');
+  await page.click('#wheelBtn'); await page.evaluate(()=>setWheelMin(false)); // full-wheel coverage; the compact default (v1.189.0) has its own checks
   if(pendingQuest){await page.waitForFunction(()=>!!document.querySelector('#wheelQuest [data-quest-retry]')&&!document.querySelector('#wheelQuest [data-quest-retry]').disabled);return;}
   await page.waitForFunction(pending => pending ? !document.getElementById('wheelGuestRetry').hidden && !document.getElementById('wheelGuestRetry').disabled : !window.wheelGuestsBusy?.() && !document.getElementById('wheelSpinBtn').disabled,pendingGuest);
 }

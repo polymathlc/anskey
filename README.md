@@ -4,6 +4,22 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.190.0 — 🎡 The wheel quest opens small, and the small window scales
+
+- **The wheel quest now opens in its compact (minimised) window by default** — from the toolbar's Wheel
+  button, the **Z** shortcut and the command search alike. ▢ still restores the full wheel. The manual
+  Battle screen, which embeds the wheel in its sidebar, keeps the full layout.
+- **The compact window can be resized to any size.** The resize corner was hidden in the minimised window
+  (every other minimised window is a bare title bar); it now shows in the bottom-right corner. Drag it from a
+  small card up to the whole screen.
+- **Everything scales together.** One scale number is worked out from the window's own size and every font,
+  the name reel, the buttons, the HP/MP bars and the hero and enemy pictures follow it, so text and characters
+  always grow and shrink together. Every hero and every enemy (1v1, 2v2, 3v3) stays inside the battle box at
+  every size. A window much taller than wide stacks the reel above the battle.
+- The **Lesson slot** is now in the compact window, under Turn, so it can be chosen without restoring.
+- Teammates a turn healed or shielded now show along the top of the compact battle box instead of being hidden.
+
+
 ## v1.187.0 — ✏️ Practise a student's mistakes straight from the objective table
 
 - In **📐 Objectives**, every objective and every topic is now tappable. It opens that student's maths

@@ -145,7 +145,7 @@ async function setup(pendingGuest = false) {
     window.wheelRandom = () => 0;
     applyRewardVisibility();
   });
-  await page.click('#wheelBtn');
+  await page.click('#wheelBtn'); await page.evaluate(()=>setWheelMin(false)); // full-wheel coverage; the compact default (v1.189.0) has its own checks
   await page.waitForFunction(pending => pending ? !document.getElementById('wheelGuestRetry').hidden && !document.getElementById('wheelGuestRetry').disabled : !window.wheelGuestsBusy?.() && !document.getElementById('wheelSpinBtn').disabled,pendingGuest);
 }
 async function panel() {
@@ -225,6 +225,56 @@ try {
       await page.locator('#wheelModal').screenshot({path:path.join(output,'team-battle-3v3-compact-award.png')});
     }
   }
+  // v1.189.0 — the compact window resizes freely and everything in it scales together.
+  // Sweep it from a small card to most of the screen, wide and tall: every hero and enemy
+  // must stay inside the battle box, the names' type must follow --cw-k, and a bigger
+  // window must never give smaller pictures.
+  await page.setViewportSize({width:1440,height:1000});await page.waitForTimeout(80);
+  const sizeTo=async box=>{await page.evaluate(b=>{wheelCompactWin=clampWheelWin({x:8,y:8,w:b.w,h:b.h});applyWheelWin();},box);await page.waitForTimeout(80);};
+  const measure=()=>page.evaluate(()=>{
+    const card=document.getElementById('wheelCard'),box=document.getElementById('cwBattle').getBoundingClientRect(),c=card.getBoundingClientRect();
+    const k=Number(card.style.getPropertyValue('--cw-k'));
+    const cards=[...document.querySelectorAll('#cwBattle .cbActiveTeam>.cbQuickHero,#cwBattle .cbEnemyMember')].map(n=>n.getBoundingClientRect());
+    const art=[...document.querySelectorAll('#cwBattle .cbActiveTeam .cbaHero,#cwBattle .cbEnemyMember>:first-child')].map(n=>n.getBoundingClientRect());
+    const name=document.querySelector('#cwBattle .cbEnemyMember>strong'),face=document.querySelector('.cwFace');
+    const inside=r=>r.width>0&&r.height>0&&r.top>=box.top-1&&r.bottom<=box.bottom+1&&r.left>=box.left-1&&r.right<=box.right+1;
+    const others=['cwSpin','cwClass','wheelGrip'].map(id=>document.getElementById(id).getBoundingClientRect());
+    return {k,layout:card.dataset.cwLayout,w:c.width,h:c.height,cards:cards.length,inside:cards.every(inside)&&art.every(inside),
+      art:Math.min(...art.map(r=>Math.min(r.width,r.height))),artMean:art.reduce((a,r)=>a+r.height,0)/art.length,
+      nameFont:parseFloat(getComputedStyle(name).fontSize),faceFont:parseFloat(getComputedStyle(face).fontSize),
+      inCard:others.every(r=>r.width>0&&r.left>=c.left-1&&r.right<=c.right+1&&r.top>=c.top-1&&r.bottom<=c.bottom+1),
+      overflow:document.getElementById('cwBattle').scrollHeight<=document.getElementById('cwBattle').clientHeight+1};
+  });
+  let previous=null;
+  for(const box of [{w:240,h:170},{w:420,h:200},{w:620,h:280},{w:900,h:400},{w:1240,h:560},{w:1420,h:980}]){
+    await sizeTo(box);const m=await measure();
+    check('compact '+box.w+'×'+box.h+' keeps all six fighters inside the battle box and its controls inside the window (k '+m.k+')',m.cards===6&&m.inside&&m.overflow&&m.inCard);
+    check('compact '+box.w+'×'+box.h+' scales the type with the window',Math.abs(m.nameFont-10*m.k)<0.6&&Math.abs(m.faceFont-15*m.k)<0.6);
+    if(previous)check('a bigger compact window ('+box.w+'×'+box.h+') never shows smaller characters or type',m.k>=previous.k&&m.artMean>=previous.artMean-1&&m.nameFont>=previous.nameFont);
+    previous=m;
+    if(box.w===1420)await page.locator('#wheelModal').screenshot({path:path.join(output,'team-battle-3v3-compact-large.png')});
+    if(box.w===240)await page.locator('#wheelModal').screenshot({path:path.join(output,'team-battle-3v3-compact-small.png')});
+  }
+  check('the largest compact window draws the characters several times their base size',previous.k>=2.2&&previous.art>=60);
+  for(const box of [{w:340,h:480},{w:420,h:900}]){
+    await sizeTo(box);const m=await measure();
+    check('a tall '+box.w+'×'+box.h+' window stacks the reel above the battle and keeps every fighter inside it',m.layout==='tall'&&m.cards===6&&m.inside&&m.overflow&&m.inCard&&m.art>=30);
+    const order=await page.evaluate(()=>document.querySelector('.cwPicker').getBoundingClientRect().bottom<=document.getElementById('cwBattle').getBoundingClientRect().top+1);
+    check('the tall layout puts the reel above the battle',order);
+    if(box.h===900)await page.locator('#wheelModal').screenshot({path:path.join(output,'team-battle-3v3-compact-tall.png')});
+  }
+  // A real drag of the corner, not just a set box: the grip is on screen in the minimised window.
+  await sizeTo({w:620,h:280});
+  const grip=await page.locator('#wheelGrip').boundingBox();
+  check('the resize corner is visible and on top in the minimised window',!!grip&&await page.evaluate(()=>{const g=document.getElementById('wheelGrip').getBoundingClientRect();return document.elementFromPoint(g.x+g.width/2,g.y+g.height/2)===document.getElementById('wheelGrip');}));
+  await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2);await page.mouse.down();
+  await page.mouse.move(grip.x+grip.width/2+500,grip.y+grip.height/2+260,{steps:8});await page.mouse.up();await page.waitForTimeout(80);
+  const dragged=await measure();
+  check('dragging the corner grows the compact window and everything in it',dragged.w>=1100&&dragged.h>=520&&dragged.k>1.7&&dragged.inside&&Math.abs(dragged.nameFont-10*dragged.k)<0.6);
+  check('the dragged size is remembered for the compact window only',await page.evaluate(()=>{const saved=JSON.parse(localStorage.getItem(WHEEL_COMPACT_WIN_KEY));return saved.w===wheelCompactWin.w&&saved.h===wheelCompactWin.h&&wheelWin.w!==wheelCompactWin.w;}));
+  await page.click('#wheelMinBtn');
+  check('restoring the full wheel clears the compact scale',await page.evaluate(()=>!wheelMin&&!document.getElementById('wheelCard').style.getPropertyValue('--cw-k')));
+  await page.click('#wheelMinBtn');
   check('team battle UI has no uncaught exceptions',errors.length===0);
   console.log(`Passed ${checks} team battle browser checks.`);
 } finally {await browser.close();}

@@ -86,6 +86,16 @@ await page.evaluate((cls) => { localStorage.setItem('polymath.wheelClass', cls);
 await page.click('#wheelBtn');
 await page.waitForFunction(() => wheelState && wheelState.names.length === 5, null, { timeout: 3000 });
 ok('it opens on the class register', await page.evaluate(() => wheelState.names.map(n => n.n).join() === 'Ann,Ben,Cai,Dee,Eli'));
+// v1.189.0: the wheel quest opens in its compact window, from the button AND the Z shortcut.
+const opened = await page.evaluate(() => ({ min: wheelMin, panel: !$('wheelCompact').hidden, body: getComputedStyle(document.querySelector('.whBody')).display, grip: getComputedStyle($('wheelGrip')).display, cls: $('cwClass').value, k: $('wheelCard').style.getPropertyValue('--cw-k') }));
+ok('the button opens the compact window by default, with its resize corner and the Lesson slot', opened.min && opened.panel && opened.body === 'none' && opened.grip !== 'none' && opened.cls === CLASS && opened.k === '1', JSON.stringify(opened));
+await page.click('#wheelCloseBtn');
+await page.evaluate(() => { document.activeElement && document.activeElement.blur && document.activeElement.blur(); });
+await page.keyboard.press('z');
+await page.waitForFunction(() => wheelIsOpen() && wheelState && wheelState.names.length === 5, null, { timeout: 3000 });
+ok('the Z shortcut opens the compact window too', await page.evaluate(() => wheelMin && !$('wheelCompact').hidden));
+await page.click('#wheelMinBtn');
+ok('▢ restores the full wheel', await page.evaluate(() => !wheelMin && $('wheelCompact').hidden && getComputedStyle(document.querySelector('.whBody')).display !== 'none'));
 const box0 = await page.evaluate(() => { const r = $('wheelCanvas').getBoundingClientRect(); return { w: r.width, h: r.height }; });
 ok('the wheel opens compact beside the quest, still readable', box0.w >= 200 && box0.w <= 320 && Math.abs(box0.w - box0.h) < 1, JSON.stringify(box0));
 ok('the enlarged wheel preserves crisp pixel rendering', await page.evaluate(() => {
@@ -173,6 +183,8 @@ await page.evaluate((cls) => {
 }, CLASS);
 await page.click('#wheelBtn');
 await page.waitForFunction(() => wheelState && wheelState.names.length);
+ok('after a reload it still opens compact', await page.evaluate(() => wheelMin));
+await page.click('#wheelMinBtn');
 const again = await page.evaluate(() => wheelState.names.map(n => n.n).join());
 ok('after a reload the names are the ones left, not re-seeded from the register', again === 'Cai,Dee,Eli,Zoe', JSON.stringify(await page.evaluate(() => ({names:wheelState.names.map(n=>n.n),cls:wheelClass,stored:localStorage.getItem(wheelStoreKey(wheelClass))}))));
 
