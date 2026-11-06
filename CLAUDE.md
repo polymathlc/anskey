@@ -2,6 +2,19 @@
 
 Guidance for Claude when working in this repo.
 
+
+## 🖼 ChatGPT Images 2.6 (v1.189.0)
+
+Every picture now draws with OpenAI's Images 2.6 models: **`gpt-image-2.6-flare`** (default, fast iteration) and
+**`gpt-image-2.6-sunburst`** (precise edits). Same token rates as 2.5 (text in US$5, image in US$8, image out US$30 per
+1M) but more output tokens per picture at low/medium quality. They serve `/images/generations` and `/images/edits` only.
+
+- `OPENAI_IMAGE_26_RE` is the family; `OPENAI_IMAGE_25_RE` is kept only to recognise old picks. The dropdown no longer
+  offers 2.5. `OPENAI_IMAGE_GEN` is `images26`: a stored 2.5 pick (this device AND the admin's settings record, via
+  `openAiLiftImageModel`) is lifted ONCE to its twin by `openAiImageTwin26` (Flare → 2.6 Flare, Sunburst → 2.6 Sunburst).
+- `polymathlc/math` (client + `openAiImage` server, which also moves 2.5 requests up to 2.6) and `polymathlc/cer`
+  moved in the same change.
+
 ## 🖼 The question with its figure, and 👆 the cells open (v1.188.0)
 
 `lo-practice.js` / `.css` / `tools/lo-practice-tests.mjs` and `lo-marks.js` / `.css` / `tools/lo-marks-tests.mjs` are byte for

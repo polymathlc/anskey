@@ -155,7 +155,7 @@ test('cloud migration cannot restore an old automatic default after a reload', a
   h.c.currentUser = { uid: 'teacher' }; h.c.isAdmin = () => true;
   h.c.firebase = { firestore: { FieldValue: { delete: () => 'delete', serverTimestamp: () => 'timestamp' } } };
   h.c.db = { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => ({ engine: 'openai', openAiKey: 'test-openai', model: 'gpt-6-astra', modelGen: 'astra' }) }), set: async (payload) => { writes.push(payload); } }) }) };
-  h.c.getOpenAiImageModel = () => 'gpt-image-2.5-flare'; h.c.aiImageEngineSetting = () => 'openai';
+  h.c.getOpenAiImageModel = () => 'gpt-image-2.6-flare'; h.c.aiImageEngineSetting = () => 'openai';
   h.c.AI_IMAGE_ENGINES = ['openai', 'gemini']; h.c.renderAuthArea = () => {}; h.c.refreshAiEngineNames = () => {}; h.c.promptForOpenAiKey = () => {};
   vm.runInContext(cut('function aiEngineDocRef(', '/* ---- The one thing that cannot be shipped'), h.c);
   await h.c.loadAiEngineFromCloud(h.c.currentUser);
@@ -170,7 +170,7 @@ test('cloud sync preserves a deliberate prior model selection and saving unrelat
   h.c.currentUser = { uid: 'teacher' }; h.c.isAdmin = () => true;
   h.c.firebase = { firestore: { FieldValue: { delete: () => 'delete', serverTimestamp: () => 'timestamp' } } };
   h.c.db = { collection: () => ({ doc: () => ({ get: async () => ({ exists: true, data: () => ({ openAiKey: 'test-openai', model: 'gpt-6-astra', modelExplicit: true, modelGen: 'astra' }) }), set: async payload => writes.push(payload) }) }) };
-  h.c.getOpenAiImageModel = () => 'gpt-image-2.5-flare'; h.c.aiImageEngineSetting = () => 'openai';
+  h.c.getOpenAiImageModel = () => 'gpt-image-2.6-flare'; h.c.aiImageEngineSetting = () => 'openai';
   h.c.AI_IMAGE_ENGINES = ['openai', 'gemini']; h.c.renderAuthArea = () => {}; h.c.refreshAiEngineNames = () => {}; h.c.promptForOpenAiKey = () => {};
   vm.runInContext(cut('function aiEngineDocRef(', '/* ---- The one thing that cannot be shipped'), h.c);
   await h.c.loadAiEngineFromCloud(h.c.currentUser);
@@ -184,11 +184,11 @@ test('cloud sync preserves a deliberate prior model selection and saving unrelat
 test('only an actual model-picker change marks a new deliberate model preference', async () => {
   const h = harness(bothKeys), fields = {
     aiEngineKeyInput: { value: 'test-openai' }, aiEngineModelSel: { value: 'gpt-6.1-sol', _aiModelChanged: false },
-    aiEngineImageModelSel: { value: 'gpt-image-2.5-flare' }, aiEngineKimiModelInput: { value: 'kimi-k3' }, aiEngineKimiKeyInput: { value: 'test-kimi' }
+    aiEngineImageModelSel: { value: 'gpt-image-2.6-flare' }, aiEngineKimiModelInput: { value: 'kimi-k3' }, aiEngineKimiKeyInput: { value: 'test-kimi' }
   };
   h.c.$ = id => fields[id]; h.c.document = { querySelector: selector => ({ value: selector.includes('aiImageEngineChoice') ? 'openai' : 'openai' }) };
   h.c.AI_IMAGE_ENGINES = ['openai', 'gemini']; h.c.AI_IMAGE_ENGINE_DEFAULT = 'openai';
-  h.c.OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-2.5-flare'; h.c.currentUser = { uid: 'teacher' };
+  h.c.OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-2.6-flare'; h.c.currentUser = { uid: 'teacher' };
   h.c.toast = () => {}; h.c.closeAiEngineModal = () => {}; h.c.renderAuthArea = () => {}; h.c.refreshAiEngineNames = () => {}; h.c.saveAiEngineToCloud = async () => true;
   vm.runInContext(cut('function saveAiEngineSettings()', "$('aiEngineCloseBtn')"), h.c);
   h.c.saveAiEngineSettings();
