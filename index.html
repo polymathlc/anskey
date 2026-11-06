@@ -5486,7 +5486,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
         <label class="engineOpt">
           <input type="radio" name="aiImageEngineChoice" value="openai" checked>
           <span>
-            <strong>ChatGPT Images 2.5</strong>
+            <strong>ChatGPT Images 2.6</strong>
             <span class="engineOptNote">OpenAI's newest image model · default · uses the OpenAI key below</span>
           </span>
         </label>
@@ -5503,13 +5503,13 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
       <div class="fieldRow">
         <label for="aiEngineImageModelSel">ChatGPT image model</label>
         <select id="aiEngineImageModelSel">
-          <option value="gpt-image-2.5-flare" selected>ChatGPT Images 2.5 Flare — newest, fastest (recommended)</option>
-          <option value="gpt-image-2.5-sunburst">ChatGPT Images 2.5 Sunburst — extra precision on edits, slower</option>
+          <option value="gpt-image-2.6-flare" selected>ChatGPT Images 2.6 Flare — newest, fastest (recommended)</option>
+          <option value="gpt-image-2.6-sunburst">ChatGPT Images 2.6 Sunburst — extra precision on edits, slower</option>
           <option value="gpt-image-2">gpt-image-2 — the previous generation</option>
           <option value="gpt-image-1">gpt-image-1 — legacy</option>
           <option value="gpt-image-1-mini">gpt-image-1-mini — legacy, cheaper</option>
         </select>
-        <div class="fieldHint"><strong>Flare</strong> is OpenAI's own default for most work — higher quality than gpt-image-2 at half the latency. <strong>Sunburst</strong> takes longer and is built for edits that need tighter control. Both cost the same per picture, and both take the builder's <em>max</em> quality. The chat model above cannot draw, so this is the model every picture comes from.</div>
+        <div class="fieldHint"><strong>Flare</strong> is OpenAI's own default for most work — up to 50% faster than the 2.5 generation. <strong>Sunburst</strong> takes longer and is built for edits that need tighter control. Both have the same token rates, and both take the builder's <em>max</em> quality. The chat model above cannot draw, so this is the model every picture comes from.</div>
       </div>
 
       <div class="fieldRow">
@@ -6018,7 +6018,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.188.0';
+var APP_VERSION = 'v1.189.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -18588,7 +18588,7 @@ var OPENAI_DEFAULT_MODEL = 'gpt-6.1-sol';
    in tools/ai-routing-tests.mjs fails if that flag spreads anywhere else. */
 var OPENAI_LIGHT_MODEL = 'gpt-6-luna';
 /* =====================================================================
-   🖼 THE IMAGE ENGINE — ChatGPT Images 2.5 for EVERY picture (v1.90.0)
+   🖼 THE IMAGE ENGINE — ChatGPT Images 2.6 for EVERY picture (v1.90.0; 2.6 since v1.189.0)
    ---------------------------------------------------------------------
    The one picture this app draws — the 🖼️ Picture note card, on its own
    button and inside the ✨ AI notes builder — used to come out of Gemini's
@@ -18605,9 +18605,16 @@ var OPENAI_LIGHT_MODEL = 'gpt-6-luna';
    route BEHIND it — the fallback, never the plan — and the drawn SVG diagram
    is still the route behind that.
 
-   THE MODEL. OpenAI released two: `gpt-image-2.5-flare` — its own default
-   for most applications, higher quality than gpt-image-2 at half the
-   latency — and `gpt-image-2.5-sunburst`, built for premium work that
+   2.6 (6 NOVEMBER 2026). OpenAI's Images 2.6 shipped `gpt-image-2.6-flare`
+   and `gpt-image-2.6-sunburst` at the 2.5 token rates, up to 50% faster.
+   They serve /images/generations and /images/edits, which is all this calls.
+   The dropdown offers 2.6 in place of 2.5, and a stored 2.5 pick — on this
+   device or in the admin's settings record — is lifted ONCE to its 2.6 twin
+   (`openAiImageTwin26`; `OPENAI_IMAGE_GEN` = 'images26').
+
+   THE MODEL. OpenAI released two: `gpt-image-2.6-flare` — its own default
+   for most applications, fast iteration — and `gpt-image-2.6-sunburst`,
+   built for premium work that
    benefits from tighter control across edits, at the cost of longer
    generation. Both cost the same (image output US$30 / 1M tokens, image
    input US$8 / 1M, text input US$5 / 1M). Flare is the default; the dropdown
@@ -18634,18 +18641,28 @@ var OPENAI_LIGHT_MODEL = 'gpt-6-luna';
    `polymathlc/cer` and `polymathlc/math` carry the same block — ship a
    change to all three together. Run tools/image-engine-tests.mjs.
    ===================================================================== */
-var OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-2.5-flare';
+var OPENAI_IMAGE_DEFAULT_MODEL = 'gpt-image-2.6-flare';
 var OPENAI_IMAGE_MODELS = [
-  { id: 'gpt-image-2.5-flare', label: 'ChatGPT Images 2.5 Flare — newest, fastest (recommended)' },
-  { id: 'gpt-image-2.5-sunburst', label: 'ChatGPT Images 2.5 Sunburst — extra precision on edits, slower' },
+  { id: 'gpt-image-2.6-flare', label: 'ChatGPT Images 2.6 Flare — newest, fastest (recommended)' },
+  { id: 'gpt-image-2.6-sunburst', label: 'ChatGPT Images 2.6 Sunburst — extra precision on edits, slower' },
   { id: 'gpt-image-2', label: 'gpt-image-2 — the previous generation' },
   { id: 'gpt-image-1', label: 'gpt-image-1 — legacy' },
   { id: 'gpt-image-1-mini', label: 'gpt-image-1-mini — legacy, cheaper' }
 ];
-/* The FAMILY, not one id — the two 2.5 models and their dated snapshots. */
+/* The FAMILY, not one id — the two 2.6 models and their dated snapshots. */
+var OPENAI_IMAGE_26_RE = /^gpt-image-2\.6-(flare|sunburst)(-\d{4}-\d{2}-\d{2})?$/;
+/* The 2.5 family 2.6 replaced — kept only so a stored 2.5 pick can be lifted
+   to its twin. */
 var OPENAI_IMAGE_25_RE = /^gpt-image-2\.5-(flare|sunburst)(-\d{4}-\d{2}-\d{2})?$/;
 var OPENAI_IMAGE_SUPERSEDED = ['gpt-image-1', 'gpt-image-1-mini', 'gpt-image-1.5', 'gpt-image-2', 'gpt-image-2-2026-04-21'];
-var OPENAI_IMAGE_GEN = 'images25';
+var OPENAI_IMAGE_GEN = 'images26';
+/* Flare stays Flare and Sunburst stays Sunburst across the generation change;
+   any other id comes back as it went in. */
+function openAiImageTwin26(id) {
+  var s = String(id || '').trim();
+  var m = OPENAI_IMAGE_25_RE.exec(s);
+  return m ? 'gpt-image-2.6-' + m[1] : s;
+}
 var _openAiImageLiftOpen = false;   // this device has not done the one-shot lift yet
 (function _openAiImageLiftDefaultOnce() {
   try {
@@ -18654,19 +18671,22 @@ var _openAiImageLiftOpen = false;   // this device has not done the one-shot lif
     localStorage.setItem(AI_ENGINE_STORE.imageGen, OPENAI_IMAGE_GEN);
     var m = (localStorage.getItem(AI_ENGINE_STORE.imageModel) || '').trim();
     if (m && OPENAI_IMAGE_SUPERSEDED.indexOf(m) >= 0) localStorage.setItem(AI_ENGINE_STORE.imageModel, OPENAI_IMAGE_DEFAULT_MODEL);
+    else if (OPENAI_IMAGE_25_RE.test(m)) localStorage.setItem(AI_ENGINE_STORE.imageModel, openAiImageTwin26(m));
   } catch (e) { /* private browsing: nothing is stored, so there is nothing to lift */ }
 })();
 /* The record's copy, lifted under the same one-shot rule — see openAiLiftModel. */
 function openAiLiftImageModel(m) {
   m = String(m || '').trim();
-  return (_openAiImageLiftOpen && OPENAI_IMAGE_SUPERSEDED.indexOf(m) >= 0) ? OPENAI_IMAGE_DEFAULT_MODEL : m;
+  if (!_openAiImageLiftOpen) return m;
+  if (OPENAI_IMAGE_SUPERSEDED.indexOf(m) >= 0) return OPENAI_IMAGE_DEFAULT_MODEL;
+  return openAiImageTwin26(m);
 }
 /* A stored id the dropdown no longer offers is the DEFAULT, not a 404 on
    every picture. */
 function openAiImageModelKnown(id) {
   var s = String(id || '').trim();
   for (var i = 0; i < OPENAI_IMAGE_MODELS.length; i++) if (OPENAI_IMAGE_MODELS[i].id === s) return true;
-  return OPENAI_IMAGE_25_RE.test(s);
+  return OPENAI_IMAGE_26_RE.test(s);
 }
 function getOpenAiImageModel() {
   try {
@@ -18682,11 +18702,11 @@ function openAiImageModelOptionsHtml(selected) {
     return '<option value="' + m.id + '"' + (m.id === cur ? ' selected' : '') + '>' + escHtml(m.label) + '</option>';
   }).join('');
 }
-/* `xhigh` and `max` exist only on the 2.5 family; an older model asked for
+/* `xhigh` and `max` exist only on the 2.5 / 2.6 families; an older model asked for
    them 400s. Clamp rather than refuse. */
 function _imgQualityFor(model, quality) {
   var q = String(quality || 'high').toLowerCase();
-  if (OPENAI_IMAGE_25_RE.test(model)) return ['low', 'medium', 'high', 'xhigh', 'max', 'auto'].indexOf(q) >= 0 ? q : 'high';
+  if (OPENAI_IMAGE_26_RE.test(model) || OPENAI_IMAGE_25_RE.test(model)) return ['low', 'medium', 'high', 'xhigh', 'max', 'auto'].indexOf(q) >= 0 ? q : 'high';
   return ['low', 'medium', 'high', 'auto'].indexOf(q) >= 0 ? q : 'high';
 }
 /* A model that rejects one of the extras does it with a 400 whose wording
@@ -19163,7 +19183,7 @@ window.askOpenAI = async function askOpenAI(prompt, opts) {
 /* Picture generation for AI note cards, by the key in this browser. Returns
    { mimeType, data } with data base64 (no data: prefix) — the same shape
    window.askGeminiImage returns. `opts.refs` (data URLs) make it an EDIT of
-   those pictures. No `input_fidelity` goes to the 2.5 family: it reads every
+   those pictures. No `input_fidelity` goes to the 2.x family: it reads every
    reference at high fidelity by itself and REFUSES the field with a 400,
    which — sent on every edit — was every edit falling silently through to
    Gemini (v1.91.1). `_imgFidelityFor` sends it to gpt-image-1 and nowhere
@@ -19322,7 +19342,7 @@ async function loadAiEngineFromCloud(user) {
     if (d.imageModel) {
       // THE IMAGE MODEL IN THE RECORD IS LIFTED TOO, for the reason the chat
       // model is: left at gpt-image-1 it would be written over the lift on the
-      // very next sign-in, and ChatGPT Images 2.5 would reach no device that
+      // very next sign-in, and ChatGPT Images 2.6 would reach no device that
       // has ever saved the dialog.
       var imageModel = openAiLiftImageModel(d.imageModel);
       localStorage.setItem(AI_ENGINE_STORE.imageModel, imageModel);
