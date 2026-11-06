@@ -4066,7 +4066,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="lo-marks.css?v=1.188.0">
 <link rel="stylesheet" href="lo-view.css">
 <link rel="stylesheet" href="lo-practice.css?v=1.188.0">
-<link rel="stylesheet" href="compact-wheel.css">
+<link rel="stylesheet" href="compact-wheel.css?v=1.190.0">
 </head>
 <body>
 
@@ -6018,7 +6018,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.189.0';
+var APP_VERSION = 'v1.190.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -34694,7 +34694,15 @@ function wheelSetClass(cls) {
 }
 
 /* ---- The window ---- */
-function clampWheelWin(b) { return clampWinBox(b, wheelMin ? 320 : WHEEL_MIN_W, wheelMin ? (window.innerWidth < 420 ? 300 : 280) : WHEEL_MIN_H); }
+/* The compact window may be dragged to any size from a small card up to the
+   whole screen: everything inside it scales with it (CompactWheel.fit). */
+function clampWheelWin(b) {
+  if (wheelMin) {
+    var cw = window.CompactWheel;
+    return clampWinBox(b, cw ? cw.MIN_W : 240, cw ? cw.MIN_H : 170);
+  }
+  return clampWinBox(b, WHEEL_MIN_W, WHEEL_MIN_H);
+}
 
 function defaultWheelWin() {
   var vw = window.innerWidth, vh = floatWinViewportH();
@@ -34724,6 +34732,9 @@ function applyWheelWin() {
   c.style.width = box.w + 'px';
   c.style.height = box.h + 'px';
   c.style.setProperty('--cw-height', box.h + 'px');
+  // The compact view's one scale number follows the box on every resize step,
+  // so the reel, the text and the characters grow and shrink together.
+  if (window.CompactWheel) { if (wheelMin) CompactWheel.fit(box); else CompactWheel.clearFit(); }
   wheelFit();
 }
 
@@ -34735,7 +34746,10 @@ function setWheelMin(on) {
   b.title = wheelMin ? 'Restore full wheel' : 'Minimise to name slots';
   b.setAttribute('aria-label', b.title);
   if (wheelMin) {
-    wheelCompactWin = clampWheelWin(wheelCompactWin || loadWheelWinBox(WHEEL_COMPACT_WIN_KEY) || {x:wheelWin ? wheelWin.x : 12,y:wheelWin ? wheelWin.y : 12,w:620,h:280});
+    var fresh = window.CompactWheel
+      ? CompactWheel.defaultBox(window.innerWidth, floatWinViewportH(), wheelWin)
+      : { x: wheelWin ? wheelWin.x : 12, y: wheelWin ? wheelWin.y : 12, w: 620, h: 280 };
+    wheelCompactWin = clampWheelWin(wheelCompactWin || loadWheelWinBox(WHEEL_COMPACT_WIN_KEY) || fresh);
   } else if (wheelWin) wheelWin = clampWheelWin(wheelWin);
   applyWheelWin();
   wheelRenderResult();
@@ -34752,9 +34766,15 @@ async function openWheel() {
   modal.classList.add('open');
   raiseFloatWin('wheelModal');
   $('wheelBtn').classList.add('active');
-  setWheelMin(false);
+  // The wheel quest opens in its compact window by default — from the button,
+  // the Z shortcut, the command search, anything that comes through here.
+  // The full wheel's geometry is still settled first, so ▢ restores it and a
+  // fresh compact window lands near it. Only the manual Battle screen, which
+  // embeds the wheel in its own sidebar, keeps the full layout.
+  var embedded = !!(window.ClassroomBattle && window.ClassroomBattle.isOpen());
+  wheelMin = false;
   wheelWin = clampWheelWin(wheelWin || loadWheelWinBox() || defaultWheelWin());
-  applyWheelWin();
+  setWheelMin(!embedded);
 
   // The register is read once per visit; a failed read leaves the wheel
   // working on whatever names it already holds.
@@ -41336,7 +41356,7 @@ loadAiNotePrefs();
 <script src="battle-display.js"></script>
 <script src="mission-machine.js"></script>
 <script src="quick-battle.js"></script>
-<script src="compact-wheel.js"></script>
+<script src="compact-wheel.js?v=1.190.0"></script>
 <script src="student-heroes.js"></script>
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>

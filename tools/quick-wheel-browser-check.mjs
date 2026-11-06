@@ -135,7 +135,7 @@ async function setup(delayProfiles = 0, pendingAward = false) {
     window.wheelRandom = () => 0;
     applyRewardVisibility();
   }, { delayProfiles });
-  await page.click('#wheelBtn');
+  await page.click('#wheelBtn'); await page.evaluate(()=>setWheelMin(false)); // full-wheel coverage; the compact default (v1.189.0) has its own checks
   await page.waitForFunction(pending => !!window.QuickBattle && (pending ? !document.getElementById('wheelQuickRetry').hidden && !document.getElementById('wheelQuickRetry').disabled : !document.getElementById('wheelSpinBtn').disabled) && !document.getElementById('wheelQuickStatus').textContent.includes('Loading'), pendingAward);
 }
 async function settle() { await page.waitForFunction(() => document.getElementById('cbSaveStatus').textContent !== 'Saving…'); }
@@ -208,7 +208,7 @@ try {
   await spin();
   const keptPick=await page.evaluate(()=>({n:wheelState.names[wheelWinnerIdx].n,spinId:wheelState.lastSpinId,calls:__awardCalls.length,marks:wheelStudent(wheelState.names[wheelWinnerIdx]).marks}));
   await page.evaluate(()=>{closeWheel();window.__guestDelay=400;});
-  await page.evaluate(()=>openWheel());
+  await page.evaluate(()=>{const p=openWheel();setWheelMin(false);return p;});
   await page.waitForFunction(()=>!wheelGuestsBusy()&&!document.getElementById('wheelSpinBtn').disabled&&!document.getElementById('wheelQuickStatus').textContent.includes('Loading'));
   await page.evaluate(()=>window.__guestDelay=0);
   await award(2);
@@ -217,7 +217,7 @@ try {
   const called=await page.evaluate(()=>wheelState.names.filter(n=>n.done).length);
   await page.click('#wheelSpinBtn');await page.evaluate(()=>closeWheel());await page.waitForTimeout(650);
   check('closing mid-spin cancels battle work while retaining the wheel call',await page.evaluate(({first,called})=>JSON.stringify(__battleState())===first&&!wheelSpinning&&wheelState.names.filter(n=>n.done).length===called+1,{first:afterKept,called}));
-  await page.evaluate(()=>openWheel());await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
+  await page.evaluate(()=>{const p=openWheel();setWheelMin(false);return p;});await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   await page.uncheck('#wheelQuickToggle');
   await page.click('#wheelSpinBtn');await page.waitForFunction(()=>!wheelSpinning);
   check('turning Quick fight off leaves an ordinary name wheel',await page.evaluate(first=>JSON.stringify(__battleState())===first&&document.getElementById('wheelQuickDuel').hidden,afterKept));
@@ -270,12 +270,12 @@ try {
   await page.click('#wheelBattleBtn');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   await page.click('#wheelSpinBtn');await page.waitForFunction(()=>!!__battleState().pending);
   const pending=await page.evaluate(()=>__battleState().pending.id);
-  await page.click('#cbClose');await page.evaluate(()=>openWheel());await page.waitForFunction(()=>document.getElementById('wheelQuickStatus').textContent.includes('manual answer'));
+  await page.click('#cbClose');await page.evaluate(()=>{const p=openWheel();setWheelMin(false);return p;});await page.waitForFunction(()=>document.getElementById('wheelQuickStatus').textContent.includes('manual answer'));
   check('Quick fight preserves a pending manual answer and refuses another spin',await page.evaluate(id=>__battleState().pending.id===id&&document.getElementById('wheelSpinBtn').disabled&&!ClassroomBattle.beforeSpin(),pending));
   await page.click('#wheelBattleBtn');await page.waitForFunction(()=>!document.getElementById('cbEnd').disabled);
   await page.click('#cbEnd');await settle();
   check('teacher can end a lesson encounter to release hero changes without awarding victory loot',await page.evaluate(()=>__battleState().status==='defeat'&&!__battleState().pending&&__battleState().rewards.length===0));
-  await page.click('#cbClose');await page.evaluate(()=>openWheel());await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
+  await page.click('#cbClose');await page.evaluate(()=>{const p=openWheel();setWheelMin(false);return p;});await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   const end=await page.evaluate(()=>JSON.stringify(__battleState()));
   await page.click('#wheelSpinBtn');await page.evaluate(()=>wheelSetClass('P6 Science'));await page.waitForTimeout(650);
   check('changing lesson slot during spin cannot write to either encounter',await page.evaluate(end=>JSON.stringify(__battleState())===end&&!__battleState('P6 Science')&&!wheelSpinning,end));
@@ -308,7 +308,7 @@ try {
   const closeAwardId=await page.evaluate(()=>__awardCalls.at(-1).action.id);
   await page.evaluate(()=>closeWheel());await page.evaluate(()=>__awardInFlight);
   check('closing after a server commit stops presentation while keeping its retry receipt',await page.evaluate(prior=>!wheelIsOpen()&&__battleState().revision===prior.revision+1&&!!sessionStorage.getItem('polymath.wheelAward.teacher-fixture.P5%20Science')&&!document.querySelector('.cbaPlaying'),beforeCloseAward));
-  await page.evaluate(()=>{__awardReplyDelay=0;openWheel();});
+  await page.evaluate(()=>{__awardReplyDelay=0;openWheel();setWheelMin(false);});
   await page.waitForFunction(()=>!document.getElementById('wheelQuickRetry').hidden&&!document.getElementById('wheelQuickRetry').disabled);
   await page.click('#wheelQuickRetry');await page.waitForFunction(()=>!document.getElementById('wheelSpinBtn').disabled);
   check('reopening and confirming a committed award cannot award damage or points twice',await page.evaluate(({id,prior})=>__awardCalls.at(-1).action.id===id&&__battleState().revision===prior.revision+1&&rwStudents.find(s=>s.id===prior.studentId).marks===prior.marks+3&&__battleDocuments['students/'+prior.studentId].marks===prior.marks+3,{id:closeAwardId,prior:beforeCloseAward}));
@@ -396,6 +396,31 @@ try {
   await page.click('#wheelMinBtn');
   await page.waitForFunction(() => !wheelSpinning && !document.getElementById('cwSpin').disabled);
   check('the reel settles on the canonical selected name and shows that hero and the previewed boss', await page.evaluate(old => document.querySelector('.cwFace').textContent === old.name && document.querySelector('#cwBattle .cbQuickHero strong').textContent === old.name && !!document.querySelector('#cwBattle .cbQuickEnemy [data-boss-id], #cwBattle .cbQuickEnemy[data-boss-id]') && wheelState.lastSpinId === old.id, rolling));
+  // v1.189.0 — the 1v1 duel scales with the compact window: hero and enemy pictures
+  // and every piece of type grow and shrink together, and stay inside the battle box.
+  const duelAt=async box=>{
+    await page.evaluate(b=>{wheelCompactWin=clampWheelWin({x:8,y:8,w:b.w,h:b.h});applyWheelWin();},box);await page.waitForTimeout(80);
+    return page.evaluate(()=>{
+      const card=document.getElementById('wheelCard'),battle=document.getElementById('cwBattle').getBoundingClientRect();
+      const art=[...document.querySelectorAll('#cwBattle .cbQuickDuel>.cbQuickHero>.cbaHero,#cwBattle .cbQuickDuel>.cbQuickEnemy>:first-child')].map(n=>n.getBoundingClientRect());
+      const text=[...document.querySelectorAll('#cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>:is(strong,small,.cbQuickResource)')].map(n=>n.getBoundingClientRect());
+      const inside=r=>r.width>0&&r.top>=battle.top-1&&r.bottom<=battle.bottom+1&&r.left>=battle.left-1&&r.right<=battle.right+1;
+      return {k:Number(card.style.getPropertyValue('--cw-k')),art:art.length,artH:Math.min(...art.map(r=>r.height)),inside:art.every(inside)&&text.every(inside),
+        name:parseFloat(getComputedStyle(document.querySelector('#cwBattle .cbQuickDuel>.cbQuickHero>strong')).fontSize),
+        spin:parseFloat(getComputedStyle(document.getElementById('cwSpin')).fontSize)};
+    });
+  };
+  const duelSmall=await duelAt({w:300,h:180}),duelBase=await duelAt({w:620,h:280}),duelBig=await duelAt({w:1300,h:600});
+  await page.locator('#wheelModal').screenshot({path:path.join(output,'compact-wheel-1v1-large.png')});
+  check('the compact 1v1 hero and enemy stay inside the battle box at every size',[duelSmall,duelBase,duelBig].every(m=>m.art===2&&m.inside));
+  check('the compact 1v1 type follows the window scale',[duelSmall,duelBase,duelBig].every(m=>Math.abs(m.name-11*m.k)<0.6&&Math.abs(m.spin-12*m.k)<0.6));
+  check('the compact 1v1 characters grow with the window',duelSmall.artH<duelBase.artH&&duelBase.artH<duelBig.artH&&duelBig.artH>=duelBase.artH*1.6);
+  await duelAt({w:620,h:280});
+  check('the compact picker shows every control and centres the chosen name in the reel',await page.evaluate(()=>{
+    const picker=document.querySelector('.cwPicker').getBoundingClientRect(),slot=document.querySelector('.cwSlot').getBoundingClientRect(),face=document.querySelector('.cwFace').getBoundingClientRect();
+    const parts=['.cwEyebrow','#cwSpin','#cwClass','.cwSlot'].map(q=>document.querySelector(q).getBoundingClientRect());
+    return parts.every(r=>r.height>0&&r.top>=picker.top-1&&r.bottom<=picker.bottom+1)&&Math.abs((face.top+face.bottom)/2-(slot.top+slot.bottom)/2)<1.5;
+  }));
   await page.emulateMedia({reducedMotion:'reduce'});
   check('compact points use just one small field and one + button, starting at 1', await page.evaluate(() => document.querySelectorAll('#cwAwards input').length===1 && document.querySelectorAll('#cwAwards button').length===1 && document.getElementById('cwGive').textContent==='+' && document.getElementById('cwPoints').value==='1'));
   await page.fill('#cwPoints','7');
@@ -450,7 +475,7 @@ try {
   await page.evaluate(() => ClassroomBattle.open());
   check('manual Battle restores the full wheel and its original nodes before mounting', await page.evaluate(() => ClassroomBattle.isOpen() && !wheelMin && document.getElementById('wheelCompact').hidden && document.getElementById('wheelQuickDuel').parentNode.id === 'wheelQuickFight'));
   await page.evaluate(() => ClassroomBattle.close());
-  await page.click('#wheelBtn'); await page.waitForFunction(() => !document.getElementById('wheelSpinBtn').disabled);
+  await page.click('#wheelBtn'); await page.evaluate(()=>setWheelMin(false)); // full-wheel coverage; the compact default (v1.189.0) has its own checks await page.waitForFunction(() => !document.getElementById('wheelSpinBtn').disabled);
   await page.click('#wheelQuickToggle'); await page.click('#wheelMinBtn');
   await page.click('#cwSpin'); await page.waitForFunction(() => !wheelSpinning);
   check('with Quick fight off the compact reel still selects names and explains the empty battle panel', await page.evaluate(() => !document.getElementById('cwBattleEmpty').hidden && document.getElementById('cwBattleEmpty').textContent.includes('Quick fight is off') && document.querySelector('.cwFace').textContent === wheelState.last.n));
