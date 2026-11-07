@@ -1,0 +1,21 @@
+{
+  "generator": "OpenAI built-in image_gen.imagegen",
+  "generatedOn": "2026-11-07",
+  "asset": "chest-sprites.png",
+  "gitBlobSha": "a6aedf234d053a003bf304fd8a2f978f32e40a76",
+  "nativeImageUnmodified": true,
+  "prompt": "A production pixel art treasure chest opening sprite sheet for a classroom fantasy RPG. Transparent background, FOUR equal cells in ONE horizontal row, exactly the same large wooden chest with chunky gold trim and small turquoise clasp in every cell. Cell1 chest fully CLOSED, cell2 lid lifting slightly, cell3 half open, cell4 fully OPEN glowing with gold coins and a couple small magical sparkles. Keep chest base aligned to identical baseline, centered per cell, no overlap between cells. Crisp square low-resolution retro game pixels, bold dark outlines, warm brown wood, rich gold highlights, cyan clasp, friendly magical look. No text, no labels, no numbers, no borders, no background or ground scene. Four evenly spaced rectangular portrait cells about3:4 width:height. Include transparent space above for the opening lid. Consistent scale, same viewpoint and object geometry across frames. Make entire sheet aspect ratio3:1.",
+  "sheetWidth": 2172,
+  "sheetHeight": 724,
+  "columns": 4,
+  "rows": 1,
+  "frameWidth": 543,
+  "frameHeight": 724,
+  "frames": [
+    "closed",
+    "lifting",
+    "half-open",
+    "open"
+  ],
+  "notes": "Transparent native generated PNG. Background-size:400% 100%; positions 0%,33.333%,66.667%,100%."
+}

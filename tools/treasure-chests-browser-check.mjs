@@ -29,7 +29,7 @@ const output=path.resolve(process.env.BATTLE_SCREENSHOTS||'../battle-validation'
 try{
   await page.goto(url);await page.waitForFunction(()=>!!window.__chestState&&document.querySelectorAll('.cbStudentChest').length===2);
   check('one closed chest per student groups ordinary and bonus drops',await page.evaluate(()=>document.querySelectorAll('.cbReward').length===3&&[...document.querySelectorAll('.cbChestContents')].every(n=>n.hidden)&&document.querySelector('.cbStudentChest h4').textContent==='<Ari>'));
-  check('four-frame chest sheet decodes',await page.evaluate(()=>new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(image.naturalWidth>0&&image.naturalWidth%4===0);image.onerror=()=>resolve(false);image.src='/assets/battle-pixel/chest-sheet.png';})));
+  check('four-frame chest sheet decodes',await page.evaluate(()=>new Promise(resolve=>{const image=new Image();image.onload=()=>resolve(image.naturalWidth>0&&image.naturalWidth%4===0);image.onerror=()=>resolve(false);image.src='/assets/battle-pixel/treasure/chest-sprites.png';})));
   check('unopened chest animates',await page.locator('.cbTreasureSprite').first().evaluate(n=>getComputedStyle(n).animationName!=='none'));
   await page.screenshot({path:path.join(output,'closed.png'),fullPage:true});
   await page.locator('.cbChestButton').first().focus();await page.keyboard.press('Enter');

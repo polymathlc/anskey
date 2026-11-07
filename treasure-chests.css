@@ -13,7 +13,7 @@
 .cbChestButton:hover:not(:disabled) { background:#243654; border-color:#be9c50; }
 .cbChestButton:focus-visible,.cbChestToolbar button:focus-visible { outline:3px solid #7cdbff; outline-offset:3px; }
 .cbShell .cbChestButton:disabled,.cbChestButton:disabled { cursor:default; opacity:1; }
-.cbTreasureSprite { display:block; width:96px; aspect-ratio:3/4; background:url('assets/battle-pixel/chest-sheet.png') 0 0 / 400% 100% no-repeat; image-rendering:pixelated; animation:cbTreasureIdle 2.6s ease-in-out infinite; }
+.cbTreasureSprite { display:block; width:96px; aspect-ratio:3/4; background:url('assets/battle-pixel/treasure/chest-sprites.png') 0 0 / 400% 100% no-repeat; image-rendering:pixelated; animation:cbTreasureIdle 2.6s ease-in-out infinite; }
 .cbChestButtonText { font-size:12px; line-height:1.5; }
 .cbChestRevealed .cbTreasureSprite { background-position:100% 0; animation:none; }
 .cbChestJustOpened .cbTreasureSprite { animation:cbTreasureOpen .65s steps(3,end) both; }
