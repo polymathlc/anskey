@@ -77,9 +77,10 @@
     return images.get(name);
   }
   function heroMarkup(role, options) {
-    options = options || {};if(options.avatar && window.HeroAvatar)return HeroAvatar.markup(role,options); role = roleName(role); var sheet=sheetName(role,options.job), gender=genderName(options.gender);
+    options = options || {};if(options.avatar && window.HeroAvatar){var custom=HeroAvatar.markup(role,options);return window.ClassroomBattlePets ? ClassroomBattlePets.attach(options.hero,custom) : custom;} role = roleName(role); var sheet=sheetName(role,options.job), gender=genderName(options.gender);
     var title=gender.charAt(0).toUpperCase()+gender.slice(1)+' '+(options.alt || (jobs.includes(options.job)?options.job:role)+' pixel hero');
-    return '<span class="cbaHero ' + esc(options.className || 'cbAvatar') + (options.dormant ? ' cbaDormant' : '') + '" data-cba-role="' + role + '" data-cba-sheet="' + sheet + '" data-cba-gender="'+gender+'"' + (jobs.includes(options.job)?' data-cba-job="'+options.job+'"':'') + ' role="img" aria-label="' + esc(title) + '"><span class="cbaFallback" aria-hidden="true">'+(gender==='female'?'♀':'♂')+'</span><span class="cbaFrames" aria-hidden="true"></span></span>';
+    var html = '<span class="cbaHero ' + esc(options.className || 'cbAvatar') + (options.dormant ? ' cbaDormant' : '') + '" data-cba-role="' + role + '" data-cba-sheet="' + sheet + '" data-cba-gender="'+gender+'"' + (jobs.includes(options.job)?' data-cba-job="'+options.job+'"':'') + ' role="img" aria-label="' + esc(title) + '"><span class="cbaFallback" aria-hidden="true">'+(gender==='female'?'♀':'♂')+'</span><span class="cbaFrames" aria-hidden="true"></span></span>';
+    return window.ClassroomBattlePets ? ClassroomBattlePets.attach(options.hero,html) : html;
   }
   function mount(container) {
     if (!container) return;
@@ -286,7 +287,7 @@
   }
   function playArena(container,options) { return playDuel(container,Object.assign({},options,{arena:true})); }
   function skillPreviewMarkup(skill,hero) {
-    return '<div class="cbaPreviewStage cbQuickDuel" aria-label="'+esc(skill.name)+' animation preview"><div class="cbaPreviewActor" data-cba-actor="hero" data-cba-hero-id="'+esc(hero.id || 'preview')+'">'+heroMarkup(hero.role,{job:hero.job,gender:hero.gender,avatar:hero.avatar})+'</div><div class="cbaPreviewActor cbaPreviewTarget" data-cba-actor="enemy"><img src="assets/battle-pixel/goblin.png" alt="Practice target"></div></div>';
+    return '<div class="cbaPreviewStage cbQuickDuel" aria-label="'+esc(skill.name)+' animation preview"><div class="cbaPreviewActor" data-cba-actor="hero" data-cba-hero-id="'+esc(hero.id || 'preview')+'">'+heroMarkup(hero.role,{hero:hero,job:hero.job,gender:hero.gender,avatar:hero.avatar})+'</div><div class="cbaPreviewActor cbaPreviewTarget" data-cba-actor="enemy"><img src="assets/battle-pixel/goblin.png" alt="Practice target"></div></div>';
   }
   function previewSkill(container,hero,skill) {
     unmount(container); if(!container || !hero || !skill) return {finished:Promise.resolve({cancelled:true}),cancel:function(){}};

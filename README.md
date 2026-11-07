@@ -4,6 +4,13 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.191.0 — Treasure chests, companion pets and consistent enemy previews
+
+- Victory shows one animated pixel-art chest per student. Open a student’s chest or use **Open all treasure chests**; bonus items stay with that student. Opened chests are remembered on this device for the same teacher, lesson and encounter.
+- Equipped pets accompany heroes in battle and My Hero. Birds fly and perch at the shoulder, cats walk and settle beside their hero, and other species have their own movement. **Rest pet / Let pet roam** controls movement without changing equipment or combat.
+- The wheel previews the full enemy formation selected by its saved spin, so a points award starts the enemies already shown. After victory, the upcoming encounter is previewed before another award starts it.
+- Chest opening and pet resting are visual controls. Victory rewards remain saved once by the existing server transaction.
+
 ## v1.190.0 — 🎡 The wheel quest opens small, and the small window scales
 
 - **The wheel quest now opens in its compact (minimised) window by default** — from the toolbar's Wheel

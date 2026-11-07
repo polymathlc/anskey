@@ -163,9 +163,10 @@ try {
   await page.click('#cbSkills');
   const usable = page.locator('#cbCommandOptions [data-command]:not([disabled])').first();
   check('learned active skills are available in command box', await usable.count() === 1);
+  const selectedSkill = await usable.getAttribute('data-command');
   await usable.click();
   await page.evaluate(() => { document.getElementById('cbCorrect').click(); document.getElementById('cbCorrect').click(); }); await settle();
-  check('skill resolves once and spends MP', await page.evaluate(before => __battleState().correctCount === before.count+1 && !__battleState().pending && __battleState().heroes.find(h=>h.id===before.hero.id).mp < before.hero.mp,turn));
+  check('skill resolves once and spends its MP cost, accounting for saved mana restoration', await page.evaluate(({before,skillId}) => { const state=__battleState(),hero=state.heroes.find(h=>h.id===before.hero.id),restored=(state.lastEvent.supported||[]).filter(row=>row.heroId===before.hero.id&&row.effect==='mana').reduce((sum,row)=>sum+row.amount,0);return state.correctCount===before.count+1&&!state.pending&&state.lastEvent.skillId===skillId&&hero.mp===before.hero.mp-ClassroomBattleCore.skillById(skillId).mpCost+restored; },{before:turn,skillId:selectedSkill}));
   check('reduced-motion manual casts settle without a moving overlay',await page.evaluate(()=>__arenaPlays.at(-1)?.id===__battleState().lastEvent.id&&!document.querySelector('#cbArena.cbaPlaying')));
   await spin(); await page.click('#cbItems');
   const item = page.locator('#cbCommandOptions [data-command]:not([disabled])').first();
