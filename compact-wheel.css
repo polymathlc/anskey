@@ -1,76 +1,175 @@
-/* Keep the worksheet usable beneath one small, draggable rectangle. */
+/* Keep the worksheet usable beneath one small, draggable rectangle.
+
+   v1.189.0 — THE COMPACT WINDOW SCALES. The wheel quest opens here by default and
+   the window can be dragged to any size. compact-wheel.js writes ONE number,
+   --cw-k, on #wheelCard from the window's own width and height (scaleFor), and
+   every length below that is not a container unit is a multiple of it:
+   calc(var(--cw-k) * Npx), where N is the size at the base window (620 × 280
+   wide, 340 × 480 stacked). The characters fill whatever their cards leave over
+   through container units (cqw / cqh), so text and pictures always move
+   together. Never write a bare pixel size for anything inside the panel, or that
+   one thing stops scaling while everything around it grows. */
+
 #wheelCompact[hidden]{display:none!important}
-#wheelModal.winMin #wheelCard{height:var(--cw-height,280px)!important;min-height:0;max-height:none;overflow:hidden;border-radius:9px}
-#wheelModal.winMin #wheelHead{flex:none;padding:6px 10px;border-bottom:1px solid #526385;min-height:36px;box-sizing:border-box}
-#wheelModal.winMin #wheelTitle{font-size:12px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:calc(100% - 76px)}
-#wheelModal.winMin #wheelHead .modalClose{width:28px;min-width:28px;height:26px;min-height:26px;padding:0;font-size:17px}
-.cwMini{display:flex;flex-direction:column;flex:1;min-height:0;gap:6px;padding:8px 10px;background:radial-gradient(ellipse at 65% 35%,#30456b55,transparent 70%),#10192e;color:#eef3ff;font:11px/1.35 system-ui,sans-serif;box-sizing:border-box}
-.cwMain{display:grid;grid-template-columns:minmax(115px,.9fr) minmax(0,1.8fr);grid-template-rows:minmax(0,1fr);gap:10px;flex:1;min-height:0}
-.cwPicker{display:flex;flex-direction:column;gap:3px;justify-content:center;min-width:0;min-height:0;text-align:center;border:1px solid #a58c5a;border-radius:6px;background:linear-gradient(#332a3f,#1b2136);padding:4px;box-shadow:inset 0 0 0 2px #ead2900d}
-.cwEyebrow{color:#e8cf89;letter-spacing:.15em;font:700 9px/1.4 ui-monospace,monospace}
-.cwReel{display:flex;align-items:center;gap:3px;min-width:0}
-.cwPointer{font-size:15px;color:#f8d37f;flex:none}
-.cwSlot{height:76px;position:relative;overflow:hidden;flex:1;min-width:0;background:linear-gradient(#080d1b,#1e2c44 30%,#24364c 50%,#1e2c44 70%,#080d1b);border:1px solid #87734c;border-radius:5px;box-shadow:inset 0 5px 10px #0009,inset 0 -5px 10px #0009;mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent)}
-.cwStrip{display:flex;flex-direction:column;will-change:transform}
-.cwFace{display:flex;align-items:center;justify-content:center;flex:none;box-sizing:border-box;height:42px;padding:2px 5px;font:700 15px/1.15 system-ui,sans-serif;color:#fff1be;overflow-wrap:anywhere;text-align:center}
-.cwTurning .cwPicker{border-color:#d6c28c;box-shadow:inset 0 0 18px #f6c85f12}
-#wheelCard #cwSpin{font:800 12px/1.3 ui-monospace,monospace;min-height:28px;width:100%;padding:4px 10px;border-radius:4px;box-shadow:none}
-.cwRound{font-size:9px;color:#bac9df;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:12px}
-.cwBattle{display:flex;align-items:center;justify-content:center;position:relative;min-width:0;min-height:0;border:1px solid #4d648a;border-radius:6px;background:radial-gradient(ellipse at bottom,#243957,#142039);padding:4px}
-#cwBattleEmpty{font-size:11px;line-height:1.5;color:#c8d7ef;text-align:center;padding:12px}
-#wheelCard .cwBattle .cbQuickDuel{width:100%;min-height:0!important;padding:0;gap:4px;grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr)}
-#wheelCard .cwBattle .cbQuickDuel .cbaHero,#wheelCard .cwBattle .cbQuickDuel img,#wheelCard .cwBattle .cbQuickDuel .cbEnemySprite{width:68px;height:68px;transform:none;max-width:100%}
-#wheelCard .cwBattle .cbQuickDuel .cbaHero .cbaFallback{width:100%;height:100%}
-#wheelCard .cwBattle .cbQuickDuel strong{font-size:11px;line-height:1.2;max-height:27px;overflow:hidden}
-#wheelCard .cwBattle .cbQuickDuel small{font-size:8px;line-height:1.25;max-height:22px;overflow:hidden}
-.cwBattle .cbQuickResource{max-width:150px}.cwBattle .cbQuickResource>span{font-size:8px!important}.cwBattle .cbQuickBar{height:4px}
-.cwBattle .cbQuickMystery{height:68px!important;font-size:45px!important}.cwBattle .cbQuickVs{font-size:9px}
-.cwBattle .cbaParty,.cwBattle .cbQuickTreasure{display:none!important}
-/* 2v2 / 3v3: heroes in one row above, enemies in one row below, each picture sized to its own card
-   (cq units of the card), so nothing spills over the title bar or the points controls. */
+#wheelModal.winMin #wheelCard{
+  --k:var(--cw-k,1);
+  /* The title bar and its buttons grow with the window, but within reason:
+     a giant ✕ is no easier to press than a big one. */
+  --kh:clamp(.85,var(--k),1.6);
+  height:var(--cw-height,280px)!important;min-height:0;max-height:none;overflow:hidden;border-radius:calc(var(--kh) * 9px)
+}
+#wheelModal.winMin #wheelHead{flex:none;padding:calc(var(--kh) * 6px) calc(var(--kh) * 10px);border-bottom:1px solid #526385;min-height:calc(var(--kh) * 36px);box-sizing:border-box}
+#wheelModal.winMin #wheelTitle{font-size:calc(var(--kh) * 12px);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:calc(100% - var(--kh) * 76px)}
+#wheelModal.winMin #wheelHead .modalClose{width:calc(var(--kh) * 28px);min-width:calc(var(--kh) * 28px);height:calc(var(--kh) * 26px);min-height:calc(var(--kh) * 26px);padding:0;font-size:calc(var(--kh) * 17px)}
+
+/* THE RESIZE CORNER. Every other minimised float window is a bare title bar,
+   so the shared rule hides the grip in .winMin — which left the compact wheel
+   with no way to be resized at all. It is shown here, light on the dark panel,
+   above it, and never smaller than a finger. */
+#wheelModal.winMin #wheelGrip{
+  display:block;z-index:5;
+  width:max(22px,calc(var(--kh) * 22px));height:max(22px,calc(var(--kh) * 22px));
+  border-bottom-right-radius:calc(var(--kh) * 9px);
+  background:linear-gradient(135deg,transparent 0 46%,#d9e6ff 46% 54%,transparent 54% 66%,#d9e6ff 66% 74%,transparent 74%);
+  opacity:.55
+}
+#wheelModal.winMin #wheelGrip:hover,#wheelModal.winMin.winSizing #wheelGrip{opacity:.95}
+
+/* ---- The panel ---- */
+.cwMini{
+  --k:var(--cw-k,1);
+  display:flex;flex-direction:column;flex:1;min-height:0;gap:calc(var(--k) * 6px);
+  padding:calc(var(--k) * 8px) calc(var(--k) * 10px);
+  background:radial-gradient(ellipse at 65% 35%,#30456b55,transparent 70%),#10192e;color:#eef3ff;
+  font:calc(var(--k) * 11px)/1.35 system-ui,sans-serif;box-sizing:border-box
+}
+.cwMain{display:grid;grid-template-columns:minmax(calc(var(--k) * 115px),.9fr) minmax(0,1.8fr);grid-template-rows:minmax(0,1fr);gap:calc(var(--k) * 10px);flex:1;min-height:0}
+/* A window taller than it is wide stacks: the reel across the top, the battle
+   under it with all the room that is left. */
+.cwMini[data-cw-layout="tall"] .cwMain{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:calc(var(--k) * 8px)}
+.cwMini[data-cw-layout="tall"] .cwPicker{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"eye eye" "reel reel" "spin class" "round round";align-items:center;column-gap:calc(var(--k) * 6px)}
+.cwMini[data-cw-layout="tall"] .cwEyebrow{grid-area:eye}
+.cwMini[data-cw-layout="tall"] .cwReel{grid-area:reel}
+.cwMini[data-cw-layout="tall"] #cwSpin{grid-area:spin}
+.cwMini[data-cw-layout="tall"] .cwRound{grid-area:round}
+.cwMini[data-cw-layout="tall"] .cwClassWrap{grid-area:class;max-width:calc(var(--k) * 150px)}
+
+.cwPicker{display:flex;flex-direction:column;gap:calc(var(--k) * 3px);justify-content:center;min-width:0;min-height:0;overflow:hidden;text-align:center;border:1px solid #a58c5a;border-radius:calc(var(--k) * 6px);background:linear-gradient(#332a3f,#1b2136);padding:calc(var(--k) * 4px);box-shadow:inset 0 0 0 calc(var(--k) * 2px) #ead2900d;box-sizing:border-box}
+.cwEyebrow{color:#e8cf89;letter-spacing:.15em;font:700 calc(var(--k) * 9px)/1.4 ui-monospace,monospace}
+/* The reel gives way first when the picker is short (the Lesson slot sits
+   under it now): its window shrinks from 76 to 44 base pixels, and the strip
+   is centred in whatever height it gets, so the chosen name stays in the
+   middle at any size. */
+.cwReel{display:flex;align-items:stretch;gap:calc(var(--k) * 3px);min-width:0;flex:0 1 calc(var(--k) * 78px);min-height:calc(var(--k) * 46px)}
+.cwMini[data-cw-layout="tall"] .cwReel{height:calc(var(--k) * 78px)}
+.cwPointer{font-size:calc(var(--k) * 15px);color:#f8d37f;flex:none;align-self:center}
+/* The reel's rows are 42 base pixels: compact-wheel.js moves the strip in
+   base pixels times --cw-k, so the rows must scale by the same number or the
+   selected name lands off centre. */
+.cwSlot{height:auto;position:relative;overflow:hidden;flex:1;min-width:0;background:linear-gradient(#080d1b,#1e2c44 30%,#24364c 50%,#1e2c44 70%,#080d1b);border:1px solid #87734c;border-radius:calc(var(--k) * 5px);box-shadow:inset 0 calc(var(--k) * 5px) calc(var(--k) * 10px) #0009,inset 0 calc(var(--k) * -5px) calc(var(--k) * 10px) #0009;mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent);box-sizing:border-box}
+/* 38 = the strip's CENTER (17) + half a row (21): with a 76-pixel window
+   this is exactly the old top, and any other window keeps the name centred. */
+.cwStrip{position:absolute;left:0;right:0;top:calc(50% - var(--k) * 38px);display:flex;flex-direction:column;will-change:transform}
+.cwFace{display:flex;align-items:center;justify-content:center;flex:none;box-sizing:border-box;height:calc(var(--k) * 42px);padding:calc(var(--k) * 2px) calc(var(--k) * 5px);font:700 calc(var(--k) * 15px)/1.15 system-ui,sans-serif;color:#fff1be;overflow-wrap:anywhere;text-align:center;overflow:hidden}
+.cwTurning .cwPicker{border-color:#d6c28c;box-shadow:inset 0 0 calc(var(--k) * 18px) #f6c85f12}
+#wheelCard #cwSpin{font:800 calc(var(--k) * 12px)/1.3 ui-monospace,monospace;min-height:max(24px,calc(var(--k) * 28px));width:100%;padding:calc(var(--k) * 4px) calc(var(--k) * 10px);border-radius:calc(var(--k) * 4px);box-shadow:none}
+.cwRound{font-size:calc(var(--k) * 9px);color:#bac9df;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:calc(var(--k) * 12px)}
+/* The Lesson slot, mirrored from the full wheel (the window opens compact). */
+.cwClassWrap{display:block;min-width:0}
+#wheelCard .cwClass{display:block;width:100%;min-width:0;min-height:max(22px,calc(var(--k) * 24px));padding:0 calc(var(--k) * 4px);font:calc(var(--k) * 10px)/1.2 system-ui,sans-serif;color:#eef3ff;background:#0d1628;border:1px solid #4d648a;border-radius:calc(var(--k) * 4px);box-sizing:border-box;text-overflow:ellipsis}
+#wheelCard .cwClass:disabled{opacity:.6}
+
+/* ---- The battle box ----
+   It is a size container, and so is every card inside it, so a picture is
+   always as big as its own card allows. */
+.cwBattle{display:flex;align-items:stretch;justify-content:center;position:relative;min-width:0;min-height:0;border:1px solid #4d648a;border-radius:calc(var(--k) * 6px);background:radial-gradient(ellipse at bottom,#243957,#142039);padding:calc(var(--k) * 4px);overflow:hidden;box-sizing:border-box}
+#cwBattleEmpty{align-self:center;font-size:calc(var(--k) * 11px);line-height:1.5;color:#c8d7ef;text-align:center;padding:calc(var(--k) * 12px)}
+#wheelCard .cwBattle>.cbQuickDuel{container:cwduel/size;flex:1;width:100%;height:100%;min-height:0!important;padding:0;margin:0;gap:calc(var(--k) * 4px);grid-template-columns:minmax(0,1fr) calc(var(--k) * 16px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);align-items:stretch;box-sizing:border-box}
+#wheelCard .cwBattle .cbQuickVs{font-size:calc(var(--k) * 9px);line-height:1;align-self:center;justify-self:center;text-align:center}
+
+/* 1v1: each combatant is a card that is its own size container. The picture
+   takes the card's height minus the room the text needs (scaled), and never
+   more than its width. */
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy):not(:has(.cbEnemyTeam)){
+  --cw-text-h:calc(var(--k) * 64px);
+  --cw-cap:min(calc(100cqh - var(--cw-text-h)),100cqw);
+  container-type:size;
+  display:grid;grid-template-columns:var(--cw-cols,minmax(0,1fr));grid-template-rows:var(--cw-rows,minmax(0,1fr) auto auto auto auto);
+  justify-items:stretch;align-items:end;gap:calc(var(--k) * 2px) calc(var(--k) * 6px);
+  width:auto;min-width:0;min-height:0;height:100%;padding:calc(var(--k) * 2px);margin:0;box-sizing:border-box;overflow:hidden
+}
+#wheelCard .cwBattle .cbQuickDuel>.cbQuickHero:not(:has(.cbaHero)){display:flex;align-items:center;justify-content:center}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>:is(.cbaHero,.cbEnemySprite,img,.cbMystery,.cbQuickMystery){grid-column:var(--cw-art-col,1);grid-row:var(--cw-art-row,1);justify-self:center;align-self:var(--cw-art-align,end);min-height:0;max-width:none;max-height:none;transform:none;flex:none}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>:is(.cbaHero,img){width:var(--cw-cap);height:var(--cw-cap);object-fit:contain}
+#wheelCard .cwBattle .cbQuickDuel>.cbQuickEnemy>.cbEnemySprite{--cw-art-h:min(var(--cw-cap-h,calc(100cqh - var(--cw-text-h))),calc(var(--cw-cap-w,100cqw) / var(--cb-enemy-aspect,1)));height:var(--cw-art-h);width:calc(var(--cw-art-h) * var(--cb-enemy-aspect,1));aspect-ratio:auto}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>:is(.cbMystery,.cbQuickMystery){width:var(--cw-cap);height:var(--cw-cap)!important;font-size:calc(var(--cw-cap) * .62)!important;line-height:1;display:flex;align-items:center;justify-content:center}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>:is(strong,small){grid-column:var(--cw-text-col,1);display:block;width:100%;max-height:none;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:var(--cw-align,center)}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>strong{grid-row:var(--cw-name-row,2);font-size:calc(var(--k) * 11px);line-height:calc(var(--k) * 13px);height:calc(var(--k) * 13px)}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>small{grid-row:var(--cw-info-row,3);font-size:calc(var(--k) * 8px);line-height:calc(var(--k) * 10px);height:calc(var(--k) * 10px)}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>span:not(.cbaHero):not(.cbEnemySprite):not(.cbMystery):not(.cbQuickMystery){grid-column:1/-1;font-size:calc(var(--k) * 10px)}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>.cbQuickResource{grid-column:var(--cw-text-col,1);width:100%;max-width:none;margin:0;justify-self:stretch}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>.cbQuickResource-hp{grid-row:var(--cw-hp-row,4)}
+#wheelCard .cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy)>.cbQuickResource-mp{grid-row:var(--cw-mp-row,5)}
+#wheelCard .cwBattle .cbQuickResource>span{font-size:calc(var(--k) * 8px)!important;line-height:calc(var(--k) * 10px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wheelCard .cwBattle .cbQuickBar{height:calc(var(--k) * 5px);padding:0;border-radius:calc(var(--k) * 2px);box-sizing:border-box}
+/* A wide, short battle box puts each picture BESIDE its name and bars, so a
+   window dragged out sideways still gives the characters its whole height. */
+@container cwduel (min-aspect-ratio:7/2){
+  #wheelCard #cwBattle .cbQuickDuel>:is(.cbQuickHero,.cbQuickEnemy):not(:has(.cbEnemyTeam)){--cw-cols:auto minmax(0,1fr);--cw-rows:minmax(0,1fr) auto auto auto auto minmax(0,1fr);--cw-art-row:1/-1;--cw-art-align:center;--cw-text-col:2;--cw-align:left;--cw-name-row:2;--cw-info-row:3;--cw-hp-row:4;--cw-mp-row:5;--cw-cap:min(calc(100cqh - var(--k) * 4px),48cqw);--cw-cap-h:calc(100cqh - var(--k) * 4px);--cw-cap-w:48cqw}
+}
+
+/* Battle effects and damage numbers scale with the picture they sit on. */
+#wheelCard .cwBattle .cbQuickDuel .cbaEffect{width:calc(var(--cw-cap,var(--k) * 68px) * 1.1);height:calc(var(--cw-cap,var(--k) * 68px) * 1.1);left:calc(50% - var(--cw-cap,var(--k) * 68px) * .55);top:0}
+#wheelCard .cwBattle .cbaNumber{font-size:calc(var(--k) * 14px)}
+
+/* The teammates a turn healed or shielded: a strip along the top of the box,
+   shown, not hidden, so every student the turn touched is on screen. */
+#wheelCard .cwBattle .cbaParty{position:absolute;left:calc(var(--k) * 4px);right:calc(var(--k) * 4px);top:calc(var(--k) * 2px);z-index:4;display:flex;flex-wrap:nowrap;justify-content:center;gap:calc(var(--k) * 3px);padding:0;max-height:none;overflow:hidden;pointer-events:none}
+#wheelCard .cwBattle .cbaRecipient{min-width:0;max-width:calc(var(--k) * 70px);padding:calc(var(--k) * 1px) calc(var(--k) * 3px);border-radius:calc(var(--k) * 4px);background:#172b42e6}
+#wheelCard .cwBattle .cbQuickDuel .cbaRecipient .cbaHero{width:calc(var(--k) * 24px);height:calc(var(--k) * 24px)}
+#wheelCard .cwBattle .cbaRecipient strong{font-size:calc(var(--k) * 7px);line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#wheelCard .cwBattle .cbQuickDuel .cbaRecipient .cbaEffect{width:calc(var(--k) * 34px);height:calc(var(--k) * 34px);left:calc(50% - var(--k) * 17px)}
+.cwBattle .cbQuickTreasure{display:none!important}
+
+/* ---- 2v2 / 3v3 ----
+   Heroes in one row above, enemies in one row below. Each row is a size
+   container and each card in it is one too, so every picture is sized to its
+   own card (cq units) and nothing spills over the title bar or the points
+   controls. The room kept for the text under a picture scales with --cw-k. */
 .cwBattle:has(.cbActiveTeam){overflow:hidden;align-items:stretch}
-#wheelCard .cwBattle .cbQuickDuel:has(.cbActiveTeam){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto minmax(0,1fr);gap:2px;height:100%;align-items:stretch}
-#wheelCard .cwBattle .cbQuickDuel:has(.cbActiveTeam)>.cbQuickVs{font-size:8px;line-height:10px;text-align:center}
+#wheelCard .cwBattle .cbQuickDuel:has(.cbActiveTeam){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto minmax(0,1fr);gap:calc(var(--k) * 2px);height:100%;align-items:stretch}
+#wheelCard .cwBattle .cbQuickDuel:has(.cbActiveTeam)>.cbQuickVs{font-size:calc(var(--k) * 8px);line-height:calc(var(--k) * 10px);text-align:center}
 #wheelCard .cwBattle .cbQuickDuel .cbQuickEnemy:has(.cbEnemyTeam){display:block;width:100%;height:100%;min-height:0;padding:0;margin:0}
-#wheelCard .cwBattle :is(.cbActiveTeam,.cbEnemyTeam){container-type:size;display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;width:100%;height:100%;min-height:0}
-#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember){container-type:size;--cw-cap:min(calc(100cqh - 38px),100cqw);--cw-art-col:1;--cw-art-row:1;--cw-text-col:1;--cw-align:center;display:grid;grid-template-columns:var(--cw-cols,minmax(0,1fr));grid-template-rows:var(--cw-rows,minmax(0,1fr) auto auto auto);justify-items:stretch;align-items:end;gap:2px 5px;width:auto;min-width:0;min-height:0;height:100%;padding:2px;margin:0;box-sizing:border-box;overflow:hidden;border-radius:5px}
+#wheelCard .cwBattle :is(.cbActiveTeam,.cbEnemyTeam){container-type:size;display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:calc(var(--k) * 4px);width:100%;height:100%;min-height:0}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember){container-type:size;--cw-team-text:calc(var(--k) * 30px);--cw-cap:min(calc(100cqh - var(--cw-team-text)),100cqw);--cw-art-col:1;--cw-art-row:1;--cw-text-col:1;--cw-align:center;display:grid;grid-template-columns:var(--cw-cols,minmax(0,1fr));grid-template-rows:var(--cw-rows,minmax(0,1fr) auto auto auto);justify-items:stretch;align-items:end;gap:calc(var(--k) * 2px) calc(var(--k) * 5px);width:auto;min-width:0;min-height:0;height:100%;padding:calc(var(--k) * 2px);margin:0;box-sizing:border-box;overflow:hidden;border-radius:calc(var(--k) * 5px)}
 #wheelCard .cwBattle .cbActiveTeam>.cbQuickHero{background:#16233acc;border:1px solid #3d557c}
 #wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>:is(.cbaHero,.cbEnemySprite,img,.cbMystery){grid-column:var(--cw-art-col);grid-row:var(--cw-art-row);justify-self:center;align-self:var(--cw-art-align,end);min-height:0;max-width:none;max-height:none;transform:none}
-#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>:is(.cbaHero,img,.cbMystery){width:var(--cw-cap);height:var(--cw-cap);object-fit:contain;font-size:20px;line-height:1}
-#wheelCard .cwBattle .cbEnemyMember>.cbEnemySprite{--cw-art-h:min(var(--cw-cap-h,calc(100cqh - 38px)),calc(var(--cw-cap-w,100cqw) / var(--cb-enemy-aspect,1)));height:var(--cw-art-h);width:calc(var(--cw-art-h) * var(--cb-enemy-aspect,1))}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>:is(.cbaHero,img,.cbMystery){width:var(--cw-cap);height:var(--cw-cap);object-fit:contain;font-size:calc(var(--cw-cap) * .6);line-height:1}
+#wheelCard .cwBattle .cbEnemyMember>.cbEnemySprite{--cw-art-h:min(var(--cw-cap-h,calc(100cqh - var(--cw-team-text))),calc(var(--cw-cap-w,100cqw) / var(--cb-enemy-aspect,1)));height:var(--cw-art-h);width:calc(var(--cw-art-h) * var(--cb-enemy-aspect,1));min-height:0;aspect-ratio:auto}
 #wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>:is(strong,small,.cbHp){grid-column:var(--cw-text-col);display:block;width:100%;max-height:none;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:var(--cw-align)}
-#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>strong{grid-row:var(--cw-name-row,2);font-size:10px;line-height:12px;height:12px}
-#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>small{grid-row:var(--cw-info-row,3);font-size:8px;line-height:10px;height:10px}
-#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>.cbHp{grid-row:var(--cw-hp-row,4);height:4px}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>strong{grid-row:var(--cw-name-row,2);font-size:calc(var(--k) * 10px);line-height:calc(var(--k) * 12px);height:calc(var(--k) * 12px)}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>small{grid-row:var(--cw-info-row,3);font-size:calc(var(--k) * 8px);line-height:calc(var(--k) * 10px);height:calc(var(--k) * 10px)}
+#wheelCard .cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember)>.cbHp{grid-row:var(--cw-hp-row,4);height:calc(var(--k) * 4px)}
+#wheelCard .cwBattle .cbEnemyMember{padding:calc(var(--k) * 2px)}
 /* A short, wide row (the window under its points controls) puts each picture beside its name:
    two cards from 3:1, three cards from 9:2. The card is styled against its team (the container)
    and hands the layout to its children as variables, which resolve their cq units against the card. */
-@container (min-aspect-ratio:3/1){#wheelCard #cwBattle :is(.cbActiveTeam,.cbEnemyTeam):not(:has(>:nth-child(3)))>*{--cw-cols:auto minmax(0,1fr);--cw-rows:minmax(0,1fr) auto auto auto minmax(0,1fr);--cw-art-row:1/-1;--cw-art-align:center;--cw-text-col:2;--cw-align:left;--cw-cap:min(calc(100cqh - 4px),42cqw);--cw-cap-h:calc(100cqh - 4px);--cw-cap-w:42cqw}}
-@container (min-aspect-ratio:9/2){#wheelCard #cwBattle :is(.cbActiveTeam,.cbEnemyTeam)>*{--cw-cols:auto minmax(0,1fr);--cw-rows:minmax(0,1fr) auto auto auto minmax(0,1fr);--cw-art-row:1/-1;--cw-art-align:center;--cw-text-col:2;--cw-align:left;--cw-cap:min(calc(100cqh - 4px),42cqw);--cw-cap-h:calc(100cqh - 4px);--cw-cap-w:42cqw}}
-.cwAwards{flex:none}.cwAwards:empty{display:none}.cwAwards .whAward{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px;margin:0}
-#wheelCard .cwAwards .rwAmount{min-width:32px;min-height:26px;padding:3px 6px;font-size:10px;line-height:1.2;border-radius:4px;box-shadow:none}
-.cwPointControls{display:flex;align-items:center;justify-content:center;gap:6px}
-.cwPointControls label{font-size:10px;color:#c6d5ed}
-#wheelCard .cwAwards input{width:68px;min-width:0;min-height:28px;padding:3px;font-size:11px;text-align:center;border-radius:4px;box-sizing:border-box}
-#wheelCard #cwGive{min-width:32px;min-height:28px;padding:1px 8px;font-size:20px;line-height:1;}
-.cwAwards .whAwardNote{font-size:9px;line-height:1.2;flex:1 1 100%;text-align:center;margin:0;color:#c6d5ed}
-.cwFeedback{display:flex;align-items:center;gap:5px;min-height:14px;min-width:0;flex:none}
-.cwFeedback .cbQuickStatus{margin:0;min-width:0;flex:1;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
-#wheelCard .cwFeedback .rwAmount{min-height:24px;padding:3px 6px;font-size:9px;box-shadow:none;max-width:160px}
-.cwSr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-@media(max-width:500px){.cwMini{padding:6px;gap:4px}.cwMain{gap:5px;grid-template-columns:minmax(100px,1fr) minmax(0,1.45fr)}.cwFace{font-size:13px}.cwEyebrow{font-size:8px;letter-spacing:.08em}#wheelCard .cwBattle .cbQuickDuel .cbaHero,#wheelCard .cwBattle .cbQuickDuel img,#wheelCard .cwBattle .cbQuickDuel .cbEnemySprite{width:52px;height:60px}.cwBattle .cbQuickResource>span{font-size:7px!important}}
-@media(prefers-reduced-motion:reduce){.cwStrip{will-change:auto}}
+@container (min-aspect-ratio:3/1){#wheelCard #cwBattle :is(.cbActiveTeam,.cbEnemyTeam):not(:has(>:nth-child(3)))>*{--cw-cols:auto minmax(0,1fr);--cw-rows:minmax(0,1fr) auto auto auto minmax(0,1fr);--cw-art-row:1/-1;--cw-art-align:center;--cw-text-col:2;--cw-align:left;--cw-cap:min(calc(100cqh - var(--k) * 4px),42cqw);--cw-cap-h:calc(100cqh - var(--k) * 4px);--cw-cap-w:42cqw}}
+@container (min-aspect-ratio:9/2){#wheelCard #cwBattle :is(.cbActiveTeam,.cbEnemyTeam)>*{--cw-cols:auto minmax(0,1fr);--cw-rows:minmax(0,1fr) auto auto auto minmax(0,1fr);--cw-art-row:1/-1;--cw-art-align:center;--cw-text-col:2;--cw-align:left;--cw-cap:min(calc(100cqh - var(--k) * 4px),42cqw);--cw-cap-h:calc(100cqh - var(--k) * 4px);--cw-cap-w:42cqw}}
+/* A tall stacked window gives each team row more height than width: the
+   text under a picture stays, the picture takes the rest. */
+.cwMini[data-cw-layout="tall"] #cwBattle :is(.cbActiveTeam>.cbQuickHero,.cbEnemyMember){--cw-team-text:calc(var(--k) * 32px)}
 
-/* Even in the floating rectangle the enemy should outweigh one student. */
-#wheelCard .cwBattle .cbQuickEnemy>.cbEnemySprite,
-#wheelCard .cwBattle .cbQuickEnemy>img { width:112px; height:104px; max-width:100%; object-fit:contain; }
-.cwBattle .cbEnemyTeam,.cwBattle .cbActiveTeam { grid-template-columns:repeat(2,minmax(0,1fr)); gap:2px; }
-.cwBattle .cbEnemyTeam:has(>:nth-child(3)),.cwBattle .cbActiveTeam:has(>:nth-child(3)) { grid-template-columns:repeat(3,minmax(0,1fr)); }
-#wheelCard .cwBattle .cbEnemyMember .cbEnemySprite,
-#wheelCard .cwBattle .cbEnemyMember img { width:100%; height:auto; min-height:40px; max-height:80px; aspect-ratio:var(--cb-enemy-aspect,1); }
-#wheelCard .cwBattle .cbActiveTeam .cbaHero { width:48px; height:48px; }
-.cwBattle .cbEnemyMember { padding:3px 1px; }
-@media(max-width:500px) {
-  #wheelCard .cwBattle .cbQuickEnemy>.cbEnemySprite,
-  #wheelCard .cwBattle .cbQuickEnemy>img { width:88px; height:84px; }
-}
+/* ---- Points and feedback ---- */
+.cwAwards{flex:none}.cwAwards:empty{display:none}.cwAwards .whAward{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:calc(var(--k) * 4px);margin:0}
+#wheelCard .cwAwards .rwAmount{min-width:max(28px,calc(var(--k) * 32px));min-height:max(24px,calc(var(--k) * 26px));padding:calc(var(--k) * 3px) calc(var(--k) * 6px);font-size:calc(var(--k) * 10px);line-height:1.2;border-radius:calc(var(--k) * 4px);box-shadow:none}
+.cwPointControls{display:flex;align-items:center;justify-content:center;gap:calc(var(--k) * 6px)}
+.cwPointControls label{font-size:calc(var(--k) * 10px);color:#c6d5ed}
+#wheelCard .cwAwards input{width:calc(var(--k) * 68px);min-width:44px;min-height:max(24px,calc(var(--k) * 28px));padding:calc(var(--k) * 3px);font-size:max(11px,calc(var(--k) * 11px));text-align:center;border-radius:calc(var(--k) * 4px);box-sizing:border-box}
+#wheelCard #cwGive{min-width:max(28px,calc(var(--k) * 32px));min-height:max(24px,calc(var(--k) * 28px));padding:calc(var(--k) * 1px) calc(var(--k) * 8px);font-size:calc(var(--k) * 20px);line-height:1}
+.cwAwards .whAwardNote{font-size:calc(var(--k) * 9px);line-height:1.2;flex:1 1 100%;text-align:center;margin:0;color:#c6d5ed}
+.cwFeedback{display:flex;align-items:center;gap:calc(var(--k) * 5px);min-height:calc(var(--k) * 14px);min-width:0;flex:none}
+.cwFeedback .cbQuickStatus{margin:0;min-width:0;flex:1;font-size:calc(var(--k) * 9px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+#wheelCard .cwFeedback .rwAmount{min-height:max(22px,calc(var(--k) * 24px));padding:calc(var(--k) * 3px) calc(var(--k) * 6px);font-size:calc(var(--k) * 9px);box-shadow:none;max-width:calc(var(--k) * 160px)}
+.cwSr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media(prefers-reduced-motion:reduce){.cwStrip{will-change:auto}}

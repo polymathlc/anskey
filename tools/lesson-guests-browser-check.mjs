@@ -145,7 +145,7 @@ async function setup(pendingGuest = false) {
     window.wheelRandom = () => 0;
     applyRewardVisibility();
   });
-  await page.click('#wheelBtn');
+  await page.click('#wheelBtn'); await page.evaluate(()=>setWheelMin(false)); // full-wheel coverage; the compact default (v1.189.0) has its own checks
   await page.waitForFunction(pending => pending ? !document.getElementById('wheelGuestRetry').hidden && !document.getElementById('wheelGuestRetry').disabled : !window.wheelGuestsBusy?.() && !document.getElementById('wheelSpinBtn').disabled,pendingGuest);
 }
 async function panel() {
@@ -206,7 +206,7 @@ try {
   check('removing a visitor removes their wheel entry and active party slot',await page.evaluate(() => !wheelState.names.some(e => e.id === 'away-alex') && !__battleState().heroes.some(h => h.studentId === 'away-alex')) && await page.locator('#cbHeroes [data-inspect="student:away-alex"]').count() === 0);
   check('removal retains earned XP, marks and the permanent slot without changing enemy health',await page.evaluate(before => __heroProfiles['away-alex'].xp === before.xp && rwStudents.find(s => s.id === 'away-alex').marks === before.marks && rwStudents.find(s => s.id === 'away-alex').slots.join() === 'P6 Science' && __battleState().bossHp === before.hp,beforeRemove));
   await page.click('#cbClose');
-  await page.evaluate(() => openWheel());
+  await page.evaluate(()=>{const p=openWheel();setWheelMin(false);return p;});
   await page.waitForFunction(() => !document.getElementById('wheelSpinBtn').disabled);
   await add('away-locked');
   check('an active source encounter reports a clear error and does not create a guest',await page.evaluate(() => !wheelState.names.some(e => e.id === 'away-locked')) && /active encounter|finish/i.test(await page.locator('#wheelGuestStatus').innerText()));

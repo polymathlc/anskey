@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-## Treasure reveals and pet companions (v1.190.0)
+## Treasure reveals and pet companions (v1.191.0)
 
 `treasure-chests.js/css` owns per-student reveal controls. `ClassroomBattleDisplay.treasure` supplies the existing saved reward cards, grouped by hero including bonus drops. Both manual and wheel victories use it. Opening never dispatches combat or grants loot. Device storage is scoped by teacher, lesson and encounter; blocked storage falls back to memory. Chest animation uses the existing ImageGen `assets/battle-pixel/chest-sheet.png`; its prompts and dimensions are recorded in `assets/battle-pixel/provenance.json`. Respect keyboard activation, hidden rewards and reduced motion.
 
@@ -13,6 +13,37 @@ Run `node --test tools/treasure-chests-tests.mjs tools/battle-pets-tests.mjs too
 
 Guidance for Claude when working in this repo.
 
+
+
+Guidance for Claude when working in this repo.
+
+
+## 🎡 The wheel quest opens compact, and the compact window scales (v1.190.0)
+
+- **`openWheel` opens minimised** (`setWheelMin(!embedded)`, `embedded` = `ClassroomBattle.isOpen()`), so the
+  Wheel button, Z and the command search all land in the compact window; the full wheel's `wheelWin` is still
+  settled first so ▢ restores it. Never put `setWheelMin(false)` back at the top of `openWheel`. The browser
+  suites that cover the FULL wheel call `setWheelMin(false)` right after opening; the compact default has its
+  own checks (`tools/wheel-check.mjs`).
+- **The shared rule `.modalBack.floatWin.winMin .floatWinGrip { display:none }` hid the compact wheel's only
+  resize handle.** `compact-wheel.css` shows `#wheelGrip` again in `.winMin`, above the panel.
+- **One number scales everything**: `CompactWheel.scaleFor(w, h)` (pure) → `{layout:'wide'|'tall', k}` from
+  `BASE` (620 × 280 wide, 340 × 480 tall; tall below w/h 1.15), the smaller ratio, clamped to `K_MIN`…`K_MAX`.
+  `CompactWheel.fit(box)` writes `--cw-k` and `data-cw-layout` on `#wheelCard`; `applyWheelWin` calls it on every
+  drag step (and `clearFit` in the full wheel), a ResizeObserver catches the rest. **Every length in
+  compact-wheel.css is `calc(var(--k) * Npx)`** (or `--kh` for the title bar, or a cq unit for pictures); a bare
+  pixel size stops that one thing scaling, and `tools/compact-wheel-tests.mjs` fails on one.
+- **The reel moves in base pixels times `--cw-k`** (`reelTransform`); `offset` / `ROW` / `CENTER` stay pure.
+  The strip is centred in the slot (`top: calc(50% - k·38px)`), so the slot may shrink (to 46k) without the
+  chosen name going off centre.
+- **1v1 cards are size containers** like the team cards: the picture takes the card height minus the scaled
+  text (`--cw-text-h`), never more than its width; a duel wider than 7:2 puts pictures beside names
+  (`@container cwduel`). `clampWheelWin` lets the compact box go down to `MIN_W` × `MIN_H` (240 × 170).
+- `#cwClass` mirrors `#wheelClassSelect` and hands a change BACK to it as a `change` event, so `wheelSetClass`
+  stays the one door. The compact files load with `?v=1.190.0`.
+- Run `node --test tools/compact-wheel-tests.mjs`, `node tools/wheel-check.mjs`,
+  `node tools/quick-wheel-browser-check.mjs` and `node tools/team-battle-browser-check.mjs` (a resize sweep
+  from 240 × 170 to full screen, tall windows and a real corner drag).
 
 ## 🖼 ChatGPT Images 2.6 (v1.189.0)
 
