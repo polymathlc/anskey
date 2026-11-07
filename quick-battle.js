@@ -210,7 +210,7 @@
   function previewEnemies(state) {
     return '<div class="cbEnemyTeam" aria-label="Next enemy formation">' + Core.enemiesFor(state).map(function (entry) {
       var b = Core.bossById(entry.bossId);
-      return '<article class="cbEnemyMember" data-enemy-id="' + esc(entry.id) + '" data-boss-id="' + esc(b.id) + '">' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.enemyArt(b) : '<img src="' + esc(b.image) + '" alt="' + esc(b.name) + ' pixel enemy">') + '<strong>' + esc(b.name) + '</strong><small>AWARD POINTS TO BEGIN</small></article>';
+      return '<article class="cbEnemyMember" data-enemy-id="' + esc(entry.id) + '" data-boss-id="' + esc(b.id) + '">' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.enemyArt(b) : '<img src="' + esc(b.image) + '" alt="' + esc(b.name) + ' pixel enemy">') + '<strong>' + esc(b.name) + '</strong><small>NEXT ENEMY · AWARD POINTS TO BEGIN</small></article>';
     }).join('') + '</div>';
   }
   function enemyMp(state) { return Number.isFinite(state.bossMp) ? state.bossMp : Core.BOSS_MAX_MP || 60; }
