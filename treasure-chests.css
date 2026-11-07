@@ -1,0 +1,32 @@
+/* Four generated opening frames, one horizontal row. */
+.cbChestCollection { margin-top:16px; min-width:0; }
+.cbChestToolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.cbChestToolbar strong { color:#ffe5a1; font-size:14px; }
+.cbChestToolbar p { color:#b6c9e8; margin:8px 0 0; line-height:1.6; font-size:12px; }
+.cbChestToolbar button { padding:12px 16px; border:1px solid #be9c50; border-radius:10px; background:#44391e; color:#fff1bd; cursor:pointer; font:inherit; font-size:12px; }
+.cbChestToolbar button:disabled { opacity:.55; cursor:default; }
+.cbChestProgress { color:#b6c9e8; font-size:11px; margin:16px 0; }
+.cbChestGrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr)); align-items:start; gap:16px; }
+.cbStudentChest { min-width:0; border:1px solid #4b5c81; border-radius:14px; padding:16px; background:#18263e; }
+.cbStudentChest h4 { margin:0 0 12px; color:#fff0c4; font-size:14px; overflow-wrap:anywhere; }
+.cbShell .cbChestButton,.cbChestButton { display:flex; flex-direction:column; align-items:center; width:100%; border:1px solid transparent; border-radius:10px; padding:0 8px 12px; background:transparent; color:#ffe5a1; cursor:pointer; font:inherit; }
+.cbChestButton:hover:not(:disabled) { background:#243654; border-color:#be9c50; }
+.cbChestButton:focus-visible,.cbChestToolbar button:focus-visible { outline:3px solid #7cdbff; outline-offset:3px; }
+.cbShell .cbChestButton:disabled,.cbChestButton:disabled { cursor:default; opacity:1; }
+.cbTreasureSprite { display:block; width:96px; aspect-ratio:3/4; background:url('assets/battle-pixel/chest-sheet.png') 0 0 / 400% 100% no-repeat; image-rendering:pixelated; animation:cbTreasureIdle 2.6s ease-in-out infinite; }
+.cbChestButtonText { font-size:12px; line-height:1.5; }
+.cbChestRevealed .cbTreasureSprite { background-position:100% 0; animation:none; }
+.cbChestJustOpened .cbTreasureSprite { animation:cbTreasureOpen .65s steps(3,end) both; }
+.cbChestContents { display:grid; gap:12px; margin-top:12px; }
+.cbChestContents[hidden] { display:none; }
+.cbChestJustOpened .cbChestContents { animation:cbTreasureReveal .3s .5s both; }
+.cbChestContents .cbReward { min-width:0; margin:0; }
+.cbQuickSpoils { min-width:0; width:100%; }
+.cbQuickTreasure .cbChestGrid { grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); }
+.cbQuickNext { grid-column:1/-1; flex-basis:100%; min-width:0; padding:16px; margin-top:12px; border:1px solid #526d8c; border-radius:12px; background:#172a43; }
+.cbQuickNext h4 { margin:0 0 12px; color:#ffe5a1; font-size:12px; line-height:1.6; }
+.cbQuickNext .cbEnemyTeam { justify-content:center; }
+@keyframes cbTreasureIdle { 0%,100% { transform:translateY(0) rotate(-2deg); } 50% { transform:translateY(-5px) rotate(2deg); } }
+@keyframes cbTreasureOpen { from { background-position:0 0; } to { background-position:100% 0; } }
+@keyframes cbTreasureReveal { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@media(prefers-reduced-motion:reduce) { .cbTreasureSprite,.cbChestJustOpened .cbTreasureSprite,.cbChestJustOpened .cbChestContents { animation:none; } }

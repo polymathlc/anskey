@@ -284,7 +284,7 @@
   }
   function avatar(h, extra) {
     var role = roleOf(h);
-    if (window.ClassroomBattleAnimation) return ClassroomBattleAnimation.heroMarkup(role, { job: h.job, gender: h.gender, avatar:h.avatar, className: 'cbAvatar ' + (extra || ''), alt: heroClassName(h) + ' pixel avatar facing right', dormant: h.hp <= 0 });
+    if (window.ClassroomBattleAnimation) return ClassroomBattleAnimation.heroMarkup(role, { hero:h, job: h.job, gender: h.gender, avatar:h.avatar, className: 'cbAvatar ' + (extra || ''), alt: heroClassName(h) + ' pixel avatar facing right', dormant: h.hp <= 0 });
     return '<img class="cbAvatar ' + (extra || '') + '" src="assets/battle-pixel/' + esc(role) + '.png" alt="' + esc(roleText[role].name) + ' pixel avatar facing right" draggable="false">';
   }
   function bindAvatarFailures(container) {
@@ -380,7 +380,7 @@
     var show = state && state.status === 'victory'; el('cbLoot').hidden = !show; if (!show) return;
     var key = state.encounterId; if (el('cbLoot').dataset.encounter === key) return;
     el('cbLoot').dataset.encounter = key;
-    el('cbLoot').innerHTML = '<div class="cbTreasureBurst"><span class="cbChest" role="img" aria-label="Opening treasure chest"></span><i>◆</i><i>✦</i><i>◆</i><div><span class="cbEyebrow">VICTORY SPOILS</span><h3>A treasure for every hero</h3><p>Personal rewards are saved. Every hero automatically upgrades each equipment slot by rarity.</p></div></div>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.treasure(state) : '');
+    el('cbLoot').innerHTML = '<div class="cbTreasureBurst"><div><span class="cbEyebrow">VICTORY SPOILS</span><h3>A treasure for every hero</h3><p>Open each student’s chest, or open them all together. Rewards and XP are already saved.</p></div></div>' + (window.ClassroomBattleDisplay ? ClassroomBattleDisplay.treasure(state) : '');
   }
 
   function feedback() {

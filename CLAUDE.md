@@ -1,5 +1,16 @@
 # CLAUDE.md
 
+## Treasure reveals and pet companions (v1.190.0)
+
+`treasure-chests.js/css` owns per-student reveal controls. `ClassroomBattleDisplay.treasure` supplies the existing saved reward cards, grouped by hero including bonus drops. Both manual and wheel victories use it. Opening never dispatches combat or grants loot. Device storage is scoped by teacher, lesson and encounter; blocked storage falls back to memory. Chest animation uses the existing ImageGen `assets/battle-pixel/chest-sheet.png`; its prompts and dimensions are recorded in `assets/battle-pixel/provenance.json`. Respect keyboard activation, hidden rewards and reduced motion.
+
+`battle-pets.js/css` draws only the pet actually worn in the canonical loadout. Pass `hero` to `ClassroomBattleAnimation.heroMarkup` for a saved character. Companion animation and Rest/Roam are presentation only; KO and reduced motion stop movement. Equipment changes still use the existing authenticated APIs and encounter locks.
+
+Quick fight previews full enemy formations through a read-only start reduction using the selected saved spin, matching production formation/rotation seeds. Preview must not save, award XP, reveal fabricated health or reroll on render. Repeated points awards remain supported; after a completed encounter the next formation is displayed before another award starts it.
+
+Run `node --test tools/treasure-chests-tests.mjs tools/battle-pets-tests.mjs tools/quick-preview-tests.mjs`, existing battle/display/wheel suites, and the manual, quick-wheel and pet browser checks.
+
+
 Guidance for Claude when working in this repo.
 
 
