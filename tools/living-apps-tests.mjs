@@ -396,3 +396,118 @@ test('📲 a simpler code: low error correction and a bigger worksheet code', ()
   assert.match(qb, /make\(0, \/\^\[LMQH\]\$\/\.test\(level \|\| ''\) \? level : 'L'\)/);
   assert.match(qb, /var QR_PT = 72;/);
 });
+
+/* ---------------------------------------------------------------------
+   📲 v1.192.0 — FOLDED: a living app is a QR code with "Living app" under
+   it until 👁 Show. The fold is the annotation's own picture swapped for
+   a badge, the full picture kept on `lfold`; these are pure.
+   --------------------------------------------------------------------- */
+const fullApp = () => ({
+  id: 'a1', page: 1, type: 'ainote', kind: 'paste', x: 50, y: 100, w: 500, h: 250, ratio: 2,
+  src: 'data:image/jpeg;base64,FULL', lqr: { x: 0.88, y: 0.02, s: 0.1 },
+  lapp: { v: 1, title: 'Tank', html: '<p>x</p>' }, lq: 'q1', locked: true
+});
+const badgeOf = (qr) => { const L = P.badgeLayout(); return { src: 'data:image/png;base64,BADGE', ratio: L.ratio, corner: L.corner, qr: !!qr }; };
+
+test('📲 the badge is a square filling its width with a label line under it, and cleanCorner lets its square through', () => {
+  const L = P.badgeLayout();
+  assert.equal(P.BADGE_LABEL, 'Living app');
+  assert.ok(L.square.size === L.w - 2 * L.square.x, 'the square fills the badge across');
+  assert.ok(L.label.y >= L.square.y + L.square.size, 'the label sits UNDER the square');
+  assert.ok(L.label.y + L.label.h <= L.h, 'and inside the badge');
+  assert.ok(Math.abs(L.ratio - L.w / L.h) < 1e-9);
+  const c = P.cleanCorner(L.corner);
+  assert.ok(c && c.s > 0.8 && c.s <= P.BADGE_SQUARE_MAX, JSON.stringify(c));
+  assert.equal(P.cleanCorner({ x: 0.5, y: 0, s: 0.9 }), null, 'still no square past the edge');
+  // On paper the vector code lands on exactly the painted square.
+  const rect = { x: 100, y: 200, w: 92, h: 92 / L.ratio };
+  const sq = P.qrInCorner(rect, L.corner);
+  assert.ok(sq && Math.abs(sq.size - 92 * L.corner.s) < 0.05 && Math.abs(sq.x - (100 + 92 * L.corner.x)) < 0.05, JSON.stringify(sq));
+});
+
+test('📲 fold keeps the full picture on lfold and makes the badge the picture, at the same top-left', () => {
+  const a = fullApp();
+  assert.ok(!P.isFolded(a));
+  assert.ok(P.wantsFold(a, false), 'a worksheet saved before folding folds once');
+  assert.ok(!P.wantsFold(a, true), '…but not a question whose model answers are on its lines');
+  assert.ok(P.foldAnnotation(a, badgeOf(true), 600, 800));
+  assert.ok(P.isFolded(a));
+  assert.equal(a.src, 'data:image/png;base64,BADGE');
+  assert.deepEqual(a.lfold, { src: 'data:image/jpeg;base64,FULL', w: 500, h: 250, ratio: 2, lqr: { x: 0.88, y: 0.02, s: 0.1 } });
+  assert.equal(a.x, 50); assert.equal(a.y, 100);
+  assert.equal(a.w, P.BADGE_PAGE_W);
+  assert.ok(Math.abs(a.w / a.h - P.badgeLayout().ratio) < 0.02);
+  assert.ok(a.lqr.s > 0.8, 'lqr is the badge square now');
+  assert.equal(a.lfoldQr, true);
+  assert.equal(a.lq, 'q1'); assert.equal(a.locked, true); assert.equal(a.lapp.title, 'Tank');
+  assert.ok(!P.wantsFold(a, false), 'already folded');
+});
+
+test('📲 unfold brings the full picture back, remembers the badge width, and is marked shown on purpose', () => {
+  const a = fullApp();
+  P.foldAnnotation(a, badgeOf(false), 600, 800);
+  a.w = 70; a.h = 70 / P.badgeLayout().ratio;   // the teacher sized the badge
+  assert.ok(P.unfoldAnnotation(a, 600, 800));
+  assert.ok(!P.isFolded(a));
+  assert.equal(a.src, 'data:image/jpeg;base64,FULL');
+  assert.equal(a.w, 500); assert.equal(a.h, 250); assert.equal(a.ratio, 2);
+  assert.deepEqual(a.lqr, { x: 0.88, y: 0.02, s: 0.1 });
+  assert.equal(a.lmini, 70);
+  assert.equal(a.lview, P.VIEW_OPEN);
+  assert.equal(a.lfold, undefined); assert.equal(a.lfoldQr, undefined);
+  assert.ok(!P.wantsFold(a, false), 'shown on purpose is never folded by itself again');
+  assert.ok(!P.unfoldAnnotation(a, 600, 800), 'nothing to unfold twice');
+  // Hide again gives back the badge the teacher sized.
+  P.foldAnnotation(a, badgeOf(true), 600, 800);
+  assert.equal(a.w, 70);
+  assert.equal(a.lview, undefined);
+});
+
+test('📲 fold and unfold never leave the paper', () => {
+  const a = fullApp();
+  a.x = 580; a.y = 780;                         // a badge dragged to the very corner
+  P.foldAnnotation(a, badgeOf(true), 600, 800);
+  assert.ok(a.x + a.w <= 600 && a.y + a.h <= 800, JSON.stringify(a));
+  P.unfoldAnnotation(a, 600, 800);
+  assert.ok(a.x >= 0 && a.y >= 0 && a.x + a.w <= 600 && a.y + a.h <= 800, JSON.stringify({ x: a.x, y: a.y, w: a.w, h: a.h }));
+  assert.equal(a.w, 500, 'moved, never shrunk, while it fits the page');
+  const big = fullApp(); big.w = 900; big.h = 1200; big.ratio = 0.75;
+  P.foldAnnotation(big, badgeOf(true), 600, 800);
+  P.unfoldAnnotation(big, 600, 800);
+  assert.ok(big.w <= 600 && big.h <= 800 && Math.abs(big.w / big.h - 0.75) < 0.01, 'bigger than the page is made to fit, in its own shape');
+});
+
+test('📲 a new picture waits behind a folded badge, and a shown one takes it at once', () => {
+  const a = fullApp();
+  P.foldAnnotation(a, badgeOf(true), 600, 800);
+  const badgeBox = { x: a.x, y: a.y, w: a.w, h: a.h, src: a.src };
+  P.setFullPicture(a, { src: 'data:image/jpeg;base64,NEW', ratio: 4, corner: { x: 0.9, y: 0.01, s: 0.08 } }, 600, 800);
+  assert.deepEqual({ x: a.x, y: a.y, w: a.w, h: a.h, src: a.src }, badgeBox, 'the badge does not move');
+  assert.equal(a.lfold.src, 'data:image/jpeg;base64,NEW');
+  assert.equal(a.lfold.ratio, 4); assert.equal(a.lfold.h, 125);
+  const b = fullApp();
+  P.setFullPicture(b, { src: 'data:image/jpeg;base64,NEW', ratio: 1, corner: null }, 600, 800);
+  assert.equal(b.src, 'data:image/jpeg;base64,NEW');
+  assert.ok(b.y + b.h <= 800 - 8 + 0.01, 'narrower rather than off the bottom');
+  assert.equal(b.lqr, undefined);
+});
+
+test('📲 the glue: new apps land folded, 👁 Show / 🙈 Hide is the teacher’s, one undo step, and old worksheets fold once', () => {
+  const add = html.slice(html.indexOf('function lappAddToPage('), html.indexOf('function lappSetCorner('));
+  assert.match(add, /lappFoldNow\(a\);\s*annotations\.push\(a\)/, 'folded before it lands');
+  const q = html.slice(html.indexOf('async function lappAddQuestion('), html.indexOf('function lappInit('));
+  assert.match(q, /if \(wrote\) appAnn\.lview = [^;]+;\s*else lappFoldNow\(appAnn\);/, 'a question with model answers stays shown');
+  const tog = html.slice(html.indexOf('function lappToggleView('), html.indexOf('/* ================= 📝 As a question'));
+  assert.match(tog, /if \(!wheelTeacher\(\)\)/, 'asked in the handler');
+  assert.match(tog, /if \(practiceMode\)/);
+  assert.match(tog, /pushUndo\(\)/);
+  assert.match(tog, /setDirty\(true\)/);
+  const bar = html.slice(html.indexOf('function renderPictureBar('), html.indexOf('function togglePictureLock('));
+  assert.match(bar, /'👁 Show' : '🙈 Hide'/);
+  assert.match(bar, /lappToggleView\(a\.id\)/);
+  const r = html.slice(html.indexOf('function renderOverlay(p)'), html.indexOf('function renderOverlay(p)') + 400);
+  assert.match(r, /typeof lappFoldLegacy === 'function'\) lappFoldLegacy\(p && p\.num\)/, 'old worksheets fold as their page is drawn, behind a typeof guard');
+  const pub = html.slice(html.indexOf('function lappRememberPub('), html.indexOf('async function lappQrLink('));
+  assert.match(pub, /lfoldQr/, 'a badge painted before the hosted copy is repainted with its code');
+  assert.ok(!/\blfold\s*=/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), 'the glue never writes lfold itself — LivingApps.pure is the one door');
+});

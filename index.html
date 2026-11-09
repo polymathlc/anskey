@@ -6020,7 +6020,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.191.0';
+var APP_VERSION = 'v1.192.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -7977,6 +7977,9 @@ function scheduleOverlays() {
 }
 
 function renderOverlay(p) {
+  // 📲 v1.192.0: living apps saved open before folding existed fold once,
+  // as their page is drawn.
+  if (typeof lappFoldLegacy === 'function') lappFoldLegacy(p && p.num);
   var svg = p.svg;
   // Rebuilding the overlay throws away the node of the box being typed in —
   // and with it the caret, the focus and (on an iPad) the keyboard. Remember
@@ -8226,6 +8229,14 @@ function renderPictureBar(p, a, box) {
       function () { lappOpen(a.id); }, 'laBarWand');
     textActionButton(bar, '✎ Change app', 'Swap in a new version of the app, or rename it',
       function () { lappEdit(a.id); });
+    if (window.LivingApps && window.LivingApps.pure.isFolded) {
+      var lappFolded = window.LivingApps.pure.isFolded(a);
+      textActionButton(bar, lappFolded ? '👁 Show' : '🙈 Hide',
+        lappFolded
+          ? 'Show the title, the diagram and the question on the page'
+          : 'Fold it back to just its QR code with “Living app” under it',
+        function () { lappToggleView(a.id); }, 'laBarView');
+    }
   }
   if (annModelStudio(a)) {
     textActionButton(bar, '✎ Edit model', 'Open this model in the model suite — every bar is still a bar',
@@ -32581,6 +32592,9 @@ function lappAddToPage(cover, app) {
     lapp: app, ts: Date.now()
   };
   lappSetCorner(a, cover.corner);
+  // 📲 v1.192.0: it lands FOLDED — the QR code and "Living app" — and the
+  // title and what it draws wait for 👁 Show.
+  lappFoldNow(a);
   annotations.push(a);
   selectedId = a.id;
   editModeId = a.id;
@@ -32606,6 +32620,14 @@ function lappSetCorner(a, corner) {
 function lappFitPicture(a, pic) {
   var page = pages[a.page - 1];
   var ph = page && page.baseH ? page.baseH : 800;
+  var pw = page && page.baseW ? page.baseW : 600;
+  if (window.LivingApps && window.LivingApps.pure.setFullPicture) {
+    // 📲 v1.192.0: a FOLDED app keeps its badge on the page and the new
+    // picture waits on `lfold` for 👁 Show; a shown one takes it at once.
+    window.LivingApps.pure.setFullPicture(a, pic, pw, ph);
+    if (window.LivingApps.pure.isFolded(a)) lappRepaintBadge(a);
+    return;
+  }
   var ratio = Math.max(0.05, pic.ratio || 2.3);
   var w = a.w, h = w / ratio;
   var room = Math.max(40, ph - a.y - 8);
@@ -32615,6 +32637,98 @@ function lappFitPicture(a, pic) {
   a.w = round2(w);
   a.h = round2(h);
   lappSetCorner(a, pic.corner);
+}
+
+/* ================= 📲 Folded: a QR code until it is shown (v1.192.0) =================
+   Zhi Kai: "The living app should only show the diagram and question and
+   title only when I click show. If not the living app should only be a QR
+   code with the words living app below it."
+   A living app (and a living QUESTION) is FOLDED on the page by default:
+   its picture is the badge LivingApps.paintBadgeNow paints — the QR code
+   that opens the app and "Living app" under it — and the full picture
+   waits on `lfold`. 👁 Show on its bar unfolds it; 🙈 Hide folds it back.
+   Both are ONE undo step and the TEACHER's (wheelTeacher(), asked in the
+   handler — a hidden button is never the lock), never in practice (the page
+   holds a child's attempt). The badge is still the annotation's own
+   picture, so move, resize, lock, erase-around, lasso, save, both PDF paths
+   and a student's tap (which still brings the app alive) need nothing new;
+   on paper the vector QR is drawn over the badge's square (`lqr`).
+   LivingApps.pure (foldAnnotation / unfoldAnnotation / setFullPicture /
+   wantsFold) is the one door; nothing here writes `lfold` itself. */
+function lappPageSize(a) {
+  var page = a && pages[a.page - 1];
+  return { w: page && page.baseW ? page.baseW : 600, h: page && page.baseH ? page.baseH : 800 };
+}
+function lappIsFolded(a) {
+  return !!(window.LivingApps && window.LivingApps.pure.isFolded && window.LivingApps.pure.isFolded(a));
+}
+/* Folds `a` to its badge, painted now. False (and `a` untouched) when the
+   badge cannot be painted on this device — the app then stays as it is. */
+function lappFoldNow(a) {
+  if (!annLivingApp(a) || !window.LivingApps || typeof window.LivingApps.paintBadgeNow !== 'function') return false;
+  var badge = null;
+  try { badge = window.LivingApps.paintBadgeNow(a.lapp); } catch (e) { console.warn('The living app’s QR badge could not be painted', e); return false; }
+  var sz = lappPageSize(a);
+  return window.LivingApps.pure.foldAnnotation(a, badge, sz.w, sz.h);
+}
+/* The badge painted again — the app changed, or its hosted copy (and so
+   its QR code) arrived after it was folded. The badge keeps its size. */
+function lappRepaintBadge(a) {
+  if (!lappIsFolded(a)) return false;
+  return lappFoldNow(a);
+}
+/* Model answers written on a living question's working lines (text boxes
+   with no `lq` inside its box): folding it would leave them floating over
+   nothing, so a question that has them is not folded by itself. */
+function lappAnswersOn(a, list) {
+  if (!annLivingQuestion(a)) return false;
+  return (list || annotations).some(function (b) {
+    if (!b || b === a || b.type !== 'text' || b.lq || b.page !== a.page) return false;
+    var cx = (Number(b.x) || 0) + (Number(b.w) || 0) / 2, cy = Number(b.y) || 0;
+    return cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h;
+  });
+}
+/* A worksheet saved before v1.192.0 holds its living apps open with no
+   `lview`: they are folded once, in memory, as the page is drawn (the next
+   save keeps it). One shown on purpose (`lview: 'open'`), one already
+   folded, and a question with model answers on its lines are left alone. */
+function lappFoldLegacy(pageNum) {
+  if (!window.LivingApps || !window.LivingApps.pure.wantsFold) return 0;
+  var P = window.LivingApps.pure, n = 0;
+  try {
+    for (var i = 0; i < annotations.length; i++) {
+      var a = annotations[i];
+      if (pageNum && a && a.page !== pageNum) continue;
+      if (!annLivingApp(a) || !P.wantsFold(a, lappAnswersOn(a))) continue;
+      if (lappFoldNow(a)) n++;
+    }
+  } catch (e) { console.warn('Living apps could not be folded', e); }
+  return n;
+}
+/* 👁 Show / 🙈 Hide. */
+function lappToggleView(id) {
+  if (!wheelTeacher()) { toast('Showing or hiding a living app is the teacher’s own.'); return false; }
+  if (practiceMode) { toast('End practice first — the page is holding a practice attempt.'); return false; }
+  var a = annotations.find(function (x) { return x.id === id; });
+  if (!annLivingApp(a) || !window.LivingApps) { toast('That living app is no longer on the page.'); return false; }
+  var P = window.LivingApps.pure;
+  var sz = lappPageSize(a);
+  var folded = P.isFolded(a);
+  pushUndo();
+  var done = folded ? P.unfoldAnnotation(a, sz.w, sz.h) : lappFoldNow(a);
+  if (!done) {
+    undoStack.pop();
+    toast(folded ? 'That living app has nothing more to show.' : 'The QR badge could not be drawn on this device, so the app stays shown.', 4000);
+    return false;
+  }
+  selectedId = a.id;
+  editModeId = a.id;
+  renderAllOverlays();
+  setDirty(true);
+  toast(folded
+    ? '👁 Shown — the title, the diagram and the question are on the page. 🙈 Hide folds it back to its QR code.'
+    : '🙈 Hidden — just the QR code and “Living app”. Tap it to bring the app alive; 👁 Show brings the rest back.', 4200);
+  return true;
 }
 
 /* The page swaps in the picture of what the app draws, once it has been
@@ -32771,6 +32885,10 @@ async function lappAddQuestion(cover, app, opts) {
       wrote++;
     });
   }
+  // 📲 v1.192.0: folded to its QR code — unless model answers were just
+  // written on its lines, which would otherwise float over nothing.
+  if (wrote) appAnn.lview = window.LivingApps.pure.VIEW_OPEN || 'open';
+  else lappFoldNow(appAnn);
   selectedId = appAnn.id;
   editModeId = appAnn.id;
   renderAllOverlays();
@@ -32780,8 +32898,10 @@ async function lappAddQuestion(cover, app, opts) {
   if (pic.count) readBits.push(pic.count === 1 ? 'its picture' : pic.count + ' pictures');
   if (pic.tables) readBits.push(pic.tables === 1 ? 'its table' : pic.tables + ' tables');
   if (got.read && !got.painted) readBits.push('nothing it draws could be copied, so its plain picture goes on');
-  if (shrunk) toast('📝 The question is taller than this page, so it was made smaller to fit. ➕ Blank page gives it a page of its own.', 6000);
-  else if (readBits.length) toast('📝 Read off the app: ' + readBits.join(', ') + (wrote ? ' — and the model answers are on the lines' : '') + '. Tap it, or its 🪄, to bring it alive.', 4800);
+  var foldNote = lappIsFolded(appAnn) ? ' It is folded to its QR code — 👁 Show on its bar puts the question on the page.' : '';
+  if (shrunk) toast('📝 The question is taller than this page, so it was made smaller to fit. ➕ Blank page gives it a page of its own.' + foldNote, 6000);
+  else if (readBits.length) toast('📝 Read off the app: ' + readBits.join(', ') + (wrote ? ' — and the model answers are on the lines' : '') + '. Tap it, or its 🪄, to bring it alive.' + foldNote, 5200);
+  else if (foldNote) toast('📝' + foldNote, 4200);
   return page.num;
 }
 
@@ -32887,6 +33007,13 @@ function lappRememberPub(a, pub) {
   a.lapp.pub = { hash: pub.hash, token: pub.token };
   var real = lappFind(a.id);
   if (real && real !== a && annLivingApp(real) && real.lapp.hash === a.lapp.hash) real.lapp.pub = a.lapp.pub;
+  // 📲 v1.192.0: a folded badge painted before the hosted copy existed
+  // showed the soft wand square; now it can show the real code.
+  var redraw = false;
+  [a, real].forEach(function (x) {
+    if (x && lappIsFolded(x) && !x.lfoldQr && lappRepaintBadge(x)) redraw = true;
+  });
+  if (redraw) renderAllOverlays();
   return true;
 }
 

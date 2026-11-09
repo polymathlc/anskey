@@ -4,6 +4,18 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.192.0 — 📲 A living app is just its QR code until you press Show
+
+- **A living app on the page is now folded by default**: a small card with the app's QR code and **Living app**
+  under it, and nothing else. The title, the diagram and the question stay hidden until the teacher selects it
+  and presses **👁 Show** on its bar; **🙈 Hide** folds it back. Each is one undo step.
+- Tapping the folded card still brings the app alive, and it moves, resizes, locks and prints like before. On
+  paper the QR code is drawn over the card's square, so a printed card scans.
+- An app with no online copy yet shows a gold wand in the square until its first save; then it shows its real
+  code.
+- Living apps on worksheets saved earlier fold once when the page is drawn. A 📝 question placed **with model
+  answers** stays shown, because the answers sit on its working lines.
+
 ## v1.191.0 — Treasure chests, companion pets and consistent enemy previews
 
 - Victory shows one animated pixel-art chest per student. Open a student’s chest or use **Open all treasure chests**; bonus items stay with that student. Opened chests are remembered on this device for the same teacher, lesson and encounter.

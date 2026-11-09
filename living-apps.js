@@ -673,7 +673,9 @@
     if (!c || typeof c !== 'object') return null;
     var x = Number(c.x), y = Number(c.y), sz = Number(c.s);
     if (![x, y, sz].every(function (n) { return isFinite(n); })) return null;
-    if (sz <= 0 || sz > 0.5 || x < 0 || y < 0 || x + sz > 1.0001 || y > 1) return null;
+    // Up to BADGE_SQUARE_MAX (v1.192.0): the folded badge IS a square
+    // with a label under it, so its corner covers most of its width.
+    if (sz <= 0 || sz > BADGE_SQUARE_MAX || x < 0 || y < 0 || x + sz > 1.0001 || y > 1) return null;
     return { x: x, y: y, s: sz };
   }
   /* Where the code goes on paper, in PDF points (origin bottom-left), for a
@@ -766,6 +768,184 @@
     try { var m = make(url); return m && m.length ? m : null; } catch (e) { return null; }
   }
 
+  /* ---------------------------------------------------------------
+     📲 FOLDED: A LIVING APP IS A QR CODE UNTIL IT IS SHOWN (v1.192.0)
+     ---------------------------------------------------------------
+     Zhi Kai: "The living app should only show the diagram and question and
+     title when I click show. If not the living app should only be a QR code
+     with the words living app below it."
+
+     So a living app on the page is FOLDED by default: its picture is a small
+     BADGE — the QR code that opens the app, in a square, with "Living app"
+     under it — and nothing else. 👁 Show on its bar unfolds it to the full
+     picture (the title, the diagram, the question); 🙈 Hide folds it back.
+
+     The trick is the same one every living app already plays: the folded
+     badge is still the ANNOTATION'S OWN PICTURE (`src`, `w`, `h`, `ratio`,
+     `lqr`), so the hit test, the handles, move, resize, lock, erase-around,
+     lasso, undo, save, thumbnails, the student's tap and both PDF paths
+     need nothing new. While folded, the full picture waits on `lfold`
+     ({src, w, h, ratio, lqr}); unfolded, `lfold` is deleted, `lview` is
+     'open' (so a worksheet saved before folding existed is not folded again
+     once somebody chose to show it) and `lmini` remembers how wide the badge
+     was, so Hide gives back the badge the teacher sized.
+       • `lqr` on the badge is its QR SQUARE, so paper draws the vector code
+         exactly over the painted one — a printed badge scans.
+       • The badge is anchored at the full picture's TOP-LEFT: Show grows it
+         right and down from where the badge sat, and Hide shrinks it back
+         to the same corner. Neither ever leaves the paper (`keepOnPage`).
+     Everything here is pure and works on plain objects, so the harness
+     checks it without a browser. */
+  var BADGE_W = 132;                  // CSS px of the painted badge
+  var BADGE_INSET = 8;
+  var BADGE_LABEL_H = 24;             // the "🪄 Living app" line under the square
+  var BADGE_LABEL = 'Living app';
+  var BADGE_PAGE_W = 92;              // page units a fresh badge is wide on the page
+  var BADGE_PAGE_MIN = 44;            // never narrower than this on the page
+  var BADGE_SQUARE_MAX = 0.95;        // cleanCorner's largest square (fraction of width)
+  var VIEW_OPEN = 'open';
+  /* The badge's own shape, in its painted pixels: the square, the label
+     line under it, and the corner (fractions) that becomes `lqr`. */
+  function badgeLayout() {
+    var W = BADGE_W, size = W - BADGE_INSET * 2;
+    var H = BADGE_INSET + size + 4 + BADGE_LABEL_H + BADGE_INSET - 2;
+    return {
+      w: W, h: H, ratio: W / H, size: size,
+      square: { x: BADGE_INSET, y: BADGE_INSET, size: size },
+      label: { x: BADGE_INSET, y: BADGE_INSET + size + 4, w: size, h: BADGE_LABEL_H },
+      corner: {
+        x: Math.round(BADGE_INSET / W * 10000) / 10000,
+        y: Math.round(BADGE_INSET / H * 10000) / 10000,
+        s: Math.round(size / W * 10000) / 10000
+      }
+    };
+  }
+  /* Is this annotation folded to its badge? */
+  function isFolded(a) {
+    return !!(a && a.lfold && typeof a.lfold === 'object' && typeof a.lfold.src === 'string' && a.lfold.src);
+  }
+  /* Has someone chosen to show it? (Kept so a worksheet saved before
+     folding existed is folded once, and then left as the teacher left it.) */
+  function isShownOnPurpose(a) { return !!(a && a.lview === VIEW_OPEN); }
+  /* A box kept on a page of pw × ph: moved, never shrunk, unless it is
+     bigger than the page itself. */
+  function keepOnPage(box, pw, ph) {
+    var PW = Number(pw) > 0 ? Number(pw) : 600, PH = Number(ph) > 0 ? Number(ph) : 800;
+    var w = Math.max(1, Number(box.w) || 1), h = Math.max(1, Number(box.h) || 1);
+    var ratio = w / h;
+    if (w > PW - 4) { w = PW - 4; h = w / ratio; }
+    if (h > PH - 4) { h = PH - 4; w = h * ratio; }
+    var x = Number(box.x) || 0, y = Number(box.y) || 0;
+    x = Math.max(2, Math.min(PW - w - 2, x));
+    y = Math.max(2, Math.min(PH - h - 2, y));
+    return { x: r2(x), y: r2(y), w: r2(w), h: r2(h) };
+  }
+  /* How wide the badge goes on the page: what the teacher last sized it to
+     (`lmini`), else BADGE_PAGE_W — never wider than the full picture was,
+     never narrower than BADGE_PAGE_MIN. */
+  function badgeWidthFor(a, fullW) {
+    var want = Number(a && a.lmini) > 0 ? Number(a.lmini) : BADGE_PAGE_W;
+    var cap = Number(fullW) > 0 ? Math.max(BADGE_PAGE_MIN, Number(fullW)) : want;
+    return r2(Math.max(BADGE_PAGE_MIN, Math.min(want, cap)));
+  }
+  /* The full picture an annotation holds right now — on `lfold` while it is
+     folded, on the annotation itself when it is shown. */
+  function fullPictureOf(a) {
+    if (!a) return null;
+    if (isFolded(a)) {
+      var f = a.lfold;
+      return { src: f.src, w: Number(f.w) || a.w, h: Number(f.h) || a.h, ratio: Number(f.ratio) || ((Number(f.w) || 1) / (Number(f.h) || 1)), lqr: cleanCorner(f.lqr) };
+    }
+    return { src: a.src, w: a.w, h: a.h, ratio: Number(a.ratio) || ((Number(a.w) || 1) / (Number(a.h) || 1)), lqr: cleanCorner(a.lqr) };
+  }
+  /* FOLD: the full picture goes onto `lfold`, the badge becomes the
+     picture. `badge` is paintBadge's answer ({src, ratio, corner}). A
+     picture already folded only has its badge repainted. Returns true when
+     anything changed. Never touches `lapp`, `lq`, `locked` or the id. */
+  function foldAnnotation(a, badge, pw, ph) {
+    if (!a || !badge || typeof badge.src !== 'string' || !badge.src) return false;
+    var full = fullPictureOf(a);
+    if (!full || !full.src) return false;
+    var ratio = Number(badge.ratio) > 0 ? Number(badge.ratio) : badgeLayout().ratio;
+    if (!isFolded(a)) {
+      var keep = { src: full.src, w: r2(full.w), h: r2(full.h), ratio: r2(full.ratio) };
+      if (full.lqr) keep.lqr = full.lqr;
+      a.lfold = keep;
+      var bw = badgeWidthFor(a, full.w);
+      var box = keepOnPage({ x: a.x, y: a.y, w: bw, h: bw / ratio }, pw, ph);
+      a.x = box.x; a.y = box.y; a.w = box.w; a.h = box.h;
+    } else {
+      // Repainted in place: the badge keeps the size the teacher gave it.
+      a.h = r2(a.w / ratio);
+    }
+    a.src = badge.src;
+    a.ratio = r2(ratio);
+    var c = cleanCorner(badge.corner);
+    if (c) a.lqr = c; else delete a.lqr;
+    a.lfoldQr = !!badge.qr;
+    delete a.lview;
+    return true;
+  }
+  /* UNFOLD: the full picture comes back from `lfold`, from the badge's
+     top-left corner, kept on the page. The badge's width is remembered on
+     `lmini`. Returns true when anything changed. */
+  function unfoldAnnotation(a, pw, ph) {
+    if (!isFolded(a)) return false;
+    var f = a.lfold;
+    a.lmini = r2(a.w);
+    var w = Number(f.w) > 0 ? Number(f.w) : a.w * 3;
+    var ratio = Number(f.ratio) > 0 ? Number(f.ratio) : w / (Number(f.h) || a.h || 1);
+    var box = keepOnPage({ x: a.x, y: a.y, w: w, h: w / ratio }, pw, ph);
+    a.x = box.x; a.y = box.y; a.w = box.w; a.h = box.h;
+    a.src = f.src;
+    a.ratio = r2(ratio);
+    var c = cleanCorner(f.lqr);
+    if (c) a.lqr = c; else delete a.lqr;
+    delete a.lfold;
+    delete a.lfoldQr;
+    a.lview = VIEW_OPEN;
+    return true;
+  }
+  /* A NEW picture for an annotation (✎ Change app, or the picture the page
+     swaps in once the app has been read). Folded, it waits on `lfold` and
+     the badge stays where it is; shown, it is the picture — the width is
+     kept and the height follows the shape, made narrower rather than run
+     off the bottom of the page. */
+  function setFullPicture(a, pic, pw, ph) {
+    if (!a || !pic || typeof pic.src !== 'string' || !pic.src) return false;
+    var PH = Number(ph) > 0 ? Number(ph) : 800;
+    var ratio = Math.max(0.05, Number(pic.ratio) || 2.3);
+    var c = cleanCorner(pic.corner);
+    if (isFolded(a)) {
+      var fw = Number(a.lfold.w) > 0 ? Number(a.lfold.w) : a.w * 3, fh = fw / ratio;
+      var room = Math.max(40, PH - a.y - 8);
+      if (fh > room) { fh = room; fw = fh * ratio; }
+      var keep = { src: pic.src, w: r2(fw), h: r2(fh), ratio: r2(ratio) };
+      if (c) keep.lqr = c;
+      a.lfold = keep;
+      return true;
+    }
+    var w = a.w, h = w / ratio;
+    var room2 = Math.max(40, PH - a.y - 8);
+    if (h > room2) { h = room2; w = h * ratio; }
+    a.src = pic.src;
+    a.ratio = r2(ratio);
+    a.w = r2(w);
+    a.h = r2(h);
+    if (c) a.lqr = c; else delete a.lqr;
+    return true;
+  }
+  /* Should a picture found on a page be folded now? A worksheet saved
+     before folding existed holds its living apps open, with no `lview`:
+     those are folded once — unless `answersOn` says model answers were
+     written on its working lines (folding would leave them floating over
+     nothing). One already folded, or shown on purpose, is left alone. */
+  function wantsFold(a, answersOn) {
+    if (!a || isFolded(a) || isShownOnPurpose(a)) return false;
+    if (typeof a.src !== 'string' || !a.src) return false;
+    return !answersOn;
+  }
+
   var pure = {
     MAX_CHARS: MAX_CHARS, TITLE_MAX: TITLE_MAX, COVER_W: COVER_W, COVER_H: COVER_H, CSP: CSP, WAND_BRIDGE: WAND_BRIDGE, HARVEST_BRIDGE: HARVEST_BRIDGE,
     escapeHtml: escapeHtml, cleanTitle: cleanTitle, titleFromHtml: titleFromHtml, titleFromFileName: titleFromFileName,
@@ -777,7 +957,12 @@
     tokenFromDownloadUrl: tokenFromDownloadUrl, mediaUrl: mediaUrl, viewerUrl: viewerUrl,
     parseViewerQuery: parseViewerQuery, packCode: packCode, unpackCode: unpackCode, readPublished: readPublished, publishedFor: publishedFor, qrOnCover: qrOnCover, qrSvg: qrSvg,
     CORNER_GUTTER: CORNER_GUTTER, CORNER_LABEL: CORNER_LABEL, CORNER_LABEL_H: CORNER_LABEL_H, cornerFor: cornerFor, cornerMinHeight: cornerMinHeight,
-    cornerLabelBox: cornerLabelBox, cleanCorner: cleanCorner, qrInCorner: qrInCorner, qrMatrixFor: qrMatrixFor
+    cornerLabelBox: cornerLabelBox, cleanCorner: cleanCorner, qrInCorner: qrInCorner, qrMatrixFor: qrMatrixFor,
+    BADGE_W: BADGE_W, BADGE_LABEL: BADGE_LABEL, BADGE_PAGE_W: BADGE_PAGE_W, BADGE_PAGE_MIN: BADGE_PAGE_MIN,
+    BADGE_SQUARE_MAX: BADGE_SQUARE_MAX, VIEW_OPEN: VIEW_OPEN,
+    badgeLayout: badgeLayout, isFolded: isFolded, isShownOnPurpose: isShownOnPurpose, keepOnPage: keepOnPage,
+    badgeWidthFor: badgeWidthFor, fullPictureOf: fullPictureOf, foldAnnotation: foldAnnotation,
+    unfoldAnnotation: unfoldAnnotation, setFullPicture: setFullPicture, wantsFold: wantsFold
   };
 
   /* ---------------------------------------------------------------
@@ -962,6 +1147,67 @@
         drawCornerBadge(x, W, H, corner, matrix);
         resolve({ src: c.toDataURL('image/png'), ratio: W / H, w: W, h: H, corner: corner, qr: !!matrix });
       } catch (e) { reject(e); }
+    });
+  }
+
+  /* 📲 THE BADGE (v1.192.0): what a FOLDED living app shows on the page —
+     the QR code that opens the app, in its square, and "Living app" under
+     it with the premium wand beside the words. Nothing else: no title, no
+     diagram, no question (👁 Show brings those). An app with no hosted copy
+     yet gets the soft gold-edged square with the wand in it, which paper
+     still covers with the real code (its `lqr` is the square), and the page
+     repaints it with the code the moment the copy exists. Painted
+     synchronously — folding a worksheet saved before folding existed
+     happens inside a redraw — and returned as {src, ratio, w, h, corner,
+     qr}. paintBadge is the Promise form for callers that await. */
+  var BADGE_SCALE = 3;
+  var BADGE_FONT = '700 14px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif';
+  function paintBadgeNow(app, matrixOverride) {
+    var L = badgeLayout();
+    var c = document.createElement('canvas');
+    c.width = Math.round(L.w * BADGE_SCALE); c.height = Math.round(L.h * BADGE_SCALE);
+    var x = c.getContext('2d');
+    if (!x) throw new Error('No canvas');
+    x.scale(BADGE_SCALE, BADGE_SCALE);
+    // A white card with a thin warm edge, so the badge reads as one thing
+    // on a busy page and a white page alike.
+    x.fillStyle = '#FFFFFF';
+    roundRectPath(x, 0.5, 0.5, L.w - 1, L.h - 1, 10);
+    x.fill();
+    x.lineWidth = 1; x.strokeStyle = '#EAD9A6'; x.stroke();
+    var matrix = matrixOverride !== undefined ? matrixOverride : qrMatrixFor(app);
+    var sq = L.square;
+    if (matrix && matrix.length) drawQrSquare(x, matrix, sq.x, sq.y, sq.size);
+    else {
+      x.save();
+      roundRectPath(x, sq.x + 0.5, sq.y + 0.5, sq.size - 1, sq.size - 1, Math.max(4, sq.size * 0.1));
+      x.fillStyle = '#FFFBEF'; x.fill();
+      x.lineWidth = 1.2; x.strokeStyle = '#E8C766'; x.stroke();
+      x.restore();
+      drawWand(x, sq.x + sq.size * 0.2, sq.y + sq.size * 0.2, sq.size * 0.6);
+    }
+    var lb = L.label;
+    x.save();
+    var px = 14;
+    x.font = BADGE_FONT;
+    x.textBaseline = 'middle';
+    var icon = px * 1.3, gap = px * 0.35;
+    var tw = x.measureText(BADGE_LABEL).width, total = icon + gap + tw;
+    if (total > lb.w) {
+      px = Math.max(8, px * lb.w / total);
+      x.font = BADGE_FONT.replace('14px', px.toFixed(2) + 'px');
+      icon = px * 1.3; gap = px * 0.35; tw = x.measureText(BADGE_LABEL).width; total = icon + gap + tw;
+    }
+    var left = lb.x + (lb.w - total) / 2, mid = lb.y + lb.h / 2;
+    drawWand(x, left, mid - icon / 2, icon);
+    x.fillStyle = '#3d372c';
+    x.fillText(BADGE_LABEL, left + icon + gap, mid + 0.5);
+    x.restore();
+    return { src: c.toDataURL('image/png'), ratio: L.ratio, w: L.w, h: L.h, corner: L.corner, qr: !!(matrix && matrix.length) };
+  }
+  function paintBadge(app, matrixOverride) {
+    return new Promise(function (resolve, reject) {
+      try { resolve(paintBadgeNow(app, matrixOverride)); } catch (e) { reject(e); }
     });
   }
 
@@ -1671,7 +1917,7 @@
     });
   }
 
-  var api = { create: create, pure: pure, paintCover: paintCover, drawQrOnPdf: drawQrOnPdf, harvest: harvest, drawWand: drawWand, drawCornerWand: drawCornerWand, drawCornerBadge: drawCornerBadge, drawQrSquare: drawQrSquare };
+  var api = { create: create, pure: pure, paintCover: paintCover, paintBadge: paintBadge, paintBadgeNow: paintBadgeNow, drawQrOnPdf: drawQrOnPdf, harvest: harvest, drawWand: drawWand, drawCornerWand: drawCornerWand, drawCornerBadge: drawCornerBadge, drawQrSquare: drawQrSquare };
   root.LivingApps = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
