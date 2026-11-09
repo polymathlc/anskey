@@ -143,12 +143,52 @@ ok('the preview runs it in a scripts-only sandbox with its CSP', prevFrame && pr
 await shot('adder');
 await page.click('.laAdder [data-la="add"]');
 await page.waitForFunction(() => annotations.some(annLivingApp), null, { timeout: 6000 }).catch(() => {});
-const plainCard = await page.evaluate(() => { const a = annotations.find(annLivingApp); return a ? { src: a.src.slice(0, 22), lqr: a.lqr } : null; });
-ok('🪄 it lands at once as its title with the tiny wand in the top-right corner — no "Tap to bring it alive" panel',
-  plainCard && plainCard.src === 'data:image/png;base64,' && plainCard.lqr && plainCard.lqr.x > 0.85 && plainCard.lqr.y < 0.2 && plainCard.lqr.s < 0.12, JSON.stringify(plainCard));
-// …then the page swaps in what the app draws, painted like a bank question.
-await page.waitForFunction(() => { const a = annotations.find(annLivingApp); return a && /^data:image\/jpeg/.test(a.src); }, null, { timeout: 12000 }).catch(() => {});
+const plainCard = await page.evaluate(() => {
+  const a = annotations.find(annLivingApp);
+  return a ? { src: a.src.slice(0, 22), lqr: a.lqr, w: a.w, h: a.h, folded: LivingApps.pure.isFolded(a),
+    full: a.lfold && { src: a.lfold.src.slice(0, 22), lqr: a.lfold.lqr } } : null;
+});
+// 📲 v1.192.0: it lands FOLDED — the badge (QR square + "Living app") is the
+// picture, and the title card waits on `lfold` for 👁 Show.
+const BADGE_PAGE_W = await page.evaluate(() => LivingApps.pure.BADGE_PAGE_W);
+ok('📲 it lands FOLDED: just the QR square with “Living app” under it, filling the badge',
+  plainCard && plainCard.folded && plainCard.src === 'data:image/png;base64,' && plainCard.lqr && plainCard.lqr.x < 0.1 && plainCard.lqr.s > 0.8 &&
+  Math.abs(plainCard.w - BADGE_PAGE_W) < 0.5, JSON.stringify(plainCard));
+ok('🪄 …and its title card, with the tiny wand in the top-right corner, waits behind it — no "Tap to bring it alive" panel',
+  plainCard && plainCard.full && plainCard.full.src === 'data:image/png;base64,' && plainCard.full.lqr && plainCard.full.lqr.x > 0.85 && plainCard.full.lqr.y < 0.2 && plainCard.full.lqr.s < 0.12, JSON.stringify(plainCard));
+// …then the page swaps in what the app draws — behind the badge.
+await page.waitForFunction(() => { const a = annotations.find(annLivingApp); return a && a.lfold && /^data:image\/jpeg/.test(a.lfold.src); }, null, { timeout: 12000 }).catch(() => {});
 await page.waitForTimeout(200);
+const folded = await page.evaluate(async () => {
+  const a = annotations.find(annLivingApp);
+  const img = new Image();
+  await new Promise(r => { img.onload = r; img.onerror = r; img.src = a.src; });
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+  const L = LivingApps.pure.badgeLayout();
+  const k = c.width / L.w;
+  // The label line under the square has dark text in it; nothing is painted outside the badge.
+  const lab = x.getImageData(Math.round(L.label.x * k), Math.round(L.label.y * k), Math.round(L.label.w * k), Math.round(L.label.h * k)).data;
+  let ink = 0;
+  for (let i = 0; i < lab.length; i += 4) if (lab[i] < 110 && lab[i + 1] < 110 && lab[i + 2] < 110) ink++;
+  return { src: a.src.slice(0, 22), full: a.lfold.src.slice(0, 23), ink, ratio: a.ratio, w: a.w, h: a.h,
+    badgeRatio: L.ratio, label: LivingApps.pure.BADGE_LABEL };
+});
+ok('…the picture of what the app draws arrives BEHIND the badge, which stays a badge',
+  folded.src === 'data:image/png;base64,' && folded.full === 'data:image/jpeg;base64,' && Math.abs(folded.w / folded.h - folded.badgeRatio) < 0.02, JSON.stringify(folded));
+ok('…and the badge really says “Living app” under its square', folded.label === 'Living app' && folded.ink > 40, JSON.stringify(folded));
+// 👁 Show, from the bar.
+const pressBar = (re) => page.evaluate((src) => {
+  const a = annotations.find(annLivingApp);
+  selectedId = a.id; editModeId = a.id;
+  renderAllOverlays();
+  const b = Array.from(pages[0].wrap.querySelectorAll('.aiBar button')).find(x => new RegExp(src).test(x.textContent));
+  if (!b) return false;
+  b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+  return true;
+}, re.source);
+const undoBefore = await page.evaluate(() => undoStack.length);
+ok('selected while folded, its bar offers 👁 Show', await pressBar(/Show/));
 const added = await page.evaluate(() => {
   const a = annotations.find(annLivingApp);
   const g = a && pages[0].svg.querySelector('g[data-id="' + a.id + '"]');
@@ -158,12 +198,25 @@ const added = await page.evaluate(() => {
     inside: a.x >= 0 && a.y >= 0 && a.x + a.w <= 600 && a.y + a.h <= 780,
     title: a.lapp.title, html: a.lapp.html.length, data: box && box.getAttribute('data-lapp'),
     chrome: g.querySelectorAll('.aiNoteHead, .aiNoteBtn, button').length,
+    folded: LivingApps.pure.isFolded(a), lview: a.lview, lmini: a.lmini,
+    bar: (pages[0].wrap.querySelector('.aiBar') || {}).innerText || '',
     adder: !!document.querySelector('.laAdder'), dirty, undo: undoStack.length
   } : null;
 });
 ok('➕ puts it on the page as a frameless picture carrying the app', added && added.kind === 'paste' && added.data === '1' && added.chrome === 0 && added.html > 500, JSON.stringify(added));
-ok('…then its picture is what the app draws, in its own shape, on the paper, the wand’s corner kept',
-  added && added.src === 'data:image/jpeg;base64,' && added.srcLen > 5000 && Math.abs(added.w / added.h - added.ratio) < 0.02 && added.inside && added.lqr && added.lqr.x > 0.85, JSON.stringify(added));
+ok('👁 Show: its picture is what the app draws, in its own shape, on the paper, the wand’s corner kept',
+  added && !added.folded && added.lview === 'open' && added.src === 'data:image/jpeg;base64,' && added.srcLen > 5000 && Math.abs(added.w / added.h - added.ratio) < 0.02 && added.inside && added.lqr && added.lqr.x > 0.85, JSON.stringify(added));
+ok('…one undo step, the badge’s width remembered, and the bar now offers 🙈 Hide',
+  added && added.undo === undoBefore + 1 && Math.abs(added.lmini - BADGE_PAGE_W) < 0.5 && /Hide/.test(added.bar), JSON.stringify(added));
+await shot('shown');
+// 🙈 Hide folds it back to the same corner; Show again for the rest of the check.
+ok('🙈 Hide is on the bar', await pressBar(/Hide/));
+const hidden = await page.evaluate(() => { const a = annotations.find(annLivingApp); return { folded: LivingApps.pure.isFolded(a), src: a.src.slice(0, 22), w: a.w, x: a.x, y: a.y, lqr: a.lqr, full: a.lfold && a.lfold.src.slice(0, 23) }; });
+ok('…folds it back to its badge, the full picture kept behind it', hidden.folded && hidden.src === 'data:image/png;base64,' && Math.abs(hidden.w - BADGE_PAGE_W) < 0.5 && hidden.lqr.s > 0.8 && hidden.full === 'data:image/jpeg;base64,', JSON.stringify(hidden));
+await shot('folded');
+await page.evaluate(() => { undo(); });
+const undone = await page.evaluate(() => { const a = annotations.find(annLivingApp); return { folded: LivingApps.pure.isFolded(a), src: a.src.slice(0, 23) }; });
+ok('…and Ctrl+Z undoes the Hide in one step', !undone.folded && undone.src === 'data:image/jpeg;base64,', JSON.stringify(undone));
 ok('…the adder closes, one undo step and a save to come', added && !added.adder && added.dirty === true && added.undo >= 1);
 
 console.log('\n🪄 Bring alive');

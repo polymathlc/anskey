@@ -266,6 +266,30 @@ reads `profile.tutorMistakes` (maths only) and passes `onRow`/`onSheet`/`onPract
 - `questionBlocks(spec, figure, figs)` lays the flow out. `flowGroups` groups pictures with no words between them into ONE image, and `paintQuestionPicture` paints each group on its own. A table is still a real table. The tags `q` / `p0` / `p1` are unchanged, so model answers still land on their lines.
 - Run `node --test tools/living-question-tests.mjs` and `node tools/living-library-check.mjs` (`APP_STORY`: the opening paragraph first, then the two diagrams and the lead-in in order).
 
+### 📲 Folded: a living app is a QR code until 👁 Show (v1.192.0)
+
+- **Every living app (and living question) is FOLDED by default.** Its picture is the badge
+  `LivingApps.paintBadgeNow(app)` paints: the QR code in a square, "Living app" under it (`BADGE_LABEL`), nothing
+  else. The full picture waits on `a.lfold = {src, w, h, ratio, lqr}`. **👁 Show / 🙈 Hide** on the picture bar
+  (`lappToggleView`, teacher only, never in practice, one undo step) swap them.
+- **`LivingApps.pure` is the one door**: `foldAnnotation` / `unfoldAnnotation` / `setFullPicture` / `wantsFold` /
+  `fullPictureOf` / `badgeLayout` / `keepOnPage`. The glue never writes `lfold` itself (the test reads the file for
+  it). `lappFitPicture` goes through `setFullPicture`, so a repaint or ✎ Change app updates the hidden picture and
+  leaves the badge where it is.
+- **The badge IS the annotation's own picture** (`src` / `w` / `h` / `ratio` / `lqr`), so the hit test, handles,
+  lock, erase, lasso, save, thumbnails, the student's tap and both PDF paths need nothing new. `lqr` is the badge's
+  square (`cleanCorner` now allows up to `BADGE_SQUARE_MAX` 0.95), so paper draws the vector code exactly over it.
+- Unfolded = `lview: 'open'` (never folded by itself again) and `lmini` (the badge width the teacher sized). It
+  folds and unfolds from the TOP-LEFT and never leaves the page.
+- **Old worksheets fold once as their page is drawn**: `renderOverlay` calls `lappFoldLegacy(p.num)` behind a
+  `typeof` guard (in memory; the next save keeps it). A living question with model answers on its lines
+  (`lappAnswersOn`) is left shown, and `lappAddQuestion` with answers starts shown (`lview: 'open'`).
+- A badge painted before the hosted copy existed (`lfoldQr` false) is repainted with its code in
+  `lappRememberPub`.
+- Run `node --test tools/living-apps-tests.mjs`, `node tools/living-apps-check.mjs` (lands folded, label pixels,
+  Show / Hide / undo) and `node tools/living-library-check.mjs` (questions fold, the badge's square is the viewer
+  link's QR).
+
 ## ⏺ Writing without recording: the "Not recording" warning (v1.173.0, v1.174.0, v1.183.0)
 
 - `record-nudge.js` / `record-nudge.css` own it (`window.RecordNudge`: `create(env)`, `pure`). index.html holds only the glue between `⏺ Writing without recording — glue` and `End writing without recording glue` (`recNudgeInit`, `recNudgeTeacher`, `recNudgeWindowOpen`, `recNudgeInk`, `recNudgeChanged`, `recNudgeSyncSwitch`, `recNudgeRecord`), `#lessonNudgeAgain` in the Record lesson window and `<script>recNudgeInit();</script>` after the module's tag.

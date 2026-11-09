@@ -411,6 +411,43 @@ ok('📝 the question is painted in the question bank’s format: its words, its
 ok('…ONE picture that carries the app, with the tiny wand’s corner at its top right', q1.app && q1.app.lq && q1.pieces === 1 && /^data:image\/(jpeg|png)/.test(q1.app.src) && q1.app.lqr && q1.app.lqr.x > 0.85 && q1.app.lqr.y < 0.05 && q1.app.lqr.s < 0.12, JSON.stringify(q1.app));
 ok('📲 the corner on screen IS the app’s QR code — the same code the paper and the stage print — in a plain square', q1.corner.viewerQr && q1.corner.dark > 0.25 && q1.corner.dark < 0.75, JSON.stringify(q1.corner));
 ok('…with “living app” and the wand in small type under it', q1.corner.labelDark > 40, JSON.stringify(q1.corner));
+// 📲 v1.192.0: a question placed WITH model answers stays shown (the
+// answers sit on its lines); 🙈 Hide folds it to a badge whose square IS
+// the app's QR code, the same code paper and the stage print.
+const badge = await page.evaluate(async () => {
+  const app = annotations.find(annLivingApp);
+  const shownAtFirst = app.lview === 'open' && !LivingApps.pure.isFolded(app);
+  const fullW = app.w;
+  const done = lappToggleView(app.id);
+  const im = new Image();
+  await new Promise(r => { im.onload = r; im.onerror = r; im.src = app.src; });
+  const cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+  const cx = cv.getContext('2d'); cx.drawImage(im, 0, 0);
+  const X = Math.round(app.lqr.x * cv.width), Y = Math.round(app.lqr.y * cv.height), S = Math.round(app.lqr.s * cv.width);
+  const url = LivingApps.pure.viewerUrl(location.href, app.lapp.pub.hash, app.lapp.pub.token);
+  const m = QuestionBank.pure.qrMatrix(url), n = m.length, cell = S / (n + 2);
+  let agree = 0, total = 0;
+  for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) {
+    const v = cx.getImageData(Math.floor(X + (1 + k + 0.5) * cell), Math.floor(Y + (1 + r + 0.5) * cell), 1, 1).data;
+    total++; if ((v[0] < 128) === !!m[r][k]) agree++;
+  }
+  // A real decode too, when jsQR is on the page.
+  let decoded = '';
+  try {
+    if (!window.jsQR && window.QrReader && QrReader.loadDecoder) await QrReader.loadDecoder();
+    if (window.jsQR) { const r = jsQR(cx.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height); decoded = r ? r.data : ''; }
+  } catch (e) { decoded = ''; }
+  const res = { shownAtFirst, done, folded: LivingApps.pure.isFolded(app), qr: app.lfoldQr, agree: agree / total, decoded, url,
+    w: app.w, fullW, lqr: app.lqr, keptQuestion: !!(app.lfold && /^data:image/.test(app.lfold.src)) };
+  undo();
+  const back = annotations.find(annLivingApp);
+  res.undone = !LivingApps.pure.isFolded(back) && back.lview === 'open';
+  return res;
+});
+ok('📲 a question placed with model answers stays shown, so the answers never float over nothing', badge.shownAtFirst, JSON.stringify(badge));
+ok('🙈 Hide folds it to the badge, the question kept behind it', badge.done && badge.folded && badge.keptQuestion && badge.w < badge.fullW / 3, JSON.stringify(badge));
+ok('…and the badge’s square IS the app’s QR code — the viewer link, the same code paper prints', badge.qr && badge.agree > 0.97 && (!badge.decoded || badge.decoded === badge.url), JSON.stringify(badge));
+ok('…undone in one step', badge.undone, JSON.stringify(badge));
 ok('…six ruled working lines under the parts, by their marks', q1.lines.reduce((a, b) => a + b, 0) === 6, JSON.stringify(q1.lines));
 ok('…the model answers sit on the painted lines as the teacher’s own (no lq)', q1.answers.length === 2 && q1.answerColor && q1.answers[0] === 'Sea water.' && q1.answersOn, JSON.stringify(q1.answers));
 ok('…all of it inside the page, as one undo step, with the app selected', q1.inside && q1.undo === 1 && q1.sel, JSON.stringify({ inside: q1.inside, undo: q1.undo, sel: q1.sel, app: q1.app }));
@@ -533,7 +570,11 @@ const rich = await page.evaluate(async (html) => {
   const pic = added.find(annLivingApp);
   // What the picture holds: the stylesheet's red, the canvas's blue and the table's dark lines.
   const img = new Image();
-  await new Promise(r => { img.onload = r; img.onerror = r; img.src = pic.src; });
+  // 📲 v1.192.0: with no model answers it lands FOLDED to its QR badge;
+  // the painted question waits behind it (fullPictureOf) for 👁 Show.
+  const foldedOnLanding = LivingApps.pure.isFolded(pic);
+  const full = LivingApps.pure.fullPictureOf(pic);
+  await new Promise(r => { img.onload = r; img.onerror = r; img.src = full.src; });
   const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
   const x = c.getContext('2d'); x.drawImage(img, 0, 0);
   const d = x.getImageData(0, 0, c.width, c.height).data;
@@ -550,7 +591,7 @@ const rich = await page.evaluate(async (html) => {
     texts: window.__qText(q), kinds: window.__qKinds(q),
     lines: window.__qLines(q),
     apps: added.filter(annLivingApp).length, lq: added.every(annLivingQuestion),
-    notCover: pic.src !== cover.src, w: img.naturalWidth, h: img.naturalHeight, red, blue, dark, magenta,
+    foldedOnLanding, notCover: full.src !== cover.src, w: img.naturalWidth, h: img.naturalHeight, red, blue, dark, magenta,
     texts2: window.__qText(q).join('\n'),
     frames: document.querySelectorAll('iframe.laHarvest').length,
     onPage: added.every(a => a.y >= 0 && a.y + (a.h || 0) <= 781)
@@ -561,6 +602,7 @@ ok('📝 an app with no block: its question goes on the page, not its heading, i
   JSON.stringify(rich.texts));
 ok('…its parts, with their marks', rich.texts[1] === '(a) What is the state of the water at 0 minutes?  [1]' && rich.texts[2] === '(b) Explain why the temperature stays at 0 °C for a while.  [2]', JSON.stringify(rich.texts));
 ok('…working space under each part by its marks (2 + 4 lines), and the table as a real table', rich.lines.join() === '2,4' && rich.apps === 1 && rich.lq && rich.kinds.join() === 'text,image,table,text,plainanswer,text,plainanswer', JSON.stringify(rich));
+ok('📲 a question with no model answers lands FOLDED to its QR code, the question waiting behind it', rich.foldedOnLanding, JSON.stringify({ folded: rich.foldedOnLanding }));
 ok('…the picture is what the app DRAWS, not the cover: the diagram in its stylesheet’s red', rich.notCover && rich.red > 500, JSON.stringify({ red: rich.red, w: rich.w, h: rich.h }));
 ok('…the canvas it painted in requestAnimationFrame', rich.blue > 500, JSON.stringify({ blue: rich.blue }));
 ok('…and its results table', rich.dark > 300, JSON.stringify({ dark: rich.dark }));
