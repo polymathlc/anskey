@@ -94,11 +94,15 @@
   }
   function el(id){return root.document.getElementById(id);}
   function move(id,target){
-    var node=el(id);if(!node||!target)return;
+    var node=el(id);if(!node||!target||staged(id))return;
     if(!homes.has(id)){var anchor=root.document.createComment('compact home: '+id);node.parentNode.insertBefore(anchor,node);homes.set(id,anchor);}
     if(node.parentNode!==target)target.appendChild(node);
   }
-  function restore(){homes.forEach(function(anchor,id){var node=el(id);if(node&&anchor.parentNode&&node.parentNode!==anchor.parentNode)anchor.parentNode.insertBefore(node,anchor.nextSibling);});}
+  /* v1.193.0 — while 🧙 the quest is on the worksheet (quest-stage.js) the duel
+     lives in the stage; neither restore nor refresh may pull it back. */
+  function staged(id){return id==='wheelQuickDuel'&&!!(root&&root.QuestStage&&root.QuestStage.holds());}
+  function stageRefresh(){if(root&&root.QuestStage)root.QuestStage.refresh();}
+  function restore(){homes.forEach(function(anchor,id){var node=el(id);if(staged(id))return;if(node&&anchor.parentNode&&node.parentNode!==anchor.parentNode)anchor.parentNode.insertBefore(node,anchor.nextSibling);});}
 
   /* ---- Fit: hand the scale to the CSS ----
      Called with the box the window is being set to (applyWheelWin, every
@@ -190,7 +194,7 @@
     if(!root)return;mount();if(!mounted)return;
     var active=!!root.wheelMin&&root.wheelIsOpen()&&!(root.ClassroomBattle&&root.ClassroomBattle.isOpen());
     el('wheelCompact').hidden=!active;
-    if(!active){restore();return;}
+    if(!active){restore();stageRefresh();return;}
     fit();
     move('wheelQuickDuel',el('cwBattle'));move('wheelQuickStatus',el('cwFeedback'));move('wheelQuickRetry',el('cwFeedback'));move('wheelAward',el('cwAwards'));
     if(el('wheelQuickStatus'))el('wheelQuickStatus').title=el('wheelQuickStatus').textContent;
@@ -209,6 +213,8 @@
       plan=null;paintFaces([entry?entry.n:'Ready to turn']);el('cwStrip').style.transform=reelTransform(CENTER);
       el('cwWinnerLive').textContent=entry?entry.n+' selected.':'Ready to choose a student.';
     }
+    stageRefresh();
+    if(root.QuestStage&&root.QuestStage.holds())empty.hidden=true;
   }
   function stop(){progress=0;plan=null;restore();if(mounted)el('wheelCompact').hidden=true;}
   return {refresh:refresh,frame:frame,stop:stop,fit:fit,clearFit:clearFit,reelPlan:reelPlan,offset:offset,reelTransform:reelTransform,renderAward:renderAward,pointAmount:pointAmount,scaleFor:scaleFor,defaultBox:defaultBox,BASE:BASE,MIN_W:MIN_W,MIN_H:MIN_H,K_MIN:K_MIN,K_MAX:K_MAX};

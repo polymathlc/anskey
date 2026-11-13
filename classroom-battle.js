@@ -133,7 +133,7 @@
     if (window.QuickBattle) QuickBattle.close();
     if (window.setWheelMin) setWheelMin(false);
     mount(); previousFocus = document.activeElement;
-    opened = true; el('classroomBattle').hidden = false; document.body.classList.add('cbOpen');
+    opened = true; el('classroomBattle').hidden = false; document.body.classList.add('cbOpen'); if (window.QuestStage) QuestStage.refresh(); // 🧙 the manual arena takes the quest back off the worksheet (v1.193.0)
     wheelParent = el('wheelModal').parentNode; wheelNext = el('wheelModal').nextSibling;
     el('cbWheelMount').appendChild(el('wheelModal'));
     try { await openWheel(); } catch (e) { showError(e); }

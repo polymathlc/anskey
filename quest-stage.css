@@ -1,0 +1,279 @@
+/* 🧙 The quest on the worksheet (v1.193.0) — see quest-stage.js.
+
+   The stage is a fixed layer over the worksheet with NO background: only the
+   characters, their names and their bars are painted, so the page shows
+   through everywhere else. Its empty parts let presses through to the
+   worksheet (pointer-events: none); the characters, the tools and the resize
+   corner take them. The duel inside is laid out at quest-stage.js BASE_W and
+   scaled as one picture by a transform, so text, sprites and effects always
+   grow and shrink together. */
+
+#questStage {
+  --qs-ink: #18202f;
+  --qs-halo: #ffffff;
+  --qs-accent: #6b4fd8;
+  --qs-tool-bg: rgba(24, 22, 44, .92);
+  --qs-tool-ink: #f4f1ff;
+  --qs-tool-line: rgba(190, 161, 106, .9);
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 94; /* with the snip pins: over the worksheet, under real modals and float windows */
+  pointer-events: none;
+  background: transparent;
+  outline: none;
+  touch-action: none;
+}
+#questStage[hidden] { display: none !important; }
+
+/* The scaled box. Its size is written by quest-stage.js (BASE_W × k by the
+   duel's natural height × k); the inner layer keeps the unscaled layout. */
+#questStage .qsBody {
+  position: relative;
+  overflow: visible;
+  background: transparent;
+}
+#questStage .qsInner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  background: transparent;
+}
+
+/* ---- The duel, unframed ---- */
+#questStage .cbQuickDuel {
+  margin: 0;
+  padding: 6px 4px 4px;
+  min-height: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--qs-ink);
+}
+#questStage .cbQuickDuel strong {
+  color: var(--qs-ink);
+  font-size: 13px;
+  font-weight: 800;
+  text-shadow: 0 0 2px var(--qs-halo), 0 0 3px var(--qs-halo), 0 1px 0 var(--qs-halo), 1px 0 0 var(--qs-halo), -1px 0 0 var(--qs-halo), 0 -1px 0 var(--qs-halo);
+}
+#questStage .cbQuickDuel small,
+#questStage .cbQuickDuel span:not(.cbaHero):not(.cbEnemySprite):not(.cbMystery):not(.cbQuickMystery):not([class^="cba"]) {
+  color: #3a4560;
+  font-weight: 700;
+  text-shadow: 0 0 2px var(--qs-halo), 0 0 3px var(--qs-halo), 0 1px 0 var(--qs-halo);
+}
+#questStage .cbQuickVs {
+  color: #b5481c;
+  font-size: 16px;
+  font-weight: 900;
+  text-shadow: 0 0 2px var(--qs-halo), 0 0 4px var(--qs-halo), 0 1px 0 var(--qs-halo);
+}
+/* Team cards lose their dark panels: on the page they are just characters. */
+#questStage .cbEnemyMember,
+#questStage .cbActiveTeam .cbQuickHero,
+#questStage .cbaRecipient {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+#questStage .cbEnemyFallen { opacity: .35; }
+/* Bars keep their colours, with a light frame so they read on white paper. */
+#questStage .cbQuickBar,
+#questStage .cbHp {
+  border-color: #56627c;
+  background: rgba(12, 23, 40, .78);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .85);
+}
+#questStage .cbaNumber {
+  text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 1px 0 #000;
+}
+
+/* What is not a character keeps a small dark card so its words stay readable:
+   the treasure after a victory (its chests are still tapped here) and the
+   next formation. */
+#questStage .cbQuickTreasure,
+#questStage .cbQuickNext {
+  background: rgba(21, 19, 39, .9);
+  border: 1px solid #675480;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  color: #eef1fb;
+}
+#questStage .cbQuickTreasure :is(strong, small, span, h4),
+#questStage .cbQuickNext :is(strong, small, span, h4) {
+  color: inherit;
+  text-shadow: none;
+}
+
+/* 🏷 off: only the characters. */
+#questStage.qsNoLabels .cbQuickDuel :is(strong, small, .cbQuickResource, .cbHp),
+#questStage.qsNoLabels .cbQuickNext {
+  display: none !important;
+}
+/* VS keeps its grid column (hiding it outright would slide the enemy into
+   the narrow middle column); it only stops being painted. */
+#questStage.qsNoLabels .cbQuickVs { visibility: hidden; }
+
+/* ⇋ heroes on the right: the columns swap and every sprite turns round so
+   the two sides still face each other. */
+#questStage.qsFlip .cbQuickDuel { direction: rtl; }
+#questStage.qsFlip .cbQuickDuel > * { direction: ltr; }
+#questStage.qsFlip .cbQuickDuel :is(.cbaHero, .cbEnemySprite, .cbQuickEnemy > img, .cbEnemyMember img) { scale: -1 1; }
+
+/* 👻 faint: the worksheet's words show through the characters. */
+#questStage.qsFaint .qsInner { opacity: .5; }
+#questStage.qsFaint .qsInner:hover { opacity: .85; }
+
+/* ---- Taking hold ---- */
+#questStage .cbQuickHero,
+#questStage .cbQuickEnemy,
+#questStage .cbaRecipient,
+#questStage .cbQuickTreasure,
+#questStage .cbQuickNext,
+#questStage .qsTools,
+#questStage .qsGrip {
+  pointer-events: auto;
+}
+#questStage .cbQuickHero,
+#questStage .cbQuickEnemy,
+#questStage .cbaRecipient { cursor: grab; }
+#questStage.qsDragging,
+#questStage.qsDragging * { cursor: grabbing !important; user-select: none; }
+#questStage .qsBody { outline: 2px dashed transparent; outline-offset: 4px; border-radius: 6px; transition: outline-color .15s; }
+#questStage.qsShowTools .qsBody,
+#questStage:focus-visible .qsBody,
+#questStage.qsDragging .qsBody { outline-color: rgba(107, 79, 216, .55); }
+
+/* ---- The tools: a small bar above the characters, shown on hover, on a tap,
+   while dragging and while the stage has the keyboard. ---- */
+#questStage .qsTools {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 5px 6px;
+  border-radius: 12px;
+  background: var(--qs-tool-bg);
+  border: 1px solid var(--qs-tool-line);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .28);
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .15s, visibility .15s;
+}
+#questStage:hover .qsTools,
+#questStage.qsShowTools .qsTools,
+#questStage:focus-within .qsTools,
+#questStage.qsDragging .qsTools {
+  opacity: 1;
+  visibility: visible;
+}
+#questStage .qsTool {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--qs-tool-ink);
+  font: 700 15px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+#questStage .qsTool:hover:not(:disabled) { background: rgba(255, 255, 255, .14); }
+#questStage .qsTool:focus-visible { outline: 2px solid #f2c974; outline-offset: 1px; }
+#questStage .qsTool[aria-pressed="true"] { background: rgba(242, 201, 116, .26); box-shadow: inset 0 0 0 1px rgba(242, 201, 116, .8); }
+#questStage .qsTool:disabled { opacity: .4; cursor: default; }
+#questStage .qsMove { cursor: grab; touch-action: none; }
+#questStage .qsHome { color: #ffd0c2; }
+
+/* The resize corner: always there, faint until the stage is in use. */
+#questStage .qsGrip {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 46%, var(--qs-accent) 46% 54%, transparent 54% 64%, var(--qs-accent) 64% 72%, transparent 72%),
+    rgba(255, 255, 255, .78);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+  opacity: .25;
+  transition: opacity .15s;
+}
+#questStage:hover .qsGrip,
+#questStage.qsShowTools .qsGrip,
+#questStage:focus-within .qsGrip,
+#questStage.qsDragging .qsGrip { opacity: 1; }
+
+#questStage.qsToolsBelow .qsTools { bottom: auto; top: calc(100% + 14px); }
+
+/* A finger needs bigger targets than a mouse. */
+@media (pointer: coarse) {
+  #questStage .qsTool { min-width: 40px; height: 40px; font-size: 17px; }
+  #questStage .qsGrip { width: 34px; height: 34px; right: -14px; bottom: -14px; }
+}
+
+/* ---- The note left in the wheel ---- */
+.qsNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 10px 0;
+  padding: 14px 16px;
+  border: 1px dashed #8d7bc9;
+  border-radius: 10px;
+  color: #e9e4ff;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+.qsNote[hidden] { display: none !important; }
+.qsNoteIcon { font-size: 20px; }
+.qsNoteBack {
+  padding: 6px 12px;
+  border: 1px solid #bea16a;
+  border-radius: 8px;
+  background: #2b2350;
+  color: #fff3d6;
+  font: 700 12px/1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+.qsNoteBack:hover { background: #3a2f6a; }
+/* Inside the compact window every length follows its scale (compact-wheel.css). */
+#wheelCard .cwBattle .qsNote {
+  margin: calc(var(--cw-k, 1) * 6px);
+  padding: calc(var(--cw-k, 1) * 10px);
+  gap: calc(var(--cw-k, 1) * 6px);
+  font-size: calc(var(--cw-k, 1) * 12px);
+  border-radius: calc(var(--cw-k, 1) * 8px);
+}
+#wheelCard .cwBattle .qsNote .qsNoteIcon { font-size: calc(var(--cw-k, 1) * 18px); }
+#wheelCard .cwBattle .qsNote .qsNoteBack {
+  padding: calc(var(--cw-k, 1) * 5px) calc(var(--cw-k, 1) * 10px);
+  font-size: calc(var(--cw-k, 1) * 11px);
+  border-radius: calc(var(--cw-k, 1) * 6px);
+}
+
+/* The wheel's 🧙 button, lit while the quest is on the worksheet. */
+#wheelStageBtn.active {
+  background: rgba(242, 201, 116, .28);
+  box-shadow: inset 0 0 0 1px rgba(242, 201, 116, .85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #questStage .qsTools,
+  #questStage .qsGrip,
+  #questStage .qsBody { transition: none; }
+}
+@media print {
+  #questStage { display: none !important; }
+}

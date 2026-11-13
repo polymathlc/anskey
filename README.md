@@ -4,6 +4,18 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.193.0 — 🧙 The quest lives on the worksheet
+
+- **New 🧙 button in the wheel's title bar.** It lifts the wheel quest's characters and enemies out of the wheel
+  and stands them on the worksheet with **no background**, so the battle looks as if it is happening on the page.
+- **Drag** any character (or the ⠿ handle) to move them; **drag the corner** to make them bigger or smaller (the
+  shape is kept). The small bar above them also has 🏷 names and HP on/off, ⇋ swap sides, 👻 faint (the worksheet
+  shows through), − / +, ↺ reset and ✕ back into the wheel. Arrow keys and + / − work too.
+- It is the real fight, not a picture: awarding points still attacks, heals and opens treasure right there on the page.
+  The wheel shows "The quest is on the worksheet · Bring it back" where the characters were.
+- The place, size and options are remembered on this device. Closing the wheel takes the characters off the page;
+  opening it again brings them back where they were. They never print and are never saved into the worksheet.
+
 ## v1.192.0 — 📲 A living app is just its QR code until you press Show
 
 - **A living app on the page is now folded by default**: a small card with the app's QR code and **Living app**

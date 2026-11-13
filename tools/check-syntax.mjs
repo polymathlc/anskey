@@ -18,6 +18,7 @@ try {
     execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../' + name, import.meta.url))], { stdio: 'inherit' });
   }
   execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../compact-wheel.js', import.meta.url))], { stdio: 'inherit' });
+  execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../quest-stage.js', import.meta.url))], { stdio: 'inherit' });
   console.log(`${scripts.length} inline scripts passed syntax checks.`);
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
