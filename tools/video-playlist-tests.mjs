@@ -314,7 +314,7 @@ test('only the teacher uploads, every save files it, and a worksheet change forg
   assert.equal(saves.length, 2, 'both the manual save and the auto-save file the list');
   assert.equal((html.match(/vplReadDoc\((d|data)\);/g) || []).length, 2, 'both ways a worksheet arrives read its hosted list');
   assert.match(html, /vplDocPub = null;\s+\/\/ 🎬 a new worksheet/);
-  assert.match(html, /<script src="living-apps\.js"><\/script>\n<script src="video-playlist\.js\?v=1\.195\.0"><\/script>/);
+  assert.match(html, /<script src="living-apps\.js"><\/script>\n<script src="video-playlist\.js\?v=1\.196\.0"><\/script>/);
 });
 
 test('the player page writes nothing from the file as markup', () => {
@@ -322,7 +322,7 @@ test('the player page writes nothing from the file as markup', () => {
   assert.ok(!/innerHTML/.test(src));
   assert.match(page, /P\.readPublished\(text, want\.hash\)/, 'the file is checked against the code');
   assert.match(page, /P\.mediaUrl\(want\.hash, want\.token\)/, 'the address is rebuilt, never read from the link');
-  assert.match(page, /<script src="video-playlist\.js\?v=1\.195\.0"><\/script>/);
+  assert.match(page, /<script src="video-playlist\.js\?v=1\.196\.0"><\/script>/);
   assert.ok(!/firebase/i.test(page.replace(/Firebase Storage|Firebase\s+SDK/g, '')), 'no Firebase SDK on the page');
   // Dark mode follows the design rules: tokens on :root, redefined twice.
   assert.match(css, /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\)/);
@@ -331,7 +331,106 @@ test('the player page writes nothing from the file as markup', () => {
 });
 
 test('the version moved and the file is syntax-checked', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.195\.0'/);
+  assert.match(html, /var APP_VERSION = 'v1\.196\.0'/);
   const syntax = fs.readFileSync(new URL('./check-syntax.mjs', import.meta.url), 'utf8');
   assert.match(syntax, /'video-playlist\.js'/);
+});
+
+/* ---------------------------------------------------------------------
+   📅 v1.196.0 — the same page is Polymath Online's video recordings,
+   grouped by the day each lesson was taught, with the answer key.
+   --------------------------------------------------------------------- */
+const DAY = (y, m, d, h) => new Date(y, m - 1, d, h || 17, 30).getTime();
+
+test('a lesson carries the day it was recorded, and an old list keeps its hash', () => {
+  const lesson = { id: 'l1', type: 'video', page: 2, x: 10, y: 10, url: LESSON_URL, ts: DAY(2026, 11, 12),
+    lessonRecording: { duration: 61000, video: true } };
+  const it = P.itemFromAnnotation(lesson);
+  assert.equal(it.at, DAY(2026, 11, 12));
+  assert.equal(P.cleanItem(it).at, DAY(2026, 11, 12));
+  // Absurd times are left off rather than trusted.
+  assert.equal(P.cleanItem(Object.assign({}, it, { at: 5 })).at, undefined);
+  assert.equal(P.cleanItem(Object.assign({}, it, { at: Date.UTC(2200, 0, 1) })).at, undefined);
+  assert.equal(P.cleanItem(Object.assign({}, it, { at: 'soon' })).at, undefined);
+  // cleanItem is still idempotent.
+  assert.deepEqual(P.cleanItem(P.cleanItem(it)), P.cleanItem(it));
+  // A list hosted before lessons carried a date reads back with its own hash.
+  const old = { v: 1, name: 'WS', ws: 'doc1', items: [{ kind: 'lesson', label: 'Play lesson', page: 2, url: LESSON_URL, camera: false }] };
+  const hash = P.contentHash(P.canonical(P.cleanPlaylist(old)));
+  const back = P.readPublished(JSON.stringify(Object.assign({}, old, { hash })), hash);
+  assert.ok(back.ok);
+  assert.equal(back.playlist.items[0].at, undefined);
+});
+
+test('lessonDays groups by the lesson day, oldest first, undated last', () => {
+  const items = [
+    { kind: 'lesson', page: 1, at: DAY(2026, 11, 12, 18) },
+    { kind: 'youtube', page: 1 },
+    { kind: 'lesson', page: 2, at: DAY(2026, 11, 5) },
+    { kind: 'lesson', page: 3, at: DAY(2026, 11, 12, 17) },
+    { kind: 'file', page: 4, at: DAY(2026, 11, 1) }   // only a lesson has a day
+  ];
+  const now = DAY(2026, 11, 13);
+  const days = P.lessonDays(items, now);
+  assert.deepEqual(days.map((d) => d.key), ['2026-11-05', '2026-11-12', '']);
+  assert.deepEqual(days.map((d) => d.idx), [[2], [0, 3], [1, 4]]);
+  assert.equal(days[0].label, 'Thu 5 Nov');
+  assert.equal(days[1].heading, 'Thursday’s lesson');
+  assert.equal(days[1].at, DAY(2026, 11, 12, 17), 'a day starts at its first lesson');
+  assert.equal(days[2].label, P.UNDATED_LABEL);
+  assert.deepEqual(P.playOrder(items, now), [2, 0, 3, 1, 4]);
+  // Another year says so.
+  assert.equal(P.dayLabel(DAY(2025, 3, 4), now), 'Tue 4 Mar 2025');
+  // Nothing dated: one group for the whole worksheet, in question order.
+  const plain = P.lessonDays([{ kind: 'youtube' }, { kind: 'file' }]);
+  assert.equal(plain.length, 1);
+  assert.equal(plain[0].label, 'Videos');
+  assert.deepEqual(plain[0].idx, [0, 1]);
+  assert.deepEqual(P.lessonDays([]), []);
+});
+
+test('the player steps through the day order and opens on a #day- link', () => {
+  const items = [
+    { kind: 'lesson', at: DAY(2026, 11, 12) },
+    { kind: 'youtube' },
+    { kind: 'lesson', at: DAY(2026, 11, 5) }
+  ];
+  const order = P.playOrder(items);
+  assert.deepEqual(order, [2, 0, 1]);
+  assert.equal(P.orderNext(order, 2), 0);
+  assert.equal(P.orderNext(order, 1), -1);
+  assert.equal(P.orderPrev(order, 2), -1);
+  assert.equal(P.orderPrev(order, 1), 0);
+  assert.equal(P.orderNext(order, 9), -1);
+  assert.equal(P.dayStart('#day-2026-11-12', items), 0);
+  assert.equal(P.dayStart('day-2026-11-05', items), 2);
+  assert.equal(P.dayStart('#day-2026-11-06', items), -1);
+  assert.equal(P.dayStart('#3', items), -1);
+  assert.equal(P.dayStart('#day-2026-11-12<x>', items), -1);
+  // The player uses the order, never i ± 1.
+  assert.match(page, /P\.orderNext\(order, index\)/);
+  assert.match(page, /P\.orderPrev\(order, index\)/);
+  assert.match(page, /P\.dayStart\(location\.hash, playlist\.items\)/);
+  assert.ok(!/play\(index \+ 1/.test(page) && !/play\(index - 1/.test(page));
+});
+
+test('the answer key is one tap away, and always the live one', () => {
+  assert.equal(P.answerKeyLink({ ws: 'doc_1' }), './?ws=doc_1');
+  assert.equal(P.answerKeyLink({ ws: 'doc_1' }, true), './?ws=doc_1&do=print-answers');
+  assert.equal(P.answerKeyLink({ ws: '' }), '');
+  assert.equal(P.answerKeyLink({ ws: 'a/b' }), '');
+  assert.match(page, /id="vpKeyLinks" hidden/);
+  assert.match(page, /P\.answerKeyLink\(playlist, true\)/);
+});
+
+test('every lesson saved files the list at once, and a sheet with no videos takes it off', () => {
+  const glue = section('🎬 Videos on paper — glue', 'End videos on paper glue');
+  assert.match(glue, /videoPlaylist: \{ hash: pub\.hash, token: pub\.token, n: n \|\| 0, at: Date\.now\(\) \}/);
+  assert.match(glue, /if \(!pl\) \{ if \(vplDocPub && await vplForget\(docAtStart\)\) filed = true; break; \}/);
+  assert.match(glue, /async function vplForget\(docId\) \{\s*if \(!docId \|\| !wheelTeacher\(\) \|\| practiceMode \|\| !vplDocPub\) return false;/);
+  assert.match(glue, /videoPlaylist: firebase\.firestore\.FieldValue\.delete\(\)/);
+  // The lesson recorder writes the annotations itself and never reaches auto-save.
+  const rec = section('async function lessonSavePending()', 'function lessonDownloadPending()');
+  assert.match(rec, /if \(lessonContextOK\(job\) && typeof vplAfterSave === 'function'\) vplAfterSave\(\);/);
+  assert.ok(rec.indexOf('vplAfterSave') > rec.indexOf('await writeAnnotations(job.docId'), 'filed only after the lesson is written');
 });

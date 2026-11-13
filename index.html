@@ -6024,7 +6024,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.195.0';
+var APP_VERSION = 'v1.196.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -13184,6 +13184,9 @@ async function lessonSavePending() {
         renderAllOverlays(); setDirty(JSON.stringify(annotations) !== json);
       }
     } finally { autoSaveInFlight = false; if (dirty || autoSaveQueued) { autoSaveQueued = false; scheduleAutoSave(); } }
+    // 🎬📅 The lesson goes straight onto the worksheet's video page — the
+    // QR code's and Polymath Online's — without waiting for another save.
+    if (lessonContextOK(job) && typeof vplAfterSave === 'function') vplAfterSave();
     if (job.backup) await job.backup;
     await lessonRecovery('delete', job.uid + '/' + job.docId).catch(function () {});
     if (lessonPending === job) lessonPending = null;
@@ -33455,7 +33458,17 @@ function llibInit() {
    page 1 are scored by how much printed ink (page 1 drawn small by
    pdf.js) and how much of the teacher's own writing each would cover, and
    the cleanest wins (`VideoPlaylist.pure.choosePlacement`). The worksheet
-   share code (▦, top right) is an obstacle like any other. */
+   share code (▦, top right) is an obstacle like any other.
+
+   📅 POLYMATH ONLINE SHOWS THE SAME PAGE (v1.196.0). The portal's ▶ Videos
+   beside each worksheet opens videos.html from the SAME `videoPlaylist`
+   this files on the document — one page for the QR code and the class
+   timeline, grouped by the day each lesson was taught. So the list is
+   filed after EVERY save that can change it: both saves, and the lesson
+   recorder's own write (`lessonSavePending`, which writes the annotations
+   itself and never reaches auto-save). A worksheet whose last video was
+   removed has its `videoPlaylist` taken off (`vplForget`), or the portal
+   would go on offering videos that are no longer on it. */
 var vplDocPub = null;          // { hash, token, n } read off the open worksheet's document
 var vplSyncing = false;
 var vplSyncAgain = false;
@@ -33509,7 +33522,8 @@ async function vplRemember(pub, n, docId) {
   if (!pub || !docId || !wheelTeacher() || practiceMode) return false;
   if (vplDocPub && vplDocPub.hash === pub.hash && vplDocPub.token === pub.token) return false;
   try {
-    await db.collection(COLLECTION).doc(docId).set({ videoPlaylist: { hash: pub.hash, token: pub.token, n: n || 0 } }, { merge: true });
+    // `at`: when this list was filed — Polymath Online says "videos updated".
+    await db.collection(COLLECTION).doc(docId).set({ videoPlaylist: { hash: pub.hash, token: pub.token, n: n || 0, at: Date.now() } }, { merge: true });
     if (currentDocId === docId) vplDocPub = { hash: pub.hash, token: pub.token, n: n || 0 };
     return true;
   } catch (e) {
@@ -33555,7 +33569,7 @@ async function vplAfterSave() {
       vplSyncAgain = false;
       var docAtStart = currentDocId;
       var pl = vplPlaylistFor(annotations);
-      if (!pl) break;
+      if (!pl) { if (vplDocPub && await vplForget(docAtStart)) filed = true; break; }
       if (window.VideoPlaylist.pure.publishedFor(pl, vplDocPub)) break;
       var pub = null;
       try { pub = await vplPublish(pl); } catch (e) { pub = null; console.warn('The video list could not be filed after a save', e); }
@@ -33566,6 +33580,21 @@ async function vplAfterSave() {
     vplSyncing = false;
   }
   return filed;
+}
+
+/* The worksheet has no videos any more: its filed list comes off the
+   document (teacher only, never in practice). The hosted file itself is
+   content-addressed and harmless; a printed code still opens it. */
+async function vplForget(docId) {
+  if (!docId || !wheelTeacher() || practiceMode || !vplDocPub) return false;
+  try {
+    await db.collection(COLLECTION).doc(docId).set({ videoPlaylist: firebase.firestore.FieldValue.delete() }, { merge: true });
+    if (currentDocId === docId) vplDocPub = null;
+    return true;
+  } catch (e) {
+    console.warn('The old video list could not be taken off the worksheet', e);
+    return false;
+  }
 }
 
 /* Page 1, drawn small by pdf.js, as a measure of printed ink: a function
@@ -41859,7 +41888,7 @@ loadAiNotePrefs();
 <script>bankQInit();</script>
 <script src="living-question.js"></script>
 <script src="living-apps.js"></script>
-<script src="video-playlist.js?v=1.195.0"></script>
+<script src="video-playlist.js?v=1.196.0"></script>
 <script>lappInit();</script>
 <script src="living-library.js"></script>
 <script>llibInit();</script>

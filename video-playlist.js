@@ -68,6 +68,13 @@
   var MS_MAX = 8 * 60 * 60 * 1000;   // the lesson recorder's own ceiling
   var KINDS = ['lesson', 'file', 'youtube', 'drive', 'link'];
   var DEFAULT_LABEL = 'Watch video solution';
+  var AT_MIN = Date.UTC(2020, 0, 1);  // a lesson's recorded-at time must fall
+  var AT_MAX = Date.UTC(2100, 0, 1);  // inside these, or it is left off
+  var DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var WEEKDAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var UNDATED_LABEL = 'More videos';
 
   /* ---------------------------------------------------------------
      Small helpers
@@ -162,6 +169,9 @@
         kind: 'lesson', label: label, page: Number(a.page), url: a.url,
         camera: !!(r.video || r.screen), ms: r.duration, rec: a.id
       };
+      // 📅 When it was recorded: the player and Polymath Online group the
+      // lessons by the day of the class they were taught in.
+      if (isFinite(Number(a.ts))) it.at = Number(a.ts);
       if (r.title) it.title = r.title;
       if (r.captionsUrl && r.captionsLang === 'en') it.captions = r.captionsUrl;
       if (r.screen && r.frame === 'portrait') it.portrait = true;
@@ -195,6 +205,9 @@
       if (raw.captions) { var cc = cleanUrl(raw.captions); if (cc && lessonAssetOk(cc)) out.captions = cc; }
       if (raw.rec && REC_RE.test(str(raw.rec))) out.rec = str(raw.rec);
       if (raw.portrait) out.portrait = true;
+      // Optional, so a list hosted before lessons carried a date keeps its hash.
+      var at = Math.round(finite(raw.at, 0));
+      if (at >= AT_MIN && at < AT_MAX) out.at = at;
       return out;
     }
     if (kind === 'youtube') {
@@ -711,6 +724,92 @@
     return i + 1 < n ? i + 1 : -1;
   }
 
+  /* ---------------------------------------------------------------
+     📅 By the day of the class (v1.196.0)
+     The player shows the videos the way Polymath Online lists them: each
+     lesson under the day it was taught, the first lesson first, and inside
+     a day in question order. Videos with no date (a YouTube clip, a file,
+     a lesson recorded before lessons carried a date) come last. The FILE
+     keeps question order — that is what the hash and the paper link are
+     over — so the grouping is a view, worked out here and nowhere else.
+     Days are the viewer's own calendar days (both the player and the
+     portal read the same `at` the same way, so they agree).
+     --------------------------------------------------------------- */
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function dayKey(ms) {
+    var n = Number(ms);
+    if (!(n >= AT_MIN && n < AT_MAX)) return '';
+    var d = new Date(n);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+  /* "Wed 12 Nov" — and the year, when it is not this year. */
+  function dayLabel(ms, now) {
+    var key = dayKey(ms);
+    if (!key) return '';
+    var d = new Date(Number(ms)), today = new Date(finite(now, Date.now()));
+    return WEEKDAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()] +
+      (d.getFullYear() !== today.getFullYear() ? ' ' + d.getFullYear() : '');
+  }
+  /* "Wednesday's lesson" */
+  function dayHeading(ms) {
+    var key = dayKey(ms);
+    return key ? WEEKDAYS_LONG[new Date(Number(ms)).getDay()] + '’s lesson' : '';
+  }
+  /* [{ key, label, heading, at, idx:[item indexes] }]: dated days oldest
+     first, then one group of undated videos. With nothing dated at all
+     there is one group, labelled for the worksheet as a whole. */
+  function lessonDays(items, now) {
+    var list = Array.isArray(items) ? items : [];
+    var byKey = {}, days = [], rest = [];
+    list.forEach(function (it, i) {
+      var key = it && it.kind === 'lesson' ? dayKey(it.at) : '';
+      if (!key) { rest.push(i); return; }
+      if (!byKey[key]) {
+        byKey[key] = { key: key, label: dayLabel(it.at, now), heading: dayHeading(it.at), at: Number(it.at), idx: [] };
+        days.push(byKey[key]);
+      }
+      var g = byKey[key];
+      if (Number(it.at) < g.at) g.at = Number(it.at);
+      g.idx.push(i);
+    });
+    days.sort(function (p, q) { return p.key < q.key ? -1 : p.key > q.key ? 1 : 0; });
+    if (rest.length) {
+      days.push({ key: '', label: days.length ? UNDATED_LABEL : 'Videos', heading: days.length ? 'Not from a lesson day' : '', at: 0, idx: rest });
+    }
+    return days;
+  }
+  /* The order the player plays in: day by day, as listed. */
+  function playOrder(items, now) {
+    var out = [];
+    lessonDays(items, now).forEach(function (g) { out = out.concat(g.idx); });
+    return out;
+  }
+  /* The item after / before item i in that order, or -1. */
+  function orderStep(order, i, step) {
+    var o = Array.isArray(order) ? order : [];
+    var at = o.indexOf(i);
+    if (at < 0) return -1;
+    var j = at + step;
+    return j >= 0 && j < o.length ? o[j] : -1;
+  }
+  function orderNext(order, i) { return orderStep(order, i, 1); }
+  function orderPrev(order, i) { return orderStep(order, i, -1); }
+  /* `#day-2026-11-12` (Polymath Online's link for one lesson day) → the
+     first video of that day, or -1 when the day is not on this list. */
+  function dayStart(hash, items, now) {
+    var m = /^#?day-(\d{4}-\d{2}-\d{2})$/.exec(str(hash));
+    if (!m || !DAY_RE.test(m[1])) return -1;
+    var g = lessonDays(items, now).filter(function (d) { return d.key === m[1]; })[0];
+    return g && g.idx.length ? g.idx[0] : -1;
+  }
+  /* The worksheet's answer key in Ans Key (beside videos.html), always the
+     live one; `print` opens it straight into the print window (the portal
+     link action `do=print-answers`). */
+  function answerKeyLink(pl, print) {
+    if (!pl || !WS_RE.test(str(pl.ws))) return '';
+    return './?ws=' + encodeURIComponent(pl.ws) + (print ? '&do=print-answers' : '');
+  }
+
   var api = Object.freeze({
     drawOnPdf: drawOnPdf,
     pure: Object.freeze({
@@ -729,7 +828,10 @@
       pickSpot: pickSpot, choosePlacement: choosePlacement, boxLayout: boxLayout, linkLines: linkLines,
       roundRectPath: roundRectPath, rowsToRuns: rowsToRuns,
       playerFor: playerFor, itemDetail: itemDetail, fmtTime: fmtTime, captionsVtt: captionsVtt,
-      writingLink: writingLink, startIndex: startIndex, nextIndex: nextIndex
+      writingLink: writingLink, startIndex: startIndex, nextIndex: nextIndex,
+      AT_MIN: AT_MIN, AT_MAX: AT_MAX, UNDATED_LABEL: UNDATED_LABEL,
+      dayKey: dayKey, dayLabel: dayLabel, dayHeading: dayHeading, lessonDays: lessonDays, playOrder: playOrder,
+      orderNext: orderNext, orderPrev: orderPrev, dayStart: dayStart, answerKeyLink: answerKeyLink
     })
   });
   root.VideoPlaylist = api;

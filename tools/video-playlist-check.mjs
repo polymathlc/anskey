@@ -415,6 +415,69 @@ async function playerPage(viewport, opts = {}) {
   await c.close();
 }
 
+/* 📅 v1.196.0: the same page is Polymath Online's lesson videos — grouped
+   by the day each lesson was taught, with the answer key a tap away. */
+console.log('\n📅 Lesson days');
+{
+  const day = (d, h) => new Date(2026, 10, d, h, 30).getTime();
+  const dated = ANNS.map(a => a.id === 'l1' ? Object.assign({}, a, { ts: day(12, 17) })
+    : a.id === 'l2' ? Object.assign({}, a, { ts: day(5, 17) }) : a);
+  const dpl = VP.pure.buildPlaylist(dated, { name: 'P5 Heat — Worksheet 3', ws: 'doc1' });
+  const dbody = VP.pure.publishPayload(dpl);
+  const DTOKEN = '7e1d0a3c-1b2c-4d5e-8f90-000000000009';
+  const dviewer = VP.pure.viewerUrl(BASE, dpl.hash, DTOKEN);
+  const c = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const pg = await c.newPage();
+  const errs = [];
+  pg.on('pageerror', e => errs.push(e.message));
+  await pg.route('https://firebasestorage.googleapis.com/**', route => {
+    const u = route.request().url();
+    const h = { 'Access-Control-Allow-Origin': '*' };
+    if (u.includes(encodeURIComponent('videos-' + dpl.hash + '.json'))) return route.fulfill({ status: 200, headers: h, contentType: 'application/json', body: dbody });
+    if (u.includes('captions.json')) return route.fulfill({ status: 200, headers: h, contentType: 'application/json', body: '{"cues":[]}' });
+    if (u.includes('lesson-')) return route.fulfill({ status: 200, headers: h, contentType: 'audio/wav', body: WAV });
+    return route.fulfill({ status: 404, headers: h, body: '' });
+  });
+  await pg.route('https://media.example.org/**', route => route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, contentType: 'audio/wav', body: WAV }));
+  await pg.route(/youtube-nocookie\.com|youtube\.com|drive\.google\.com/, route => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><body></body>' }));
+  await pg.goto(dviewer);
+  await pg.waitForSelector('.vpShell.ready', { timeout: 5000 }).catch(() => {});
+  const view = await pg.evaluate(() => ({
+    sub: document.getElementById('vpSub').textContent,
+    days: Array.from(document.querySelectorAll('.vpDay b')).map(b => b.textContent),
+    rows: Array.from(document.querySelectorAll('#vpList > li')).map(li => li.classList.contains('vpDay') ? '#' + li.querySelector('b').textContent : li.querySelector('.vpItem b').textContent),
+    now: document.getElementById('vpNowTitle').textContent,
+    num: document.getElementById('vpNowNum').textContent,
+    key: document.getElementById('vpKeyLinks').hidden ? '' : document.getElementById('vpKey').getAttribute('href'),
+    print: document.getElementById('vpKeyPrint').getAttribute('href')
+  }));
+  ok('the list is grouped by lesson day, the first lesson first', JSON.stringify(view.days) === JSON.stringify(['Thu 5 Nov', 'Thu 12 Nov', 'More videos']), JSON.stringify(view.rows));
+  ok('…each day’s videos under it, undated videos last',
+    JSON.stringify(view.rows) === JSON.stringify(['#Thu 5 Nov', 'Q6 · lesson · 0:01', '#Thu 12 Nov', 'Q5 · video lesson · 0:01', '#More videos', 'Q1 worked solution', 'Q8 on YouTube', 'Q9 on Vimeo']), JSON.stringify(view.rows));
+  ok('…it says so, and opens on the first lesson day', /lesson day by lesson day/.test(view.sub) && view.now === 'Q6 · lesson · 0:01' && /Video 1 of 5 · Thu 5 Nov lesson/.test(view.num), JSON.stringify(view));
+  ok('the answer key is one tap away, live in Ans Key', view.key === './?ws=doc1' && view.print === './?ws=doc1&do=print-answers', JSON.stringify(view));
+  await pg.click('#vpNextBtn');
+  ok('Next follows the day order, not the paper order', await pg.evaluate(() => document.getElementById('vpNowTitle').textContent === 'Q5 · video lesson · 0:01'));
+  await pg.click('#vpPrev');
+  ok('…and Previous goes back a day', await pg.evaluate(() => document.getElementById('vpNowTitle').textContent === 'Q6 · lesson · 0:01'));
+  if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'videos-days.png') });
+  await pg.goto(dviewer + '#day-2026-11-12');
+  await pg.waitForSelector('.vpShell.ready', { timeout: 5000 }).catch(() => {});
+  ok('Polymath Online’s #day- link starts at that lesson day', await pg.evaluate(() => document.getElementById('vpNowTitle').textContent === 'Q5 · video lesson · 0:01'));
+  // Inside the portal the page is in a frame: it still plays.
+  const framed = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+  const fp = await framed.newPage();
+  await fp.route('https://firebasestorage.googleapis.com/**', route => route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, contentType: 'application/json', body: dbody }));
+  await fp.goto(BASE + 'index.html');
+  await fp.setContent('<iframe id="f" style="width:1000px;height:700px" src="' + dviewer + '#day-2026-11-05"></iframe>');
+  const frame = await (await fp.waitForSelector('#f')).contentFrame();
+  await frame.waitForSelector('.vpShell.ready', { timeout: 5000 }).catch(() => {});
+  ok('…and the same page works inside Polymath Online’s window', await frame.evaluate(() => document.querySelectorAll('.vpDay').length === 3));
+  await framed.close();
+  ok('the day view ran with no uncaught error', errs.length === 0, errs.join('\n      '));
+  await c.close();
+}
+
 server.close();
 await browser.close();
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
