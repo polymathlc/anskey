@@ -262,6 +262,39 @@ const teacherSave = await page.evaluate(async () => {
 });
 ok('a teacher’s save files a changed list once, and remembers it', teacherSave.filed === true && teacherSave.uploads === 1 && teacherSave.pubHash === teacherSave.want, JSON.stringify(teacherSave));
 ok('…a second save with nothing new does nothing, and practice never files', teacherSave.again === false && teacherSave.inPractice === false);
+
+/* 📄 v1.197.0 — after a lesson the answer key PDF goes on Polymath Online under the class day. */
+if (!pdfOk) console.log('  – pdf-lib is not reachable here — the answer key export was skipped.');
+else {
+const ako = await page.evaluate(async () => {
+  const objects = window.__vp.objects; let pdfPuts = 0;
+  const base = storage.ref;
+  storage = { ref(pth) {
+    const r = base(pth);
+    r.put = async (blob, meta) => { pdfPuts++; const buf = new Uint8Array(await blob.arrayBuffer());
+      objects[pth] = { body: buf, meta, token: '9a8b7c6d-1b2c-4d5e-8f90-' + String(pdfPuts).padStart(12, '0') }; };
+    return r;
+  } };
+  annotations.push({ id: 'les1', type: 'video', page: 1, x: 40, y: 600, ts: Date.now(), url: 'https://firebasestorage.googleapis.com/v0/b/mathgen--app.firebasestorage.app/o/pdf-annotator%2Flesson-doc1-les1.json?alt=media&token=7e1d0a3c-1b2c-4d5e-8f90-0000000000aa', lessonRecording: { version: 1, duration: 60000, audioPath: 'pdf-annotator/lesson-doc1-les1.webm' } });
+  const writes = window.__vp.docWrites.length;
+  const why = window.AnswerKeyOnline.pure.plan('lesson', akoContext('lesson', '')).why;
+  const warns = []; const cw = console.warn; console.warn = (...a) => { warns.push(String(a[1] && a[1].message || a[0])); cw(...a); };
+  const filed = await akoPublish('lesson');
+  console.warn = cw;
+  const day = window.AnswerKeyOnline.pure.dayKey(Date.now());
+  const key = 'pdf-annotator/lesson-key-doc1-' + day + '.pdf';
+  const obj = objects[key];
+  const head = obj ? String.fromCharCode.apply(null, Array.from(obj.body.slice(0, 5))) : '';
+  const w = window.__vp.docWrites.slice(writes).filter(x => x.data && x.data.answerKeys);
+  const again = await akoPublish('save');          // nothing changed: no second export
+  practiceMode = true; const inPractice = await akoPublish('manual'); practiceMode = false;
+  return { why, warns, ok: !!filed, day, head, type: obj && obj.meta.contentType, pdfPuts, merge: w.length === 1 && w[0].merge,
+    entry: w[0] && w[0].data.answerKeys[day], again, inPractice, entries: akoEntries.length };
+});
+ok('📄 a lesson files the answer key PDF under today\'s class day', ako.ok && ako.head === '%PDF-' && ako.type === 'application/pdf' && ako.merge, JSON.stringify({ ...ako, entry: undefined }));
+ok('…the entry is a valid Storage key link the portal accepts', ako.entry && /lesson-key-doc1-/.test(decodeURIComponent(ako.entry.url)) && /[?&]alt=media&token=/.test(ako.entry.url) && /^[0-9a-f]{16}$/.test(ako.entry.fp) && ako.entries === 1, JSON.stringify(ako.entry));
+ok('…an unchanged save does not export again, and practice never does', ako.again === null && ako.inPractice === null && ako.pdfPuts === 1, JSON.stringify(ako));
+}
 await ctx.close();
 
 /* ------------------------------------------------------------------ */

@@ -18,6 +18,14 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## 📄 The answer key on Polymath Online, filed by class day (v1.197.0)
+
+- `answer-key-online.js` (`window.AnswerKeyOnline.pure`) holds the rules; index.html holds only the glue between `📄 Answer keys on Polymath Online — glue` and `End answer keys on Polymath Online glue` (`akoReadDoc`, `akoForget`, `akoShareQr`, `akoPublish`, `akoAfterLesson`, `akoAfterSave`, `akoPublishNow`), `#akoPublishBtn` (Print & PDF menu, in `TEACHER_TOOLBAR_IDS`), `akoReadDoc` beside both `vplReadDoc` calls, `akoForget` in the new-worksheet reset and `akoAfterSave` after both saves.
+- **After every lesson** (`lessonSavePending`: `vplAfterSave()` THEN `akoAfterLesson()`) the answer key is built exactly like ⬇ Download (`buildAnnotatedPdf` with the 🎬 one-link video QR from `vplLinkFor(anns, true)`, the quiet share QR `akoShareQr` — never `printQrUrl`, which toasts — and the living app codes), uploaded to `pdf-annotator/lesson-key-<docId>-<day>.pdf` (the `lesson-` prefix is the teacher-only Storage rule) and filed as `answerKeys.<YYYY-MM-DD> = {url, path, at, pages, videos, fp}` (merge). Polymath Online (cer `online/` v1.9.0, `Core.answerKeysOf` / `classDays`) lists every day's PDF newest first beside that day's videos; its Answer key button opens the newest PDF, never this app.
+- `plan(trigger, ctx)` is the one decision: `lesson` / `manual` → today; `save` → today only on a class day (a lesson today or a key already filed today), re-exported after `SAVE_QUIET_MS` so corrections land; `open` → an online-class worksheet with lessons and no key files its newest lesson's day (`OPEN_WAIT_MS` after opening). Teacher only, never in practice, never unsaved, skipped while `fp` (annotations + video link + QR + PDF) is unchanged. A day's key is replaced on that day only; older days stay as taught.
+- One run at a time (`akoRunning` / `akoAgain`), never written onto a worksheet opened mid-run (`docAtStart`), never throws (a lesson save must not fail because of it).
+- Run `node --test tools/answer-key-online-tests.mjs tools/video-playlist-tests.mjs`.
+
 ## 📅 The QR's video page is Polymath Online's lesson videos (v1.196.0)
 
 - **ONE page**: polymathlc/cer `online/` (v1.7.0) opens `videos.html?<the QR's packed code>` from the worksheet's `videoPlaylist` (its `Core.videoPackCode` is `packCode` byte for byte). Never give the portal a second video list.
