@@ -6024,7 +6024,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.195.0';
+var APP_VERSION = 'v1.196.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -13184,6 +13184,9 @@ async function lessonSavePending() {
         renderAllOverlays(); setDirty(JSON.stringify(annotations) !== json);
       }
     } finally { autoSaveInFlight = false; if (dirty || autoSaveQueued) { autoSaveQueued = false; scheduleAutoSave(); } }
+    // 🎓 After each lesson: the worksheet's video list (the QR code's page,
+    // and Polymath Online's) is filed at once, with this lesson in it.
+    if (lessonContextOK(job) && typeof vplAfterSave === 'function') vplAfterSave();
     if (job.backup) await job.backup;
     await lessonRecovery('delete', job.uid + '/' + job.docId).catch(function () {});
     if (lessonPending === job) lessonPending = null;
@@ -33456,7 +33459,17 @@ function llibInit() {
    pdf.js) and how much of the teacher's own writing each would cover, and
    the cleanest wins (`VideoPlaylist.pure.choosePlacement`). The worksheet
    share code (▦, top right) is an obstacle like any other. */
-var vplDocPub = null;          // { hash, token, n } read off the open worksheet's document
+/* 🎓 POLYMATH ONLINE READS THE SAME RECORD (v1.196.0). The class page at
+   polymathlc.com.sg/online opens videos.html — this very player — for a
+   worksheet's recordings, so the record also says WHICH lessons the hosted
+   list holds (`recs`, their annotation ids, and `days`, their Singapore
+   class days). Online uses the player only while every lesson it can see
+   is in `recs`; a lesson saved since falls back to the Ans Key replay
+   until the next save files the new list. A lesson's own save files it at
+   once (`lessonSavePending` → `vplAfterSave`), so "after each lesson" is
+   the moment Online has it. A record without `recs` (made before v1.196.0)
+   is written again once, without uploading anything. */
+var vplDocPub = null;          // { hash, token, n, full } read off the open worksheet's document
 var vplSyncing = false;
 var vplSyncAgain = false;
 
@@ -33473,7 +33486,9 @@ function vplReadDoc(d) {
   var p = d && d.videoPlaylist;
   if (!vplReady() || !p || typeof p !== 'object') { vplDocPub = null; return; }
   var P = window.VideoPlaylist.pure;
-  vplDocPub = P.validHash(p.hash) && P.validToken(p.token) ? { hash: p.hash, token: p.token, n: Number(p.n) || 0 } : null;
+  vplDocPub = P.validHash(p.hash) && P.validToken(p.token)
+    ? { hash: p.hash, token: p.token, n: Number(p.n) || 0, full: Array.isArray(p.recs) && Array.isArray(p.days) }
+    : null;
 }
 
 /* The hosted copy of `pl`: the one remembered when it is still this
@@ -33503,14 +33518,34 @@ async function vplPublish(pl) {
   return { hash: pl.hash, token: token };
 }
 
+/* What the worksheet's document says about its hosted list: the code, how
+   many videos, and (for Polymath Online) which lessons and which class
+   days are in it. Pure. */
+function vplRecord(pub, pl) {
+  var P = window.VideoPlaylist.pure;
+  var items = (pl && pl.items) || [];
+  var recs = [], days = [];
+  items.forEach(function (it) {
+    if (it.kind !== 'lesson' || !it.rec) return;
+    if (recs.indexOf(it.rec) < 0) recs.push(it.rec);
+    var d = P.itemDay(it);
+    if (d && days.indexOf(d) < 0) days.push(d);
+  });
+  days.sort();
+  return { hash: pub.hash, token: pub.token, n: items.length, recs: recs, days: days };
+}
+
 /* Keeps the token on the worksheet's document (teacher only, a merge), so
-   everyone who opens the sheet can print the same code. Never throws. */
-async function vplRemember(pub, n, docId) {
+   everyone who opens the sheet can print the same code. Never throws.
+   `pl` is the playlist the code is for. */
+async function vplRemember(pub, pl, docId) {
   if (!pub || !docId || !wheelTeacher() || practiceMode) return false;
-  if (vplDocPub && vplDocPub.hash === pub.hash && vplDocPub.token === pub.token) return false;
+  if (vplDocPub && vplDocPub.full && vplDocPub.hash === pub.hash && vplDocPub.token === pub.token) return false;
+  var rec = vplRecord(pub, pl);
   try {
-    await db.collection(COLLECTION).doc(docId).set({ videoPlaylist: { hash: pub.hash, token: pub.token, n: n || 0 } }, { merge: true });
-    if (currentDocId === docId) vplDocPub = { hash: pub.hash, token: pub.token, n: n || 0 };
+    rec.at = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection(COLLECTION).doc(docId).set({ videoPlaylist: rec }, { merge: true });
+    if (currentDocId === docId) vplDocPub = { hash: pub.hash, token: pub.token, n: rec.n, full: true };
     return true;
   } catch (e) {
     console.warn('The video list could not be remembered on the worksheet', e);
@@ -33537,7 +33572,7 @@ async function vplLinkFor(anns, quiet) {
   }
   var url = P.viewerUrl(location.href, pub.hash, pub.token);
   if (!url) return null;
-  if (currentDocId) vplRemember(pub, pl.items.length, currentDocId);
+  if (currentDocId) vplRemember(pub, pl, currentDocId);
   return { url: url, count: pl.items.length, hash: pl.hash };
 }
 
@@ -33555,12 +33590,22 @@ async function vplAfterSave() {
       vplSyncAgain = false;
       var docAtStart = currentDocId;
       var pl = vplPlaylistFor(annotations);
-      if (!pl) break;
-      if (window.VideoPlaylist.pure.publishedFor(pl, vplDocPub)) break;
+      if (!pl) {
+        // 🎓 The last video came off: Online must not go on offering a list
+        // of videos that are no longer on the worksheet.
+        if (vplDocPub) {
+          try {
+            await db.collection(COLLECTION).doc(docAtStart).set({ videoPlaylist: firebase.firestore.FieldValue.delete() }, { merge: true });
+            if (currentDocId === docAtStart) vplDocPub = null;
+          } catch (e) { console.warn('The old video list could not be taken off the worksheet', e); }
+        }
+        break;
+      }
+      if (window.VideoPlaylist.pure.publishedFor(pl, vplDocPub) && vplDocPub.full) break;
       var pub = null;
       try { pub = await vplPublish(pl); } catch (e) { pub = null; console.warn('The video list could not be filed after a save', e); }
       // A worksheet closed mid-run is not written onto whatever is open now.
-      if (pub && currentDocId === docAtStart && await vplRemember(pub, pl.items.length, docAtStart)) filed = true;
+      if (pub && currentDocId === docAtStart && await vplRemember(pub, pl, docAtStart)) filed = true;
     } while (vplSyncAgain);
   } finally {
     vplSyncing = false;
@@ -41859,7 +41904,7 @@ loadAiNotePrefs();
 <script>bankQInit();</script>
 <script src="living-question.js"></script>
 <script src="living-apps.js"></script>
-<script src="video-playlist.js?v=1.195.0"></script>
+<script src="video-playlist.js?v=1.196.0"></script>
 <script>lappInit();</script>
 <script src="living-library.js"></script>
 <script>llibInit();</script>

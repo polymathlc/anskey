@@ -267,6 +267,41 @@ audio.vpMedia {
 }
 .vpListHead h3 { margin: 0; font-size: 15px; }
 .vpCount { color: var(--vp-soft); font-size: 13px; }
+/* 📅 Lessons by the day of the class (v1.196.0) */
+.vpDays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 8px 4px;
+}
+.vpDays[hidden] { display: none; }
+.vpDay {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--vp-line);
+  border-radius: 999px;
+  background: var(--vp-card);
+  color: var(--vp-ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.vpDay small {
+  color: var(--vp-soft);
+  font-size: 12px;
+}
+.vpDay:hover { background: var(--vp-bg); }
+.vpDay.on {
+  background: var(--vp-ink);
+  border-color: var(--vp-ink);
+  color: var(--vp-card);
+}
+.vpDay.on small { color: inherit; opacity: .75; }
+.vpDay:focus-visible { outline: 3px solid var(--vp-gold); outline-offset: 2px; }
 .vpList {
   list-style: none;
   margin: 8px 0 0;

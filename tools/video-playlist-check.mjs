@@ -129,7 +129,7 @@ await page.evaluate((anns) => {
       };
     }
   };
-  db = { collection: () => ({ doc: (id) => ({ set: async (data, o) => { docWrites.push({ id, data, merge: !!(o && o.merge) }); } }) }) };
+  db = { collection: () => ({ doc: (id) => ({ set: async (data, o) => { docWrites.push({ id, data: JSON.parse(JSON.stringify(data, (k, v) => typeof v === 'function' || (v && v.__sentinel) ? '[server]' : v)), merge: !!(o && o.merge) }); } }) }) };
 }, ANNS);
 
 const exported = await page.evaluate(async () => {
@@ -149,7 +149,7 @@ const exported2 = await page.evaluate(async () => {
   const pl = vplPlaylistFor(annotations);
   const pub = await vplPublish(pl);
   const url = P.viewerUrl('https://polymathlc.com.sg/anskey/', pub.hash, pub.token);
-  await vplRemember(pub, pl.items.length, currentDocId);
+  await vplRemember(pub, pl, currentDocId);
   const paths = Object.keys(window.__vp.objects);
   const body = JSON.parse(window.__vp.objects[paths[0]].body);
   const pub2 = await vplPublish(pl);
@@ -161,6 +161,8 @@ ok('the list goes up once, under its own content hash', exported2.puts === 1 && 
 ok('…holding the worksheet’s name, its id and its five videos — nothing else', exported2.keys === 'hash,items,name,v,ws' && exported2.count === 5, exported2.keys + ' / ' + exported2.count);
 ok('…the token is remembered on the worksheet document, merged', exported2.docWrites.length === 1 && exported2.docWrites[0].merge &&
   exported2.docWrites[0].data.videoPlaylist.hash === exported2.hash && exported2.docPub && exported2.docPub.token === exported2.pub.token, JSON.stringify(exported2.docWrites));
+ok('…with the lessons and class days in it, for Polymath Online', Array.isArray(exported2.docWrites[0].data.videoPlaylist.recs) &&
+  Array.isArray(exported2.docWrites[0].data.videoPlaylist.days) && exported2.docWrites[0].data.videoPlaylist.at === '[server]', JSON.stringify(exported2.docWrites[0].data));
 ok('…a second export reuses it: no second upload', exported2.puts === 1 && exported2.pub2.token === exported2.pub.token);
 ok('…the link is videos.html with a 31-character code', /^https:\/\/polymathlc\.com\.sg\/anskey\/videos\.html\?[A-Za-z0-9_-]{31}$/.test(exported2.url), exported2.url);
 
@@ -294,8 +296,8 @@ async function playerPage(viewport, opts = {}) {
     const u = route.request().url();
     seen.push(u);
     const h = { 'Access-Control-Allow-Origin': '*' };
-    if (u.includes(encodeURIComponent('videos-' + pl.hash + '.json'))) {
-      return route.fulfill({ status: 200, headers: h, contentType: 'application/json', body: opts.body || body });
+    if (u.includes(encodeURIComponent('videos-' + (opts.pl || pl).hash + '.json'))) {
+      return route.fulfill({ status: 200, headers: h, contentType: 'application/json', body: opts.body || VP.pure.publishPayload(opts.pl || pl) });
     }
     if (u.includes('captions.json')) {
       return route.fulfill({ status: 200, headers: h, contentType: 'application/json', body: JSON.stringify({ version: 1, cues: [{ s: 0, e: 700, t: 'Hello class' }] }) });
@@ -412,6 +414,42 @@ async function playerPage(viewport, opts = {}) {
   await pg.waitForSelector('.vpShell.ready', { timeout: 5000 }).catch(() => {});
   ok('dark mode has a dark page', await pg.evaluate(() => getComputedStyle(document.body).backgroundColor === 'rgb(20, 20, 20)'));
   if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'videos-dark.png') });
+  await c.close();
+}
+
+/* 📅 The same page, as Polymath Online opens it: one class day at a time. */
+console.log('\n📅 Lessons by the day of the class');
+{
+  const WED = Date.UTC(2026, 10, 4, 9), WED2 = Date.UTC(2026, 10, 11, 9);
+  const dated = ANNS.map(a => a.id === 'l1' ? { ...a, ts: WED } : a.id === 'l2' ? { ...a, ts: WED2 } : a)
+    .concat([{ id: 'l3', type: 'video', page: 2, x: 40, y: 100, w: 190, h: 30, url: LESSON_URL.replace('l1', 'l3'), label: 'Q12 · video lesson · 0:01', ts: WED,
+      lessonRecording: { version: 1, video: true, duration: 1000, audioPath: 'z' } }]);
+  const dpl = VP.pure.buildPlaylist(dated, { name: 'P5 Heat — Worksheet 3', ws: 'doc1' });
+  const durl = VP.pure.viewerUrl(BASE, dpl.hash, TOKEN);
+  const { c, pg, errs } = await playerPage({ width: 1280, height: 860 }, { pl: dpl, url: durl + '#d=2026-11-04' });
+  await pg.waitForSelector('.vpShell.ready', { timeout: 5000 }).catch(() => {});
+  const wed = await pg.evaluate(() => ({
+    chips: Array.from(document.querySelectorAll('.vpDay')).map(b => b.textContent + (b.classList.contains('on') ? '*' : '')),
+    items: Array.from(document.querySelectorAll('.vpItem b')).map(b => b.textContent),
+    now: document.getElementById('vpNowTitle').textContent,
+    num: document.getElementById('vpNowNum').textContent,
+    nextOff: document.getElementById('vpNextBtn').disabled
+  }));
+  ok('#d=<day> opens on that class day’s lessons only', JSON.stringify(wed.items) === JSON.stringify(['Q5 · video lesson · 0:01', 'Q12 · video lesson · 0:01']) &&
+    wed.now === 'Q5 · video lesson · 0:01', JSON.stringify(wed));
+  ok('…with a chip for every day, newest first, the day asked for lit', JSON.stringify(wed.chips) ===
+    JSON.stringify(['Every video6', 'Wed 11 Nov 20261', 'Wed 4 Nov 20262*', 'Other videos3']), JSON.stringify(wed.chips));
+  ok('…and the day named over the player', /Wednesday 4 Nov 2026/.test(wed.num), wed.num);
+  await pg.click('#vpNextBtn');
+  const step = await pg.evaluate(() => ({ now: document.getElementById('vpNowTitle').textContent, nextOff: document.getElementById('vpNextBtn').disabled, hash: location.hash }));
+  ok('Next stays inside the day (Q5 → Q12, then nothing)', step.now === 'Q12 · video lesson · 0:01' && step.nextOff && step.hash === '#d=2026-11-04&6', JSON.stringify(step));
+  await pg.click('.vpDay[data-day=""]');
+  ok('Every video shows the whole worksheet again', await pg.evaluate(() => document.querySelectorAll('.vpItem').length === 6 && document.getElementById('vpNextBtn').disabled === true));
+  await pg.evaluate(() => { location.hash = '#r=l2'; });
+  await pg.waitForFunction(() => /Q6/.test(document.getElementById('vpNowTitle').textContent), null, { timeout: 3000 }).catch(() => {});
+  ok('#r=<lesson> plays that lesson', await pg.evaluate(() => /^Q6/.test(document.getElementById('vpNowTitle').textContent)));
+  if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'videos-days.png') });
+  ok('…with no uncaught error', errs.length === 0, errs.join('\n      '));
   await c.close();
 }
 

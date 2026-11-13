@@ -8,7 +8,10 @@
 <title>Videos | Polymath Answer Keys</title>
 <link rel="icon" href="assets/app-icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="assets/app-icons/apple-touch-icon.png">
-<!-- 🎬 Where an exported worksheet's ONE video link leads (v1.195.0).
+<!-- 🎓 Also Polymath Online's video page (v1.196.0): polymathlc.com.sg/online
+     opens THIS page for a worksheet's recordings, with #d=<day> for one
+     class day, so the code on paper and the class page are one player.
+     🎬 Where an exported worksheet's ONE video link leads (v1.195.0).
      Page 1 of the PDF carries a QR code and a link holding the playlist's
      content hash and its Firebase Storage download token, packed into 31
      characters (video-playlist.js). This page downloads that one file,
@@ -16,7 +19,7 @@
      video on the worksheet in question order: lessons, camera lessons,
      YouTube and Drive clips and plain video files. No sign-in, no Firebase
      SDK, nothing written anywhere but this device's "where was I". -->
-<link rel="stylesheet" href="video-playlist.css?v=1.195.0">
+<link rel="stylesheet" href="video-playlist.css?v=1.196.0">
 </head>
 <body>
 <main class="vpShell loading" id="vpShell" aria-live="polite">
@@ -67,6 +70,7 @@
         <h3>Playlist</h3>
         <span class="vpCount" id="vpCount"></span>
       </div>
+      <div class="vpDays" id="vpDays" role="group" aria-label="Lessons by the day of the class" hidden></div>
       <ol class="vpList" id="vpList"></ol>
     </aside>
   </section>
@@ -77,7 +81,7 @@
 
   <p class="vpFoot">Polymath Learning Centre · Answer Keys</p>
 </main>
-<script src="video-playlist.js?v=1.195.0"></script>
+<script src="video-playlist.js?v=1.196.0"></script>
 <script>
 (function () {
   'use strict';
@@ -88,6 +92,7 @@
 
   var playlist = null;       // the cleaned, checked playlist
   var index = -1;            // the item on the stage
+  var day = '';              // 📅 the class day being shown ('' = every video)
   var media = null;          // the <video> / <audio> on the stage, if any
   var nextTimer = 0, nextLeft = 0;
   var captionUrls = [];      // blob: URLs made for <track>s, revoked on change
@@ -135,10 +140,63 @@
   }
 
   /* ---- The list ---- */
+  /* 📅 One chip per class day (v1.196.0) — the same filing Polymath Online
+     uses, so "Wednesday's lesson" there opens on Wednesday's videos here. */
+  function renderDays() {
+    var box = $('vpDays');
+    var days = P.playlistDays(playlist.items);
+    box.replaceChildren();
+    // One day (and nothing else) needs no choosing.
+    if (days.length < 2) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    var all = [{ key: '', short: 'Every video', count: playlist.items.length }].concat(days.slice().reverse().filter(function (d) { return d.key !== P.OTHER_DAY; }))
+      .concat(days.filter(function (d) { return d.key === P.OTHER_DAY; }));
+    all.forEach(function (d) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'vpDay' + (d.key === day ? ' on' : '');
+      b.setAttribute('data-day', d.key);
+      b.setAttribute('aria-pressed', d.key === day ? 'true' : 'false');
+      if (d.label) b.title = d.label;
+      var t = document.createElement('span');
+      t.textContent = d.short;
+      var c = document.createElement('small');
+      c.textContent = String(d.count);
+      b.appendChild(t);
+      b.appendChild(c);
+      box.appendChild(b);
+    });
+  }
+  $('vpDays').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.vpDay') : null;
+    if (!b || !playlist) return;
+    var want = b.getAttribute('data-day') || '';
+    if (want === day) return;
+    day = want;
+    var i = P.inDay(playlist.items[index], day) ? index : P.stepInDay(playlist.items, -1, day, 1);
+    if (i === index) { syncNav(); renderDays(); renderList(); return; }
+    play(i, true);
+  });
+
+  /* Previous / next stay inside the day being shown. */
+  function syncNav() {
+    if (!playlist) return;
+    $('vpPrev').disabled = P.stepInDay(playlist.items, index, day, -1) < 0;
+    $('vpNextBtn').disabled = P.stepInDay(playlist.items, index, day, 1) < 0;
+    var it = playlist.items[index];
+    var dk = P.itemDay(it);
+    $('vpNowNum').textContent = 'Video ' + (index + 1) + ' of ' + playlist.items.length + (dk ? ' · ' + P.dayLabel(dk) : '');
+    try { history.replaceState(null, '', location.pathname + location.search + P.viewHash(index, day)); } catch (e) {}
+  }
+
   function renderList() {
     var list = $('vpList');
     list.replaceChildren();
     playlist.items.forEach(function (it, i) {
+      if (!P.inDay(it, day)) return;
       var li = document.createElement('li');
       var b = document.createElement('button');
       b.type = 'button';
@@ -269,7 +327,6 @@
       stage.appendChild(lc);
     }
 
-    $('vpNowNum').textContent = 'Video ' + (i + 1) + ' of ' + playlist.items.length;
     $('vpNowTitle').textContent = it.label;
     $('vpNowDetail').textContent = P.itemDetail(it);
     var open = $('vpOpen');
@@ -277,9 +334,9 @@
     var w = P.writingLink(playlist, it);
     var wl = $('vpWriting');
     if (w) { wl.hidden = false; wl.href = w; } else wl.hidden = true;
-    $('vpPrev').disabled = i === 0;
-    $('vpNextBtn').disabled = i >= playlist.items.length - 1;
-    try { history.replaceState(null, '', location.pathname + location.search + '#' + (i + 1)); } catch (e) {}
+    if (day && !P.inDay(it, day)) day = '';
+    syncNav();
+    renderDays();
     renderList();
     writeSpot();
     if (fromTap && stageBox.scrollIntoView && window.innerWidth < 860) {
@@ -307,10 +364,10 @@
 
   /* ---- One after another ---- */
   function onEnded() {
-    var n = P.nextIndex(playlist.items, index);
+    var n = P.stepInDay(playlist.items, index, day, 1);
     if (n < 0) {
       $('vpHint').hidden = false;
-      $('vpHint').textContent = 'That was the last video on this worksheet.';
+      $('vpHint').textContent = day ? 'That was the last video from this lesson.' : 'That was the last video on this worksheet.';
       return;
     }
     if (!$('vpAuto').checked) return;
@@ -330,31 +387,48 @@
     $('vpNext').hidden = true;
   }
   $('vpNextNow').addEventListener('click', function () {
-    var n = P.nextIndex(playlist.items, index);
+    var n = P.stepInDay(playlist.items, index, day, 1);
     cancelNext();
     if (n >= 0) play(n, true);
   });
   $('vpNextCancel').addEventListener('click', cancelNext);
-  $('vpPrev').addEventListener('click', function () { if (index > 0) play(index - 1, true); });
-  $('vpNextBtn').addEventListener('click', function () { if (playlist && index < playlist.items.length - 1) play(index + 1, true); });
+  $('vpPrev').addEventListener('click', function () {
+    if (!playlist) return;
+    var j = P.stepInDay(playlist.items, index, day, -1);
+    if (j >= 0) play(j, true);
+  });
+  $('vpNextBtn').addEventListener('click', function () {
+    if (!playlist) return;
+    var j = P.stepInDay(playlist.items, index, day, 1);
+    if (j >= 0) play(j, true);
+  });
   $('vpAuto').checked = autoOn();
   $('vpAuto').addEventListener('change', function () {
     try { localStorage.setItem(AUTO_KEY, $('vpAuto').checked ? '1' : '0'); } catch (e) {}
     if (!$('vpAuto').checked) cancelNext();
   });
-  // A link to #3 followed on this page plays the third video.
+  // A link to #3 followed on this page plays the third video; #d=<day>
+  // shows one class day; #r=<lesson> plays that lesson.
   window.addEventListener('hashchange', function () {
     if (!playlist || !location.hash) return;
-    var i = P.startIndex(location.hash, playlist.items.length);
-    if (i !== index) play(i, true);
+    var s = P.startFor(location.hash, playlist.items);
+    if (s.i === index && s.day === day) return;
+    day = s.day;
+    if (s.i === index) { syncNav(); renderDays(); renderList(); return; }
+    play(s.i, true);
   });
   document.addEventListener('keydown', function (e) {
     if (!playlist || e.altKey || e.ctrlKey || e.metaKey) return;
     var t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (e.key === 'Escape' && !$('vpNext').hidden) { cancelNext(); e.preventDefault(); }
-    else if ((e.key === 'n' || e.key === 'N') && index < playlist.items.length - 1) { play(index + 1, true); e.preventDefault(); }
-    else if ((e.key === 'p' || e.key === 'P') && index > 0) { play(index - 1, true); e.preventDefault(); }
+    else if (e.key === 'n' || e.key === 'N') {
+      var nx = P.stepInDay(playlist.items, index, day, 1);
+      if (nx >= 0) { play(nx, true); e.preventDefault(); }
+    } else if (e.key === 'p' || e.key === 'P') {
+      var pv = P.stepInDay(playlist.items, index, day, -1);
+      if (pv >= 0) { play(pv, true); e.preventDefault(); }
+    }
   });
 
   /* ---- Fetch, check, show ---- */
@@ -372,12 +446,16 @@
       shell.className = 'vpShell ready';
       $('vpTitle').textContent = playlist.name;
       var n = playlist.items.length;
-      $('vpSub').textContent = n === 1 ? 'The video for this worksheet.' : 'All ' + n + ' videos for this worksheet, in question order.';
+      var dayCount = P.playlistDays(playlist.items).filter(function (d) { return d.key !== P.OTHER_DAY; }).length;
+      $('vpSub').textContent = n === 1 ? 'The video for this worksheet.'
+        : 'All ' + n + ' videos for this worksheet, in question order' + (dayCount > 1 ? ', from ' + dayCount + ' lessons.' : '.');
       $('vpCount').textContent = n + (n === 1 ? ' video' : ' videos');
       $('vpBody').hidden = false;
       var spot = readSpot();
-      var start = location.hash ? P.startIndex(location.hash, n) : (spot && spot.i >= 0 && spot.i < n ? spot.i : 0);
-      var resume = spot && spot.i === start && !location.hash ? spot.t : 0;
+      var asked = location.hash ? P.startFor(location.hash, playlist.items) : null;
+      if (asked && asked.asked) day = asked.day;
+      var start = asked && asked.asked ? asked.i : (spot && spot.i >= 0 && spot.i < n ? spot.i : 0);
+      var resume = spot && spot.i === start && !(asked && asked.asked) ? spot.t : 0;
       play(start, false, resume);
     })
     .catch(function (e) {

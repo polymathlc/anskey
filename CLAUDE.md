@@ -18,6 +18,14 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## 🎓 The QR code's player IS Polymath Online's video page, filed by class day (v1.196.0)
+
+- **One player.** polymathlc.com.sg/online (polymathlc/cer `online/`, portal v1.7.0) opens `videos.html?<code>` — the very address page 1's QR code holds — for a worksheet's lessons, with `#d=<YYYY-MM-DD>` for one class day. Never give Online a player of its own.
+- **After each lesson the list is filed at once**: `lessonSavePending` calls `vplAfterSave()` right after the lesson's annotations are written (it writes them itself, so the auto-save hook never saw a lesson). `vplRemember(pub, pl, docId)` writes `vplRecord(pub, pl)` = `{hash, token, n, recs, days}` + `at` (server time): `recs` are the lesson annotation ids in the hosted list and `days` their Singapore class days. Online uses the player only while every lesson it can see is in `recs`. A record without `recs`/`days` (before v1.196.0) is rewritten once (`vplDocPub.full`), with no upload. The last video coming off deletes the record.
+- **A lesson item carries `at`** (its annotation's `ts`), cleaned to 2020–2100 in `cleanItem`. Lists hosted before still check against their code (no `at` in them). `dayKey` is the Singapore day (UTC+8); Online's `sgDayKey` must equal it (the cer test compares them).
+- **The player's day chips** (`#vpDays`, `renderDays`): shown when there are 2+ days (or a day plus undated videos, filed as `OTHER_DAY`). Order of play stays question order; a chosen day only filters the list, and ⏮ / ⏭ / N / P / auto-next step inside it (`stepInDay`). The address grammar is `parseStart` / `startFor` / `viewHash`: `#3`, `#r=<lesson>`, `#d=<day>`, joined with `&`. A day with nothing in it, or a video outside the day asked for, drops the day.
+- Run `node --test tools/video-playlist-tests.mjs` and `node tools/video-playlist-check.mjs` (now also the 📅 day block).
+
 ## 🎬 Videos on paper: one link + QR to a player with every video (v1.195.0)
 
 - `video-playlist.js` (`window.VideoPlaylist`: `drawOnPdf`, `pure`) is shared by the app and `videos.html` (+ `video-playlist.css`). index.html holds only the glue between `🎬 Videos on paper — glue` and `End videos on paper glue` (`vplPlaylistFor`, `vplReadDoc`, `vplPublish`, `vplRemember`, `vplLinkFor`, `vplAfterSave`, `vplInkMeter`, `vplObstacles`, `vplPlacement`, `vplAnnounce`), the `opts.videos` branch in `buildAnnotatedPdf`, the `videos` passed by `downloadAnnotated` / `runPrint`, `vplReadDoc` in both places a worksheet document arrives, `vplDocPub = null` in the new-worksheet reset, and `vplAfterSave()` after both saves.

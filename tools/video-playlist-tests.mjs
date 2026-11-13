@@ -105,6 +105,7 @@ test('an item says what it is, and only a lesson carries a writing link', () => 
   assert.equal(P.writingLink(pl, lesson), './?ws=doc1&do=play&rec=l1');
   assert.equal(P.writingLink(pl, pl.items.find(i => i.kind === 'youtube')), '');
   assert.equal(P.itemDetail(lesson), 'Page 1 · video lesson · 3:12');
+  assert.equal(P.itemDetail({ ...lesson, at: Date.UTC(2026, 10, 12, 10) }), 'Page 1 · video lesson · 3:12 · Thu 12 Nov 2026');
   const yt = pl.items.find(i => i.kind === 'youtube');
   assert.equal(P.playerFor(yt).tag, 'iframe');
   assert.match(P.playerFor(yt).src, /^https:\/\/www\.youtube-nocookie\.com\/embed\/abcDEF12345\?/);
@@ -282,6 +283,102 @@ test('the player starts where it is asked, and moves on in order', () => {
   assert.deepEqual(P.stripVideos(sampleAnns()).map(a => a.id), ['p1']);
 });
 
+/* ---- 📅 The day of the class (v1.196.0) ---- */
+const lessonAt = (id, ms, page = 1, y = 100) => ({ id, type: 'video', page, x: 40, y, ts: ms,
+  url: LESSON_URL.replace('l1.mp4', id + '.mp4'), label: id, lessonRecording: { version: 1, video: true, duration: 60000 } });
+
+test('a lesson carries the moment it was saved, and the day is Singapore’s', () => {
+  // 23:30 UTC on the 11th is 07:30 on the 12th in Singapore.
+  assert.equal(P.dayKey(Date.UTC(2026, 10, 11, 23, 30)), '2026-11-12');
+  assert.equal(P.dayKey(Date.UTC(2026, 10, 12, 15, 59)), '2026-11-12');
+  assert.equal(P.dayKey(Date.UTC(2026, 10, 12, 16, 0)), '2026-11-13');
+  assert.equal(P.dayKey(0), '');
+  assert.equal(P.dayKey('nope'), '');
+  assert.equal(P.dayLabel('2026-11-12'), 'Thursday 12 Nov 2026');
+  assert.equal(P.dayLabel('2026-11-11', true), 'Wed 11 Nov 2026');
+  assert.equal(P.dayLabel('2026-02-30'), '', 'not a real day');
+  assert.equal(P.dayLabel(P.OTHER_DAY), 'Other videos');
+  const pl = P.buildPlaylist([lessonAt('a1', Date.UTC(2026, 10, 5, 9))], { name: 'Heat', ws: 'doc1' });
+  assert.equal(pl.items[0].at, Date.UTC(2026, 10, 5, 9));
+  assert.equal(P.itemDay(pl.items[0]), '2026-11-05');
+  // Junk times never reach the list.
+  assert.equal(P.cleanItem({ ...pl.items[0], at: 5 }).at, undefined);
+  assert.equal(P.cleanItem({ ...pl.items[0], at: 'x' }).at, undefined);
+  assert.deepEqual(P.cleanItem(P.cleanItem(pl.items[0])), P.cleanItem(pl.items[0]), 'still idempotent');
+  // A list hosted before v1.196.0 (no `at`) still checks against its code.
+  const old = { v: 1, name: 'Heat', ws: 'doc1', items: [{ ...pl.items[0] }] };
+  delete old.items[0].at;
+  const oldHash = P.contentHash(P.canonical(P.cleanPlaylist(old)));
+  assert.equal(P.readPublished(JSON.stringify(old), oldHash).ok, true);
+});
+
+test('the list files its videos under the day of each class, oldest first', () => {
+  const wed = Date.UTC(2026, 10, 4, 9), wed2 = Date.UTC(2026, 10, 11, 9);
+  const anns = [
+    lessonAt('a1', wed, 1, 100), lessonAt('a2', wed2, 1, 300), lessonAt('a3', wed, 2, 100),
+    { id: 'y1', type: 'video', page: 3, x: 1, y: 1, url: 'https://youtu.be/abcDEF12345', label: 'Q9' }
+  ];
+  const pl = P.buildPlaylist(anns, { name: 'Heat', ws: 'doc1' });
+  assert.deepEqual(pl.items.map(i => i.rec || i.kind), ['a1', 'a2', 'a3', 'youtube'], 'question order is kept');
+  const days = P.playlistDays(pl.items);
+  assert.deepEqual(days.map(d => d.key + ':' + d.count), ['2026-11-04:2', '2026-11-11:1', 'other:1']);
+  assert.equal(days[0].label, 'Wednesday 4 Nov 2026');
+  // Next and previous stay inside the day.
+  assert.equal(P.stepInDay(pl.items, 0, '2026-11-04', 1), 2);
+  assert.equal(P.stepInDay(pl.items, 2, '2026-11-04', 1), -1);
+  assert.equal(P.stepInDay(pl.items, 2, '2026-11-04', -1), 0);
+  assert.equal(P.stepInDay(pl.items, 0, '', 1), 1, 'every video when no day is chosen');
+  assert.equal(P.stepInDay(pl.items, -1, 'other', 1), 3);
+  // One day alone is not a choice.
+  assert.equal(P.playlistDays([pl.items[0], pl.items[2]]).length, 1);
+  assert.deepEqual(P.playlistDays([pl.items[3]]), [], 'no lesson days at all');
+});
+
+test('the address opens one video, one lesson or one class day', () => {
+  const wed = Date.UTC(2026, 10, 4, 9), wed2 = Date.UTC(2026, 10, 11, 9);
+  const pl = P.buildPlaylist([lessonAt('a1', wed, 1, 100), lessonAt('a2', wed2, 1, 300), lessonAt('a3', wed, 2, 100)], { name: 'Heat', ws: 'doc1' });
+  assert.deepEqual(P.parseStart('#d=2026-11-11&2'), { n: 2, rec: '', day: '2026-11-11' });
+  assert.deepEqual(P.parseStart('#r=a3'), { n: 0, rec: 'a3', day: '' });
+  assert.deepEqual(P.parseStart('#d=2026-13-40&r=<x>'), { n: 0, rec: '', day: '' }, 'junk is ignored');
+  assert.equal(P.startFor('#3', pl.items).i, 2);
+  assert.equal(P.startFor('#r=a2', pl.items).i, 1);
+  assert.deepEqual(P.startFor('#d=2026-11-11', pl.items), { i: 1, day: '2026-11-11', asked: true });
+  assert.deepEqual(P.startFor('#d=2026-11-04&r=a3', pl.items), { i: 2, day: '2026-11-04', asked: true });
+  assert.deepEqual(P.startFor('#d=2026-11-04&2', pl.items), { i: 1, day: '', asked: true }, 'a video outside the day drops the day');
+  assert.deepEqual(P.startFor('#d=2027-01-01', pl.items), { i: 0, day: '', asked: true }, 'a day with nothing in it shows everything');
+  assert.deepEqual(P.startFor('', pl.items), { i: 0, day: '', asked: false });
+  assert.equal(P.viewHash(1, '2026-11-11'), '#d=2026-11-11&2');
+  assert.equal(P.viewHash(0, ''), '#1');
+  assert.deepEqual(P.startFor(P.viewHash(2, '2026-11-04'), pl.items), { i: 2, day: '2026-11-04', asked: true }, 'round trip');
+});
+
+test('the worksheet records which lessons and days its hosted list holds (for Polymath Online)', () => {
+  const sb = { window: { VideoPlaylist: VP }, Array, Object, String, Number };
+  vm.createContext(sb);
+  vm.runInContext(cutFunction('vplRecord'), sb);
+  const wed = Date.UTC(2026, 10, 4, 9);
+  const pl = P.buildPlaylist([lessonAt('a1', wed), lessonAt('a2', Date.UTC(2026, 10, 11, 9), 2),
+    { id: 'y1', type: 'video', page: 3, x: 1, y: 1, url: 'https://youtu.be/abcDEF12345' }], { name: 'Heat', ws: 'doc1' });
+  const rec = sb.vplRecord({ hash: pl.hash, token: TOKEN }, pl);
+  assert.equal(JSON.stringify(rec), JSON.stringify({ hash: pl.hash, token: TOKEN, n: 3, recs: ['a1', 'a2'], days: ['2026-11-04', '2026-11-11'] }));
+  const glue = section('🎬 Videos on paper — glue', 'End videos on paper glue');
+  assert.match(glue, /full: Array\.isArray\(p\.recs\) && Array\.isArray\(p\.days\)/, 'an old record is written again once');
+  assert.match(glue, /vplDocPub && vplDocPub\.full && vplDocPub\.hash === pub\.hash/);
+  assert.match(glue, /videoPlaylist: firebase\.firestore\.FieldValue\.delete\(\)/, 'the last video off takes the record off');
+  // After each lesson: the lesson's own save files the list at once.
+  const save = section('async function lessonSavePending()', 'function lessonDownloadPending()');
+  assert.match(save, /if \(lessonContextOK\(job\) && typeof vplAfterSave === 'function'\) vplAfterSave\(\);/);
+  assert.ok(save.indexOf('vplAfterSave()') > save.indexOf('await writeAnnotations(job.docId'), 'after the lesson is written, never before');
+});
+
+test('the player page offers the class days and keeps next / previous inside one', () => {
+  assert.match(page, /id="vpDays"/);
+  assert.match(page, /P\.startFor\(location\.hash, playlist\.items\)/);
+  assert.match(page, /P\.viewHash\(index, day\)/);
+  assert.ok(!/P\.nextIndex\(/.test(page), 'auto-next and the buttons step inside the day');
+  assert.match(css, /\.vpDays\[hidden\] \{ display: none; \}/);
+});
+
 /* ---- The glue, read off index.html ---- */
 function section(startMarker, endMarker) {
   const a = html.indexOf(startMarker), b = html.indexOf(endMarker, a);
@@ -314,7 +411,7 @@ test('only the teacher uploads, every save files it, and a worksheet change forg
   assert.equal(saves.length, 2, 'both the manual save and the auto-save file the list');
   assert.equal((html.match(/vplReadDoc\((d|data)\);/g) || []).length, 2, 'both ways a worksheet arrives read its hosted list');
   assert.match(html, /vplDocPub = null;\s+\/\/ 🎬 a new worksheet/);
-  assert.match(html, /<script src="living-apps\.js"><\/script>\n<script src="video-playlist\.js\?v=1\.195\.0"><\/script>/);
+  assert.match(html, /<script src="living-apps\.js"><\/script>\n<script src="video-playlist\.js\?v=1\.196\.0"><\/script>/);
 });
 
 test('the player page writes nothing from the file as markup', () => {
@@ -322,7 +419,7 @@ test('the player page writes nothing from the file as markup', () => {
   assert.ok(!/innerHTML/.test(src));
   assert.match(page, /P\.readPublished\(text, want\.hash\)/, 'the file is checked against the code');
   assert.match(page, /P\.mediaUrl\(want\.hash, want\.token\)/, 'the address is rebuilt, never read from the link');
-  assert.match(page, /<script src="video-playlist\.js\?v=1\.195\.0"><\/script>/);
+  assert.match(page, /<script src="video-playlist\.js\?v=1\.196\.0"><\/script>/);
   assert.ok(!/firebase/i.test(page.replace(/Firebase Storage|Firebase\s+SDK/g, '')), 'no Firebase SDK on the page');
   // Dark mode follows the design rules: tokens on :root, redefined twice.
   assert.match(css, /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\)/);
@@ -331,7 +428,7 @@ test('the player page writes nothing from the file as markup', () => {
 });
 
 test('the version moved and the file is syntax-checked', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.195\.0'/);
+  assert.match(html, /var APP_VERSION = 'v1\.196\.0'/);
   const syntax = fs.readFileSync(new URL('./check-syntax.mjs', import.meta.url), 'utf8');
   assert.match(syntax, /'video-playlist\.js'/);
 });

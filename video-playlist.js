@@ -68,6 +68,17 @@
   var MS_MAX = 8 * 60 * 60 * 1000;   // the lesson recorder's own ceiling
   var KINDS = ['lesson', 'file', 'youtube', 'drive', 'link'];
   var DEFAULT_LABEL = 'Watch video solution';
+  /* 📅 The day of the class (v1.196.0). A lesson carries the moment it was
+     saved (`at`, ms) and is filed under that day IN SINGAPORE — the centre's
+     own calendar, whatever the phone watching it says — so the list and
+     Polymath Online agree on which lesson belongs to which class day. */
+  var AT_MIN = Date.UTC(2020, 0, 1);
+  var AT_MAX = Date.UTC(2100, 0, 1);
+  var SG_OFFSET_MS = 8 * 60 * 60 * 1000;   // UTC+8, no daylight saving
+  var DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  var OTHER_DAY = 'other';
+  var DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   /* ---------------------------------------------------------------
      Small helpers
@@ -162,6 +173,8 @@
         kind: 'lesson', label: label, page: Number(a.page), url: a.url,
         camera: !!(r.video || r.screen), ms: r.duration, rec: a.id
       };
+      // 📅 When it was saved: the day of the class it belongs to.
+      if (Number(a.ts) > 0) it.at = Math.round(Number(a.ts));
       if (r.title) it.title = r.title;
       if (r.captionsUrl && r.captionsLang === 'en') it.captions = r.captionsUrl;
       if (r.screen && r.frame === 'portrait') it.portrait = true;
@@ -194,6 +207,8 @@
       if (raw.title) { var t = clip(raw.title, 60); if (t) out.title = t; }
       if (raw.captions) { var cc = cleanUrl(raw.captions); if (cc && lessonAssetOk(cc)) out.captions = cc; }
       if (raw.rec && REC_RE.test(str(raw.rec))) out.rec = str(raw.rec);
+      var at = Math.round(finite(raw.at, 0));
+      if (at >= AT_MIN && at <= AT_MAX) out.at = at;
       if (raw.portrait) out.portrait = true;
       return out;
     }
@@ -657,6 +672,7 @@
     else if (it.kind === 'link') bits.push('opens in a new tab');
     else bits.push('video');
     if (it.ms) bits.push(fmtTime(it.ms));
+    if (it.at) bits.push(dayLabel(dayKey(it.at), true));
     return bits.join(' · ');
   }
 
@@ -711,6 +727,109 @@
     return i + 1 < n ? i + 1 : -1;
   }
 
+  /* ---------------------------------------------------------------
+     📅 The day of the class (v1.196.0)
+     The same page is the QR code's target AND Polymath Online's video
+     page, and Online files every lesson under the day it was taught. These
+     helpers are that filing, and the address grammar that opens the page
+     on one day (`#d=2026-11-12`), one lesson (`#r=<annotation id>`) or one
+     video (`#3`, as before).
+     --------------------------------------------------------------- */
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  /* "2026-11-12" — the Singapore calendar day of a moment, or ''. */
+  function dayKey(ms) {
+    var t = Number(ms);
+    if (!(t >= AT_MIN && t <= AT_MAX)) return '';
+    var d = new Date(t + SG_OFFSET_MS);
+    return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+  }
+  function validDay(key) {
+    if (!DAY_RE.test(str(key))) return false;
+    var p = key.split('-').map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    return d.getUTCFullYear() === p[0] && d.getUTCMonth() === p[1] - 1 && d.getUTCDate() === p[2];
+  }
+  /* "Wednesday 12 Nov 2026" (`short`: "Wed 12 Nov 2026"). */
+  function dayLabel(key, short) {
+    if (key === OTHER_DAY) return 'Other videos';
+    if (!validDay(key)) return '';
+    var p = key.split('-').map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    var name = DAY_NAMES[d.getUTCDay()];
+    return (short ? name.slice(0, 3) : name) + ' ' + p[2] + ' ' + MONTH_NAMES[p[1] - 1] + ' ' + p[0];
+  }
+  /* The class day an item belongs to: a lesson's own day, '' for anything
+     without one (a YouTube clip, a link, a lesson saved before v1.196.0). */
+  function itemDay(item) {
+    return item && item.kind === 'lesson' && item.at ? dayKey(item.at) : '';
+  }
+  /* [{ key, label, short, count }] — every class day in the list, oldest
+     first, then 'other' for the videos with no day, when there are any. */
+  function playlistDays(items) {
+    var counts = {}, other = 0;
+    (items || []).forEach(function (it) {
+      var k = itemDay(it);
+      if (k) counts[k] = (counts[k] || 0) + 1; else other++;
+    });
+    var out = Object.keys(counts).sort().map(function (k) {
+      return { key: k, label: dayLabel(k), short: dayLabel(k, true), count: counts[k] };
+    });
+    if (out.length && other) out.push({ key: OTHER_DAY, label: dayLabel(OTHER_DAY), short: dayLabel(OTHER_DAY), count: other });
+    return out;
+  }
+  /* Is this item in the day being shown? '' shows everything. */
+  function inDay(item, day) {
+    if (!day) return true;
+    if (day === OTHER_DAY) return !itemDay(item);
+    return itemDay(item) === day;
+  }
+  /* The next (dir 1) or previous (dir -1) item in the same day, or -1. */
+  function stepInDay(items, i, day, dir) {
+    var list = items || [];
+    for (var j = i + (dir < 0 ? -1 : 1); j >= 0 && j < list.length; j += (dir < 0 ? -1 : 1)) {
+      if (inDay(list[j], day)) return j;
+    }
+    return -1;
+  }
+  /* What the address asks for: `#3`, `#n=3`, `#r=<lesson id>`, `#d=<day>`,
+     joined with `&` (`#d=2026-11-12&2`). Anything unknown is ignored. */
+  function parseStart(hash) {
+    var out = { n: 0, rec: '', day: '' };
+    str(hash).replace(/^#/, '').split('&').forEach(function (tok) {
+      if (!tok) return;
+      if (/^\d{1,4}$/.test(tok)) { out.n = Number(tok); return; }
+      var i = tok.indexOf('=');
+      if (i < 0) return;
+      var k = tok.slice(0, i), v = '';
+      try { v = decodeURIComponent(tok.slice(i + 1)); } catch (e) { return; }
+      if (k === 'n' && /^\d{1,4}$/.test(v)) out.n = Number(v);
+      else if (k === 'r' && REC_RE.test(v)) out.rec = v;
+      else if (k === 'd' && (v === OTHER_DAY || validDay(v))) out.day = v;
+    });
+    return out;
+  }
+  /* Where the page opens: { i, day }. A lesson asked for by id wins, then a
+     number, then the first video of the day asked for. A day that holds
+     none of the list is dropped rather than showing an empty list. */
+  function startFor(hash, items) {
+    var list = items || [];
+    var s = parseStart(hash);
+    var day = s.day && list.some(function (it) { return inDay(it, s.day); }) ? s.day : '';
+    var i = -1;
+    if (s.rec) {
+      for (var k = 0; k < list.length; k++) if (list[k] && list[k].rec === s.rec) { i = k; break; }
+    }
+    if (i < 0 && s.n) i = Math.max(0, Math.min(list.length - 1, s.n - 1));
+    if (i < 0 && day) i = stepInDay(list, -1, day, 1);
+    if (i < 0) i = 0;
+    if (day && list[i] && !inDay(list[i], day)) day = '';
+    return { i: list.length ? i : -1, day: day, asked: !!(s.rec || s.n || s.day) };
+  }
+  /* The address the page writes back for what is on the stage. */
+  function viewHash(i, day) {
+    return '#' + (day ? 'd=' + day + '&' : '') + (i + 1);
+  }
+
   var api = Object.freeze({
     drawOnPdf: drawOnPdf,
     pure: Object.freeze({
@@ -729,7 +848,10 @@
       pickSpot: pickSpot, choosePlacement: choosePlacement, boxLayout: boxLayout, linkLines: linkLines,
       roundRectPath: roundRectPath, rowsToRuns: rowsToRuns,
       playerFor: playerFor, itemDetail: itemDetail, fmtTime: fmtTime, captionsVtt: captionsVtt,
-      writingLink: writingLink, startIndex: startIndex, nextIndex: nextIndex
+      writingLink: writingLink, startIndex: startIndex, nextIndex: nextIndex,
+      OTHER_DAY: OTHER_DAY, dayKey: dayKey, validDay: validDay, dayLabel: dayLabel, itemDay: itemDay,
+      playlistDays: playlistDays, inDay: inDay, stepInDay: stepInDay, parseStart: parseStart,
+      startFor: startFor, viewHash: viewHash
     })
   });
   root.VideoPlaylist = api;
