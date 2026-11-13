@@ -4,6 +4,13 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+
+## 📄 v1.197.0 — The answer key on Polymath Online, by class day
+
+- After every lesson, the worksheet's answer key — your writing plus the QR code to every video — is exported as a PDF and put on Polymath Online under that day's class. Corrections saved later the same day update that day's key.
+- On Polymath Online each worksheet lists its class days newest first: that day's lesson videos beside that day's answer key PDF. The Answer key button opens the newest PDF instead of the Ans Key app.
+- Older worksheets in an online class file their key by themselves the next time you open them. **📄 Put answer key online** in the Print & PDF menu does it on demand.
+
 ## v1.196.0 — 📅 The QR code's video page is Polymath Online's lesson videos, by class day
 
 - **One page for both.** The page the worksheet's printed QR code opens (`videos.html`) is now also what

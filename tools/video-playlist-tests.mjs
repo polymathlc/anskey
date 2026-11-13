@@ -331,7 +331,7 @@ test('the player page writes nothing from the file as markup', () => {
 });
 
 test('the version moved and the file is syntax-checked', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.196\.0'/);
+  assert.match(html, /var APP_VERSION = 'v1\.(19[6-9]|[2-9]\d\d)\.\d+'/);
   const syntax = fs.readFileSync(new URL('./check-syntax.mjs', import.meta.url), 'utf8');
   assert.match(syntax, /'video-playlist\.js'/);
 });
@@ -431,6 +431,6 @@ test('every lesson saved files the list at once, and a sheet with no videos take
   assert.match(glue, /videoPlaylist: firebase\.firestore\.FieldValue\.delete\(\)/);
   // The lesson recorder writes the annotations itself and never reaches auto-save.
   const rec = section('async function lessonSavePending()', 'function lessonDownloadPending()');
-  assert.match(rec, /if \(lessonContextOK\(job\) && typeof vplAfterSave === 'function'\) vplAfterSave\(\);/);
+  assert.match(rec, /if \(lessonContextOK\(job\) && typeof vplAfterSave === 'function'\) \{\s*[\s\S]{0,120}Promise\.resolve\(vplAfterSave\(\)\)/);
   assert.ok(rec.indexOf('vplAfterSave') > rec.indexOf('await writeAnnotations(job.docId'), 'filed only after the lesson is written');
 });

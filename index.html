@@ -4405,6 +4405,10 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       <span class="btnLabel">Download PDF</span>
     </button>
+    <button class="toolbarMenuItem btn" id="akoPublishBtn" title="Put this worksheet's answer key (with the video QR code) on Polymath Online under today's class — it also happens by itself after every lesson">
+      <span aria-hidden="true">📄</span>
+      <span class="btnLabel">Put answer key online</span>
+    </button>
     <button class="toolbarMenuItem btn" id="keyPdfBtn" title="Answer key — AI reads the blank worksheet (never the annotations) and downloads a full answer key with explanations">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><polyline points="14 4 14 10 20 10"/><polyline points="7.5 14.5 9.2 16.2 12.5 12.9"/><line x1="14.5" y1="15.5" x2="17.5" y2="15.5"/><line x1="7.5" y1="19" x2="17.5" y2="19"/></svg>
       <span class="btnLabel">Answer key PDF</span>
@@ -6024,7 +6028,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.196.0';
+var APP_VERSION = 'v1.197.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6862,6 +6866,7 @@ async function loadPdf(bytes, name, contextCheck) {
   wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, rewardClass: '', starPages: [], hidden: false };
   wsShare = { mode: 'view', passwordHash: '' };
   if (typeof vplDocPub !== 'undefined') vplDocPub = null;   // 🎬 a new worksheet has no hosted video list
+  if (typeof akoForget === 'function') akoForget();         // 📄 nor any filed answer keys
   reviseMode = false;
   revealedKw = {};
   kwResults = {};
@@ -13186,7 +13191,12 @@ async function lessonSavePending() {
     } finally { autoSaveInFlight = false; if (dirty || autoSaveQueued) { autoSaveQueued = false; scheduleAutoSave(); } }
     // 🎬📅 The lesson goes straight onto the worksheet's video page — the
     // QR code's and Polymath Online's — without waiting for another save.
-    if (lessonContextOK(job) && typeof vplAfterSave === 'function') vplAfterSave();
+    if (lessonContextOK(job) && typeof vplAfterSave === 'function') {
+      // 📄 …and so does the day's answer key, once the video list is filed.
+      Promise.resolve(vplAfterSave()).catch(function () {}).then(function () {
+        if (lessonContextOK(job) && typeof akoAfterLesson === 'function') akoAfterLesson();
+      });
+    }
     if (job.backup) await job.backup;
     await lessonRecovery('delete', job.uid + '/' + job.docId).catch(function () {});
     if (lessonPending === job) lessonPending = null;
@@ -31327,7 +31337,7 @@ function isStudent() {
 /* Download and the two Print buttons are deliberately NOT in this list:
    students may keep — and print — a copy of any worksheet they can already
    open, so those buttons stay for everyone. */
-var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'livingAppBtn', 'livingLibBtn', 'printQrBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'livingAppBtn', 'livingLibBtn', 'printQrBtn', 'akoPublishBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
@@ -33680,6 +33690,122 @@ function vplAnnounce(link) {
 }
 /* ================= End videos on paper glue ================= */
 
+/* ================= 📄 Answer keys on Polymath Online — glue (the rules are answer-key-online.js) =================
+   After every lesson the answer key is exported exactly as ⬇ Download makes
+   it (the teacher's writing, the 🎬 one-link video QR code, the living app
+   codes) and filed on the worksheet under the DAY OF THE CLASS, so Polymath
+   Online lists every day's key beside the worksheet, newest first. Teacher
+   only, never in practice (the page then holds a child's attempt), never
+   written onto a worksheet opened mid-run. Never throws: a lesson save must
+   not fail because the key could not be put online. */
+var akoEntries = [];           // the open worksheet's filed keys, newest day first
+var akoOnline = false;         // is the open worksheet in a Polymath Online class?
+var akoRunning = false;        // one export at a time
+var akoAgain = '';             // a trigger that arrived mid-run
+var akoSaveTimer = null;       // the quiet wait after an ordinary save
+var akoOpenTimer = null;       // the short wait before filing an older lesson's key
+function akoReady() { return !!(window.AnswerKeyOnline && window.AnswerKeyOnline.pure); }
+
+/* What the worksheet document says about its filed keys. Called wherever a
+   worksheet document arrives, beside vplReadDoc. */
+function akoReadDoc(d) {
+  akoEntries = akoReady() ? window.AnswerKeyOnline.pure.entriesOf(d && d.answerKeys) : [];
+  akoOnline = !!(d && d.onlineCourseId);
+  clearTimeout(akoOpenTimer);
+  // An older worksheet with lessons and no key yet files one by itself.
+  if (akoReady() && wheelTeacher() && akoOnline && !akoEntries.length) {
+    akoOpenTimer = setTimeout(function () { akoPublish('open'); }, window.AnswerKeyOnline.pure.OPEN_WAIT_MS);
+  }
+}
+function akoForget() { akoEntries = []; akoOnline = false; clearTimeout(akoOpenTimer); clearTimeout(akoSaveTimer); }
+
+/* The share QR the print would carry, asked quietly (printQrUrl toasts). */
+function akoShareQr() {
+  if (!printQrOn || !wheelTeacher() || !currentDocId) return '';
+  if (wsShare && wsShare.mode === 'off') return '';
+  try { return shareUrl(currentDocId); } catch (e) { return ''; }
+}
+
+function akoContext(trigger, fp) {
+  var P = window.AnswerKeyOnline.pure;
+  return {
+    teacher: wheelTeacher(), practice: !!practiceMode, docId: currentDocId || '',
+    hasPdf: !!(pdfDoc && pdfBytes), entries: akoEntries, online: akoOnline,
+    lessonDay: P.lastLessonDay(annotations), now: Date.now(), fp: fp || ''
+  };
+}
+
+/* The whole run for one trigger: 'lesson' | 'save' | 'open' | 'manual'.
+   Resolves to the filed entry, or null. */
+async function akoPublish(trigger) {
+  if (!akoReady()) return null;
+  if (akoRunning) { if (!akoAgain || trigger === 'lesson' || trigger === 'manual') akoAgain = trigger; return null; }
+  var P = window.AnswerKeyOnline.pure;
+  var first = P.plan(trigger, akoContext(trigger, ''));
+  if (!first.day) return null;
+  if (typeof storage === 'undefined' || !storage || typeof db === 'undefined' || !db) return null;
+  akoRunning = true;
+  var filed = null;
+  try {
+    var docAtStart = currentDocId;
+    var anns = annotations.slice();
+    var json = JSON.stringify(anns);
+    var videos = typeof vplLinkFor === 'function' ? await vplLinkFor(anns, true) : null;
+    var qr = akoShareQr();
+    var fp = P.fingerprint([json, videos ? videos.url : '', qr, pdfBytes ? pdfBytes.byteLength || pdfBytes.length || 0 : 0, pdfDoc ? pdfDoc.numPages : 0]);
+    var plan = P.plan(trigger, akoContext(trigger, fp));
+    if (!plan.day || currentDocId !== docAtStart) return null;
+    var lappQr = typeof lappQrLinks === 'function' ? await lappQrLinks(anns) : null;
+    if (currentDocId !== docAtStart || practiceMode) return null;
+    var bytes = await buildAnnotatedPdf(false, { anns: anns, qr: qr, lappQr: lappQr, videos: videos });
+    if (currentDocId !== docAtStart || !wheelTeacher()) return null;
+    var path = P.storagePath(STORAGE_DIR, docAtStart, plan.day);
+    if (!path) return null;
+    var ref = storage.ref(path);
+    await ref.put(new Blob([bytes], { type: 'application/pdf' }), { contentType: 'application/pdf', cacheControl: 'no-cache' });
+    var url = await ref.getDownloadURL();
+    if (!P.validUrl(url)) throw new Error('Storage gave no usable link for the answer key.');
+    var entry = P.docEntry({ url: url, path: path, at: Date.now(), pages: pdfDoc ? pdfDoc.numPages : 0, videos: videos ? videos.count : 0, fp: fp });
+    var patch = {}; patch[plan.day] = entry;
+    await db.collection(COLLECTION).doc(docAtStart).set({ answerKeys: patch }, { merge: true });
+    if (currentDocId === docAtStart) {
+      var map = {};
+      akoEntries.forEach(function (e) { map[e.day] = e; });
+      map[plan.day] = entry;
+      akoEntries = P.entriesOf(map);
+    }
+    filed = P.cleanEntry(plan.day, entry);
+    if (trigger !== 'save') toast('📄 The answer key for ' + P.dayLabel(plan.day) + ' is on Polymath Online' + (videos ? ', with the QR code to ' + videos.count + (videos.count === 1 ? ' video.' : ' videos.') : '.'), 4800);
+  } catch (e) {
+    console.warn('The answer key could not be put on Polymath Online', e);
+    if (trigger === 'lesson' || trigger === 'manual') toast('The answer key could not be put on Polymath Online yet — it will try again at the next save.', 5200);
+  } finally {
+    akoRunning = false;
+    if (akoAgain) { var next = akoAgain; akoAgain = ''; setTimeout(function () { akoPublish(next); }, 0); }
+  }
+  return filed;
+}
+
+/* A lesson has just been saved onto the worksheet: file today's key now. */
+function akoAfterLesson() { clearTimeout(akoSaveTimer); return akoPublish('lesson'); }
+
+/* An ordinary save: on a class day, file the corrected key once the
+   teacher pauses, so the key online is the one they finished with. */
+function akoAfterSave() {
+  if (!akoReady() || !wheelTeacher() || practiceMode || !currentDocId) return;
+  clearTimeout(akoSaveTimer);
+  akoSaveTimer = setTimeout(function () { akoPublish('save'); }, window.AnswerKeyOnline.pure.SAVE_QUIET_MS);
+}
+
+/* 📄 Put the answer key online now (Print & PDF menu). */
+function akoPublishNow() {
+  if (!wheelTeacher()) { toast('Only the teacher can put the answer key online.'); return; }
+  if (!currentDocId) { toast('Save the worksheet first — the answer key is filed under it.'); return; }
+  toast('Putting the answer key on Polymath Online…');
+  akoPublish('manual');
+}
+/* ================= End answer keys on Polymath Online glue ================= */
+
 /* ================= 🏰 Lesson start — glue (the feature itself is lesson-splash.js) =================
    The quest rules the teacher flashes at the start of a lesson: a cover
    peppered with Wheel Quest stickers, a castle gate that shuts across the
@@ -35537,6 +35663,7 @@ function applyRemoteDoc(d) {
   }
   wsShare = normalizeShare(d.share);
   if (typeof vplReadDoc === 'function') vplReadDoc(d);   // 🎬 the hosted video list
+  if (typeof akoReadDoc === 'function') akoReadDoc(d);   // 📄 the answer keys filed by class day
 
   var key = annKey(d);
   // The LIVE heartbeat rewrites the document every 30s without touching the
@@ -35872,6 +35999,7 @@ async function performSave() {
     var styleSum = styleHarvestOnSave();
     if (typeof llibAfterSave === 'function') llibAfterSave();   // 📚 the living app library
     if (typeof vplAfterSave === 'function') vplAfterSave();     // 🎬 one link to every video
+    if (typeof akoAfterSave === 'function') akoAfterSave();     // 📄 the day's answer key on Polymath Online
     startLivePresence(); // now it exists, it can advertise that it is live
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
@@ -35945,6 +36073,7 @@ async function autoSave() {
     // 📚 Every living app on the sheet gets its code and goes in the library.
     if (typeof llibAfterSave === 'function') llibAfterSave();
     if (typeof vplAfterSave === 'function') vplAfterSave();     // 🎬 one link to every video
+    if (typeof akoAfterSave === 'function') akoAfterSave();     // 📄 the day's answer key on Polymath Online
   } catch (e) {
     console.error('Auto-save failed', e);
     if (isSharedVisitor() && e && e.code === 'permission-denied') {
@@ -36358,6 +36487,7 @@ async function openSavedDoc(id, data) {
     restoreStarPagesFrom(id, data);
     wsShare = normalizeShare(data.share);
     if (typeof vplReadDoc === 'function') vplReadDoc(data);   // 🎬 the hosted video list
+    if (typeof akoReadDoc === 'function') akoReadDoc(data);   // 📄 the answer keys filed by class day
     setDirty(false);
     renderAllOverlays();
     syncThumbStars();
@@ -40535,6 +40665,7 @@ $('docsModal').addEventListener('click', function (e) {
   if (e.target === $('docsModal')) $('docsModal').classList.remove('open');
 });
 $('downloadBtn').addEventListener('click', downloadAnnotated);
+$('akoPublishBtn').addEventListener('click', function () { if (typeof akoPublishNow === 'function') akoPublishNow(); });
 $('printQBtn').addEventListener('click', printQuestions);
 $('printABtn').addEventListener('click', printAnswers);
 $('printQSideBtn').addEventListener('click', printQuestions);
@@ -41889,6 +42020,7 @@ loadAiNotePrefs();
 <script src="living-question.js"></script>
 <script src="living-apps.js"></script>
 <script src="video-playlist.js?v=1.196.0"></script>
+<script src="answer-key-online.js?v=1.197.0"></script>
 <script>lappInit();</script>
 <script src="living-library.js"></script>
 <script>llibInit();</script>
