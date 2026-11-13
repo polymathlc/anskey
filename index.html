@@ -4069,6 +4069,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="lo-view.css">
 <link rel="stylesheet" href="lo-practice.css?v=1.188.0">
 <link rel="stylesheet" href="compact-wheel.css?v=1.190.0">
+<link rel="stylesheet" href="quest-stage.css?v=1.193.0">
 </head>
 <body>
 
@@ -5751,6 +5752,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <div class="modalHead" id="wheelHead" title="Drag to move — the worksheet stays live underneath">
       <h2 id="wheelTitle">🎡 Name wheel</h2>
       <div class="winBtns">
+        <button class="modalClose" id="wheelStageBtn" type="button" title="Put the characters on the worksheet (drag and resize)" aria-label="Put the characters on the worksheet (drag and resize)" aria-pressed="false">🧙</button>
         <button class="modalClose" id="wheelMinBtn" title="Minimise to name slots" aria-label="Minimise to name slots">–</button>
         <button class="modalClose" id="wheelCloseBtn" title="Close">✕</button>
       </div>
@@ -6020,7 +6022,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.192.0';
+var APP_VERSION = 'v1.193.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -34932,6 +34934,8 @@ function closeWheel() {
   if (window.ClassroomBattle) window.ClassroomBattle.wheelClosed();
   var modal = $('wheelModal');
   if (modal) modal.classList.remove('open');
+  // 🧙 The quest steps back into the wheel; the choice is remembered for next time (v1.193.0).
+  if (window.QuestStage) QuestStage.stop();
   var b = $('wheelBtn');
   if (b) b.classList.remove('active');
 }
@@ -41488,6 +41492,7 @@ loadAiNotePrefs();
 <script src="mission-machine.js"></script>
 <script src="quick-battle.js?v=1.191.0"></script>
 <script src="compact-wheel.js?v=1.190.0"></script>
+<script src="quest-stage.js?v=1.193.0"></script>
 <script src="student-heroes.js?v=1.191.0"></script>
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>

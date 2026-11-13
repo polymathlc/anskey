@@ -64,6 +64,14 @@
   }
   function esc(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function roleName(role) { return role === 'healer' ? 'cleric' : roles.includes(role) ? role : 'warrior'; }
+  /* 🧙 On the worksheet (quest-stage.js, v1.193.0) the duel is drawn scaled by
+     a CSS transform; screen distances are divided by that scale so a travelling
+     effect still starts on the attacker, whatever size the teacher made it. */
+  function stageScale(node) {
+    var host = node && node.closest && node.closest('[data-qs-scale]');
+    var k = host ? Number(host.dataset.qsScale) : 1;
+    return Number.isFinite(k) && k > 0 ? k : 1;
+  }
   function reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   function load(name) {
     if (!images.has(name)) {
@@ -173,8 +181,8 @@
       target.appendChild(node); created.push(node);
       load(sheet).then(function (ok) { if (!ok) node.hidden = true; });
       if ((sourceActor || travelling || r && r.trajectory==='projectile') && (sourceActor || heroActor) && target) {
-        var a = (sourceActor || heroActor).getBoundingClientRect(), b = target.getBoundingClientRect();
-        animate(node, [{ translate: (a.left-b.left)+'px '+(a.top-b.top)+'px', opacity:1 }, { translate:'0px 0px',opacity:1 }], 360);
+        var a = (sourceActor || heroActor).getBoundingClientRect(), b = target.getBoundingClientRect(), z = stageScale(target);
+        animate(node, [{ translate: ((a.left-b.left)/z)+'px '+((a.top-b.top)/z)+'px', opacity:1 }, { translate:'0px 0px',opacity:1 }], 360);
       } else if(r && r.trajectory==='fall') animate(node,[{translate:'-28px -70px',opacity:0},{translate:'0px 0px',opacity:1}],380);
       else if(r && (r.trajectory==='orbit' || r.trajectory==='aura')) animate(node,[{rotate:'-25deg',opacity:.6},{rotate:'18deg',opacity:1},{rotate:'0deg',opacity:.8}],r.duration);
       if (label) {

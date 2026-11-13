@@ -18,6 +18,14 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## 🧙 The quest on the worksheet (v1.193.0)
+
+- `quest-stage.js` / `quest-stage.css` (`window.QuestStage`). The wheel's title bar has `#wheelStageBtn` 🧙: it puts the wheel quest's characters and enemies on the worksheet in `#questStage`, a fixed layer (z 94, with the snip pins) with **no background**, so the page shows through. The teacher drags a character (or ⠿) to move it and the corner `.qsGrip` to resize it; 🏷 names/HP, ⇋ swap sides, 👻 faint, − / +, ↺ reset, ✕ back. Arrow keys move the focused stage, + / − / 0 resize.
+- **It is the SAME `#wheelQuickDuel`, moved, never copied**, so quick-battle.js repaints and battle-animation.js effects keep playing live and every handler stays attached. `QuestStage.refresh()` decides from scratch with the pure `shouldHold` (option on, wheel open, Quick fight on, manual Battle closed). `CompactWheel` calls it at the end of every refresh, and its `move` / `restore` skip a staged duel (`staged(id)`). `closeWheel` calls `QuestStage.stop()`; `ClassroomBattle.open` calls `refresh` so the arena takes it back. A note (`#questStageNote`, Bring it back) sits where the duel was: `#cwBattle` in the compact window, `#wheelQuickFight` in the full wheel.
+- The duel is laid out at `BASE_W` (460) and scaled by ONE `transform: scale(k)` on `#questStageInner` (`data-qs-scale`). `battle-animation.js` `stageScale` divides screen distances by it so a travelling effect still starts on the attacker. Hide things in 🏷 off with `display:none` only if they are not grid columns: `.cbQuickVs` uses `visibility:hidden`, or the enemy slides into the 22px middle column.
+- Settings in `localStorage` `polymath.questStage.v1` (`{v,on,x,y,k,labels,flip,faint}`, cleaned per field by `cleanSettings`). Never an annotation; `@media print` hides it.
+- Run `node --test tools/quest-stage-tests.mjs` and `node tools/quest-stage-browser-check.mjs` (real Chromium, compact default, drag, corner resize, keys, options, fight while staged, full/compact switch, Quick fight off/on, close/reopen, reload, phone, print, manual Battle; in CI).
+
 ## 🎡 The wheel quest opens compact, and the compact window scales (v1.190.0)
 
 - **`openWheel` opens minimised** (`setWheelMin(!embedded)`, `embedded` = `ClassroomBattle.isOpen()`), so the
