@@ -41,6 +41,7 @@ jobs:
           QB_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/question-bank
           LA_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/living-apps
           LL_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/living-library
+          VP_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/video-playlist
           MS_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/model-studio
           SNIP_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/snip-pin
           QR_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/qr-reader
@@ -76,6 +77,7 @@ jobs:
           node tools/question-bank-check.mjs
           node tools/living-apps-check.mjs
           node tools/living-library-check.mjs
+          node tools/video-playlist-check.mjs
           node tools/lesson-splash-check.mjs
           node tools/rune-door-check.mjs
           node tools/model-studio-check.mjs

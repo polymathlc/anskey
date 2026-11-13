@@ -4,6 +4,21 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.195.0 — 🎬 One link and one QR code for every video on the worksheet
+
+- **Download annotated PDF and Print answers now put ONE box on page 1**: a QR code, *Watch all N videos*, and the link.
+  Scanning it (or tapping it on a tablet) opens a new page with a **media player and a playlist of every video on
+  the worksheet**, in question order: lessons, camera lessons, YouTube and Google Drive clips, and video files.
+- **The purple "Play video" rectangles are left off the PDF**, so nothing printed under them is covered any more.
+- The box goes in the **cleanest spot on page 1**: the six edge spots are checked against the printed page and your
+  own writing, and the emptiest wins (never on top of the ▦ share code).
+- The player plays one video after another (with a 3-second *Up next* you can stop), has ⏮ / ⏭, remembers where
+  this phone or computer was, shows captions on lessons that have them, opens a voice lesson **with the writing**
+  in Ans Key, and works on a phone and in dark mode. No sign-in.
+- The list goes online once, under its own fingerprint, when **you** save or export; a student or a share-link
+  visitor downloading later gets the same code without uploading anything. If a student exports a sheet whose videos
+  changed since your last save, that PDF simply keeps its video buttons as before.
+
 ## v1.194.0 — ✉ Change a student's email, confirmed from the new inbox
 
 - **New ✉ Email button on every student row** in the Students window (students added without Google have no

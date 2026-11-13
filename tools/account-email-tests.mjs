@@ -111,7 +111,7 @@ test('the window writes with textContent only, and keeps its keys', () => {
 test('the glue: one gate, the row button, the roster refresh, the sign-in order', () => {
   assert.match(HTML, /<script src="account-email\.js\?v=1\.194\.0"><\/script>/);
   assert.match(HTML, /<link rel="stylesheet" href="account-email\.css\?v=1\.194\.0">/);
-  assert.match(HTML, /var APP_VERSION = 'v1\.194\.0';/);
+  assert.match(HTML, /var APP_VERSION = 'v1\.(?:19[4-9]|[2-9]\d\d)\.\d+';/);
   const glue = HTML.slice(HTML.indexOf('/* ✉ Account email — glue'), HTML.indexOf('/* End account email glue */'));
   assert.ok(glue.length > 500);
   assert.match(glue, /function accountEmailTeacher\(\) \{\n  return !!\(currentUser && isAdmin\(currentUser\) && !actingStudent && !isSharedVisitor\(\)\);/);
