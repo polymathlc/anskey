@@ -4,6 +4,20 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.196.0 — 📅 The QR code's video page is Polymath Online's lesson videos, by class day
+
+- **One page for both.** The page the worksheet's printed QR code opens (`videos.html`) is now also what
+  Polymath Online opens from **▶ Videos** beside each worksheet, so the paper and the class timeline can never show
+  two different lists.
+- **After each lesson it is pushed by itself.** Saving a recorded lesson files the worksheet's video list straight
+  away (the recorder writes the worksheet itself, so it used to wait for another save). Removing the last video
+  takes the list off the worksheet.
+- **Grouped by the day of the class.** Each lesson remembers the day it was recorded; the player lists the videos
+  lesson day by lesson day (first lesson first, other videos after), plays them in that order, and opens on one
+  day from Polymath Online's day buttons (`#day-YYYY-MM-DD`).
+- **The answer key is one tap away** at the top of the page (📄 Answer key, 🖨 Print answer key) — always the latest
+  one you saved in Ans Key.
+
 ## v1.195.0 — 🎬 One link and one QR code for every video on the worksheet
 
 - **Download annotated PDF and Print answers now put ONE box on page 1**: a QR code, *Watch all N videos*, and the link.

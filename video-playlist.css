@@ -327,6 +327,25 @@ audio.vpMedia {
 .vpFoot { margin: 32px 0 0; text-align: center; font-size: 13px; color: var(--vp-soft); }
 
 /* ---- Narrow screens ---- */
+/* 📅 v1.196.0: the list is grouped by the day of the lesson, the way
+   Polymath Online lists the videos beside each worksheet, and the answer
+   key is one tap from the header. */
+.vpKeyLinks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.vpKeyLinks[hidden] { display: none; }
+.vpBtnSoft { background: var(--vp-accent); color: var(--vp-accent-ink); border-color: var(--vp-accent); }
+.vpDay {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 12px 6px;
+  border-top: 1px solid var(--vp-line);
+  scroll-margin-top: 16px;
+}
+.vpDay:first-child { border-top: 0; padding-top: 4px; }
+.vpDay b { font-size: 14px; color: var(--vp-ink); }
+.vpDay small { font-size: 12px; color: var(--vp-soft); }
+
 @media (max-width: 860px) {
   .vpBody { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .vpListCol { position: static; max-height: none; }

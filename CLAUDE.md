@@ -18,6 +18,14 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## 📅 The QR's video page is Polymath Online's lesson videos (v1.196.0)
+
+- **ONE page**: polymathlc/cer `online/` (v1.7.0) opens `videos.html?<the QR's packed code>` from the worksheet's `videoPlaylist` (its `Core.videoPackCode` is `packCode` byte for byte). Never give the portal a second video list.
+- **Filed after every lesson**: `lessonSavePending` writes the annotations itself and never reaches auto-save, so it calls `vplAfterSave()` after the write (`lessonContextOK(job)`). `videoPlaylist` now carries `at` (filed time; the portal ignores a list older than the newest lesson or holding fewer videos than lessons). A sheet with no videos left has it removed (`vplForget`, `FieldValue.delete()`).
+- **By the day of the class**: a lesson item carries `at` (= the annotation's `ts`, kept only in `AT_MIN`…`AT_MAX`; optional, so lists hosted earlier keep their hash). The FILE stays in question order (hash + paper); `lessonDays` / `playOrder` / `orderNext` / `orderPrev` / `dayStart` are the view: dated days oldest first by the viewer's calendar day, undated last. The player steps through `order`, never `index ± 1`. `#day-YYYY-MM-DD` starts at that day (the portal's day buttons); `#n` is still the nth item of the file.
+- `answerKeyLink(pl, print)` → `./?ws=<id>` / `&do=print-answers` in the header (`#vpKeyLinks`): the live answer key.
+- Run `node --test tools/video-playlist-tests.mjs` and `node tools/video-playlist-check.mjs` (📅 Lesson days: grouping, order, `#day-`, answer key links, inside a frame).
+
 ## 🎬 Videos on paper: one link + QR to a player with every video (v1.195.0)
 
 - `video-playlist.js` (`window.VideoPlaylist`: `drawOnPdf`, `pure`) is shared by the app and `videos.html` (+ `video-playlist.css`). index.html holds only the glue between `🎬 Videos on paper — glue` and `End videos on paper glue` (`vplPlaylistFor`, `vplReadDoc`, `vplPublish`, `vplRemember`, `vplLinkFor`, `vplAfterSave`, `vplInkMeter`, `vplObstacles`, `vplPlacement`, `vplAnnounce`), the `opts.videos` branch in `buildAnnotatedPdf`, the `videos` passed by `downloadAnnotated` / `runPrint`, `vplReadDoc` in both places a worksheet document arrives, `vplDocPub = null` in the new-worksheet reset, and `vplAfterSave()` after both saves.
