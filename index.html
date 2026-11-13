@@ -4070,6 +4070,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="lo-practice.css?v=1.188.0">
 <link rel="stylesheet" href="compact-wheel.css?v=1.190.0">
 <link rel="stylesheet" href="quest-stage.css?v=1.193.0">
+<link rel="stylesheet" href="account-email.css?v=1.194.0">
 </head>
 <body>
 
@@ -5958,6 +5959,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <script src="lo-marks.js?v=1.188.0"></script>
 <script src="lo-practice.js?v=1.188.0"></script>
 <script src="lo-view.js?v=1.188.0"></script>
+<script src="account-email.js?v=1.194.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -6022,7 +6024,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.193.0';
+var APP_VERSION = 'v1.194.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -31339,6 +31341,7 @@ function applyRoleUI() {
   if (typeof penSelectCancel === 'function') penSelectCancel();   // a path belongs to the role that started it
   if (typeof snipRoleChanged === 'function') snipRoleChanged();   // a pinned answer is the teacher's alone
   if (window.ConsultAlert) ConsultAlert.roleChanged();   // 🙋 a student asking for help is shown to the teacher alone
+  if (typeof accountEmailRoleChanged === 'function') accountEmailRoleChanged();   // ✉ the email window is the teacher's alone
   if (typeof recNudgeChanged === 'function') recNudgeChanged();   // ⏺ the warning is the teacher's alone
   if (typeof qrReadRoleChanged === 'function') qrReadRoleChanged();   // 🔳 a QR window belongs to the person who opened it
   var student = isStudent();
@@ -31467,7 +31470,10 @@ async function signIn() {
     if (standaloneApp()) await auth.signInWithRedirect(provider);
     else await auth.signInWithPopup(provider);
   } catch (e) {
-    if (e && e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+    if (e && e.code === 'auth/account-exists-with-different-credential') {
+      // ✉ v1.194.0: the address belongs to an account that signs in another way.
+      toast('That email already belongs to an Ans Key account that signs in with a different Google account. If your teacher has just changed your email, open the verification email first, then sign in again — or ask your teacher.', 10000);
+    } else if (e && e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
       toast('Sign-in failed: ' + (e.message || e));
     }
   }
@@ -31480,6 +31486,8 @@ try {
     if (e && e.code) toast('Sign-in failed: ' + (e.message || e));
   });
 } catch (e) { /* older SDKs without the method — the popup path is unaffected */ }
+// ✉ v1.194.0: arriving from an email-change verification link.
+try { accountEmailLanding(); } catch (e) {}
 
 function renderAuthArea() {
   var area = $('authArea');
@@ -31630,6 +31638,13 @@ auth.onAuthStateChanged(function (user) {
     // Students: fetch their profile, and ask for it on their very first login.
     loadStudentProfile(user).then(function () {
       if (currentUser !== user) return;
+      // ✉ v1.194.0: a verified email change is finished, and a new Google
+      // sign-in moved onto its own account, BEFORE the profile prompt — a
+      // student arriving on their new address must never be asked to set up
+      // a profile they already have.
+      return typeof accountEmailSignIn === 'function' ? accountEmailSignIn(user).catch(function () { return false; }) : false;
+    }).then(function (signedOut) {
+      if (signedOut || currentUser !== user) return;
       renderAuthArea();
       // Visitors on a share link never get nagged about a student profile.
       // profileComplete, not just "is there a row": a profile saved without
@@ -31897,6 +31912,77 @@ async function saveStudentProfile() {
   btn.disabled = false;
 }
 
+/* ✉ Account email — glue (v1.194.0)
+   ------------------------------------------------------------------------
+   A student's account email is changed by the teacher and VERIFIED by the
+   student: account-email.js owns the window and the student's side, and
+   `ansKeyAccountEmail` (functions/account-email.js) owns every change. The
+   glue only hands it who is signed in, whether they are the teacher, and
+   App Check. Nothing here writes the account or the roster row. */
+var accountEmail = null;
+function accountEmailTeacher() {
+  return !!(currentUser && isAdmin(currentUser) && !actingStudent && !isSharedVisitor());
+}
+function accountEmailInit() {
+  if (accountEmail || typeof AccountEmail === 'undefined' || !AccountEmail || !AccountEmail.create) return accountEmail;
+  accountEmail = AccountEmail.create({
+    user: function () { return currentUser; },
+    appCheckToken: function () { return window.liveAppCheckToken; },
+    isTeacher: accountEmailTeacher,
+    teacherEmail: function () { return (currentUser && currentUser.email) || ''; },
+    toast: toast
+  });
+  return accountEmail;
+}
+function accountEmailOpen(uid, p) {
+  if (!accountEmailTeacher()) { toast('Only the teacher can change a student’s email.'); return; }
+  var ae = accountEmailInit();
+  if (!ae) { toast('The email window is still loading. Try again in a moment.'); return; }
+  ae.open({ uid: uid, profile: p });
+}
+function accountEmailBadge(uid, p, onEmail) {
+  var ae = accountEmailInit();
+  if (!ae) { var none = document.createElement('span'); none.hidden = true; return none; }
+  return ae.badge(uid, p, onEmail);
+}
+function accountEmailRefreshAll(uids) {
+  if (!accountEmailTeacher()) return;
+  var ae = accountEmailInit();
+  if (ae) ae.refreshAll(uids);
+}
+function accountEmailRoleChanged() {
+  if (accountEmail) accountEmail.roleChanged();
+}
+/* A student's sign-in: finish a verified change, or move a new Google
+   sign-in onto the account it belongs to. Resolves true when this page must
+   sign out (the sign-in moved); the profile prompt waits for the answer. */
+async function accountEmailSignIn(user) {
+  var ae = accountEmailInit();
+  if (!ae || !user) return false;
+  var r = await ae.checkSignIn(user, studentProfile);
+  if (currentUser !== user) return true;
+  if (typeof AccountEmail !== 'undefined') AccountEmail.stripLinkFlag(location, history);
+  if (r && r.moved) {
+    toast(r.message || 'Your account now uses your new email. Sign in with Google again.', 9000);
+    try { await auth.signOut(); } catch (e) {}
+    return true;
+  }
+  if (r && r.change && (r.change.status === 'done' || r.change.status === 'moved') && studentProfile) studentProfile.email = r.change.to;
+  if (r && (r.waiting || r.conflict) && r.message) toast(r.message, 9000);
+  return false;
+}
+/* The verification link brings people back with ?emailChanged=1. Signed out,
+   they are told what to do next; signed in, accountEmailSignIn handles it. */
+function accountEmailLanding() {
+  if (!/[?&]emailChanged=1(?:&|$)/.test(location.search)) return;
+  setTimeout(function () {
+    if (currentUser) return;
+    toast('Your new email is confirmed. Sign in with Google using the new address — your work comes with you.', 10000);
+    if (typeof AccountEmail !== 'undefined') AccountEmail.stripLinkFlag(location, history);
+  }, 2500);
+}
+/* End account email glue */
+
 /* ---- Admin: manage student levels & subjects ---- */
 async function openStudentsModal() {
   $('studentsModal').classList.add('open');
@@ -31920,6 +32006,9 @@ async function openStudentsModal() {
       return;
     }
     rows.forEach(function (row) { list.appendChild(studentAdminRow(row.uid, row.p)); });
+    // ✉ v1.194.0: where each email change stands — and this is also what
+    // FINISHES a change whose verification link has been opened.
+    if (typeof accountEmailRefreshAll === 'function') accountEmailRefreshAll(rows.map(function (r) { return r.uid; }));
   } catch (e) {
     console.error(e);
     list.innerHTML = '<div class="docsEmpty">Could not load students: ' + escHtml(e.message || String(e)) + '</div>';
@@ -32066,6 +32155,10 @@ function studentAdminRow(uid, p) {
       ' · ' + ((p.lsChangesUsed || 0) >= 1 ? 'change used' : 'change available');
   }
   meta.textContent = metaText();
+  // ✉ v1.194.0: a waiting or finished email change shows beside the name.
+  if (!p.managed && typeof accountEmailBadge === 'function') {
+    nm.appendChild(accountEmailBadge(uid, p, function () { meta.textContent = metaText(); }));
+  }
   var selWrap = document.createElement('div');
   selWrap.className = 'stuRowSelects';
   var lvlSel = document.createElement('select');
@@ -32120,6 +32213,18 @@ function studentAdminRow(uid, p) {
     adminSave({ lsChangesUsed: 0 }, (p.name || 'Student') + ' can change their level/subject once again.');
   });
   row.appendChild(unlockBtn);
+  /* ✉ THE ACCOUNT EMAIL (v1.194.0): change the address this student signs in
+     with. A verification email goes to the NEW address and nothing changes
+     until it is opened — see account-email.js. A student added without
+     Google has no account, so their row has no button. */
+  if (!p.managed && typeof accountEmailOpen === 'function') {
+    var emailBtn = document.createElement('button');
+    emailBtn.className = 'btn stuEmailBtn';
+    emailBtn.textContent = '✉ Email';
+    emailBtn.title = 'Change the email ' + (p.name || 'this student') + ' signs in with — they confirm it from the new inbox';
+    emailBtn.addEventListener('click', function () { accountEmailOpen(uid, p); });
+    row.appendChild(emailBtn);
+  }
   /* 🧩 THE GAP VIEW (v1.185.0): this student's weak concepts from the
      concept tags Study Buddy writes on their roster row, and whether each
      is improving — see gap-view.js. Shown on every row, with how many
