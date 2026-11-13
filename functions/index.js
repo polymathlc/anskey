@@ -1,6 +1,6 @@
 'use strict';
 
-const { initializeApp } = require('firebase-admin/app');
+const { initializeApp, getApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getAppCheck } = require('firebase-admin/app-check');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -18,6 +18,7 @@ const { createJevService, createJevRepository } = require('./jev-service');
 const { createHeroService } = require('./hero-service');
 const { createHeroRepository } = require('./hero-repository');
 const { createLessonComposeService } = require('./lesson-compose');
+const { createAccountEmailService, createFirebaseMailer } = require('./account-email');
 
 initializeApp();
 // A field left undefined in a saved hero, encounter or log entry must never
@@ -76,3 +77,28 @@ exports.ansKeyLessonCompose = onRequest({
   region: 'us-central1', timeoutSeconds: 120, maxInstances: 3,
   concurrency: 10, memory: '256MiB', invoker: 'public'
 }, lessonCompose.handler);
+
+// ✉ A student's account email, changed by the teacher and verified by the
+// student (v1.194.0). The verification email is sent by Firebase Auth's own
+// mailer, reached with this function's service credential; see
+// account-email.js. The new address takes over only once its link is opened.
+async function projectAccessToken() {
+  const credential = getApp().options.credential;
+  if (credential && typeof credential.getAccessToken === 'function') {
+    const token = await credential.getAccessToken();
+    if (token && token.access_token) return token.access_token;
+  }
+  // The metadata server is what the credential itself asks on Cloud Run.
+  const res = await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token', { headers: { 'Metadata-Flavor': 'Google' } });
+  if (!res.ok) throw new Error('No service credential for the mailer.');
+  return (await res.json()).access_token;
+}
+const accountEmail = createAccountEmailService({
+  auth: getAuth(), appCheck: getAppCheck(), db: getFirestore(),
+  mailer: createFirebaseMailer({ accessToken: projectAccessToken, adminAuth: getAuth() }),
+  report: (code, error) => logger.warn(code, { message: String(error?.message || error || '').slice(0, 300) })
+});
+exports.ansKeyAccountEmail = onRequest({
+  region: 'us-central1', timeoutSeconds: 60, maxInstances: 3,
+  concurrency: 20, memory: '256MiB', invoker: 'public'
+}, accountEmail.handler);

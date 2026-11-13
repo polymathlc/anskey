@@ -1,0 +1,71 @@
+/* ✉ A student's account email, changed by the teacher and verified by the
+   student (v1.194.0). Built by account-email.js with textContent only. It
+   opens over the Students window, so it sits one step above it. */
+.aeBack {
+  position: fixed; inset: 0; z-index: 150;
+  background: rgba(20, 18, 30, 0.42);
+  display: none; align-items: flex-start; justify-content: center;
+  padding: 48px 16px; overflow-y: auto;
+}
+.aeBack.open { display: flex; }
+.aeCard:focus { outline: none; }
+.aeCard {
+  background: var(--bg, #fff); color: var(--ink, #1F1F1C);
+  border-radius: var(--radius, 14px); box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.14));
+  width: min(520px, 100%); max-width: 100%;
+  display: flex; flex-direction: column;
+}
+.aeHead {
+  display: flex; align-items: center; gap: 12px; padding: 18px 22px;
+  border-bottom: 1px solid var(--line, #ECECEA);
+}
+.aeTitle { margin: 0; font-size: 1.08rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.aeClose {
+  border: 0; background: none; font-size: 1.1rem; cursor: pointer; color: var(--ink-faint, #8A8A84);
+  width: 36px; height: 36px; border-radius: 10px;
+}
+.aeClose:hover { background: var(--bg-soft, #F6F6F3); }
+.aeBody { padding: 18px 22px 24px; display: flex; flex-direction: column; gap: 16px; line-height: 1.55; }
+.aeLabel { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-soft, #55554F); }
+.aeEmail { font-size: 0.98rem; overflow-wrap: anywhere; margin-top: 4px; }
+.aeCurrent { padding: 12px 14px; border-radius: 12px; background: var(--bg-soft, #F6F6F3); }
+.aeStatus { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line, #ECECEA); display: flex; flex-direction: column; gap: 10px; }
+.aeStatus.aeWaiting { background: #FFF8EC; border-color: #F3D9A8; }
+.aeStatus.aeDone { background: #EEF8F0; border-color: #BFE3C8; }
+.aeStatus.aeOff { background: var(--bg-soft, #F6F6F3); }
+.aeStatusText { font-size: 0.9rem; overflow-wrap: anywhere; }
+.aeForm { display: flex; flex-direction: column; gap: 8px; }
+.aeInput {
+  font: inherit; font-size: 1rem; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line, #DADAD5); background: var(--bg, #fff); color: inherit;
+  user-select: text; -webkit-user-select: text; width: 100%; box-sizing: border-box;
+}
+.aeInput:focus { outline: 2px solid var(--accent-deep, #E8A54B); outline-offset: 1px; }
+.aeHint { font-size: 0.8rem; color: var(--ink-faint, #8A8A84); min-height: 1.2em; }
+.aeRow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 4px; }
+.aeAsk, .aeLinkBox {
+  padding: 12px 14px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px;
+  background: #FFF4F0; border: 1px solid #F2C9BB; font-size: 0.9rem;
+}
+.aeLinkBox { background: #F2F6FF; border-color: #C9D7F5; }
+.aeGmail { text-decoration: none; color: inherit; display: inline-flex; align-items: center; }
+.aeNote { font-size: 0.88rem; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft, #F6F6F3); overflow-wrap: anywhere; }
+.aeNote.aeOk { background: #EEF8F0; color: #1E5A2E; }
+.aeNote.aeBad { background: #FFF0EE; color: #8A2A1A; }
+.aeHow { font-size: 0.84rem; color: var(--ink-soft, #55554F); }
+.aeHow summary { cursor: pointer; font-weight: 600; }
+.aeHow ol { margin: 10px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+/* On the Students window's row. */
+.aeBadge {
+  display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+  font-size: 0.74rem; background: #FFF4DE; color: #7A5410; vertical-align: 1px;
+}
+.aeBadge[hidden] { display: none; }
+.stuEmailBtn { white-space: nowrap; }
+@media (max-width: 560px) {
+  .aeBack { padding: 16px 10px; }
+  .aeHead { padding: 14px 16px; }
+  .aeBody { padding: 14px 16px 20px; }
+  .aeInput { font-size: 16px; }
+}
+@media print { .aeBack { display: none !important; } }

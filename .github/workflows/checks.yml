@@ -53,6 +53,7 @@ jobs:
           CQ_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/class-queue
         run: |
           node tools/wheel-check.mjs
+          node tools/account-email-check.mjs
           node tools/classroom-battle-browser-check.mjs
           node tools/hero-items-browser-check.mjs
           node tools/hero-skill-tree-browser-check.mjs

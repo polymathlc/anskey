@@ -4,6 +4,25 @@ Single-file web app (`index.html`) for annotating PDF worksheets, backed by
 Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
+## v1.194.0 — ✉ Change a student's email, confirmed from the new inbox
+
+- **New ✉ Email button on every student row** in the Students window (students added without Google have no
+  account, so they have none). Type the new address and press **Send verification email**.
+- **Firebase sends the verification email to the NEW address**, and **nothing changes until the student opens it**:
+  their account, sign-in and roster entry keep the old address until then. The row shows *✉ waiting for …* meanwhile.
+- Opening the link switches the account to the new address and signs it out everywhere; the old address gets a notice
+  with a way to undo it. The next time the Students window opens (or the student signs in) the roster takes the new
+  address, so the library's emails and every app on the shared roster write to the right person.
+- **If the new address is a Google account**, the student just signs in with it. The first time, that new Google
+  sign-in is moved onto their own account (only once the change is verified, and only from a brand-new empty account,
+  so nothing is ever lost), and their worksheets, marks and hero are all there. The old Google account no longer opens it.
+- If Firebase will not send the email, the window offers **✉ Send from my Gmail** with the same verification link.
+  An empty account already sitting on the new address can be removed from the window (it asks first); an account that
+  has its own profile is never touched. Up to 5 emails a day per student; an unopened link expires after a week;
+  **Withdraw** marks a change as withdrawn.
+- Server: the new `ansKeyAccountEmail` function (teacher only for changes, ID token + App Check) — deployed by the
+  functions workflow on merge.
+
 ## v1.193.0 — 🧙 The quest lives on the worksheet
 
 - **New 🧙 button in the wheel's title bar.** It lifts the wheel quest's characters and enemies out of the wheel
