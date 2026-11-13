@@ -6024,7 +6024,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.194.0';
+var APP_VERSION = 'v1.195.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6861,6 +6861,7 @@ async function loadPdf(bytes, name, contextCheck) {
   editModeId = null;
   wsMeta = { level: '', subject: '', date: '', slot: '', videoUrl: '', videoPath: '', videoStart: 0, rewardClass: '', starPages: [], hidden: false };
   wsShare = { mode: 'view', passwordHash: '' };
+  if (typeof vplDocPub !== 'undefined') vplDocPub = null;   // 🎬 a new worksheet has no hosted video list
   reviseMode = false;
   revealedKw = {};
   kwResults = {};
@@ -33429,6 +33430,227 @@ function llibInit() {
 }
 /* ================= End living app library glue ================= */
 
+/* ================= 🎬 Videos on paper — glue (the feature itself is video-playlist.js) =================
+   An exported or printed worksheet with videos on it used to carry every
+   "Play video" pill baked onto the paper: a purple rectangle over whatever
+   was printed under it, one link each. Now page 1 carries ONE box — a QR
+   code and a link — to videos.html, a player with every video on the
+   worksheet in question order, and the pills are left off the paper.
+
+   THE PLAYLIST GOES UP ONCE, UNDER ITS OWN CONTENT HASH, and only the
+   TEACHER uploads it (`vplPublish`), exactly as a living app's code does:
+   `pdf-annotator/videos-<hash>.json`. The token is remembered on the
+   worksheet's own document (`videoPlaylist: {hash, token, n}`, a merge
+   write that touches nothing else), so a student or a share-link visitor
+   who downloads the sheet later gets the same code without writing
+   anything. Every teacher save files it too (`vplAfterSave`), so the code
+   exists before anyone else ever exports.
+
+   THE PILLS COME OFF ONLY WHEN THE LINK GOES ON. A student exporting a
+   sheet the teacher has not saved since its videos changed has no hosted
+   copy to point at, and a PDF with neither the pills nor the link would
+   have lost every video — so that PDF keeps its pills, exactly as before.
+
+   WHERE THE BOX GOES is decided by `vplPlacement`: the six edge spots of
+   page 1 are scored by how much printed ink (page 1 drawn small by
+   pdf.js) and how much of the teacher's own writing each would cover, and
+   the cleanest wins (`VideoPlaylist.pure.choosePlacement`). The worksheet
+   share code (▦, top right) is an obstacle like any other. */
+var vplDocPub = null;          // { hash, token, n } read off the open worksheet's document
+var vplSyncing = false;
+var vplSyncAgain = false;
+
+function vplReady() { return !!(window.VideoPlaylist && window.VideoPlaylist.pure); }
+
+/* The open worksheet's videos as a playlist (null when there are none). */
+function vplPlaylistFor(anns) {
+  if (!vplReady()) return null;
+  return window.VideoPlaylist.pure.buildPlaylist(anns, { name: docName, ws: currentDocId || '', label: videoPillLabel });
+}
+
+/* What the worksheet document says about its hosted playlist. */
+function vplReadDoc(d) {
+  var p = d && d.videoPlaylist;
+  if (!vplReady() || !p || typeof p !== 'object') { vplDocPub = null; return; }
+  var P = window.VideoPlaylist.pure;
+  vplDocPub = P.validHash(p.hash) && P.validToken(p.token) ? { hash: p.hash, token: p.token, n: Number(p.n) || 0 } : null;
+}
+
+/* The hosted copy of `pl`: the one remembered when it is still this
+   playlist, otherwise (the teacher only) uploaded now. Content-addressed:
+   asked for first, written only when missing. */
+async function vplPublish(pl) {
+  if (!pl || !vplReady()) return null;
+  var P = window.VideoPlaylist.pure;
+  var have = P.publishedFor(pl, vplDocPub);
+  if (have) return have;
+  if (!wheelTeacher() || typeof storage === 'undefined' || !storage) return null;
+  var path = P.publishPath(pl.hash);
+  var body = P.publishPayload(pl);
+  if (!path || !body) return null;
+  var ref = storage.ref(path);
+  var url = '';
+  try { url = await ref.getDownloadURL(); } catch (e) { url = ''; }
+  if (!url) {
+    await ref.putString(body, 'raw', {
+      contentType: 'application/json; charset=utf-8',
+      cacheControl: 'public, max-age=86400'
+    });
+    url = await ref.getDownloadURL();
+  }
+  var token = P.tokenFromDownloadUrl(url);
+  if (!token) throw new Error('Storage gave no download link for the video list.');
+  return { hash: pl.hash, token: token };
+}
+
+/* Keeps the token on the worksheet's document (teacher only, a merge), so
+   everyone who opens the sheet can print the same code. Never throws. */
+async function vplRemember(pub, n, docId) {
+  if (!pub || !docId || !wheelTeacher() || practiceMode) return false;
+  if (vplDocPub && vplDocPub.hash === pub.hash && vplDocPub.token === pub.token) return false;
+  try {
+    await db.collection(COLLECTION).doc(docId).set({ videoPlaylist: { hash: pub.hash, token: pub.token, n: n || 0 } }, { merge: true });
+    if (currentDocId === docId) vplDocPub = { hash: pub.hash, token: pub.token, n: n || 0 };
+    return true;
+  } catch (e) {
+    console.warn('The video list could not be remembered on the worksheet', e);
+    return false;
+  }
+}
+
+/* { url, count, hash } for the box on page 1, or null — in which case the
+   PDF keeps its pills. Never throws: an export must not fail because the
+   list could not be put online. `quiet` stops the toasts. */
+async function vplLinkFor(anns, quiet) {
+  var pl = vplPlaylistFor(anns);
+  if (!pl) return null;
+  var P = window.VideoPlaylist.pure;
+  var pub = null, broke = false;
+  try { pub = await vplPublish(pl); } catch (e) { broke = true; console.warn('The video list could not be put online', e); }
+  if (!pub) {
+    if (!quiet) {
+      toast(broke
+        ? 'The video list could not be put online, so the video buttons stay on this PDF. Check the connection and export again.'
+        : 'The video buttons stay on this PDF — once the teacher saves the worksheet, it prints with one link to every video instead.', 5600);
+    }
+    return null;
+  }
+  var url = P.viewerUrl(location.href, pub.hash, pub.token);
+  if (!url) return null;
+  if (currentDocId) vplRemember(pub, pl.items.length, currentDocId);
+  return { url: url, count: pl.items.length, hash: pl.hash };
+}
+
+/* After a save: the teacher's worksheet files its video list, so a student
+   or a visitor exporting later finds the code. One run at a time; a save
+   during a run asks for one more. Not in practice: the page then holds a
+   child's attempt. */
+async function vplAfterSave() {
+  if (!wheelTeacher() || practiceMode || !vplReady() || !currentDocId) return false;
+  if (vplSyncing) { vplSyncAgain = true; return false; }
+  vplSyncing = true;
+  var filed = false;
+  try {
+    do {
+      vplSyncAgain = false;
+      var docAtStart = currentDocId;
+      var pl = vplPlaylistFor(annotations);
+      if (!pl) break;
+      if (window.VideoPlaylist.pure.publishedFor(pl, vplDocPub)) break;
+      var pub = null;
+      try { pub = await vplPublish(pl); } catch (e) { pub = null; console.warn('The video list could not be filed after a save', e); }
+      // A worksheet closed mid-run is not written onto whatever is open now.
+      if (pub && currentDocId === docAtStart && await vplRemember(pub, pl.items.length, docAtStart)) filed = true;
+    } while (vplSyncAgain);
+  } finally {
+    vplSyncing = false;
+  }
+  return filed;
+}
+
+/* Page 1, drawn small by pdf.js, as a measure of printed ink: a function
+   from a rectangle in PDF points to the dark share of it (0…1), or null
+   when the page cannot be drawn here. */
+async function vplInkMeter() {
+  try {
+    if (!pdfDoc || typeof pdfDoc.getPage !== 'function') return null;
+    var pg = await pdfDoc.getPage(1);
+    var vp = pg.getViewport({ scale: 0.5 });
+    var cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(vp.width));
+    cv.height = Math.max(1, Math.round(vp.height));
+    var ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+    var data = ctx.getImageData(0, 0, cv.width, cv.height).data;
+    var W = cv.width, H = cv.height;
+    return function (r) {
+      var q = vp.convertToViewportRectangle([r.x, r.y, r.x + r.w, r.y + r.h]);
+      var x0 = Math.max(0, Math.floor(Math.min(q[0], q[2]))), x1 = Math.min(W, Math.ceil(Math.max(q[0], q[2])));
+      var y0 = Math.max(0, Math.floor(Math.min(q[1], q[3]))), y1 = Math.min(H, Math.ceil(Math.max(q[1], q[3])));
+      var dark = 0, all = 0;
+      for (var y = y0; y < y1; y += 2) {
+        for (var x = x0; x < x1; x += 2) {
+          var i = (y * W + x) * 4;
+          var lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+          if (lum < 215) dark++;
+          all++;
+        }
+      }
+      return all ? dark / all : 0;
+    };
+  } catch (e) {
+    console.warn('Page 1 could not be measured for the video box', e);
+    return null;
+  }
+}
+
+/* The teacher's writing on page 1 (everything that will be drawn, the
+   pills excepted) and the worksheet's share code, as rectangles in PDF
+   points — what the box should not cover. */
+function vplObstacles(anns, pdfPage, withShareQr) {
+  var out = [];
+  var info = pages[0];
+  (anns || []).forEach(function (a) {
+    if (!a || a.page !== 1 || a.type === 'video' || !info || !info.viewport1) return;
+    try {
+      var b = annBBox(a);
+      if (!b || !isFinite(b.x) || !isFinite(b.y)) return;
+      var pad = Number(a.width) || 2;
+      var p1 = info.viewport1.convertToPdfPoint(b.x - pad, b.y - pad);
+      var p2 = info.viewport1.convertToPdfPoint(b.x + (b.w || 0) + pad, b.y + (b.h || 0) + pad);
+      out.push({ x: Math.min(p1[0], p2[0]), y: Math.min(p1[1], p2[1]), w: Math.abs(p2[0] - p1[0]), h: Math.abs(p2[1] - p1[1]) });
+    } catch (e) { /* an annotation with no shape covers nothing */ }
+  });
+  if (withShareQr && pdfPage && window.QuestionBank && window.QuestionBank.pure.qrPlacement) {
+    var at = window.QuestionBank.pure.qrPlacement(pdfPage.getWidth(), pdfPage.getHeight());
+    out.push({ x: at.x - 3, y: at.y - 12, w: at.size + 6, h: at.size + 15 });
+  }
+  return out;
+}
+
+/* Where the box goes on page 1 of the pdf-lib document, or null. */
+function vplPlacement(pdfPage, anns, withShareQr, ink) {
+  if (!vplReady() || !pdfPage) return null;
+  var box;
+  try {
+    var mb = pdfPage.getMediaBox();
+    box = { x: mb.x, y: mb.y, width: mb.width, height: mb.height };
+  } catch (e) {
+    box = { x: 0, y: 0, width: pdfPage.getWidth(), height: pdfPage.getHeight() };
+  }
+  return window.VideoPlaylist.pure.choosePlacement(box, vplObstacles(anns, pdfPage, withShareQr), ink);
+}
+
+/* After an export: says what happened to the videos, once. */
+function vplAnnounce(link) {
+  if (!link) return;
+  toast('🎬 Page 1 carries one link and QR code to ' + window.VideoPlaylist.pure.countWords(link.count) +
+    ' — the video buttons are left off the paper.', 5200);
+}
+/* ================= End videos on paper glue ================= */
+
 /* ================= 🏰 Lesson start — glue (the feature itself is lesson-splash.js) =================
    The quest rules the teacher flashes at the start of a lesson: a cover
    peppered with Wheel Quest stickers, a castle gate that shuts across the
@@ -35285,6 +35507,7 @@ function applyRemoteDoc(d) {
     syncThumbStars();
   }
   wsShare = normalizeShare(d.share);
+  if (typeof vplReadDoc === 'function') vplReadDoc(d);   // 🎬 the hosted video list
 
   var key = annKey(d);
   // The LIVE heartbeat rewrites the document every 30s without touching the
@@ -35619,6 +35842,7 @@ async function performSave() {
     // the button says what went up with it. Auto-save runs the identical pair.
     var styleSum = styleHarvestOnSave();
     if (typeof llibAfterSave === 'function') llibAfterSave();   // 📚 the living app library
+    if (typeof vplAfterSave === 'function') vplAfterSave();     // 🎬 one link to every video
     startLivePresence(); // now it exists, it can advertise that it is live
     dirty = false;
     scheduleDraftSave(); // mark the local draft clean too
@@ -35691,6 +35915,7 @@ async function autoSave() {
     styleAnnounceSaved(styleHarvestOnSave());
     // 📚 Every living app on the sheet gets its code and goes in the library.
     if (typeof llibAfterSave === 'function') llibAfterSave();
+    if (typeof vplAfterSave === 'function') vplAfterSave();     // 🎬 one link to every video
   } catch (e) {
     console.error('Auto-save failed', e);
     if (isSharedVisitor() && e && e.code === 'permission-denied') {
@@ -36103,6 +36328,7 @@ async function openSavedDoc(id, data) {
     notesNoteOwner(data);   // whose worksheet this is = whose notes the AI reads
     restoreStarPagesFrom(id, data);
     wsShare = normalizeShare(data.share);
+    if (typeof vplReadDoc === 'function') vplReadDoc(data);   // 🎬 the hosted video list
     setDirty(false);
     renderAllOverlays();
     syncThumbStars();
@@ -39417,6 +39643,9 @@ async function buildAnnotatedPdf(includeTs, opts) {
   // Pictures on AI note cards have to be embedded before the drawing pass —
   // that pass is synchronous, and embedding is not.
   var noteImages = await embedAiNoteImages(outDoc, anns);
+  // 🎬 One link to every video (v1.195.0): measured before the synchronous
+  // drawing pass, because drawing page 1 small is not synchronous either.
+  var vplInk = opts.videos && typeof vplInkMeter === 'function' ? await vplInkMeter() : null;
 
     anns.forEach(function (a) {
       var pageInfo = pages[a.page - 1];
@@ -39551,6 +39780,9 @@ async function buildAnnotatedPdf(includeTs, opts) {
           image: noteImages[a.id] || null
         });
       } else if (a.type === 'video') {
+        // 🎬 With the one link on page 1 (v1.195.0) the pills stay off the
+        // paper: they covered whatever was printed under them.
+        if (opts.videos) return;
         // The pill bakes in as a purple button; a real PDF link annotation on
         // top makes it tappable in the downloaded copy.
         var vq1 = cv(a.x, a.y), vq2 = cv(a.x + (a.w || 150), a.y + (a.h || 30));
@@ -39611,6 +39843,21 @@ async function buildAnnotatedPdf(includeTs, opts) {
     catch (qrErr) { console.warn('The QR code could not be drawn', qrErr); }
   }
 
+  /* 🎬 ONE link and QR code to every video on the worksheet (v1.195.0), in
+     the cleanest spot of page 1 — the pills above were left off. */
+  if (opts.videos && opts.videos.url && window.VideoPlaylist && window.QuestionBank && outDoc.getPageCount()) {
+    try {
+      var vplPage = outDoc.getPage(0);
+      var vplSpot = vplPlacement(vplPage, anns, !!opts.qr, vplInk);
+      if (vplSpot) {
+        window.VideoPlaylist.drawOnPdf(outDoc, vplPage, {
+          url: opts.videos.url, count: opts.videos.count, spot: vplSpot, lib: PDFLib, font: font, fontBold: fontBold,
+          qrMatrix: window.QuestionBank.pure.qrMatrix, qrRuns: window.QuestionBank.pure.qrRuns
+        });
+      }
+    } catch (vplErr) { console.warn('The video link could not be drawn', vplErr); }
+  }
+
   return outDoc.save();
 }
 
@@ -39620,7 +39867,8 @@ async function downloadAnnotated() {
   btn.disabled = true;
   toast('Preparing PDF…');
   try {
-    var outBytes = await buildAnnotatedPdf(false, { qr: printQrUrl(), lappQr: await lappQrLinks(annotations) });
+    var videos = typeof vplLinkFor === 'function' ? await vplLinkFor(annotations) : null;
+    var outBytes = await buildAnnotatedPdf(false, { qr: printQrUrl(), lappQr: await lappQrLinks(annotations), videos: videos });
     var blob = new Blob([outBytes], { type: 'application/pdf' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -39633,6 +39881,7 @@ async function downloadAnnotated() {
     a.click();
     a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+    if (typeof vplAnnounce === 'function') vplAnnounce(videos);
   } catch (e) {
     console.error(e);
     toast('Download failed: ' + (e.message || e));
@@ -39675,12 +39924,15 @@ async function runPrint(kind) {
     /* The bank's questions are part of the worksheet, so the questions-only
        print keeps them — everything else written on the page goes. */
     var printAnns = answers ? answerAnnotations() : answerAnnotations().filter(function (a) { return annBankQ(a) || annLivingApp(a) || annLivingQuestion(a); });
+    var videos = typeof vplLinkFor === 'function' ? await vplLinkFor(printAnns) : null;
     var outBytes = await buildAnnotatedPdf(false, {
       anns: printAnns,
       qr: printQrUrl(),
-      lappQr: await lappQrLinks(printAnns)
+      lappQr: await lappQrLinks(printAnns),
+      videos: videos
     });
     printPdfBytes(outBytes, answers ? lab.aDone : lab.qDone);
+    if (typeof vplAnnounce === 'function') vplAnnounce(videos);
   } catch (e) {
     console.error(e);
     toast('Print failed: ' + (e.message || e));
@@ -41607,6 +41859,7 @@ loadAiNotePrefs();
 <script>bankQInit();</script>
 <script src="living-question.js"></script>
 <script src="living-apps.js"></script>
+<script src="video-playlist.js?v=1.195.0"></script>
 <script>lappInit();</script>
 <script src="living-library.js"></script>
 <script>llibInit();</script>

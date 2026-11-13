@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FFE0B2">
+<meta name="robots" content="noindex">
+<title>Videos | Polymath Answer Keys</title>
+<link rel="icon" href="assets/app-icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/app-icons/apple-touch-icon.png">
+<!-- 🎬 Where an exported worksheet's ONE video link leads (v1.195.0).
+     Page 1 of the PDF carries a QR code and a link holding the playlist's
+     content hash and its Firebase Storage download token, packed into 31
+     characters (video-playlist.js). This page downloads that one file,
+     checks it is the playlist the code was printed for, and plays every
+     video on the worksheet in question order: lessons, camera lessons,
+     YouTube and Drive clips and plain video files. No sign-in, no Firebase
+     SDK, nothing written anywhere but this device's "where was I". -->
+<link rel="stylesheet" href="video-playlist.css?v=1.195.0">
+</head>
+<body>
+<main class="vpShell loading" id="vpShell" aria-live="polite">
+  <header class="vpHead">
+    <div class="vpMark" aria-hidden="true">🎬</div>
+    <div class="vpHeadText">
+      <p class="vpKicker">Polymath · Answer Keys</p>
+      <h1 id="vpTitle">Opening the videos…</h1>
+      <p class="vpSub" id="vpSub">Fetching the list from your worksheet.</p>
+    </div>
+  </header>
+
+  <section class="vpBody" id="vpBody" hidden>
+    <div class="vpStageCol">
+      <div class="vpStage" id="vpStage">
+        <div class="vpStageInner" id="vpStageInner"></div>
+        <div class="vpNext" id="vpNext" hidden>
+          <p class="vpNextKicker">Up next</p>
+          <p class="vpNextTitle" id="vpNextTitle"></p>
+          <div class="vpNextRing" aria-hidden="true"><span id="vpNextCount">3</span></div>
+          <div class="vpNextBtns">
+            <button type="button" class="vpBtn vpBtnDark" id="vpNextNow">▶ Play now</button>
+            <button type="button" class="vpBtn" id="vpNextCancel">Stay here</button>
+          </div>
+        </div>
+      </div>
+      <div class="vpNow">
+        <div class="vpNowText">
+          <p class="vpNowNum" id="vpNowNum"></p>
+          <h2 id="vpNowTitle"></h2>
+          <p class="vpNowDetail" id="vpNowDetail"></p>
+        </div>
+        <div class="vpControls">
+          <button type="button" class="vpBtn" id="vpPrev" aria-label="Previous video">⏮ Previous</button>
+          <button type="button" class="vpBtn vpBtnDark" id="vpNextBtn" aria-label="Next video">Next ⏭</button>
+        </div>
+      </div>
+      <div class="vpExtras">
+        <label class="vpSwitch"><input type="checkbox" id="vpAuto" checked> <span>Play the next video by itself</span></label>
+        <a class="vpLink" id="vpOpen" href="#" target="_blank" rel="noopener" hidden>Open in a new tab ↗</a>
+        <a class="vpLink" id="vpWriting" href="#" target="_blank" rel="noopener" hidden>✍️ Watch with the writing</a>
+      </div>
+      <p class="vpHint" id="vpHint" hidden></p>
+    </div>
+
+    <aside class="vpListCol" aria-label="Every video on this worksheet">
+      <div class="vpListHead">
+        <h3>Playlist</h3>
+        <span class="vpCount" id="vpCount"></span>
+      </div>
+      <ol class="vpList" id="vpList"></ol>
+    </aside>
+  </section>
+
+  <div class="vpFail" id="vpFail" hidden>
+    <p id="vpFailText"></p>
+  </div>
+
+  <p class="vpFoot">Polymath Learning Centre · Answer Keys</p>
+</main>
+<script src="video-playlist.js?v=1.195.0"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var shell = $('vpShell');
+  var VP = window.VideoPlaylist;
+  var P = VP && VP.pure;
+
+  var playlist = null;       // the cleaned, checked playlist
+  var index = -1;            // the item on the stage
+  var media = null;          // the <video> / <audio> on the stage, if any
+  var nextTimer = 0, nextLeft = 0;
+  var captionUrls = [];      // blob: URLs made for <track>s, revoked on change
+  var saveTimer = 0;
+  var STORE = 'polymath.videos.v1:';
+  var AUTO_KEY = 'polymath.videos.auto.v1';
+
+  function fail(line) {
+    shell.className = 'vpShell failed';
+    $('vpTitle').textContent = 'These videos could not be opened';
+    $('vpSub').textContent = '';
+    $('vpBody').hidden = true;
+    $('vpFail').hidden = false;
+    $('vpFailText').textContent = line;
+  }
+
+  if (!P) { fail('The page did not finish loading. Check the connection and scan the code again.'); return; }
+  var want = P.parseViewerQuery(location.search);
+  if (!want) { fail('This link is not a complete video code. Scan the QR code on the worksheet again.'); return; }
+
+  /* ---- This device remembers where it was (never anywhere else) ---- */
+  function readSpot() {
+    try {
+      var raw = localStorage.getItem(STORE + want.hash);
+      var d = raw ? JSON.parse(raw) : null;
+      if (d && typeof d.i === 'number' && typeof d.t === 'number') return d;
+    } catch (e) {}
+    return null;
+  }
+  function writeSpotNow() {
+    clearTimeout(saveTimer);
+    if (index < 0) return;
+    try {
+      localStorage.setItem(STORE + want.hash, JSON.stringify({ i: index, t: media ? Math.floor(media.currentTime || 0) : 0 }));
+    } catch (e) {}
+  }
+  function writeSpot() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(writeSpotNow, 400);
+  }
+  // Leaving the page (a reload, closing the tab) keeps the spot at once.
+  window.addEventListener('pagehide', writeSpotNow);
+  function autoOn() {
+    try { return localStorage.getItem(AUTO_KEY) !== '0'; } catch (e) { return true; }
+  }
+
+  /* ---- The list ---- */
+  function renderList() {
+    var list = $('vpList');
+    list.replaceChildren();
+    playlist.items.forEach(function (it, i) {
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'vpItem' + (i === index ? ' on' : '');
+      b.setAttribute('data-i', String(i));
+      if (i === index) b.setAttribute('aria-current', 'true');
+      var num = document.createElement('span');
+      num.className = 'vpItemNum';
+      num.textContent = i === index ? '▶' : String(i + 1);
+      var txt = document.createElement('span');
+      txt.className = 'vpItemText';
+      var t1 = document.createElement('b');
+      t1.textContent = it.label;
+      var t2 = document.createElement('small');
+      t2.textContent = P.itemDetail(it);
+      txt.appendChild(t1);
+      txt.appendChild(t2);
+      b.appendChild(num);
+      b.appendChild(txt);
+      li.appendChild(b);
+      list.appendChild(li);
+    });
+    var on = list.querySelector('.vpItem.on');
+    if (on && on.scrollIntoView) {
+      try { on.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    }
+  }
+  $('vpList').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.vpItem') : null;
+    if (!b) return;
+    play(Number(b.getAttribute('data-i')), true);
+  });
+
+  /* ---- The stage ---- */
+  function clearStage() {
+    cancelNext();
+    if (media) {
+      try { media.pause(); } catch (e) {}
+      media.removeAttribute('src');
+      try { media.load(); } catch (e) {}
+      media = null;
+    }
+    captionUrls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+    captionUrls = [];
+    $('vpStageInner').replaceChildren();
+  }
+
+  function play(i, fromTap, resumeAt) {
+    if (!playlist || i < 0 || i >= playlist.items.length) return;
+    clearStage();
+    index = i;
+    var it = playlist.items[i];
+    var how = P.playerFor(it);
+    var stage = $('vpStageInner');
+    var stageBox = $('vpStage');
+    stageBox.className = 'vpStage kind-' + (how ? how.tag : 'none') + (it.portrait ? ' portrait' : '');
+    $('vpHint').hidden = true;
+
+    if (!how) {
+      var none = document.createElement('p');
+      none.className = 'vpCard';
+      none.textContent = 'This video could not be played.';
+      stage.appendChild(none);
+    } else if (how.tag === 'video' || how.tag === 'audio') {
+      if (how.tag === 'audio') {
+        var card = document.createElement('div');
+        card.className = 'vpAudioCard';
+        var mic = document.createElement('div');
+        mic.className = 'vpAudioMic';
+        mic.setAttribute('aria-hidden', 'true');
+        mic.textContent = '🎙';
+        var words = document.createElement('p');
+        words.textContent = 'A voice lesson. The writing that goes with it plays in Ans Key — use ✍️ Watch with the writing below.';
+        card.appendChild(mic);
+        card.appendChild(words);
+        stage.appendChild(card);
+      }
+      var el = document.createElement(how.tag);
+      el.className = 'vpMedia';
+      el.controls = true;
+      el.preload = 'metadata';
+      el.setAttribute('playsinline', '');
+      el.playsInline = true;
+      el.src = how.src;
+      stage.appendChild(el);
+      media = el;
+      if (it.captions) addCaptions(el, it.captions, i);
+      if (resumeAt > 3) {
+        var seek = function () {
+          try { if (!el.duration || resumeAt < el.duration - 2) el.currentTime = resumeAt; } catch (e) {}
+        };
+        if (el.readyState >= 1) seek(); else el.addEventListener('loadedmetadata', seek, { once: true });
+      }
+      el.addEventListener('ended', function () { if (media === el) onEnded(); });
+      el.addEventListener('timeupdate', function () { if (media === el) writeSpot(); });
+      el.addEventListener('pause', function () { if (media === el) writeSpot(); });
+      el.addEventListener('error', function () {
+        if (media !== el) return;
+        $('vpHint').hidden = false;
+        $('vpHint').textContent = 'This one would not load here. Try ↗ Open in a new tab, or ⏭ Next.';
+      });
+      var p = el.play();
+      if (p && p.catch) p.catch(function () { /* the browser wants a tap first: the controls are there */ });
+    } else if (how.tag === 'iframe') {
+      var fr = document.createElement('iframe');
+      fr.className = 'vpFrame';
+      fr.src = how.src;
+      fr.title = it.label;
+      fr.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+      fr.setAttribute('allowfullscreen', '');
+      fr.referrerPolicy = 'strict-origin-when-cross-origin';
+      stage.appendChild(fr);
+      $('vpHint').hidden = false;
+      $('vpHint').textContent = 'This video plays in its own player, which does not say when it has finished — press Next ⏭ when you are ready.';
+    } else {
+      var lc = document.createElement('div');
+      lc.className = 'vpLinkCard';
+      var lt = document.createElement('p');
+      lt.textContent = 'This video lives on another website, so it opens in a new tab.';
+      var la = document.createElement('a');
+      la.className = 'vpBtn vpBtnDark';
+      la.href = how.open;
+      la.target = '_blank';
+      la.rel = 'noopener';
+      la.textContent = '↗ Open the video';
+      lc.appendChild(lt);
+      lc.appendChild(la);
+      stage.appendChild(lc);
+    }
+
+    $('vpNowNum').textContent = 'Video ' + (i + 1) + ' of ' + playlist.items.length;
+    $('vpNowTitle').textContent = it.label;
+    $('vpNowDetail').textContent = P.itemDetail(it);
+    var open = $('vpOpen');
+    if (how && how.open) { open.hidden = false; open.href = how.open; } else open.hidden = true;
+    var w = P.writingLink(playlist, it);
+    var wl = $('vpWriting');
+    if (w) { wl.hidden = false; wl.href = w; } else wl.hidden = true;
+    $('vpPrev').disabled = i === 0;
+    $('vpNextBtn').disabled = i >= playlist.items.length - 1;
+    try { history.replaceState(null, '', location.pathname + location.search + '#' + (i + 1)); } catch (e) {}
+    renderList();
+    writeSpot();
+    if (fromTap && stageBox.scrollIntoView && window.innerWidth < 860) {
+      try { stageBox.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+    }
+  }
+
+  /* A lesson's captions, made into a <track> on this device. */
+  function addCaptions(el, url, forIndex) {
+    fetch(url).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      if (media !== el || index !== forIndex) return;
+      var vtt = P.captionsVtt(data);
+      if (!vtt) return;
+      var blobUrl = URL.createObjectURL(new Blob([vtt], { type: 'text/vtt' }));
+      captionUrls.push(blobUrl);
+      var tr = document.createElement('track');
+      tr.kind = 'captions';
+      tr.srclang = 'en';
+      tr.label = 'English';
+      tr.src = blobUrl;
+      tr.default = true;
+      el.appendChild(tr);
+    }).catch(function () { /* no captions is still a lesson */ });
+  }
+
+  /* ---- One after another ---- */
+  function onEnded() {
+    var n = P.nextIndex(playlist.items, index);
+    if (n < 0) {
+      $('vpHint').hidden = false;
+      $('vpHint').textContent = 'That was the last video on this worksheet.';
+      return;
+    }
+    if (!$('vpAuto').checked) return;
+    nextLeft = 3;
+    $('vpNextTitle').textContent = playlist.items[n].label;
+    $('vpNextCount').textContent = String(nextLeft);
+    $('vpNext').hidden = false;
+    nextTimer = setInterval(function () {
+      nextLeft -= 1;
+      $('vpNextCount').textContent = String(Math.max(0, nextLeft));
+      if (nextLeft <= 0) { cancelNext(); play(n, false); }
+    }, 1000);
+  }
+  function cancelNext() {
+    clearInterval(nextTimer);
+    nextTimer = 0;
+    $('vpNext').hidden = true;
+  }
+  $('vpNextNow').addEventListener('click', function () {
+    var n = P.nextIndex(playlist.items, index);
+    cancelNext();
+    if (n >= 0) play(n, true);
+  });
+  $('vpNextCancel').addEventListener('click', cancelNext);
+  $('vpPrev').addEventListener('click', function () { if (index > 0) play(index - 1, true); });
+  $('vpNextBtn').addEventListener('click', function () { if (playlist && index < playlist.items.length - 1) play(index + 1, true); });
+  $('vpAuto').checked = autoOn();
+  $('vpAuto').addEventListener('change', function () {
+    try { localStorage.setItem(AUTO_KEY, $('vpAuto').checked ? '1' : '0'); } catch (e) {}
+    if (!$('vpAuto').checked) cancelNext();
+  });
+  // A link to #3 followed on this page plays the third video.
+  window.addEventListener('hashchange', function () {
+    if (!playlist || !location.hash) return;
+    var i = P.startIndex(location.hash, playlist.items.length);
+    if (i !== index) play(i, true);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!playlist || e.altKey || e.ctrlKey || e.metaKey) return;
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    if (e.key === 'Escape' && !$('vpNext').hidden) { cancelNext(); e.preventDefault(); }
+    else if ((e.key === 'n' || e.key === 'N') && index < playlist.items.length - 1) { play(index + 1, true); e.preventDefault(); }
+    else if ((e.key === 'p' || e.key === 'P') && index > 0) { play(index - 1, true); e.preventDefault(); }
+  });
+
+  /* ---- Fetch, check, show ---- */
+  fetch(P.mediaUrl(want.hash, want.token), { cache: 'force-cache' })
+    .then(function (r) {
+      if (r.status === 403 || r.status === 404) throw new Error('gone');
+      if (!r.ok) throw new Error('http');
+      return r.text();
+    })
+    .then(function (text) {
+      var got = P.readPublished(text, want.hash);
+      if (!got.ok) { fail(got.message); return; }
+      playlist = got.playlist;
+      document.title = playlist.name + ' · videos | Polymath Answer Keys';
+      shell.className = 'vpShell ready';
+      $('vpTitle').textContent = playlist.name;
+      var n = playlist.items.length;
+      $('vpSub').textContent = n === 1 ? 'The video for this worksheet.' : 'All ' + n + ' videos for this worksheet, in question order.';
+      $('vpCount').textContent = n + (n === 1 ? ' video' : ' videos');
+      $('vpBody').hidden = false;
+      var spot = readSpot();
+      var start = location.hash ? P.startIndex(location.hash, n) : (spot && spot.i >= 0 && spot.i < n ? spot.i : 0);
+      var resume = spot && spot.i === start && !location.hash ? spot.t : 0;
+      play(start, false, resume);
+    })
+    .catch(function (e) {
+      fail(e && e.message === 'gone'
+        ? 'These videos are no longer online. Ask your teacher for a fresh copy of the worksheet.'
+        : 'The videos could not be downloaded. Check the connection and scan the code again.');
+    });
+})();
+</script>
+</body>
+</html>

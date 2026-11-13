@@ -321,7 +321,7 @@ test('the code sits inside the cover, never off it, and shrinks with a small cov
 });
 
 test('the export hosts the apps and draws their codes on both PDF paths', () => {
-  assert.match(html, /buildAnnotatedPdf\(false, \{ qr: printQrUrl\(\), lappQr: await lappQrLinks\(annotations\) \}\)/);
+  assert.match(html, /buildAnnotatedPdf\(false, \{ qr: printQrUrl\(\), lappQr: await lappQrLinks\(annotations\)(?:, videos: videos)? \}\)/);
   assert.match(html, /lappQr: await lappQrLinks\(printAnns\)/);
   assert.match(html, /window\.LivingApps\.drawQrOnPdf\(outDoc, outDoc\.getPage\(a\.page - 1\), link, PDFLib, font, rect,\s*window\.QuestionBank\.pure\.qrMatrix, window\.QuestionBank\.pure\.qrRuns, a\.lqr\)/);
   // Only the teacher uploads; a student reuses the stored token.
