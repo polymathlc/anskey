@@ -1,0 +1,131 @@
+/* 🖱 Right-click actions on worksheets (v1.199.0) — the menu and its windows.
+   Same look as the rest of the app: white cards, soft line, amber accent. */
+
+/* A held finger must open the menu, not the system's own callout or a text selection. */
+.qItem, .docRow { -webkit-touch-callout: none; }
+
+.faMenu {
+  position: fixed; z-index: 4400;
+  min-width: 280px; max-width: min(380px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px); overflow: auto;
+  background: var(--bg, #fff); color: var(--ink, #1a1a1a);
+  border: 1px solid var(--line, #ececea);
+  border-radius: var(--radius-sm, 10px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
+  padding: 6px;
+  font-family: var(--font, sans-serif);
+  user-select: none; -webkit-user-select: none;
+  animation: faPop 0.12s ease-out;
+}
+@keyframes faPop { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+.faMenuHead { padding: 8px 10px 9px; border-bottom: 1px solid var(--line, #ececea); margin: 0 0 4px; }
+.faMenuName { font-weight: 700; font-size: 14px; line-height: 1.3; word-break: break-word; }
+.faMenuSub { font-size: 12px; color: var(--ink-soft, #55554f); margin-top: 3px; line-height: 1.45; white-space: pre-line; }
+.faMenuNote { font-size: 12px; color: #9a5b00; background: var(--star-tint, #fff9ee); border: 1px solid var(--star-line, #e7bd72); border-radius: 8px; padding: 6px 8px; margin-top: 7px; line-height: 1.4; }
+.faMenuSep { height: 1px; background: var(--line, #ececea); margin: 4px 6px; }
+.faMenuItem {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  text-align: left; font: inherit; font-size: 14px; color: inherit;
+  background: none; border: 0; border-radius: 8px;
+  padding: 8px 10px; cursor: pointer;
+}
+.faMenuItem:hover:not([disabled]), .faMenuItem:focus-visible { background: var(--accent, #ffe0b2); outline: none; }
+.faMenuItem[disabled] { opacity: 0.45; cursor: default; }
+.faMenuIcon { flex: none; width: 20px; text-align: center; line-height: 1.35; }
+.faMenuText { display: flex; flex-direction: column; min-width: 0; }
+.faMenuLabel { line-height: 1.35; }
+.faMenuHint { font-size: 12px; color: var(--ink-faint, #8a8a84); line-height: 1.35; margin-top: 1px; }
+.faMenuItem.faDanger .faMenuLabel { color: var(--danger, #e53935); font-weight: 700; }
+.faMenuItem.faDanger:hover:not([disabled]), .faMenuItem.faDanger:focus-visible { background: #fdecea; }
+
+/* ---- the windows ---- */
+.faBack {
+  position: fixed; inset: 0; z-index: 4350;
+  background: rgba(26, 26, 26, 0.32);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 5vh 16px; overflow: auto; overscroll-behavior: contain;
+}
+.faBack[hidden] { display: none; }
+.faCard {
+  width: 100%; max-width: 640px;
+  background: var(--bg, #fff); color: var(--ink, #1a1a1a);
+  border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,.1));
+  font-family: var(--font, sans-serif);
+  display: flex; flex-direction: column;
+  max-height: 90vh; min-height: 0;
+}
+.faCard:focus { outline: none; }
+.faCard-confirm, .faCard-working { max-width: 470px; }
+.faHead { padding: 20px 24px 12px; border-bottom: 1px solid var(--line, #ececea); }
+.faTitleRow { display: flex; align-items: flex-start; gap: 12px; }
+.faTitle { font-size: 18px; font-weight: 700; flex: 1; line-height: 1.35; word-break: break-word; }
+.faClose { min-width: 36px; }
+.faSub { color: var(--ink-soft, #55554f); font-size: 14px; margin: 6px 0 4px; line-height: 1.45; }
+.faBody { padding: 16px 24px 18px; overflow: auto; min-height: 0; flex: 1; }
+.faFoot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 14px 24px 18px; border-top: 1px solid var(--line, #ececea); }
+.faLine { font-size: 14px; line-height: 1.5; margin: 0 0 10px; }
+.faWarnLine { color: var(--danger, #e53935); font-weight: 700; }
+.faDangerBtn { background: var(--danger, #e53935) !important; color: #fff !important; border-color: var(--danger, #e53935) !important; font-weight: 700; }
+.faDangerGhost { color: var(--danger, #e53935); }
+.faLabel { font-size: 12px; font-weight: 700; color: var(--ink-soft, #55554f); letter-spacing: .03em; text-transform: uppercase; margin: 14px 0 7px; }
+.faLabel:first-child { margin-top: 0; }
+.faHint { font-size: 13px; color: var(--ink-soft, #55554f); line-height: 1.45; margin: 7px 0 0; }
+.faStatus { font-size: 13px; color: var(--ink-soft, #55554f); margin: 12px 0 0; line-height: 1.5; min-height: 1px; white-space: pre-line; }
+.faStatus.faErr { color: var(--danger, #e53935); }
+.faStatus.faOk { color: var(--ok, #43a047); font-weight: 700; }
+.faEmpty { font-size: 14px; color: var(--ink-faint, #8a8a84); padding: 18px 4px; text-align: center; line-height: 1.5; }
+.faSmall { font-size: 13px; padding: 6px 12px; }
+
+.faSeg { display: flex; flex-wrap: wrap; gap: 6px; }
+.faSegBtn { font-size: 13px; padding: 7px 12px; max-width: 100%; white-space: normal; text-align: left; line-height: 1.35; }
+.faSegBtn.on { background: var(--accent, #ffe0b2); border-color: var(--accent-deep, #e8a54b); font-weight: 700; }
+
+.faPicker { border: 1px solid var(--line, #ececea); border-radius: var(--radius-sm, 10px); overflow: hidden; }
+.faPickTools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px; border-bottom: 1px solid var(--line, #ececea); background: #fcfcfb; }
+.faSearch, .faDay {
+  font: inherit; font-size: 14px; padding: 8px 11px;
+  border: 1px solid var(--line, #ececea); border-radius: var(--radius-sm, 10px);
+  background: #fff; color: inherit; user-select: text; -webkit-user-select: text;
+}
+.faSearch { flex: 1 1 220px; min-width: 0; }
+.faSearch:focus, .faDay:focus { outline: 2px solid var(--accent-deep, #e8a54b); outline-offset: 1px; border-color: transparent; }
+.faPickList { max-height: min(40vh, 340px); overflow: auto; padding: 4px 0; overscroll-behavior: contain; }
+.faGroupHead { position: sticky; top: -4px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 8px 12px 5px; background: #fff; border-bottom: 1px solid var(--line, #ececea); z-index: 1; }
+.faGroupTitle { font-size: 13px; font-weight: 700; color: var(--star-ink, #b8791c); }
+.faGroupSub { font-size: 12px; color: var(--ink-faint, #8a8a84); }
+.faPickRow { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; cursor: pointer; border-left: 3px solid transparent; }
+.faPickRow:hover { background: #fafaf8; }
+.faPickRow.faPicked { background: var(--star-tint, #fff9ee); border-left-color: var(--accent-deep, #e8a54b); }
+.faPickRow.faIsCurrent .faPickName::after { content: ' ▶'; color: var(--accent-deep, #e8a54b); }
+.faPickRow input { margin-top: 3px; flex: none; }
+.faPickText { display: flex; flex-direction: column; min-width: 0; }
+.faPickName { font-size: 14px; line-height: 1.35; word-break: break-word; }
+.faPickMeta { font-size: 12px; color: var(--ink-faint, #8a8a84); line-height: 1.4; }
+
+.faBring { display: flex; flex-direction: column; gap: 10px; }
+.faCheck { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; cursor: pointer; }
+.faCheck input { margin-top: 3px; flex: none; }
+.faCheck span { display: flex; flex-direction: column; }
+.faCheck small { color: var(--ink-faint, #8a8a84); font-size: 12px; }
+.faAllToggle { font-size: 13px; }
+.faAllToggle span { display: inline; }
+
+.faFileRow, .faDayRow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.faFile { display: none; }
+.faFileName { font-size: 14px; color: var(--ink-soft, #55554f); word-break: break-all; }
+.faDayRow .faHint { margin: 0; }
+
+.faKeyList { display: flex; flex-direction: column; gap: 8px; }
+.faKeyRow { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line, #ececea); border-radius: var(--radius-sm, 10px); }
+.faKeyText { flex: 1; min-width: 0; }
+.faKeyDay { font-weight: 700; font-size: 14px; }
+.faKeyMeta { font-size: 12px; color: var(--ink-faint, #8a8a84); line-height: 1.4; word-break: break-word; }
+
+@media (max-width: 520px) {
+  .faHead { padding: 16px 16px 10px; }
+  .faBody { padding: 14px 16px 16px; }
+  .faFoot { padding: 12px 16px 16px; }
+  .faFoot .btn { flex: 1 1 auto; }
+  .faKeyRow { flex-wrap: wrap; }
+}

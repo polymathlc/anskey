@@ -4072,6 +4072,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="quest-stage.css?v=1.193.0">
 <link rel="stylesheet" href="account-email.css?v=1.194.0">
 <link rel="stylesheet" href="class-summary.css?v=1.198.0">
+<link rel="stylesheet" href="file-actions.css?v=1.199.0">
 </head>
 <body>
 
@@ -6033,7 +6034,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.198.0';
+var APP_VERSION = 'v1.199.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -33713,12 +33714,14 @@ var akoRunning = false;        // one export at a time
 var akoAgain = '';             // a trigger that arrived mid-run
 var akoSaveTimer = null;       // the quiet wait after an ordinary save
 var akoOpenTimer = null;       // the short wait before filing an older lesson's key
+var akoManualDays = {};        // 📎 days whose key was put up by hand: never replaced by itself (v1.199.0)
 function akoReady() { return !!(window.AnswerKeyOnline && window.AnswerKeyOnline.pure); }
 
 /* What the worksheet document says about its filed keys. Called wherever a
    worksheet document arrives, beside vplReadDoc. */
 function akoReadDoc(d) {
   akoEntries = akoReady() ? window.AnswerKeyOnline.pure.entriesOf(d && d.answerKeys) : [];
+  akoManualDays = window.FileActions ? window.FileActions.pure.manualDays(d && d.answerKeys) : {};
   akoOnline = !!(d && d.onlineCourseId);
   clearTimeout(akoOpenTimer);
   // An older worksheet with lessons and no key yet files one by itself.
@@ -33726,7 +33729,7 @@ function akoReadDoc(d) {
     akoOpenTimer = setTimeout(function () { akoPublish('open'); }, window.AnswerKeyOnline.pure.OPEN_WAIT_MS);
   }
 }
-function akoForget() { akoEntries = []; akoOnline = false; clearTimeout(akoOpenTimer); clearTimeout(akoSaveTimer); }
+function akoForget() { akoEntries = []; akoManualDays = {}; akoOnline = false; clearTimeout(akoOpenTimer); clearTimeout(akoSaveTimer); }
 
 /* The share QR the print would carry, asked quietly (printQrUrl toasts). */
 function akoShareQr() {
@@ -33752,6 +33755,8 @@ async function akoPublish(trigger) {
   var P = window.AnswerKeyOnline.pure;
   var first = P.plan(trigger, akoContext(trigger, ''));
   if (!first.day) return null;
+  // 📎 A PDF the teacher put up by hand for that day stays until they replace it themselves.
+  if (trigger !== 'manual' && akoManualDays[first.day]) return null;
   if (typeof storage === 'undefined' || !storage || typeof db === 'undefined' || !db) return null;
   akoRunning = true;
   var filed = null;
@@ -33784,6 +33789,7 @@ async function akoPublish(trigger) {
       akoEntries = P.entriesOf(map);
     }
     filed = P.cleanEntry(plan.day, entry);
+    delete akoManualDays[plan.day];
     if (trigger !== 'save') toast('📄 The answer key for ' + P.dayLabel(plan.day) + ' is on Polymath Online' + (videos ? ', with the QR code to ' + videos.count + (videos.count === 1 ? ' video.' : ' videos.') : '.'), 4800);
   } catch (e) {
     console.warn('The answer key could not be put on Polymath Online', e);
@@ -33814,6 +33820,303 @@ function akoPublishNow() {
   akoPublish('manual');
 }
 /* ================= End answer keys on Polymath Online glue ================= */
+
+/* ================= 🖱 Right-click actions — glue (the rules and the windows are file-actions.js) =================
+   Right-click a worksheet card in the worksheet list or a row in ☁ My PDFs
+   (press and hold on a tablet) for: Upload answer key + videos to Polymath
+   Online now, Upload an answer key PDF by hand, Match the answer key with
+   another worksheet, the answer key PDFs filed by class day, and Delete.
+   Teacher only, every write. Everything that touches the open worksheet goes
+   through the same doors as a lesson does (akoPublish, vplPublish,
+   writeAnnotations), and a worksheet is never written while a lesson is
+   being recorded on it. Every delete and every removal is asked first. */
+var fa = null;
+function faTeacher() { return !!currentUser && isAdmin(currentUser) && !actingStudent && !practiceMode && !isSharedVisitor(); }
+function faReady() { return !!(window.FileActions && window.FileActions.pure); }
+
+function faCtl() {
+  if (fa || !faReady()) return fa;
+  fa = window.FileActions.create({
+    teacher: faTeacher,
+    toast: toast,
+    currentId: function () { return currentDocId || ''; },
+    busy: function () { return typeof lessonBusy === 'function' && lessonBusy(); },
+    courses: function () { return typeof onlineCourses !== 'undefined' ? onlineCourses : {}; },
+    library: faLibrary,
+    fresh: faFresh,
+    open: faOpen,
+    upload: faUploadNow,
+    uploadPdf: faUploadPdf,
+    match: faMatch,
+    removeKey: faRemoveKey,
+    remove: faDeleteWorksheet,
+    openUrl: function (url) { if (/^https:\/\//.test(String(url || ''))) window.open(url, '_blank', 'noopener'); }
+  });
+  return fa;
+}
+
+/* Hooked onto every worksheet card and My PDFs row. `getItem` is asked at
+   the moment of the click, so the menu reads the card's data as it is then. */
+function faAttach(target, getItem) {
+  if (!target || !faReady()) return;
+  var ctl = faCtl();
+  if (ctl) ctl.attach(target, getItem);
+}
+
+/* Every worksheet in Ans Key: the list already read for the drawer when
+   there is one, otherwise read now (the same query and the same limit). */
+async function faLibrary() {
+  if (typeof qDocs !== 'undefined' && qDocs.length) return qDocs.slice();
+  var snap = await db.collection(COLLECTION).limit(500).get();
+  var out = [];
+  snap.forEach(function (s) { out.push({ id: s.id, data: s.data() }); });
+  return out;
+}
+
+async function faFresh(id) {
+  var snap = await db.collection(COLLECTION).doc(id).get();
+  if (!snap.exists) return null;
+  var d = snap.data();
+  // The list's copy catches up too, so the next menu reads the same.
+  if (typeof qDocs !== 'undefined') qDocs.forEach(function (i) { if (i.id === id) i.data = d; });
+  return d;
+}
+
+function faOpen(item) {
+  openSavedDoc(item.id, item.data).then(function () { if (typeof markActiveQuestion === 'function') markActiveQuestion(); });
+}
+
+/* The worksheet on screen, saved: whatever is still waiting for auto-save
+   goes up first, so nothing below works from an older copy. */
+async function faFlush() {
+  clearTimeout(autoSaveTimer);
+  if (dirty && canAutoSave()) await autoSave();
+}
+
+/* Bring a worksheet onto the screen without moving its class (the same as
+   opening one from 📥 Queued). Resolves true once it is open with its PDF. */
+async function faBringUp(id, data) {
+  if (currentDocId === id && pdfDoc) { await faFlush(); return true; }
+  if (typeof lessonBusy === 'function' && lessonBusy()) throw new Error('stop the lesson recording first — the worksheet being recorded stays on screen.');
+  await faFlush();
+  if (typeof onlinePrepareOnly !== 'undefined') onlinePrepareOnly = id;
+  await openSavedDoc(id, data || {});
+  // Read synchronously as it opened; a worksheet in no class never clears it itself.
+  if (typeof onlinePrepareOnly !== 'undefined' && onlinePrepareOnly === id) onlinePrepareOnly = '';
+  if (typeof markActiveQuestion === 'function') markActiveQuestion();
+  if (currentDocId !== id || !pdfDoc) throw new Error('the worksheet could not be opened.');
+  return true;
+}
+
+/* 🎬 The open worksheet's video page, filed now (the same list the printed
+   QR code opens and Polymath Online shows), stamped with the time so the
+   portal counts it as up to date. */
+async function faVideosNow(id) {
+  if (!vplReady()) throw new Error('the video list is still loading.');
+  var lessons = (annotations || []).filter(function (a) { return a && a.type === 'video' && a.url && a.lessonRecording; }).length;
+  var pl = vplPlaylistFor(annotations);
+  if (!pl) {
+    if (vplDocPub) await vplForget(id);
+    return { count: 0, lessons: lessons };
+  }
+  var pub = await vplPublish(pl);
+  if (!pub) throw new Error('the video list could not be put online.');
+  if (currentDocId !== id) throw new Error('the worksheet changed before the videos were filed.');
+  await db.collection(COLLECTION).doc(id).set({ videoPlaylist: { hash: pub.hash, token: pub.token, n: pl.items.length, at: Date.now() } }, { merge: true });
+  vplDocPub = { hash: pub.hash, token: pub.token, n: pl.items.length };
+  return { count: pl.items.length, lessons: lessons };
+}
+
+/* ⬆ Upload answer key and/or videos now — what happens by itself after a lesson. */
+async function faUploadNow(item, what, say) {
+  if (!faTeacher()) throw new Error('only the teacher can put answer keys online.');
+  if (!akoReady()) throw new Error('Ans Key is still loading.');
+  say('Opening “' + ((item.data && item.data.name) || 'the worksheet') + '”…');
+  await faBringUp(item.id, item.data);
+  var id = item.id, bits = [];
+  if (what.videos) {
+    say('🎬 Putting the videos online…');
+    var v = await faVideosNow(id);
+    bits.push(v.count ? '🎬 ' + v.count + ' video' + (v.count === 1 ? '' : 's') : '🎬 no videos on it');
+  }
+  if (what.answers) {
+    if (akoRunning) {
+      say('An answer key is being made already — waiting for it…');
+      for (var i = 0; i < 120 && akoRunning; i++) await new Promise(function (r) { setTimeout(r, 500); });
+    }
+    say('📄 Making today\'s answer key PDF…');
+    var entry = await akoPublish('manual');
+    if (!entry) throw new Error('the answer key PDF could not be made — check the connection and try again.');
+    bits.push('📄 the answer key for ' + window.AnswerKeyOnline.pure.dayLabel(entry.day));
+  }
+  var d = await faFresh(id);
+  var inClass = window.FileActions.pure.classPlaces(onlineCourses, id).length > 0;
+  return '⬆ On Polymath Online for “' + ((d && d.name) || (item.data && item.data.name) || 'the worksheet') + '”: ' + bits.join(' · ') + '.' +
+    (inClass ? '' : ' It is not in a class list yet — use 🔗 Match to give its answer key to a class worksheet.');
+}
+
+/* 📎 Any PDF, as the answer key of the chosen worksheet on the chosen day. */
+async function faUploadPdf(targetId, file, day, say) {
+  if (!faTeacher()) throw new Error('only the teacher can put answer keys online.');
+  var F = window.FileActions.pure, A = window.AnswerKeyOnline.pure;
+  var problem = F.checkUpload(file, day);
+  if (problem) throw new Error(problem);
+  if (!F.validDocId(targetId)) throw new Error('choose the worksheet.');
+  var snap = await db.collection(COLLECTION).doc(targetId).get();
+  if (!snap.exists) throw new Error('that worksheet is no longer in Ans Key.');
+  say('Reading the PDF…');
+  var bytes = new Uint8Array(await file.arrayBuffer());
+  var pages = 0;
+  try {
+    // pdf-lib only counts the pages: pdf.js opens worksheets alone (loadPdf).
+    var probe = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+    pages = probe.getPageCount();
+  } catch (e) {
+    throw new Error('that file is not a PDF that can be opened.');
+  }
+  if (!pages) throw new Error('that PDF has no pages.');
+  var path = A.storagePath(STORAGE_DIR, targetId, day);
+  if (!path) throw new Error('that day or worksheet cannot be filed.');
+  say('Uploading ' + pages + ' page' + (pages === 1 ? '' : 's') + '…');
+  var ref = storage.ref(path);
+  await ref.put(new Blob([bytes], { type: 'application/pdf' }), { contentType: 'application/pdf', cacheControl: 'no-cache' });
+  var url = await ref.getDownloadURL();
+  if (!A.validUrl(url)) throw new Error('Storage gave no usable link for the answer key.');
+  var entry = F.manualEntry({ url: url, path: path, at: Date.now(), pages: pages, file: file.name });
+  var patch = {}; patch[day] = entry;
+  await db.collection(COLLECTION).doc(targetId).set({ answerKeys: patch }, { merge: true });
+  // The worksheet on screen learns of it, so its next save leaves it alone.
+  if (currentDocId === targetId) {
+    var map = {};
+    akoEntries.forEach(function (e) { map[e.day] = e; });
+    map[day] = entry;
+    akoEntries = A.entriesOf(map);
+    akoManualDays[day] = true;
+  }
+  var d = await faFresh(targetId);
+  var inClass = F.classPlaces(onlineCourses, targetId).length > 0;
+  return '📎 “' + file.name + '” is the answer key of “' + ((d && d.name) || 'the worksheet') + '” for ' + F.dayLabel(day) + ' on Polymath Online.' +
+    (inClass ? '' : ' That worksheet is not in a class list, so students will not see it until it is.');
+}
+
+/* 🔗 One worksheet's answer key and/or videos onto another, by Polymath
+   Online's own rules (FileActions.pure.mergeAnnotations is the portal's
+   Core.mergeAnnotations). Either worksheet may be the one on screen: it is
+   saved first, and the receiving one is opened again afterwards so its next
+   save cannot put the old writing back. */
+async function faMatch(sourceId, targetId, bring, opts, say) {
+  if (!faTeacher()) throw new Error('only the teacher can match answer keys.');
+  var F = window.FileActions.pure;
+  if (!sourceId || !targetId || sourceId === targetId) throw new Error('choose two different worksheets.');
+  if (!bring || (!bring.answers && !bring.videos)) throw new Error('choose what goes across.');
+  if (typeof lessonBusy === 'function' && lessonBusy() && (currentDocId === sourceId || currentDocId === targetId)) {
+    throw new Error('stop the lesson recording first.');
+  }
+  if (currentDocId === sourceId || currentDocId === targetId) await faFlush();
+  say('Reading both worksheets…');
+  var srcSnap = await db.collection(COLLECTION).doc(sourceId).get();
+  var tgtSnap = await db.collection(COLLECTION).doc(targetId).get();
+  if (!srcSnap.exists) throw new Error('the worksheet with the answer key is no longer in Ans Key.');
+  if (!tgtSnap.exists) throw new Error('the receiving worksheet is no longer in Ans Key.');
+  var src = srcSnap.data(), tgt = tgtSnap.data();
+  var merged = F.mergeAnnotations(await readAnnotationJson(tgt), await readAnnotationJson(src), bring);
+  var extra = { onlineAnswersFrom: bring.answers ? sourceId : (tgt.onlineAnswersFrom || '') };
+  if (bring.videos) extra.onlineVideosFrom = sourceId;
+  if (bring.answers) {
+    var keys = F.mergeAnswerKeyMaps(tgt, src);
+    if (Object.keys(keys).length) extra.answerKeys = keys;
+  }
+  say('Writing onto “' + (tgt.name || 'the worksheet') + '”…');
+  var wasOpen = currentDocId === targetId;
+  var noop = function () {};
+  await writeAnnotations(targetId, merged.json, extra, {
+    check: noop,
+    apply: function () { return false; },   // the open worksheet re-reads it below
+    overflow: !!tgt.annotationsPath,
+    lastUpload: { path: '', stamp: '' }
+  });
+  var told = [];
+  if (bring.answers) told.push(merged.answers ? 'the answer key (' + merged.answers + ' item' + (merged.answers === 1 ? '' : 's') + ')' : 'an empty answer key');
+  if (bring.videos) told.push(merged.videos ? merged.videos + ' video' + (merged.videos === 1 ? '' : 's') : 'no new videos');
+  var msg = '🔗 “' + (tgt.name || 'Untitled') + '” now has ' + told.join(' and ') + ' from “' + (src.name || 'Untitled') + '”.';
+  if (opts && opts.refresh) {
+    say('Putting it on Polymath Online…');
+    if (wasOpen) { currentDocId = null; }   // so faBringUp opens the new copy
+    try {
+      msg += ' ' + await faUploadNow({ id: targetId, data: Object.assign({}, tgt, extra) }, { answers: true, videos: true }, say);
+    } catch (e) {
+      msg += ' It could not be put on Polymath Online yet (' + ((e && e.message) || e) + ') — right-click it and choose ⬆ Upload.';
+    }
+  } else if (wasOpen) {
+    if (typeof onlinePrepareOnly !== 'undefined') onlinePrepareOnly = targetId;
+    currentDocId = null;
+    await openSavedDoc(targetId, tgt);
+  }
+  await faFresh(targetId);
+  if (typeof renderQuestionList === 'function' && $('qDrawer').classList.contains('open') && qDocs.length) { renderQuestionList(); markActiveQuestion(); }
+  return msg;
+}
+
+/* 📋 One class day's answer key off Polymath Online. The PDF file itself
+   stays: a worksheet matched from this one may still point at it. */
+async function faRemoveKey(id, day) {
+  if (!faTeacher()) throw new Error('only the teacher can remove answer keys.');
+  if (!window.FileActions.pure.validDay(day)) throw new Error('that is not a class day.');
+  await db.collection(COLLECTION).doc(id).update(new firebase.firestore.FieldPath('answerKeys', day), firebase.firestore.FieldValue.delete());
+  if (currentDocId === id) {
+    akoEntries = akoEntries.filter(function (e) { return e.day !== day; });
+    delete akoManualDays[day];
+  }
+  await faFresh(id);
+}
+
+/* 🗑 A worksheet, deleted — only ever after the confirmation (FileActions
+   asks; deleteSavedDoc asks too). It first comes out of every class list it
+   is in, so a class never points at a worksheet that is gone, and a class
+   that was ON it moves to the one that followed. The lesson videos and the
+   answer key PDFs stay in Storage: a worksheet matched from this one may
+   still use them. */
+async function faDeleteWorksheet(item, say) {
+  if (!faTeacher()) throw new Error('only the teacher can delete worksheets.');
+  var id = item.id, F = window.FileActions.pure;
+  if (currentDocId === id && typeof lessonBusy === 'function' && lessonBusy()) throw new Error('stop the lesson recording first.');
+  var snap = await db.collection(COLLECTION).doc(id).get();
+  var d = snap.exists ? snap.data() : (item.data || {});
+  var places = F.classPlaces(typeof onlineCourses !== 'undefined' ? onlineCourses : {}, id);
+  if (d.onlineCourseId && !places.some(function (p) { return p.courseId === d.onlineCourseId; })) places.push({ courseId: d.onlineCourseId });
+  for (var i = 0; i < places.length; i++) {
+    say('Taking it out of its class list…');
+    var ref = db.collection(ONLINE_COURSES).doc(places[i].courseId);
+    var left = await db.runTransaction(async function (tx) {
+      var cs = await tx.get(ref);
+      if (!cs.exists) return null;
+      var plan = F.removeFromCourse(cs.data(), id);
+      if (!plan) return null;
+      tx.set(ref, {
+        worksheetIds: plan.worksheetIds, currentIndex: plan.currentIndex, currentDocId: plan.currentDocId,
+        releasedThrough: plan.releasedThrough, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      return plan.worksheetIds;
+    });
+    if (left && left.length) {
+      // Every worksheet after it moves up one place.
+      var batch = db.batch();
+      left.forEach(function (wid, seq) { batch.set(db.collection(COLLECTION).doc(wid), { onlineCourseId: places[i].courseId, onlineSeq: seq, listOrder: seq }, { merge: true }); });
+      await batch.commit();
+    }
+  }
+  say('Deleting…');
+  if (currentDocId === id) { stopLivePresence(false); currentDocId = null; if (typeof akoForget === 'function') akoForget(); }
+  await db.collection(COLLECTION).doc(id).delete();
+  try { if (d.storagePath) await storage.ref(d.storagePath).delete(); } catch (e) { /* file may be gone */ }
+  // Annotations that outgrew the document have a file of their own.
+  try { await storage.ref(d.annotationsPath || annStoragePath(id)).delete(); } catch (e) { /* usually there is none */ }
+  if (typeof qDocs !== 'undefined') qDocs = qDocs.filter(function (x) { return x.id !== id; });
+  document.querySelectorAll('.qItemRow[data-qid="' + id + '"]').forEach(function (r) { r.remove(); });
+  if (typeof renderQuestionList === 'function' && $('qDrawer').classList.contains('open') && qDocs.length) { renderQuestionList(); markActiveQuestion(); }
+  return '🗑 Deleted “' + (d.name || 'Untitled') + '”' + (places.length ? ' and took it out of its class list.' : '.');
+}
+/* ================= End right-click actions glue ================= */
 
 /* ================= 🧾 Class summary — glue (the rules and the window are class-summary.js) =================
    After every class a summary for parents is written by itself: the key
@@ -36875,6 +37178,8 @@ async function openDocsModal() {
       openBtn.textContent = 'Open';
       openBtn.addEventListener('click', function () { openSavedDoc(docSnap.id, d); });
       row.appendChild(openBtn);
+      // 🖱 The same right-click menu as the worksheet list.
+      if (typeof faAttach === 'function') faAttach(row, function () { return { id: docSnap.id, data: d }; });
       if (isAdmin(currentUser)) {
         var editBtn = document.createElement('button');
         editBtn.className = 'btn';
@@ -38668,6 +38973,8 @@ function questionCard(item, opts) {
     }
   });
   markLiveCard(btn, item.id);
+  // 🖱 Right-click (press and hold on a tablet): upload, match, delete… (teacher only).
+  if (typeof faAttach === 'function') faAttach(btn, function () { return item; });
   row.appendChild(btn);
   // ✓ Finished: the teacher moves the class on without opening anything.
   var finishBtn = typeof onlineFinishBtn === 'function' ? onlineFinishBtn(item) : null;
@@ -39845,6 +40152,22 @@ function markActiveQuestion() {
 }
 
 async function deleteSavedDoc(id, data, rowEl) {
+  // 🖱 The same confirmation and the same delete as the right-click menu:
+  // it says what goes with the worksheet, and takes it out of its class list.
+  var ctl = typeof faCtl === 'function' ? faCtl() : null;
+  if (ctl) {
+    var F = window.FileActions.pure;
+    var sum = F.deleteSummary(F.docInfo(data), F.classPlaces(typeof onlineCourses !== 'undefined' ? onlineCourses : {}, id));
+    if (!await ctl.confirm({ title: sum.title, lines: sum.lines, confirm: sum.confirm, danger: true })) { toast('Nothing was deleted.'); return; }
+    try {
+      var said = await faDeleteWorksheet({ id: id, data: data }, function (m) { toast(m, 6000); });
+      if (rowEl) rowEl.remove();
+      toast(said, 5000);
+    } catch (e) {
+      toast('Delete failed: ' + (e.message || e));
+    }
+    return;
+  }
   if (!window.confirm('Delete “' + (data.name || 'Untitled') + '” from the cloud? This cannot be undone.')) return;
   try {
     await db.collection(COLLECTION).doc(id).delete();
@@ -42610,6 +42933,7 @@ loadAiNotePrefs();
 <script src="video-playlist.js?v=1.196.0"></script>
 <script src="answer-key-online.js?v=1.197.0"></script>
 <script src="class-summary.js?v=1.198.0"></script>
+<script src="file-actions.js?v=1.199.0"></script>
 <script>lappInit();</script>
 <script src="living-library.js"></script>
 <script>llibInit();</script>
