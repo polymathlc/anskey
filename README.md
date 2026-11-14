@@ -5,6 +5,14 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🧾 v1.198.0 — Class summaries for parents, after every class
+
+- **After each lesson, a summary is written by itself** (about two minutes after the recording is saved): the key learning points, the homework Mr Chung set, every link mentioned in class, and the important questions from the worksheet — each shown as a picture cut from the page, with why it matters.
+- It reads what really happened in class: the lesson's spoken words (captions), the writing on the board and the worksheet pages. Links come only from the worksheet, the lesson video page, the answer key or what was said; a link that was only heard is marked "check the address" and stays out of the email until you fix it.
+- Written by **Claude Opus 5.5** (or Sonnet 5.5) when a Claude key is saved in **🧾 Class summary → ⚙ Settings**, otherwise by Chung GPT.
+- **🧾 Class summary** in the Print & PDF menu opens it: edit anything, preview the email, then **Send to parents** from **admin@polymathlc.com.sg** (parents in Bcc). Nothing is ever sent unless you press Send and confirm. Add or correct a parent's address on the student's row; it is remembered. "Open in Gmail instead" is there if sending directly is refused.
+- A summary you edited or sent is never rewritten by itself. Model answers are left out of the email unless you tick them in.
+
 ## 📄 v1.197.0 — The answer key on Polymath Online, by class day
 
 - After every lesson, the worksheet's answer key — your writing plus the QR code to every video — is exported as a PDF and put on Polymath Online under that day's class. Corrections saved later the same day update that day's key.
