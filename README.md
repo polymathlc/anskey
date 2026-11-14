@@ -5,6 +5,15 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🖱 v1.199.0 — Right-click a worksheet: upload, match, delete
+
+- **Right-click any worksheet** in the worksheet list or in ☁ My PDFs (on the iPad: **press and hold** it) for a menu of actions. Teacher only.
+- **⬆ Upload answer key + videos to Polymath Online**, **📄 answer key only** or **🎬 videos only** do now what normally happens by itself after a lesson: today's answer key PDF (with the video QR code) is filed under today's class, and the video page is refreshed. The worksheet opens without moving its class.
+- **📎 Upload an answer key PDF from this device…** is the last resort: choose any PDF, the class day, and the worksheet it belongs to. A PDF put up by hand is never replaced by the automatic run (only by you).
+- **🔗 Match answer key with a worksheet…** lets you choose which worksheet gets the answer key: send this worksheet's writing, answer key PDFs and/or lesson videos to a class worksheet, or take them from one. It follows Polymath Online's own "From Ans Key" rules, and can put the result online straight away.
+- **📋 Answer key PDFs on Polymath Online** lists every class day's key to open or remove.
+- **🗑 Delete worksheet…** always asks first and says what goes with it: its place in a class list (the class moves on to the next worksheet if it was on this one), its answer key PDFs and its videos. Delete in ☁ My PDFs uses the same confirmation.
+
 ## 🧾 v1.198.0 — Class summaries for parents, after every class
 
 - **After each lesson, a summary is written by itself** (about two minutes after the recording is saved): the key learning points, the homework Mr Chung set, every link mentioned in class, and the important questions from the worksheet — each shown as a picture cut from the page, with why it matters.

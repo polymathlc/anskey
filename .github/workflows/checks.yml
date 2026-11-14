@@ -52,6 +52,7 @@ jobs:
           CS_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/command-search
           RN_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/record-nudge
           CQ_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/class-queue
+          FA_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/file-actions
         run: |
           node tools/wheel-check.mjs
           node tools/account-email-check.mjs
@@ -86,6 +87,7 @@ jobs:
           node tools/student-guide-check.mjs
           node tools/day-slots-check.mjs
           node tools/class-queue-check.mjs
+          node tools/file-actions-check.mjs
           node tools/command-search-check.mjs
           node tools/record-nudge-check.mjs
           node tools/screen-record-check.mjs
