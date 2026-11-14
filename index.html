@@ -4071,6 +4071,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="compact-wheel.css?v=1.190.0">
 <link rel="stylesheet" href="quest-stage.css?v=1.193.0">
 <link rel="stylesheet" href="account-email.css?v=1.194.0">
+<link rel="stylesheet" href="class-summary.css?v=1.198.0">
 </head>
 <body>
 
@@ -4408,6 +4409,10 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <button class="toolbarMenuItem btn" id="akoPublishBtn" title="Put this worksheet's answer key (with the video QR code) on Polymath Online under today's class — it also happens by itself after every lesson">
       <span aria-hidden="true">📄</span>
       <span class="btnLabel">Put answer key online</span>
+    </button>
+    <button class="toolbarMenuItem btn" id="classSummaryBtn" title="Class summary for parents — the key learning points, links, homework and important questions of each class, written after every lesson. Review it and, only if you choose, email it to parents from admin@polymathlc.com.sg">
+      <span aria-hidden="true">🧾</span>
+      <span class="btnLabel">Class summary for parents</span><span class="csDot" id="classSummaryDot" hidden></span>
     </button>
     <button class="toolbarMenuItem btn" id="keyPdfBtn" title="Answer key — AI reads the blank worksheet (never the annotations) and downloads a full answer key with explanations">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><polyline points="14 4 14 10 20 10"/><polyline points="7.5 14.5 9.2 16.2 12.5 12.9"/><line x1="14.5" y1="15.5" x2="17.5" y2="15.5"/><line x1="7.5" y1="19" x2="17.5" y2="19"/></svg>
@@ -6028,7 +6033,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.197.0';
+var APP_VERSION = 'v1.198.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6867,6 +6872,7 @@ async function loadPdf(bytes, name, contextCheck) {
   wsShare = { mode: 'view', passwordHash: '' };
   if (typeof vplDocPub !== 'undefined') vplDocPub = null;   // 🎬 a new worksheet has no hosted video list
   if (typeof akoForget === 'function') akoForget();         // 📄 nor any filed answer keys
+  if (typeof csumForget === 'function') csumForget();       // 🧾 nor any class summaries
   reviseMode = false;
   revealedKw = {};
   kwResults = {};
@@ -13195,6 +13201,8 @@ async function lessonSavePending() {
       // 📄 …and so does the day's answer key, once the video list is filed.
       Promise.resolve(vplAfterSave()).catch(function () {}).then(function () {
         if (lessonContextOK(job) && typeof akoAfterLesson === 'function') akoAfterLesson();
+        // 🧾 …and the class summary for parents, once the teacher pauses (never emailed by itself).
+        if (lessonContextOK(job) && typeof csumAfterLesson === 'function') csumAfterLesson();
       });
     }
     if (job.backup) await job.backup;
@@ -31337,7 +31345,7 @@ function isStudent() {
 /* Download and the two Print buttons are deliberately NOT in this list:
    students may keep — and print — a copy of any worksheet they can already
    open, so those buttons stay for everyone. */
-var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'livingAppBtn', 'livingLibBtn', 'printQrBtn', 'akoPublishBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
+var TEACHER_TOOLBAR_IDS = ['uploadBtn', 'blankPageBtn', 'deletePageBtn', 'bankQBtn', 'livingAppBtn', 'livingLibBtn', 'printQrBtn', 'akoPublishBtn', 'classSummaryBtn', 'snipBtn', 'toolButtons', 'colorChips', 'strokeCtl', 'fontCtl',
   'undoBtn', 'redoBtn', 'deleteBtn', 'stylusBtn', 'saveBtn', 'shareBtn'];
 var EMPTY_STATE_TEACHER_P = $('emptyState').querySelector('p').textContent;
 
@@ -31356,6 +31364,7 @@ function applyRoleUI() {
   if (typeof snipRoleChanged === 'function') snipRoleChanged();   // a pinned answer is the teacher's alone
   if (window.ConsultAlert) ConsultAlert.roleChanged();   // 🙋 a student asking for help is shown to the teacher alone
   if (typeof accountEmailRoleChanged === 'function') accountEmailRoleChanged();   // ✉ the email window is the teacher's alone
+  if (typeof csumRoleChanged === 'function') csumRoleChanged();   // 🧾 class summaries and the parents' emails are the teacher's alone
   if (typeof recNudgeChanged === 'function') recNudgeChanged();   // ⏺ the warning is the teacher's alone
   if (typeof qrReadRoleChanged === 'function') qrReadRoleChanged();   // 🔳 a QR window belongs to the person who opened it
   var student = isStudent();
@@ -33806,6 +33815,582 @@ function akoPublishNow() {
 }
 /* ================= End answer keys on Polymath Online glue ================= */
 
+/* ================= 🧾 Class summary — glue (the rules and the window are class-summary.js) =================
+   After every class a summary for parents is written by itself: the key
+   learning points, the links Mr Chung mentioned or wrote, the homework and the
+   important questions with their pictures. It is written with Claude (the
+   admin's own Anthropic key, like the ChatGPT key) and falls back to Chung
+   GPT. It is NEVER emailed by itself: the teacher opens 🧾 Class summary,
+   reviews it, ticks the parents and presses Send, which goes out through
+   Gmail from admin@polymathlc.com.sg (or opens a Gmail draft there).
+   Teacher only, never in practice, never written onto a worksheet opened
+   mid-run, and nothing here can make a lesson save fail. */
+var csumSummaries = {};        // day → summary, for the open worksheet
+var csum = null;               // the window
+var csumRunning = false;       // one summary at a time
+var csumAgain = '';            // a trigger that arrived mid-run
+var csumLessonTimer = null;    // the pause after the last recording of a class
+var csumOpenTimer = null;      // the short wait before catching up a recent class
+var csumStudentsCache = null;  // the roster, read once per opening of the window
+var CSUM_PREF_KEY = 'polymath.classSummary.v1';
+var CSUM_CLAUDE_KEY = 'polymath.claudeKey';
+var csumKeyMemory = '';        // where storage is blocked, the key lives for the visit
+var csumPrefMemory = null;
+var csumKeyLoaded = false;
+var csumMailer = { app: null, token: '', exp: 0, email: '', pending: null };
+function csumReady() { return !!(window.ClassSummary && window.ClassSummary.pure); }
+function csumTeacher() { return typeof wheelTeacher === 'function' ? !!wheelTeacher() : !!(currentUser && isAdmin(currentUser) && !actingStudent && !isSharedVisitor()); }
+
+/* ---- settings (this device) ---- */
+function csumPrefs() {
+  var p = null;
+  try { p = JSON.parse(localStorage.getItem(CSUM_PREF_KEY) || 'null'); } catch (e) { p = csumPrefMemory; }
+  p = p && typeof p === 'object' ? p : (csumPrefMemory || {});
+  var models = csumReady() ? window.ClassSummary.pure.MODELS.map(function (m) { return m.id; }) : [];
+  return {
+    auto: p.auto !== false,
+    captions: p.captions !== false,
+    model: models.indexOf(p.model) >= 0 ? p.model : (csumReady() ? window.ClassSummary.pure.DEFAULT_MODEL : 'claude-opus-5-5')
+  };
+}
+function csumSetPrefs(patch) {
+  var next = Object.assign(csumPrefs(), patch || {});
+  csumPrefMemory = next;
+  try { localStorage.setItem(CSUM_PREF_KEY, JSON.stringify(next)); } catch (e) { /* kept for the visit */ }
+  var ref = typeof aiEngineDocRef === 'function' ? aiEngineDocRef() : null;
+  if (ref && patch && patch.model) ref.set({ claudeModel: next.model }, { merge: true }).catch(function () {});
+  return next;
+}
+
+/* ---- the Claude key: pasted once, kept in the admin's own settings record ---- */
+function getClaudeKey() {
+  try { return (localStorage.getItem(CSUM_CLAUDE_KEY) || '').trim() || csumKeyMemory; } catch (e) { return csumKeyMemory; }
+}
+async function csumSetClaudeKey(key) {
+  if (!csumTeacher()) throw new Error('Only the teacher can change the Claude key.');
+  key = String(key || '').trim();
+  csumKeyMemory = key;
+  try { if (key) localStorage.setItem(CSUM_CLAUDE_KEY, key); else localStorage.removeItem(CSUM_CLAUDE_KEY); } catch (e) { /* memory only */ }
+  var ref = typeof aiEngineDocRef === 'function' ? aiEngineDocRef() : null;
+  if (ref) await ref.set({ claudeKey: key || firebase.firestore.FieldValue.delete() }, { merge: true });
+  return true;
+}
+async function csumLoadClaudeKey() {
+  if (csumKeyLoaded || getClaudeKey() || !csumTeacher()) return getClaudeKey();
+  var ref = typeof aiEngineDocRef === 'function' ? aiEngineDocRef() : null;
+  if (!ref) return '';
+  try {
+    var snap = await ref.get();
+    csumKeyLoaded = true;
+    var d = snap.exists ? snap.data() || {} : {};
+    if (typeof d.claudeKey === 'string' && /^sk-ant-/.test(d.claudeKey)) {
+      csumKeyMemory = d.claudeKey.trim();
+      try { localStorage.setItem(CSUM_CLAUDE_KEY, csumKeyMemory); } catch (e) {}
+    }
+    if (typeof d.claudeModel === 'string') {
+      var prefs = csumPrefs();
+      if (prefs.model !== d.claudeModel && window.ClassSummary.pure.MODELS.some(function (m) { return m.id === d.claudeModel; })) {
+        csumPrefMemory = Object.assign(prefs, { model: d.claudeModel });
+        try { localStorage.setItem(CSUM_PREF_KEY, JSON.stringify(csumPrefMemory)); } catch (e) {}
+      }
+    }
+  } catch (e) { console.warn('The Claude key could not be read from your settings', e); }
+  return getClaudeKey();
+}
+
+/* The Messages API, straight from the browser with the admin's key (the same
+   arrangement as ChatGPT here). A refused server-side fallback field is
+   retried once without it rather than costing the summary. */
+async function askClaude(o) {
+  var key = getClaudeKey();
+  if (!key) throw new Error('No Claude key is saved.');
+  var P = window.ClassSummary.pure;
+  var body = P.claudeRequest(o);
+  var send = function (b) {
+    var headers = {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    };
+    if (b.fallbacks) headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
+    return fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: o.signal, headers: headers, body: JSON.stringify(b) });
+  };
+  var res = await send(body);
+  if (!res.ok && res.status === 400 && body.fallbacks) {
+    var why = '';
+    try { why = JSON.stringify(await res.clone().json()); } catch (e) {}
+    if (/fallback|anthropic-beta|beta/i.test(why)) { delete body.fallbacks; res = await send(body); }
+  }
+  if (!res.ok) {
+    var detail = '';
+    try { var ej = await res.json(); detail = ej && ej.error ? (ej.error.message || ej.error.type || '') : ''; } catch (e) {}
+    throw new Error('Claude API error ' + res.status + ' (model ' + body.model + ')' + (detail ? ': ' + detail : ''));
+  }
+  return P.claudeText(await res.json());
+}
+
+/* The one AI call: Claude first, Chung GPT behind it. Grounded in the
+   teaching notes like every AI feature here ('teach': the key facts and the
+   exemplars, so the points read in the teacher's own words). */
+async function csumAsk(prompt, images, say) {
+  var grounding = typeof aiGrounding === 'function' ? aiGrounding('teach') : '';
+  var system = prompt.system + (grounding ? '\n\n' + grounding : '');
+  var prefs = csumPrefs();
+  var P = window.ClassSummary.pure;
+  await csumLoadClaudeKey();
+  if (getClaudeKey()) {
+    try {
+      say(P.modelLabel(prefs.model) + ' is writing the summary…');
+      var text = await aiWithDeadline(function (signal) {
+        return askClaude({ model: prefs.model, system: system, user: prompt.user, images: images, maxTokens: 16000, effort: 'medium', signal: signal });
+      }, 300000);
+      return { text: text, model: prefs.model, engine: 'Claude' };
+    } catch (e) {
+      console.warn('Claude could not write the class summary', e);
+      say('Claude could not write it (' + String((e && e.message) || e).slice(0, 140) + ') — Chung GPT is writing it instead…');
+    }
+  } else say('Chung GPT is writing the summary…');
+  var out = await window.askGemini(prompt.user, { system: system, images: images, json: true, maxOutputTokens: 12000, timeoutMs: 300000 });
+  var engine = window.aiLastCall && window.aiLastCall.engine;
+  return { text: out, model: '', engine: engine === 'openai' ? 'ChatGPT' : engine === 'kimi' ? 'Kimi' : engine === 'gemini' ? 'Gemini' : 'Chung GPT' };
+}
+
+/* ---- reading the class ---- */
+function csumPageRecord(num) {
+  var p = pages[num - 1];
+  if (!p || !p.page) return null;
+  return { num: p.num || num, baseW: p.baseW, baseH: p.baseH, pdfPage: p.page };
+}
+async function csumPageMarks(num, cache) {
+  if (cache[num]) return cache[num];
+  var p = pages[num - 1];
+  cache[num] = [];
+  if (!p || !p.page || typeof p.page.getTextContent !== 'function' || !p.viewport1) return cache[num];
+  try {
+    var content = await p.page.getTextContent();
+    var vp = p.viewport1;
+    var items = (content.items || []).map(function (it) {
+      var pt = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+      return { str: it.str, x: pt[0], y: pt[1] };
+    });
+    cache[num] = window.ClassSummary.pure.questionMarks(items, p.baseW);
+  } catch (e) { /* no text layer: no numbers */ }
+  return cache[num];
+}
+function csumBoardText(anns, day, pagesTaught) {
+  var P = window.ClassSummary.pure, lines = [];
+  anns.forEach(function (a) {
+    if (!a || a.type !== 'text' || !a.text) return;
+    if (typeof annHoldsMistake === 'function' && annHoldsMistake(a)) return;   // 🐾 wrong on purpose
+    var onDay = P.dayKey(a.ts) === day;
+    if (!onDay && pagesTaught.indexOf(a.page) < 0) return;
+    var t = P.oneLine(P.stripTags(a.text), 600);
+    if (t) lines.push('[page ' + a.page + (onDay ? ', written in class' : '') + '] ' + t);
+  });
+  return lines.join('\n');
+}
+async function csumKnownLinks(anns, day) {
+  var P = window.ClassSummary.pure, out = [];
+  var key = (typeof akoEntries !== 'undefined' ? akoEntries : []).filter(function (e) { return e.day === day; })[0];
+  if (key && key.url) out.push({ label: 'Answer key for this class (PDF)', url: key.url, kind: 'key' });
+  if (typeof vplLinkFor === 'function') {
+    try {
+      var v = await vplLinkFor(anns, true);
+      if (v && v.url) out.push({ label: 'Video explanations from the class (' + v.count + (v.count === 1 ? ' video)' : ' videos)'), url: v.url, kind: 'videos' });
+    } catch (e) { /* no hosted list: no link */ }
+  }
+  anns.forEach(function (a) {
+    if (!a) return;
+    if (a.type === 'video' && !a.lessonRecording && P.normUrl(a.url)) out.push({ label: P.oneLine(a.label, 80) || 'Video', url: P.normUrl(a.url), kind: 'video' });
+    if (a.type === 'text' && a.text && !(typeof annHoldsMistake === 'function' && annHoldsMistake(a))) {
+      P.extractUrls(P.stripTags(a.text)).forEach(function (u) { out.push({ label: 'Link written on the worksheet (page ' + a.page + ')', url: u, kind: 'page' }); });
+    }
+  });
+  var seen = {}, clean = [];
+  out.forEach(function (l) { var k = P.linkKey(l.url); if (k && !seen[k]) { seen[k] = true; clean.push(l); } });
+  return clean.slice(0, P.LIMITS.links);
+}
+/* What went into a summary, cheaply: a summary is not written again while
+   this is unchanged. */
+function csumFingerprint(anns, day) {
+  var P = window.ClassSummary.pure;
+  var lessons = P.lessonsOnDay(anns, day);
+  var bits = lessons.map(function (l) { return l.id + ':' + (l.captions ? 'c' : '') + ':' + l.duration; });
+  anns.forEach(function (a) { if (a && a.type === 'text' && P.dayKey(a.ts) === day) bits.push(a.id + ':' + String(a.text || '').length); });
+  return P.fingerprint(bits);
+}
+
+/* The whole run. Resolves to the saved summary, or null. */
+async function csumRun(trigger, dayAsked, say) {
+  say = say || function () {};
+  if (!csumReady()) throw new Error('The class summary is still loading. Try again in a moment.');
+  var P = window.ClassSummary.pure;
+  if (csumRunning) {
+    if (trigger === 'manual') throw new Error('A summary is already being written. Try again in a moment.');
+    csumAgain = trigger;
+    return null;
+  }
+  var anns = annotations.slice();
+  var byDay = {};
+  P.lessonsOf(anns).forEach(function (l) { byDay[l.day] = (byDay[l.day] || 0) + 1; });
+  var candidate = trigger === 'manual' ? dayAsked : trigger === 'open' ? (P.lessonDays(anns)[0] || '') : P.dayKey(Date.now());
+  var prefs = csumPrefs();
+  var plan = P.plan(trigger, {
+    teacher: csumTeacher(), practice: !!practiceMode, docId: currentDocId || '', day: dayAsked,
+    lastLessonDay: P.lessonDays(anns)[0] || '', now: Date.now(), auto: prefs.auto, lessonsByDay: byDay,
+    summaries: csumSummaries, fp: P.validDay(candidate) ? csumFingerprint(anns, candidate) : ''
+  });
+  if (!plan.day) {
+    if (trigger === 'manual') throw new Error(plan.why === 'practice' ? 'Finish practice mode first.' : plan.why === 'unsaved' ? 'Save the worksheet first — the summary is filed under it.' : 'Only the teacher can write a class summary.');
+    return null;
+  }
+  var day = plan.day;
+  csumRunning = true;
+  var docAtStart = currentDocId;
+  var stillHere = function () {
+    if (currentDocId !== docAtStart || !csumTeacher() || practiceMode) throw new Error('The worksheet or the account changed, so the summary was not saved.');
+  };
+  try {
+    var lessons = P.lessonsOnDay(anns, day);
+    var live = lessons.map(function (l) { return annotations.filter(function (a) { return a.id === l.id; })[0]; }).filter(Boolean);
+    /* 1. What was said: the captions, made first where there are none. */
+    var cuesList = [];
+    for (var i = 0; i < live.length; i++) {
+      var a = live[i];
+      var label = live.length > 1 ? ' (' + (i + 1) + ' of ' + live.length + ')' : '';
+      if (prefs.captions && typeof lessonCaptionUsable === 'function' && !lessonCaptionUsable(a.lessonRecording) &&
+          typeof getOpenAiKey === 'function' && getOpenAiKey() && typeof lessonCaptionGenerate === 'function' && !lessonCaptionBusy) {
+        try { await lessonCaptionGenerate(a, function (m) { say('Captions' + label + ': ' + m); }); }
+        catch (e) { console.warn('Captions for the class summary', e); }
+        stillHere();
+      }
+      say('Reading what was said' + label + '…');
+      var cues = typeof lessonCaptionLoad === 'function' ? await lessonCaptionLoad(a).catch(function () { return null; }) : null;
+      cuesList.push(cues || []);
+    }
+    stillHere();
+    var full = cuesList.map(function (c) { return P.transcriptOf(c, 1e7); });
+    var shares = P.transcriptShares(full.map(function (t) { return t.length; }));
+    var lessonInputs = lessons.map(function (l, k) {
+      return { title: l.title, duration: l.duration, page: l.page, transcript: full[k] ? P.transcriptOf(cuesList[k], Math.max(200, shares[k])) : '' };
+    });
+    /* 2. What was written: the teacher's words on the pages taught, and the links. */
+    var taught = [];
+    lessons.forEach(function (l) { if (taught.indexOf(l.page) < 0) taught.push(l.page); });
+    anns.forEach(function (x) { if (x && x.page && P.dayKey(x.ts) === day && taught.indexOf(x.page) < 0) taught.push(x.page); });
+    if (!taught.length) taught.push(typeof currentPageNum === 'function' ? currentPageNum() : 1);
+    taught = taught.filter(function (n) { return n >= 1 && n <= pages.length; }).sort(function (x, y) { return x - y; }).slice(0, 6);
+    var board = csumBoardText(anns, day, taught);
+    say('Gathering the links…');
+    var known = await csumKnownLinks(anns, day);
+    stillHere();
+    /* 3. The pages themselves, with the writing on them. */
+    var images = [], painted = {}, marks = {};
+    for (var j = 0; j < taught.length; j++) {
+      var rec = csumPageRecord(taught[j]);
+      if (!rec) continue;
+      say('Looking at page ' + taught[j] + '…');
+      try {
+        var canvas = await aiViewPaintPage(rec, anns, null, 1600);
+        painted[taught[j]] = canvas;
+        images.push({ mimeType: 'image/jpeg', data: canvas.toDataURL('image/jpeg', 0.85).split(',')[1] });
+      } catch (e) { console.warn('Class summary: page ' + taught[j] + ' could not be drawn', e); }
+      await csumPageMarks(taught[j], marks);
+    }
+    stillHere();
+    var refs = taught.map(function (n) { return { page: n, refs: (marks[n] || []).map(function (q) { return 'Q' + q.n; }) }; });
+    var prompt = P.buildPrompt({
+      worksheet: docName, level: wsMeta.level, subject: wsMeta.subject, day: day, pages: pages.length,
+      lessons: lessonInputs, board: board, links: known, questionRefs: refs
+    });
+    /* 4. The words. */
+    var reply = await csumAsk(prompt, images, say);
+    stillHere();
+    var parsed = P.parseReply(reply.text);
+    var sourceText = board + '\n' + full.join('\n');
+    var summary = P.cleanSummary(parsed, {
+      reconcile: true, known: known, sourceText: sourceText, day: day, now: Date.now(),
+      model: reply.model, engine: reply.engine, fp: csumFingerprint(anns, day), lessons: lessons.length
+    });
+    if (!summary) throw new Error('The model sent back nothing usable. Try again.');
+    var before = csumSummaries[day];
+    if (before && before.sends && before.sends.length) summary.sends = before.sends.slice();
+    /* 5. The pictures of the important questions, cut from their pages. */
+    for (var k = 0; k < summary.questions.length; k++) {
+      var q = summary.questions[k];
+      if (!q.page || q.page > pages.length) continue;
+      try {
+        var pm = await csumPageMarks(q.page, marks);
+        var record = csumPageRecord(q.page);
+        var band = record ? P.questionBand(pm, q.ref, record.baseW, record.baseH) : null;
+        if (!band) continue;
+        say('Cutting out ' + q.ref + '…');
+        var cv = painted[q.page] || (painted[q.page] = await aiViewPaintPage(record, anns, null, 1600));
+        var data = aiViewCrop(cv, record, band, 1100);
+        var path = P.imagePath(STORAGE_DIR, docAtStart, day, k + 1);
+        if (!path || !data) continue;
+        var ref = storage.ref(path);
+        await ref.putString(data, 'base64', { contentType: 'image/jpeg', cacheControl: 'public,max-age=31536000' });
+        var url = await ref.getDownloadURL();
+        if (P.validImageUrl(url)) { q.img = url; q.imgPath = path; }
+      } catch (e) { console.warn('Class summary: ' + q.ref + ' has no picture', e); }
+    }
+    Object.keys(painted).forEach(function (n) { try { painted[n].width = painted[n].height = 0; } catch (e) {} });
+    stillHere();
+    /* 6. Filed on the worksheet under the class day. */
+    say('Saving…');
+    await csumSave(day, summary, docAtStart);
+    if (trigger !== 'manual') toast('🧾 The summary of ' + (day === P.dayKey(Date.now()) ? 'today’s' : P.dayLabel(day) + '’s') + ' class is ready. Open 🧾 Class summary to review it — nothing is emailed unless you send it.', 7000);
+    return csumSummaries[day];
+  } catch (e) {
+    if (trigger === 'manual') throw e;
+    console.warn('The class summary could not be written', e);
+    if (trigger === 'lesson') toast('The class summary could not be written yet — open 🧾 Class summary to try again.', 5200);
+    return null;
+  } finally {
+    csumRunning = false;
+    if (csumAgain) { var next = csumAgain; csumAgain = ''; setTimeout(function () { csumRun(next).catch(function () {}); }, 0); }
+  }
+}
+
+async function csumSave(day, summary, docId) {
+  var P = window.ClassSummary.pure;
+  docId = docId || currentDocId;
+  if (!csumTeacher() || !P.validDocId(docId) || !P.validDay(day)) throw new Error('Only the teacher can save a class summary on a saved worksheet.');
+  var clean = P.cleanSummary(summary, { day: day });
+  if (!clean) throw new Error('The summary is empty.');
+  clean.day = day;
+  var patch = {}; patch[day] = clean;
+  // Merge keeps the other days. Every field of the day is written (cleanSummary
+  // gives them all) and lists are replaced whole, so a removed link stays removed.
+  await db.collection(COLLECTION).doc(docId).set({ classSummaries: patch }, { merge: true });
+  if (currentDocId === docId) { csumSummaries[day] = clean; csumSyncBadge(); }
+  return clean;
+}
+async function csumRecordSend(day, send) {
+  var s = csumSummaries[day];
+  if (!s || !currentDocId) return;
+  var P = window.ClassSummary.pure;
+  var sends = P.cleanSummary(Object.assign({}, s, { sends: (s.sends || []).concat([send]) }), { day: day }).sends;
+  var patch = {}; patch[day] = { sends: sends };
+  await db.collection(COLLECTION).doc(currentDocId).set({ classSummaries: patch }, { merge: true });
+  s.sends = sends;
+  csumSyncBadge();
+}
+
+/* ---- the worksheet's own summaries ---- */
+function csumReadDoc(d) {
+  csumSummaries = csumReady() ? window.ClassSummary.pure.summariesOf(d && d.classSummaries) : {};
+  clearTimeout(csumOpenTimer);
+  csumSyncBadge();
+  if (csum) csum.refresh();
+  // A recent class with recordings and no summary (the worksheet was closed
+  // before the pause ran out) is caught up a moment after opening.
+  if (csumReady() && csumTeacher() && csumPrefs().auto) {
+    csumOpenTimer = setTimeout(function () { csumRun('open').catch(function () {}); }, window.ClassSummary.pure.OPEN_WAIT_MS);
+  }
+}
+function csumForget() {
+  csumSummaries = {};
+  clearTimeout(csumOpenTimer);
+  clearTimeout(csumLessonTimer);
+  csumSyncBadge();
+  if (csum && csum.isOpen()) csum.close();
+}
+
+/* A lesson has just been saved onto the worksheet. A class is several
+   recordings, so the summary waits for the teacher to pause. */
+function csumAfterLesson() {
+  if (!csumReady() || !csumTeacher() || practiceMode || !currentDocId) return;
+  clearTimeout(csumLessonTimer);
+  var doc = currentDocId;
+  csumLessonTimer = setTimeout(function () {
+    if (currentDocId === doc) csumRun('lesson').catch(function () {});
+  }, window.ClassSummary.pure.AFTER_LESSON_MS);
+}
+
+/* The toolbar button carries a dot while a summary waits to be reviewed and sent. */
+function csumSyncBadge() {
+  var dot = document.getElementById('classSummaryDot');
+  if (!dot) return;
+  var P = csumReady() ? window.ClassSummary.pure : null;
+  var waiting = !!P && Object.keys(csumSummaries).some(function (d) {
+    return !P.sentAt(csumSummaries[d]) && d >= P.dayKey(Date.now() - 3 * 86400000);
+  });
+  dot.hidden = !waiting;
+}
+
+/* ---- the roster and the parents' addresses ---- */
+async function csumStudents() {
+  if (!csumTeacher()) return [];
+  if (csumStudentsCache) return csumStudentsCache;
+  var snap = await db.collection(PROFILES_COLLECTION).get();
+  var rows = [];
+  snap.forEach(function (d) { rows.push({ uid: d.id, p: d.data() || {} }); });
+  csumStudentsCache = rows;
+  return rows;
+}
+async function csumSaveParents(uid, emails) {
+  if (!csumTeacher()) throw new Error('Only the teacher can change a parent’s email.');
+  var list = window.ClassSummary.pure.cleanParentEmails(emails);
+  await db.collection(PROFILES_COLLECTION).doc(uid).set({
+    parentEmails: list, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  (csumStudentsCache || []).forEach(function (r) { if (r.uid === uid) r.p.parentEmails = list; });
+  return list;
+}
+
+/* ---- Gmail, from admin@polymathlc.com.sg ----
+   A separate Firebase app instance signs in to the centre's Google account
+   with the gmail.send scope only, hands back its access token, and signs out
+   again at once: the teacher's own session is never touched. The token is
+   kept in memory for under an hour and never stored. */
+function csumGmailReady() { return !!(csumMailer.token && Date.now() < csumMailer.exp); }
+function csumAuthorizeGmail() {
+  if (!csumTeacher()) return Promise.reject(new Error('Only the teacher can send class summaries.'));
+  if (csumGmailReady()) return Promise.resolve(csumMailer);
+  if (csumMailer.pending) return csumMailer.pending;
+  var SENDER = window.ClassSummary.pure.SENDER;
+  if (!csumMailer.app) {
+    csumMailer.app = (firebase.apps || []).filter(function (a) { return a.name === 'csumMailer'; })[0] ||
+      firebase.initializeApp(firebase.app().options, 'csumMailer');
+  }
+  var mAuth = csumMailer.app.auth();
+  var provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope('https://www.googleapis.com/auth/gmail.send');
+  provider.setCustomParameters({ login_hint: SENDER, prompt: 'consent select_account' });
+  // Called before anything waits, so the Google window opens inside the tap.
+  csumMailer.pending = mAuth.signInWithPopup(provider).then(function (result) {
+    var email = String((result.user && result.user.email) || '').toLowerCase();
+    var token = result.credential && result.credential.accessToken;
+    return mAuth.signOut().catch(function () {}).then(function () {
+      if (email !== SENDER) throw new Error('That was ' + (email || 'another account') + '. Choose ' + SENDER + ' in the Google window.');
+      if (!token) throw new Error('Google did not allow sending. Try again and tick “Send email on your behalf”.');
+      csumMailer.token = token; csumMailer.email = email; csumMailer.exp = Date.now() + 50 * 60 * 1000;
+      return csumMailer;
+    });
+  }, function (e) {
+    var code = e && e.code;
+    throw new Error(code === 'auth/popup-blocked' ? 'The browser blocked the Google window. Allow pop-ups for this page and press Send again.'
+      : code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' ? 'The Google window was closed before signing in.'
+      : (e && e.message) || String(e));
+  }).finally(function () { csumMailer.pending = null; });
+  return csumMailer.pending;
+}
+function csumBlobToB64(blob) {
+  return new Promise(function (resolve, reject) {
+    var r = new FileReader();
+    r.onload = function () { resolve(String(r.result).split(',')[1] || ''); };
+    r.onerror = function () { reject(r.error); };
+    r.readAsDataURL(blob);
+  });
+}
+async function csumSendGmail(job, say) {
+  if (!csumTeacher()) throw new Error('Only the teacher can send class summaries.');
+  var P = window.ClassSummary.pure;
+  var mailer = await csumAuthorizeGmail();
+  var s = JSON.parse(JSON.stringify(job.summary));
+  var images = [];
+  for (var i = 0; i < s.questions.length; i++) {
+    var q = s.questions[i];
+    if (q.include === false || !q.img || !P.validImageUrl(q.img)) continue;
+    say('Attaching the picture of ' + (q.ref || 'question ' + (i + 1)) + '…');
+    try {
+      var res = await fetch(q.img);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var data = await csumBlobToB64(await res.blob());
+      if (data) { q.cid = 'q' + (i + 1) + '.' + Date.now().toString(36); images.push({ cid: q.cid, mime: 'image/jpeg', data: data }); }
+    } catch (e) { console.warn('Class summary: a picture could not be attached', e); }
+  }
+  var raw = P.mimeMessage({
+    from: P.SENDER, fromName: P.CENTRE, to: [P.SENDER], bcc: job.bcc, replyTo: P.SENDER, subject: job.subject,
+    html: P.emailHtml(s, Object.assign({}, job.opts, { images: 'cid' })),
+    text: P.emailText(s, job.opts), images: images
+  }, Date.now().toString(36));
+  say('Sending…');
+  var res2 = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + mailer.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw: P.b64url(raw) })
+  });
+  if (!res2.ok) {
+    var detail = '';
+    try { var ej = await res2.json(); detail = ej && ej.error ? ej.error.message || '' : ''; } catch (e) {}
+    if (res2.status === 401) { csumMailer.token = ''; csumMailer.exp = 0; throw new Error('The Gmail sign-in expired. Press Send again.'); }
+    if (res2.status === 403) throw new Error('Gmail refused to send' + (detail ? ' (' + detail + ')' : '') + '. Use “Open in Gmail instead”.');
+    throw new Error('Gmail error ' + res2.status + (detail ? ': ' + detail : ''));
+  }
+  return { from: mailer.email };
+}
+async function csumCopy(text, html) {
+  try {
+    if (navigator.clipboard && window.ClipboardItem && html) {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' })
+      })]);
+      return true;
+    }
+  } catch (e) { /* fall back to plain text */ }
+  try { await navigator.clipboard.writeText(text); return true; } catch (e2) { return false; }
+}
+
+/* ---- the window ---- */
+function csumInit() {
+  if (csum || !csumReady()) return csum;
+  csum = window.ClassSummary.create({
+    teacher: csumTeacher,
+    toast: toast,
+    worksheet: function () {
+      var sub = wsMeta.subject || '';
+      return { docId: currentDocId || '', name: docName || '', level: wsMeta.level || '', subject: sub,
+               subjectWord: sub === 'math' ? 'Mathematics' : sub === 'science' ? 'Science' : sub === 'both' ? 'Maths & Science' : '' };
+    },
+    days: function () {
+      var P = window.ClassSummary.pure;
+      var byDay = {};
+      P.lessonsOf(annotations).forEach(function (l) { byDay[l.day] = (byDay[l.day] || 0) + 1; });
+      Object.keys(csumSummaries).forEach(function (d) { if (!(d in byDay)) byDay[d] = 0; });
+      var today = P.dayKey(Date.now());
+      if (!(today in byDay)) byDay[today] = 0;
+      return Object.keys(byDay).sort().reverse().map(function (d) { return { day: d, lessons: byDay[d], summary: csumSummaries[d] || null }; });
+    },
+    generate: function (day, say) { return csumRun('manual', day, say); },
+    save: function (day, s) { return csumSave(day, s); },
+    students: csumStudents,
+    saveParents: csumSaveParents,
+    sendGmail: csumSendGmail,
+    authorizeGmail: csumAuthorizeGmail,
+    gmailReady: csumGmailReady,
+    recordSend: csumRecordSend,
+    settings: function () { return Object.assign(csumPrefs(), { hasKey: !!getClaudeKey() }); },
+    setSettings: csumSetPrefs,
+    setClaudeKey: csumSetClaudeKey,
+    copy: csumCopy,
+    openUrl: function (url) { window.open(url, '_blank', 'noopener'); }
+  });
+  return csum;
+}
+function csumOpen(day) {
+  if (!csumTeacher()) { toast('Only the teacher can open class summaries.'); return; }
+  if (!currentDocId) { toast('Save the worksheet first — the class summary is filed under it.'); return; }
+  var w = csumInit();
+  if (!w) { toast('The class summary is still loading. Try again in a moment.'); return; }
+  csumStudentsCache = null;
+  csumLoadClaudeKey().then(function () { if (w.isOpen()) w.refresh(); });
+  w.open(day);
+}
+function csumRoleChanged() {
+  if (!csumTeacher()) {
+    clearTimeout(csumLessonTimer); clearTimeout(csumOpenTimer);
+    csumMailer.token = ''; csumMailer.exp = 0; csumStudentsCache = null; csumKeyLoaded = false; csumKeyMemory = '';
+  }
+  if (csum) csum.roleChanged();
+  csumSyncBadge();
+}
+/* ================= End class summary glue ================= */
+
 /* ================= 🏰 Lesson start — glue (the feature itself is lesson-splash.js) =================
    The quest rules the teacher flashes at the start of a lesson: a cover
    peppered with Wheel Quest stickers, a castle gate that shuts across the
@@ -35664,6 +36249,7 @@ function applyRemoteDoc(d) {
   wsShare = normalizeShare(d.share);
   if (typeof vplReadDoc === 'function') vplReadDoc(d);   // 🎬 the hosted video list
   if (typeof akoReadDoc === 'function') akoReadDoc(d);   // 📄 the answer keys filed by class day
+  if (typeof csumReadDoc === 'function') csumReadDoc(d);   // 🧾 the class summaries filed by class day
 
   var key = annKey(d);
   // The LIVE heartbeat rewrites the document every 30s without touching the
@@ -36488,6 +37074,7 @@ async function openSavedDoc(id, data) {
     wsShare = normalizeShare(data.share);
     if (typeof vplReadDoc === 'function') vplReadDoc(data);   // 🎬 the hosted video list
     if (typeof akoReadDoc === 'function') akoReadDoc(data);   // 📄 the answer keys filed by class day
+    if (typeof csumReadDoc === 'function') csumReadDoc(data);   // 🧾 the class summaries filed by class day
     setDirty(false);
     renderAllOverlays();
     syncThumbStars();
@@ -40666,6 +41253,7 @@ $('docsModal').addEventListener('click', function (e) {
 });
 $('downloadBtn').addEventListener('click', downloadAnnotated);
 $('akoPublishBtn').addEventListener('click', function () { if (typeof akoPublishNow === 'function') akoPublishNow(); });
+$('classSummaryBtn').addEventListener('click', function () { if (typeof csumOpen === 'function') csumOpen(); });
 $('printQBtn').addEventListener('click', printQuestions);
 $('printABtn').addEventListener('click', printAnswers);
 $('printQSideBtn').addEventListener('click', printQuestions);
@@ -42021,6 +42609,7 @@ loadAiNotePrefs();
 <script src="living-apps.js"></script>
 <script src="video-playlist.js?v=1.196.0"></script>
 <script src="answer-key-online.js?v=1.197.0"></script>
+<script src="class-summary.js?v=1.198.0"></script>
 <script>lappInit();</script>
 <script src="living-library.js"></script>
 <script>llibInit();</script>

@@ -1,0 +1,93 @@
+/* 🧾 Class summaries for parents (v1.198.0) — the review window.
+   Breathing space: generous padding, a sensible max width, one spacing scale. */
+.csBack {
+  position: fixed; inset: 0; z-index: 4300;
+  background: rgba(26, 26, 26, 0.32);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 4vh 16px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.csBack[hidden] { display: none; }
+.csCard:focus { outline: none; }
+.csCard {
+  width: 100%; max-width: 760px;
+  background: var(--bg, #fff); color: var(--ink, #1a1a1a);
+  border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow-modal, 0 10px 30px rgba(0,0,0,.1));
+  font-family: var(--font, sans-serif);
+  display: flex; flex-direction: column;
+  max-height: 92vh;
+  min-height: 0;
+}
+.csHead { padding: 22px 26px 14px; border-bottom: 1px solid var(--line, #ececea); }
+.csTitleRow { display: flex; align-items: center; gap: 12px; }
+.csTitle { font-size: 19px; font-weight: 700; flex: 1; }
+.csClose { min-width: 36px; }
+.csSub { color: var(--ink-soft, #55554f); font-size: 14px; margin: 6px 0 14px; line-height: 1.4; }
+.csDayBar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.csDaySel { font: inherit; font-size: 14px; padding: 7px 10px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, #ececea); max-width: 100%; background: #fff; }
+.csTabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.csTab { font-size: 13px; padding: 6px 12px; }
+.csTab.on { background: var(--accent, #ffe0b2); border-color: var(--accent-deep, #e8a54b); font-weight: 700; }
+.csBody { padding: 18px 26px 26px; overflow: auto; min-height: 0; flex: 1; }
+.csStatus { font-size: 13px; color: var(--ink-soft, #55554f); margin: 0 0 14px; line-height: 1.5; }
+.csStatus.csErr { color: var(--danger, #e53935); }
+.csStatus.csOk { color: var(--ok, #43a047); font-weight: 700; }
+.csActions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 20px; }
+.csSec { margin: 0 0 24px; }
+.csSecTitle { font-size: 15px; font-weight: 700; margin: 0 0 8px; color: var(--star-ink, #b8791c); }
+.csHint { font-size: 13px; color: var(--ink-faint, #8a8a84); line-height: 1.5; margin: 0 0 10px; }
+.csWarn { font-size: 13px; color: #9a5b00; background: var(--star-tint, #fff9ee); border: 1px solid var(--star-line, #e7bd72); border-radius: var(--radius-sm, 10px); padding: 8px 12px; margin: 8px 0; line-height: 1.5; }
+.csField { display: block; margin: 0 0 12px; }
+.csLabel { display: block; font-size: 12px; color: var(--ink-soft, #55554f); margin: 0 0 5px; letter-spacing: .02em; }
+.csField input, .csField textarea, .csLinkRow input, .csParentInput, .csKey {
+  width: 100%; font: inherit; font-size: 14px; line-height: 1.5;
+  padding: 8px 11px; border: 1px solid var(--line, #ececea); border-radius: var(--radius-sm, 10px);
+  background: #fff; color: inherit; user-select: text; -webkit-user-select: text;
+}
+.csField textarea { resize: vertical; min-height: 48px; }
+.csField input:focus, .csField textarea:focus, .csLinkRow input:focus, .csParentInput:focus, .csKey:focus {
+  outline: 2px solid var(--accent-deep, #e8a54b); outline-offset: 1px; border-color: transparent;
+}
+.csLinks { display: flex; flex-direction: column; gap: 8px; margin: 0 0 10px; }
+.csLinkRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto auto; gap: 8px; align-items: center; }
+.csLinkRow.csCheck .csLinkUrl { border-color: var(--star-line, #e7bd72); background: var(--star-tint, #fff9ee); }
+.csLinkRow.csCheck::before { content: '⚠ Heard in the recording — check the address'; grid-column: 1 / -1; font-size: 12px; color: #9a5b00; margin-bottom: -4px; }
+.csSmall { font-size: 12px; padding: 5px 10px; }
+.csCheckRow { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; margin: 0 0 12px; cursor: pointer; }
+.csCheckRow input { margin-top: 3px; flex: none; }
+.csQ { border: 1px solid var(--line, #ececea); border-radius: var(--radius, 14px); padding: 14px 16px 4px; margin: 0 0 14px; background: #fffdf9; }
+.csQ.off { opacity: .55; }
+.csQTop { display: flex; gap: 10px; align-items: center; margin: 0 0 10px; }
+.csQImg { display: block; max-width: 100%; max-height: 320px; object-fit: contain; border: 1px solid var(--line, #ececea); border-radius: var(--radius-sm, 10px); margin: 0 0 12px; background: #fff; }
+.csPreview { width: 100%; height: 60vh; min-height: 320px; border: 1px solid var(--line, #ececea); border-radius: var(--radius-sm, 10px); background: #f6f1ea; margin: 0 0 16px; }
+.csSendInfo p { font-size: 14px; line-height: 1.55; margin: 0 0 10px; }
+.csRosterTools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 10px; }
+.csRosterTools .csCheckRow { margin: 0; flex: 1 1 260px; }
+.csRoster { display: flex; flex-direction: column; gap: 8px; margin: 0 0 16px; max-height: 42vh; overflow: auto; padding-right: 4px; }
+.csRosterRow { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line, #ececea); border-radius: var(--radius-sm, 10px); }
+.csRosterRow > input { margin-top: 4px; flex: none; }
+.csWho { flex: 1; min-width: 0; }
+.csWhoName { font-weight: 700; font-size: 14px; margin: 0 0 6px; }
+.csParentLine { display: flex; gap: 8px; }
+.csParentInput { flex: 1; min-width: 0; padding: 6px 10px; }
+.csSendBar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 16px 0 0; border-top: 1px solid var(--line, #ececea); }
+.csCount { flex: 1 1 140px; font-size: 14px; }
+.csEmpty { text-align: center; padding: 30px 10px 10px; max-width: 520px; margin: 0 auto; }
+.csEmpty p { line-height: 1.6; margin: 0 0 18px; }
+.csEmptyIcon { font-size: 40px; margin: 0 0 12px; }
+.csModelSel { font: inherit; font-size: 14px; padding: 7px 10px; border-radius: var(--radius-sm, 10px); border: 1px solid var(--line, #ececea); margin: 0 0 12px; max-width: 100%; background: #fff; }
+.csKeyRow { display: flex; flex-wrap: wrap; gap: 8px; }
+.csKey { flex: 1 1 240px; }
+#classSummaryBtn .csDot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-deep, #e8a54b); margin-left: 6px; vertical-align: middle; }
+#classSummaryBtn .csDot[hidden] { display: none; }
+@media (max-width: 560px) {
+  .csBack { padding: 0; }
+  .csCard { max-height: 100vh; border-radius: 0; min-height: 100vh; }
+  .csHead, .csBody { padding-left: 16px; padding-right: 16px; }
+  .csLinkRow { grid-template-columns: 1fr auto; }
+  .csLinkRow .csLinkLabel, .csLinkRow .csLinkUrl { grid-column: 1 / -1; }
+  .csField input, .csField textarea, .csParentInput, .csKey { font-size: 16px; }
+}
+@media print { .csBack { display: none !important; } }

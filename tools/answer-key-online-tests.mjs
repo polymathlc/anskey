@@ -125,5 +125,5 @@ test('the glue is wired where a lesson is saved, after both saves and where a do
   for (const guard of ['wheelTeacher()', 'practiceMode', 'currentDocId !== docAtStart', 'P.validUrl(url)', '{ merge: true }', 'P.storagePath(STORAGE_DIR'])
     assert.ok(glue.includes(guard), guard);
   assert.ok(!/printQrUrl\(\)/.test(glue), 'the quiet QR, never the toasting one');
-  assert.match(html, /var APP_VERSION = 'v1\.197\.0'/);
+  { const m = html.match(/var APP_VERSION = 'v1\.(\d+)\.\d+'/); assert.ok(m && +m[1] >= 197, 'APP_VERSION is v1.197.0 or later'); }
 });
