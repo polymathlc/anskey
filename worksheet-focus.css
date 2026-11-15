@@ -1,0 +1,204 @@
+/* 📌 Current and next worksheet — borders, the 📌 menu and the page frame (v1.200.0)
+   The CURRENT worksheet wears a thick green border you can see from across the
+   room; the NEXT worksheet a clear blue one, lighter but unmistakable. The
+   same two colours are used everywhere: the cards in the worksheet list, the
+   lesson-time row that holds them, the sidebar pill and the frame round the
+   open page. */
+:root {
+  --wsf-cur: #0B7A55;
+  --wsf-cur-soft: #E6F6EF;
+  --wsf-cur-glow: rgba(11, 122, 85, 0.22);
+  --wsf-next: #3550C8;
+  --wsf-next-soft: #EEF1FD;
+  --wsf-next-glow: rgba(53, 80, 200, 0.16);
+  --wsf-ink: #24231F;
+  --wsf-faint: #6B6A64;
+  --wsf-line: #E4E2DC;
+  --wsf-card: #FFFFFF;
+}
+
+/* ---- The cards in the worksheet list ----
+   Specific enough to win over .active (orange) and .starred (gold): where the
+   class is matters more than which card happens to be open. The active card
+   keeps its warm background, so both can be read at once. */
+.qItemRow .qItem.focusCurrent {
+  border-color: var(--wsf-cur);
+  /* 1px border + a 4px inset ring = a 5px frame, with no layout shift (the
+     card's padding, the grip and the corner buttons stay exactly where they
+     were) and nothing drawn outside the card for the list to clip. */
+  box-shadow: inset 0 0 0 4px var(--wsf-cur), 0 0 0 3px var(--wsf-cur-glow), var(--shadow-card);
+}
+.qItemRow .qItem.focusNext {
+  border-color: var(--wsf-next);
+  box-shadow: inset 0 0 0 2px var(--wsf-next), 0 0 0 2px var(--wsf-next-glow), var(--shadow-card);
+}
+.qItemRow .qItem.focusCurrent:not(.active) { background: #FBFEFC; }
+.qItemRow .qItem.focusNext:not(.active) { background: #FCFDFF; }
+.qItemRow .qItem.focusCurrent .qItemName { color: #07583D; }
+.qItemRow .qItem.focusCurrent:hover { box-shadow: inset 0 0 0 4px var(--wsf-cur), 0 0 0 3px var(--wsf-cur-glow), var(--shadow-btn-hover); }
+.qItemRow .qItem.focusNext:hover { box-shadow: inset 0 0 0 2px var(--wsf-next), 0 0 0 2px var(--wsf-next-glow), var(--shadow-btn-hover); }
+
+/* The tag says it in words, bigger than before, so the colour never has to be decoded. */
+.qClassTag.current, .qClassTag.next {
+  white-space: normal;
+  text-overflow: clip;
+  font-size: 0.72rem;
+  padding: 4px 11px;
+  letter-spacing: 0.03em;
+}
+.qClassTag.current { color: #fff; background: var(--wsf-cur); border-color: var(--wsf-cur); }
+.qClassTag.next { color: var(--wsf-next); background: var(--wsf-next-soft); border: 1.5px solid var(--wsf-next); }
+.qClassTag.manual { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
+
+/* ---- The 📌 button, under the star on the card (teacher only) ----
+   Anchored to the TOP of the row, never the bottom: the current worksheet's
+   row also holds ✓ Finished under its card, and a bottom anchor sat on it. */
+.qFocusBtn {
+  position: absolute;
+  right: 8px;
+  top: 46px;
+  height: 28px;
+  min-width: 32px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--wsf-faint);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--wsf-line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.qFocusBtn:hover { color: var(--wsf-ink); border-color: #CFCCC4; transform: translateY(-1px); }
+.qFocusBtn[aria-expanded="true"] { color: var(--wsf-ink); border-color: var(--wsf-ink); }
+.qFocusBtn.current { color: var(--wsf-cur); border-color: var(--wsf-cur); background: var(--wsf-cur-soft); }
+.qFocusBtn.next { color: var(--wsf-next); border-color: var(--wsf-next); background: var(--wsf-next-soft); }
+.qItemRow.canFocus .qItemMeta { padding-right: 40px; }
+@media (pointer: coarse) { .qFocusBtn { height: 36px; min-width: 40px; right: 5px; top: 50px; } }
+
+/* ---- A folded lesson time still says it holds the current / next one ---- */
+.qSlotHead.holdsCurrent { box-shadow: inset 5px 0 0 var(--wsf-cur); }
+.qSlotHead.holdsNext:not(.holdsCurrent) { box-shadow: inset 4px 0 0 var(--wsf-next); }
+.qSlotFocus {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.qSlotFocus.current { color: #fff; background: var(--wsf-cur); }
+.qSlotFocus.next { color: var(--wsf-next); background: var(--wsf-next-soft); border: 1px solid var(--wsf-next); }
+
+/* ---- The menu ---- */
+.wsfMenu {
+  position: fixed;
+  z-index: 4300;
+  background: var(--wsf-card);
+  color: var(--wsf-ink);
+  border: 1px solid var(--wsf-line);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(30, 28, 22, 0.2), 0 2px 6px rgba(30, 28, 22, 0.08);
+  padding: 14px 10px 12px;
+  font-family: var(--font, system-ui, sans-serif);
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  animation: wsfIn 0.16s ease both;
+}
+@keyframes wsfIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .wsfMenu { animation: none; } }
+.wsfHead { padding: 0 8px 10px; }
+.wsfTitle { font-size: 0.86rem; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.wsfSub { font-size: 0.72rem; color: var(--wsf-faint); margin-top: 4px; line-height: 1.45; }
+.wsfRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  padding: 9px 10px;
+  margin-top: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.wsfRow:hover:not([disabled]), .wsfRow:focus-visible { background: #F5F4F1; outline: none; border-color: #DCD9D2; }
+.wsfRow[disabled] { cursor: default; opacity: 0.7; }
+.wsfRow.on.wsfAct-current { border-color: var(--wsf-cur); background: var(--wsf-cur-soft); opacity: 1; }
+.wsfRow.on.wsfAct-next { border-color: var(--wsf-next); background: var(--wsf-next-soft); opacity: 1; }
+.wsfLabel { font-size: 0.82rem; font-weight: 700; line-height: 1.35; }
+.wsfAct-current .wsfLabel { color: var(--wsf-cur); }
+.wsfAct-next .wsfLabel { color: var(--wsf-next); }
+.wsfHint { font-size: 0.72rem; color: var(--wsf-faint); line-height: 1.45; }
+.wsfSep { height: 1px; background: var(--wsf-line); margin: 10px 8px 4px; }
+.wsfNote { font-size: 0.7rem; color: var(--wsf-faint); line-height: 1.5; padding: 10px 8px 0; }
+@media (pointer: coarse) { .wsfRow { padding: 12px 10px; } }
+
+/* ---- The sidebar pill ---- */
+.wsfPill {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+.wsfPill b { font-size: 0.8rem; }
+.wsfPill span { color: inherit; opacity: 0.85; }
+.wsfPill.current { color: #fff; background: var(--wsf-cur); box-shadow: 0 0 0 3px var(--wsf-cur-glow); }
+.wsfPill.next { color: var(--wsf-next); background: var(--wsf-next-soft); border: 2px solid var(--wsf-next); }
+
+/* ---- The frame round the open page ----
+   A fixed layer laid exactly over the viewer, so it does not scroll with the
+   pages and never takes a pointer (the page underneath is still written on). */
+.wsfFrame {
+  position: fixed;
+  left: 0; top: 0; width: 0; height: 0;
+  pointer-events: none;
+  z-index: 90;
+  display: none;
+  box-sizing: border-box;
+  border-radius: 2px;
+}
+.wsfFrame.on { display: block; }
+.wsfFrame.current { border: 7px solid var(--wsf-cur); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7), inset 0 0 22px var(--wsf-cur-glow); }
+.wsfFrame.next { border: 4px solid var(--wsf-next); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7); }
+.wsfFrameBadge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font, system-ui, sans-serif);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 4px 14px 6px;
+  border-radius: 0 0 12px 12px;
+  white-space: nowrap;
+  max-width: calc(100% - 40px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wsfFrame.current .wsfFrameBadge { color: #fff; background: var(--wsf-cur); }
+.wsfFrame.next .wsfFrameBadge { color: #fff; background: var(--wsf-next); }
+body.lessonScreenRec .wsfFrame,
+body.immersive .wsfFrame { display: none !important; }
+@media print {
+  .wsfFrame, .wsfMenu, .qFocusBtn, .wsfPill { display: none !important; }
+}

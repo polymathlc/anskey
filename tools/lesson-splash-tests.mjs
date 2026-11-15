@@ -338,6 +338,6 @@ test('the rules are kept in the teacher\'s own record, merged, and on the device
 });
 
 test('the version was bumped and the syntax check covers the file', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.16[6-9]\.\d+';|var APP_VERSION = 'v1\.1[7-9]\d\.\d+';|var APP_VERSION = 'v[2-9]\./);
+  assert.match(html, /var APP_VERSION = 'v1\.16[6-9]\.\d+';|var APP_VERSION = 'v1\.1[7-9]\d\.\d+';|var APP_VERSION = 'v1\.[2-9]\d\d\.\d+';|var APP_VERSION = 'v[2-9]\./);
   assert.match(fs.readFileSync(new URL('./check-syntax.mjs', import.meta.url), 'utf8'), /'lesson-splash\.js'/);
 });

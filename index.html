@@ -4073,6 +4073,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="account-email.css?v=1.194.0">
 <link rel="stylesheet" href="class-summary.css?v=1.198.0">
 <link rel="stylesheet" href="file-actions.css?v=1.199.0">
+<link rel="stylesheet" href="worksheet-focus.css?v=1.200.0">
 </head>
 <body>
 
@@ -4570,6 +4571,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <div class="sideDay" id="wsDay"></div>
     <div class="sideDate" id="wsDate"></div>
     <div class="hiddenPill" id="wsHidden" style="display:none">🔒 Hidden — students can’t see this</div>
+    <div class="wsfPill" id="wsFocusPill" style="display:none" role="status"></div>
     <div class="livePill" id="wsLive" style="display:none"><span class="liveDot"></span>LIVE</div>
     <div class="updatedPill" id="wsUpdated" style="display:none">✓ Updated just now</div>
   </div>
@@ -6034,7 +6036,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.199.0';
+var APP_VERSION = 'v1.200.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -9178,6 +9180,7 @@ function renderSidebar() {
   // The teacher has to be able to tell at a glance that the worksheet they are
   // marking up is one nobody else can see.
   $('wsHidden').style.display = (pdfDoc && wsMeta.hidden) ? 'inline-block' : 'none';
+  if (typeof wsFocusSync === 'function') wsFocusSync();   // 📌 current / next pill and frame
   updateKwPanel();
   if (typeof updatePracticeCard === 'function') updatePracticeCard();
   renderVideoCard();
@@ -31368,6 +31371,7 @@ function applyRoleUI() {
   if (typeof csumRoleChanged === 'function') csumRoleChanged();   // 🧾 class summaries and the parents' emails are the teacher's alone
   if (typeof recNudgeChanged === 'function') recNudgeChanged();   // ⏺ the warning is the teacher's alone
   if (typeof qrReadRoleChanged === 'function') qrReadRoleChanged();   // 🔳 a QR window belongs to the person who opened it
+  if (typeof wsFocusRoleChanged === 'function') wsFocusRoleChanged();   // 📌 the current / next menu is the teacher's alone
   var student = isStudent();
   var hideTools = student && !practiceMode; // practising students get drawing tools
   document.body.classList.toggle('studentMode', hideTools);
@@ -37889,7 +37893,7 @@ function onlineCoursesWatch(user) {
       // it without a reload; the teacher's list never depended on it.
       // 📌 The class position is in it too: when a class moves on, the
       // teacher's list moves its Current and Next tags without a reload.
-      var sig = Object.keys(next).sort().map(function (id) { return id + ':' + (next[id].releasedThrough) + ':' + (next[id].currentIndex) + ':' + (next[id].worksheetIds || []).join(','); }).join('|');
+      var sig = Object.keys(next).sort().map(function (id) { return id + ':' + (next[id].releasedThrough) + ':' + (next[id].currentIndex) + ':' + (next[id].nextIndex) + ':' + (next[id].worksheetIds || []).join(','); }).join('|');
       var changed = !first && sig !== onlineReleaseSig;
       var drawerOpen = $('qDrawer').classList.contains('open');
       if (changed && currentUser && !onlineTeacherList() && drawerOpen) loadQuestionsList();
@@ -37964,9 +37968,15 @@ async function onlineWorksheetOpened(id, data) {
       var cur = typeof c.currentIndex === 'number' ? c.currentIndex : -1;
       var rel = typeof c.releasedThrough === 'number' ? c.releasedThrough : -1;
       var nextCur = Math.max(cur, seq);
+      // 📌 Opening the worksheet the teacher set as Next makes it current,
+      // even one earlier in the list (a lesson repeated on purpose). Any
+      // other move of the class uses the manual Next up as well.
+      var manualNext = onlineManualNext(c);
+      if (manualNext >= 0 && seq === manualNext) nextCur = seq;
       var nextRel = Math.max(rel, Math.min(ids.length - 1, seq + ONLINE_RELEASE_AHEAD));
       var update = { lastOpenedIndex: seq, lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() };
       if (nextCur !== cur) { update.currentIndex = nextCur; update.currentDocId = ids[nextCur]; update.progressAt = firebase.firestore.FieldValue.serverTimestamp(); }
+      if (nextCur !== cur && typeof c.nextIndex === 'number') { update.nextIndex = onlineFieldDelete(); update.nextDocId = onlineFieldDelete(); }
       if (nextRel !== rel) { update.releasedThrough = nextRel; update.releasedAt = firebase.firestore.FieldValue.serverTimestamp(); }
       tx.set(ref, update, { merge: true });
       return { seq: seq, total: ids.length, rel: nextRel, newlyReleased: nextRel - rel, title: c.title || 'this class' };
@@ -38016,13 +38026,39 @@ function onlineClassAt(course) {
   return Math.min(cur, ids.length - 1);
 }
 
+/* 📌 v1.200.0 — the teacher can say which worksheet is NEXT by hand
+   (`nextIndex` on the class list). It is only ever a pointer into the list:
+   a number that is not a real place, or that points at the current
+   worksheet, is no override at all and the worksheet after the current one
+   is next, as it always was. Polymath Online's portal reads `currentIndex`
+   and knows nothing of `nextIndex`, so the CURRENT worksheet is what the
+   two systems keep in step; a manual Next is this app's own planning. */
+function onlineManualNext(course) {
+  var ids = onlineCourseIds(course);
+  var at = onlineClassAt(course);
+  if (at < 0 || !course) return -1;
+  var n = typeof course.nextIndex === 'number' && isFinite(course.nextIndex) ? Math.floor(course.nextIndex) : -1;
+  if (n < 0 || n >= ids.length || n === at) return -1;
+  return n;
+}
+// The place of the Next worksheet in a class list, or -1 when there is none
+// (an empty list, or the class is on the last worksheet with no manual Next).
+function onlineNextAt(course) {
+  var ids = onlineCourseIds(course);
+  var at = onlineClassAt(course);
+  if (at < 0) return -1;
+  var manual = onlineManualNext(course);
+  if (manual >= 0) return manual;
+  return at + 1 < ids.length ? at + 1 : -1;
+}
+
 // 'done' | 'current' | 'next' | 'queued' for place `seq` of a class list.
 function onlineQueueState(course, seq) {
   var ids = onlineCourseIds(course);
   if (!(seq >= 0 && seq < ids.length)) return '';
   var at = onlineClassAt(course);
   if (seq === at) return 'current';
-  if (seq === at + 1) return 'next';
+  if (seq === onlineNextAt(course)) return 'next';
   if (seq < at) return 'done';
   return 'queued';
 }
@@ -38036,7 +38072,8 @@ function onlineDocPlace(id, d) {
   var ids = onlineCourseIds(course);
   var seq = ids.indexOf(id);
   if (seq < 0) return null;
-  return { course: course, seq: seq, total: ids.length, state: onlineQueueState(course, seq) };
+  var state = onlineQueueState(course, seq);
+  return { course: course, seq: seq, total: ids.length, state: state, manual: state === 'next' && onlineManualNext(course) === seq };
 }
 
 // Only the teacher's own list keeps the queue out of the lessons. A
@@ -38050,9 +38087,56 @@ function onlineIsQueued(item) {
 
 // Current first, then Next, then the lesson's own order.
 function onlinePinRank(item) {
-  var place = item ? onlineDocPlace(item.id, item.data) : null;
-  if (!place) return 2;
-  return place.state === 'current' ? 0 : place.state === 'next' ? 1 : 2;
+  var focus = onlineFocusOf(item);
+  return focus.state === 'current' ? 0 : focus.state === 'next' ? 1 : 2;
+}
+
+/* ---- 📌 A worksheet in NO class list: current / next marked by hand (v1.200.0) ----
+   A trial lesson, or a class that is not on Polymath Online yet, has no class
+   list to say where it is. The teacher marks it instead: `wsFocus` on the
+   worksheet's own document ('current' | 'next', merge-written like `starred`,
+   so a save never clears it). It is one per LESSON TIME: marking one worksheet
+   current takes the mark off whichever other worksheet held it in the same day
+   and lesson time. A class worksheet ignores `wsFocus` entirely — its class
+   list is the truth, and it is the class list that is changed by hand. */
+var WS_FOCUS_STATES = ['current', 'next'];
+function onlineLooseMark(d) {
+  if (!d || d.onlineCourseId) return '';
+  var m = typeof d.wsFocus === 'string' ? d.wsFocus : '';
+  return WS_FOCUS_STATES.indexOf(m) >= 0 ? m : '';
+}
+// The lesson time a worksheet belongs to, as one key: day + lesson slot.
+function onlineLessonKey(d) {
+  if (!d) return '';
+  var day = d.wsDay || (typeof DAY_UNDATED !== 'undefined' ? DAY_UNDATED : 'Undated');
+  var slot = typeof slotOf === 'function' ? slotOf(d) : (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2 ? d.wsSlot : 'other');
+  return day + '|' + slot;
+}
+// Which OTHER worksheets lose `state` when `id` takes it: the same mark, in
+// the same lesson time, on a worksheet in no class list. Pure, for tests.
+function onlineLooseClears(items, id, state) {
+  if (WS_FOCUS_STATES.indexOf(state) < 0) return [];
+  var target = null;
+  (items || []).forEach(function (it) { if (it && it.id === id) target = it; });
+  if (!target) return [];
+  var key = onlineLessonKey(target.data);
+  return (items || []).filter(function (it) {
+    return it && it.id !== id && it.data && onlineLooseMark(it.data) === state && onlineLessonKey(it.data) === key;
+  }).map(function (it) { return it.id; });
+}
+
+/* ONE answer for "is this worksheet current, next or neither, and why":
+   { state: 'current'|'next'|'done'|'queued'|'', source: 'class'|'mark'|'',
+     manual, place }. The list, the cards, the sidebar pill and the frame
+   round the page all ask this, so they can never disagree. */
+function onlineFocusOf(item) {
+  var d = item && item.data;
+  if (!d) return { state: '', source: '', manual: false, place: null };
+  var place = onlineDocPlace(item.id, d);
+  if (place) return { state: place.state, source: 'class', manual: !!place.manual, place: place };
+  var mark = onlineLooseMark(d);
+  if (mark) return { state: mark, source: 'mark', manual: true, place: null };
+  return { state: '', source: '', manual: false, place: null };
 }
 
 // The words on the tag, kept apart from the DOM so they can be tested.
@@ -38062,6 +38146,8 @@ function onlineTagText(place) {
     : place.state === 'next' ? '⏭ Next worksheet'
     : place.state === 'queued' ? '📥 Queued'
     : '';
+  // 📌 Set by hand (a manual Next, or a mark on a worksheet in no class list).
+  if (head && place.manual && (place.state === 'current' || place.state === 'next')) head += ' · set by you';
   return head;
 }
 // Its place, for the card's small print: "Worksheet 3 of 8 in P5 Maths · Monday".
@@ -38074,7 +38160,18 @@ function onlinePlaceText(place) {
 // or one the class has already finished.
 function onlineCardTag(item) {
   var place = item ? onlineDocPlace(item.id, item.data) : null;
-  if (!place) return null;
+  if (!place) {
+    // 📌 A worksheet in no class list, marked current / next by the teacher.
+    var mark = item ? onlineLooseMark(item.data) : '';
+    if (!mark) return null;
+    var loose = document.createElement('div');
+    loose.className = 'qClassTag ' + mark + ' manual';
+    loose.textContent = onlineTagText({ state: mark, manual: true });
+    loose.title = mark === 'current'
+      ? 'Marked by you as the worksheet this lesson time is on. Not in a Polymath Online class list.'
+      : 'Marked by you as the worksheet this lesson time does next. Not in a Polymath Online class list.';
+    return loose;
+  }
   if (place.state === 'queued' && !onlineTeacherList()) return null;
   var text = onlineTagText(place);
   if (!text) return null;
@@ -38084,7 +38181,7 @@ function onlineCardTag(item) {
   tag.title = onlinePlaceText(place) + ' · ' + (place.state === 'current'
     ? 'The worksheet ' + (place.course.title || 'this class') + ' is on and has yet to finish.'
     : place.state === 'next'
-      ? 'Loaded from the class list in Polymath Online, ready for the next lesson.'
+      ? (place.manual ? 'Set by you as the next worksheet. Polymath Online still counts on from the current one.' : 'Loaded from the class list in Polymath Online, ready for the next lesson.')
       : 'Waiting its turn in the class list. Opening it here to prepare does not move the class.');
   return tag;
 }
@@ -38095,9 +38192,11 @@ function onlineCardTag(item) {
 function onlineFinishUpdate(course, id) {
   var ids = onlineCourseIds(course);
   var seq = ids.indexOf(id);
-  if (seq < 0 || seq !== onlineClassAt(course) || seq + 1 >= ids.length) return null;
+  if (seq < 0 || seq !== onlineClassAt(course)) return null;
+  // 📌 The Next worksheet, whether it follows on or was set by hand.
+  var nextCur = onlineNextAt(course);
+  if (nextCur < 0) return null;
   var rel = typeof course.releasedThrough === 'number' ? course.releasedThrough : -1;
-  var nextCur = seq + 1;
   return {
     currentIndex: nextCur,
     currentDocId: ids[nextCur],
@@ -38111,13 +38210,14 @@ function onlineFinishUpdate(course, id) {
 function onlineFinishBtn(item) {
   if (!onlineTeacherHere()) return null;
   var place = item ? onlineDocPlace(item.id, item.data) : null;
-  if (!place || place.state !== 'current' || place.seq + 1 >= place.total) return null;
+  var nextAt = place ? onlineNextAt(place.course) : -1;
+  if (!place || place.state !== 'current' || nextAt < 0) return null;
   var b = document.createElement('button');
   b.type = 'button';
   b.className = 'qFinishBtn';
   b.textContent = '✓ Finished · load the next worksheet';
-  b.title = 'Worksheet ' + (place.seq + 2) + ' becomes the current worksheet, and worksheet ' +
-    (place.seq + 3 <= place.total ? place.seq + 3 : place.seq + 2) + ' loads as the next one.';
+  b.title = 'Worksheet ' + (nextAt + 1) + ' becomes the current worksheet, and worksheet ' +
+    (nextAt + 2 <= place.total ? nextAt + 2 : nextAt + 1) + ' loads as the next one.';
   b.addEventListener('click', function (e) {
     if (e && e.stopPropagation) e.stopPropagation();
     onlineFinishCurrent(item.id, item.data, b);
@@ -38138,7 +38238,10 @@ async function onlineFinishCurrent(id, d, btn) {
       var fields = onlineFinishUpdate(c, id);
       if (!fields) return { stale: true };
       var stamp = firebase.firestore.FieldValue.serverTimestamp();
-      tx.set(ref, Object.assign({}, fields, { progressAt: stamp, finishedAt: stamp }), { merge: true });
+      var extra = { progressAt: stamp, finishedAt: stamp };
+      // A manual Next has just become the current worksheet: the pointer is used up.
+      if (typeof c.nextIndex === 'number') { extra.nextIndex = onlineFieldDelete(); extra.nextDocId = onlineFieldDelete(); }
+      tx.set(ref, Object.assign({}, fields, extra), { merge: true });
       var ids = onlineCourseIds(c);
       return { fields: fields, total: ids.length, title: c.title || 'this class' };
     });
@@ -38157,9 +38260,9 @@ async function onlineFinishCurrent(id, d, btn) {
   // The live watch brings this back too; written here first so the list
   // changes the moment the button is pressed, not a round trip later.
   var local = onlineCourses[d.onlineCourseId];
-  if (local) Object.assign(local, result.fields);
+  if (local) { Object.assign(local, result.fields); delete local.nextIndex; delete local.nextDocId; }
   var cur = result.fields.currentIndex;
-  toast('✓ Worksheet ' + cur + ' finished · ' + result.title + '. Worksheet ' + (cur + 1) + ' is now the current worksheet' +
+  toast('✓ Worksheet ' + (result.fields.lastFinishedIndex + 1) + ' finished · ' + result.title + '. Worksheet ' + (cur + 1) + ' is now the current worksheet' +
     (cur + 1 < result.total ? ', and worksheet ' + (cur + 2) + ' is loaded as the next one.' : '. It is the last one in the list.'), 6000);
   onlineAfterProgress();
   return result.fields;
@@ -38189,7 +38292,8 @@ function onlinePreloadNext(now) {
     if (!c || c.archived || c.day !== today) return;
     var ids = onlineCourseIds(c), at = onlineClassAt(c);
     if (at < 0) return;
-    [at, at + 1].forEach(function (seq) {
+    [at, onlineNextAt(c)].forEach(function (seq) {
+      if (seq < 0) return;
       var wid = ids[seq];
       if (!wid || onlinePreloaded[wid]) return;
       onlinePreloaded[wid] = true;
@@ -38200,6 +38304,195 @@ function onlinePreloadNext(now) {
     });
   });
   return started;
+}
+
+/* ---- 📌 Setting the current and next worksheet by hand (v1.200.0) ----
+   The class moves by itself when the teacher opens the next worksheet or
+   presses Finished. These are for when it has to be put right: Polymath Online
+   (the LMS) or a trial lesson has the class somewhere else, a lesson is being
+   taught again, or the order changed on the day.
+
+   · Make current (a class worksheet) writes the class list's `currentIndex`,
+     which is exactly what Polymath Online reads, so the portal follows at
+     once. It MAY move the class back — the teacher asked for it in words —
+     but it never takes back a release: `releasedThrough` only grows, to as
+     far ahead as opening that worksheet would release.
+   · Make next (a class worksheet) writes `nextIndex`, a pointer this app
+     honours (the tags, the list order, Up next, what is fetched ahead and
+     where Finished goes). Setting the worksheet that follows anyway, or
+     ↺ Automatic, removes it. It releases nothing.
+   · A worksheet in NO class list gets `wsFocus` on its own document instead
+     (see onlineLooseMark), one per lesson time.
+   Every write is the teacher's own and asked again in the handler. */
+function onlineFieldDelete() {
+  try { return firebase.firestore.FieldValue.delete(); } catch (e) { return null; }
+}
+// What "Make current" writes, or null when `id` is not in the list or is
+// already where the class is. Pure, for tests.
+function onlineSetCurrentUpdate(course, id) {
+  var ids = onlineCourseIds(course);
+  var seq = ids.indexOf(id);
+  if (seq < 0) return null;
+  var cur = typeof course.currentIndex === 'number' && isFinite(course.currentIndex) ? Math.floor(course.currentIndex) : -1;
+  if (cur === seq) return null;
+  var rel = typeof course.releasedThrough === 'number' ? course.releasedThrough : -1;
+  return {
+    currentIndex: seq,
+    currentDocId: id,
+    releasedThrough: Math.max(rel, Math.min(ids.length - 1, seq + ONLINE_RELEASE_AHEAD)),
+    lastManualIndex: seq,
+    lastManualFrom: cur
+  };
+}
+// What "Make next" writes: { nextIndex, nextDocId } for a real override,
+// { auto: true } when `id` already follows the current worksheet (so the
+// pointer comes off), or null when `id` is not in the list or IS current.
+function onlineSetNextUpdate(course, id) {
+  var ids = onlineCourseIds(course);
+  var seq = ids.indexOf(id);
+  if (seq < 0) return null;
+  var at = onlineClassAt(course);
+  if (at < 0 || seq === at) return null;
+  if (seq === at + 1) return { auto: true };
+  return { nextIndex: seq, nextDocId: id };
+}
+// Does a manual next survive the class being put on `seq`? Only when it
+// still points somewhere other than the new current worksheet.
+function onlineNextSurvives(course, seq) {
+  var n = course && typeof course.nextIndex === 'number' ? Math.floor(course.nextIndex) : -1;
+  return n >= 0 && n !== seq && n < onlineCourseIds(course).length;
+}
+
+async function onlineSetCurrent(id, d) {
+  if (!onlineTeacherHere() || !d || !d.onlineCourseId) return null;
+  var ref = db.collection(ONLINE_COURSES).doc(d.onlineCourseId);
+  var result;
+  try {
+    result = await db.runTransaction(async function (tx) {
+      var snap = await tx.get(ref);
+      if (!snap.exists) return { gone: true };
+      var c = snap.data();
+      var fields = onlineSetCurrentUpdate(c, id);
+      if (!fields) return { same: true, title: c.title || 'this class' };
+      var stamp = firebase.firestore.FieldValue.serverTimestamp();
+      var extra = { progressAt: stamp, manualAt: stamp };
+      if (fields.releasedThrough !== (typeof c.releasedThrough === 'number' ? c.releasedThrough : -1)) extra.releasedAt = stamp;
+      var keepNext = onlineNextSurvives(c, fields.currentIndex);
+      if (typeof c.nextIndex === 'number' && !keepNext) { extra.nextIndex = onlineFieldDelete(); extra.nextDocId = onlineFieldDelete(); }
+      tx.set(ref, Object.assign({}, fields, extra), { merge: true });
+      return { fields: fields, keepNext: keepNext, total: onlineCourseIds(c).length, title: c.title || 'this class' };
+    });
+  } catch (e) {
+    console.warn('Class progress not saved', e);
+    toast('Could not set the current worksheet: ' + (e.message || e), 5000);
+    return null;
+  }
+  if (!result || result.gone) { toast('That class is no longer in Polymath Online.', 5000); return null; }
+  if (result.same) { toast('It is already the current worksheet of ' + result.title + '.', 3500); return null; }
+  var local = onlineCourses[d.onlineCourseId];
+  if (local) {
+    Object.assign(local, result.fields);
+    if (!result.keepNext) { delete local.nextIndex; delete local.nextDocId; }
+  }
+  var f = result.fields;
+  var back = f.lastManualFrom > f.currentIndex;
+  toast('▶ Worksheet ' + (f.currentIndex + 1) + ' of ' + result.total + ' is now the current worksheet of ' + result.title +
+    (back ? ' (moved back from worksheet ' + (f.lastManualFrom + 1) + ')' : '') +
+    '. Polymath Online follows; students have up to worksheet ' + (f.releasedThrough + 1) + '.', 6500);
+  onlineAfterProgress();
+  return f;
+}
+
+async function onlineSetNext(id, d) {
+  if (!onlineTeacherHere() || !d || !d.onlineCourseId) return null;
+  var ref = db.collection(ONLINE_COURSES).doc(d.onlineCourseId);
+  var result;
+  try {
+    result = await db.runTransaction(async function (tx) {
+      var snap = await tx.get(ref);
+      if (!snap.exists) return { gone: true };
+      var c = snap.data();
+      var fields = onlineSetNextUpdate(c, id);
+      if (!fields) return { current: true, title: c.title || 'this class' };
+      var stamp = firebase.firestore.FieldValue.serverTimestamp();
+      if (fields.auto) {
+        if (typeof c.nextIndex === 'number') tx.set(ref, { nextIndex: onlineFieldDelete(), nextDocId: onlineFieldDelete(), manualAt: stamp }, { merge: true });
+        return { auto: true, seq: onlineClassAt(c) + 1, title: c.title || 'this class' };
+      }
+      tx.set(ref, { nextIndex: fields.nextIndex, nextDocId: fields.nextDocId, manualAt: stamp }, { merge: true });
+      return { fields: fields, title: c.title || 'this class' };
+    });
+  } catch (e) {
+    console.warn('Next worksheet not saved', e);
+    toast('Could not set the next worksheet: ' + (e.message || e), 5000);
+    return null;
+  }
+  if (!result || result.gone) { toast('That class is no longer in Polymath Online.', 5000); return null; }
+  if (result.current) { toast('That is the current worksheet of ' + result.title + ' — choose another one as next.', 4500); return null; }
+  var local = onlineCourses[d.onlineCourseId];
+  if (result.auto) {
+    if (local) { delete local.nextIndex; delete local.nextDocId; }
+    toast('⏭ Worksheet ' + (result.seq + 1) + ' is the next worksheet of ' + result.title + ', as it follows on.', 4500);
+  } else {
+    if (local) { local.nextIndex = result.fields.nextIndex; local.nextDocId = result.fields.nextDocId; }
+    toast('⏭ Worksheet ' + (result.fields.nextIndex + 1) + ' is set as the next worksheet of ' + result.title +
+      '. ✓ Finished, or opening it, makes it current.', 6000);
+  }
+  onlineAfterProgress();
+  return result.fields || { auto: true };
+}
+
+async function onlineClearNext(id, d) {
+  if (!onlineTeacherHere() || !d || !d.onlineCourseId) return false;
+  var ref = db.collection(ONLINE_COURSES).doc(d.onlineCourseId);
+  try {
+    await ref.set({ nextIndex: onlineFieldDelete(), nextDocId: onlineFieldDelete(), manualAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  } catch (e) {
+    toast('Could not change that: ' + (e.message || e), 5000);
+    return false;
+  }
+  var local = onlineCourses[d.onlineCourseId];
+  if (local) { delete local.nextIndex; delete local.nextDocId; }
+  toast('↺ The next worksheet follows on from the current one again.', 4000);
+  onlineAfterProgress();
+  return true;
+}
+
+// A worksheet in no class list: take (or drop) the mark, and take it off the
+// worksheet that held it in the same lesson time, in one batch.
+async function onlineMarkLoose(item, state) {
+  if (!onlineTeacherHere() || !item || !item.data || item.data.onlineCourseId) return false;
+  if (state && WS_FOCUS_STATES.indexOf(state) < 0) return false;
+  var all = typeof qDocs !== 'undefined' && qDocs.length ? qDocs : [item];
+  var clears = state ? onlineLooseClears(all, item.id, state) : [];
+  var stamp = firebase.firestore.FieldValue.serverTimestamp();
+  try {
+    var batch = db.batch();
+    batch.set(db.collection(COLLECTION).doc(item.id), state ? { wsFocus: state, wsFocusAt: stamp } : { wsFocus: onlineFieldDelete(), wsFocusAt: onlineFieldDelete() }, { merge: true });
+    clears.forEach(function (cid) {
+      batch.set(db.collection(COLLECTION).doc(cid), { wsFocus: onlineFieldDelete(), wsFocusAt: onlineFieldDelete() }, { merge: true });
+    });
+    await batch.commit();
+  } catch (e) {
+    toast('Could not mark that worksheet: ' + (e.message || e), 5000);
+    return false;
+  }
+  var touch = function (it, value) {
+    if (!it || !it.data) return;
+    if (value) it.data.wsFocus = value; else delete it.data.wsFocus;
+    if (onlineDocCache[it.id]) { if (value) onlineDocCache[it.id].wsFocus = value; else delete onlineDocCache[it.id].wsFocus; }
+  };
+  touch(item, state);
+  if (typeof qDocs !== 'undefined') qDocs.forEach(function (it) {
+    if (it.id === item.id && it !== item) touch(it, state);
+    if (clears.indexOf(it.id) >= 0) touch(it, '');
+  });
+  var name = '“' + (item.data.name || 'Untitled') + '”';
+  toast(state === 'current' ? '▶ ' + name + ' is marked as the current worksheet of its lesson time.'
+    : state === 'next' ? '⏭ ' + name + ' is marked as the next worksheet of its lesson time.'
+    : '↺ ' + name + ' is no longer marked.', 4500);
+  onlineAfterProgress();
+  return true;
 }
 
 /* ---- The next two worksheets ---- */
@@ -38214,7 +38507,12 @@ function onlineNextFor(docId, data) {
   var from = teacher ? seq : (typeof course.currentIndex === 'number' && course.currentIndex >= 0 ? course.currentIndex : seq);
   var rel = typeof course.releasedThrough === 'number' ? course.releasedThrough : -1;
   var next = [];
-  for (var i = from + 1; i <= from + ONLINE_PRELOAD_AHEAD && i < ids.length; i++) {
+  // 📌 From the class's current worksheet, the first one up is the Next
+  // worksheet — the one set by hand when there is one.
+  var first = from === onlineClassAt(course) ? onlineNextAt(course) : from + 1;
+  if (first < 0) first = ids.length;
+  for (var i = first; i < first + ONLINE_PRELOAD_AHEAD && i < ids.length; i++) {
+    if (i === from) continue;
     if (teacher || i <= rel) next.push({ id: ids[i], seq: i });
   }
   return { course: course, seq: seq, from: from, next: next, total: ids.length };
@@ -38325,6 +38623,8 @@ async function onlineOpenNext(id) {
 }
 
 function onlineNextRender() {
+  // 📌 The frame round the page and the sidebar pill follow every move too.
+  if (typeof wsFocusSync === 'function') wsFocusSync();
   var card = $('onlineNextCard'), btn = $('nextTwoBtn');
   if (!card) return;
   var data = currentDocId ? onlineDocCache[currentDocId] : null;
@@ -38476,6 +38776,110 @@ $('nextTwoBtn').addEventListener('click', onlineNextToggle);
 setInterval(function () { if (!document.hidden) onlineNextRender(); }, 1500);
 $('onlineNextClose').addEventListener('click', function () { onlineNextOpen = true; onlineNextToggle(); });
 /* ================= End Polymath Online ================= */
+
+/* ================= 📌 Current and next worksheet — glue (v1.200.0) =================
+   worksheet-focus.js draws; the Polymath Online section decides. This glue
+   hands one to the other:
+     wsFocusTeacher   who may set a worksheet current / next (the teacher's
+                      own account, not handed over, not a share link, not
+                      practising)
+     wsFocusButton    the 📌 button on a card (teacher only)
+     wsFocusHolds     how many current / next worksheets a lesson time holds
+     wsFocusOpenItem  the open worksheet, as a list item
+     wsFocusAct       a choice from the menu → the class list or the mark
+     wsFocusSync      the sidebar pill and the frame round the open page
+     wsFocusRoleChanged / wsFocusInit */
+var wsFocusCtl = null;
+function wsFocusTeacher() { return typeof onlineTeacherHere === 'function' && onlineTeacherHere(); }
+function wsFocusOpenItem() {
+  if (!currentDocId) return null;
+  var data = (typeof onlineDocCache !== 'undefined' && onlineDocCache[currentDocId]) || null;
+  if (!data && typeof qDocs !== 'undefined') qDocs.forEach(function (it) { if (it.id === currentDocId) data = it.data; });
+  return data ? { id: currentDocId, data: data } : null;
+}
+function wsFocusHolds(items) {
+  var out = { current: 0, next: 0 };
+  (items || []).forEach(function (it) {
+    var f = typeof onlineFocusOf === 'function' ? onlineFocusOf(it) : null;
+    if (f && f.state === 'current') out.current++;
+    if (f && f.state === 'next') out.next++;
+  });
+  return out;
+}
+function wsFocusButton(item, focus) {
+  if (!wsFocusTeacher() || !item || !item.data || item.data.hidden) return null;
+  focus = focus || onlineFocusOf(item);
+  var b = document.createElement('button');
+  b.type = 'button';
+  var st = focus.state === 'current' || focus.state === 'next' ? focus.state : '';
+  b.className = 'qFocusBtn' + (st ? ' ' + st : '');
+  b.textContent = st === 'current' ? '📌 ▶' : st === 'next' ? '📌 ⏭' : '📌';
+  b.title = 'Set as the current or the next worksheet' + (focus.source === 'class' ? ' (Polymath Online follows the current one)' : '');
+  b.setAttribute('aria-label', b.title);
+  b.setAttribute('aria-haspopup', 'menu');
+  b.setAttribute('aria-expanded', 'false');
+  b.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+  b.addEventListener('click', function (e) {
+    e.stopPropagation();       // the card underneath opens the worksheet
+    e.preventDefault();
+    if (!wsFocusTeacher() || !wsFocusCtl) return;
+    wsFocusCtl.openMenu(b, item);
+  });
+  return b;
+}
+async function wsFocusAct(item, act) {
+  // Asked again here, whatever drew the menu.
+  if (!wsFocusTeacher() || !item || !item.data) return;
+  var d = item.data;
+  if (d.onlineCourseId && onlineDocPlace(item.id, d)) {
+    if (act === 'current') await onlineSetCurrent(item.id, d);
+    else if (act === 'next') await onlineSetNext(item.id, d);
+    else if (act === 'auto') await onlineClearNext(item.id, d);
+    return;
+  }
+  if (d.onlineCourseId) {
+    toast('Its class list has not loaded yet — try again in a moment.', 4000);
+    return;
+  }
+  if (act === 'current' || act === 'next') await onlineMarkLoose(item, act);
+  else if (act === 'auto') await onlineMarkLoose(item, '');
+}
+function wsFocusSync() {
+  if (!wsFocusCtl) return null;
+  return wsFocusCtl.sync();
+}
+function wsFocusRoleChanged() {
+  if (wsFocusCtl) wsFocusCtl.roleChanged();
+}
+function wsFocusInit() {
+  if (wsFocusCtl || !window.WorksheetFocus) return;
+  wsFocusCtl = window.WorksheetFocus.create({
+    teacher: wsFocusTeacher,
+    toast: toast,
+    focusOf: function (item) { return onlineFocusOf(item); },
+    manualNextOf: function (item) {
+      var place = item && item.data ? onlineDocPlace(item.id, item.data) : null;
+      return place ? onlineManualNext(place.course) : -1;
+    },
+    followsOnOf: function (item) {
+      var place = item && item.data ? onlineDocPlace(item.id, item.data) : null;
+      if (!place) return -1;
+      var at = onlineClassAt(place.course);
+      return at >= 0 && at + 1 < place.total ? at + 1 : -1;
+    },
+    act: wsFocusAct,
+    openFocus: function () {
+      if (!pdfDoc) return null;
+      var it = wsFocusOpenItem();
+      return it ? onlineFocusOf(it) : null;
+    },
+    viewer: function () { return $('viewerArea'); },
+    pill: function () { return $('wsFocusPill'); }
+  });
+  wsFocusSync();
+}
+/* ================= End current and next worksheet glue ================= */
+
 
 /* ================= Questions drawer (burger menu) =================
    A collapsible left column listing every saved question in chronological
@@ -38908,10 +39312,16 @@ function questionCard(item, opts) {
   var btn = document.createElement('button');
   // 📌 Where the class is: Current worksheet / Next worksheet (Polymath Online).
   var classPlace = typeof onlineDocPlace === 'function' ? onlineDocPlace(item.id, d) : null;
+  // 📌 v1.200.0: one answer for current / next, a class list's or a mark set
+  // by hand, and a thick green / clear blue border to show it.
+  var focus = typeof onlineFocusOf === 'function' ? onlineFocusOf(item) : { state: '' };
   btn.className = 'qItem' + (item.id === currentDocId ? ' active' : '') +
     (d.starred ? ' starred' : '') + (d.hidden ? ' hiddenWs' : '') +
     (classPlace && classPlace.state === 'current' ? ' classCurrent' : '') +
-    (classPlace && classPlace.state === 'next' ? ' classNext' : '');
+    (classPlace && classPlace.state === 'next' ? ' classNext' : '') +
+    (focus.state === 'current' ? ' focusCurrent' : '') +
+    (focus.state === 'next' ? ' focusNext' : '');
+  if (focus.state === 'current' || focus.state === 'next') btn.setAttribute('data-focus', focus.state);
   btn.setAttribute('data-qid', item.id);
   if (d.starred) {
     // Said in words as well as in gold: the card is read at a glance, but a
@@ -38979,6 +39389,9 @@ function questionCard(item, opts) {
   // ✓ Finished: the teacher moves the class on without opening anything.
   var finishBtn = typeof onlineFinishBtn === 'function' ? onlineFinishBtn(item) : null;
   if (finishBtn) row.appendChild(finishBtn);
+  // 📌 Set this one as the current / next worksheet by hand (teacher only).
+  var focusBtn = typeof wsFocusButton === 'function' ? wsFocusButton(item, focus) : null;
+  if (focusBtn) { row.classList.add('canFocus'); row.appendChild(focusBtn); }
   // The star is the teacher's alone — it is an instruction to whoever opens
   // the list next, not a bookmark each reader keeps for themselves.
   if (canStarWorksheets()) {
@@ -39511,7 +39924,10 @@ function qSlotHead(day, slotNum, items, opts) {
 
   var head = document.createElement('button');
   head.type = 'button';
-  head.className = 'qSlotLine qSlotHead' + (opts.mine ? ' mine' : '') + (sum.starred ? ' hasStar' : '');
+  // 📌 A folded lesson time still shows that it holds the current / next worksheet.
+  var holds = typeof wsFocusHolds === 'function' ? wsFocusHolds(items) : { current: 0, next: 0 };
+  head.className = 'qSlotLine qSlotHead' + (opts.mine ? ' mine' : '') + (sum.starred ? ' hasStar' : '') +
+    (holds.current ? ' holdsCurrent' : '') + (holds.next ? ' holdsNext' : '');
   head.setAttribute('data-slot', k);
   paintSlot(head, slotNum);
   var words = qSlotSummaryText(dayName, time, sum, levelLabel, subjectLabel);
@@ -39550,6 +39966,20 @@ function qSlotHead(day, slotNum, items, opts) {
   }
   head.appendChild(what);
 
+  if (holds.current) {
+    var hc = document.createElement('span');
+    hc.className = 'qSlotFocus current';
+    hc.textContent = '▶ Current' + (holds.current > 1 ? ' ×' + holds.current : '');
+    hc.title = 'This lesson time holds the current worksheet';
+    head.appendChild(hc);
+  }
+  if (holds.next) {
+    var hn = document.createElement('span');
+    hn.className = 'qSlotFocus next';
+    hn.textContent = '⏭ Next' + (holds.next > 1 ? ' ×' + holds.next : '');
+    hn.title = 'This lesson time holds the next worksheet';
+    head.appendChild(hn);
+  }
   if (sum.starred) {
     var st = document.createElement('span');
     st.className = 'qSlotStar';
@@ -42934,6 +43364,8 @@ loadAiNotePrefs();
 <script src="answer-key-online.js?v=1.197.0"></script>
 <script src="class-summary.js?v=1.198.0"></script>
 <script src="file-actions.js?v=1.199.0"></script>
+<script src="worksheet-focus.js?v=1.200.0"></script>
+<script>wsFocusInit();</script>
 <script>lappInit();</script>
 <script src="living-library.js"></script>
 <script>llibInit();</script>
