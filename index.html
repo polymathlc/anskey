@@ -4074,6 +4074,9 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="class-summary.css?v=1.198.0">
 <link rel="stylesheet" href="file-actions.css?v=1.199.0">
 <link rel="stylesheet" href="worksheet-focus.css?v=1.200.0">
+<!-- 🎓 v1.201.0: a student's level and subject follow polymathlc.com.sg/student
+     (pure rules, no dependencies — loaded early so the sign-in can use it) -->
+<script src="level-sync.js?v=1.201.0"></script>
 </head>
 <body>
 
@@ -31662,6 +31665,10 @@ auth.onAuthStateChanged(function (user) {
   // from the first worksheet it opens.
   stopTeachingNotes();
   if (user) loadTeachingNotes(true);
+  // 🎓 v1.201.0: a student's level and subject follow their approval on
+  // polymathlc.com.sg/student, live — see "Level from /student" below.
+  if (user && !isAdmin(user) && !user.isAnonymous) startLevelSync(user);
+  else stopLevelSync();
   if (user && !isAdmin(user) && !user.isAnonymous) {
     // Students: fetch their profile, and ask for it on their very first login.
     loadStudentProfile(user).then(function () {
@@ -31755,10 +31762,14 @@ async function loadStudentProfile(user) {
   try {
     var snap = await db.collection(PROFILES_COLLECTION).doc(user.uid).get();
     studentProfile = snap.exists ? snap.data() : null;
+    studentProfileLoadedFor = user.uid;
   } catch (e) {
     console.error('Could not load student profile', e);
     studentProfile = null;
   }
+  // 🎓 The row just read may be older than the approval on /student (or the
+  // write that fixed it failed last time): put the approved level back on it.
+  if (currentUser === user) applyLevelSync({ quiet: true });
 }
 
 var profilePick = { level: '', subject: '', days: [], slot: '' };
@@ -31774,6 +31785,9 @@ function renderProfileLevelChips() {
   var levels = STUDENT_LEVELS.slice();
   var mine = (studentProfile && studentProfile.level) || profilePick.level;
   if (mine && levels.indexOf(mine) === -1) levels.push(mine);
+  // 🎓 An approved account is offered only the levels /student gave it.
+  var sync = profileLevelSync();
+  if (sync) levels = sync.choices.slice();
   row.innerHTML = '';
   levels.forEach(function (l) {
     var b = document.createElement('button');
@@ -31799,6 +31813,9 @@ function renderProfileSubjectChips() {
     return;
   }
   var allowed = levelSubjects(profilePick.level);
+  // 🎓 …and only the subject /student gave that level.
+  var sync = profileLevelSync();
+  if (sync && sync.levels[profilePick.level]) allowed = [sync.levels[profilePick.level]];
   STUDENT_SUBJECTS.forEach(function (sub) {
     if (allowed.indexOf(sub.value) === -1) return;
     var b = document.createElement('button');
@@ -31810,8 +31827,8 @@ function renderProfileSubjectChips() {
   });
   if (hint) {
     var only = allowed.length === 1;
-    hint.style.display = only ? 'block' : 'none';
-    if (only) hint.textContent = levelLabel(profilePick.level) + ' is ' +
+    hint.style.display = only && !sync ? 'block' : 'none';
+    if (only && !sync) hint.textContent = levelLabel(profilePick.level) + ' is ' +
       subjectLabel(allowed[0]) + ' only at the centre.';
   }
   // A subject the new level does not offer cannot stay picked — switching
@@ -31857,10 +31874,23 @@ function openProfileModal(firstTime) {
   // only the admin can update them.
   profileLocked = !firstTime && !isAdmin(currentUser) && !!studentProfile &&
     (studentProfile.lsChangesUsed || 0) >= 1;
+  // 🎓 Approved on /student: the level and subject are the enrolment's. One
+  // child → nothing to choose; siblings sharing the account → pick between
+  // the family's levels only, as often as needed (it is not "a change").
+  var sync = profileLevelSync();
+  if (sync) {
+    if (!sync.levels[profilePick.level]) profilePick.level = sync.level;
+    profilePick.subject = sync.levels[profilePick.level];
+    profileLocked = sync.choices.length <= 1;
+    refreshProfileChips();
+  }
   $('profileLevelRow').classList.toggle('locked', profileLocked);
   $('profileSubjectRow').classList.toggle('locked', profileLocked);
   var lockHint = $('profileLockHint');
-  if (firstTime) {
+  if (sync) {
+    lockHint.style.display = 'block';
+    lockHint.textContent = window.PolymathLevelSync.hint(sync);
+  } else if (firstTime) {
     lockHint.style.display = 'none';
   } else {
     lockHint.style.display = 'block';
@@ -31894,8 +31924,15 @@ async function saveStudentProfile() {
     refreshProfileChips();
     return;
   }
+  // 🎓 Approved on /student: only the enrolment's levels, with their subject,
+  // and switching between them is not the student's one change.
+  var sync = profileLevelSync();
+  if (sync) {
+    if (!sync.levels[profilePick.level]) profilePick.level = sync.level;
+    profilePick.subject = sync.levels[profilePick.level];
+  }
   // One level/subject change per student after the first setup.
-  var changedLS = !!studentProfile &&
+  var changedLS = !!studentProfile && !sync &&
     (studentProfile.level !== profilePick.level || studentProfile.subject !== profilePick.subject);
   var changesUsed = studentProfile ? (studentProfile.lsChangesUsed || 0) : 0;
   if (changedLS && changesUsed >= 1) {
@@ -31915,6 +31952,7 @@ async function saveStudentProfile() {
       lsChangesUsed: changesUsed + (changedLS ? 1 : 0),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
+    if (sync) payload.levelSource = 'student-access';
     if (!studentProfile) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
     await db.collection(PROFILES_COLLECTION).doc(currentUser.uid).set(payload, { merge: true });
     var wasFirstTime = !studentProfile;
@@ -31938,6 +31976,136 @@ async function saveStudentProfile() {
     toast('Could not save your profile: ' + (e.message || e));
   }
   btn.disabled = false;
+}
+
+/* ================= 🎓 Level from /student — glue (v1.201.0) =================
+   The rules are level-sync.js. polymathlc.com.sg/student is where an admin
+   approves an account and sets each child's level and subjects
+   (studentAccess/{uid}); this app used to keep its own, self-chosen copy in
+   studentProfiles/{uid}, so the two drifted apart (a P6 Science pupil still
+   listed as "P4 · Maths & Science", and a released class worksheet refused as
+   "not released to your class yet").
+
+   For a signed-in STUDENT (never the teacher, a share-link guest, or the
+   teacher's device handed to a pupil) this listens to studentAccess/{uid}:
+   • approved → the profile's level and subject become the approval's, on
+     screen at once, and are written back to studentProfiles/{uid} so the
+     Study Buddy and Scan app (same roster) agree. An admin's Edit on /student
+     reaches a student who is signed in right now, with a toast.
+   • waiting, paused, no record, or no child at an Ans Key level → nothing
+     changes: the profile chips work exactly as before.
+   A brand-new student (no profile row yet) still gets the welcome window for
+   their name and class days; the level and subject on it are pre-set and
+   locked to the approval.
+   The /student admin page writes the same row from its side
+   (ansKeyProfilePatch in polymathlc/cer student/student-account.js), which
+   also fixes students who have not opened this app since. */
+var levelSync = null;               // PolymathLevelSync.pick() for the signed-in student, or null
+var levelSyncRecord = null;         // their studentAccess/{uid}, as last read
+var levelSyncUid = '';
+var levelSyncUnsub = null;
+var levelSyncWriting = '';          // "P6|science" while that write is in flight
+var studentProfileLoadedFor = '';   // uid whose studentProfiles row has been read at least once
+
+/* The sync the profile window should obey — never for the teacher, nor while
+   their device is handed to a student. */
+function profileLevelSync() {
+  if (!levelSync || !currentUser || isAdmin(currentUser) || actingStudent) return null;
+  if (levelSyncUid !== currentUser.uid) return null;
+  return levelSync;
+}
+
+function stopLevelSync() {
+  if (levelSyncUnsub) { try { levelSyncUnsub(); } catch (e) { /* already gone */ } }
+  levelSyncUnsub = null;
+  levelSync = null;
+  levelSyncRecord = null;
+  levelSyncUid = '';
+  levelSyncWriting = '';
+}
+
+function startLevelSync(user) {
+  stopLevelSync();
+  if (!user || user.isAnonymous || isAdmin(user) || !window.PolymathLevelSync) return;
+  levelSyncUid = user.uid;
+  try {
+    levelSyncUnsub = db.collection('studentAccess').doc(user.uid).onSnapshot(function (snap) {
+      if (!currentUser || currentUser.uid !== user.uid || levelSyncUid !== user.uid) return;
+      var first = levelSyncRecord === null && !levelSync;
+      levelSyncRecord = snap.exists ? (snap.data() || {}) : null;
+      applyLevelSync({ quiet: first });
+    }, function (e) {
+      // Staff with no record, rules not allowing the read, offline: the app
+      // simply keeps the profile it has. Never a reason to block a student.
+      console.warn('Level from /student: could not read the approval', e && (e.code || e.message || e));
+    });
+  } catch (e) {
+    console.warn('Level from /student: could not listen', e);
+  }
+}
+
+/* Put the approval's level and subject on the student's profile.
+   opts.quiet: no toast (first load); the app just shows the right level. */
+function applyLevelSync(opts) {
+  opts = opts || {};
+  var LS = window.PolymathLevelSync;
+  if (!LS || !currentUser || isAdmin(currentUser) || currentUser.isAnonymous || actingStudent) return;
+  if (levelSyncUid !== currentUser.uid) return;
+  var next = LS.pick(levelSyncRecord, studentProfile);
+  var changedSync = !LS.same(levelSync, next);
+  levelSync = next;
+  // The profile window may be open on screen: redraw its chips to the new rules.
+  if (changedSync && $('profileModal') && $('profileModal').classList.contains('open')) {
+    if (next) {
+      if (!next.levels[profilePick.level]) profilePick.level = next.level;
+      profilePick.subject = next.levels[profilePick.level];
+      profileLocked = next.choices.length <= 1;
+      $('profileLevelRow').classList.toggle('locked', profileLocked);
+      $('profileSubjectRow').classList.toggle('locked', profileLocked);
+      $('profileLockHint').style.display = 'block';
+      $('profileLockHint').textContent = LS.hint(next);
+    }
+    refreshProfileChips();
+  }
+  if (!next) return;
+  // Not read yet: the profile load calls back here once it has the row.
+  if (studentProfileLoadedFor !== currentUser.uid) return;
+  // No row yet: a new student still types their name on the welcome window,
+  // which is pre-set to this level. Writing a nameless row now would skip it.
+  if (!studentProfile) return;
+  var patch = LS.profilePatch(levelSyncRecord, studentProfile);
+  if (!patch) return;
+  var before = profileComplete(studentProfile)
+    ? levelLabel(studentProfile.level) + ' ' + subjectLabel(profileSubject(studentProfile)) : '';
+  var merged = {};
+  Object.keys(studentProfile).forEach(function (k) { merged[k] = studentProfile[k]; });
+  merged.level = patch.level;
+  merged.subject = patch.subject;
+  merged.levelSource = patch.levelSource;
+  studentProfile = merged;
+  renderAuthArea();
+  if ($('qDrawer').classList.contains('open')) loadQuestionsList();
+  if ($('docsModal') && $('docsModal').classList.contains('open')) openDocsModal();
+  if (window.StudentHeroes && profileComplete(studentProfile)) window.StudentHeroes.profileReady(currentUser.uid);
+  var after = levelLabel(patch.level) + ' ' + subjectLabel(patch.subject);
+  if (!opts.quiet) {
+    toast('Your class is now ' + after + ' (updated by Polymath)' + (before ? ', was ' + before : '') + '.', 5000);
+  }
+  // Keep the shared roster in step. Once per pair, and never fatal.
+  var key = patch.level + '|' + patch.subject;
+  if (levelSyncWriting === key) return;
+  levelSyncWriting = key;
+  var uid = currentUser.uid;
+  db.collection(PROFILES_COLLECTION).doc(uid).set({
+    level: patch.level,
+    subject: patch.subject,
+    levelSource: patch.levelSource,
+    levelSyncedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true }).catch(function (e) {
+    console.warn('Level from /student: could not save the profile', e && (e.code || e.message || e));
+  }).then(function () {
+    if (levelSyncWriting === key) levelSyncWriting = '';
+  });
 }
 
 /* ✉ Account email — glue (v1.194.0)
@@ -42086,14 +42254,14 @@ $('kwInput').addEventListener('keydown', function (e) {
 $('profileLevelRow').addEventListener('click', function (e) {
   var b = e.target.closest ? e.target.closest('.pickChip') : null;
   if (!b) return;
-  if (profileLocked) { toast('Your level is locked — ask Mr Chung to change it.'); return; }
+  if (profileLocked) { toast(profileLevelSync() ? 'Your level comes from your Polymath enrolment — ask Mr Chung to change it.' : 'Your level is locked — ask Mr Chung to change it.'); return; }
   profilePick.level = b.getAttribute('data-level');
   refreshProfileChips();
 });
 $('profileSubjectRow').addEventListener('click', function (e) {
   var b = e.target.closest ? e.target.closest('.pickChip') : null;
   if (!b) return;
-  if (profileLocked) { toast('Your subject is locked — ask Mr Chung to change it.'); return; }
+  if (profileLocked) { toast(profileLevelSync() ? 'Your subject comes from your Polymath enrolment — ask Mr Chung to change it.' : 'Your subject is locked — ask Mr Chung to change it.'); return; }
   profilePick.subject = b.getAttribute('data-subject');
   refreshProfileChips();
 });
