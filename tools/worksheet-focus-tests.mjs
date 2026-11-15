@@ -442,3 +442,97 @@ test('wired in: tags, version, the hooks, and the borders in CSS', () => {
   assert.match(src, /\['keydown', 'keyup', 'keypress'\]\.forEach\(function \(k\) \{ root\.addEventListener\(k, onMenuKey\); \}\)/, 'keys stop at the menu');
   assert.match(src, /if \(!teacher\(\)\) \{ close\(false\); return; \}/, 'asked again on the press');
 });
+
+/* ---------------- one current and one next per lesson time (v1.201.0) ---------------- */
+
+test('a lesson time shows ONE current: a mark and a class list there, the newest wins', () => {
+  const c = makeContext({ currentUser: TEACHER });
+  c.onlineCourses = { k6: { id: 'k6', title: 'P6 Science', worksheetIds: ['p6a', 'p6b'], currentIndex: 1, progressAt: 1000 } };
+  const classCur = { id: 'p6b', data: { name: 'P6 WS 2', onlineCourseId: 'k6', wsDay: 'Monday', wsSlot: 2 } };
+  const marked = { id: 'p5x', data: { name: 'P5 WS 1', wsDay: 'Monday', wsSlot: 2, wsFocus: 'current', wsFocusAt: 5000 } };
+  const elsewhere = { id: 'tue', data: { wsDay: 'Tuesday', wsSlot: 2, wsFocus: 'current', wsFocusAt: 1 } };
+  vm.runInContext('var qDocs = [];', c);
+  c.qDocs.push(classCur, marked, elsewhere);
+  assert.equal(c.onlineFocusOf(marked).state, 'current', 'marked later: it holds the lesson time');
+  const lost = plain(c.onlineFocusOf(classCur));
+  assert.equal(lost.state, '');
+  assert.equal(lost.heldBy, 'p5x');
+  assert.equal(c.onlineCardTag(classCur), null, 'no tag on the one that lost');
+  assert.equal(c.onlineFocusOf(elsewhere).state, 'current', 'another lesson time keeps its own');
+  assert.deepEqual(plain(c.wsFocusHolds(c.qDocs.slice(0, 2))), { current: 1, next: 0 }, 'the heading says Current, never Current ×2');
+  // The class moves on later: now the class list is the newest.
+  c.onlineCourses = { k6: Object.assign({}, c.onlineCourses.k6, { progressAt: 9000 }) };
+  assert.equal(c.onlineFocusOf(classCur).state, 'current');
+  assert.equal(c.onlineFocusOf(marked).heldBy, 'p6b');
+});
+
+test('two classes sharing a lesson time show one current and one next', () => {
+  const c = makeContext({ currentUser: TEACHER });
+  c.onlineCourses = {
+    k5: { id: 'k5', worksheetIds: ['a1', 'a2', 'a3'], currentIndex: 0, progressAt: { toMillis: () => 2000 } },
+    k6: { id: 'k6', worksheetIds: ['b1', 'b2', 'b3'], currentIndex: 1, progressAt: { seconds: 3 } }
+  };
+  const slot = { wsDay: 'Monday', wsSlot: 2 };
+  const items = ['a1', 'a2', 'a3'].map((id) => ({ id, data: { ...slot, onlineCourseId: 'k5' } }))
+    .concat(['b1', 'b2', 'b3'].map((id) => ({ id, data: { ...slot, onlineCourseId: 'k6' } })));
+  vm.runInContext('var qDocs = [];', c);
+  c.qDocs.push(...items);
+  const states = Object.fromEntries(items.map((it) => [it.id, c.onlineFocusOf(it).state]));
+  assert.equal(states.b2, 'current', 'P6 moved most recently');
+  assert.equal(states.b3, 'next');
+  assert.equal(states.a1, '');
+  assert.equal(states.a2, '');
+  assert.deepEqual(plain(c.wsFocusHolds(items)), { current: 1, next: 1 });
+  assert.equal(c.onlineFinishBtn(items[0]), null, 'no Finished under a current that another holds');
+  assert.ok(c.onlineFinishBtn(items[4]), 'Finished under the one that holds it');
+});
+
+test('ties are settled the same way on every device', () => {
+  const c = makeContext();
+  assert.equal(c.onlineFocusBeats({ id: 'b', source: 'class', stamp: 0 }, { id: 'a', source: 'mark', stamp: 0 }), true);
+  assert.equal(c.onlineFocusBeats({ id: 'a', source: 'mark', stamp: 0 }, { id: 'b', source: 'class', stamp: 0 }), false);
+  assert.equal(c.onlineFocusBeats({ id: 'a', source: 'mark', stamp: 0 }, { id: 'b', source: 'mark', stamp: 0 }), true);
+  assert.equal(c.onlineFocusBeats({ id: 'z', source: 'mark', stamp: 2 }, { id: 'a', source: 'class', stamp: 1 }), true);
+  assert.equal(c.onlineStampMs({ seconds: 2, nanoseconds: 5e6 }), 2005);
+  assert.equal(c.onlineStampMs('nonsense'), 0);
+  assert.equal(c.onlineStampMs(null), 0);
+});
+
+test('a mark that lost its lesson time is taken off by the teacher, never a class list', async () => {
+  const c = makeContext({ currentUser: TEACHER });
+  c.onlineCourses = { k6: { id: 'k6', worksheetIds: ['p6a'], currentIndex: 0, progressAt: 9000 } };
+  const classCur = { id: 'p6a', data: { onlineCourseId: 'k6', wsDay: 'Monday', wsSlot: 2 } };
+  const old = { id: 'm1', data: { wsDay: 'Monday', wsSlot: 2, wsFocus: 'current', wsFocusAt: 100 } };
+  const older = { id: 'm2', data: { wsDay: 'Monday', wsSlot: 2, wsFocus: 'current', wsFocusAt: 50 } };
+  vm.runInContext('var qDocs = [];', c);
+  c.qDocs.push(classCur, old, older);
+  const table = c.onlineFocusTable();
+  assert.deepEqual(plain(c.onlineFocusTidyIds(table)).sort(), ['m1', 'm2']);
+  assert.equal(await c.onlineFocusTidy(c.onlineFocusTidyIds(table)), 2);
+  assert.deepEqual(c.writes.map((w) => [w.id, w.v.wsFocus]).sort(), [['m1', DEL], ['m2', DEL]]);
+  assert.equal('wsFocus' in old.data, false);
+  assert.equal(await c.onlineFocusTidy(['m1']), 0, 'once per worksheet');
+  const kid = makeContext({ currentUser: KID });
+  assert.equal(await kid.onlineFocusTidy(['m1']), 0, 'a student never writes');
+  assert.equal(kid.writes.length, 0);
+});
+
+test('Make current on a class worksheet takes the lesson time back from a mark', async () => {
+  const log = [];
+  const course = { title: 'P6 Science', worksheetIds: ['p6a', 'p6b'], currentIndex: 1, releasedThrough: 1, progressAt: 10 };
+  const c = makeContext({ currentUser: TEACHER });
+  c.db.runTransaction = courseTx(course, log);
+  c.onlineCourses = { k6: Object.assign({ id: 'k6' }, course) };
+  const classCur = { id: 'p6b', data: { onlineCourseId: 'k6', wsDay: 'Monday', wsSlot: 2 } };
+  const marked = { id: 'p5x', data: { wsDay: 'Monday', wsSlot: 2, wsFocus: 'current', wsFocusAt: 500 } };
+  vm.runInContext('var qDocs = [];', c);
+  c.qDocs.push(classCur, marked);
+  assert.equal(c.onlineFocusOf(classCur).heldBy, 'p5x');
+  await c.onlineSetCurrent('p6b', classCur.data);
+  assert.equal(log.at(-1).focusAt, 'now', 'already current: asking again stamps it');
+  assert.equal(c.writes.some((w) => w.id === 'p5x' && w.v.wsFocus === DEL), true, 'the mark comes off');
+  assert.equal('wsFocus' in marked.data, false);
+  assert.equal(c.onlineFocusOf(classCur).state, 'current');
+  assert.match(c.toasts.at(-1), /the only one/);
+  assert.deepEqual(plain(c.onlineMarksReplacedBy([classCur, marked, { id: 'q', data: { wsDay: 'Monday', wsSlot: 1, wsFocus: 'current' } }], classCur, 'current')), []);
+});
