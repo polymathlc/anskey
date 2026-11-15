@@ -399,7 +399,7 @@ try {
     await page.waitForTimeout(800);
     ok('the app creates the controller', await page.evaluate(() => !!window.liveCams && typeof liveCams.toggle === 'function'));
     ok('the button is hidden from a signed-out visitor', await page.evaluate(() => getComputedStyle(document.getElementById('liveCamBtn')).display === 'none'));
-    ok('the version is v1.135.0 or later', await page.evaluate(() => /^v1\.(1[3-9][5-9]|1[4-9]\d)\./.test(APP_VERSION)));
+    ok('the version is v1.135.0 or later', await page.evaluate(() => { const m = /^v(\d+)\.(\d+)\./.exec(APP_VERSION); return !!m && (+m[1] > 1 || (+m[1] === 1 && +m[2] >= 135)); }));
     ok('nothing from live cams threw while the app loaded', !errors.some(e => /live-?cams|liveCam/i.test(e)), errors.join('\n'));
     await page.close();
   }

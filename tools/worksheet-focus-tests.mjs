@@ -419,7 +419,7 @@ test('the frame preference is remembered, and blocked storage still works', () =
 /* ---------------- the file itself ---------------- */
 
 test('wired in: tags, version, the hooks, and the borders in CSS', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.200\.0'/);
+  { const m = html.match(/var APP_VERSION = 'v1\.(\d+)\.\d+'/); assert.ok(m && +m[1] >= 200, 'APP_VERSION is v1.200.0 or later'); }
   assert.match(html, /<link rel="stylesheet" href="worksheet-focus\.css\?v=1\.200\.0">/);
   assert.match(html, /<script src="worksheet-focus\.js\?v=1\.200\.0"><\/script>\n<script>wsFocusInit\(\);<\/script>/);
   assert.match(html, /\(focus\.state === 'current' \? ' focusCurrent' : ''\)/);
