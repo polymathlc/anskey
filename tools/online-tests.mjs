@@ -92,6 +92,20 @@ test('always 3 ahead: on worksheet 2 the next one and the two after it are out, 
   assert.equal(c.onlineReleasedThrough({ worksheetIds: ['a', 'b'], currentIndex: 1, releasedThrough: 0 }), 1, 'never past the end');
 });
 
+test('archived in Polymath Online: a student never gets the worksheet, the class does not move', () => {
+  const c = makeContext();
+  c.onlineCourses = { k1: { id: 'k1', worksheetIds: ['a', 'b', 'c', 'd'], currentIndex: 1, releasedThrough: 1, archivedWorksheets: ['a'] } };
+  assert.equal(c.onlineReleased({ onlineCourseId: 'k1', onlineSeq: 0 }, 'a'), false, 'archived');
+  assert.equal(c.onlineReleased({ onlineCourseId: 'k1', onlineSeq: 0, id: 'a' }), false, 'archived, id on the data');
+  assert.equal(c.onlineReleased({ onlineCourseId: 'k1', onlineSeq: 1 }, 'b'), true, 'the others stay out');
+  assert.equal(c.onlineReleasedThrough(c.onlineCourses.k1), 3, 'the release is unchanged');
+  c.onlineCourses.k1.archivedWorksheets = [];
+  assert.equal(c.onlineReleased({ onlineCourseId: 'k1', onlineSeq: 0 }, 'a'), true, 'restored');
+  // Every student list passes the document id along.
+  assert.equal((html.match(/canSeeDoc\(docSnap\.data\(\), docSnap\.id\)/g) || []).length, 2);
+  assert.match(html, /canSeeDoc\(d, WS_OPEN_ID\)/);
+});
+
 test('on worksheet 3 the teacher releases up to 6 (3 ahead), and progress never goes backwards', async () => {
   let written = null;
   const course = { worksheetIds: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10'], currentIndex: -1, releasedThrough: -1, title: 'P5 Maths · Monday' };
@@ -188,7 +202,7 @@ test('the old timestamp feature is gone for good', () => {
 
 test('the hooks are guarded, so the recorder runs without these sections', () => {
   assert.match(html, /if \(typeof lessonStepsTick === 'function'\) \{ try \{ lessonStepsTick\(c, ms\);/);
-  assert.match(html, /if \(d\.onlineCourseId && \(typeof onlineReleased !== 'function' \|\| !onlineReleased\(d\)\)\) return false;/);
+  assert.match(html, /if \(d\.onlineCourseId && \(typeof onlineReleased !== 'function' \|\| !onlineReleased\(d, id\)\)\) return false;/);
   assert.match(html, /if \(typeof onlineWorksheetOpened === 'function'\) onlineWorksheetOpened\(id, data\);/);
 });
 
