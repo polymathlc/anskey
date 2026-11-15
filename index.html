@@ -4076,7 +4076,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="worksheet-focus.css?v=1.200.0">
 <!-- 🎓 v1.201.0: a student's level and subject follow polymathlc.com.sg/student
      (pure rules, no dependencies — loaded early so the sign-in can use it) -->
-<script src="level-sync.js?v=1.202.0"></script>
+<script src="level-sync.js?v=1.203.0"></script>
 </head>
 <body>
 
@@ -6039,7 +6039,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.202.0';
+var APP_VERSION = 'v1.203.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32471,13 +32471,13 @@ function studentAdminRow(uid, p) {
 }
 
 /* ---- Which worksheets can this signed-in user see? ---- */
-function canSeeDoc(d) {
+function canSeeDoc(d, id) {
   // While the teacher's device is handed to a student, filter exactly as if
   // that student were signed in.
   if (!currentUser || (isAdmin(currentUser) && !actingStudent)) return true;
   // 🎓 A worksheet in a class list reaches students only once the class has
   // got far enough for it to be released (see Polymath Online).
-  if (d.onlineCourseId && (typeof onlineReleased !== 'function' || !onlineReleased(d))) return false;
+  if (d.onlineCourseId && (typeof onlineReleased !== 'function' || !onlineReleased(d, id))) return false;
   // A hidden worksheet is the teacher's own file. It is filed under Hidden in
   // their list and reaches no student list, chip or count anywhere — not even
   // the right level and subject let it through. A share link the teacher sent
@@ -37300,7 +37300,7 @@ async function openDocsModal() {
     var snap = await db.collection(COLLECTION).orderBy('updatedAt', 'desc').limit(60).get();
     var docs = [];
     snap.forEach(function (docSnap) {
-      if (canSeeDoc(docSnap.data())) docs.push(docSnap);
+      if (canSeeDoc(docSnap.data(), docSnap.id)) docs.push(docSnap);
     });
     list.innerHTML = '';
     if (!docs.length) {
@@ -38112,10 +38112,19 @@ function onlineReleasedThrough(course) {
   var n = Array.isArray(course.worksheetIds) ? course.worksheetIds.length : 0;
   return Math.min(rel, n - 1);
 }
-function onlineReleased(d) {
+/* 🗄 v1.203.0 (Zhi Kai, 15 Nov 2026): a worksheet the admin archived for
+   students in Polymath Online (polymathlc.com.sg/online, cer portal v1.13.0:
+   onlineCourses/{id}.archivedWorksheets) reaches no student here either.
+   Nothing is deleted and the class keeps its place; the teacher sees it as
+   before. `id` is the worksheet's document id (data() carries none). */
+function onlineArchived(course, id) {
+  return !!(course && id && Array.isArray(course.archivedWorksheets) && course.archivedWorksheets.indexOf(id) >= 0);
+}
+function onlineReleased(d, id) {
   if (!d || !d.onlineCourseId) return true;
   var course = onlineCourses[d.onlineCourseId];
   if (!course) return false;
+  if (onlineArchived(course, id || d.id)) return false;
   var seq = typeof d.onlineSeq === 'number' ? d.onlineSeq : -1;
   // The worksheet's place in the list as it is now, where the list has it.
   if (Array.isArray(course.worksheetIds) && d.id && course.worksheetIds.indexOf(d.id) >= 0) seq = course.worksheetIds.indexOf(d.id);
@@ -39091,7 +39100,7 @@ async function onlineOpenFromLink(user) {
     var snap = await db.collection(COLLECTION).doc(WS_OPEN_ID).get();
     if (!snap.exists) { toast('That worksheet is no longer available.', 5000); return; }
     var d = snap.data();
-    if (!canSeeDoc(d)) { toast('That worksheet has not been released to your class yet.', 6000); return; }
+    if (!canSeeDoc(d, WS_OPEN_ID)) { toast('That worksheet has not been released to your class yet.', 6000); return; }
     await openSavedDoc(WS_OPEN_ID, d);
     if (!isAdmin(user) && typeof setTool === 'function') setTool('select');
     await onlineRunLinkAction(WS_OPEN_ID, WS_OPEN_DO);
@@ -39448,7 +39457,7 @@ async function loadQuestionsList() {
     var snap = await db.collection(COLLECTION).limit(500).get();
     var docs = [];
     snap.forEach(function (docSnap) {
-      if (canSeeDoc(docSnap.data())) docs.push({ id: docSnap.id, data: docSnap.data() });
+      if (canSeeDoc(docSnap.data(), docSnap.id)) docs.push({ id: docSnap.id, data: docSnap.data() });
     });
     // Newest first inside every group — the worksheet from the last lesson is
     // the one being looked for. The day headings carry the ordering now, so
