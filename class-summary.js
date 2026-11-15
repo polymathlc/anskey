@@ -72,7 +72,7 @@
   var OPEN_WAIT_MS = 8 * 1000;           // an older class day with no summary is offered after opening
   var GMAIL_URL_MAX = 7600;
 
-  /* ---------------- one summary at a time, and never stuck (v1.202.0) ----------------
+  /* ---------------- one summary at a time, and never stuck (v1.204.0) ----------------
      A run is a JOB: {id, trigger, day, docId, startedAt, beat, until, done,
      abandoned}. Every step it takes has its own time budget (STEP_MS), and the
      job promises to make progress by `until` (the step's budget plus a grace).

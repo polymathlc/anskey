@@ -1,4 +1,4 @@
-// 🧾 The class summary window in real Chromium (v1.202.0): a summary already
+// 🧾 The class summary window in real Chromium (v1.204.0): a summary already
 // being written is FOLLOWED (its progress, then its result), the window can be
 // closed and opened again mid-run and still follows it, a run that stopped
 // says why, and the Write button is never a silent no-op.

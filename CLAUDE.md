@@ -37,7 +37,7 @@ Guidance for Claude when working in this repo.
 - Everything in the window is written with textContent; the email preview is a sandboxed `srcdoc` frame; `emailHtml` escapes every field. Keys stop at `.csBack`; a document-capture Escape closes it after a redraw drops focus.
 - Run `node --test tools/class-summary-tests.mjs`.
 
-### 🧾 A summary run can never hold the lock for ever (v1.202.0)
+### 🧾 A summary run can never hold the lock for ever (v1.204.0)
 
 - **`csumJob`, never a boolean.** The old `csumRunning` flag was held by any run that hung (a lesson download, a caption request, an AI call) and every press then said "A summary is already being written" for the rest of the visit. A run is now a job with a heartbeat: `csumStep(job, name, work)` bounds EVERY wait by `ClassSummary.pure.STEP_MS[name]` (through `aiWithDeadline`, stopped with the job's own AbortController) and sets `job.until`; `JOB_MAX_MS` (40 min) caps the run. Add a wait to `csumWork` without `csumStep` and the lock can stick again (the test lists the steps).
 - **`pure.arrival(job, ask, now)` is the one decision**: `start`, `takeover` (stale: `jobStale` says `quiet` / `long`; `csumAbandon` aborts it and its own caption run via `job.captionCtl`), `join` (a press for the class being written follows it through `csumJoin`), `wait` (a press for another class waits, then runs), `queue` (automatic: `csumAgain`). A press never throws "already being written".

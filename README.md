@@ -5,7 +5,7 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
-## 🧾 v1.202.0 — The class summary never gets stuck on "already being written"
+## 🧾 v1.204.0 — The class summary never gets stuck on "already being written"
 
 - **What went wrong.** Opening a worksheet (or finishing a lesson) starts a summary by itself in the background. If that run hung — a lesson download, a caption request or an AI call that never answered — it held the one "busy" flag for the rest of the visit, so every press of ✨ Write the summary said *"A summary is already being written. Try again in a moment."* and no summary ever came.
 - **Every step now has a time limit** (captions 20 min, the AI writing 11 min, a page 1½ min, saving 1½ min…), and the whole run 40 min. A step that runs over ends the run, which always lets go.
@@ -14,6 +14,14 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 - **A run that stopped by itself says why** in the window ("The automatic summary after class stopped: …"), until the next try.
 - Captions that hang are cancelled and the summary carries on from the writing on the page. Changing worksheet or account drops a run at once. Nothing is ever emailed by any of this.
 - Tests: `tools/class-summary-lock-tests.mjs` (the rules, and the real glue run in a vm: a hung background run, a stuck run taken over, a step past its limit, two presses for one class, another class waiting, captions hanging) and `tools/class-summary-check.mjs` (the window in Chromium; in CI).
+## 📤 v1.202.0 — A class is always 3 worksheets ahead
+
+On worksheet n, students have every worksheet up to n + 3: the Next worksheet
+and the two after it (`ONLINE_RELEASE_AHEAD = 3`, was 5). `onlineReleasedThrough`
+works this out from the class position every time, so a worksheet added to a
+class list after the class last moved is out at once instead of showing "not
+released to your class yet". Whatever was released before stays released.
+Polymath Online (cer `online/portal-core.js`, portal v1.12.0) has the same rule.
 
 ## 🎓 v1.201.0 — A student's level and subject come from polymathlc.com.sg/student
 

@@ -4071,12 +4071,12 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="compact-wheel.css?v=1.190.0">
 <link rel="stylesheet" href="quest-stage.css?v=1.193.0">
 <link rel="stylesheet" href="account-email.css?v=1.194.0">
-<link rel="stylesheet" href="class-summary.css?v=1.202.0">
+<link rel="stylesheet" href="class-summary.css?v=1.204.0">
 <link rel="stylesheet" href="file-actions.css?v=1.199.0">
 <link rel="stylesheet" href="worksheet-focus.css?v=1.200.0">
 <!-- 🎓 v1.201.0: a student's level and subject follow polymathlc.com.sg/student
      (pure rules, no dependencies — loaded early so the sign-in can use it) -->
-<script src="level-sync.js?v=1.201.0"></script>
+<script src="level-sync.js?v=1.202.0"></script>
 </head>
 <body>
 
@@ -6039,7 +6039,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.202.0';
+var APP_VERSION = 'v1.204.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -34500,7 +34500,7 @@ function csumFingerprint(anns, day) {
   return P.fingerprint(bits);
 }
 
-/* ---- one summary at a time, and never stuck (v1.202.0) ----
+/* ---- one summary at a time, and never stuck (v1.204.0) ----
    A run is a JOB (csumJob). It keeps a heartbeat: every step it takes has a
    time budget (ClassSummary.pure.STEP_MS), the job promises progress by
    `until`, and a step that overruns its budget throws, so the job always
@@ -38191,7 +38191,12 @@ $('lessonPreloadAlways').addEventListener('change', function () {
      week's sheet to check something is not the class going back),
    · every worksheet up to n + ONLINE_RELEASE_AHEAD is released to the
      class's students, in the portal AND in this app's own worksheet list —
-     on worksheet 3, worksheets up to 8 are out. Released stays released.
+     on worksheet 3, worksheets up to 6 are out. Released stays released.
+     v1.202.0 (Zhi Kai, 15 Nov 2026): the class is ALWAYS 3 ahead — the
+     Next worksheet and the two after it — worked out from where the class
+     is every time (`onlineReleasedThrough`), so a worksheet added to the
+     list later is out at once instead of waiting locked for the class to
+     move. Polymath Online (cer online/portal-core.js) has the same rule.
    · the next two worksheets (n+1, n+2) are fetched and kept on this device,
      and the "Up next" card shows them to the teacher with Open, Download
      and Print, so the next lesson is ready before it starts.
@@ -38211,7 +38216,7 @@ $('lessonPreloadAlways').addEventListener('change', function () {
      print-worksheet  print the blank worksheet
    Anything else, or nothing, just opens it. */
 var ONLINE_COURSES = 'onlineCourses';
-var ONLINE_RELEASE_AHEAD = 5;          // on worksheet n, release up to n + 5 (3 → 8)
+var ONLINE_RELEASE_AHEAD = 3;          // on worksheet n, release up to n + 3 (3 → 6): the next one and the two after it
 var ONLINE_PRELOAD_AHEAD = 2;          // and keep the next two on this device
 var ONLINE_PDF_CACHE = 'polymath-online-worksheets-v1';
 var WS_OPEN_ID = new URLSearchParams(location.search).get('ws') || '';
@@ -38301,13 +38306,24 @@ function onlineCoursesReady(timeoutMs) {
 auth.onAuthStateChanged(function (user) { onlineCoursesWatch(user && !user.isAnonymous ? user : null); });
 
 /* ---- Is this class worksheet out yet? ---- */
+// How far a class is released: never less than ONLINE_RELEASE_AHEAD past the
+// worksheet it is on (once started), plus anything released further by hand.
+function onlineReleasedThrough(course) {
+  if (!course) return -1;
+  var rel = typeof course.releasedThrough === 'number' && isFinite(course.releasedThrough) ? Math.floor(course.releasedThrough) : -1;
+  var cur = typeof course.currentIndex === 'number' && isFinite(course.currentIndex) ? Math.floor(course.currentIndex) : -1;
+  if (cur >= 0) rel = Math.max(rel, cur + ONLINE_RELEASE_AHEAD);
+  var n = Array.isArray(course.worksheetIds) ? course.worksheetIds.length : 0;
+  return Math.min(rel, n - 1);
+}
 function onlineReleased(d) {
   if (!d || !d.onlineCourseId) return true;
   var course = onlineCourses[d.onlineCourseId];
   if (!course) return false;
   var seq = typeof d.onlineSeq === 'number' ? d.onlineSeq : -1;
-  var rel = typeof course.releasedThrough === 'number' ? course.releasedThrough : -1;
-  return seq >= 0 && seq <= rel;
+  // The worksheet's place in the list as it is now, where the list has it.
+  if (Array.isArray(course.worksheetIds) && d.id && course.worksheetIds.indexOf(d.id) >= 0) seq = course.worksheetIds.indexOf(d.id);
+  return seq >= 0 && seq <= onlineReleasedThrough(course);
 }
 
 /* ---- The teacher opened a worksheet: move the class along ---- */
@@ -39083,7 +39099,7 @@ function onlineNextFor(docId, data) {
   // The teacher plans from the sheet in front of them; a student follows the class.
   var teacher = onlineTeacherHere();
   var from = teacher ? seq : (typeof course.currentIndex === 'number' && course.currentIndex >= 0 ? course.currentIndex : seq);
-  var rel = typeof course.releasedThrough === 'number' ? course.releasedThrough : -1;
+  var rel = onlineReleasedThrough(course);
   var next = [];
   // 📌 From the class's current worksheet, the first one up is the Next
   // worksheet — the one set by hand when there is one.
@@ -43940,7 +43956,7 @@ loadAiNotePrefs();
 <script src="living-apps.js"></script>
 <script src="video-playlist.js?v=1.196.0"></script>
 <script src="answer-key-online.js?v=1.197.0"></script>
-<script src="class-summary.js?v=1.202.0"></script>
+<script src="class-summary.js?v=1.204.0"></script>
 <script src="file-actions.js?v=1.199.0"></script>
 <script src="worksheet-focus.js?v=1.200.0"></script>
 <script>wsFocusInit();</script>

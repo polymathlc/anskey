@@ -1,4 +1,4 @@
-// 🧾 Class summaries never get stuck (v1.202.0): one run at a time, but a run
+// 🧾 Class summaries never get stuck (v1.204.0): one run at a time, but a run
 // that hangs gives way. The pure rules, then the REAL glue cut out of
 // index.html and run in a vm with the real aiWithDeadline and stubs for the
 // worksheet, Firestore, Storage and the AI.
