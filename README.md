@@ -5,6 +5,15 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 📤 v1.202.0 — A class is always 3 worksheets ahead
+
+On worksheet n, students have every worksheet up to n + 3: the Next worksheet
+and the two after it (`ONLINE_RELEASE_AHEAD = 3`, was 5). `onlineReleasedThrough`
+works this out from the class position every time, so a worksheet added to a
+class list after the class last moved is out at once instead of showing "not
+released to your class yet". Whatever was released before stays released.
+Polymath Online (cer `online/portal-core.js`, portal v1.12.0) has the same rule.
+
 ## 🎓 v1.201.0 — A student's level and subject come from polymathlc.com.sg/student
 
 - **The /student dashboard is now the one place a student's level is set.** When an account is approved there, the Ans Key app uses that child's level and subject (for example P6 · Science) instead of the level the student picked on the welcome chips months ago. The header, the worksheet list, the questions drawer and the "not released to your class yet" check all follow it.

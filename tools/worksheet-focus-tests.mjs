@@ -200,7 +200,7 @@ test('Make current writes what Polymath Online reads, may go back, never un-rele
     { currentIndex: 1, currentDocId: 'w2', releasedThrough: 6, lastManualIndex: 1, lastManualFrom: 4 }, 'back, release kept');
   assert.equal(c.onlineSetCurrentUpdate(course, 'w5'), null, 'already there');
   assert.equal(c.onlineSetCurrentUpdate(course, 'nope'), null);
-  assert.equal(c.onlineSetCurrentUpdate({ worksheetIds: tenSheets(), currentIndex: -1, releasedThrough: -1 }, 'w1').releasedThrough, 5,
+  assert.equal(c.onlineSetCurrentUpdate({ worksheetIds: tenSheets(), currentIndex: -1, releasedThrough: -1 }, 'w1').releasedThrough, 3,
     'starting a class on worksheet 1 by hand releases as opening it would');
 });
 
