@@ -54,6 +54,7 @@ jobs:
           CQ_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/class-queue
           FA_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/file-actions
           LV_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/level-sync
+          CSUM_SHOT: ${{ runner.temp }}/battle-screenshots/class-summary/follow-phone.png
         run: |
           node tools/wheel-check.mjs
           node tools/account-email-check.mjs
@@ -93,6 +94,7 @@ jobs:
           node tools/worksheet-focus-check.mjs
           node tools/command-search-check.mjs
           node tools/record-nudge-check.mjs
+          node tools/class-summary-check.mjs
           node tools/screen-record-check.mjs
           node tools/caption-check.mjs
           node tools/lesson-upload-check.mjs

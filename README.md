@@ -5,6 +5,16 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🧾 v1.204.0 — The class summary never gets stuck on "already being written"
+
+- **What went wrong.** Opening a worksheet (or finishing a lesson) starts a summary by itself in the background. If that run hung — a lesson download, a caption request or an AI call that never answered — it held the one "busy" flag for the rest of the visit, so every press of ✨ Write the summary said *"A summary is already being written. Try again in a moment."* and no summary ever came.
+- **Every step now has a time limit** (captions 20 min, the AI writing 11 min, a page 1½ min, saving 1½ min…), and the whole run 40 min. A step that runs over ends the run, which always lets go.
+- **A press never meets that message again.** If the same class is being written, the window shows its progress and then the summary. If another class is being written, it waits for it, then writes this one. If the run has stopped making progress, it is replaced on the spot.
+- **Closing and reopening the window mid-run** no longer leaves a dead Write button: the window picks the run up again. A summary finished in the background appears in an open window straight away.
+- **A run that stopped by itself says why** in the window ("The automatic summary after class stopped: …"), until the next try.
+- Captions that hang are cancelled and the summary carries on from the writing on the page. Changing worksheet or account drops a run at once. Nothing is ever emailed by any of this.
+- Tests: `tools/class-summary-lock-tests.mjs` (the rules, and the real glue run in a vm: a hung background run, a stuck run taken over, a step past its limit, two presses for one class, another class waiting, captions hanging) and `tools/class-summary-check.mjs` (the window in Chromium; in CI).
+
 ## 🗄 v1.203.0 — Worksheets archived in Polymath Online stay hidden here
 
 An admin can archive a class worksheet for students in Polymath Online

@@ -31,7 +31,9 @@ const approved = (children) => ({ status: 'approved', children });
 test('the version matches the app', () => {
   const m = /var APP_VERSION = 'v([\d.]+)'/.exec(html);
   assert.ok(m, 'APP_VERSION not found');
-  assert.equal(LS.VERSION, m[1]);
+  // The module's version is the release that last changed it: never newer than the app.
+  const num = (v) => v.split('.').map(Number).reduce((a, n) => a * 1000 + n, 0);
+  assert.ok(num(LS.VERSION) <= num(m[1]), 'level-sync.js ' + LS.VERSION + ' is not newer than the app ' + m[1]);
   assert.ok(html.includes('level-sync.js?v=' + LS.VERSION), 'index.html must load level-sync.js at this version');
 });
 
