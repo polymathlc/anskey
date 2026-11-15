@@ -88,6 +88,7 @@ jobs:
           node tools/day-slots-check.mjs
           node tools/class-queue-check.mjs
           node tools/file-actions-check.mjs
+          node tools/worksheet-focus-check.mjs
           node tools/command-search-check.mjs
           node tools/record-nudge-check.mjs
           node tools/screen-record-check.mjs

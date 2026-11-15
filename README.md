@@ -5,6 +5,15 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 📌 v1.200.0 — The current worksheet in a thick border, the next one in a clear one, and you can set them
+
+- **The current worksheet wears a thick green border** in the worksheet list, with a solid green **▶ Current worksheet** tag. **The next worksheet wears a clear blue border**, lighter but unmistakable, with **⏭ Next worksheet**. A folded lesson time says **▶ Current** / **⏭ Next** on its row, so you can see where every class is without opening anything.
+- **The open page is framed too**: a thick green frame round the worksheet when it is the current one, a blue one when it is the next, with the words at the top. The sidebar says it as well. The frame never takes a tap (you write through it), never prints, and is never in a recording of the worksheet window. Switch it off in the 📌 menu.
+- **📌 on every card (teacher only) sets it by hand:**
+  - **▶ Make this the current worksheet** puts the class on it in its Polymath Online class list, which is exactly what the online LMS reads, so the two stay in step. It can move the class back; nothing already released to students is taken away.
+  - **⏭ Make this the next worksheet** picks the next one yourself (even one taught before). ✓ Finished, Up next and the fetch-ahead all follow it. **↺ Next follows on again** puts it back.
+  - **A trial lesson, or any worksheet in no class list**, can be marked current or next for its lesson time (one of each per lesson time). That mark lives in Ans Key.
+
 ## 🖱 v1.199.0 — Right-click a worksheet: upload, match, delete
 
 - **Right-click any worksheet** in the worksheet list or in ☁ My PDFs (on the iPad: **press and hold** it) for a menu of actions. Teacher only.
