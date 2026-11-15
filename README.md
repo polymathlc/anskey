@@ -5,6 +5,16 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🗄 v1.203.0 — Worksheets archived in Polymath Online stay hidden here
+
+An admin can archive a class worksheet for students in Polymath Online
+(polymathlc.com.sg/online, cer portal v1.13.0), which adds its id to
+`onlineCourses/{id}.archivedWorksheets`. `onlineReleased(d, id)` now treats
+it as not released, so it reaches no student list, chip or `?ws=` link here
+either. Nothing is deleted, the class position and release are unchanged, and
+the teacher sees it as before. Restoring it in Polymath Online brings it back.
+`canSeeDoc(d, id)` takes the document id, since `data()` carries none.
+
 ## 📤 v1.202.0 — A class is always 3 worksheets ahead
 
 On worksheet n, students have every worksheet up to n + 3: the Next worksheet
