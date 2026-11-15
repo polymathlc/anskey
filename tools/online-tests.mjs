@@ -79,7 +79,20 @@ test('a class worksheet is released only up to releasedThrough, and unknown clas
   assert.equal(c.onlineReleased({ onlineCourseId: 'k1' }), false, 'no place in the list = not released');
 });
 
-test('on worksheet 3 the teacher releases up to 8, and progress never goes backwards', async () => {
+test('always 3 ahead: on worksheet 2 the next one and the two after it are out, whatever was stored', () => {
+  const c = makeContext();
+  // The screenshot case: the class is on worksheet 2 and only 1-2 were ever
+  // stored as released, because 3 and 4 were added to the list afterwards.
+  c.onlineCourses = { k1: { id: 'k1', worksheetIds: ['a', 'b', 'c', 'd', 'e', 'f'], currentIndex: 1, releasedThrough: 1 } };
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map((i) => c.onlineReleased({ onlineCourseId: 'k1', onlineSeq: i })), [true, true, true, true, true, false]);
+  assert.equal(c.onlineReleasedThrough(c.onlineCourses.k1), 4);
+  // Released further by hand stays released; a class not started waits for its release.
+  assert.equal(c.onlineReleasedThrough({ worksheetIds: ['a', 'b', 'c', 'd', 'e', 'f'], currentIndex: 0, releasedThrough: 5 }), 5);
+  assert.equal(c.onlineReleasedThrough({ worksheetIds: ['a', 'b'], currentIndex: -1, releasedThrough: -1 }), -1);
+  assert.equal(c.onlineReleasedThrough({ worksheetIds: ['a', 'b'], currentIndex: 1, releasedThrough: 0 }), 1, 'never past the end');
+});
+
+test('on worksheet 3 the teacher releases up to 6 (3 ahead), and progress never goes backwards', async () => {
   let written = null;
   const course = { worksheetIds: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10'], currentIndex: -1, releasedThrough: -1, title: 'P5 Maths · Monday' };
   const c = makeContext({
@@ -92,8 +105,8 @@ test('on worksheet 3 the teacher releases up to 8, and progress never goes backw
   c.currentDocId = 'w3';
   await c.onlineWorksheetOpened('w3', { onlineCourseId: 'k1' });
   assert.equal(written.currentIndex, 2);
-  assert.equal(written.releasedThrough, 7, 'index 7 is worksheet 8');
-  assert.match(c.toasts.at(-1), /Worksheet 3 of 10.*up to worksheet 8/);
+  assert.equal(written.releasedThrough, 5, 'index 5 is worksheet 6');
+  assert.match(c.toasts.at(-1), /Worksheet 3 of 10.*up to worksheet 6/);
   written = null;
   await c.onlineWorksheetOpened('w1', { onlineCourseId: 'k1' });
   assert.equal(written.currentIndex, undefined, 'reopening an old sheet does not move the class back');
@@ -111,15 +124,22 @@ test('a student never sees the progress move', async () => {
 
 test('the next two: from the open sheet for the teacher, from the class for a student, released only', () => {
   const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
-  c.onlineCourses = { k1: { id: 'k1', worksheetIds: ['w1', 'w2', 'w3', 'w4', 'w5'], currentIndex: 1, releasedThrough: 2 } };
+  c.onlineCourses = { k1: { id: 'k1', worksheetIds: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'], currentIndex: 0, releasedThrough: 2 } };
   let info = c.onlineNextFor('w1', { onlineCourseId: 'k1' });
   assert.deepEqual(plain(info.next.map((n) => n.id)), ['w2', 'w3']);
-  info = c.onlineNextFor('w4', { onlineCourseId: 'k1' });
-  assert.deepEqual(plain(info.next.map((n) => n.id)), ['w5'], 'the end of the list');
+  info = c.onlineNextFor('w5', { onlineCourseId: 'k1' });
+  assert.deepEqual(plain(info.next.map((n) => n.id)), ['w6'], 'the end of the list');
   c.currentUser = { email: 'kid@example.test' };
   info = c.onlineNextFor('w1', { onlineCourseId: 'k1' });
-  assert.equal(info.from, 1, 'a student follows the class');
-  assert.deepEqual(plain(info.next.map((n) => n.id)), ['w3'], 'w4 is not released yet');
+  assert.equal(info.from, 0, 'a student follows the class');
+  assert.deepEqual(plain(info.next.map((n) => n.id)), ['w2', 'w3'], 'the next two after where the class is');
+  // On worksheet 1 the class is 3 ahead: up to w4 is out, w5 is not.
+  c.onlineCourses.k1.worksheetIds = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'];
+  c.onlineCourses.k1.releasedThrough = -1;
+  assert.equal(c.onlineReleasedThrough(c.onlineCourses.k1), 3);
+  c.onlineCourses.k1.currentIndex = 3;
+  info = c.onlineNextFor('w1', { onlineCourseId: 'k1' });
+  assert.deepEqual(plain(info.next.map((n) => n.id)), ['w5', 'w6'], 'always 3 ahead, even when the stored release lags behind');
   assert.equal(c.onlineNextFor('w1', { name: 'loose' }), null);
 });
 
@@ -291,13 +311,13 @@ test('Finished moves the class to the next worksheet, and only from the current 
   const c = makeContext();
   const course = { worksheetIds: tenSheets(), currentIndex: 2, releasedThrough: 7 };
   assert.deepEqual(plain(c.onlineFinishUpdate(course, 'w3')),
-    { currentIndex: 3, currentDocId: 'w4', releasedThrough: 8, lastFinishedIndex: 2, lastFinishedDocId: 'w3' });
+    { currentIndex: 3, currentDocId: 'w4', releasedThrough: 7, lastFinishedIndex: 2, lastFinishedDocId: 'w3' });
   assert.equal(c.onlineFinishUpdate(course, 'w2'), null, 'an old worksheet is already finished');
   assert.equal(c.onlineFinishUpdate(course, 'w5'), null, 'a later one is not the one being taught');
   assert.equal(c.onlineFinishUpdate(course, 'nope'), null);
   const fresh = { worksheetIds: tenSheets(), currentIndex: -1, releasedThrough: -1 };
   assert.deepEqual(plain(c.onlineFinishUpdate(fresh, 'w1')),
-    { currentIndex: 1, currentDocId: 'w2', releasedThrough: 6, lastFinishedIndex: 0, lastFinishedDocId: 'w1' },
+    { currentIndex: 1, currentDocId: 'w2', releasedThrough: 4, lastFinishedIndex: 0, lastFinishedDocId: 'w1' },
     'finishing worksheet 1 before the class ever opened it still releases as opening worksheet 2 would');
   assert.equal(c.onlineFinishUpdate({ worksheetIds: ['a', 'b'], currentIndex: 1 }, 'b'), null, 'nothing after the last one');
   const capped = { worksheetIds: tenSheets(), currentIndex: 7, releasedThrough: 9 };
