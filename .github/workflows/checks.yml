@@ -53,6 +53,7 @@ jobs:
           RN_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/record-nudge
           CQ_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/class-queue
           FA_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/file-actions
+          LV_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/level-sync
         run: |
           node tools/wheel-check.mjs
           node tools/account-email-check.mjs
@@ -88,6 +89,7 @@ jobs:
           node tools/day-slots-check.mjs
           node tools/class-queue-check.mjs
           node tools/file-actions-check.mjs
+          node tools/level-sync-check.mjs
           node tools/worksheet-focus-check.mjs
           node tools/command-search-check.mjs
           node tools/record-nudge-check.mjs

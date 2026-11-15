@@ -5,6 +5,14 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🎓 v1.201.0 — A student's level and subject come from polymathlc.com.sg/student
+
+- **The /student dashboard is now the one place a student's level is set.** When an account is approved there, the Ans Key app uses that child's level and subject (for example P6 · Science) instead of the level the student picked on the welcome chips months ago. The header, the worksheet list, the questions drawer and the "not released to your class yet" check all follow it.
+- **Live:** an admin's Edit on polymathlc.com.sg/student/#admin reaches a student who has the app open right now, with a short note ("Your class is now P6 Science (updated by Polymath)"). The level is also written back to the shared student roster (`studentProfiles/{uid}`, used by the Study Buddy and the Scan app), touching only the level and subject.
+- **The profile window** shows the enrolment's level and subject, locked, with "Ask Mr Chung if they need changing". Siblings sharing one account can switch between the family's levels only, and that is not counted as their one change.
+- Nothing changes for an account that is waiting or paused, for a child at a level with no Ans Key worksheets (P1, P2, Secondary 2 and up), or for the teacher and staff.
+- Rules: `level-sync.js` (tests `tools/level-sync-tests.mjs`, browser check `tools/level-sync-check.mjs`). The /student admin page writes the same roster row from its side, so students who have not opened the app are fixed too.
+
 ## 📌 v1.200.0 — The current worksheet in a thick border, the next one in a clear one, and you can set them
 
 - **The current worksheet wears a thick green border** in the worksheet list, with a solid green **▶ Current worksheet** tag. **The next worksheet wears a clear blue border**, lighter but unmistakable, with **⏭ Next worksheet**. A folded lesson time says **▶ Current** / **⏭ Next** on its row, so you can see where every class is without opening anything.
