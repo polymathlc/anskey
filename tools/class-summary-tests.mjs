@@ -298,8 +298,8 @@ test('the glue: hooked after each lesson, teacher only, never sends on its own',
   assert.match(html, /akoForget\(\);[^\n]*\n\s*if \(typeof csumForget === 'function'\) csumForget\(\);/);
   assert.match(html, /csumRoleChanged\(\);/);
   assert.match(html, /'akoPublishBtn', 'classSummaryBtn'/, 'the button is in TEACHER_TOOLBAR_IDS');
-  assert.match(html, /<script src="class-summary\.js\?v=1\.198\.0"><\/script>/);
-  assert.match(html, /<link rel="stylesheet" href="class-summary\.css\?v=1\.198\.0">/);
+  assert.match(html, /<script src="class-summary\.js\?v=1\.202\.0"><\/script>/);
+  assert.match(html, /<link rel="stylesheet" href="class-summary\.css\?v=1\.202\.0">/);
   { const m = html.match(/var APP_VERSION = 'v1\.(\d+)\.\d+'/); assert.ok(m && +m[1] >= 198, 'APP_VERSION is v1.198.0 or later'); }
   // Sending is reached only from the window's env (a tap), never from a timer or a run.
   const run = g.slice(g.indexOf('async function csumRun('), g.indexOf('async function csumSave('));

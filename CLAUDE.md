@@ -37,6 +37,15 @@ Guidance for Claude when working in this repo.
 - Everything in the window is written with textContent; the email preview is a sandboxed `srcdoc` frame; `emailHtml` escapes every field. Keys stop at `.csBack`; a document-capture Escape closes it after a redraw drops focus.
 - Run `node --test tools/class-summary-tests.mjs`.
 
+### 🧾 A summary run can never hold the lock for ever (v1.202.0)
+
+- **`csumJob`, never a boolean.** The old `csumRunning` flag was held by any run that hung (a lesson download, a caption request, an AI call) and every press then said "A summary is already being written" for the rest of the visit. A run is now a job with a heartbeat: `csumStep(job, name, work)` bounds EVERY wait by `ClassSummary.pure.STEP_MS[name]` (through `aiWithDeadline`, stopped with the job's own AbortController) and sets `job.until`; `JOB_MAX_MS` (40 min) caps the run. Add a wait to `csumWork` without `csumStep` and the lock can stick again (the test lists the steps).
+- **`pure.arrival(job, ask, now)` is the one decision**: `start`, `takeover` (stale: `jobStale` says `quiet` / `long`; `csumAbandon` aborts it and its own caption run via `job.captionCtl`), `join` (a press for the class being written follows it through `csumJoin`), `wait` (a press for another class waits, then runs), `queue` (automatic: `csumAgain`). A press never throws "already being written".
+- **Only a job's own lock is let go** (`if (csumJob === job) csumJob = null` in its finally): a job that was taken over must never clear the one that replaced it. `csumForget` (another worksheet) and `csumRoleChanged` (not the teacher) abandon the job.
+- **Failures are remembered** (`csumFails['doc|day']`, `pure.failureFor`) and shown by the window (`env.failure`); a replaced job is not a failure. A background summary refreshes an open window (`csumWindowRefresh`).
+- **The window**: progress lives on `state.status` (painted back after any redraw), `track()` is the one door for `env.generate` and `env.follow`, `followIfRunning()` (end of `renderEmpty`) follows a run in progress, `open()` / `close()` reset `busy` (a closed window's handlers answer an old `seq` and could never clear it), and sending uses its own `state.sending`, which outlives a close, so an email is never sent twice.
+- Run `node --test tools/class-summary-lock-tests.mjs tools/class-summary-tests.mjs` and `node tools/class-summary-check.mjs` (in CI).
+
 ## 📄 The answer key on Polymath Online, filed by class day (v1.197.0)
 
 - `answer-key-online.js` (`window.AnswerKeyOnline.pure`) holds the rules; index.html holds only the glue between `📄 Answer keys on Polymath Online — glue` and `End answer keys on Polymath Online glue` (`akoReadDoc`, `akoForget`, `akoShareQr`, `akoPublish`, `akoAfterLesson`, `akoAfterSave`, `akoPublishNow`), `#akoPublishBtn` (Print & PDF menu, in `TEACHER_TOOLBAR_IDS`), `akoReadDoc` beside both `vplReadDoc` calls, `akoForget` in the new-worksheet reset and `akoAfterSave` after both saves.

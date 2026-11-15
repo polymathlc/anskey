@@ -4071,7 +4071,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="compact-wheel.css?v=1.190.0">
 <link rel="stylesheet" href="quest-stage.css?v=1.193.0">
 <link rel="stylesheet" href="account-email.css?v=1.194.0">
-<link rel="stylesheet" href="class-summary.css?v=1.198.0">
+<link rel="stylesheet" href="class-summary.css?v=1.202.0">
 <link rel="stylesheet" href="file-actions.css?v=1.199.0">
 <link rel="stylesheet" href="worksheet-focus.css?v=1.200.0">
 <!-- 🎓 v1.201.0: a student's level and subject follow polymathlc.com.sg/student
@@ -6039,7 +6039,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.201.0';
+var APP_VERSION = 'v1.202.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -34302,8 +34302,10 @@ async function faDeleteWorksheet(item, say) {
    mid-run, and nothing here can make a lesson save fail. */
 var csumSummaries = {};        // day → summary, for the open worksheet
 var csum = null;               // the window
-var csumRunning = false;       // one summary at a time
-var csumAgain = '';            // a trigger that arrived mid-run
+var csumJob = null;            // the summary being written now (one at a time; see csumRun)
+var csumJobSeq = 0;
+var csumAgain = '';            // an automatic trigger that arrived mid-run
+var csumFails = {};            // 'docId|day' → {message, at, trigger}: why a try stopped, for the window
 var csumLessonTimer = null;    // the pause after the last recording of a class
 var csumOpenTimer = null;      // the short wait before catching up a recent class
 var csumStudentsCache = null;  // the roster, read once per opening of the window
@@ -34408,7 +34410,7 @@ async function askClaude(o) {
 /* The one AI call: Claude first, Chung GPT behind it. Grounded in the
    teaching notes like every AI feature here ('teach': the key facts and the
    exemplars, so the points read in the teacher's own words). */
-async function csumAsk(prompt, images, say) {
+async function csumAsk(prompt, images, say, signal) {
   var grounding = typeof aiGrounding === 'function' ? aiGrounding('teach') : '';
   var system = prompt.system + (grounding ? '\n\n' + grounding : '');
   var prefs = csumPrefs();
@@ -34419,14 +34421,16 @@ async function csumAsk(prompt, images, say) {
       say(P.modelLabel(prefs.model) + ' is writing the summary…');
       var text = await aiWithDeadline(function (signal) {
         return askClaude({ model: prefs.model, system: system, user: prompt.user, images: images, maxTokens: 16000, effort: 'medium', signal: signal });
-      }, 300000);
+      }, 300000, signal, 'Claude took longer than 5 minutes to answer.');
       return { text: text, model: prefs.model, engine: 'Claude' };
     } catch (e) {
+      if (signal && signal.aborted) throw signal.reason || e;   // the run was stopped: no second engine
       console.warn('Claude could not write the class summary', e);
       say('Claude could not write it (' + String((e && e.message) || e).slice(0, 140) + ') — Chung GPT is writing it instead…');
     }
   } else say('Chung GPT is writing the summary…');
-  var out = await window.askGemini(prompt.user, { system: system, images: images, json: true, maxOutputTokens: 12000, timeoutMs: 300000 });
+  var out = await window.askGemini(prompt.user, { system: system, images: images, json: true, maxOutputTokens: 12000, timeoutMs: 300000, routeTimeoutMs: 180000, signal: signal });
+  if (!out || !String(out).trim()) throw new Error('Chung GPT sent back an empty answer.');
   var engine = window.aiLastCall && window.aiLastCall.engine;
   return { text: out, model: '', engine: engine === 'openai' ? 'ChatGPT' : engine === 'kimi' ? 'Kimi' : engine === 'gemini' ? 'Gemini' : 'Chung GPT' };
 }
@@ -34496,16 +34500,136 @@ function csumFingerprint(anns, day) {
   return P.fingerprint(bits);
 }
 
-/* The whole run. Resolves to the saved summary, or null. */
+/* ---- one summary at a time, and never stuck (v1.202.0) ----
+   A run is a JOB (csumJob). It keeps a heartbeat: every step it takes has a
+   time budget (ClassSummary.pure.STEP_MS), the job promises progress by
+   `until`, and a step that overruns its budget throws, so the job always
+   ends and always lets go. Before this, ONE flag (csumRunning) was held by
+   any run that hung — a lesson download, a caption request, an AI call that
+   never answered — and from then on every press of ✨ Write the summary said
+   "A summary is already being written" for the rest of the visit, while no
+   summary ever arrived.
+
+   What a new request does (`pure.arrival`):
+     • nothing alive is running  → start;
+     • the job is STALE (missed its promise, or over JOB_MAX_MS) → take it
+       over: the old job is abandoned (its own checks throw, its caption run
+       is cancelled, its finally lets go of nothing that is not its own);
+     • the teacher asks for the very class being written → JOIN it: the
+       window shows its progress and its result, never an error;
+     • the teacher asks for another class → WAIT for this one, then start;
+     • an automatic request → run once this one has finished.
+   A try that stops is remembered (csumFails) so the window can say why, and a
+   summary written in the background is painted into an open window at once. */
+function csumJobView(job) {
+  return job ? { id: job.id, trigger: job.trigger, day: job.day, docId: job.docId, startedAt: job.startedAt,
+                 beat: job.beat, until: job.until, done: job.done, abandoned: job.abandoned, step: job.step } : null;
+}
+function csumNewJob(trigger, day, docId) {
+  var now = Date.now();
+  var job = {
+    id: ++csumJobSeq, trigger: trigger, day: day, docId: docId, startedAt: now, beat: now,
+    until: window.ClassSummary.pure.stepUntil('page', now), step: 'Starting…', stepName: 'start',
+    done: false, abandoned: false, controller: new AbortController(), listeners: [],
+    captioning: false, captionCtl: null, promise: null, error: null, result: null
+  };
+  // Progress in words: kept on the job so a window that opens later shows it.
+  job.say = function (m) {
+    if (!m || job.done || job.abandoned) return;
+    job.beat = Date.now();
+    job.step = String(m);
+    job.listeners.slice().forEach(function (fn) { try { fn(job.step); } catch (e) { /* a closed window */ } });
+  };
+  return job;
+}
+/* Is the job running now, alive, for this worksheet and day? */
+function csumRunningFor(day, docId) {
+  var job = csumJob;
+  if (!job || !csumReady()) return null;
+  if (window.ClassSummary.pure.jobStale(csumJobView(job), Date.now()).stale) return null;
+  if (job.docId !== (docId || currentDocId) || (day && job.day !== day)) return null;
+  return { day: job.day, step: job.step, startedAt: job.startedAt, trigger: job.trigger };
+}
+/* Drop a job that is stuck, or whose worksheet or teacher has gone. */
+function csumAbandon(job, why) {
+  if (!job || job.done || job.abandoned) return;
+  job.abandoned = true;
+  var err = new Error(why || 'The summary was stopped.');
+  err.name = 'AbortError';
+  try { job.controller.abort(err); } catch (e) { /* already stopped */ }
+  // Captions made for this summary are its own work: stop them too.
+  if (job.captioning && job.captionCtl) { try { job.captionCtl.abort(); } catch (e) {} }
+  if (csumJob === job) csumJob = null;
+  console.warn('Class summary: a run was stopped —', why);
+}
+/* One step of a run, bounded by its budget and stopped with the job. A step
+   that overruns throws, which ends the run and lets go of the lock. */
+function csumStep(job, name, work, message) {
+  var P = window.ClassSummary.pure;
+  var ms = P.STEP_MS[name] || P.STEP_MS.page;
+  job.stepName = name;
+  job.beat = Date.now();
+  job.until = P.stepUntil(name, job.beat);
+  if (job.abandoned || job.controller.signal.aborted) return Promise.reject(job.controller.signal.reason || new Error('The summary was stopped.'));
+  return aiWithDeadline(function (signal) { return work(signal); }, ms, job.controller.signal,
+    message || ('This step took longer than ' + Math.round(ms / 60000 * 10) / 10 + ' minutes.'));
+}
+/* Follow a job that is running: its progress through `say`, its summary at
+   the end. A job that stopped hands its reason on; one that decided there was
+   nothing to write resolves to null. */
+function csumJoin(job, say) {
+  if (say) { job.listeners.push(say); try { say(job.step); } catch (e) {} }
+  var off = function () { var i = job.listeners.indexOf(say); if (i >= 0) job.listeners.splice(i, 1); };
+  return job.promise.then(function (r) { off(); return r; }, function (e) { off(); throw e; });
+}
+function csumFailKey(docId, day) { return String(docId || '') + '|' + String(day || ''); }
+function csumRememberFail(job, e) {
+  if (!job || !job.docId || !job.day) return;
+  if (e && e.name === 'AbortError' && job.abandoned) return;   // replaced by a newer try: nothing to report
+  csumFails[csumFailKey(job.docId, job.day)] = { message: String((e && e.message) || e || 'Something went wrong.').slice(0, 300), at: Date.now(), trigger: job.trigger };
+}
+function csumFailureFor(day) {
+  if (!csumReady()) return null;
+  return window.ClassSummary.pure.failureFor(csumFails, currentDocId, day, csumSummaries[day], Date.now());
+}
+/* Finished in the background: an open window shows it (or why it stopped). */
+function csumWindowRefresh() { if (csum && csum.isOpen()) csum.refresh(); }
+
+/* The whole run. Resolves to the saved summary, or null. A press of the
+   window's button (trigger 'manual') never answers "already being written":
+   it follows the run for its class, waits for another class's run, or takes
+   over a run that has stopped making progress. */
 async function csumRun(trigger, dayAsked, say) {
   say = say || function () {};
   if (!csumReady()) throw new Error('The class summary is still loading. Try again in a moment.');
   var P = window.ClassSummary.pure;
-  if (csumRunning) {
-    if (trigger === 'manual') throw new Error('A summary is already being written. Try again in a moment.');
-    csumAgain = trigger;
-    return null;
+  for (var guard = 0; csumJob && guard < 4; guard++) {
+    var running = csumJob;
+    var act = P.arrival(csumJobView(running), { trigger: trigger, day: dayAsked, docId: currentDocId }, Date.now());
+    if (act === 'queue') { csumAgain = trigger; return null; }
+    if (act === 'start') { if (csumJob === running) csumJob = null; break; }
+    if (act === 'takeover') {
+      csumAbandon(running, P.jobStale(csumJobView(running), Date.now()).why === 'long'
+        ? 'The summary had been running too long, so it was started again.'
+        : 'The summary had stopped making progress, so it was started again.');
+      say('The last try had stopped — starting again…');
+      break;
+    }
+    if (act === 'join') {
+      var joined = null, joinErr = null;
+      try { joined = await csumJoin(running, say); } catch (e) { joinErr = e; }
+      if (joined) return joined;
+      // It was stopped by a newer try, or decided there was nothing to do: write it now.
+      if (joinErr && !(joinErr.name === 'AbortError' && running.abandoned)) throw joinErr;
+      continue;
+    }
+    // 'wait': another class is being written; this one follows it.
+    say('Finishing the summary of ' + P.dayLabel(running.day) + ' first…');
+    try { await csumJoin(running, null); } catch (e) { /* its own failure is its own */ }
   }
+  if (csumJob && trigger !== 'manual') { csumAgain = trigger; return null; }
+  if (csumJob) csumAbandon(csumJob, 'A newer summary was asked for.');
+
   var anns = annotations.slice();
   var byDay = {};
   P.lessonsOf(anns).forEach(function (l) { byDay[l.day] = (byDay[l.day] || 0) + 1; });
@@ -34517,61 +34641,122 @@ async function csumRun(trigger, dayAsked, say) {
     summaries: csumSummaries, fp: P.validDay(candidate) ? csumFingerprint(anns, candidate) : ''
   });
   if (!plan.day) {
-    if (trigger === 'manual') throw new Error(plan.why === 'practice' ? 'Finish practice mode first.' : plan.why === 'unsaved' ? 'Save the worksheet first — the summary is filed under it.' : 'Only the teacher can write a class summary.');
+    if (trigger === 'manual') throw new Error(plan.why === 'practice' ? 'Finish practice mode first.' : plan.why === 'unsaved' ? 'Save the worksheet first — the summary is filed under it.' : plan.why === 'no-day' ? 'Choose a class day first.' : 'Only the teacher can write a class summary.');
     return null;
   }
-  var day = plan.day;
-  csumRunning = true;
-  var docAtStart = currentDocId;
+  var job = csumNewJob(trigger, plan.day, currentDocId);
+  csumJob = job;
+  delete csumFails[csumFailKey(job.docId, job.day)];
+  job.listeners.push(say);
+  job.promise = csumWork(job, anns, prefs).then(function (summary) {
+    job.result = summary;
+    return summary;
+  }, function (e) {
+    job.error = e;
+    csumRememberFail(job, e);
+    throw e;
+  }).finally(function () {
+    job.done = true;
+    job.listeners.length = 0;
+    // Only this job's own lock is let go: a job that was taken over must not
+    // clear the lock of the job that replaced it.
+    if (csumJob === job) csumJob = null;
+    if (csumAgain && !csumJob) { var next = csumAgain; csumAgain = ''; setTimeout(function () { csumRun(next).catch(function () {}); }, 0); }
+  });
+  try {
+    return await job.promise;
+  } catch (e) {
+    if (trigger === 'manual') throw e;
+    console.warn('The class summary could not be written', e);
+    if (!job.abandoned) {
+      if (trigger === 'lesson') toast('The class summary could not be written yet — open 🧾 Class summary to try again.', 5200);
+      csumWindowRefresh();
+    }
+    return null;
+  }
+}
+
+/* The work of one job, step by step, each step bounded (csumStep) and
+   followed by stillHere(): the job must still be the live one, on the same
+   worksheet, for the teacher, outside practice. */
+async function csumWork(job, anns, prefs) {
+  var P = window.ClassSummary.pure;
+  var day = job.day, trigger = job.trigger, say = job.say;
+  var docAtStart = job.docId;
   var stillHere = function () {
+    if (job.abandoned || job.controller.signal.aborted) throw job.controller.signal.reason || Object.assign(new Error('The summary was stopped.'), { name: 'AbortError' });
     if (currentDocId !== docAtStart || !csumTeacher() || practiceMode) throw new Error('The worksheet or the account changed, so the summary was not saved.');
   };
-  try {
-    var lessons = P.lessonsOnDay(anns, day);
-    var live = lessons.map(function (l) { return annotations.filter(function (a) { return a.id === l.id; })[0]; }).filter(Boolean);
-    /* 1. What was said: the captions, made first where there are none. */
-    var cuesList = [];
-    for (var i = 0; i < live.length; i++) {
-      var a = live[i];
-      var label = live.length > 1 ? ' (' + (i + 1) + ' of ' + live.length + ')' : '';
-      if (prefs.captions && typeof lessonCaptionUsable === 'function' && !lessonCaptionUsable(a.lessonRecording) &&
-          typeof getOpenAiKey === 'function' && getOpenAiKey() && typeof lessonCaptionGenerate === 'function' && !lessonCaptionBusy) {
-        try { await lessonCaptionGenerate(a, function (m) { say('Captions' + label + ': ' + m); }); }
-        catch (e) { console.warn('Captions for the class summary', e); }
-        stillHere();
-      }
-      say('Reading what was said' + label + '…');
-      var cues = typeof lessonCaptionLoad === 'function' ? await lessonCaptionLoad(a).catch(function () { return null; }) : null;
-      cuesList.push(cues || []);
+  var lessons = P.lessonsOnDay(anns, day);
+  var live = lessons.map(function (l) { return annotations.filter(function (a) { return a.id === l.id; })[0]; }).filter(Boolean);
+  /* 1. What was said: the captions, made first where there are none. */
+  var cuesList = [];
+  for (var i = 0; i < live.length; i++) {
+    var a = live[i];
+    var label = live.length > 1 ? ' (' + (i + 1) + ' of ' + live.length + ')' : '';
+    if (prefs.captions && typeof lessonCaptionUsable === 'function' && !lessonCaptionUsable(a.lessonRecording) &&
+        typeof getOpenAiKey === 'function' && getOpenAiKey() && typeof lessonCaptionGenerate === 'function' && !lessonCaptionBusy) {
+      job.captioning = true;
+      try {
+        await csumStep(job, 'captions', function () {
+          var making = lessonCaptionGenerate(a, function (m) { job.until = P.stepUntil('captions', Date.now()); say('Captions' + label + ': ' + m); });
+          job.captionCtl = lessonCaptionBusy;   // set before its first wait: this run's own caption job
+          return making;
+        }, 'Making the captions took longer than 20 minutes, so the summary went on without them.');
+      } catch (e) {
+        console.warn('Captions for the class summary', e);
+        // A caption run left going after its step gave up is stopped: it is this summary's.
+        if (job.captionCtl) { try { job.captionCtl.abort(); } catch (x) {} }
+        if (job.abandoned) throw e;
+        say('The captions could not be made — going on with what was written…');
+      } finally { job.captioning = false; job.captionCtl = null; }
+      stillHere();
     }
+    say('Reading what was said' + label + '…');
+    var cues = typeof lessonCaptionLoad === 'function'
+      ? await csumStep(job, 'captionLoad', function (signal) { return lessonCaptionLoad(a, signal); }).catch(function () { return null; })
+      : null;
     stillHere();
-    var full = cuesList.map(function (c) { return P.transcriptOf(c, 1e7); });
-    var shares = P.transcriptShares(full.map(function (t) { return t.length; }));
-    var lessonInputs = lessons.map(function (l, k) {
-      return { title: l.title, duration: l.duration, page: l.page, transcript: full[k] ? P.transcriptOf(cuesList[k], Math.max(200, shares[k])) : '' };
-    });
-    /* 2. What was written: the teacher's words on the pages taught, and the links. */
-    var taught = [];
-    lessons.forEach(function (l) { if (taught.indexOf(l.page) < 0) taught.push(l.page); });
-    anns.forEach(function (x) { if (x && x.page && P.dayKey(x.ts) === day && taught.indexOf(x.page) < 0) taught.push(x.page); });
-    if (!taught.length) taught.push(typeof currentPageNum === 'function' ? currentPageNum() : 1);
-    taught = taught.filter(function (n) { return n >= 1 && n <= pages.length; }).sort(function (x, y) { return x - y; }).slice(0, 6);
-    var board = csumBoardText(anns, day, taught);
-    say('Gathering the links…');
-    var known = await csumKnownLinks(anns, day);
-    stillHere();
-    /* 3. The pages themselves, with the writing on them. */
-    var images = [], painted = {}, marks = {};
+    cuesList.push(cues || []);
+  }
+  stillHere();
+  var full = cuesList.map(function (c) { return P.transcriptOf(c, 1e7); });
+  var shares = P.transcriptShares(full.map(function (t) { return t.length; }));
+  var lessonInputs = lessons.map(function (l, k) {
+    return { title: l.title, duration: l.duration, page: l.page, transcript: full[k] ? P.transcriptOf(cuesList[k], Math.max(200, shares[k])) : '' };
+  });
+  /* 2. What was written: the teacher's words on the pages taught, and the links. */
+  var taught = [];
+  lessons.forEach(function (l) { if (taught.indexOf(l.page) < 0) taught.push(l.page); });
+  anns.forEach(function (x) { if (x && x.page && P.dayKey(x.ts) === day && taught.indexOf(x.page) < 0) taught.push(x.page); });
+  if (!taught.length) taught.push(typeof currentPageNum === 'function' ? currentPageNum() : 1);
+  taught = taught.filter(function (n) { return n >= 1 && n <= pages.length; }).sort(function (x, y) { return x - y; }).slice(0, 6);
+  var board = csumBoardText(anns, day, taught);
+  say('Gathering the links…');
+  var known = await csumStep(job, 'links', function () { return csumKnownLinks(anns, day); }).catch(function (e) {
+    if (job.abandoned) throw e;
+    console.warn('Class summary: the links could not be gathered', e);
+    return [];
+  });
+  stillHere();
+  /* 3. The pages themselves, with the writing on them. */
+  var images = [], painted = {}, marks = {};
+  try {
     for (var j = 0; j < taught.length; j++) {
       var rec = csumPageRecord(taught[j]);
       if (!rec) continue;
       say('Looking at page ' + taught[j] + '…');
       try {
-        var canvas = await aiViewPaintPage(rec, anns, null, 1600);
+        var canvas = await csumStep(job, 'page', function (signal) { return aiViewPaintPage(rec, anns, signal, 1600); });
         painted[taught[j]] = canvas;
         images.push({ mimeType: 'image/jpeg', data: canvas.toDataURL('image/jpeg', 0.85).split(',')[1] });
-      } catch (e) { console.warn('Class summary: page ' + taught[j] + ' could not be drawn', e); }
-      await csumPageMarks(taught[j], marks);
+      } catch (e) {
+        if (job.abandoned) throw e;
+        console.warn('Class summary: page ' + taught[j] + ' could not be drawn', e);
+      }
+      var pageNum = taught[j];
+      await csumStep(job, 'marks', function () { return csumPageMarks(pageNum, marks); }).catch(function () { marks[pageNum] = marks[pageNum] || []; });
+      stillHere();
     }
     stillHere();
     var refs = taught.map(function (n) { return { page: n, refs: (marks[n] || []).map(function (q) { return 'Q' + q.n; }) }; });
@@ -34580,7 +34765,8 @@ async function csumRun(trigger, dayAsked, say) {
       lessons: lessonInputs, board: board, links: known, questionRefs: refs
     });
     /* 4. The words. */
-    var reply = await csumAsk(prompt, images, say);
+    var reply = await csumStep(job, 'write', function (signal) { return csumAsk(prompt, images, say, signal); },
+      'The AI took longer than 11 minutes to write the summary. Try again in a moment.');
     stillHere();
     var parsed = P.parseReply(reply.text);
     var sourceText = board + '\n' + full.join('\n');
@@ -34596,37 +34782,42 @@ async function csumRun(trigger, dayAsked, say) {
       var q = summary.questions[k];
       if (!q.page || q.page > pages.length) continue;
       try {
-        var pm = await csumPageMarks(q.page, marks);
-        var record = csumPageRecord(q.page);
-        var band = record ? P.questionBand(pm, q.ref, record.baseW, record.baseH) : null;
-        if (!band) continue;
-        say('Cutting out ' + q.ref + '…');
-        var cv = painted[q.page] || (painted[q.page] = await aiViewPaintPage(record, anns, null, 1600));
-        var data = aiViewCrop(cv, record, band, 1100);
-        var path = P.imagePath(STORAGE_DIR, docAtStart, day, k + 1);
-        if (!path || !data) continue;
-        var ref = storage.ref(path);
-        await ref.putString(data, 'base64', { contentType: 'image/jpeg', cacheControl: 'public,max-age=31536000' });
-        var url = await ref.getDownloadURL();
-        if (P.validImageUrl(url)) { q.img = url; q.imgPath = path; }
-      } catch (e) { console.warn('Class summary: ' + q.ref + ' has no picture', e); }
+        await csumStep(job, 'picture', async function (signal) {
+          var pm = await csumPageMarks(q.page, marks);
+          var record = csumPageRecord(q.page);
+          var band = record ? P.questionBand(pm, q.ref, record.baseW, record.baseH) : null;
+          if (!band) return;
+          say('Cutting out ' + q.ref + '…');
+          var cv = painted[q.page] || (painted[q.page] = await aiViewPaintPage(record, anns, signal, 1600));
+          var data = aiViewCrop(cv, record, band, 1100);
+          var path = P.imagePath(STORAGE_DIR, docAtStart, day, k + 1);
+          if (!path || !data) return;
+          if (signal.aborted) return;
+          var ref = storage.ref(path);
+          await ref.putString(data, 'base64', { contentType: 'image/jpeg', cacheControl: 'public,max-age=31536000' });
+          var url = await ref.getDownloadURL();
+          if (!signal.aborted && P.validImageUrl(url)) { q.img = url; q.imgPath = path; }
+        });
+      } catch (e) {
+        if (job.abandoned) throw e;
+        console.warn('Class summary: ' + q.ref + ' has no picture', e);
+      }
+      stillHere();
     }
-    Object.keys(painted).forEach(function (n) { try { painted[n].width = painted[n].height = 0; } catch (e) {} });
-    stillHere();
-    /* 6. Filed on the worksheet under the class day. */
-    say('Saving…');
-    await csumSave(day, summary, docAtStart);
-    if (trigger !== 'manual') toast('🧾 The summary of ' + (day === P.dayKey(Date.now()) ? 'today’s' : P.dayLabel(day) + '’s') + ' class is ready. Open 🧾 Class summary to review it — nothing is emailed unless you send it.', 7000);
-    return csumSummaries[day];
-  } catch (e) {
-    if (trigger === 'manual') throw e;
-    console.warn('The class summary could not be written', e);
-    if (trigger === 'lesson') toast('The class summary could not be written yet — open 🧾 Class summary to try again.', 5200);
-    return null;
   } finally {
-    csumRunning = false;
-    if (csumAgain) { var next = csumAgain; csumAgain = ''; setTimeout(function () { csumRun(next).catch(function () {}); }, 0); }
+    Object.keys(painted).forEach(function (n) { try { painted[n].width = painted[n].height = 0; } catch (e) {} });
   }
+  stillHere();
+  /* 6. Filed on the worksheet under the class day. */
+  say('Saving…');
+  await csumStep(job, 'save', function () { return csumSave(day, summary, docAtStart); },
+    'Saving the summary took longer than a minute and a half — check the connection and try again.');
+  stillHere();
+  if (trigger !== 'manual') {
+    toast('🧾 The summary of ' + (day === P.dayKey(Date.now()) ? 'today’s' : P.dayLabel(day) + '’s') + ' class is ready. Open 🧾 Class summary to review it — nothing is emailed unless you send it.', 7000);
+    csumWindowRefresh();
+  }
+  return csumSummaries[day] || summary;
 }
 
 async function csumSave(day, summary, docId) {
@@ -34668,6 +34859,10 @@ function csumReadDoc(d) {
 }
 function csumForget() {
   csumSummaries = {};
+  // A new worksheet: a run for the old one can only be thrown away (its own
+  // checks would refuse to save it), so it lets go of the lock now.
+  if (csumJob && csumJob.docId !== currentDocId) csumAbandon(csumJob, 'The worksheet changed, so the summary was not saved.');
+  csumAgain = '';
   clearTimeout(csumOpenTimer);
   clearTimeout(csumLessonTimer);
   csumSyncBadge();
@@ -34832,6 +35027,13 @@ function csumInit() {
       return Object.keys(byDay).sort().reverse().map(function (d) { return { day: d, lessons: byDay[d], summary: csumSummaries[d] || null }; });
     },
     generate: function (day, say) { return csumRun('manual', day, say); },
+    running: function (day) { return csumRunningFor(day); },
+    follow: function (day, say) {
+      var job = csumJob;
+      if (!csumRunningFor(day)) return Promise.resolve(csumSummaries[day] || null);
+      return csumJoin(job, say);
+    },
+    failure: csumFailureFor,
     save: function (day, s) { return csumSave(day, s); },
     students: csumStudents,
     saveParents: csumSaveParents,
@@ -34860,6 +35062,8 @@ function csumRoleChanged() {
   if (!csumTeacher()) {
     clearTimeout(csumLessonTimer); clearTimeout(csumOpenTimer);
     csumMailer.token = ''; csumMailer.exp = 0; csumStudentsCache = null; csumKeyLoaded = false; csumKeyMemory = '';
+    if (csumJob) csumAbandon(csumJob, 'The account changed, so the summary was not saved.');
+    csumAgain = ''; csumFails = {};
   }
   if (csum) csum.roleChanged();
   csumSyncBadge();
@@ -43736,7 +43940,7 @@ loadAiNotePrefs();
 <script src="living-apps.js"></script>
 <script src="video-playlist.js?v=1.196.0"></script>
 <script src="answer-key-online.js?v=1.197.0"></script>
-<script src="class-summary.js?v=1.198.0"></script>
+<script src="class-summary.js?v=1.202.0"></script>
 <script src="file-actions.js?v=1.199.0"></script>
 <script src="worksheet-focus.js?v=1.200.0"></script>
 <script>wsFocusInit();</script>

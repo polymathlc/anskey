@@ -72,6 +72,74 @@
   var OPEN_WAIT_MS = 8 * 1000;           // an older class day with no summary is offered after opening
   var GMAIL_URL_MAX = 7600;
 
+  /* ---------------- one summary at a time, and never stuck (v1.202.0) ----------------
+     A run is a JOB: {id, trigger, day, docId, startedAt, beat, until, done,
+     abandoned}. Every step it takes has its own time budget (STEP_MS), and the
+     job promises to make progress by `until` (the step's budget plus a grace).
+     A job that has missed its promise, or has run longer than JOB_MAX_MS, is
+     STALE: whatever arrives next takes it over instead of being told to wait.
+     Before this, a run that hung (a lesson download, a caption request, an AI
+     call that never answered) held the one flag for the rest of the visit and
+     every press said "A summary is already being written". */
+  var STEP_MS = {
+    captions: 20 * 60 * 1000,     // ChatGPT captions a whole class (it reports every piece)
+    captionLoad: 60 * 1000,       // one captions file
+    links: 60 * 1000,             // the hosted video list
+    page: 90 * 1000,              // drawing one page with its writing
+    marks: 30 * 1000,             // reading one page's question numbers
+    write: 11 * 60 * 1000,        // Claude (5 min) then Chung GPT behind it (5 min)
+    picture: 90 * 1000,           // cutting out and uploading one question picture
+    save: 90 * 1000               // filing the summary on the worksheet
+  };
+  var STEP_GRACE_MS = 30 * 1000;
+  var JOB_MAX_MS = 40 * 60 * 1000;     // no summary is ever allowed to take longer than this
+  var FAIL_KEEP_MS = 24 * 3600 * 1000; // a failed automatic try is shown for a day
+
+  /* Is this job still alive? → {stale, why: 'none'|'done'|'abandoned'|'quiet'|'long'} */
+  function jobStale(job, now) {
+    if (!job) return { stale: true, why: 'none' };
+    if (job.done) return { stale: true, why: 'done' };
+    if (job.abandoned) return { stale: true, why: 'abandoned' };
+    now = Number(now) || 0;
+    var started = Number(job.startedAt) || 0;
+    if (!started || now - started > JOB_MAX_MS) return { stale: true, why: 'long' };
+    var until = Number(job.until) || (started + STEP_GRACE_MS);
+    if (now > until) return { stale: true, why: 'quiet' };
+    return { stale: false, why: '' };
+  }
+
+  /* What a new request does when a job may be running.
+     ask: {trigger, day, docId}. →
+       'start'    nothing (alive) is running: start
+       'takeover' a stuck job: drop it and start
+       'join'     the teacher asked for the very class being written: follow it
+       'wait'     the teacher asked for another class: let this one finish first
+       'queue'    an automatic request: run once the job has finished */
+  function arrival(job, ask, now) {
+    ask = ask || {};
+    var life = jobStale(job, now);
+    if (life.stale) return life.why === 'quiet' || life.why === 'long' ? 'takeover' : 'start';
+    if (ask.trigger !== 'manual') return 'queue';
+    if (job.docId === ask.docId && job.day === ask.day) return 'join';
+    return 'wait';
+  }
+
+  /* The budget a step promises to keep: its own time plus a grace. */
+  function stepUntil(step, now) {
+    var ms = STEP_MS[step] || STEP_MS.page;
+    return (Number(now) || 0) + ms + STEP_GRACE_MS;
+  }
+
+  /* A failed try, as the window shows it: only for this worksheet and day,
+     only recent, and never for a try that a newer summary has made moot. */
+  function failureFor(fails, docId, day, summary, now) {
+    var f = fails && fails[String(docId || '') + '|' + String(day || '')];
+    if (!f || !f.message) return null;
+    if ((Number(now) || 0) - (Number(f.at) || 0) > FAIL_KEEP_MS) return null;
+    if (summary && Number(summary.at) >= Number(f.at)) return null;
+    return { message: oneLine(f.message, 300), at: Number(f.at) || 0, trigger: f.trigger === 'manual' ? 'manual' : 'auto' };
+  }
+
   /* ---------------- little helpers ---------------- */
 
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
@@ -977,7 +1045,9 @@
     subjectOk: subjectOk, recipientsFor: recipientsFor, mergeRecipients: mergeRecipients,
     subjectLine: subjectLine, emailHtml: emailHtml, emailText: emailText,
     encodeHeader: encodeHeader, b64Utf8: b64Utf8, b64url: b64url, mimeMessage: mimeMessage, composePlan: composePlan,
-    claudeRequest: claudeRequest, claudeText: claudeText, modelLabel: modelLabel
+    claudeRequest: claudeRequest, claudeText: claudeText, modelLabel: modelLabel,
+    STEP_MS: STEP_MS, STEP_GRACE_MS: STEP_GRACE_MS, JOB_MAX_MS: JOB_MAX_MS, FAIL_KEEP_MS: FAIL_KEEP_MS,
+    jobStale: jobStale, arrival: arrival, stepUntil: stepUntil, failureFor: failureFor
   };
 
   /* =================================================================
@@ -1013,7 +1083,7 @@
   }
 
   function create(env) {
-    var state = { open: false, day: '', summary: null, dirty: false, busy: false, rows: [], ticked: {}, extra: '', showAll: false, seq: 0, tab: 'summary' };
+    var state = { open: false, day: '', summary: null, dirty: false, busy: false, sending: false, status: null, rows: [], ticked: {}, extra: '', showAll: false, seq: 0, tab: 'summary' };
     var back = null, card = null, body = null, head = null;
 
     function teacher() { return !!(env && env.teacher && env.teacher()); }
@@ -1059,6 +1129,8 @@
       state.open = false;
       state.dirty = false;
       state.seq++;
+      state.busy = false;
+      state.status = null;
     }
 
     function open(day) {
@@ -1066,6 +1138,10 @@
       build();
       state.open = true;
       state.seq++;
+      // A run the window was waiting on before it closed answers to an older
+      // seq and can no longer clear this; the window follows it afresh instead.
+      state.busy = false;
+      state.status = null;
       back.hidden = false;
       var days = env.days() || [];
       state.day = validDay(day) ? day : (days[0] && days[0].day) || dayKey(Date.now());
@@ -1168,33 +1244,88 @@
       else if (state.tab === 'preview') renderPreview();
       else if (state.tab === 'send') renderSend();
       else renderSummary();
+      if (state.summary || state.tab === 'settings') paintStatus();
     }
 
     function statusLine(text, cls) { var d = el('div', 'csStatus ' + (cls || ''), text); d.setAttribute('aria-live', 'polite'); return d; }
 
-    function generate() {
-      if (!teacher() || state.busy) return;
-      if (state.summary && (state.summary.edited || sentAt(state.summary)) &&
-          !window.confirm(sentAt(state.summary) ? 'This summary was already sent. Write a new one anyway? (Nothing is emailed.)' : 'Replace your edited summary with a fresh one?')) return;
+    /* The progress of a summary being written is kept on the state, not on a
+       node: a redraw (a tab, a day, the window closed and opened again) paints
+       it back, so the teacher never loses sight of a run that is going on. */
+    function paintStatus() {
+      if (!body) return;
+      var st = body.querySelector('[data-cs="status"]');
+      var s = state.status;
+      var show = !!(s && s.text && s.day === state.day && state.tab !== 'settings');
+      if (!show) { if (st && st.parentNode) st.parentNode.removeChild(st); return; }
+      if (!st) {
+        st = statusLine('');
+        st.setAttribute('data-cs', 'status');
+        body.insertBefore(st, body.firstChild);
+      }
+      st.className = 'csStatus' + (s.cls ? ' ' + s.cls : '');
+      st.textContent = s.text;
+    }
+    function setStatus(day, text, cls) {
+      state.status = text ? { day: day, text: String(text), cls: cls || '' } : null;
+      paintStatus();
+    }
+
+    /* One door for a run the window waits on: the teacher's own press
+       (`env.generate`) or a run already going on for this class (`env.follow`).
+       The answer is dropped if the window was reopened since (`seq`), and the
+       busy flag is only ever cleared by the run that set it. */
+    function track(day, work, first) {
+      var seq = state.seq;
       state.busy = true;
-      var seq = state.seq, day = state.day;
-      var st = body.querySelector('.csStatus') || body.insertBefore(statusLine(''), body.firstChild);
-      var say = function (m) { if (seq === state.seq) st.textContent = m; };
-      say('Starting…');
-      Promise.resolve(env.generate(day, say)).then(function (s) {
+      paintSaveState();
+      var say = function (m) { if (seq === state.seq && m) setStatus(day, m); };
+      say(first || 'Starting…');
+      var go = body && body.querySelector('[data-cs="write"]');
+      if (go) { go.disabled = true; go.textContent = '⏳ Writing the summary…'; }
+      var failed = body && body.querySelector('[data-cs="failure"]');
+      if (failed && failed.parentNode) failed.parentNode.removeChild(failed);
+      Promise.resolve().then(function () { return work(say); }).then(function (s) {
+        if (seq !== state.seq) return;
         state.busy = false;
-        if (seq !== state.seq || day !== state.day) return;
-        state.summary = s ? JSON.parse(JSON.stringify(s)) : null;
+        if (!s) {
+          setStatus(day, 'Nothing new to write for this class — press ✨ Write the summary to write it again.', '');
+          render();
+          return;
+        }
+        setStatus(day, '', '');
+        if (day !== state.day) { render(); toast('🧾 The summary of ' + dayLabel(day) + ' is ready.', 4200); return; }
+        state.summary = JSON.parse(JSON.stringify(s));
         state.dirty = false;
         state.tab = 'summary';
         render();
-        if (s) toast('🧾 The class summary is ready to review. Nothing has been emailed.', 5200);
+        toast('🧾 The class summary is ready to review. Nothing has been emailed.', 5200);
       }).catch(function (e) {
-        state.busy = false;
         if (seq !== state.seq) return;
-        st.className = 'csStatus csErr';
-        st.textContent = 'The summary could not be written: ' + ((e && e.message) || e);
+        state.busy = false;
+        setStatus(day, 'The summary could not be written: ' + ((e && e.message) || e), 'csErr');
+        render();
       });
+    }
+
+    function generate() {
+      if (!teacher() || state.busy || state.sending) return;
+      if (state.summary && (state.summary.edited || sentAt(state.summary)) &&
+          !window.confirm(sentAt(state.summary) ? 'This summary was already sent. Write a new one anyway? (Nothing is emailed.)' : 'Replace your edited summary with a fresh one?')) return;
+      var day = state.day;
+      track(day, function (say) { return env.generate(day, say); }, 'Starting…');
+    }
+
+    /* A summary of this class is already being written (after the lesson, or
+       when the worksheet was opened): show its progress and its result here,
+       rather than a button that says to wait. */
+    function followIfRunning() {
+      if (state.busy || !teacher() || !env.running || !env.follow) return false;
+      var day = state.day;
+      var live = env.running(day);
+      if (!live) return false;
+      track(day, function (say) { return env.follow(day, say); }, live.step || 'A summary of this class is being written now…');
+      return true;
     }
 
     function renderEmpty() {
@@ -1205,13 +1336,27 @@
         ? 'There ' + (entry.lessons === 1 ? 'is 1 recording' : 'are ' + entry.lessons + ' recordings') + ' from ' + dayLabel(state.day) +
           '. Write the summary: the key learning points, links, homework and the important questions.'
         : 'No lesson was recorded on ' + dayLabel(state.day) + '. A summary can still be written from the worksheet and your writing on it.'));
-      var go = btn('✨ Write the summary', 'btnPrimary');
+      var go = btn(state.busy ? '⏳ Writing the summary…' : '✨ Write the summary', 'btnPrimary');
+      go.setAttribute('data-cs', 'write');
+      go.disabled = !!state.busy;
       go.addEventListener('click', generate);
       box.appendChild(go);
       var s = env.settings ? env.settings() : {};
       box.appendChild(el('p', 'csHint', s.hasKey ? 'Written by ' + modelLabel(s.model) + '. Nothing is emailed until you press Send.'
         : 'Add a Claude key in ⚙ Settings to write it with ' + modelLabel(s.model || DEFAULT_MODEL) + '; until then Chung GPT writes it. Nothing is emailed until you press Send.'));
       body.appendChild(box);
+      // An automatic try that stopped says why, until a summary or a new try replaces it.
+      if (!state.busy && !(state.status && state.status.day === state.day)) {
+        var fail = env.failure ? env.failure(state.day) : null;
+        if (fail) {
+          var line = statusLine((fail.trigger === 'manual' ? 'The last try stopped: ' : 'The automatic summary after class stopped: ') + fail.message +
+            ' Press ✨ Write the summary to try again.', 'csErr');
+          line.setAttribute('data-cs', 'failure');
+          body.insertBefore(line, body.firstChild);
+        }
+      }
+      paintStatus();
+      followIfRunning();
     }
 
     function field(label, value, rows, onInput, opts) {
@@ -1521,7 +1666,8 @@
     }
 
     function sendNow(via) {
-      if (!teacher() || state.busy) return;
+      // `sending` outlives a close and reopen (busy does not): an email is never sent twice.
+      if (!teacher() || state.busy || state.sending) return;
       var s = cleaned();
       if (!s) return;
       var bcc = mergeRecipients(state.rows, state.ticked, state.extra, SENDER);
@@ -1535,6 +1681,7 @@
       if (authorized && authorized.catch) authorized.catch(function () {});
       var pending = state.dirty ? saveNow() : Promise.resolve(true);
       state.busy = true;
+      state.sending = true;
       var seq = state.seq, day = state.day;
       var st = statusLine('Preparing the email…');
       body.insertBefore(st, body.firstChild);
@@ -1557,16 +1704,18 @@
       }).then(function (r) {
         var send = { at: Date.now(), count: bcc.length, via: r.via, from: r.from };
         return Promise.resolve(env.recordSend(day, send)).catch(function () {}).then(function () {
-          state.busy = false;
+          state.sending = false;
           if (seq !== state.seq) return;
+          state.busy = false;
           state.summary.sends = (state.summary.sends || []).concat([send]);
           st.textContent = r.via === 'compose' ? 'Opened in Gmail. Press Send there.' : 'Sent to ' + bcc.length + ' address' + (bcc.length === 1 ? '' : 'es') + '.';
           st.className = 'csStatus csOk';
           toast(r.via === 'compose' ? 'The Gmail draft is open — press Send there.' : '✉ The class summary was emailed to ' + bcc.length + (bcc.length === 1 ? ' parent.' : ' parents.'), 6000);
         });
       }).catch(function (e) {
-        state.busy = false;
+        state.sending = false;
         if (seq !== state.seq) return;
+        state.busy = false;
         st.className = 'csStatus csErr';
         st.textContent = 'Not sent: ' + ((e && e.message) || e);
       });
