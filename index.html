@@ -4045,6 +4045,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="live-cams.css">
+<link rel="stylesheet" href="live-class.css?v=1.207.0">
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="living-library.css">
@@ -4450,6 +4451,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <button class="btn" id="runeDoorBtn" type="button" title="Rune door — put a sealed medieval door in front of every student; a touch on the Polymath rune lights it, spins it and swings the door open onto the worksheet" style="display:none">🚪 <span class="btnLabel">Rune door</span></button>
     <button class="btn" id="consultLogBtn" type="button" title="Every consult: calls, questions and the answers you recorded" style="display:none">🙋 <span class="btnLabel">Consults</span></button>
     <button class="btn" id="receiptBtn" type="button" title="Receipts — write a receipt by hand and email it to a parent with the PDF attached, from admin@polymathlc.com.sg. Nothing is sent until you press Send." style="display:none">🧾 <span class="btnLabel">Receipts</span></button>
+    <button class="btn" id="liveClassBtn" type="button" title="Live class — the video lesson inside Ans Key: see and hear the class, push questions that pop up on every screen, and see every answer in one place" style="display:none">🎥 <span class="btnLabel">Live class</span></button>
     <button class="btn" id="liveCamBtn" title="Live cams — see every student's camera live, so they can hold their answers up to it" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/><circle cx="9" cy="12" r="2.2"/></svg>
       <span class="btnLabel">Live cams</span>
@@ -6041,7 +6043,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.206.0';
+var APP_VERSION = 'v1.207.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -31688,7 +31690,7 @@ auth.onAuthStateChanged(function (user) {
       // a level — or with a pair its level does not offer — matches no
       // worksheet at all, so the student is asked again rather than left
       // looking at an empty app they have no way to explain.
-      if (!profileComplete(studentProfile) && !sharedLink && !shareOpenInProgress && !SHARE_OPEN_ID) openProfileModal(true);
+      if (!profileComplete(studentProfile) && !sharedLink && !shareOpenInProgress && !SHARE_OPEN_ID && !LIVE_OPEN) openProfileModal(true);
       if ($('qDrawer').classList.contains('open')) loadQuestionsList();
       applyDefaultPanels();   // open for a student, shut for the teacher
       if (window.StudentHeroes && profileComplete(studentProfile)) window.StudentHeroes.profileReady(user.uid);
@@ -32623,6 +32625,9 @@ function applyRewardVisibility() {
   // every student's camera off) the moment the device is not the teacher's,
   // and a student's own camera stops on an account change.
   liveCamsRoleChanged();
+  // 🎥 The live class follows the person too: a handover or a sign-out
+  // leaves the call and forgets the lesson held in memory.
+  if (typeof liveClassRoleChanged === 'function') liveClassRoleChanged();
   if (!show && window.ClassroomBattle) window.ClassroomBattle.close();
   if (!show) {
     $('rewardModal').classList.remove('open');
@@ -32692,6 +32697,282 @@ function liveCamsInit() {
 function liveCamsRoleChanged() {
   if (liveCams) liveCams.roleChanged();
 }
+
+/* ================= 🎥 Live class — glue (the feature itself is live-class.js) =================
+   A video lesson inside Ans Key on LiveKit, so a student follows the class
+   and the worksheet in ONE window instead of Zoom beside it. live-class.js
+   owns the window, the room, the "Who are you?" list, the question pop-up,
+   the answers board and the parent reports; functions/live-class.js
+   (ansKeyLiveClass) owns every key, token and roster. This block only says
+   who is using the device, how to reach the server, where the lesson's
+   record is kept, how points and parent emails reach the existing reward
+   register and Gmail sender, and which button is its own.
+   - The LiveKit secret NEVER passes through here except once, typed into
+     ⚙ Keys, on its way to the server (which keeps it encrypted).
+   - `?live` opens the class straight away; a device with nobody signed in
+     gets an anonymous account and picks its name from the /office roster.
+   - Points go through rwAwardMarks (the reward register's own door), only
+     when exactly one register record has that name. */
+var LIVE_CLASS_ENDPOINT = 'https://us-central1-mathgen--app.cloudfunctions.net/ansKeyLiveClass';
+var LIVE_CLASS_LIB = 'vendor/livekit-client.umd.js?v=2.23.0';
+var LIVE_OPEN = /(?:^|[?&])live(?:[=&]|$)/.test(location.search);
+var liveClass = null;
+var liveClassOpenHandled = false;
+var liveClassLibLoading = null;
+var liveClassRegister = null;   // { at, list } — the reward register, read once per visit for points
+
+function liveClassRole() {
+  // The same rule as live cams: the teacher is the admin with the device in
+  // their own hands; anyone else signed in (anonymous included) is a student.
+  if (wheelTeacher()) return 'teacher';
+  if (actingStudent) return 'none';            // a handed-over device joins from the student's own sign-in
+  if (currentUser && !isAdmin(currentUser)) return 'student';
+  return 'none';
+}
+function liveClassTeacherUid() { return wheelTeacher() && currentUser ? currentUser.uid : ''; }
+
+async function liveClassCall(action, body) {
+  if (!currentUser) {
+    try { await auth.signInAnonymously(); } catch (e) { throw new Error('Sign in to join the live class.'); }
+  }
+  var user = currentUser;
+  if (!user) throw new Error('Sign in to join the live class.');
+  if (typeof window.liveAppCheckToken !== 'function') throw new Error('Ans Key is still loading. Try again in a moment.');
+  var tokens = await Promise.all([user.getIdToken(), window.liveAppCheckToken()]);
+  var res;
+  try {
+    res = await fetch(LIVE_CLASS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokens[0], 'X-Firebase-AppCheck': tokens[1] || '' },
+      body: JSON.stringify(Object.assign({}, body || {}, { action: action }))
+    });
+  } catch (e) {
+    var offline = new Error('Could not reach the class. Check the wifi and try again.');
+    offline.code = 'offline';
+    throw offline;
+  }
+  var data = null;
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    var err = new Error((data && data.error && data.error.message) || ('The live class answered ' + res.status + '.'));
+    err.code = (data && data.error && data.error.code) || 'http_' + res.status;
+    err.status = res.status;
+    throw err;
+  }
+  if (currentUser !== user) throw new Error('The account on this device changed.');
+  return data || {};
+}
+
+function liveClassLoadLib() {
+  if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
+  if (liveClassLibLoading) return liveClassLibLoading;
+  liveClassLibLoading = new Promise(function (resolve, reject) {
+    var s = document.createElement('script');
+    s.src = LIVE_CLASS_LIB;
+    s.async = true;
+    s.onload = function () { window.LivekitClient ? resolve(window.LivekitClient) : reject(new Error('The video system did not load.')); };
+    s.onerror = function () { liveClassLibLoading = null; s.remove(); reject(new Error('The video system could not be loaded. Check the connection and try again.')); };
+    document.head.appendChild(s);
+  });
+  return liveClassLibLoading;
+}
+
+/* ---- the lesson's record: users/{teacher}/liveClass/{epoch} ---- */
+function liveClassDoc(epoch) {
+  var uid = liveClassTeacherUid();
+  if (!uid || !/^\d{1,16}$/.test(String(epoch))) return null;
+  return db.collection('users').doc(uid).collection('liveClass').doc(String(epoch));
+}
+async function liveClassLoadSession(epoch) {
+  var ref = liveClassDoc(epoch);
+  if (!ref) return null;
+  var snap = await ref.get();
+  if (!snap.exists) return null;
+  var d = snap.data() || {};
+  try { return d.json ? JSON.parse(d.json) : null; } catch (e) { return null; }
+}
+async function liveClassSaveSession(epoch, session) {
+  var ref = liveClassDoc(epoch);
+  if (!ref) return;
+  var json = JSON.stringify(session);
+  if (json.length > 900000) throw new Error('This lesson\'s record has grown too big to save in one piece.');
+  var people = session && session.people ? Object.keys(session.people).length : 0;
+  await ref.set({
+    v: 1, epoch: Number(epoch), slot: String(session.slot || ''), slotLabel: String(session.slotLabel || ''),
+    startedAt: Number(session.startedAt) || 0, endedAt: Number(session.endedAt) || 0,
+    questions: (session.questions || []).length, students: people,
+    json: json, at: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+function liveClassPhotoRef(epoch, photoRef) {
+  var doc = liveClassDoc(epoch);
+  if (!doc || !/^[A-Za-z0-9_-]{1,64}$/.test(String(photoRef))) return null;
+  return doc.collection('photos').doc(String(photoRef));
+}
+async function liveClassSavePhoto(epoch, photoRef, dataUrl) {
+  var ref = liveClassPhotoRef(epoch, photoRef);
+  if (!ref || typeof dataUrl !== 'string' || dataUrl.length > 950000) return;
+  await ref.set({ d: dataUrl, at: Date.now() });
+}
+async function liveClassLoadPhoto(epoch, photoRef) {
+  var ref = liveClassPhotoRef(epoch, photoRef);
+  if (!ref) return '';
+  var snap = await ref.get();
+  return snap.exists ? String((snap.data() || {}).d || '') : '';
+}
+
+/* ---- which slot is on now (Singapore time) ---- */
+function liveClassGuessSlot() {
+  var now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+  var day = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][now.getDay()];
+  if (day === 'SUN') return '';
+  var m = now.getHours() * 60 + now.getMinutes();
+  var starts = day === 'SAT' ? [9 * 60, 11 * 60, 13 * 60] : [15 * 60, 17 * 60, 19 * 60];
+  var n = 0;
+  // The slot that has started (or starts within 30 minutes), until 15 minutes after it ends.
+  for (var i = 0; i < 3; i++) if (m >= starts[i] - 30 && m <= starts[i] + 120) n = i + 1;
+  return n ? day + '-' + n : '';
+}
+
+/* ---- points: the reward register's own door ---- */
+function liveClassNorm(name) { return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+async function liveClassAward(person, n) {
+  if (!wheelTeacher() || !person || !(n > 0)) return { saved: false };
+  if (person.kind === 'trial') return { saved: false, reason: 'A trial student has no reward record.' };
+  if (!liveClassRegister || Date.now() - liveClassRegister.at > 10 * 60 * 1000) {
+    var snap = await db.collection('students').get();
+    var list = [];
+    snap.forEach(function (d) { list.push(Object.assign({ id: d.id }, d.data())); });
+    liveClassRegister = { at: Date.now(), list: list };
+  }
+  var want = liveClassNorm(person.name);
+  var hits = liveClassRegister.list.filter(function (s) { return liveClassNorm(s.name) === want; });
+  if (hits.length !== 1) return { saved: false, reason: hits.length ? 'Two reward records share that name — give the points in the Reward window.' : 'There is no reward record with that name yet.' };
+  await rwAwardMarks(hits[0], n, 'Live class');
+  return { saved: true };
+}
+
+/* ---- parents: the /office family's emails ---- */
+async function liveClassParentEmails(person) {
+  if (!wheelTeacher() || !person) return [];
+  var m = /^([A-Za-z0-9-]{1,60})_([A-Za-z0-9-]{1,60})$/.exec(String(person.rosterId || ''));
+  if (!m) return [];
+  var snap = await db.collection('officeFamilies').doc(m[1]).get();
+  if (!snap.exists) return [];
+  var f = snap.data() || {};
+  return [f.email, f.email2].map(function (x) { return String(x || '').trim(); }).filter(Boolean);
+}
+
+/* ---- sending a report: the class summaries' Gmail sign-in ---- */
+function liveClassSendEmail(msg) {
+  if (!wheelTeacher()) return Promise.reject(new Error('Only the teacher can send reports.'));
+  if (!window.ClassSummary || typeof csumAuthorizeGmail !== 'function') return Promise.reject(new Error('Email is not available on this page.'));
+  // Asked BEFORE anything waits, so the Google window opens inside the tap.
+  var authorized = csumAuthorizeGmail();
+  return authorized.then(async function (mailer) {
+    var P = window.ClassSummary.pure;
+    var raw = P.mimeMessage({
+      from: P.SENDER, fromName: P.CENTRE, to: msg.to, replyTo: P.SENDER, subject: msg.subject,
+      html: msg.html, text: msg.text, images: []
+    }, Date.now().toString(36));
+    var res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + mailer.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw: P.b64url(raw) })
+    });
+    if (!res.ok) {
+      if (res.status === 401) { csumMailer.token = ''; csumMailer.exp = 0; throw new Error('The Gmail sign-in expired. Press Send again.'); }
+      var detail = '';
+      try { var ej = await res.json(); detail = ej && ej.error ? ej.error.message || '' : ''; } catch (e) {}
+      throw new Error('Gmail error ' + res.status + (detail ? ': ' + detail : ''));
+    }
+    return { from: mailer.email };
+  });
+}
+
+/* ---- 📸 the part of the worksheet on screen, for a question ---- */
+async function liveClassSnapWorksheet() {
+  if (!wheelTeacher()) return '';
+  var area = $('viewerArea');
+  if (!area || !Array.isArray(pages) || !pages.length) return '';
+  var r = area.getBoundingClientRect();
+  var rect = { x: Math.max(0, r.left), y: Math.max(0, r.top), w: Math.min(window.innerWidth, r.right) - Math.max(0, r.left), h: Math.min(window.innerHeight, r.bottom) - Math.max(0, r.top) };
+  if (rect.w < 40 || rect.h < 40) return '';
+  var k = Math.min(2, 1400 / Math.max(rect.w, rect.h) * (window.devicePixelRatio || 1));
+  k = Math.max(0.5, Math.min(k, 1400 / Math.max(rect.w, rect.h)));
+  var out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(rect.w * k));
+  out.height = Math.max(1, Math.round(rect.h * k));
+  var ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, out.width, out.height);
+  var ok = await snipPaintRegion(rect, k, ctx);
+  try {
+    if (!ok) return '';
+    var q = 0.8, d = out.toDataURL('image/jpeg', q);
+    while (d.length > 880000 && q > 0.35) { q -= 0.12; d = out.toDataURL('image/jpeg', q); }
+    return d;
+  } finally { out.width = out.height = 0; }
+}
+
+function liveClassLink() {
+  return location.origin + location.pathname + '?live';
+}
+
+function liveClassInit() {
+  if (liveClass || !window.LiveClass || !window.LiveClass.create) return liveClass;
+  liveClass = window.LiveClass.create({
+    role: liveClassRole,
+    call: liveClassCall,
+    toast: toast,
+    loadLiveKit: liveClassLoadLib,
+    button: function () { return $('liveClassBtn'); },
+    onMirror: function (cb) {
+      // The public "is a class on?" switch, so the 🎥 button glows for
+      // students and a waiting window opens by itself.
+      try { return db.collection('liveClassRooms').doc('main').onSnapshot(function (s) { cb(s.exists ? s.data() : null); }, function () { cb(null); }); }
+      catch (e) { return function () {}; }
+    },
+    slots: function () { return liveClassCall('slots').then(function (r) { return r.slots || []; }); },
+    guessSlot: liveClassGuessSlot,
+    classLink: liveClassLink,
+    loadSession: liveClassLoadSession,
+    saveSession: liveClassSaveSession,
+    savePhoto: liveClassSavePhoto,
+    loadPhoto: liveClassLoadPhoto,
+    award: liveClassAward,
+    parentEmails: liveClassParentEmails,
+    sendEmail: liveClassSendEmail,
+    snapWorksheet: liveClassSnapWorksheet,
+    centre: function () { return 'Polymath Learning Centre'; }
+  });
+  $('liveClassBtn').addEventListener('click', function () {
+    if (liveClassRole() === 'none') { toast('Sign in to join the live class.'); return; }
+    liveClass.open();
+  });
+  liveClassRoleChanged();
+  return liveClass;
+}
+
+function liveClassRoleChanged() {
+  var b = $('liveClassBtn');
+  var r = liveClassRole();
+  if (b) b.style.display = r === 'none' && !LIVE_OPEN ? 'none' : '';
+  if (liveClass) liveClass.roleChanged();
+  // ?live: open the class the moment we know who is here. Nobody signed in
+  // → an anonymous account, then the "Who are you?" list.
+  if (LIVE_OPEN && !liveClassOpenHandled && liveClass && authStateKnown()) {
+    liveClassOpenHandled = true;
+    if (r !== 'none') { liveClass.open(); return; }
+    if (!currentUser) {
+      auth.signInAnonymously().catch(function () { toast('Sign in with Google to join the live class.'); });
+      liveClassOpenHandled = false;   // the sign-in comes back through here
+    }
+  }
+}
+var liveClassAuthKnown = false;
+function authStateKnown() { return liveClassAuthKnown; }
+auth.onAuthStateChanged(function () { liveClassAuthKnown = true; liveClassRoleChanged(); });
+/* ================= End live class glue ================= */
 
 /* ================= 📚 Question bank — glue (the feature itself is question-bank.js) =================
    The teacher picks a question from the Science portal's bank and it lands
@@ -44595,6 +44876,8 @@ loadAiNotePrefs();
 <script src="student-heroes.js?v=1.191.0"></script>
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>
+<script src="live-class.js?v=1.207.0"></script>
+<script>liveClassInit();</script>
 <script src="vendor/qrcode-generator.js"></script>
 <script src="question-apps.js"></script>
 <script src="question-bank.js"></script>

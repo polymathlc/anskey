@@ -4,3 +4,4 @@ node_modules/
 *-debug.log
 .firebase/
 tools/_*.mjs
+.livekit/

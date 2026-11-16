@@ -5,6 +5,16 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🎥 v1.207.0 — Live class: teach on video inside Ans Key
+
+- **🎥 Live class** (beside Live cams) starts a video class inside the app, on LiveKit. Pick the lesson time, press Start, and share the link `…/anskey/?live` (the window shows it with a Copy button). Students open it on an iPad, phone or computer.
+- **Students say who they are**: they pick their name from the class list taken from /office for that lesson (surnames shown) and press Confirm. 🔁 Make-up lists students from other lessons; 🆕 Trial asks for their name. A name already in the class asks "is it really you?" first.
+- **Push a question over the video**: multiple choice, fill in the blank or open-ended, to everyone or to chosen students, with a picture snapped from the worksheet if you like. It pops up on their screen; answers come back to the 📋 Answers tab, marked automatically where there is a key, with ✓ / ✗, reveal and +1 / +2 / +5 points.
+- **People**: raised hands, Let them speak, mute, camera off, Ask just them, Remove (and Let back in).
+- **After class, a report for every parent**: what they answered, how many were right, time in class and your note, sent from admin@polymathlc.com.sg after you confirm the address. The whole lesson is saved.
+- Built for weak wifi: video drops quality instead of dropping out, and an answer typed offline is sent when the connection comes back.
+- **First time**: open 🎥 Live class → ⚙ Keys and paste your LiveKit project URL, API key and API secret (cloud.livekit.io → your project → Settings → API Keys). They are kept on the server, encrypted, never in the page.
+
 ## ⏰ v1.206.0 — The class moves on by itself when the lesson is over
 
 - **What went wrong.** A class moved to its next worksheet only when the teacher opened the Next worksheet or pressed ✓ Finished. A lesson taught from the Current worksheet left the class where it was, so the new Current and Next never loaded. And a worksheet brought into a class list from 📂 Browse Ans Key app (a copy, with no class day of its own) was listed under "No class day set", so even a class that had moved showed nothing in its lesson time.

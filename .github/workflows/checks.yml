@@ -33,6 +33,11 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/battle-browser" --no-audit --no-fund playwright@1.62.1
           "$RUNNER_TEMP/battle-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Install a LiveKit server for the live class check
+        run: |
+          mkdir -p "$RUNNER_TEMP/livekit"
+          curl -fsSL https://github.com/livekit/livekit/releases/download/v1.13.11/livekit_1.13.11_linux_amd64.tar.gz | tar -xz -C "$RUNNER_TEMP/livekit"
+          "$RUNNER_TEMP/livekit/livekit-server" --version
       - name: Check wheel, battle, all artwork and desktop/tablet layouts
         env:
           PW: ${{ runner.temp }}/battle-browser/node_modules/playwright/index.mjs
@@ -56,6 +61,8 @@ jobs:
           LV_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/level-sync
           CSUM_SHOT: ${{ runner.temp }}/battle-screenshots/class-summary/follow-phone.png
           RC_SCREENSHOTS: ${{ runner.temp }}/battle-screenshots/receipts
+          LIVEKIT_SERVER: ${{ runner.temp }}/livekit/livekit-server
+          LC_SHOTS: ${{ runner.temp }}/battle-screenshots/live-class
         run: |
           node tools/wheel-check.mjs
           node tools/account-email-check.mjs
@@ -97,6 +104,7 @@ jobs:
           node tools/record-nudge-check.mjs
           node tools/class-summary-check.mjs
           node tools/receipts-check.mjs
+          node tools/live-class-check.mjs
           node tools/screen-record-check.mjs
           node tools/caption-check.mjs
           node tools/lesson-upload-check.mjs

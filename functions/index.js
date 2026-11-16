@@ -19,6 +19,7 @@ const { createHeroService } = require('./hero-service');
 const { createHeroRepository } = require('./hero-repository');
 const { createLessonComposeService } = require('./lesson-compose');
 const { createAccountEmailService, createFirebaseMailer } = require('./account-email');
+const { createLiveClassService } = require('./live-class');
 
 initializeApp();
 // A field left undefined in a saved hero, encounter or log entry must never
@@ -102,3 +103,18 @@ exports.ansKeyAccountEmail = onRequest({
   region: 'us-central1', timeoutSeconds: 60, maxInstances: 3,
   concurrency: 20, memory: '256MiB', invoker: 'public'
 }, accountEmail.handler);
+
+// 🎥 The live class (v1.207.0): LiveKit access tokens, and the switch that
+// opens and closes the class. The LiveKit API secret is pasted once by the
+// teacher in the app and stored ENCRYPTED in a server-only collection; the
+// encryption key is derived from a secret already in Secret Manager, so no
+// new secret has to be created before this deploys. See live-class.js.
+const liveClass = createLiveClassService({
+  auth: getAuth(), appCheck: getAppCheck(), db: getFirestore(),
+  master: () => openaiKey.value(),
+  report: (code, error) => logger.warn(code, { message: String(error?.message || error || '').slice(0, 300) })
+});
+exports.ansKeyLiveClass = onRequest({
+  region: 'us-central1', secrets: [openaiKey], timeoutSeconds: 30, maxInstances: 5,
+  concurrency: 40, memory: '256MiB', invoker: 'public'
+}, liveClass.handler);
