@@ -54,8 +54,20 @@ const LIVE_CLASS_LIMITS = Object.freeze({
   removedMax: 200,
   checkTimeoutMs: 8000
 });
-const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin']);
-const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin']);
+const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass']);
+const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass']);
+// 🔗 Personal links and PINs (v1.210.0). A child's own link carries a code
+// the server can CHECK but nobody can make: the roster key, a generation
+// (bumped when a link is lost) and an HMAC over both, keyed from the same
+// server secret as the LiveKit secret's seal but with its own HKDF label. The
+// PIN is the short spoken fallback: four digits, unique across the roster,
+// tried only while a class is open, and counted so it cannot be walked.
+const PASS_INFO = 'personal-link-v1';
+const PASS_MAC_CHARS = 16;                 // 96 bits of base64url
+const PASS_RE = /^([A-Za-z0-9-]{1,60}_[A-Za-z0-9-]{1,60})\.(\d{1,6})\.([A-Za-z0-9_-]{16})$/;
+const PIN_RE = /^\d{4}$/;
+const PIN_WEAK = new Set(['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234', '4321', '0123', '9876', '1212', '6969', '2580', '1004', '2000', '2026', '2027']);
+const PIN_LIMITS = Object.freeze({ windowMs: 10 * 60 * 1000, perUid: 6, total: 60 });
 const ROOM_PREFIX = 'polymath-class-';
 const HKDF_SALT = 'ans-key-live-class';
 const HKDF_INFO = 'livekit-api-secret-v1';
@@ -406,6 +418,115 @@ function openSecret(sealed, master) {
   }
 }
 
+/* ---------- 🔗 personal links and PINs (v1.210.0) ---------- */
+
+function passKey(master) {
+  if (!master || String(master).length < 16) throw new LiveClassError(503, 'server_not_ready', 'The live class server is not ready yet. Try again in a minute.');
+  return Buffer.from(hkdfSync('sha256', Buffer.from(String(master)), Buffer.from(HKDF_SALT), Buffer.from(PASS_INFO), 32));
+}
+function passMac(rosterId, gen, master) {
+  return b64url(createHmac('sha256', passKey(master)).update('pass|' + rosterId + '|' + (Number(gen) || 0)).digest()).slice(0, PASS_MAC_CHARS);
+}
+// The code a child's link carries: `<family>_<child>.<gen>.<mac>`.
+function passCode(rosterId, gen, master) {
+  if (!splitRosterKey(rosterId)) return '';
+  const g = Math.max(0, Math.floor(Number(gen) || 0));
+  return rosterId + '.' + g + '.' + passMac(rosterId, g, master);
+}
+function parsePass(code) {
+  const m = PASS_RE.exec(String(code == null ? '' : code).trim());
+  if (!m || !splitRosterKey(m[1])) return null;
+  return { rosterId: m[1], gen: Number(m[2]), mac: m[3] };
+}
+function sameText(a, b) {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  if (x.length !== y.length) return false;
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x[i] ^ y[i];
+  return d === 0;
+}
+// A code is good when its MAC is right AND its generation is the one on file
+// (a link the teacher replaced stops working, even though its MAC is real).
+function checkPass(code, passes, master) {
+  const p = parsePass(code);
+  if (!p) return null;
+  if (!sameText(p.mac, passMac(p.rosterId, p.gen, master))) return null;
+  const entry = passes && passes[p.rosterId];
+  const gen = entry ? Number(entry.gen) || 0 : 0;
+  if (p.gen !== gen) return null;
+  return p.rosterId;
+}
+function cleanPin(v) {
+  const t = String(v == null ? '' : v).replace(/\s+/g, '');
+  return PIN_RE.test(t) ? t : '';
+}
+// One child's PIN: drawn from the HMAC (so the same roster gives the same
+// PINs on any server), stepping past weak and taken ones.
+function pinFor(rosterId, gen, taken, master) {
+  for (let i = 0; i < 400; i++) {
+    const h = createHmac('sha256', passKey(master)).update('pin|' + rosterId + '|' + (Number(gen) || 0) + '|' + i).digest();
+    const pin = String(h.readUInt32BE(0) % 10000).padStart(4, '0');
+    if (PIN_WEAK.has(pin) || taken.has(pin)) continue;
+    return pin;
+  }
+  return '';
+}
+function cleanPasses(raw) {
+  const out = {};
+  const list = raw && typeof raw === 'object' && raw.list && typeof raw.list === 'object' ? raw.list : {};
+  for (const id of Object.keys(list)) {
+    const e = list[id];
+    if (!splitRosterKey(id) || !e || typeof e !== 'object') continue;
+    out[id] = { gen: Math.max(0, Math.floor(Number(e.gen) || 0)), pin: cleanPin(e.pin), at: Number(e.at) || 0 };
+  }
+  return out;
+}
+// Gives every enrolled child an entry (generation 0 and a PIN of its own).
+// Entries for children who left are KEPT: a child who comes back keeps their
+// link and PIN. Returns the new map and whether anything changed.
+function ensurePasses(passes, students, master, t) {
+  const next = { ...passes };
+  const taken = new Set(Object.values(next).map(e => e.pin).filter(Boolean));
+  let changed = false;
+  const seen = new Set();
+  for (const e of Object.values(next)) {
+    if (!e.pin) continue;
+    if (seen.has(e.pin)) { e.pin = ''; changed = true; } else seen.add(e.pin);
+  }
+  const ids = students.map(s => s.id).sort();
+  for (const id of ids) {
+    const e = next[id] ? { ...next[id] } : { gen: 0, pin: '', at: t };
+    if (!next[id]) changed = true;
+    if (!e.pin) {
+      e.pin = pinFor(id, e.gen, taken, master);
+      if (e.pin) taken.add(e.pin);
+      changed = true;
+    }
+    next[id] = e;
+  }
+  return { passes: next, changed };
+}
+function pinOwner(pin, passes) {
+  const p = cleanPin(pin);
+  if (!p) return '';
+  const hits = Object.keys(passes).filter(id => passes[id].pin === p);
+  return hits.length === 1 ? hits[0] : '';
+}
+// Wrong PINs are counted in ten-minute windows, per account and in all: a
+// child mistyping is fine; a script walking 0000–9999 is not.
+function pinTriesAllowed(tries, uid, t) {
+  const w = tries && Number(tries.win) && t - Number(tries.win) < PIN_LIMITS.windowMs ? tries : { win: t, total: 0, by: {} };
+  const mine = Number(w.by && w.by[uid]) || 0;
+  return { ok: mine < PIN_LIMITS.perUid && (Number(w.total) || 0) < PIN_LIMITS.total, window: w };
+}
+function pinTriesAfterMiss(window, uid) {
+  const by = { ...(window.by || {}) };
+  by[uid] = (Number(by[uid]) || 0) + 1;
+  const keys = Object.keys(by);
+  if (keys.length > 300) keys.slice(0, keys.length - 300).forEach(k => delete by[k]);
+  return { win: window.win, total: (Number(window.total) || 0) + 1, by };
+}
+
 /* ---------- requests ---------- */
 
 function validateBody(body) {
@@ -452,6 +573,16 @@ async function roomService(fetchImpl, cfg, method, body, now) {
   }
 }
 
+// The teacher's rows: name, level, the slots they attend (labelled), the link
+// code and the PIN, in week order of their first slot, then by name.
+function passRows(students, passes, schedule, master) {
+  return students.map(s => {
+    const e = passes[s.id] || { gen: 0, pin: '' };
+    const slots = [...s.slots].sort((a, b) => slotOrder(a) - slotOrder(b));
+    return { id: s.id, name: s.name, level: s.level, slots: slots.map(id => ({ slot: id, label: slotLabel(id, schedule) })), gen: e.gen, pin: e.pin, code: master ? passCode(s.id, e.gen, master) : '', _first: slots[0] || '' };
+  }).sort((a, b) => (slotOrder(a._first) - slotOrder(b._first)) || a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+    .map(r => { delete r._first; return r; });
+}
 function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), lessonClock = null, report = () => {}, serverTimestamp = null }) {
   // The clock the lesson-time door reads (Singapore wall time). The same as
   // `now` in production; a check can move the lesson day without moving the
@@ -461,6 +592,37 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
   const stateRef = db.collection(STATE_COLLECTION).doc('main');
   const mirrorRef = db.collection(MIRROR_COLLECTION).doc('main');
   const settingsRef = db.collection(CONFIG_COLLECTION).doc('settings');
+  const passesRef = db.collection(CONFIG_COLLECTION).doc('passes');
+  const pinTriesRef = db.collection(STATE_COLLECTION).doc('pins');
+  async function readPasses() {
+    const snap = await passesRef.get();
+    return cleanPasses(snap.exists ? snap.data() : null);
+  }
+  async function writePasses(passes, t, by) {
+    await passesRef.set({ v: 1, list: passes, at: t, by: by || '' });
+  }
+  // 🔗 Who a code or a PIN names, or a refusal in words. A PIN is tried only
+  // while a class is open and every miss is counted (pinTriesAllowed).
+  async function resolvePass(actor, p, state) {
+    const passes = await readPasses();
+    if (p.kind === 'pass') {
+      const id = checkPass(p.code, passes, master());
+      if (!id) fail(404, 'pass_unknown', 'That class link is not working any more. Choose your name from the list, or ask your teacher for a new link.');
+      return id;
+    }
+    if (!state.open) fail(409, 'class_closed', 'The live class has not started yet. Type your PIN again when your teacher starts it.');
+    const t = now();
+    let tries = null;
+    try { const snap = await pinTriesRef.get(); tries = snap.exists ? snap.data() : null; } catch (error) { report('live_class_pin_tries', error); }
+    const allowed = pinTriesAllowed(tries, actor.uid, t);
+    if (!allowed.ok) fail(429, 'pin_wait', 'Too many wrong PINs. Wait ten minutes, or choose your name from the list.');
+    const id = pinOwner(p.pin, passes);
+    if (!id) {
+      try { await pinTriesRef.set(pinTriesAfterMiss(allowed.window, actor.uid)); } catch (error) { report('live_class_pin_tries', error); }
+      fail(404, 'pin_unknown', cleanPin(p.pin) ? 'That PIN is not right. Check the four numbers your teacher gave you.' : 'Type the four numbers of your PIN.');
+    }
+    return id;
+  }
   async function readSettings() {
     try { const snap = await settingsRef.get(); return cleanSettings(snap.exists ? snap.data() : null); }
     catch (error) { report('live_class_settings_read', error); return cleanSettings(null); }
@@ -575,19 +737,28 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
   }
   // "Who are you?" — the pick a student confirmed, checked against the roster.
   async function whoIs(actor, pick, state, settings) {
-    const p = pick && typeof pick === 'object' ? pick : {};
+    let p = pick && typeof pick === 'object' ? pick : {};
     if (p.kind === 'trial') {
       const name = cleanName(p.name, '');
       if (name.length < 2) fail(400, 'name_required', 'Type your full name so your teacher knows who you are.');
       return { kind: 'trial', identity: 'g:' + actor.uid, name: name, rosterId: '', level: '', home: '' };
     }
-    if (p.kind !== 'roster' && p.kind !== 'makeup') fail(400, 'pick_required', 'Choose your name from the list, then press Confirm.');
+    // 🔗 A personal link or a PIN names the child; their own lesson or a
+    // make-up is then worked out exactly as for a name picked from the list.
+    let viaPass = '';
+    if (p.kind === 'pass' || p.kind === 'pin') {
+      viaPass = p.kind;
+      const id = await resolvePass(actor, p, state);
+      p = { kind: 'auto', id };
+    }
+    if (p.kind !== 'roster' && p.kind !== 'makeup' && p.kind !== 'auto') fail(400, 'pick_required', 'Choose your name from the list, then press Confirm.');
     const key = splitRosterKey(p.id);
     if (!key) fail(400, 'pick_required', 'Choose your name from the list, then press Confirm.');
     const [famSnap, schedule] = await Promise.all([db.collection(OFFICE_FAMILIES).doc(key.familyId).get(), readSchedule()]);
     const family = famSnap.exists ? { ...(famSnap.data() || {}), id: key.familyId } : null;
     const student = enrolledStudents(family ? [family] : [], sgMonth(now())).find(s => s.id === p.id) || null;
-    if (!student) fail(404, 'not_on_roster', 'That name is no longer on the class list. Choose again, or ask your teacher.');
+    if (!student) fail(404, 'not_on_roster', viaPass ? 'Your name is not on the class list this month. Ask your teacher.' : 'That name is no longer on the class list. Choose again, or ask your teacher.');
+    if (p.kind === 'auto') p = { kind: !state.slot || student.slots.includes(state.slot) ? 'roster' : 'makeup', id: p.id };
     if (p.kind === 'roster' && state.slot && !student.slots.includes(state.slot)) fail(400, 'wrong_list', 'That name is in another class. Choose Make-up to find it.');
     if (p.kind === 'makeup' && state.letIn !== true) {
       const later = laterLessonToday(student, state.slot, doorNow(), settings ? settings.earlyMin : EARLY_DEFAULT, schedule);
@@ -595,7 +766,8 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
     }
     const home = p.kind === 'makeup' ? [...student.slots].sort((a, b) => slotOrder(a) - slotOrder(b))[0] : state.slot;
     return { kind: p.kind, identity: 'r:' + student.id, name: student.name, rosterId: student.id,
-      level: student.level, home: home ? slotLabel(home, schedule) : '' };
+      level: student.level, home: home ? slotLabel(home, schedule) : '', via: viaPass,
+      slots: student.slots.slice(), schedule };
   }
 
   async function readSchedule() {
@@ -721,6 +893,67 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       return { slot: state.slot, slotLabel: label, epoch: state.epoch, gate, ...lists };
     }
 
+    // 🔗 The teacher's list of every child's link code and PIN. Missing
+    // entries are made (and saved) on the way.
+    if (body.action === 'passes') {
+      const [{ students, schedule }, stored] = await Promise.all([enrolment(t), readPasses()]);
+      const { passes, changed } = ensurePasses(stored, students, master(), t);
+      if (changed) await writePasses(passes, t, actor.uid);
+      return { students: passRows(students, passes, schedule, master()) };
+    }
+    // A lost link or an overheard PIN: a new generation (the old link stops
+    // working at once) and a new PIN.
+    if (body.action === 'repass') {
+      const id = splitRosterKey(body.id) ? String(body.id) : '';
+      if (!id) fail(400, 'invalid_request', 'Choose a student.');
+      const [{ students, schedule }, stored] = await Promise.all([enrolment(t), readPasses()]);
+      const student = students.find(s => s.id === id);
+      if (!student) fail(404, 'not_on_roster', 'That student is not on the class list this month.');
+      const prev = stored[id] || { gen: 0, pin: '', at: t };
+      const others = new Set(Object.keys(stored).filter(k => k !== id).map(k => stored[k].pin).filter(Boolean));
+      if (prev.pin) others.add(prev.pin);
+      const gen = prev.gen + 1;
+      const entry = { gen, pin: pinFor(id, gen, others, master()), at: t };
+      const passes = { ...stored, [id]: entry };
+      await writePasses(passes, t, actor.uid);
+      return { student: passRows([student], passes, schedule, master())[0] };
+    }
+    // 🔗 A child's own link or PIN: who it is, and whether they may come in
+    // now. The page shows "You are …" with one Join button.
+    if (body.action === 'pass') {
+      if (actor.isTeacher) fail(400, 'teacher_pass', 'This is a student\'s link. Open it on the student\'s device.');
+      const kind = body.pin != null && body.code == null ? 'pin' : 'pass';
+      const state = await readState();
+      const passes = kind === 'pass' ? await readPasses() : null;
+      // Before the class opens a link still says whose it is (a PIN does not:
+      // it is only ever tried against an open class).
+      if (!state.open) {
+        if (kind === 'pin') fail(409, 'class_closed', 'The live class has not started yet. Type your PIN again when your teacher starts it.');
+        const id = checkPass(body.code, passes, master());
+        if (!id) fail(404, 'pass_unknown', 'That class link is not working any more. Choose your name from the list, or ask your teacher for a new link.');
+        const [famSnap] = await Promise.all([db.collection(OFFICE_FAMILIES).doc(splitRosterKey(id).familyId).get()]);
+        const fam = famSnap.exists ? { ...(famSnap.data() || {}), id: splitRosterKey(id).familyId } : null;
+        const student = enrolledStudents(fam ? [fam] : [], sgMonth(t)).find(s => s.id === id);
+        if (!student) fail(404, 'not_on_roster', 'Your name is not on the class list this month. Ask your teacher.');
+        return { ...publicState(state), code: String(body.code), me: { id, name: student.name, level: student.level, kind: '' } };
+      }
+      const settings = await readSettings();
+      const gate = joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn);
+      const schedule = await readSchedule();
+      const label = state.slot ? slotLabel(state.slot, schedule) : '';
+      if (!gate.open) {
+        // A PIN is still checked before the door says "not yet", so a child
+        // knows the four numbers were right.
+        const id = await resolvePass(actor, kind === 'pin' ? { kind, pin: body.pin } : { kind, code: body.code }, state);
+        const entry = (await readPasses())[id] || { gen: 0 };
+        return { ...publicState(state), slotLabel: label, gate, code: passCode(id, entry.gen, master()), me: { id, name: '', level: '', kind: '' } };
+      }
+      const who = await whoIs(actor, kind === 'pin' ? { kind, pin: body.pin } : { kind, code: body.code }, state, settings);
+      const entry = (await readPasses())[who.rosterId] || { gen: 0 };
+      return { ...publicState(state), slotLabel: label, gate, code: passCode(who.rosterId, entry.gen, master()),
+        me: { id: who.rosterId, name: who.name, level: who.level, kind: who.kind, home: who.home } };
+    }
+
     if (body.action === 'token') {
       const state = await readState();
       if (!state.open || !state.room) fail(409, 'class_closed', actor.isTeacher ? 'Start the class first.' : 'The live class has not started yet. It will open here when your teacher starts it.');
@@ -750,7 +983,13 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
         ttlSeconds: LIVE_CLASS_LIMITS.studentTtlSeconds, video: grantsFor('student', state.room),
         attributes, metadata: { role: 'student', kind: who.kind, rosterId: who.rosterId || '' }
       });
-      return { ...publicState(state), url: cfg.url, token, identity: who.identity, name: who.name, kind: who.kind, rosterId: who.rosterId || '' };
+      const out = { ...publicState(state), url: cfg.url, token, identity: who.identity, name: who.name, kind: who.kind, rosterId: who.rosterId || '' };
+      // A PIN join hands the device its link code, so next time it is one tap.
+      if (who.via && who.rosterId) {
+        const entry = (await readPasses())[who.rosterId] || { gen: 0 };
+        out.code = passCode(who.rosterId, entry.gen, master());
+      }
+      return out;
     }
 
     if (body.action === 'mute' || body.action === 'remove' || body.action === 'readmit') {
@@ -840,5 +1079,6 @@ module.exports = {
   LiveClassError, validateBody, createLiveClassService,
   signAccessToken, readAccessToken, b64url, b64urlDecode, cleanUrl, httpBase, cleanKey, cleanSecret, maskKey,
   EARLY_DEFAULT, EARLY_MAX, cleanEarly, cleanSettings, sgClock, slotTimes, clockLabel, joinGate, laterLessonToday,
+  PASS_LIMITS_PIN: PIN_LIMITS, passCode, parsePass, checkPass, cleanPin, pinFor, cleanPasses, ensurePasses, pinOwner, pinTriesAllowed, pinTriesAfterMiss, passRows,
   cleanName, cleanIdentity, cleanSlot, rosterLists, enrolledStudents, slotChoices, slotLabel, familyState, rosterKey, splitRosterKey, sgMonth, roomFor, nextEpoch, grantsFor, sealSecret, openSecret, roomService
 };

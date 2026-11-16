@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.209.0';
+  var VERSION = '1.210.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended' };
@@ -62,6 +62,9 @@
   var PREF_KEY = 'polymath.liveClass.prefs.v1';
   var OUTBOX_PREFIX = 'polymath.liveClass.outbox.v1:';
   var PICK_KEY = 'polymath.liveClass.pick.v1';
+  // 🔗 This device's own class link (v1.210.0): the code from a personal link
+  // or a PIN, kept so next time "You are Amy Tan — Join" is one tap.
+  var PASS_KEY = 'polymath.liveClass.pass.v1';
 
   /* ================================================================
      PURE HELPERS
@@ -679,6 +682,75 @@
       aiMark: p.aiMark !== false, aiReview: p.aiReview === true };
   }
 
+  /* 🔗 Personal links and PINs (v1.210.0). The server makes and checks the
+     codes; these only read their shape and lay the teacher's list out. */
+  var PASS_CODE_RE = /^[A-Za-z0-9-]{1,60}_[A-Za-z0-9-]{1,60}\.\d{1,6}\.[A-Za-z0-9_-]{16}$/;
+  function cleanPassCode(v) {
+    var t = str(v).trim();
+    return PASS_CODE_RE.test(t) ? t : '';
+  }
+  // `?live=<code>` (the personal link) → the code; a bare `?live` → ''.
+  function passFromSearch(search) {
+    var q = str(search).replace(/^\?/, '');
+    var out = '';
+    q.split('&').forEach(function (part) {
+      var i = part.indexOf('=');
+      var k = i < 0 ? part : part.slice(0, i);
+      if (k !== 'live' || i < 0) return;
+      var v = part.slice(i + 1);
+      try { v = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) { v = ''; }
+      if (!out) out = cleanPassCode(v);
+    });
+    return out;
+  }
+  function cleanPinInput(v) { return str(v).replace(/\D+/g, '').slice(0, 4); }
+  // The personal link for a code, from the class link (`…/anskey/?live`).
+  function passLink(classLink, code) {
+    var c = cleanPassCode(code);
+    if (!c) return '';
+    var base = str(classLink).replace(/[?#].*$/, '');
+    return base + '?live=' + encodeURIComponent(c);
+  }
+  function cleanPassRow(r) {
+    r = r && typeof r === 'object' ? r : {};
+    return {
+      id: str(r.id).slice(0, 130), name: oneLine(r.name, LIMITS.name) || 'Student', level: oneLine(r.level, 12),
+      slots: (Array.isArray(r.slots) ? r.slots : []).map(function (x) { return { slot: oneLine(x && x.slot, 40), label: oneLine(x && x.label, 120) }; }).slice(0, 8),
+      gen: Math.max(0, Math.floor(Number(r.gen) || 0)), pin: /^\d{4}$/.test(str(r.pin)) ? str(r.pin) : '', code: cleanPassCode(r.code)
+    };
+  }
+  // The rows shown: one lesson slot ('' = everyone), then the typed words.
+  function passesShown(rows, slot, query) {
+    var list = (rows || []).filter(function (r) { return !slot || r.slots.some(function (x) { return x.slot === slot; }); });
+    return filterNames(list, query);
+  }
+  // Every slot that has a child, in the order the rows came (week order).
+  function passSlots(rows) {
+    var seen = {}, out = [];
+    (rows || []).forEach(function (r) { r.slots.forEach(function (x) { if (x.slot && !seen[x.slot]) { seen[x.slot] = 1; out.push(x); } }); });
+    return out;
+  }
+  // "Copy all": one line per child, ready for a WhatsApp message to parents.
+  function passLines(rows, classLink) {
+    return (rows || []).map(function (r) {
+      return r.name + (r.level ? ' (' + r.level + ')' : '') + ' — ' + passLink(classLink, r.code) + (r.pin ? ' — PIN ' + r.pin : '');
+    }).join('\n');
+  }
+  // The QR modules as one SVG path description (four-module quiet zone).
+  function qrPath(matrix) {
+    var n = matrix && matrix.length || 0, q = 4, d = '';
+    for (var r = 0; r < n; r++) {
+      var row = matrix[r] || [], c = 0;
+      while (c < n) {
+        if (!row[c]) { c++; continue; }
+        var start = c;
+        while (c < n && row[c]) c++;
+        d += 'M' + (start + q) + ' ' + (r + q) + 'h' + (c - start) + 'v1h-' + (c - start) + 'z';
+      }
+    }
+    return { size: n + q * 2, d: d };
+  }
+
   var pure = {
     VERSION: VERSION, TOPIC: TOPIC, KINDS: KINDS, KIND_LABEL: KIND_LABEL, LIMITS: LIMITS,
     cleanQuestion: cleanQuestion, questionForStudent: questionForStudent, meantFor: meantFor,
@@ -694,7 +766,9 @@
     participation: participation, participationLine: participationLine, reportText: reportText, reportHtml: reportHtml,
     gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, minuteMB: minuteMB, SCREEN: SCREEN, wantTrack: wantTrack,
     shareConstraints: shareConstraints,
-    filterNames: filterNames, cleanPrefs: cleanPrefs, roleOfIdentity: roleOfIdentity, validIdentity: validIdentity,
+    filterNames: filterNames, cleanPrefs: cleanPrefs,
+    cleanPassCode: cleanPassCode, passFromSearch: passFromSearch, cleanPinInput: cleanPinInput, passLink: passLink,
+    cleanPassRow: cleanPassRow, passesShown: passesShown, passSlots: passSlots, passLines: passLines, qrPath: qrPath, PASS_KEY: PASS_KEY, roleOfIdentity: roleOfIdentity, validIdentity: validIdentity,
     randomId: randomId, fmtDate: fmtDate, oneLine: oneLine
   };
 
@@ -743,6 +817,8 @@
       // student
       questions: {}, order: [], mine: {}, outbox: {}, popup: null, popMin: false, gotState: false, helloTimer: 0, resendTimer: 0,
       handUp: false, lists: null, pickTab: 'mine', pick: null, query: '', confirmAgain: null,
+      // 🔗 personal link / PIN (v1.210.0)
+      me: null, passOff: false, passNote: '', pinDraft: '', pinMsg: '', pinBusy: false, pv: null,
       // both
       assembler: makeAssembler(), tiles: {}, mediaEls: {}, quality: {}, audioBlocked: false, wakeLock: null, tick: 0,
       poorSince: 0, seq: 0
@@ -1037,6 +1113,7 @@
         }));
         row.appendChild(btn('vcDanger', 'End class', 'End the running class for everyone', function () { endClass(); }));
       }
+      row.appendChild(btn('', '🔗 Links & PINs', 'Every student\'s own join link, QR code and PIN', function () { openPasses(sel.value); }));
       row.appendChild(btn('', '⚙ Keys', 'Change the LiveKit keys', function () { paintSetup(false); }));
       card.appendChild(row);
       // Settings that outlive one class: how early students may come in, and
@@ -1220,6 +1297,10 @@
       call('status').then(function (st) {
         if (seq !== S.seq) return;
         S.status = st;
+        // 🔗 A personal link (or this device's remembered one) says who this
+        // is: no list to search, one Join button.
+        var code = passNow();
+        if (code) return checkPassCode(code, st);
         if (!st.open) return paintWait();
         loadRoster();
       }, function (e) { if (seq === S.seq) paintError(e, openStudent); });
@@ -1247,6 +1328,7 @@
       clear(S.body);
       var box = el('div', 'vcCenter vcWait vcGateCard');
       box.appendChild(el('div', 'vcBig', '⏳'));
+      if (S.me && S.me.name && passNow()) box.appendChild(el('p', 'vcHello', 'Hi ' + S.me.name + '!'));
       box.appendChild(el('h3', null, g.reason === 'other_day' ? 'This class is not on today' : 'Your lesson has not started yet'));
       if (res.slotLabel) box.appendChild(el('p', 'vcMsg', res.slotLabel));
       box.appendChild(el('p', 'vcMuted', g.message || 'Your teacher will let you in soon.'));
@@ -1273,6 +1355,7 @@
       clear(S.body);
       var box = el('div', 'vcCenter vcWait');
       box.appendChild(el('div', 'vcBig', '⏳'));
+      if (S.me && S.me.name && passNow()) box.appendChild(el('p', 'vcHello', 'Hi ' + S.me.name + '!'));
       box.appendChild(el('h3', null, 'The class has not started yet'));
       box.appendChild(el('p', 'vcMuted', 'Keep this window open. The class opens here by itself when your teacher starts it.'));
       box.appendChild(btn('', 'Check again', null, openStudent));
@@ -1317,9 +1400,10 @@
       card.appendChild(el('h3', null, 'Who are you?'));
       var slotText = (S.lists && S.lists.slotLabel) || S.slot;
       if (slotText) card.appendChild(el('p', 'vcMuted', slotText));
+      if (S.passNote) card.appendChild(el('p', 'vcNote', S.passNote));
       var tabs = el('div', 'vcTabs');
       tabs.setAttribute('role', 'tablist');
-      [['mine', 'My class'], ['makeup', 'Make-up'], ['trial', 'Trial']].forEach(function (t) {
+      [['mine', 'My class'], ['makeup', 'Make-up'], ['trial', 'Trial'], ['pin', '🔢 PIN']].forEach(function (t) {
         var b = btn('vcTab' + (S.pickTab === t[0] ? ' on' : ''), t[1], null, function () {
           S.pickTab = t[0]; S.query = '';
           if (S.pick && (t[0] === 'trial') !== (S.pick.kind === 'trial')) S.pick = null;
@@ -1345,7 +1429,9 @@
         confirm.textContent = S.pick ? 'I am ' + (S.pick.label || S.pick.name) + ' — Confirm' : 'Choose your name, then Confirm';
       }
 
-      if (S.pickTab === 'trial') {
+      if (S.pickTab === 'pin') {
+        paintPinPane(pane, confirm);
+      } else if (S.pickTab === 'trial') {
         pane.appendChild(el('p', 'vcMuted', 'New here for a trial lesson? Type your full name (first name and surname).'));
         var nameIn = field(pane, 'Your full name', 'e.g. Bella Koh', S.trialName || '');
         nameIn.autocapitalize = 'words';
@@ -1407,9 +1493,9 @@
         if (!phone()) setTimeout(function () { search.focus(); }, 0);
       }
       var foot = el('div', 'vcPickFoot');
-      foot.appendChild(confirm);
+      if (S.pickTab !== 'pin') foot.appendChild(confirm);
       card.appendChild(foot);
-      syncConfirm();
+      if (S.pickTab !== 'pin') syncConfirm();
       S.body.appendChild(card);
     }
 
@@ -1419,15 +1505,28 @@
       paintBusy('Joining the class as ' + (pick.label || pick.name) + '…');
       blessAudio();
       var seq = ++S.seq;
-      call('token', { pick: { kind: pick.kind, id: pick.id, name: pick.kind === 'trial' ? pick.name : undefined }, takeover: !!takeover }).then(function (res) {
+      var body = pick.kind === 'pass' ? { kind: 'pass', code: pick.code }
+        : { kind: pick.kind, id: pick.id, name: pick.kind === 'trial' ? pick.name : undefined };
+      call('token', { pick: body, takeover: !!takeover }).then(function (res) {
         if (seq !== S.seq) return;
-        writeJson(local(), PICK_KEY, { kind: pick.kind, id: pick.id || '', name: pick.kind === 'trial' ? pick.name : '', epoch: 0 });
+        if (pick.kind === 'pass') {
+          rememberPass(res.code || pick.code, res.name || pick.name);
+          writeJson(local(), PICK_KEY, { kind: res.kind === 'makeup' ? 'makeup' : 'roster', id: res.rosterId || '', name: '', epoch: 0 });
+        } else {
+          writeJson(local(), PICK_KEY, { kind: pick.kind, id: pick.id || '', name: pick.kind === 'trial' ? pick.name : '', epoch: 0 });
+        }
         S.kind = res.kind; S.rosterId = res.rosterId || '';
         return connect(res);
       }).catch(function (e) {
         if (seq !== S.seq) return;
         if (e && e.code === 'already_in') return paintAlreadyIn(pick, e.message);
         if (e && e.code === 'class_closed') return paintWait();
+        // 🔗 A link that was replaced, or a child no longer on the list: back
+        // to choosing a name, saying why.
+        if (pick.kind === 'pass' && e && (e.code === 'pass_unknown' || e.code === 'not_on_roster')) {
+          forgetPass(); S.passNote = e.message; return loadRoster();
+        }
+        if (pick.kind === 'pass' && e && e.code === 'not_yet') return openStudent();
         // Before the lesson time: the roster says when (a make-up child's own
         // lesson later today is told in words, with the list to go back to).
         if (e && e.code === 'not_yet' && pick.kind !== 'makeup') return loadRoster();
@@ -1444,9 +1543,314 @@
       card.appendChild(el('p', 'vcMuted', 'Only press "Yes" if you really are ' + (pick.label || pick.name) + '. The other device will leave the class.'));
       var row = el('div', 'vcRow');
       row.appendChild(btn('vcPrimary', "Yes, it's me — join here", null, function () { joinAsStudent(pick, true); }));
-      row.appendChild(btn('', 'No, choose again', null, function () { S.pick = null; paintPick(); }));
+      row.appendChild(btn('', 'No, choose again', null, function () {
+        S.pick = null;
+        if (pick.kind === 'pass') { forgetPass(); S.passOff = true; return loadRoster(); }
+        paintPick();
+      }));
       card.appendChild(row);
       S.body.appendChild(card);
+    }
+
+    /* ================================================================
+       🔗 PERSONAL LINKS AND PINs (v1.210.0)
+       A child's own link (`?live=<code>`) or their four-digit PIN names
+       them: no list to search. The server checks every code and every PIN;
+       nothing here decides who anyone is. The code is kept on this device
+       so the next lesson is "You are Amy Tan — Join", one tap.
+       ================================================================ */
+    function urlPass() {
+      if (typeof env.passCode === 'function') return cleanPassCode(env.passCode());
+      try { return passFromSearch(root.location && root.location.search); } catch (e) { return ''; }
+    }
+    function storedPass() {
+      var p = readJson(local(), PASS_KEY, null);
+      return p && typeof p === 'object' ? { code: cleanPassCode(p.code), name: oneLine(p.name, LIMITS.name) } : { code: '', name: '' };
+    }
+    // The code to use now: "Not me" switches both off for this visit.
+    function passNow() {
+      if (S.passOff) return '';
+      return urlPass() || storedPass().code;
+    }
+    function rememberPass(code, name) {
+      var c = cleanPassCode(code);
+      if (!c) return;
+      writeJson(local(), PASS_KEY, { code: c, name: oneLine(name, LIMITS.name), at: now() });
+    }
+    function forgetPass() {
+      try { var l = local(); if (l) l.removeItem(PASS_KEY); } catch (e) {}
+      S.me = null;
+    }
+    function checkPassCode(code, st) {
+      paintBusy('Checking your class link…');
+      var seq = ++S.seq;
+      call('pass', { code: code }).then(function (res) {
+        if (seq !== S.seq || S.role !== 'student') return;
+        S.me = res.me || null;
+        if (res.me && res.me.name) rememberPass(res.code || code, res.me.name);
+        if (!res.open) return paintWait();
+        if (res.gate && res.gate.open === false) return paintGate(res);
+        paintMe(res);
+      }, function (e) {
+        if (seq !== S.seq) return;
+        if (e && (e.code === 'pass_unknown' || e.code === 'not_on_roster')) {
+          forgetPass();
+          S.passOff = true;
+          S.passNote = e.message;
+          return st && st.open === false ? paintWait() : loadRoster();
+        }
+        if (e && e.code === 'class_closed') return paintWait();
+        if (e && e.code === 'teacher_pass') { S.passOff = true; return paintError(e, null); }
+        paintError(e, openStudent);
+      });
+    }
+    // "You are Amy Tan" — one Join button, and a way out for the wrong device.
+    function paintMe(res) {
+      S.mode = 'me';
+      S.slot = res.slot || '';
+      placeWindow();
+      clear(S.body);
+      var me = res.me || {};
+      var card = el('div', 'vcCard vcCenter vcMe');
+      card.appendChild(el('div', 'vcBig', '👋'));
+      card.appendChild(el('p', 'vcMuted', 'You are'));
+      card.appendChild(el('h3', 'vcMeName', me.name || 'a student'));
+      if (res.slotLabel) card.appendChild(el('p', 'vcMsg', res.slotLabel));
+      if (me.kind === 'makeup') card.appendChild(el('p', 'vcMuted', 'A make-up lesson' + (me.home ? ' (your class: ' + me.home + ')' : '') + '.'));
+      var code = cleanPassCode(res.code) || passNow();
+      var go = btn('vcPrimary vcGo', '▶ Join the class', null, function () {
+        joinAsStudent({ kind: 'pass', code: code, name: me.name || '', label: me.name || '' }, false);
+      });
+      card.appendChild(go);
+      card.appendChild(btn('vcLinkBtn', 'Not me — choose my name', 'This is not your device or not your name', function () {
+        forgetPass(); S.passOff = true; S.passNote = ''; loadRoster();
+      }));
+      S.body.appendChild(card);
+      if (!phone()) setTimeout(function () { try { go.focus(); } catch (e) {} }, 0);
+    }
+    // 🔢 The PIN tab: four numbers, checked by the server (and counted).
+    function paintPinPane(pane) {
+      pane.appendChild(el('p', 'vcMuted', 'Your teacher gave you a four-number PIN. Type it here.'));
+      var form = el('div', 'vcPinRow');
+      var input = el('input', 'vcPinIn');
+      input.type = 'text';
+      input.inputMode = 'numeric';
+      input.autocomplete = 'off';
+      input.maxLength = 4;
+      input.pattern = '[0-9]*';
+      input.placeholder = '• • • •';
+      input.value = S.pinDraft || '';
+      input.setAttribute('aria-label', 'Your four-number PIN');
+      var go = btn('vcPrimary', 'Check my PIN', null, function () { submit(); });
+      form.appendChild(input);
+      form.appendChild(go);
+      pane.appendChild(form);
+      var msg = el('p', 'vcPinMsg', S.pinMsg || '');
+      msg.setAttribute('role', 'status');
+      pane.appendChild(msg);
+      function sync() {
+        var v = cleanPinInput(input.value);
+        if (v !== input.value) input.value = v;
+        S.pinDraft = v;
+        go.disabled = v.length !== 4 || S.pinBusy;
+      }
+      function submit() {
+        sync();
+        if (S.pinDraft.length !== 4 || S.pinBusy) return;
+        S.pinBusy = true; go.disabled = true;
+        msg.textContent = 'Checking…';
+        var seq = ++S.seq;
+        call('pass', { pin: S.pinDraft }).then(function (res) {
+          S.pinBusy = false;
+          if (seq !== S.seq || S.role !== 'student') return;
+          S.pinDraft = ''; S.pinMsg = '';
+          S.passOff = false; S.passNote = '';
+          S.me = res.me || null;
+          if (res.code) rememberPass(res.code, res.me && res.me.name);
+          if (res.gate && res.gate.open === false) return paintGate(res);
+          paintMe(res);
+        }, function (e) {
+          S.pinBusy = false;
+          if (seq !== S.seq) return;
+          S.pinMsg = (e && e.message) || 'That PIN could not be checked.';
+          msg.textContent = S.pinMsg;
+          if (e && e.code === 'class_closed') return paintWait();
+          input.value = ''; sync();
+          try { input.focus(); } catch (x) {}
+        });
+      }
+      input.addEventListener('input', sync);
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+      sync();
+      setTimeout(function () { try { input.focus(); } catch (e) {} }, 0);
+    }
+
+    /* ---------- the teacher's list of links and PINs ---------- */
+    function linkFor(code) {
+      var base = typeof env.classLink === 'function' ? env.classLink() : '';
+      return passLink(base, code);
+    }
+    function qrNode(text, cls) {
+      var matrix = null;
+      try { matrix = typeof env.qrMatrix === 'function' ? env.qrMatrix(text) : null; } catch (e) { matrix = null; }
+      if (!matrix || !matrix.length) return el('p', 'vcMuted', 'QR codes are not available here — copy the link instead.');
+      return qrSvgNode(root.document, matrix, cls);
+    }
+    function qrSvgNode(doc, matrix, cls) {
+      var NS = 'http://www.w3.org/2000/svg';
+      var q = qrPath(matrix);
+      var svg = doc.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 ' + q.size + ' ' + q.size);
+      svg.setAttribute('shape-rendering', 'crispEdges');
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', 'QR code');
+      if (cls) svg.setAttribute('class', cls);
+      var bg = doc.createElementNS(NS, 'rect');
+      bg.setAttribute('width', String(q.size)); bg.setAttribute('height', String(q.size)); bg.setAttribute('fill', '#fff');
+      var path = doc.createElementNS(NS, 'path');
+      path.setAttribute('fill', '#111'); path.setAttribute('d', q.d);
+      svg.appendChild(bg); svg.appendChild(path);
+      return svg;
+    }
+    function openPasses(slot) {
+      if (!isTeacher()) return;
+      S.mode = 'passes';
+      S.pv = { rows: S.pv && S.pv.rows || null, slot: slot || (S.pv && S.pv.slot) || '', query: '', qr: {} };
+      setTitle('Live class — links and PINs');
+      paintBusy('Getting every student\'s link…');
+      var seq = ++S.seq;
+      call('passes').then(function (res) {
+        if (seq !== S.seq || !isTeacher()) return;
+        S.pv.rows = (Array.isArray(res.students) ? res.students : []).map(cleanPassRow);
+        paintPasses();
+      }, function (e) { if (seq === S.seq) paintError(e, function () { openPasses(slot); }); });
+    }
+    function paintPasses() {
+      if (!isTeacher() || !S.pv) return;
+      S.mode = 'passes';
+      placeWindow();
+      clear(S.body);
+      var pv = S.pv, rows = pv.rows || [];
+      var card = el('div', 'vcCard vcPasses');
+      card.appendChild(el('h3', null, '🔗 Personal links and PINs'));
+      card.appendChild(el('p', 'vcMuted', 'Each student has their own link. Opening it in a lesson goes straight to "You are … — Join": no list to search. The lesson-time door still applies, and a link from another class joins as a make-up. Students without their link can type their four-number PIN on the class link.'));
+      var tools = el('div', 'vcPassTools');
+      var sel = el('select', 'vcPassSlot');
+      sel.setAttribute('aria-label', 'Which lesson');
+      sel.appendChild(new Option('Every lesson (' + rows.length + ')', ''));
+      passSlots(rows).forEach(function (x) { sel.appendChild(new Option(x.label || x.slot, x.slot)); });
+      sel.value = pv.slot;
+      if (sel.value !== pv.slot) { pv.slot = ''; sel.value = ''; }
+      sel.addEventListener('change', function () { pv.slot = sel.value; paintList(); });
+      var search = el('input', 'vcSearch');
+      search.type = 'search'; search.placeholder = 'Find a student'; search.value = pv.query;
+      search.setAttribute('aria-label', 'Find a student');
+      search.addEventListener('input', function () { pv.query = search.value; paintList(); });
+      tools.appendChild(sel); tools.appendChild(search);
+      card.appendChild(tools);
+      var acts = el('div', 'vcRow vcPassActs');
+      acts.appendChild(btn('', '⧉ Copy all', 'Every link and PIN shown, one line each (for a message to parents)', function () {
+        var shown = passesShown(rows, pv.slot, pv.query);
+        if (!shown.length) { say('No students shown.'); return; }
+        copyText(passLines(shown, typeof env.classLink === 'function' ? env.classLink() : '')).then(function () { say(shown.length + ' links copied.'); });
+      }));
+      acts.appendChild(btn('', '🖨 Print cards', 'A card per student shown: name, QR code and PIN', function () {
+        printCards(passesShown(rows, pv.slot, pv.query));
+      }));
+      acts.appendChild(btn('', '← Back', null, function () { S.pv.qr = {}; setTitle('Live class'); paintStart(); }));
+      card.appendChild(acts);
+      var list = el('div', 'vcPassList');
+      card.appendChild(list);
+      function paintList() {
+        clear(list);
+        var shown = passesShown(rows, pv.slot, pv.query);
+        if (!shown.length) { list.appendChild(el('p', 'vcMuted vcEmpty', rows.length ? 'No student matches.' : 'No students on the /office roster this month.')); return; }
+        shown.forEach(function (r) {
+          var row = el('div', 'vcPassRow');
+          var who = el('div', 'vcPassWho');
+          who.appendChild(el('b', null, r.name + (r.level ? ' (' + r.level + ')' : '')));
+          who.appendChild(el('span', 'vcMuted', r.slots.map(function (x) { return x.label || x.slot; }).join(' · ')));
+          row.appendChild(who);
+          var pin = el('code', 'vcPin', r.pin || '—');
+          pin.title = 'PIN';
+          row.appendChild(pin);
+          var b = el('div', 'vcPassBtns');
+          b.appendChild(btn('', '⧉ Link', 'Copy ' + r.name + '\'s link', function () {
+            var link = linkFor(r.code);
+            if (!link) { say('This link is not ready yet.'); return; }
+            copyText(link).then(function () { say(r.name + '\'s link copied.'); });
+          }));
+          b.appendChild(btn(pv.qr[r.id] ? 'on' : '', '▦ QR', 'Show the QR code', function () { pv.qr[r.id] = !pv.qr[r.id]; paintList(); }));
+          b.appendChild(btn('', '↻ New', 'Make a new link and PIN (the old ones stop working)', function () { renewPass(r); }));
+          row.appendChild(b);
+          if (pv.qr[r.id]) {
+            var qbox = el('div', 'vcPassQr');
+            qbox.appendChild(qrNode(linkFor(r.code), 'vcQrSvg'));
+            qbox.appendChild(el('span', 'vcMuted', 'Scan with a phone or iPad camera.'));
+            row.appendChild(qbox);
+          }
+          list.appendChild(row);
+        });
+      }
+      paintList();
+      S.body.appendChild(card);
+    }
+    function renewPass(r) {
+      if (!isTeacher()) return;
+      if (!root.confirm('Make a new link and PIN for ' + r.name + '? Their old link and PIN stop working at once.')) return;
+      call('repass', { id: r.id }).then(function (res) {
+        if (!isTeacher() || !S.pv || !S.pv.rows) return;
+        var fresh = cleanPassRow(res.student);
+        S.pv.rows = S.pv.rows.map(function (x) { return x.id === fresh.id ? fresh : x; });
+        say('New link and PIN for ' + fresh.name + ': ' + fresh.pin + '.');
+        if (S.mode === 'passes') paintPasses();
+      }, function (e) { say((e && e.message) || 'A new link could not be made.'); });
+    }
+    // 🖨 One card per student: name, lesson, QR code, PIN and how to use them.
+    // Built with DOM calls in a new window (nothing is written as markup).
+    function printCards(rows) {
+      if (!isTeacher()) return;
+      if (!rows || !rows.length) { say('No students shown.'); return; }
+      var w = null;
+      try { w = root.open('', '_blank'); } catch (e) { w = null; }
+      if (!w || !w.document) { say('Allow pop-ups for Ans Key to print the cards.'); return; }
+      var doc = w.document;
+      var classLink = typeof env.classLink === 'function' ? env.classLink() : '';
+      try { doc.title = 'Live class cards'; } catch (e) {}
+      var style = doc.createElement('style');
+      style.textContent = '@page{margin:12mm}body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;color:#1a1a1a}' +
+        '.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8mm}' +
+        '.card{border:1.5px dashed #999;border-radius:10px;padding:6mm 7mm;break-inside:avoid;display:grid;grid-template-columns:1fr 36mm;gap:5mm;align-items:center}' +
+        '.card h2{margin:0 0 2mm;font-size:17pt}.card p{margin:0 0 2mm;font-size:10pt;color:#444}' +
+        '.pin{font:700 22pt ui-monospace,Menlo,monospace;letter-spacing:3pt;color:#1a1a1a;margin:3mm 0 2mm}' +
+        '.how{font-size:8.5pt;color:#555;line-height:1.35}svg{width:36mm;height:36mm}' +
+        '.top{font-size:10pt;color:#666;margin:0 0 6mm}@media print{.top{display:none}}';
+      (doc.head || doc.documentElement).appendChild(style);
+      var body = doc.body || doc.documentElement.appendChild(doc.createElement('body'));
+      while (body.firstChild) body.removeChild(body.firstChild);
+      var top = doc.createElement('p'); top.className = 'top';
+      top.textContent = rows.length + ' card' + (rows.length === 1 ? '' : 's') + '. Cut along the dashed lines.';
+      body.appendChild(top);
+      var grid = doc.createElement('div'); grid.className = 'grid';
+      rows.forEach(function (r) {
+        var link = linkFor(r.code);
+        var c = doc.createElement('div'); c.className = 'card';
+        var left = doc.createElement('div');
+        var h = doc.createElement('h2'); h.textContent = r.name; left.appendChild(h);
+        var sl = doc.createElement('p'); sl.textContent = '🎥 Live class · ' + r.slots.map(function (x) { return x.label || x.slot; }).join(' · '); left.appendChild(sl);
+        var pinLabel = doc.createElement('p'); pinLabel.textContent = 'Your PIN'; left.appendChild(pinLabel);
+        var pin = doc.createElement('div'); pin.className = 'pin'; pin.textContent = r.pin || '—'; left.appendChild(pin);
+        var how = doc.createElement('div'); how.className = 'how';
+        how.textContent = 'Scan the code with your phone or iPad camera at lesson time. No code? Open ' + (classLink || 'the class link') + ' and type your PIN.';
+        left.appendChild(how);
+        c.appendChild(left);
+        var matrix = null;
+        try { matrix = link && typeof env.qrMatrix === 'function' ? env.qrMatrix(link) : null; } catch (e) { matrix = null; }
+        if (matrix && matrix.length) c.appendChild(qrSvgNode(doc, matrix, ''));
+        grid.appendChild(c);
+      });
+      body.appendChild(grid);
+      setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 350);
     }
 
     /* ================================================================
@@ -3654,7 +4058,8 @@
       stopTimers();
       closeBigPhoto();
       hideWindow();
-      if (S.role === 'student') { S.questions = {}; S.order = []; S.mine = {}; S.popup = null; S.pick = null; }
+      if (S.role === 'student') { S.questions = {}; S.order = []; S.mine = {}; S.popup = null; S.pick = null; S.pinDraft = ''; S.pinMsg = ''; S.passNote = ''; }
+      S.pv = null;
       S.hands = {};
       S.mode = 'closed';
     }
@@ -3662,7 +4067,7 @@
       close();
       if (S.mirrorOff) { try { S.mirrorOff(); } catch (e) {} S.mirrorOff = null; }
       S.session = null; S.reports = {}; S.compose = null; S.images = {}; S.removed = {}; S.outbox = {};
-      S.status = null; S.lists = null; S.box = null;
+      S.status = null; S.lists = null; S.box = null; S.me = null; S.passOff = false;
     }
     // A change of person on this device ends everything that was theirs:
     // the call, the camera, the class record held in memory.

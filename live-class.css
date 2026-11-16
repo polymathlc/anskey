@@ -566,3 +566,50 @@ body.vcCropping .vcWin { opacity: .14; pointer-events: none; transition: opacity
 :root[data-theme="dark"] .vcAiWhy { color: #b39ddb; }
 :root[data-theme="dark"] .vcTallyWho { background: rgba(255, 255, 255, .06); }
 :root[data-theme="dark"] .vcConfirmBar { background: rgba(255, 193, 7, .08); }
+
+/* ---------- 🔗 Personal links and PINs (v1.210.0) ---------- */
+.vcHello { margin: 0 0 6px; font-size: 18px; font-weight: 700; color: var(--ink, #1a1a1a); }
+.vcNote {
+  margin: 10px 0 12px; padding: 10px 12px; border-radius: 10px; line-height: 1.45;
+  background: #fff6e5; border: 1px solid #f0c987; color: #6b4a12; font-size: 13.5px;
+}
+.vcMe { text-align: center; }
+.vcMe .vcMeName { margin: 2px 0 6px; font-size: 26px; line-height: 1.2; letter-spacing: .2px; }
+.vcMe .vcGo { margin: 18px auto 10px; min-width: 220px; font-size: 17px; padding: 12px 22px; }
+.vcLinkBtn {
+  border: 0; background: none; color: var(--ink-soft, #666); font: inherit; font-size: 13.5px;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 6px 8px; margin: 0 auto; display: block;
+}
+.vcLinkBtn:hover, .vcLinkBtn:focus-visible { color: var(--ink, #1a1a1a); }
+.vcPinRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0 6px; }
+.vcPinIn {
+  width: 9.5ch; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line, #d8d6d2);
+  font: 700 26px/1.1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 6px; text-align: center;
+  background: var(--bg, #fff); color: var(--ink, #1a1a1a);
+}
+.vcPinIn:focus { outline: none; border-color: var(--accent-deep, #e8a54b); box-shadow: 0 0 0 3px rgba(232,165,75,.25); }
+.vcPinMsg { min-height: 1.4em; margin: 4px 0 0; font-size: 13.5px; color: var(--ink-soft, #666); }
+.vcPasses { max-width: 760px; }
+.vcPassTools { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 10px; }
+.vcPassTools .vcPassSlot { flex: 1 1 240px; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line, #d8d6d2); background: var(--bg, #fff); color: var(--ink, #1a1a1a); font: inherit; }
+.vcPassTools .vcSearch { flex: 1 1 200px; min-width: 0; margin: 0; }
+.vcPassActs { margin: 0 0 12px; }
+.vcPassList { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow: auto; padding: 2px; -webkit-overflow-scrolling: touch; }
+.vcPassRow {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 14px; align-items: center;
+  padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line, #e3e1dd); background: var(--bg, #fff);
+}
+.vcPassWho { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vcPassWho b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vcPassWho .vcMuted { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vcPin { font: 700 18px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 3px; padding: 6px 10px; border-radius: 8px; background: var(--bg-viewer, #f3f2f0); }
+.vcPassBtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.vcPassBtns button { padding: 6px 10px; font-size: 13px; }
+.vcPassBtns button.on { background: var(--accent, #ffe0b2); }
+.vcPassQr { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 6px 0 2px; }
+.vcQrSvg { width: 168px; height: 168px; border-radius: 8px; background: #fff; flex: 0 0 auto; }
+@media (max-width: 560px) {
+  .vcPassRow { grid-template-columns: minmax(0, 1fr) auto; }
+  .vcPassBtns { grid-column: 1 / -1; justify-content: flex-start; }
+  .vcMe .vcMeName { font-size: 22px; }
+}

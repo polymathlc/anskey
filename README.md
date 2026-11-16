@@ -5,6 +5,13 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🔗 v1.210.0 — Live class: a personal link, QR card and PIN for every student
+
+- **Every student has their own link.** In the live class start screen press 🔗 Links & PINs: every student on the /office roster this month is listed by lesson, with their link (⧉ Link), a QR code (▦ QR) and a four-number PIN. ⧉ Copy all gives one line per student for a message to parents; 🖨 Print cards prints a cut-out card each (name, lesson, QR code, PIN).
+- **Opening the link goes straight to "You are Amy Tan — ▶ Join the class".** No list to search. The lesson-time door still applies (they wait with a countdown if they are early), and a link from another class joins as a make-up automatically. The device remembers it, so next week even the plain class link says "You are Amy Tan". "Not me — choose my name" undoes it on a shared iPad.
+- **No link? Type the PIN.** On the class link a 🔢 PIN tab sits beside My class, Make-up and Trial. A PIN only works while a class is open, and too many wrong tries make that device wait ten minutes, so PINs cannot be guessed by trying them all.
+- **Lost link or overheard PIN?** ↻ New makes a new link and PIN for that student; the old ones stop working at once.
+
 ## ✨ v1.209.0 — Live class: AI send, AI pre-marking you confirm, and box select
 
 - **✨ AI send.** Press ✨ AI send in the Ask tab and drag a box round a question on the worksheet. Chung GPT reads it, works out whether it is multiple choice, fill in the blank or open-ended, takes the answer from the answer key on that page when there is one, and pushes it to students with the picture. Tick "Let me check it first" to see it in the question form before it goes.

@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.209.0');
+  assert.equal(P.VERSION, '1.210.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.209\.0'/);
-  assert.match(html, /live-class\.js\?v=1\.209\.0/);
+  assert.match(html, /var APP_VERSION = 'v1\.210\.0'/);
+  assert.match(html, /live-class\.js\?v=1\.210\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.209\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.210\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -700,4 +700,61 @@ test('the glue: AI send borrows the snip layer, and both calls are grounded and 
   // Students are numbered for the model, never named.
   assert.match(src, /answers: batch\.map\(function \(a, i\) \{ return \{ id: 's' \+ \(i \+ 1\), text: a\.text, photo: a\.photo \}; \}\)/);
   assert.match(src, /if \(!e \|\| e\.aid !== a\.aid\) return;/, 'a reply for an answer the student has since changed is dropped');
+});
+
+/* ---------- 🔗 personal links and PINs (v1.210.0) ---------- */
+
+test('🔗 a personal link\'s code is read from ?live=<code>, and only in its shape', () => {
+  const code = 'famA_sA1.0.' + 'Ab-_'.repeat(4);
+  assert.equal(P.cleanPassCode(code), code);
+  assert.equal(P.passFromSearch('?live=' + encodeURIComponent(code)), code);
+  assert.equal(P.passFromSearch('?who=s1&live=' + code), code);
+  assert.equal(P.passFromSearch('?live'), '', 'the general link has no code');
+  assert.equal(P.passFromSearch('?live='), '');
+  assert.equal(P.passFromSearch('?live=<script>'), '');
+  assert.equal(P.passFromSearch('?live=famA_sA1.0.short'), '');
+  assert.equal(P.passFromSearch('?live=%E0%A4%A'), '', 'a broken escape is nothing, not a throw');
+  assert.equal(P.passFromSearch('?alive=' + code), '');
+  assert.equal(P.passLink('https://polymathlc.com.sg/anskey/?live', code), 'https://polymathlc.com.sg/anskey/?live=' + encodeURIComponent(code));
+  assert.equal(P.passLink('https://x.test/anskey/?live#top', code), 'https://x.test/anskey/?live=' + encodeURIComponent(code));
+  assert.equal(P.passLink('https://x.test/?live', 'nope'), '');
+  assert.equal(P.cleanPinInput(' 1a2-3 4 5'), '1234');
+});
+
+test('🔗 the teacher\'s list: cleaned rows, one lesson, typed words, copy-all lines', () => {
+  const code = 'famA_sA1.0.' + 'x'.repeat(16);
+  const rows = [
+    { id: 'famA_sA1', name: 'Amy Tan', level: 'P5', slots: [{ slot: 'WED-2', label: 'Wed 5:00pm · P5 Science' }], gen: 0, pin: '4821', code },
+    { id: 'famC_sC2', name: 'Zoe Ng', level: 'P6', slots: [{ slot: 'FRI-2', label: 'Fri 5:00pm · P6 Science' }], gen: 2, pin: '12345', code: 'bad' }
+  ].map(P.cleanPassRow);
+  assert.equal(rows[1].pin, '', 'a PIN that is not four digits is not shown');
+  assert.equal(rows[1].code, '');
+  assert.equal(rows[1].gen, 2);
+  assert.deepEqual(plain(P.passSlots(rows)).map(s => s.slot), ['WED-2', 'FRI-2']);
+  assert.deepEqual(plain(P.passesShown(rows, 'FRI-2', '')).map(r => r.name), ['Zoe Ng']);
+  assert.deepEqual(plain(P.passesShown(rows, '', 'am')).map(r => r.name), ['Amy Tan']);
+  const lines = P.passLines(rows.slice(0, 1), 'https://x.test/anskey/?live');
+  assert.equal(lines, 'Amy Tan (P5) — https://x.test/anskey/?live=' + encodeURIComponent(code) + ' — PIN 4821');
+  const q = P.qrPath([[true, true, false], [false, true, false], [true, false, true]]);
+  assert.equal(q.size, 11);
+  assert.equal(q.d, 'M4 4h2v1h-2zM5 5h1v1h-1zM4 6h1v1h-1zM6 6h1v1h-1z');
+});
+
+test('🔗 the window: a link or PIN is checked by the server, remembered, and forgettable', () => {
+  assert.match(src, /call\('pass', \{ code: code \}\)/);
+  assert.match(src, /call\('pass', \{ pin: S\.pinDraft \}\)/);
+  assert.match(src, /kind: 'pass', code: pick\.code/, 'the token is asked for with the code, never a name the page chose');
+  assert.match(src, /'Not me — choose my name'/);
+  assert.match(src, /forgetPass\(\); S\.passOff = true;/);
+  assert.match(src, /e\.code === 'pass_unknown' \|\| e\.code === 'not_on_roster'/, 'a replaced link goes back to the list, saying why');
+  assert.match(src, /'🔗 Links & PINs'/);
+  assert.match(src, /root\.confirm\('Make a new link and PIN for '/, 'a new link is asked about first');
+  // The printed cards are built with DOM calls, never markup.
+  const cards = src.slice(src.indexOf('function printCards'), src.indexOf('THE ROOM'));
+  assert.doesNotMatch(cards, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+  assert.match(cards, /createElementNS|qrSvgNode\(doc/);
+  assert.match(html, /passCode: function \(\) \{ return window\.LiveClass\.pure\.passFromSearch\(location\.search\); \}/);
+  assert.match(html, /qrMatrix: function \(text\)/);
+  assert.match(css, /\.vcPassRow/);
+  assert.match(css, /\.vcPinIn/);
 });

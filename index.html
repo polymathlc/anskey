@@ -4047,7 +4047,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="live-cams.css">
-<link rel="stylesheet" href="live-class.css?v=1.209.0">
+<link rel="stylesheet" href="live-class.css?v=1.210.0">
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="living-library.css">
@@ -6049,7 +6049,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.209.0';
+var APP_VERSION = 'v1.210.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -33183,6 +33183,12 @@ function liveClassInit() {
     slots: function () { return liveClassCall('slots').then(function (r) { return r.slots || []; }); },
     guessSlot: liveClassGuessSlot,
     classLink: liveClassLink,
+    // 🔗 A personal link's code (`?live=<code>`) and the QR codes for the
+    // teacher's list and printed cards (v1.210.0).
+    passCode: function () { return window.LiveClass.pure.passFromSearch(location.search); },
+    qrMatrix: function (text) {
+      return window.QuestionBank && QuestionBank.pure && typeof QuestionBank.pure.qrMatrix === 'function' ? QuestionBank.pure.qrMatrix(text) : null;
+    },
     loadSession: liveClassLoadSession,
     saveSession: liveClassSaveSession,
     savePhoto: liveClassSavePhoto,
@@ -45178,7 +45184,7 @@ loadAiNotePrefs();
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>
 <script src="live-class-record.js?v=1.208.0"></script>
-<script src="live-class.js?v=1.209.0"></script>
+<script src="live-class.js?v=1.210.0"></script>
 <script>liveClassInit();</script>
 <script src="vendor/qrcode-generator.js"></script>
 <script src="question-apps.js"></script>
