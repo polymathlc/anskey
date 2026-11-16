@@ -5,6 +5,13 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## ✦ v1.213.0 — Nothing opens by itself when a student signs in
+
+- **My Hero no longer pops up on sign-in.** A student signing in (Google, a personal link, a PIN or a live
+  class join) lands on their worksheets with nothing in front of them.
+- **The character select appears only when the student presses ✦ My Hero**, and only while they have not
+  picked a character yet; a student who already has one sees their hero, as before.
+
 ## 📞 v1.212.0 — Live class: Zoom hybrid
 
 - **📞 Zoom** on the teacher's bar opens a new Zoom tab. **🪟 Pick the Zoom window** (Chrome asks inside the tap; tick its sound) or pick a **🎚 sound input** (BlackHole, VB-CABLE, Stereo Mix or a microphone). The Zoom room's sound goes into the class as one extra track, so the children here hear the children in Zoom, and it is recorded with the lesson.

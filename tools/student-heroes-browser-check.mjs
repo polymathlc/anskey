@@ -61,8 +61,13 @@ try{
     window.__account=uid=>{currentUser={uid,email:uid+'@example.test'};StudentHeroes.roleChanged();StudentHeroes.profileReady(uid);};
   });
   await page.addScriptTag({url:'/student-heroes.js'});
+  await page.waitForTimeout(300);
+  check('nothing opens by itself on sign-in: My Hero waits for its button',!(await page.locator('#shDialog').evaluate(d=>d.open))&&await page.locator('#myHeroBtn').isVisible()&&await page.evaluate(()=>StudentHeroes.pure.shouldAutoOpen()===false));
+  await page.evaluate(()=>{StudentHeroes.profileReady('student-a');StudentHeroes.roleChanged();});await page.waitForTimeout(200);
+  check('a second profile-ready (personal link, PIN, live class join) still opens nothing',!(await page.locator('#shDialog').evaluate(d=>d.open)));
+  await page.click('#myHeroBtn');
   await page.waitForSelector('#shSlot');
-  check('My Hero opens automatically after student profile readiness',await page.locator('#shDialog').evaluate(d=>d.open));
+  check('pressing My Hero shows the character select for a student with no character',await page.locator('#shDialog').evaluate(d=>d.open)&&await page.locator('.shWelcome h2').textContent().then(t=>t.includes('Find your character')));
   await page.selectOption('#shSlot','Science Saturday 11am');
   check('claimed names are unavailable and Lesson slot has its own label',await page.locator('[data-sh-claim="bo"]').isDisabled()&&await page.locator('label[for="shSlot"]').textContent().then(t=>t.includes('Lesson slot')));
   await page.click('[data-sh-claim="ari"]');await idle();
@@ -72,6 +77,8 @@ try{
   await page.click('#heroClaimsBtn');await page.waitForSelector('[data-sh-manage="approve"]');
   check('teacher sees the account email with its pending roster name',await page.locator('.shClaimRow').textContent().then(t=>t.includes('ari@example.test')&&t.includes('Ari')));
   await page.click('[data-sh-manage="approve"]');await idle();await page.evaluate(()=>__account('student-a'));
+  check('switching to a student opens nothing until the button',!(await page.locator('#shDialog').evaluate(d=>d.open)));
+  await page.click('#myHeroBtn');
   await page.waitForSelector('[data-sh-role="mage"]');
   check('approved first-time hero gets all four pixel classes',await page.locator('.shClass').count()===4&&await page.locator('.shClass [data-cba-sheet]').count()===4);
   check('approved students see male and female previews before choosing their class',await page.locator('[data-sh-gender]').count()===2&&await page.locator('[data-sh-gender="male"]').getAttribute('aria-pressed')==='true'&&await page.locator('[data-sh-gender="female"] [data-cba-gender="female"]').count()===1);
@@ -160,7 +167,7 @@ try{
   await page.evaluate(()=>__account('teacher'));await page.click('#heroClaimsBtn');await page.waitForSelector('[data-sh-manage="endEncounter"]');
   await page.click('[data-sh-manage="endEncounter"]');await idle();
   check('teacher can release an encounter without changing character progress',await page.evaluate(()=>!__heroFixture.active&&__heroFixture.hero.xp===450));
-  await page.evaluate(()=>__account('student-a'));await page.waitForSelector('#shTree');
+  await page.evaluate(()=>__account('student-a'));await page.click('#myHeroBtn');await page.waitForSelector('#shTree');
   check('released hero can manage skills again',await page.locator('.shLock').count()===0&&await page.locator('[data-sh-role="mage"]').isEnabled());
   await page.evaluate(()=>{__heroFixture.active=null;__heroFixture.claim.lessonSlots=['Science Sunday 1pm'];});
   await page.click('#shRefresh');await page.waitForFunction(()=>document.querySelector('.shHeroTop').textContent.includes('Sunday'));
@@ -191,6 +198,9 @@ try{
   check('mobile dialog fits its viewport',await page.locator('#shDialog').evaluate(d=>d.getBoundingClientRect().width<=window.innerWidth&&d.scrollWidth<=d.clientWidth+2));
   await page.click('#shClose');await page.evaluate(()=>{__heroFixture.delay=true;StudentHeroes.open('student');});
   await page.waitForFunction(()=>!!__heroFixture.release);await page.evaluate(()=>{__account('student-b');__heroFixture.delay=false;__heroFixture.release();});
+  await page.waitForTimeout(200);
+  check('an account change closes My Hero and opens nothing',!(await page.locator('#shDialog').evaluate(d=>d.open)));
+  await page.click('#myHeroBtn');
   await page.waitForSelector('#shSlot');
   check('late account responses cannot expose the previous student hero',await page.locator('#shTree').count()===0&&await page.locator('[data-sh-gender]').count()===0);
   await page.evaluate(()=>__account('teacher'));await page.click('#heroClaimsBtn');await page.waitForSelector('[data-sh-manage="unlink"]');await page.click('[data-sh-manage="unlink"]');await idle();

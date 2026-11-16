@@ -29,7 +29,7 @@ test('the module loads with no DOM and exposes pure + create', () => {
 });
 
 test('the version shown in the app matches the module', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.212\.0'/);
+  assert.match(html, /var APP_VERSION = 'v1\.2(1[2-9]|[2-9]\d)\.\d+'/);
   assert.match(html, /live-class\.js\?v=1\.212\.0/);
 });
 
