@@ -2100,7 +2100,10 @@
       var mine = {};
       qs.forEach(function (q) {
         var e = (S.session.answers[q.id] || {})[identity];
-        if (e) mine[q.id] = { aid: e.aid, ok: markOf(e), pts: e.pts || 0 };
+        // Only a mark the teacher GAVE goes back on a rejoin: the key's own
+        // guess stays on the teacher's board until it is given, exactly as on
+        // the first send (the acknowledgement never carries it either).
+        if (e) mine[q.id] = { aid: e.aid, ok: e.ok === true || e.ok === false ? e.ok : null, pts: e.pts || 0 };
       });
       var revealed = S.session.questions.filter(function (q) { return q.revealed && meantFor(q, identity); }).slice(-3).map(function (q) {
         var e = (S.session.answers[q.id] || {})[identity];

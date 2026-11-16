@@ -550,3 +550,11 @@ test('wholeEnd finds where a cut-off recording\'s last whole block ends', () => 
   assert.equal(R.wholeEnd(new Uint8Array(whole), 0, whole.length), whole.length, 'a whole file ends where it ends');
   assert.equal(R.wholeEnd(new Uint8Array([1, 2, 3]), 0, 3), 0, 'no cluster: no answer');
 });
+
+test('a rejoin never hands a student the key\'s own guess before the teacher gives a mark', () => {
+  const hello = src.slice(src.indexOf('function onHello('), src.indexOf('function onNeedImage('));
+  assert.ok(hello.length > 100);
+  const open = hello.slice(0, hello.indexOf('var revealed'));
+  assert.doesNotMatch(open, /markOf\(/, 'an open question\'s mark on a rejoin is only the teacher\'s');
+  assert.match(open, /e\.ok === true \|\| e\.ok === false/);
+});
