@@ -78,10 +78,12 @@ function fakeLiveKit() {
 
 function harness({ db = fakeDb(), user = teacherUser, appId = APP_ID, lk = fakeLiveKit(), clock = { t: WED_1655 } } = {}) {
   const reports = [];
+  const minted = [];
   const current = { user };
   const service = lc.createLiveClassService({
     auth: { async verifyIdToken() { if (current.user instanceof Error) throw current.user; return current.user; },
-      async getUserByEmail() { return { uid: 'teacher', emailVerified: true }; } },
+      async getUserByEmail() { return { uid: 'teacher', emailVerified: true }; },
+      async createCustomToken(uid, claims) { minted.push({ uid, claims }); return 'custom.' + uid + '.' + JSON.stringify(claims); } },
     appCheck: { async verifyToken() { return { appId }; } },
     db, master: () => MASTER, fetchImpl: lk.fetchImpl, now: () => clock.t, report: c => reports.push(c)
   });
@@ -93,7 +95,7 @@ function harness({ db = fakeDb(), user = teacherUser, appId = APP_ID, lk = fakeL
     await service.handler(req, res);
     return res;
   }
-  return { call, db, lk, clock, reports, current };
+  return { call, db, lk, clock, reports, current, minted };
 }
 
 const KEYS = { action: 'configure', url: 'wss://polymath-abc.livekit.cloud', apiKey: 'APIabc123XYZ', apiSecret: SECRET };
@@ -650,4 +652,102 @@ test('🔗 a PIN: only while a class is open, and counted', async () => {
   const stopped = await h.call({ action: 'pass', pin: amy.pin }, { as: studentUser });
   assert.equal(stopped.statusCode, 429, 'even the right PIN waits once an account has guessed too often');
   assert.equal(stopped.body.error.code, 'pin_wait');
+});
+
+
+/* ---------- 📖 Study Buddy from the same link (v1.211.0) ---------- */
+
+test('📖 subjects, levels and the profile Study Buddy reads', () => {
+  assert.deepEqual(lc.subjectWords('Maths & Science'), ['math', 'science']);
+  assert.deepEqual(lc.subjectWords('Mathematics'), ['math']);
+  assert.deepEqual(lc.subjectWords('English'), []);
+  const sched = { slots: { A: { subject: 'Maths' }, B: { subject: 'Science' }, C: { subject: 'science' } } };
+  assert.deepEqual(lc.slotSubjects(['A', 'B', 'X'], sched), ['math', 'science']);
+  assert.deepEqual(lc.slotSubjects(['C'], sched), ['science']);
+  assert.deepEqual(lc.slotSubjects(null, sched), []);
+  assert.equal(lc.studySubject('P3', ['math']), 'science', 'P3 is Science only');
+  assert.equal(lc.studySubject('P5', ['math', 'science']), 'both');
+  assert.equal(lc.studySubject('P5', ['math']), 'math');
+  assert.equal(lc.studySubject('P6', []), 'both', 'no subject named: the widest, never none');
+  assert.equal(lc.studyLevel('p5'), 'P5');
+  assert.equal(lc.studyLevel('Primary 4'), 'P4');
+  assert.equal(lc.studyLevel('Pri 6'), 'P6');
+  assert.equal(lc.studyUid('famA_sA1'), 'office-famA-sA1');
+  assert.equal(lc.studyUid('../x'), '');
+  const doc = lc.studyProfileDoc({ name: 'Amy Tan', level: 'P5', slots: ['A', 'B'] }, sched, 'famA_sA1', 1000, null);
+  assert.equal(doc.subject, 'both');
+  assert.equal(doc.officeId, 'famA_sA1');
+  assert.equal(doc.levelSource, 'office');
+  assert.equal(doc.tutorOnboard.v, 2, 'answers Study Buddy\'s first-sign-in questions');
+  assert.equal(doc.tutorOnboard.enrolled, true);
+  assert.equal(doc.tutorOnboard.payingFee, false, 'the centre\'s own child pays no app fee');
+  assert.deepEqual(doc.tutorOnboard.students, [{ name: 'Amy Tan', level: 'P5', subject: 'both' }]);
+  assert.equal(doc.createdAt, 1000);
+  assert.equal(lc.studyProfileDoc({ name: 'Amy', level: 'P5', slots: [] }, sched, 'famA_sA1', 2000, { name: 'x' }).createdAt, undefined, 'never rewritten');
+});
+
+test('📖 origins: Ans Key, Study Buddy on github.io and the centre\'s domain, nothing that only looks like them', () => {
+  assert.ok(lc.liveClassOrigin('https://polymathlc.github.io'));
+  assert.ok(lc.liveClassOrigin('https://polymathlc.com.sg'));
+  assert.ok(lc.liveClassOrigin('https://www.polymathlc.com.sg'));
+  assert.ok(!lc.liveClassOrigin('https://polymathlc.com.sg.example'));
+  assert.ok(!lc.liveClassOrigin('http://polymathlc.com.sg'));
+  assert.ok(!lc.liveClassOrigin('https://evil.example'));
+  assert.ok(!lc.liveClassOrigin(''));
+});
+
+test('📖 a personal link signs the child into Study Buddy as themselves, at any hour', async () => {
+  const h = harness();
+  const amy = (await h.call({ action: 'passes' }, { as: teacherUser })).body.students[0];
+  // No class open, any time of day.
+  h.clock.t = Date.UTC(2027, 0, 16, 2, 0);
+  const res = await h.call({ action: 'study', code: amy.code }, { as: anonUser, headers: { origin: 'https://polymathlc.com.sg' } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.uid, 'office-famA-sA1');
+  assert.equal(res.body.me.name, 'Amy Tan');
+  assert.equal(res.body.me.level, 'P5');
+  assert.equal(res.body.me.subject, 'science', 'from her own lessons: WED-2 is Science');
+  assert.equal(res.body.code, amy.code);
+  assert.deepEqual(h.minted, [{ uid: 'office-famA-sA1', claims: { officePass: true, officeId: 'famA_sA1' } }]);
+  assert.match(res.body.token, /^custom\.office-famA-sA1\./);
+  const row = h.db.store.get('studentProfiles/office-famA-sA1');
+  assert.equal(row.name, 'Amy Tan');
+  assert.equal(row.subject, 'science');
+  assert.equal(row.tutorOnboard.v, 2);
+  assert.equal(typeof row.createdAt, 'number');
+  // A second sign-in writes no new createdAt (it is a merge onto the row).
+  await h.call({ action: 'study', code: amy.code }, { as: anonUser });
+  const second = h.db.writes.filter(w => w[0] === 'studentProfiles/office-famA-sA1').pop()[1];
+  assert.equal(second.createdAt, undefined);
+  assert.equal(h.minted.length, 2);
+  // Never the teacher, never a replaced link, never a child who left.
+  assert.equal((await h.call({ action: 'study', code: amy.code }, { as: teacherUser })).body.error.code, 'teacher_pass');
+  await h.call({ action: 'repass', id: 'famA_sA1' }, { as: teacherUser });
+  assert.equal((await h.call({ action: 'study', code: amy.code }, { as: anonUser })).body.error.code, 'pass_unknown');
+  assert.equal((await h.call({ action: 'study', code: 'nonsense' }, { as: anonUser })).body.error.code, 'pass_unknown');
+  assert.equal(h.minted.length, 2, 'no token for a refusal');
+});
+
+test('📖 a Study Buddy PIN works without a class, in its own slower bucket', async () => {
+  const h = harness();
+  const list = (await h.call({ action: 'passes' }, { as: teacherUser })).body.students;
+  const zoe = list.find(s => s.name === 'Zoe Ng');
+  const ok = await h.call({ action: 'study', pin: zoe.pin }, { as: anonUser });
+  assert.equal(ok.statusCode, 200);
+  assert.equal(ok.body.uid, 'office-famC-sC2');
+  assert.equal(ok.body.me.level, 'P6');
+  const used = new Set(list.map(s => s.pin));
+  let wrong = '5821'; while (used.has(wrong)) wrong = String(Number(wrong) + 1);
+  let last = null;
+  for (let i = 0; i < lc.STUDY_PIN_LIMITS.perUid; i++) last = await h.call({ action: 'study', pin: wrong }, { as: studentUser });
+  assert.equal(last.body.error.code, 'pin_unknown');
+  const stopped = await h.call({ action: 'study', pin: zoe.pin }, { as: studentUser });
+  assert.equal(stopped.statusCode, 429);
+  assert.equal(stopped.body.error.code, 'pin_wait');
+  // Counted apart from the class door's PINs.
+  assert.ok(h.db.store.get('ansKeyLiveClassState/studyPins'));
+  assert.equal(h.db.store.get('ansKeyLiveClassState/pins'), undefined);
+  // An hour later the account may try again.
+  h.clock.t += lc.STUDY_PIN_LIMITS.windowMs + 1;
+  assert.equal((await h.call({ action: 'study', pin: zoe.pin }, { as: studentUser })).statusCode, 200);
 });

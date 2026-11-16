@@ -606,7 +606,9 @@ body.vcCropping .vcWin { opacity: .14; pointer-events: none; transition: opacity
 .vcPassBtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .vcPassBtns button { padding: 6px 10px; font-size: 13px; }
 .vcPassBtns button.on { background: var(--accent, #ffe0b2); }
-.vcPassQr { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 6px 0 2px; }
+.vcPassQr { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 6px 0 2px; }
+.vcQrFig { margin: 0; display: grid; justify-items: center; gap: 6px; }
+.vcQrFig figcaption { font-size: 12px; }
 .vcQrSvg { width: 168px; height: 168px; border-radius: 8px; background: #fff; flex: 0 0 auto; }
 @media (max-width: 560px) {
   .vcPassRow { grid-template-columns: minmax(0, 1fr) auto; }

@@ -18,6 +18,21 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## 📖 Live class: the same link or PIN signs a child into Study Buddy (v1.211.0)
+
+- **Server** (`functions/live-class.js`, action `study`, not the teacher): a code through `checkPass`, or a PIN through
+  `pinOwner` counted in `ansKeyLiveClassState/studyPins` with `STUDY_PIN_LIMITS` (1 h, 5 per uid, 30 in all — a
+  Study Buddy PIN works at any hour, so it gets the tighter bucket). The child must be enrolled this month. It writes
+  `studentProfiles/<studyUid(id)>` (`office-<family>-<child>`) from `studyProfileDoc` (merge: name, `studyLevel`,
+  `studySubject` of `slotSubjects` — P3 → science, two → both, none → both — `officeId`, `levelSource:'office'`,
+  `officeSlots`, `tutorOnboard` v2 enrolled with no fee) and returns `auth.createCustomToken(uid, {officePass:true,
+  officeId})`. `liveClassOrigin` adds the polymathlc.com.sg origins (whole-origin match) for Study Buddy's mirror.
+- **Ans Key**: pure `studyBase` / `studyLink` (…/anskey/ → …/tutor/?pass=), ⧉ Study and a second 📖 QR in 🔗 Links &
+  PINs, `passLines` appends the Study Buddy link, `printCards` draws both codes (DOM calls only).
+- **Study Buddy** (polymathlc/tutor v1.96.0, `office-pass.js`) signs in anonymously only to ask, deletes that account,
+  then `signInWithCustomToken`; its `centre-auth.js` `isOfficePass` accepts the claim. Ship changes to both.
+- Run `node --test tools/live-class-tests.mjs` and `npm --prefix functions test`.
+
 ## 🔗 Live class: personal links, QR cards and PINs (v1.210.0)
 
 - **The server makes and checks every code** (`functions/live-class.js`): `passCode(rosterId, gen, master)` = `<family>_<child>.<gen>.<mac16>`, the MAC an HMAC keyed by HKDF(`PASS_INFO`) from the same server secret as the LiveKit seal. `checkPass` needs the MAC AND the generation on file, so ↻ New (`repass`, gen + 1) kills the old link. PINs are four digits from the same key (`pinFor`), unique across `ansKeyLiveClassConfig/passes` (`{v, list:{rosterId:{gen,pin,at}}}`), never weak (`PIN_WEAK`), and a child who left keeps their entry (`ensurePasses`).
