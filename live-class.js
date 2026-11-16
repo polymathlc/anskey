@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.210.0';
+  var VERSION = '1.211.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended' };
@@ -711,6 +711,22 @@
     var base = str(classLink).replace(/[?#].*$/, '');
     return base + '?live=' + encodeURIComponent(c);
   }
+  // 📖 The same child's Study Buddy link: Study Buddy lives beside Ans Key
+  // (…/anskey/ → …/tutor/), and `?pass=` signs the child in as themselves.
+  function studyBase(classLink) {
+    var base = str(classLink).replace(/[?#].*$/, '');
+    if (!/^https?:\/\/[^\/]+/i.test(base)) return '';
+    if (!/\/[^\/]*\/?(?:index\.html)?$/.test(base.replace(/^https?:\/\/[^\/]+/i, '') || '/')) return '';
+    var host = /^https?:\/\/[^\/]+/i.exec(base)[0];
+    var path = base.slice(host.length) || '/';
+    path = path.replace(/\/[^\/]*\/?(?:index\.html)?$/, '/tutor/');
+    return host + path;
+  }
+  function studyLink(classLink, code) {
+    var c = cleanPassCode(code), base = studyBase(classLink);
+    if (!c || !base) return '';
+    return base + '?pass=' + encodeURIComponent(c);
+  }
   function cleanPassRow(r) {
     r = r && typeof r === 'object' ? r : {};
     return {
@@ -733,7 +749,9 @@
   // "Copy all": one line per child, ready for a WhatsApp message to parents.
   function passLines(rows, classLink) {
     return (rows || []).map(function (r) {
-      return r.name + (r.level ? ' (' + r.level + ')' : '') + ' — ' + passLink(classLink, r.code) + (r.pin ? ' — PIN ' + r.pin : '');
+      var study = studyLink(classLink, r.code);
+      return r.name + (r.level ? ' (' + r.level + ')' : '') + ' — ' + passLink(classLink, r.code) + (r.pin ? ' — PIN ' + r.pin : '') +
+        (study ? ' — Study Buddy ' + study : '');
     }).join('\n');
   }
   // The QR modules as one SVG path description (four-module quiet zone).
@@ -767,7 +785,7 @@
     gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, minuteMB: minuteMB, SCREEN: SCREEN, wantTrack: wantTrack,
     shareConstraints: shareConstraints,
     filterNames: filterNames, cleanPrefs: cleanPrefs,
-    cleanPassCode: cleanPassCode, passFromSearch: passFromSearch, cleanPinInput: cleanPinInput, passLink: passLink,
+    cleanPassCode: cleanPassCode, passFromSearch: passFromSearch, cleanPinInput: cleanPinInput, passLink: passLink, studyLink: studyLink, studyBase: studyBase,
     cleanPassRow: cleanPassRow, passesShown: passesShown, passSlots: passSlots, passLines: passLines, qrPath: qrPath, PASS_KEY: PASS_KEY, roleOfIdentity: roleOfIdentity, validIdentity: validIdentity,
     randomId: randomId, fmtDate: fmtDate, oneLine: oneLine
   };
@@ -1690,6 +1708,10 @@
       var base = typeof env.classLink === 'function' ? env.classLink() : '';
       return passLink(base, code);
     }
+    function studyFor(code) {
+      var base = typeof env.classLink === 'function' ? env.classLink() : '';
+      return studyLink(base, code);
+    }
     function qrNode(text, cls) {
       var matrix = null;
       try { matrix = typeof env.qrMatrix === 'function' ? env.qrMatrix(text) : null; } catch (e) { matrix = null; }
@@ -1734,6 +1756,7 @@
       var card = el('div', 'vcCard vcPasses');
       card.appendChild(el('h3', null, '🔗 Personal links and PINs'));
       card.appendChild(el('p', 'vcMuted', 'Each student has their own link. Opening it in a lesson goes straight to "You are … — Join": no list to search. The lesson-time door still applies, and a link from another class joins as a make-up. Students without their link can type their four-number PIN on the class link.'));
+      card.appendChild(el('p', 'vcMuted', '📖 The same link and PIN also sign the student into Study Buddy as themselves, at any hour, showing their own level and subjects from /office.'));
       var tools = el('div', 'vcPassTools');
       var sel = el('select', 'vcPassSlot');
       sel.setAttribute('aria-label', 'Which lesson');
@@ -1780,12 +1803,27 @@
             if (!link) { say('This link is not ready yet.'); return; }
             copyText(link).then(function () { say(r.name + '\'s link copied.'); });
           }));
+          b.appendChild(btn('', '⧉ Study', 'Copy ' + r.name + '\'s Study Buddy link', function () {
+            var link = studyFor(r.code);
+            if (!link) { say('This link is not ready yet.'); return; }
+            copyText(link).then(function () { say(r.name + '\'s Study Buddy link copied.'); });
+          }));
           b.appendChild(btn(pv.qr[r.id] ? 'on' : '', '▦ QR', 'Show the QR code', function () { pv.qr[r.id] = !pv.qr[r.id]; paintList(); }));
           b.appendChild(btn('', '↻ New', 'Make a new link and PIN (the old ones stop working)', function () { renewPass(r); }));
           row.appendChild(b);
           if (pv.qr[r.id]) {
             var qbox = el('div', 'vcPassQr');
-            qbox.appendChild(qrNode(linkFor(r.code), 'vcQrSvg'));
+            var live = el('figure', 'vcQrFig');
+            live.appendChild(qrNode(linkFor(r.code), 'vcQrSvg'));
+            live.appendChild(el('figcaption', 'vcMuted', '🎥 Live class'));
+            qbox.appendChild(live);
+            var sLink = studyFor(r.code);
+            if (sLink) {
+              var study = el('figure', 'vcQrFig');
+              study.appendChild(qrNode(sLink, 'vcQrSvg'));
+              study.appendChild(el('figcaption', 'vcMuted', '📖 Study Buddy'));
+              qbox.appendChild(study);
+            }
             qbox.appendChild(el('span', 'vcMuted', 'Scan with a phone or iPad camera.'));
             row.appendChild(qbox);
           }
@@ -1820,10 +1858,11 @@
       var style = doc.createElement('style');
       style.textContent = '@page{margin:12mm}body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;color:#1a1a1a}' +
         '.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8mm}' +
-        '.card{border:1.5px dashed #999;border-radius:10px;padding:6mm 7mm;break-inside:avoid;display:grid;grid-template-columns:1fr 36mm;gap:5mm;align-items:center}' +
+        '.card{border:1.5px dashed #999;border-radius:10px;padding:6mm 7mm;break-inside:avoid;display:grid;grid-template-columns:1fr 30mm;gap:5mm;align-items:center}' +
         '.card h2{margin:0 0 2mm;font-size:17pt}.card p{margin:0 0 2mm;font-size:10pt;color:#444}' +
         '.pin{font:700 22pt ui-monospace,Menlo,monospace;letter-spacing:3pt;color:#1a1a1a;margin:3mm 0 2mm}' +
-        '.how{font-size:8.5pt;color:#555;line-height:1.35}svg{width:36mm;height:36mm}' +
+        '.how{font-size:8.5pt;color:#555;line-height:1.35}svg{width:30mm;height:30mm;display:block}' +
+        '.codes{display:grid;gap:2mm;justify-items:center}.codes span{font-size:7.5pt;color:#555}' +
         '.top{font-size:10pt;color:#666;margin:0 0 6mm}@media print{.top{display:none}}';
       (doc.head || doc.documentElement).appendChild(style);
       var body = doc.body || doc.documentElement.appendChild(doc.createElement('body'));
@@ -1841,12 +1880,21 @@
         var pinLabel = doc.createElement('p'); pinLabel.textContent = 'Your PIN'; left.appendChild(pinLabel);
         var pin = doc.createElement('div'); pin.className = 'pin'; pin.textContent = r.pin || '—'; left.appendChild(pin);
         var how = doc.createElement('div'); how.className = 'how';
-        how.textContent = 'Scan the code with your phone or iPad camera at lesson time. No code? Open ' + (classLink || 'the class link') + ' and type your PIN.';
+        var study = studyFor(r.code);
+        how.textContent = 'Scan the 🎥 code with your phone or iPad camera at lesson time. No code? Open ' + (classLink || 'the class link') + ' and type your PIN.' +
+          (study ? ' The 📖 code (or the same PIN) opens Study Buddy for homework, any time.' : '');
         left.appendChild(how);
         c.appendChild(left);
-        var matrix = null;
-        try { matrix = link && typeof env.qrMatrix === 'function' ? env.qrMatrix(link) : null; } catch (e) { matrix = null; }
-        if (matrix && matrix.length) c.appendChild(qrSvgNode(doc, matrix, ''));
+        var codes = doc.createElement('div'); codes.className = 'codes';
+        [[link, '🎥 Live class'], [study, '📖 Study Buddy']].forEach(function (pair) {
+          if (!pair[0]) return;
+          var matrix = null;
+          try { matrix = typeof env.qrMatrix === 'function' ? env.qrMatrix(pair[0]) : null; } catch (e) { matrix = null; }
+          if (!matrix || !matrix.length) return;
+          codes.appendChild(qrSvgNode(doc, matrix, ''));
+          var cap = doc.createElement('span'); cap.textContent = pair[1]; codes.appendChild(cap);
+        });
+        if (codes.firstChild) c.appendChild(codes);
         grid.appendChild(c);
       });
       body.appendChild(grid);

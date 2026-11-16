@@ -54,7 +54,7 @@ const LIVE_CLASS_LIMITS = Object.freeze({
   removedMax: 200,
   checkTimeoutMs: 8000
 });
-const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass']);
+const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study']);
 const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass']);
 // 🔗 Personal links and PINs (v1.210.0). A child's own link carries a code
 // the server can CHECK but nobody can make: the roster key, a generation
@@ -68,6 +68,17 @@ const PASS_RE = /^([A-Za-z0-9-]{1,60}_[A-Za-z0-9-]{1,60})\.(\d{1,6})\.([A-Za-z0-
 const PIN_RE = /^\d{4}$/;
 const PIN_WEAK = new Set(['0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '1234', '4321', '0123', '9876', '1212', '6969', '2580', '1004', '2000', '2026', '2027']);
 const PIN_LIMITS = Object.freeze({ windowMs: 10 * 60 * 1000, perUid: 6, total: 60 });
+// 📖 The same link or PIN signs a child into Study Buddy (v1.211.0). The
+// account is the CHILD's on the /office roster, not the device's: a custom
+// token for `office-<family>-<child>` carrying `officePass: true`, so the
+// child's mistake book and worksheets follow them to any device. A PIN can be
+// typed at any hour on Study Buddy (there is no class to be open), so its
+// misses are counted in a bucket of their own, tighter and over an hour.
+const STUDY_UID_PREFIX = 'office-';
+const STUDY_PIN_LIMITS = Object.freeze({ windowMs: 60 * 60 * 1000, perUid: 5, total: 30 });
+const PROFILES_COLLECTION = 'studentProfiles';
+const STUDY_ONBOARD_VERSION = 2;           // Study Buddy's ONBOARD_VERSION
+const LIVE_CLASS_ORIGINS = Object.freeze(['https://polymathlc.github.io', 'https://polymathlc.com.sg', 'https://www.polymathlc.com.sg']);
 const ROOM_PREFIX = 'polymath-class-';
 const HKDF_SALT = 'ans-key-live-class';
 const HKDF_INFO = 'livekit-api-secret-v1';
@@ -514,10 +525,11 @@ function pinOwner(pin, passes) {
 }
 // Wrong PINs are counted in ten-minute windows, per account and in all: a
 // child mistyping is fine; a script walking 0000–9999 is not.
-function pinTriesAllowed(tries, uid, t) {
-  const w = tries && Number(tries.win) && t - Number(tries.win) < PIN_LIMITS.windowMs ? tries : { win: t, total: 0, by: {} };
+function pinTriesAllowed(tries, uid, t, limits) {
+  const L = limits || PIN_LIMITS;
+  const w = tries && Number(tries.win) && t - Number(tries.win) < L.windowMs ? tries : { win: t, total: 0, by: {} };
   const mine = Number(w.by && w.by[uid]) || 0;
-  return { ok: mine < PIN_LIMITS.perUid && (Number(w.total) || 0) < PIN_LIMITS.total, window: w };
+  return { ok: mine < L.perUid && (Number(w.total) || 0) < L.total, window: w };
 }
 function pinTriesAfterMiss(window, uid) {
   const by = { ...(window.by || {}) };
@@ -525,6 +537,76 @@ function pinTriesAfterMiss(window, uid) {
   const keys = Object.keys(by);
   if (keys.length > 300) keys.slice(0, keys.length - 300).forEach(k => delete by[k]);
   return { win: window.win, total: (Number(window.total) || 0) + 1, by };
+}
+
+/* ---------- 📖 Study Buddy from the same link (v1.211.0) ---------- */
+
+// Whole origins only: a lookalike such as polymathlc.com.sg.example is not one.
+function liveClassOrigin(origin) {
+  const o = String(origin || '');
+  return LIVE_CLASS_ORIGINS.includes(o) || allowedOrigin(o);
+}
+// The child's own Study Buddy account. Both ids are already [A-Za-z0-9-], so
+// the uid is stable, readable in the console and never collides with a
+// Firebase-made uid (those have no dashes).
+function studyUid(rosterId) {
+  const k = splitRosterKey(rosterId);
+  return k ? STUDY_UID_PREFIX + k.familyId + '-' + k.studentId : '';
+}
+// "Maths", "Math", "Mathematics", "Science", "Maths & Science" → the words
+// this app and Study Buddy store ('math' | 'science').
+function subjectWords(text) {
+  const t = String(text || '').toLowerCase();
+  const out = [];
+  if (/\bmath/.test(t)) out.push('math');
+  if (/\bscience/.test(t)) out.push('science');
+  return out;
+}
+// Every subject the child's own lessons are (their slots in the timetable).
+function slotSubjects(slots, schedule) {
+  const table = (schedule && schedule.slots) || {};
+  const set = new Set();
+  for (const id of Array.isArray(slots) ? slots : []) {
+    const row = table[id];
+    if (!row) continue;
+    for (const w of subjectWords(row.subject)) set.add(w);
+  }
+  return [...set].sort();
+}
+// The one subject value a profile holds. P3 is Science only (the rule
+// levelSubjects carries in both apps); two subjects are 'both'; a child whose
+// slots name no subject falls back to the level's widest choice, which only
+// ever shows MORE worksheets, never none.
+function studySubject(level, subjects) {
+  const lv = String(level || '').toUpperCase();
+  if (lv === 'P3') return 'science';
+  const list = Array.isArray(subjects) ? subjects : [];
+  if (list.includes('math') && list.includes('science')) return 'both';
+  if (list.length === 1) return list[0];
+  return 'both';
+}
+// A level the two apps can match on: "P5", never "Primary 5" / "p5".
+function studyLevel(level) {
+  const v = String(level || '').trim();
+  const m = /^(?:p|pri|primary)\s*([1-6])$/i.exec(v);
+  return m ? 'P' + m[1] : v.slice(0, 12);
+}
+// What the server writes onto the child's roster row on every sign-in, so
+// Study Buddy and Ans Key both follow /office the moment it changes.
+// `tutorOnboard` answers Study Buddy's first-sign-in questions for them: the
+// centre's own child is enrolled and pays no app fee.
+function studyProfileDoc(student, schedule, rosterId, t, existing) {
+  const level = studyLevel(student.level);
+  const subject = studySubject(level, slotSubjects(student.slots, schedule));
+  const doc = {
+    name: student.name, level, subject,
+    officeId: rosterId, levelSource: 'office', officeSlots: (student.slots || []).slice(0, 8),
+    tutorOnboard: { v: STUDY_ONBOARD_VERSION, parent: '', students: [{ name: student.name, level, subject }], enrolled: true,
+      payingFee: false, fee: '', via: 'office', at: new Date(Number(t) || Date.now()).toISOString() },
+    updatedAt: Number(t) || Date.now()
+  };
+  if (!existing) doc.createdAt = Number(t) || Date.now();
+  return doc;
 }
 
 /* ---------- requests ---------- */
@@ -594,6 +676,10 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
   const settingsRef = db.collection(CONFIG_COLLECTION).doc('settings');
   const passesRef = db.collection(CONFIG_COLLECTION).doc('passes');
   const pinTriesRef = db.collection(STATE_COLLECTION).doc('pins');
+  // 📖 Study Buddy PINs are counted apart, in hour-long windows: a Study
+  // Buddy PIN works at any hour, so it gets a tighter, slower bucket than the
+  // class door's (which is only ever open for a lesson).
+  const studyTriesRef = db.collection(STATE_COLLECTION).doc('studyPins');
   async function readPasses() {
     const snap = await passesRef.get();
     return cleanPasses(snap.exists ? snap.data() : null);
@@ -954,6 +1040,50 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
         me: { id: who.rosterId, name: who.name, level: who.level, kind: who.kind, home: who.home } };
     }
 
+    // 📖 The same link or PIN signs the child into Study Buddy as THEMSELVES:
+    // their roster row is brought up to date from /office (name, level, the
+    // subjects of their own lessons) and a custom token for their own uid
+    // comes back. It works at any hour (Study Buddy is homework, not a
+    // lesson), never for the teacher, and a PIN miss is counted.
+    if (body.action === 'study') {
+      if (actor.isTeacher) fail(400, 'teacher_pass', 'This is a student\'s link. Open it on the student\'s device.');
+      if (typeof auth.createCustomToken !== 'function') fail(503, 'study_unavailable', 'Study Buddy sign-in is unavailable right now. Try again shortly.');
+      const kind = body.pin != null && body.code == null ? 'pin' : 'pass';
+      const passes = await readPasses();
+      let id = '';
+      if (kind === 'pass') {
+        id = checkPass(body.code, passes, master());
+        if (!id) fail(404, 'pass_unknown', 'That link is not working any more. Ask your teacher for a new one.');
+      } else {
+        let tries = null;
+        try { const snap = await studyTriesRef.get(); tries = snap.exists ? snap.data() : null; } catch (error) { report('live_class_study_tries', error); }
+        const allowed = pinTriesAllowed(tries, actor.uid, t, STUDY_PIN_LIMITS);
+        if (!allowed.ok) fail(429, 'pin_wait', 'Too many wrong PINs. Wait an hour, or open your personal link instead.');
+        id = pinOwner(body.pin, passes);
+        if (!id) {
+          try { await studyTriesRef.set(pinTriesAfterMiss(allowed.window, actor.uid)); } catch (error) { report('live_class_study_tries', error); }
+          fail(404, 'pin_unknown', cleanPin(body.pin) ? 'That PIN is not right. Check the four numbers your teacher gave you.' : 'Type the four numbers of your PIN.');
+        }
+      }
+      const key = splitRosterKey(id);
+      if (!key) fail(404, 'pass_unknown', 'That link is not working any more. Ask your teacher for a new one.');
+      const [famSnap, schedule] = await Promise.all([db.collection(OFFICE_FAMILIES).doc(key.familyId).get(), readSchedule()]);
+      const family = famSnap.exists ? { ...(famSnap.data() || {}), id: key.familyId } : null;
+      const student = enrolledStudents(family ? [family] : [], sgMonth(t)).find(s => s.id === id) || null;
+      if (!student) fail(404, 'not_on_roster', 'Your name is not on the class list this month. Ask your teacher.');
+      const uid = studyUid(id);
+      if (!uid) fail(404, 'pass_unknown', 'That link is not working any more. Ask your teacher for a new one.');
+      const profileRef = db.collection(PROFILES_COLLECTION).doc(uid);
+      let existing = null;
+      try { const snap = await profileRef.get(); existing = snap.exists ? snap.data() || {} : null; } catch (error) { report('live_class_study_profile_read', error); }
+      const doc = studyProfileDoc(student, schedule, id, t, existing);
+      await profileRef.set(doc, { merge: true });
+      const token = await auth.createCustomToken(uid, { officePass: true, officeId: id });
+      const entry = passes[id] || { gen: 0 };
+      return { token, uid, code: passCode(id, entry.gen, master()),
+        me: { id, name: doc.name, level: doc.level, subject: doc.subject } };
+    }
+
     if (body.action === 'token') {
       const state = await readState();
       if (!state.open || !state.room) fail(409, 'class_closed', actor.isTeacher ? 'Start the class first.' : 'The live class has not started yet. It will open here when your teacher starts it.');
@@ -1051,7 +1181,7 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
   async function handler(req, res) {
     res.set('Cache-Control', 'no-store'); res.set('Vary', 'Origin');
     const origin = req.get('origin');
-    if (!allowedOrigin(origin)) return res.status(403).json({ error: { code: 'origin_not_allowed', message: 'Open the live class from Ans Key.' } });
+    if (!liveClassOrigin(origin)) return res.status(403).json({ error: { code: 'origin_not_allowed', message: 'Open the live class from Ans Key.' } });
     res.set('Access-Control-Allow-Origin', origin); res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Firebase-AppCheck');
     res.set('Access-Control-Max-Age', '7200');
@@ -1079,6 +1209,7 @@ module.exports = {
   LiveClassError, validateBody, createLiveClassService,
   signAccessToken, readAccessToken, b64url, b64urlDecode, cleanUrl, httpBase, cleanKey, cleanSecret, maskKey,
   EARLY_DEFAULT, EARLY_MAX, cleanEarly, cleanSettings, sgClock, slotTimes, clockLabel, joinGate, laterLessonToday,
-  PASS_LIMITS_PIN: PIN_LIMITS, passCode, parsePass, checkPass, cleanPin, pinFor, cleanPasses, ensurePasses, pinOwner, pinTriesAllowed, pinTriesAfterMiss, passRows,
+  PASS_LIMITS_PIN: PIN_LIMITS, STUDY_PIN_LIMITS, STUDY_UID_PREFIX, PROFILES_COLLECTION, LIVE_CLASS_ORIGINS,
+  liveClassOrigin, studyUid, subjectWords, slotSubjects, studySubject, studyLevel, studyProfileDoc, passCode, parsePass, checkPass, cleanPin, pinFor, cleanPasses, ensurePasses, pinOwner, pinTriesAllowed, pinTriesAfterMiss, passRows,
   cleanName, cleanIdentity, cleanSlot, rosterLists, enrolledStudents, slotChoices, slotLabel, familyState, rosterKey, splitRosterKey, sgMonth, roomFor, nextEpoch, grantsFor, sealSecret, openSecret, roomService
 };

@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.210.0');
+  assert.equal(P.VERSION, '1.211.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.210\.0'/);
-  assert.match(html, /live-class\.js\?v=1\.210\.0/);
+  assert.match(html, /var APP_VERSION = 'v1\.211\.0'/);
+  assert.match(html, /live-class\.js\?v=1\.211\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.210\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.211\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -734,7 +734,14 @@ test('🔗 the teacher\'s list: cleaned rows, one lesson, typed words, copy-all 
   assert.deepEqual(plain(P.passesShown(rows, 'FRI-2', '')).map(r => r.name), ['Zoe Ng']);
   assert.deepEqual(plain(P.passesShown(rows, '', 'am')).map(r => r.name), ['Amy Tan']);
   const lines = P.passLines(rows.slice(0, 1), 'https://x.test/anskey/?live');
-  assert.equal(lines, 'Amy Tan (P5) — https://x.test/anskey/?live=' + encodeURIComponent(code) + ' — PIN 4821');
+  assert.equal(lines, 'Amy Tan (P5) — https://x.test/anskey/?live=' + encodeURIComponent(code) + ' — PIN 4821' +
+    ' — Study Buddy https://x.test/tutor/?pass=' + encodeURIComponent(code));
+  // 📖 The Study Buddy link sits beside Ans Key, whatever the page was opened as.
+  assert.equal(P.studyLink('https://polymathlc.github.io/anskey/?live', code), 'https://polymathlc.github.io/tutor/?pass=' + encodeURIComponent(code));
+  assert.equal(P.studyLink('https://polymathlc.com.sg/anskey/index.html#x', code), 'https://polymathlc.com.sg/tutor/?pass=' + encodeURIComponent(code));
+  assert.equal(P.studyLink('https://polymathlc.com.sg/anskey', code), 'https://polymathlc.com.sg/tutor/?pass=' + encodeURIComponent(code));
+  assert.equal(P.studyLink('file:///x/anskey/index.html', code), '', 'never a file: link on a card');
+  assert.equal(P.studyLink('https://x.test/anskey/', 'bad'), '');
   const q = P.qrPath([[true, true, false], [false, true, false], [true, false, true]]);
   assert.equal(q.size, 11);
   assert.equal(q.d, 'M4 4h2v1h-2zM5 5h1v1h-1zM4 6h1v1h-1zM6 6h1v1h-1z');

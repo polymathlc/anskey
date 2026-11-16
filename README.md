@@ -5,6 +5,16 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 📖 v1.211.0 — Live class: the same link or PIN opens Study Buddy
+
+- Every student's personal link and PIN now also sign them into **Study Buddy** as themselves, at any hour, with no
+  Google account and no first-sign-in questions. Study Buddy shows their own level and subjects, taken from /office
+  each time they sign in (P3 is Science only).
+- 🔗 Links & PINs has a **⧉ Study** button and a second **📖 Study Buddy** QR code beside the class one; ⧉ Copy all
+  adds the Study Buddy link to each line, and the printed cards carry both codes.
+- Wrong Study Buddy PINs are counted in their own bucket (five an hour per device, thirty an hour in all); ↻ New stops
+  both the old class link and the old Study Buddy link.
+
 ## 🔗 v1.210.0 — Live class: a personal link, QR card and PIN for every student
 
 - **Every student has their own link.** In the live class start screen press 🔗 Links & PINs: every student on the /office roster this month is listed by lesson, with their link (⧉ Link), a QR code (▦ QR) and a four-number PIN. ⧉ Copy all gives one line per student for a message to parents; 🖨 Print cards prints a cut-out card each (name, lesson, QR code, PIN).
