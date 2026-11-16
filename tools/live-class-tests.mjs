@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.211.0');
+  assert.equal(P.VERSION, '1.212.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.211\.0'/);
-  assert.match(html, /live-class\.js\?v=1\.211\.0/);
+  assert.match(html, /var APP_VERSION = 'v1\.212\.0'/);
+  assert.match(html, /live-class\.js\?v=1\.212\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -311,7 +311,7 @@ test('identities: teacher, roster child, trial guest — nothing else', () => {
   assert.equal(P.validIdentity('r:../../x'), false);
   assert.match(P.randomId('q'), /^q[A-Za-z0-9_-]+$/);
   assert.notEqual(P.randomId('q'), P.randomId('q'));
-  assert.deepEqual(plain(P.cleanPrefs({ lowData: true, lastKind: 'evil' })), { classmates: false, lowData: true, mirror: true, autoLow: true, cameraOff: false, record: true, hideSelf: false, lastKind: 'mcq', aiMark: true, aiReview: false });
+  assert.deepEqual(plain(P.cleanPrefs({ lowData: true, lastKind: 'evil' })), { classmates: false, lowData: true, mirror: true, autoLow: true, cameraOff: false, record: true, hideSelf: false, lastKind: 'mcq', aiMark: true, aiReview: false, answerOnly: false, zoomGain: 1, zoomDuck: true });
   assert.equal(P.cleanPrefs({ record: false }).record, false, 'recording can be switched off');
 });
 
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.211\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.212\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -735,6 +735,7 @@ test('🔗 the teacher\'s list: cleaned rows, one lesson, typed words, copy-all 
   assert.deepEqual(plain(P.passesShown(rows, '', 'am')).map(r => r.name), ['Amy Tan']);
   const lines = P.passLines(rows.slice(0, 1), 'https://x.test/anskey/?live');
   assert.equal(lines, 'Amy Tan (P5) — https://x.test/anskey/?live=' + encodeURIComponent(code) + ' — PIN 4821' +
+    ' — from Zoom https://x.test/anskey/?live=' + encodeURIComponent(code) + '&zoom' +
     ' — Study Buddy https://x.test/tutor/?pass=' + encodeURIComponent(code));
   // 📖 The Study Buddy link sits beside Ans Key, whatever the page was opened as.
   assert.equal(P.studyLink('https://polymathlc.github.io/anskey/?live', code), 'https://polymathlc.github.io/tutor/?pass=' + encodeURIComponent(code));
@@ -764,4 +765,125 @@ test('🔗 the window: a link or PIN is checked by the server, remembered, and f
   assert.match(html, /qrMatrix: function \(text\)/);
   assert.match(css, /\.vcPassRow/);
   assert.match(css, /\.vcPinIn/);
+});
+
+test('📞 Zoom hybrid: the answer-only phone receives nothing and sends nothing', () => {
+  const prefs = P.cleanPrefs({ answerOnly: true });
+  assert.equal(prefs.answerOnly, true);
+  assert.equal(P.cleanPrefs({}).answerOnly, false);
+  assert.equal(P.cleanPrefs({ answerOnly: 'yes' }).answerOnly, false, 'only true switches it on');
+  for (const src of ['camera', 'screen', 'microphone', 'screen_audio']) {
+    assert.equal(P.wantTrack('student', prefs, 't:abc', src), false, 'an answer-only phone takes no ' + src + ' (the child hears it in Zoom)');
+    assert.equal(P.wantTrack('teacher', prefs, 'r:abc', src), true, 'the teacher is never answer-only');
+  }
+  assert.equal(P.wantTrack('student', P.cleanPrefs({}), 't:abc', 'screen_audio'), true, 'a child here hears the Zoom room');
+  assert.equal(P.wantTrack('student', P.cleanPrefs({ lowData: true }), 't:abc', 'screen_audio'), true, 'low data keeps the Zoom room (it is sound)');
+  assert.equal(P.cleanPrefs({ zoomGain: 5 }).zoomGain, 2);
+  assert.equal(P.cleanPrefs({ zoomGain: -1 }).zoomGain, 0);
+  assert.equal(P.cleanPrefs({}).zoomGain, 1);
+  assert.equal(P.cleanPrefs({}).zoomDuck, true);
+  assert.equal(P.cleanPrefs({ zoomDuck: false }).zoomDuck, false);
+});
+
+test('📞 Zoom hybrid: the &zoom link', () => {
+  const code = 'fam1_kid2.3.abcdefghijklmnop';
+  assert.equal(P.zoomFromSearch('?live=' + code + '&zoom'), true);
+  assert.equal(P.zoomFromSearch('?zoom=1&live=' + code), true);
+  assert.equal(P.zoomFromSearch('?live=' + code), false);
+  assert.equal(P.zoomFromSearch('?zoom=0'), false);
+  assert.equal(P.zoomFromSearch('?zoomy'), false, 'a key that only starts with zoom is not it');
+  assert.equal(P.zoomFromSearch(''), false);
+  assert.equal(P.zoomLink('https://x.test/anskey/?live', code), 'https://x.test/anskey/?live=' + encodeURIComponent(code) + '&zoom');
+  assert.equal(P.zoomLink('https://x.test/anskey/?live', 'bad'), '', 'no link without a real code');
+  assert.equal(P.passFromSearch('?live=' + code + '&zoom'), code, 'the code still reads with &zoom after it');
+});
+
+test('📞 Zoom hybrid: capture asks for no voice processing and leaves this page out', () => {
+  const d = plain(P.zoomCaptureConstraints('display'));
+  assert.equal(d.audio.echoCancellation, false);
+  assert.equal(d.audio.noiseSuppression, false);
+  assert.equal(d.audio.autoGainControl, false);
+  assert.equal(d.audio.suppressLocalAudioPlayback, true, 'the page’s own sound is never captured');
+  assert.equal(d.restrictOwnAudio, true);
+  assert.equal(d.systemAudio, 'include');
+  assert.equal(d.selfBrowserSurface, 'exclude', 'Ans Key itself is not offered as the Zoom window');
+  assert.ok(d.video, 'Chrome needs a picture with a window share; it is never published');
+  const i = plain(P.zoomCaptureConstraints('input', 'dev-1'));
+  assert.equal(i.video, false);
+  assert.deepEqual(i.audio.deviceId, { exact: 'dev-1' });
+  assert.equal(i.audio.echoCancellation, false);
+  assert.equal(plain(P.zoomCaptureConstraints('input', '')).audio.deviceId, undefined);
+});
+
+test('📞 Zoom hybrid: the duck and the meter', () => {
+  assert.equal(P.duckGain(false, 1000, 0, 1), 1);
+  assert.equal(P.duckGain(true, 1000, 0, 1), P.ZOOM.duck);
+  assert.equal(P.duckGain(false, 1000, 1500, 1), P.ZOOM.duck, 'held down a little after a child stops');
+  assert.equal(P.duckGain(false, 2000, 1500, 1), 1);
+  assert.equal(P.duckGain(false, 0, 0, 1.5), 1.5);
+  assert.equal(P.duckGain(true, 0, 0, 2), Math.round(2 * P.ZOOM.duck * 1000) / 1000);
+  assert.equal(P.duckGain(false, 0, 0, 9), 2, 'never louder than double');
+  assert.equal(P.duckGain(false, 0, 0, 'x'), 1);
+  assert.equal(P.rmsLevel([]), 0);
+  assert.equal(P.rmsLevel([0.5, -0.5, 0.5, -0.5]), 0.5);
+  assert.equal(P.rmsLevel([3, 3]), 1);
+});
+
+test('📞 Zoom hybrid: what a sound input probably is', () => {
+  assert.equal(P.loopbackHint('BlackHole 2ch (Virtual)').kind, 'loopback');
+  assert.equal(P.loopbackHint('CABLE Output (VB-Audio Virtual Cable)').kind, 'loopback');
+  assert.equal(P.loopbackHint('Stereo Mix (Realtek Audio)').kind, 'loopback');
+  assert.equal(P.loopbackHint('MacBook Pro Microphone').kind, 'mic');
+  assert.equal(P.loopbackHint('Default - Headset (AirPods)').kind, 'mic');
+  assert.equal(P.loopbackHint('').kind, 'unknown');
+  assert.equal(P.loopbackHint('Scarlett 2i2 USB').kind, 'other');
+  for (const k of ['loopback', 'mic', 'unknown', 'other']) assert.ok(P.loopbackHint(k === 'loopback' ? 'blackhole' : k === 'mic' ? 'mic' : k === 'unknown' ? '' : 'x').note.length > 20);
+  assert.equal(P.isZoomFeed('t:abc', 'screen_audio', 'zoom'), true);
+  assert.equal(P.isZoomFeed('r:abc', 'screen_audio', 'zoom'), false);
+  assert.equal(P.isZoomFeed('t:abc', 'microphone', 'zoom'), false);
+});
+
+test('📞 Zoom hybrid: the setup guide', () => {
+  for (const k of ['mac', 'windows']) {
+    const g = P.ZOOM_GUIDE[k];
+    assert.ok(g.title && g.steps.length >= 4);
+    const all = g.steps.join(' ');
+    assert.match(all, /Share sound/, 'Zoom gets the class through Share sound');
+    assert.match(all, /headphones/i, 'headphones stop the speakers looping back');
+    assert.match(all, /📱 Zoom link/);
+  }
+  assert.match(P.ZOOM_GUIDE.mac.steps.join(' '), /BlackHole/);
+  assert.match(P.ZOOM_GUIDE.windows.steps.join(' '), /VB-CABLE/);
+  assert.equal(P.guideFor('Win32'), 'windows');
+  assert.equal(P.guideFor('Windows'), 'windows');
+  assert.equal(P.guideFor('MacIntel'), 'mac');
+  assert.equal(P.guideFor(''), 'mac');
+});
+
+test('📞 Zoom hybrid: the people record carries how a child joined', () => {
+  let s = P.emptySession(1, 'WED-2', 1000);
+  s = P.personJoined(s, { identity: 'r:abc', name: 'Amy Tan', kind: 'roster' }, 1000);
+  assert.equal(s.people['r:abc'].via, '');
+  s = P.personJoined(s, { identity: 'r:abc', via: 'zoom' }, 1200);
+  assert.equal(s.people['r:abc'].via, 'zoom');
+  assert.equal(s.people['r:abc'].name, 'Amy Tan', 'the name is kept');
+  s = P.personJoined(s, { identity: 'r:abc', name: 'Amy Tan' }, 1300);
+  assert.equal(s.people['r:abc'].via, 'zoom', 'a rejoin without a word keeps it');
+  s = P.personJoined(s, { identity: 'r:abc', via: '' }, 1400);
+  assert.equal(s.people['r:abc'].via, '');
+});
+
+test('📞 Zoom hybrid: the window wires it as published, recorded and stopped', () => {
+  assert.match(src, /source: LK\.Track\.Source\.ScreenShareAudio, name: ZOOM\.name, dtx: false/);
+  assert.match(src, /md\.getDisplayMedia\(ask\)/);
+  assert.match(src, /stopShareTrack\(\);\n      stopZoom\(true\);/, 'a disconnect takes Zoom out');
+  assert.match(src, /h\.setAudio\('zoom'/, 'the recording carries the Zoom room');
+  assert.match(src, /sendTeacher\(S\.prefs\.answerOnly \? \{ t: 'hello', zoom: true \}/);
+  assert.match(src, /msg\.t === 'hello'\) return onHello\(from, msg\)/);
+  assert.match(src, /S\.prefs\.cameraOff !== true && !S\.prefs\.answerOnly/, 'an answer-only phone never turns its camera on');
+  assert.match(src, /'vcTag zoom', '📱 Zoom'/);
+  const panel = src.slice(src.indexOf('function paintZoom'), src.indexOf('THE ROOM') > src.indexOf('function paintZoom') ? src.indexOf('THE ROOM') : src.length);
+  assert.doesNotMatch(panel, /innerHTML|outerHTML|insertAdjacentHTML/);
+  assert.match(css, /\.vcZoomSteps/);
+  assert.match(css, /\.vcTag\.zoom/);
 });

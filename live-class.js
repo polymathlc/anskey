@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.211.0';
+  var VERSION = '1.212.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended' };
@@ -304,7 +304,8 @@
       identity: str(p.identity), name: oneLine(p.name, LIMITS.name) || 'Student', kind: ['roster', 'makeup', 'trial'].indexOf(p.kind) !== -1 ? p.kind : 'roster',
       rosterId: validId(p.rosterId) || /^[A-Za-z0-9_-]{1,128}$/.test(str(p.rosterId)) ? str(p.rosterId) : '',
       home: oneLine(p.home, 120), joinedAt: Number(p.joinedAt) || 0, leftAt: Number(p.leftAt) || 0,
-      ms: Number(p.ms) || 0, hands: Number(p.hands) || 0, here: !!p.here, since: Number(p.since) || 0
+      ms: Number(p.ms) || 0, hands: Number(p.hands) || 0, here: !!p.here, since: Number(p.since) || 0,
+      via: p.via === 'zoom' ? 'zoom' : ''
     };
   }
   // A participant arriving or leaving: presence is counted in milliseconds so
@@ -314,7 +315,8 @@
     if (!validIdentity(id) || roleOfIdentity(id) !== 'student') return session;
     var prev = session.people[id] ? cleanPerson(session.people[id]) : cleanPerson({ identity: id, joinedAt: now });
     var p = cleanPerson(Object.assign({}, prev, {
-      name: info.name || prev.name, kind: info.kind || prev.kind, rosterId: info.rosterId || prev.rosterId, home: info.home || prev.home
+      name: info.name || prev.name, kind: info.kind || prev.kind, rosterId: info.rosterId || prev.rosterId, home: info.home || prev.home,
+      via: info.via === undefined ? prev.via : info.via
     }));
     if (!p.here) { p.here = true; p.since = now; }
     if (!p.joinedAt) p.joinedAt = now;
@@ -652,6 +654,9 @@
   function wantTrack(myRole, prefs, publisherIdentity, source) {
     var pubRole = roleOfIdentity(publisherIdentity);
     if (myRole === 'teacher') return true;
+    // 📱 A Zoom child's phone only answers: they watch and hear on Zoom, and
+    // a second copy of the lesson's sound out of the phone is an echo.
+    if (prefs && prefs.answerOnly) return false;
     if (pubRole === 'teacher') {
       if (source === 'camera' && prefs && prefs.lowData) return false;
       return true;
@@ -679,7 +684,8 @@
     p = p && typeof p === 'object' ? p : {};
     return { classmates: p.classmates === true, lowData: p.lowData === true, mirror: p.mirror !== false, autoLow: p.autoLow !== false,
       cameraOff: p.cameraOff === true, record: p.record !== false, hideSelf: p.hideSelf === true, lastKind: KINDS.indexOf(p.lastKind) !== -1 ? p.lastKind : 'mcq',
-      aiMark: p.aiMark !== false, aiReview: p.aiReview === true };
+      aiMark: p.aiMark !== false, aiReview: p.aiReview === true, answerOnly: p.answerOnly === true,
+      zoomGain: isFinite(Number(p.zoomGain)) ? Math.max(0, Math.min(2, Number(p.zoomGain))) : 1, zoomDuck: p.zoomDuck !== false };
   }
 
   /* 🔗 Personal links and PINs (v1.210.0). The server makes and checks the
@@ -750,8 +756,9 @@
   function passLines(rows, classLink) {
     return (rows || []).map(function (r) {
       var study = studyLink(classLink, r.code);
+      var zoom = zoomLink(classLink, r.code);
       return r.name + (r.level ? ' (' + r.level + ')' : '') + ' — ' + passLink(classLink, r.code) + (r.pin ? ' — PIN ' + r.pin : '') +
-        (study ? ' — Study Buddy ' + study : '');
+        (zoom ? ' — from Zoom ' + zoom : '') + (study ? ' — Study Buddy ' + study : '');
     }).join('\n');
   }
   // The QR modules as one SVG path description (four-module quiet zone).
@@ -767,6 +774,126 @@
       }
     }
     return { size: n + q * 2, d: d };
+  }
+
+  /* 📞 Zoom hybrid (v1.212.0). Half the class can be in a Zoom meeting:
+     the teacher feeds the Zoom room's sound into the live class as ONE
+     extra audio track (so the children here hear the children there), the
+     Zoom children answer pop-ups from a phone through their own link, and
+     nothing loops back. These helpers decide; the window only wires. */
+  var ZOOM = {
+    name: 'zoom',                // the track's name: the only one the teacher publishes under it
+    bps: 64000,                  // a room of voices at music quality, not the speech preset
+    duck: 0.35,                  // how far the Zoom room is turned down while a child here speaks
+    duckHoldMs: 600,             // and how long it stays down after they stop (no pumping)
+    talkLevel: 0.05,             // the level above which a child here counts as speaking
+    meterMs: 120
+  };
+  // What the browser is asked for. 'display': the Zoom WINDOW (or a tab, or
+  // the whole screen with system sound). 'input': a sound input the teacher
+  // picks (a loopback cable, or a microphone near the Zoom laptop). Either
+  // way the browser's voice processing is OFF — it is built for one voice
+  // into one microphone, and on a room of voices it gates and pumps — and
+  // `restrictOwnAudio` / `suppressLocalAudioPlayback` keep THIS page's own
+  // sound (every child here) out of what is captured. That is the echo guard:
+  // without it, a child here hears themselves come back through Zoom.
+  function zoomCaptureConstraints(route, deviceId) {
+    var plain = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000 };
+    if (route === 'input') {
+      var a = Object.assign({}, plain);
+      var id = oneLine(deviceId, 200);
+      if (id) a.deviceId = { exact: id };
+      return { audio: a, video: false };
+    }
+    return {
+      video: { displaySurface: 'window', frameRate: { ideal: 1, max: 5 }, width: { max: 640 }, height: { max: 360 } },
+      audio: Object.assign({}, plain, { suppressLocalAudioPlayback: true, restrictOwnAudio: true }),
+      systemAudio: 'include', windowAudio: 'window', restrictOwnAudio: true,
+      selfBrowserSurface: 'exclude', surfaceSwitching: 'include', preferCurrentTab: false, monitorTypeSurfaces: 'include'
+    };
+  }
+  // The Zoom room's gain: full while nobody here speaks, ducked while a child
+  // here does (Zoom is ALSO hearing that child through the teacher's share,
+  // so a feed at full volume over them is the double-talk Zoom's own echo
+  // cancelling turns into chopped sound). `heldUntil` keeps it down a little
+  // after they stop.
+  function duckGain(talking, nowMs, heldUntil, base) {
+    var b = Number(base);
+    if (!isFinite(b) || b < 0) b = 1;
+    if (b > 2) b = 2;
+    var down = !!talking || (Number(heldUntil) || 0) > (Number(nowMs) || 0);
+    return Math.round((down ? b * ZOOM.duck : b) * 1000) / 1000;
+  }
+  // The level of a slice of samples (root mean square, 0..1).
+  function rmsLevel(samples) {
+    var n = samples && samples.length || 0;
+    if (!n) return 0;
+    var sum = 0;
+    for (var i = 0; i < n; i++) { var v = Number(samples[i]) || 0; sum += v * v; }
+    return Math.min(1, Math.sqrt(sum / n));
+  }
+  // What a chosen sound input probably is, read off its name, and what to
+  // say about it. A loopback device carries EVERYTHING the computer plays,
+  // this page's own sound included, so it is only safe when only Zoom plays
+  // into it; a microphone hears the room and the speakers.
+  var LOOPBACK_RE = /stereo mix|what u hear|wave out|blackhole|vb-?audio|vb-?cable|cable output|voicemeeter|loopback|soundflower|zoomaudiodevice|zoom audio/i;
+  var MIC_RE = /micro?phone|\bmic\b|headset|airpods|built-?in|internal|webcam|array/i;
+  function loopbackHint(label) {
+    var t = oneLine(label, 200);
+    if (!t) return { kind: 'unknown', note: 'Allow the microphone once to see each input’s name.' };
+    if (LOOPBACK_RE.test(t)) return { kind: 'loopback', note: 'A loopback input carries everything the computer plays. Send ONLY Zoom’s speaker to it, never Chrome’s, or the class hears itself come back.' };
+    if (MIC_RE.test(t)) return { kind: 'mic', note: 'A microphone hears the room. Wear headphones on the Zoom computer, or the class hears itself through the speakers.' };
+    return { kind: 'other', note: 'Check with the meter: talk into Zoom from a phone and watch it move.' };
+  }
+  // `&zoom` on a personal link: this phone only ANSWERS (the child watches
+  // and listens on Zoom), so it takes no camera, no microphone and no video.
+  function zoomFromSearch(search) {
+    var q = str(search).replace(/^\?/, '');
+    return q.split('&').some(function (part) {
+      var i = part.indexOf('=');
+      var k = i < 0 ? part : part.slice(0, i);
+      if (k !== 'zoom') return false;
+      var v = i < 0 ? '' : part.slice(i + 1).toLowerCase();
+      return v === '' || v === '1' || v === 'yes' || v === 'true' || v === 'on';
+    });
+  }
+  function zoomLink(classLink, code) {
+    var l = passLink(classLink, code);
+    return l ? l + '&zoom' : '';
+  }
+  // The setup guide, step by step, for the teacher's computer. Words only;
+  // the window writes each with textContent.
+  var ZOOM_GUIDE = {
+    mac: {
+      title: 'On a Mac',
+      steps: [
+        'Open Zoom and Ans Key side by side. Put headphones on: the speakers would play the class back into your microphone.',
+        'In Zoom, press Share Screen, choose the Chrome window with Ans Key in it, and tick “Share sound” at the bottom. The Zoom children now see the worksheet and hear the children here.',
+        'In Ans Key, press 📞 Zoom → 🪟 Pick the Zoom window. Choose the zoom.us window and leave “Also share window audio” on. (Chrome needs macOS 14.2 or later for window sound.)',
+        'No window sound on your Mac? Install BlackHole 2ch, set Zoom → Settings → Audio → Speaker to BlackHole, and pick “BlackHole 2ch” under 🎚 A sound input. Keep Chrome on your headphones.',
+        'Send each Zoom child their 📱 Zoom link from 🔗 Links & PINs. It opens straight to their name and only answers questions: they watch and listen on Zoom.',
+        'Test: ask a Zoom child to say hello. The meter moves, and a child here hears them once (not twice).'
+      ]
+    },
+    windows: {
+      title: 'On Windows',
+      steps: [
+        'Open Zoom and Ans Key. Use headphones: the speakers would play the class back into your microphone.',
+        'In Zoom, press Share Screen, choose the Chrome window with Ans Key in it, and tick “Share sound”. The Zoom children now see the worksheet and hear the children here.',
+        'In Ans Key, press 📞 Zoom → 🪟 Pick the Zoom window, choose “Entire screen” and turn on “Also share system audio”. Chrome leaves Ans Key’s own sound out, so only Zoom is sent.',
+        'Or route it: install VB-CABLE, set Zoom → Settings → Audio → Speaker to “CABLE Input”, and pick “CABLE Output” under 🎚 A sound input.',
+        'Send each Zoom child their 📱 Zoom link from 🔗 Links & PINs. It opens straight to their name and only answers questions: they watch and listen on Zoom.',
+        'Test: ask a Zoom child to say hello. The meter moves, and a child here hears them once (not twice).'
+      ]
+    }
+  };
+  // Which guide to open first, from the browser's own platform string.
+  function guideFor(platform) {
+    return /win/i.test(str(platform)) ? 'windows' : 'mac';
+  }
+  // Is this remote audio publication the teacher's Zoom feed?
+  function isZoomFeed(identity, source, name) {
+    return roleOfIdentity(identity) === 'teacher' && source === 'screen_audio' && str(name) === ZOOM.name;
   }
 
   var pure = {
@@ -786,6 +913,8 @@
     shareConstraints: shareConstraints,
     filterNames: filterNames, cleanPrefs: cleanPrefs,
     cleanPassCode: cleanPassCode, passFromSearch: passFromSearch, cleanPinInput: cleanPinInput, passLink: passLink, studyLink: studyLink, studyBase: studyBase,
+    ZOOM: ZOOM, zoomCaptureConstraints: zoomCaptureConstraints, duckGain: duckGain, rmsLevel: rmsLevel, loopbackHint: loopbackHint,
+    zoomFromSearch: zoomFromSearch, zoomLink: zoomLink, ZOOM_GUIDE: ZOOM_GUIDE, guideFor: guideFor, isZoomFeed: isZoomFeed,
     cleanPassRow: cleanPassRow, passesShown: passesShown, passSlots: passSlots, passLines: passLines, qrPath: qrPath, PASS_KEY: PASS_KEY, roleOfIdentity: roleOfIdentity, validIdentity: validIdentity,
     randomId: randomId, fmtDate: fmtDate, oneLine: oneLine
   };
@@ -1511,6 +1640,8 @@
         if (!phone()) setTimeout(function () { search.focus(); }, 0);
       }
       var foot = el('div', 'vcPickFoot');
+      if (urlZoom() && !S.prefs.answerOnly) { S.prefs.answerOnly = true; savePrefs(); }
+      foot.appendChild(zoomChoice());
       if (S.pickTab !== 'pin') foot.appendChild(confirm);
       card.appendChild(foot);
       if (S.pickTab !== 'pin') syncConfirm();
@@ -1636,6 +1767,10 @@
       if (res.slotLabel) card.appendChild(el('p', 'vcMsg', res.slotLabel));
       if (me.kind === 'makeup') card.appendChild(el('p', 'vcMuted', 'A make-up lesson' + (me.home ? ' (your class: ' + me.home + ')' : '') + '.'));
       var code = cleanPassCode(res.code) || passNow();
+      // 📱 In the Zoom room? Then this phone only answers (a `&zoom` link
+      // ticks it; the choice is remembered on the device).
+      if (urlZoom()) { S.prefs.answerOnly = true; savePrefs(); }
+      card.appendChild(zoomChoice());
       var go = btn('vcPrimary vcGo', '▶ Join the class', null, function () {
         joinAsStudent({ kind: 'pass', code: code, name: me.name || '', label: me.name || '' }, false);
       });
@@ -1645,6 +1780,20 @@
       }));
       S.body.appendChild(card);
       if (!phone()) setTimeout(function () { try { go.focus(); } catch (e) {} }, 0);
+    }
+    function urlZoom() {
+      try { return zoomFromSearch(root.location && root.location.search); } catch (e) { return false; }
+    }
+    // The "I'm in Zoom" switch on the join card.
+    function zoomChoice() {
+      var lab = el('label', 'vcZoomPick');
+      var box = el('input');
+      box.type = 'checkbox';
+      box.checked = !!S.prefs.answerOnly;
+      box.addEventListener('change', function () { S.prefs.answerOnly = !!box.checked; savePrefs(); });
+      lab.appendChild(box);
+      lab.appendChild(el('span', '', '📱 I’m in the Zoom meeting — just answer questions on this phone'));
+      return lab;
     }
     // 🔢 The PIN tab: four numbers, checked by the server (and counted).
     function paintPinPane(pane) {
@@ -1707,6 +1856,10 @@
     function linkFor(code) {
       var base = typeof env.classLink === 'function' ? env.classLink() : '';
       return passLink(base, code);
+    }
+    function zoomFor(code) {
+      var base = typeof env.classLink === 'function' ? env.classLink() : '';
+      return zoomLink(base, code);
     }
     function studyFor(code) {
       var base = typeof env.classLink === 'function' ? env.classLink() : '';
@@ -1803,6 +1956,11 @@
             if (!link) { say('This link is not ready yet.'); return; }
             copyText(link).then(function () { say(r.name + '\'s link copied.'); });
           }));
+          b.appendChild(btn('', '⧉ 📱 Zoom', 'Copy ' + r.name + '\'s Zoom link: for a phone, when they join from a Zoom meeting (answers only)', function () {
+            var link = zoomFor(r.code);
+            if (!link) { say('This link is not ready yet.'); return; }
+            copyText(link).then(function () { say(r.name + '\'s Zoom link copied.'); });
+          }));
           b.appendChild(btn('', '⧉ Study', 'Copy ' + r.name + '\'s Study Buddy link', function () {
             var link = studyFor(r.code);
             if (!link) { say('This link is not ready yet.'); return; }
@@ -1817,6 +1975,13 @@
             live.appendChild(qrNode(linkFor(r.code), 'vcQrSvg'));
             live.appendChild(el('figcaption', 'vcMuted', '🎥 Live class'));
             qbox.appendChild(live);
+            var zLink = zoomFor(r.code);
+            if (zLink) {
+              var zf = el('figure', 'vcQrFig');
+              zf.appendChild(qrNode(zLink, 'vcQrSvg'));
+              zf.appendChild(el('figcaption', 'vcMuted', '📱 From Zoom'));
+              qbox.appendChild(zf);
+            }
             var sLink = studyFor(r.code);
             if (sLink) {
               var study = el('figure', 'vcQrFig');
@@ -1986,7 +2151,8 @@
       startWakeLock();
       // Publish. A student joins with the camera on and the microphone OFF,
       // the way a class starts; the teacher with both on.
-      var camOn = S.role === 'teacher' ? true : S.prefs.cameraOff !== true;
+      // 📱 A Zoom child's phone publishes nothing: they are on camera in Zoom.
+      var camOn = S.role === 'teacher' ? true : (S.prefs.cameraOff !== true && !S.prefs.answerOnly);
       Promise.resolve(lp.setCameraEnabled(camOn)).catch(function (e) {
         say(S.role === 'teacher' ? 'Your camera could not start: ' + ((e && e.message) || e) : 'Your camera could not start. You can still see and answer.');
       }).then(function () { paintControls(); layout(); });
@@ -2010,9 +2176,11 @@
       }
       clearInterval(S.tick);
       S.tick = setInterval(function () { paintPresence(); }, 30000);
-      if (!room.canPlaybackAudio) showAudioGate(true);
+      if (!room.canPlaybackAudio && !answerOnlyHere()) showAudioGate(true);
       layout();
     }
+    // A student's phone that only answers (the child is in Zoom).
+    function answerOnlyHere() { return S.role === 'student' && !!S.prefs.answerOnly; }
 
     function wireRoom(room, LK) {
       var E = LK.RoomEvent;
@@ -2032,7 +2200,7 @@
         try { onData(msg, p); } catch (e) { if (root.console) console.warn('Live class message failed', e); }
       });
       room.on(E.ConnectionQualityChanged, function (q, p) { onQuality(q, p); });
-      room.on(E.AudioPlaybackStatusChanged, function () { showAudioGate(!room.canPlaybackAudio); });
+      room.on(E.AudioPlaybackStatusChanged, function () { showAudioGate(!room.canPlaybackAudio && !answerOnlyHere()); });
       room.on(E.Reconnecting, function () { setNet('Reconnecting…', 'warn'); });
       room.on(E.Reconnected, function () {
         setNet('', '');
@@ -2043,6 +2211,7 @@
         var ids = {};
         (speakers || []).forEach(function (s) { ids[s.identity] = true; });
         Object.keys(S.tiles).forEach(function (id) { S.tiles[id].el.classList.toggle('speaking', !!ids[id]); });
+        if (S.role === 'teacher') zoomSpeakers(ids);
       });
       if (E.MediaDevicesError) room.on(E.MediaDevicesError, function (e) { say('Camera or microphone: ' + ((e && e.message) || e)); });
       room.on(E.Disconnected, function (reason) { onDisconnected(room, reason, LK); });
@@ -2115,6 +2284,7 @@
     function disconnect() {
       stopRecording(false);
       stopShareTrack();
+      stopZoom(true);
       stopTimers();
       var r = S.room; S.room = null;
       if (r) { try { r.disconnect(); } catch (e) {} }
@@ -2198,6 +2368,7 @@
       clear(S.bar);
       var lp = S.room.localParticipant;
       var micOn = !!(lp && lp.isMicrophoneEnabled), camOn = !!(lp && lp.isCameraEnabled), shareOn = !!(lp && lp.isScreenShareEnabled);
+      if (answerOnlyHere()) return paintAnswerOnlyBar();
       S.bar.appendChild(ctl(micOn ? '' : 'off', micOn ? '🎤' : '🔇', micOn ? 'Mute your microphone' : 'Unmute your microphone', micOn, function () {
         Promise.resolve(lp.setMicrophoneEnabled(!micOn)).catch(function (e) { say('Microphone: ' + ((e && e.message) || e)); }).then(paintControls);
       }));
@@ -2215,6 +2386,10 @@
           rec ? 'Recording the class to Ans Key — each half minute goes up as you teach. Press to stop recording.' : 'Record the class: it is saved to Ans Key\'s cloud and put on the worksheet', !!rec, function () {
           if (S.rec) { stopRecording(true); S.prefs.record = false; savePrefs(); }
           else { S.prefs.record = true; savePrefs(); startRecording(); }
+        }));
+        var z = S.zoom;
+        S.bar.appendChild(ctl(z ? 'vcZoomOn' : '', z ? '📞 Zoom on' : '📞 Zoom', z ? 'The Zoom room’s sound is in the class. Press for the Zoom settings.' : 'Bring a Zoom meeting’s sound into the class, and the setup guide', !!z, function () {
+          S.tab = 'zoom'; paintSide();
         }));
         if (S.door && !S.door.open) S.bar.appendChild(ctl('vcDoor', '🚪 Let students in now', S.door.message ? 'Students are waiting: ' + S.door.message : 'Let students join before the lesson time', false, letIn));
         S.bar.appendChild(ctl('', '🔇 All', 'Mute every student’s microphone', false, function () {
@@ -2244,6 +2419,43 @@
         S.bar.appendChild(el('span', 'vcBarGap'));
         S.bar.appendChild(ctl('vcEnd', 'Leave', 'Leave the class', false, leaveAsk));
       }
+    }
+    // 📱 The answer-only bar: a Zoom child needs their hand, the question
+    // and a way out — nothing that sends or plays the lesson a second time.
+    function paintAnswerOnlyBar() {
+      S.bar.appendChild(ctl(S.handUp ? 'vcHandUp' : '', S.handUp ? '✋ Hand up' : '✋', S.handUp ? 'Put your hand down' : 'Raise your hand', S.handUp, function () {
+        S.handUp = !S.handUp;
+        sendTeacher({ t: 'hand', up: S.handUp });
+        paintControls();
+      }));
+      var qCount = openQuestions().length;
+      if (qCount && S.popMin) S.bar.appendChild(ctl('vcQPill', '❓ Question', 'Show the question', true, function () { S.popMin = false; paintQuestion(); paintControls(); }));
+      S.bar.appendChild(ctl('vcZoomOnly', '📱 Zoom', 'You answer here and watch on Zoom. Press to watch and listen on this device instead.', true, function () {
+        setAnswerOnly(false);
+      }));
+      S.bar.appendChild(el('span', 'vcBarGap'));
+      S.bar.appendChild(ctl('vcEnd', 'Leave', 'Leave the class', false, leaveAsk));
+    }
+    // Switch this phone between "answer only" (in Zoom) and the full class.
+    function setAnswerOnly(on) {
+      on = !!on;
+      S.prefs.answerOnly = on; savePrefs();
+      var lp = S.room && S.room.localParticipant;
+      if (lp) {
+        if (on) {
+          Promise.resolve(lp.setCameraEnabled(false)).catch(function () {});
+          Promise.resolve(lp.setMicrophoneEnabled(false)).catch(function () {});
+        } else if (S.prefs.cameraOff !== true) {
+          Promise.resolve(lp.setCameraEnabled(true)).catch(function () { say('Your camera could not start. You can still see and answer.'); }).then(function () { paintControls(); layout(); });
+        }
+      }
+      applySubscriptions();
+      if (S.room) {
+        sayHello();
+        showAudioGate(!S.room.canPlaybackAudio && !on);
+      }
+      say(on ? 'Answer-only: watch and listen on Zoom, answer here.' : 'You now see and hear the class on this device.');
+      paintControls(); layout();
     }
     function setLowData(on, auto) {
       S.prefs.lowData = !!on; savePrefs();
@@ -2328,6 +2540,204 @@
     }
     function stopShare() { stopShareTrack(); paintControls(); layout(); }
 
+    /* ---------- 📞 the Zoom room's sound (v1.212.0) ----------
+       The teacher picks where Zoom's sound is: the Zoom WINDOW (Chrome asks
+       inside the tap) or a sound INPUT (a loopback cable or a microphone).
+       It goes through ONE gain (the duck) and a meter into a fresh track,
+       published as the teacher's `zoom` screen-share audio — so it is never
+       muted with the teacher's microphone and every child here receives it.
+       The capture asks Chrome to leave this page's own sound out
+       (restrictOwnAudio), so a child here is never sent back to themselves. */
+    function zoomSupported() {
+      var md = root.navigator && navigator.mediaDevices;
+      return !!(md && (md.getDisplayMedia || md.getUserMedia) && (root.AudioContext || root.webkitAudioContext));
+    }
+    function startZoom(route, deviceId) {
+      if (!isTeacher() || !S.room || !S.LK) { say('Start the class first, then bring Zoom in.'); return; }
+      var md = root.navigator && navigator.mediaDevices;
+      if (!md) { say('This browser cannot capture sound.'); return; }
+      var room = S.room, LK = S.LK;
+      var ask = zoomCaptureConstraints(route, deviceId);
+      var seq = ++S.zoomSeq;
+      S.zoomBusy = true; paintSide(true);
+      // Asked inside the tap: the browser only lets a capture start from a press.
+      var got = route === 'input' ? md.getUserMedia(ask) : md.getDisplayMedia(ask);
+      Promise.resolve(got).then(function (stream) {
+        var src = stream.getAudioTracks()[0];
+        // A window share keeps its (tiny) picture only so Chrome keeps the
+        // sound; it is never published.
+        if (!src) {
+          stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+          throw new Error(route === 'input' ? 'That input gave no sound.' : 'No sound came with that share. Tick “Also share window audio” (or system audio) and try again.');
+        }
+        if (seq !== S.zoomSeq || S.room !== room || !isTeacher()) { stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); return; }
+        stopZoom(true);
+        var Ctx = root.AudioContext || root.webkitAudioContext;
+        var ctx = new Ctx({ latencyHint: 'interactive' });
+        var input = ctx.createMediaStreamSource(new MediaStream([src]));
+        var gain = ctx.createGain();
+        var meter = ctx.createAnalyser();
+        meter.fftSize = 512;
+        var out = ctx.createMediaStreamDestination();
+        input.connect(gain); gain.connect(meter); gain.connect(out);
+        gain.gain.value = duckGain(false, 0, 0, S.prefs.zoomGain);
+        var track = out.stream.getAudioTracks()[0];
+        var z = { route: route, label: oneLine(src.label, 120), stream: stream, src: src, ctx: ctx, gain: gain, meter: meter, track: track,
+          heldUntil: 0, talking: false, level: 0, timer: 0, buf: new Float32Array(meter.fftSize) };
+        S.zoom = z;
+        src.addEventListener('ended', function () { if (S.zoom === z) { stopZoom(); say('Zoom’s sound stopped (the share ended).'); } });
+        if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(function () {});
+        var opts = { source: LK.Track.Source.ScreenShareAudio, name: ZOOM.name, dtx: false, red: true, audioPreset: { maxBitrate: ZOOM.bps } };
+        return room.localParticipant.publishTrack(track, opts).then(function () {
+          if (S.zoom !== z) return;
+          z.timer = setInterval(zoomMeterTick, ZOOM.meterMs);
+          syncRecorder();
+          var hint = route === 'input' ? loopbackHint(z.label) : null;
+          say('📞 Zoom is in the class' + (z.label ? ' (' + z.label + ')' : '') + '.' + (hint && hint.kind !== 'loopback' ? ' ' + hint.note : ''));
+        });
+      }).catch(function (e) {
+        if (seq === S.zoomSeq && !/permission|notallowed|abort/i.test((e && (e.name + e.message)) || '')) say('Zoom sound: ' + ((e && e.message) || e));
+        if (seq === S.zoomSeq && S.zoom && !S.zoom.timer) stopZoom(true);
+      }).then(function () {
+        if (seq === S.zoomSeq) S.zoomBusy = false;
+        paintControls(); paintSide(true);
+      });
+    }
+    function stopZoom(quiet) {
+      var z = S.zoom;
+      S.zoom = null;
+      if (!z) return;
+      clearInterval(z.timer);
+      try { if (S.room && S.room.localParticipant && z.track) S.room.localParticipant.unpublishTrack(z.track); } catch (e) {}
+      try { z.track && z.track.stop(); } catch (e) {}
+      try { z.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+      try { z.ctx.close(); } catch (e) {}
+      if (S.rec) { try { S.rec.setAudio('zoom', null); } catch (e) {} }
+      if (!quiet) { paintControls(); paintSide(true); }
+    }
+    // Every tick: the meter, and the duck decided by `duckGain` from who is
+    // speaking here (LiveKit's own active-speaker list, `zoomSpeakers`).
+    function zoomMeterTick() {
+      var z = S.zoom;
+      if (!z) return;
+      try { z.meter.getFloatTimeDomainData(z.buf); z.level = rmsLevel(z.buf); } catch (e) { z.level = 0; }
+      var g = S.prefs.zoomDuck === false ? duckGain(false, 0, 0, S.prefs.zoomGain) : duckGain(z.talking, now(), z.heldUntil, S.prefs.zoomGain);
+      try { z.gain.gain.setTargetAtTime(g, z.ctx.currentTime, 0.08); } catch (e) { try { z.gain.gain.value = g; } catch (x) {} }
+      if (S.zoomBar) S.zoomBar.style.width = Math.round(Math.min(1, z.level * 4) * 100) + '%';
+      if (S.zoomDuckNote) S.zoomDuckNote.textContent = g < (S.prefs.zoomGain == null ? 1 : S.prefs.zoomGain) ? '↓ turned down while a child here speaks' : '';
+    }
+    function zoomSpeakers(ids) {
+      var z = S.zoom;
+      if (!z) return;
+      var talking = Object.keys(ids || {}).some(function (id) { return roleOfIdentity(id) === 'student'; });
+      if (z.talking && !talking) z.heldUntil = now() + ZOOM.duckHoldMs;
+      z.talking = talking;
+    }
+    function zoomInputs() {
+      var md = root.navigator && navigator.mediaDevices;
+      if (!md || !md.enumerateDevices) return Promise.resolve([]);
+      return md.enumerateDevices().then(function (list) {
+        return (list || []).filter(function (d) { return d.kind === 'audioinput'; }).map(function (d, i) {
+          return { id: d.deviceId, label: d.label || ('Sound input ' + (i + 1)) , named: !!d.label };
+        });
+      }, function () { return []; });
+    }
+
+    /* ---------- 📞 the Zoom panel: the feed, the volume and the guide ---------- */
+    function paintZoom(box) {
+      var z = S.zoom;
+      box.appendChild(el('h4', 'vcZoomH', '📞 Zoom hybrid'));
+      box.appendChild(el('p', 'vcMuted', 'Children in a Zoom meeting take the same class: they hear the children here, you hear them, and they answer the pop-ups on a phone.'));
+      var card = el('div', 'vcCard vcZoomCard');
+      if (!zoomSupported()) {
+        card.appendChild(el('p', 'vcMsg', 'This browser cannot capture sound. Use Chrome or Edge on a computer.'));
+        box.appendChild(card);
+      } else if (z) {
+        card.appendChild(el('p', 'vcZoomLive', '🟢 Zoom’s sound is in the class'));
+        if (z.label) card.appendChild(el('p', 'vcMuted', 'From: ' + z.label));
+        var meter = el('div', 'vcZoomMeter');
+        S.zoomBar = el('div', 'vcZoomLevel');
+        meter.appendChild(S.zoomBar);
+        card.appendChild(meter);
+        S.zoomDuckNote = el('p', 'vcMuted vcZoomDuck', '');
+        card.appendChild(S.zoomDuckNote);
+        var volRow = el('label', 'vcZoomRow');
+        volRow.appendChild(el('span', '', 'Volume'));
+        var vol = el('input');
+        vol.type = 'range'; vol.min = '0'; vol.max = '200'; vol.step = '5';
+        vol.value = String(Math.round((S.prefs.zoomGain == null ? 1 : S.prefs.zoomGain) * 100));
+        vol.setAttribute('aria-label', 'Zoom volume');
+        var volText = el('span', 'vcMuted', vol.value + '%');
+        vol.addEventListener('input', function () { S.prefs.zoomGain = Number(vol.value) / 100; volText.textContent = vol.value + '%'; savePrefs(); });
+        volRow.appendChild(vol); volRow.appendChild(volText);
+        card.appendChild(volRow);
+        var duckRow = el('label', 'vcZoomRow');
+        var duck = el('input'); duck.type = 'checkbox'; duck.checked = S.prefs.zoomDuck !== false;
+        duck.addEventListener('change', function () { S.prefs.zoomDuck = !!duck.checked; savePrefs(); });
+        duckRow.appendChild(duck);
+        duckRow.appendChild(el('span', '', 'Turn Zoom down while a child here is speaking (stops double-talk)'));
+        card.appendChild(duckRow);
+        if (z.route === 'input') { var h = loopbackHint(z.label); card.appendChild(el('p', 'vcZoomHint ' + h.kind, h.note)); }
+        card.appendChild(btn('vcDanger', '⏹ Stop Zoom sound', 'Take the Zoom room out of the class', function () { stopZoom(); }));
+        box.appendChild(card);
+      } else {
+        S.zoomBar = null; S.zoomDuckNote = null;
+        var canWin = !!(root.navigator && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+        if (canWin) card.appendChild(btn('vcPrimary', S.zoomBusy ? 'Waiting for your pick…' : '🪟 Pick the Zoom window', 'Chrome asks which window: choose Zoom, with its sound on', function () { startZoom('display'); }));
+        card.appendChild(el('p', 'vcMuted', 'or bring it in from a sound input:'));
+        var row = el('div', 'vcZoomRow');
+        var sel = el('select', 'vcSelect');
+        sel.setAttribute('aria-label', 'Sound input with Zoom in it');
+        sel.appendChild(new Option('Loading inputs…', ''));
+        var hint = el('p', 'vcZoomHint', '');
+        var use = btn('', '🎚 Use this input', 'Bring the Zoom room in from this input', function () { startZoom('input', sel.value); });
+        use.disabled = true;
+        sel.addEventListener('change', function () {
+          var o = sel.options[sel.selectedIndex];
+          var h = loopbackHint(o ? o.textContent : '');
+          hint.className = 'vcZoomHint ' + h.kind; hint.textContent = h.note;
+          use.disabled = !sel.value;
+        });
+        row.appendChild(sel); row.appendChild(use);
+        card.appendChild(row);
+        card.appendChild(hint);
+        zoomInputs().then(function (list) {
+          clear(sel);
+          if (!list.length) { sel.appendChild(new Option('No sound inputs found', '')); return; }
+          list.forEach(function (d) { sel.appendChild(new Option(d.label, d.id)); });
+          var best = list.filter(function (d) { return loopbackHint(d.label).kind === 'loopback'; })[0];
+          if (best) sel.value = best.id;
+          sel.dispatchEvent(new Event('change'));
+        });
+        if (!S.room) card.appendChild(el('p', 'vcMsg', 'Start the class first.'));
+        box.appendChild(card);
+      }
+      // The Zoom children's own links.
+      var links = el('div', 'vcCard');
+      links.appendChild(el('h4', 'vcZoomH', '📱 The Zoom children'));
+      links.appendChild(el('p', 'vcMuted', 'Each child opens their 📱 Zoom link on a phone. It knows their name, takes no camera or sound, and only shows your questions: they watch and listen on Zoom. Their answers count like everyone else’s.'));
+      var zoomKids = presentStudents().filter(function (id) { var p = S.session.people[id]; return p && p.via === 'zoom'; })
+        .map(function (id) { return S.session.people[id].name; });
+      links.appendChild(el('p', 'vcMsg', zoomKids.length ? 'Answering from Zoom now: ' + zoomKids.join(', ') : 'No Zoom child has joined yet.'));
+      links.appendChild(btn('', '🔗 Links & PINs', 'Every child’s link, with a 📱 Zoom link for each', function () { openPasses(); }));
+      box.appendChild(links);
+      // The guide.
+      var g = el('div', 'vcCard vcZoomGuide');
+      g.appendChild(el('h4', 'vcZoomH', '🧭 Setting it up'));
+      var which = S.zoomGuide || guideFor(root.navigator && (navigator.userAgentData && navigator.userAgentData.platform || navigator.platform));
+      var tabs = el('div', 'vcSeg');
+      ['mac', 'windows'].forEach(function (k) {
+        var b = btn('vcSegBtn' + (which === k ? ' on' : ''), ZOOM_GUIDE[k].title, null, function () { S.zoomGuide = k; paintSide(); });
+        b.setAttribute('aria-pressed', which === k ? 'true' : 'false');
+        tabs.appendChild(b);
+      });
+      g.appendChild(tabs);
+      var ol = el('ol', 'vcZoomSteps');
+      ZOOM_GUIDE[which].steps.forEach(function (t) { ol.appendChild(el('li', '', t)); });
+      g.appendChild(ol);
+      box.appendChild(g);
+    }
+
     /* ---------- 🚪 the lesson-time door ---------- */
     function letIn() {
       if (!isTeacher()) return;
@@ -2379,6 +2789,7 @@
         h.setVideo('camera', trackOf(lp.getTrackPublication(T.Camera), true));
         h.setVideo('screen', S.shareTrack || trackOf(lp.getTrackPublication(T.ScreenShare), false));
         h.setAudio('self', trackOf(lp.getTrackPublication(T.Microphone), false));
+        h.setAudio('zoom', S.zoom && S.zoom.track ? S.zoom.track : null);
         var keys = {};
         S.room.remoteParticipants.forEach(function (p) {
           var a = p.getTrackPublication(T.Microphone);
@@ -2522,6 +2933,7 @@
       var t = { el: el('div', 'vcTile'), media: el('div', 'vcTileMedia'), name: el('div', 'vcTileName', name || ''), badge: el('div', 'vcTileBadge'), net: el('div', 'vcTileNet'), hand: el('div', 'vcTileHand', '✋'), initials: el('div', 'vcInitials', initials(name)) };
       t.hand.hidden = true;
       t.el.dataset.identity = identity;
+      if (S.session && S.session.people[identity] && S.session.people[identity].via === 'zoom') t.el.classList.add('vcViaZoom');
       t.media.appendChild(t.initials);
       t.el.appendChild(t.media); t.el.appendChild(t.name); t.el.appendChild(t.badge); t.el.appendChild(t.net); t.el.appendChild(t.hand);
       if (S.role === 'teacher') {
@@ -2601,7 +3013,8 @@
       if (mainNode) { put(S.main, mainNode); S.mainEmpty.hidden = true; }
       else {
         S.mainEmpty.hidden = false;
-        if (tid) S.mainEmpty.textContent = S.prefs.lowData ? 'Low data is on — you can hear your teacher.' : 'Your teacher’s camera is off.';
+        if (answerOnlyHere()) S.mainEmpty.textContent = '📱 Answering from this phone. Watch and listen on Zoom — a question pops up here when your teacher sends one.';
+        else if (tid) S.mainEmpty.textContent = S.prefs.lowData ? 'Low data is on — you can hear your teacher.' : 'Your teacher’s camera is off.';
       }
       S.main.classList.toggle('screen', !!screen);
       if (screen && cam) { put(S.pip, cam); S.pip.hidden = false; } else S.pip.hidden = true;
@@ -2661,7 +3074,7 @@
       }
       if (S.role === 'teacher') {
         if (fromRole !== 'student') return;
-        if (msg.t === 'hello') return onHello(from);
+        if (msg.t === 'hello') return onHello(from, msg);
         if (msg.t === 'a') return onAnswer(from, msg);
         if (msg.t === 'hand') return onHand(from, !!msg.up);
         if (msg.t === 'needimg') return onNeedImage(from, msg.ref);
@@ -2708,7 +3121,16 @@
     function openQuestionsFor(identity) {
       return S.session.questions.filter(function (q) { return q.open && meantFor(q, identity); });
     }
-    function onHello(identity) {
+    function onHello(identity, msg) {
+      // 📱 A phone that only answers says so: the child is in the Zoom room.
+      var via = msg && msg.zoom === true ? 'zoom' : '';
+      var prevP = S.session.people[identity];
+      if (prevP && (prevP.via || '') !== via) {
+        S.session = personJoined(S.session, { identity: identity, via: via }, now());
+        saveSoon(); paintSide();
+        var tile = S.tiles[identity];
+        if (tile && tile.el) tile.el.classList.toggle('vcViaZoom', via === 'zoom');
+      }
       var qs = openQuestionsFor(identity);
       var mine = {};
       qs.forEach(function (q) {
@@ -2843,7 +3265,7 @@
       var tries = 0;
       (function again() {
         if (S.mode !== 'live' || S.role !== 'student' || S.gotState) return;
-        if (teacherIdentity()) sendTeacher({ t: 'hello' });
+        if (teacherIdentity()) sendTeacher(S.prefs.answerOnly ? { t: 'hello', zoom: true } : { t: 'hello' });
         if (++tries < 20) S.helloTimer = setTimeout(again, LIMITS.helloMs);
       })();
     }
@@ -3163,7 +3585,8 @@
       { id: 'ask', icon: '❓', label: 'Ask' },
       { id: 'answers', icon: '📝', label: 'Answers' },
       { id: 'people', icon: '👥', label: 'People' },
-      { id: 'reports', icon: '🧾', label: 'Reports' }
+      { id: 'reports', icon: '🧾', label: 'Reports' },
+      { id: 'zoom', icon: '📞', label: 'Zoom' }
     ];
     function typingInSide() {
       var a = document.activeElement;
@@ -3182,10 +3605,11 @@
       S.sideBody = el('div', 'vcSideBody');
       S.side.appendChild(S.sideBody);
       paintTabs();
-      var tab = S.mode === 'ended' && (S.tab === 'ask' || S.tab === 'people') ? 'reports' : S.tab;
+      var tab = S.mode === 'ended' && (S.tab === 'ask' || S.tab === 'people' || S.tab === 'zoom') ? 'reports' : S.tab;
       if (tab === 'ask') paintAsk(S.sideBody);
       else if (tab === 'answers') paintAnswers(S.sideBody);
       else if (tab === 'people') paintPeople(S.sideBody);
+      else if (tab === 'zoom') paintZoom(S.sideBody);
       else paintReports(S.sideBody);
       if (soft) S.sideBody.scrollTop = keepScroll;
     }
@@ -3200,10 +3624,11 @@
       var here = presentStudents().length;
       var hands = Object.keys(S.hands).length;
       TABS.forEach(function (t) {
-        if (S.mode === 'ended' && (t.id === 'ask' || t.id === 'people')) return;
+        if (S.mode === 'ended' && (t.id === 'ask' || t.id === 'people' || t.id === 'zoom')) return;
         var badge = '';
         if (t.id === 'answers' && (waitingNow || unmarked)) badge = waitingNow ? '⏳' + waitingNow : '•' + unmarked;
         if (t.id === 'people') badge = (hands ? '✋' + hands + ' ' : '') + here;
+        if (t.id === 'zoom' && S.zoom) badge = '●';
         var b = btn('vcTab' + (S.tab === t.id ? ' on' : ''), t.icon + ' ' + t.label, null, function () { S.tab = t.id; paintSide(); });
         b.setAttribute('role', 'tab');
         b.setAttribute('aria-selected', S.tab === t.id ? 'true' : 'false');
@@ -3811,6 +4236,7 @@
         top.appendChild(el('b', 'vcAnsName', p.name));
         if (p.kind === 'trial') top.appendChild(el('span', 'vcTag', 'Trial'));
         if (p.kind === 'makeup') top.appendChild(el('span', 'vcTag', 'Make-up'));
+        if (p.via === 'zoom') top.appendChild(el('span', 'vcTag zoom', '📱 Zoom'));
         if (e.edits) top.appendChild(el('span', 'vcMuted', 'changed ' + e.edits + '×'));
         top.appendChild(el('span', 'vcMuted', new Date(e.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })));
         row.appendChild(top);
@@ -3898,6 +4324,7 @@
         top.appendChild(el('b', null, p.name));
         if (p.kind === 'trial') top.appendChild(el('span', 'vcTag', 'Trial'));
         if (p.kind === 'makeup') top.appendChild(el('span', 'vcTag', 'Make-up' + (p.home ? ' · ' + p.home : '')));
+        if (p.via === 'zoom') top.appendChild(el('span', 'vcTag zoom', '📱 Zoom'));
         if (S.removed[p.identity]) top.appendChild(el('span', 'vcTag warn', 'Removed'));
         row.appendChild(top);
         var q = S.quality[p.identity];

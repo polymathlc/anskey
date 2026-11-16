@@ -18,6 +18,15 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## 📞 Live class: Zoom hybrid (v1.212.0)
+
+- **The Zoom room's sound** (`startZoom(route, deviceId)` / `stopZoom` / `zoomMeterTick` / `zoomSpeakers` / `paintZoom`, the 📞 Zoom tab in `TABS` and the bar button): `getDisplayMedia` (route `display`, the Zoom window / a tab / the whole screen with system audio) or `getUserMedia` (route `input`, a chosen input), asked with pure `zoomCaptureConstraints` — voice processing OFF, `restrictOwnAudio` + `suppressLocalAudioPlayback` so this page's own sound (every child here) is never captured. It runs source → gain → analyser / `MediaStreamDestination`, and the destination's track is published as `ScreenShareAudio` named `ZOOM.name` (`zoom`), dtx off, `ZOOM.bps`. The window share's picture is never published. Children here receive it through `wantTrack` (teacher's screen audio = yes, low data too). `syncRecorder` gives it to the recording as `zoom`. `disconnect` calls `stopZoom(true)`.
+- **The duck**: `duckGain(talking, now, heldUntil, base)` — down to `ZOOM.duck` while a STUDENT is in LiveKit's active speakers, held `ZOOM.duckHoldMs` after. `prefs.zoomGain` (0–2) and `prefs.zoomDuck`. `loopbackHint(label)` says what a chosen input is (loopback / mic / other / unknown) and what to watch for.
+- **Answer-only phones** (`prefs.answerOnly`, `answerOnlyHere()`): `wantTrack` returns false for EVERYTHING (the child hears the lesson in Zoom; a second copy out of a phone is an echo), `afterConnect` never turns the camera on, no audio gate, `paintAnswerOnlyBar` (hand, question pill, 📱 Zoom to switch back, Leave), `setAnswerOnly`. Set by `zoomFromSearch` (`&zoom` on a personal link, `zoomLink` = `passLink` + `&zoom`) or the `zoomChoice` box on the join card and the name list. `sayHello` sends `zoom: true`; the teacher's `onHello(from, msg)` writes `via: 'zoom'` on the person (`cleanPerson.via`, kept by `personJoined` when a rejoin says nothing) → the 📱 Zoom tag in People / Answers and on the tile. They count in the tally like anyone present.
+- **Links**: ⧉ 📱 Zoom per row, a 📱 From Zoom QR, and `passLines` adds "from Zoom <link>".
+- **`ZOOM_GUIDE`** (mac / windows steps, words only, written with textContent), `guideFor(platform)`.
+- Run `node --test tools/live-class-tests.mjs`. No server change.
+
 ## 📖 Live class: the same link or PIN signs a child into Study Buddy (v1.211.0)
 
 - **Server** (`functions/live-class.js`, action `study`, not the teacher): a code through `checkPass`, or a PIN through
