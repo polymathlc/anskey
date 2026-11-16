@@ -471,3 +471,101 @@ test('🔁 every place that fetches a class PDF passes its pdfVersion', () => {
   assert.match(html, /onlineCachedPdf\(data\.storagePath, data\.pdfVersion\)/);
   assert.match(html, /resp = await fetch\(url, data\.pdfVersion \? \{ cache: 'no-cache' \} : undefined\);/);
 });
+
+/* ---------------- ⏰ The lesson clock (v1.206.0) ----------------
+   Zhi Kai, 16 Nov 2026: the app did not load the class's new Current and
+   Next worksheets by itself after the lesson. Every lesson that is over (at
+   the next lesson time: 5pm for 3 to 4:45pm) moves the class one on. */
+const sg = (s) => Date.parse(s + '+08:00');
+
+test('⏰ the clock is the same file as Polymath Online\'s and is loaded here', () => {
+  const c = makeContext();
+  assert.equal(typeof c.LessonClock.courseNow, 'function');
+  assert.equal(c.LessonClock.lessonOn('Monday', 0, '2026-11-16').release, sg('2026-11-16T17:00:00'), '3 to 4:45pm: out at 5pm');
+  assert.equal(c.LessonClock.lessonOn('Saturday', 0, '2026-11-14').release, sg('2026-11-14T11:00:00'), '9 to 10:45am: out at 11am');
+});
+
+test('⏰ a class taught from its Current worksheet moves on when the lesson is over', () => {
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
+  const raw = { id: 'k1', title: 'P5 Science · Saturday 9am', day: 'Saturday', slot: 0, worksheetIds: tenSheets(), currentIndex: 3, releasedThrough: 6,
+    progressAt: sg('2026-11-07T09:30:00') };
+  const now = c.onlineClockNow(raw, sg('2026-11-16T21:27:00'));
+  assert.equal(now.currentIndex, 5, 'over on 7 Nov and 14 Nov: Current is worksheet 6');
+  assert.equal(c.onlineClassAt(now), 5);
+  assert.equal(c.onlineNextAt(now), 6, 'and worksheet 7 is Next');
+  assert.equal(c.onlineReleasedThrough(now), 8, 'released 3 ahead of where it is now');
+  assert.equal(c.onlineClockNow(raw, sg('2026-11-07T10:59:00')).currentIndex, 3, 'not before the lesson is over');
+  assert.equal(c.onlineClockNow({ ...raw, currentIndex: -1 }, sg('2026-11-16T21:27:00')).currentIndex, -1, 'a class not started waits for the teacher');
+});
+
+test('⏰ the watched class lists are kept as they stand now, and redrawn when a lesson ends', () => {
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
+  c.onlineCoursesRaw = { k1: { id: 'k1', day: 'Monday', slot: 0, worksheetIds: tenSheets(), currentIndex: 1, progressAt: Date.now() - 30 * 864e5 } };
+  c.onlineCoursesLoaded = true;
+  c.onlineCoursesDerive(true);
+  assert.ok(c.onlineCourses.k1.currentIndex >= 5, 'four or more Monday lessons over: moved on');
+  assert.equal(c.onlineCoursesRaw.k1.currentIndex, 1, 'nothing is written by the clock');
+});
+
+test('⏰ opening a worksheet the clock already finished does not take the class back', async () => {
+  let written = null;
+  const course = { title: 'P5 Science', day: 'Monday', slot: 0, worksheetIds: tenSheets(), currentIndex: 1, releasedThrough: 4, progressAt: Date.now() - 15 * 864e5 };
+  const c = makeContext({
+    currentUser: { email: 'teacher@example.test' },
+    db: {
+      collection: () => ({ doc: () => ({}) }),
+      runTransaction: async (fn) => fn({ get: async () => ({ exists: true, data: () => course }), set: (_ref, upd) => { written = upd; Object.assign(course, upd); } })
+    }
+  });
+  const at = c.onlineClockNow(course).currentIndex;
+  assert.ok(at >= 3, 'two or more Mondays over');
+  await c.onlineWorksheetOpened('w3', { onlineCourseId: 'k1' });
+  assert.equal(written.currentIndex, undefined, 'worksheet 3 is already done by the clock');
+  await c.onlineWorksheetOpened('w' + (at + 2), { onlineCourseId: 'k1' });
+  assert.equal(written.currentIndex, at + 1, 'opening the Next one moves the class there');
+  assert.equal(written.clockAt, 'now', 'and stamps the clock, so moves are not counted twice');
+});
+
+test('⏰ Finished counts from where the class stands now and stamps the clock', async () => {
+  let written = null;
+  const course = { title: 'P5 Science', day: 'Monday', slot: 0, worksheetIds: tenSheets(), currentIndex: 1, releasedThrough: 4, progressAt: Date.now() - 8 * 864e5 };
+  const c = makeContext({
+    currentUser: { email: 'teacher@example.test' },
+    db: {
+      collection: () => ({ doc: () => ({}) }),
+      runTransaction: async (fn) => fn({ get: async () => ({ exists: true, data: () => course }), set: (_ref, upd) => { written = upd; Object.assign(course, upd); } })
+    }
+  });
+  const at = c.onlineClockNow(course).currentIndex;
+  assert.ok(at >= 2);
+  assert.equal(await c.onlineFinishCurrent('w2', { onlineCourseId: 'k1' }, null), null, 'the old Current is already finished');
+  const f = await c.onlineFinishCurrent('w' + (at + 1), { onlineCourseId: 'k1' }, null);
+  assert.equal(f.currentIndex, at + 1);
+  assert.equal(written.clockAt, 'now');
+});
+
+test('📌 a class\'s Current and Next are listed under the class\'s own lesson time', () => {
+  const c = makeContext({ currentUser: { email: 'teacher@example.test' } });
+  c.onlineCourses = { k1: { id: 'k1', day: 'Saturday', slot: 0, worksheetIds: ['w1', 'w2', 'w3', 'w4'], currentIndex: 1 } };
+  // A copy from 📂 Browse Ans Key app has no day; one saved at another hour another slot.
+  const cur = { id: 'w2', data: { onlineCourseId: 'k1', wsDay: '', wsSlot: null } };
+  const next = { id: 'w3', data: { onlineCourseId: 'k1', wsDay: 'Saturday', wsSlot: 2 } };
+  const done = { id: 'w1', data: { onlineCourseId: 'k1', wsDay: 'Friday', wsSlot: 1 } };
+  const queued = { id: 'w4', data: { onlineCourseId: 'k1', wsDay: '', wsSlot: null } };
+  assert.deepEqual(plain(c.onlineListedAt(cur.id, cur.data)), { day: 'Saturday', slot: 0 });
+  assert.equal(c.onlineListDay(cur), 'Saturday');
+  assert.equal(c.onlineListSlot(cur), 0);
+  assert.equal(c.onlineListSlot(next), 0, 'Next too, even saved under 1pm');
+  assert.equal(c.onlineLessonKey(next.data, next.id), 'Saturday|0', 'one Current and one Next per lesson time counts it there');
+  assert.equal(c.onlineListedAt(done.id, done.data), null, 'one already taught stays where the teacher put it');
+  assert.equal(c.onlineListDay(queued), 'Saturday', 'a class worksheet with no day of its own takes the class\'s day');
+  assert.equal(c.onlineListedAt('loose', { wsDay: 'Monday' }), null, 'a worksheet in no class list is as before');
+  c.onlineCourses.k1.day = '';
+  assert.equal(c.onlineListedAt(cur.id, cur.data), null, 'a class with no day: as before');
+});
+
+test('📌 the worksheet list groups and filters by the listed lesson time', () => {
+  assert.match(html, /docOnDay\(item\.data, qDayFilter, item\)/);
+  assert.match(html, /var day = typeof onlineListDay === 'function' \? onlineListDay\(item\)/);
+  assert.match(html, /onlineListSlot\(item\) : slotOf\(item\.data\)/);
+});

@@ -208,6 +208,55 @@ const read = () => {
   await ctx.close();
 }
 
+/* ---------- ⏰ v1.206.0: the lesson is over, the class moves on by itself ----------
+   Zhi Kai, 16 Nov 2026: a Saturday 9am class taught from its Current
+   worksheet, nobody pressed Finished, and the new Current and Next were
+   copies from 📂 Browse Ans Key app with no class day of their own. After
+   the lesson they must load, tagged, in the Saturday 9:00 lesson. */
+{
+  const { ctx, page, errors } = await open({ width: 1280, height: 900 });
+  await page.evaluate(() => {
+    const ids = ['s1', 's2', 's3', 's4', 's5', 's6', 's7'];
+    const week = 7 * 864e5;
+    // Last placed during a Saturday lesson two weeks back: two lessons over since.
+    const sat = (() => { const d = new Date(Date.now() + 8 * 3600e3); const back = (d.getUTCDay() + 1) % 7 || 7; return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - back, 9, 30) - 8 * 3600e3; })();
+    onlineCoursesRaw = { k9: { id: 'k9', title: 'P5 Science · Saturday 9am', level: 'P5', subject: 'science', day: 'Saturday', slot: 0,
+      worksheetIds: ids.slice(), currentIndex: 1, releasedThrough: 4, progressAt: sat - week } };
+    onlineCoursesLoaded = true;
+    onlineCoursesRecompute();
+    qDocs = ids.map((id, i) => ({ id, data: {
+      name: 'P5 Science · Worksheet ' + (i + 1), level: 'P5', subject: 'science', pageCount: 4, onlineCourseId: 'k9', onlineSeq: i, listOrder: i,
+      // Worksheets 1-3 were filed under the lesson; 4 and 5 are copies with no day.
+      wsDay: i < 3 ? 'Saturday' : '', wsSlot: i < 3 ? 0 : null
+    } }));
+    currentUser = { uid: 'teacher', email: ADMIN_EMAIL };
+    studentProfile = null; actingStudent = null;
+    try { applyRoleUI(); } catch (e) {}
+    qSubjectFilter = 'all'; qDayFilter = 'Saturday'; qQueuedOpen = false;
+    $('qDrawer').classList.add('open');
+    onlineFocusChanged();
+    renderQuestionList();
+    const head = document.querySelector('#qList .qSlotSection[data-slot="0"] .qSlotHead');
+    const sec = document.querySelector('#qList .qSlotSection[data-slot="0"]');
+    if (head && sec && sec.classList.contains('collapsed')) head.click();
+  });
+  const s = await page.evaluate(() => {
+    const sec = document.querySelector('#qList .qSlotSection[data-slot="0"]');
+    return {
+      at: onlineCourses.k9.currentIndex,
+      expect: 1 + LessonClock.lessonsBetween('Saturday', 0, onlineCoursesRaw.k9.progressAt, Date.now()).length,
+      cards: sec ? Array.prototype.map.call(sec.querySelectorAll(':scope > .qItemRow'), r => ({
+        id: r.getAttribute('data-qid'), tag: (r.querySelector('.qClassTag') || {}).textContent || '' })) : []
+    };
+  });
+  ok('clock: one worksheet on for every Saturday lesson over since the class was placed', s.at === s.expect && s.at >= 3, s.at + ' / ' + s.expect);
+  ok('clock: the new Current (a copy with no class day) leads the Saturday 9:00 lesson', s.cards[0] && s.cards[0].id === 's' + (s.at + 1) && s.cards[0].tag === '▶ Current worksheet', JSON.stringify(s.cards));
+  ok('clock: the new Next loads right under it', s.cards[1] && s.cards[1].id === 's' + (s.at + 2) && s.cards[1].tag === '⏭ Next worksheet', JSON.stringify(s.cards));
+  ok('clock: no error', errors.length === 0, errors.join('\n      '));
+  await shot(page, 'clock-saturday-current-next.png');
+  await ctx.close();
+}
+
 await browser.close();
 console.log('\nclass-queue-check: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

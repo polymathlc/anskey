@@ -5,6 +5,15 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## ⏰ v1.206.0 — The class moves on by itself when the lesson is over
+
+- **What went wrong.** A class moved to its next worksheet only when the teacher opened the Next worksheet or pressed ✓ Finished. A lesson taught from the Current worksheet left the class where it was, so the new Current and Next never loaded. And a worksheet brought into a class list from 📂 Browse Ans Key app (a copy, with no class day of its own) was listed under "No class day set", so even a class that had moved showed nothing in its lesson time.
+- **Now, at the end of every lesson** (the next lesson time: 5pm for 3 to 4:45pm, 11am for 9 to 10:45am, Singapore time) the class moves one worksheet on by itself: the Next worksheet becomes Current and the one after it loads as Next. Missed lessons count too (two Saturdays over = two worksheets on). It is worked out from the class list and the clock every time it is read, nothing is scheduled, and the list redraws by itself when a lesson ends or the app comes back into view.
+- **The same clock as Polymath Online** (cer `online/lesson-clock.js`, portal v1.15.0): the portal, its video page and the trial emails move the class at the same moment, and students get that lesson's answer key and videos then.
+- Pressing ✓ Finished during a lesson is that lesson's move (no second move at the end). Make current / Make next still put a class right by hand, and a class not started yet waits for the teacher to open worksheet 1. Every write of a class's place stamps `clockAt`, so no move is counted twice.
+- **A class's Current and Next are listed under the class's own day and lesson time**, whatever day or hour the worksheet itself was saved under. A class worksheet with no class day of its own goes under the class's day too.
+- Tests: `tools/online-tests.mjs` (⏰ and 📌 tests at the end).
+
 ## 🧾 v1.205.0 — Receipts: write one by hand and email it to a parent
 
 - **🧾 Receipts** on the toolbar (the teacher's only) opens a window with three tabs: ✍️ New receipt, 📚 Receipts and 🏫 Centre details.

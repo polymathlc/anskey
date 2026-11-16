@@ -331,7 +331,8 @@ test('the window module: never sends by itself, writes text only', () => {
   assert.match(css, /@media print \{ \.rcBack \{ display: none !important; \} \}/);
 });
 
-test('APP_VERSION is v1.205.0', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.205\.0';/);
+test('APP_VERSION is v1.205.0 or later', () => {
+  const v = (html.match(/var APP_VERSION = 'v1\.(\d+)\.\d+';/) || [])[1];
+  assert.ok(Number(v) >= 205, 'v1.' + v);
   assert.ok(existsSync(new URL('../receipts.css', import.meta.url)));
 });

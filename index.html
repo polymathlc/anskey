@@ -6041,7 +6041,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.205.0';
+var APP_VERSION = 'v1.206.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -34266,12 +34266,14 @@ async function faDeleteWorksheet(item, say) {
     var left = await db.runTransaction(async function (tx) {
       var cs = await tx.get(ref);
       if (!cs.exists) return null;
-      var plan = F.removeFromCourse(cs.data(), id);
+      // ⏰ From where the class stands now (the lesson clock), stamped as such.
+      var now = onlineClockNow(cs.data());
+      var plan = F.removeFromCourse(now, id);
       if (!plan) return null;
-      tx.set(ref, {
+      tx.set(ref, Object.assign(onlineClockPin(now), {
         worksheetIds: plan.worksheetIds, currentIndex: plan.currentIndex, currentDocId: plan.currentDocId,
         releasedThrough: plan.releasedThrough, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+      }), { merge: true });
       return plan.worksheetIds;
     });
     if (left && left.length) {
@@ -38456,6 +38458,337 @@ $('lessonPreloadAlways').addEventListener('change', function () {
      print-worksheet  print the blank worksheet
    Anything else, or nothing, just opens it. */
 var ONLINE_COURSES = 'onlineCourses';
+
+/* ---- ⏰ The lesson clock (v1.206.0, Zhi Kai, 16 Nov 2026) ----
+   "The answer key app did not automatically load the next two worksheets,
+   which are the new Current and Next worksheet. Answer keys and videos are
+   updated right after the lesson, at the end of the lesson timing, for
+   example 5pm for a 3pm to 4:45pm lesson."
+   Before this, a class moved on only when the teacher opened its Next
+   worksheet or pressed ✓ Finished, so a lesson taught from the Current
+   worksheet left the class where it was. Now every lesson of the class
+   that is OVER (at the next lesson time: 5pm for 3 to 4:45pm, 11am for 9 to
+   10:45am, Singapore time) moves it one worksheet on by itself: the Next
+   worksheet becomes Current and the one after it loads as Next. It is
+   worked out from the stored place and the clock on every read
+   (`onlineClockNow`), never written on a timer; this list redraws by itself
+   when a lesson ends. Polymath Online (polymathlc/cer online/lesson-clock.js,
+   portal v1.15.0) runs the very same file below, so the portal, its video
+   page, the trial emails and this app always agree. Every write of a class's
+   place here stamps `clockAt`, so moves already counted are not counted
+   twice. A class that has not started, an archived class, or one with no
+   day and lesson time does not move by itself. */
+var LessonClock = (function () {
+  var module, self = {};
+/* ⏰ Lesson clock — when a lesson is over and what that changes (portal v1.15.0)
+   *
+   * Zhi Kai, 16 Nov 2026: "any answer key and videos will also be updated right
+   * after the lesson at the end of the lesson timing, for example 5pm for a 3pm
+   * to 4.45pm lesson", and the Ans Key app must load the next two worksheets
+   * (the new Current and Next) by itself once the lesson is over.
+   *
+   * Every lesson is 1 h 45 min long and starts on one of the three lesson times
+   * of its day (the same as the Ans Key app's SLOTS_WEEKDAY / SLOTS_WEEKEND):
+   *
+   *     Monday to Friday    3:00pm  5:00pm  7:00pm
+   *     Saturday, Sunday    9:00am 11:00am  1:00pm
+   *
+   * A lesson is OVER at the next lesson time, two hours after it started:
+   * 3:00 to 4:45pm is over at 5:00pm, 9:00 to 10:45am at 11:00am. That moment
+   * is the RELEASE of the lesson, always in Singapore time, whatever the clock
+   * of the device reading it says.
+   *
+   * 1. THE CLASS MOVES ON BY ITSELF. Each release of a class's lesson that has
+   *    passed since the class's position was last written moves the class one
+   *    worksheet on: the Next worksheet becomes Current and the one after it
+   *    becomes Next. Nothing is written and nothing is scheduled: every reader
+   *    (Polymath Online, the lesson video page, the trial emails and the Ans
+   *    Key app, which has the same rule) works it out from the stored place
+   *    and the clock, `courseNow`. A device that does write the class's place
+   *    (Finished, Make current, a reorder) writes the place as it is NOW and
+   *    stamps `clockAt`, so the moves already counted are never counted twice.
+   *      · A class that has not started (currentIndex -1) waits for the
+   *        teacher to start it, as before: a class made weeks ahead must not
+   *        run through its list on its own.
+   *      · "Finished" pressed DURING a lesson is that lesson's move: the class
+   *        does not move again when the lesson ends.
+   *      · A Next worksheet set by hand in Ans Key (`nextIndex`) is where the
+   *        first move goes.
+   *      · An archived class, a class with no day or lesson time, and the last
+   *        worksheet of a list stay where they are.
+   * 2. ANSWER KEYS AND VIDEOS OF A LESSON ARE OUT AT ITS RELEASE. A student
+   *    sees a class day's answer key PDF and the lesson videos recorded in a
+   *    lesson only once that lesson is over (`dayOpen`, `recordingOpen`). The
+   *    teacher and the admins see them at once.
+   *
+   * Pure: no Firebase, no DOM. Loaded by online/index.html and watch.html as
+   * `PolymathLessonClock`, required by the trial service (a copy in
+   * shop-function/functions/lesson-clock.js, kept identical by the tests).
+   */
+  (function (root, factory) {
+    if (typeof module === 'object' && module.exports) module.exports = factory();
+    else root.PolymathLessonClock = factory();
+  })(typeof self !== 'undefined' ? self : this, function () {
+    'use strict';
+  
+    var SG_OFFSET_MS = 8 * 3600 * 1000;      // Singapore: UTC+8, no summer time
+    var HOUR_MS = 3600 * 1000;
+    var DAY_MS = 24 * HOUR_MS;
+    var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    var START_HOURS_WEEKDAY = [15, 17, 19];   // 3pm, 5pm, 7pm
+    var START_HOURS_WEEKEND = [9, 11, 13];    // 9am, 11am, 1pm
+    var LESSON_MINUTES = 105;                 // 1 h 45 min
+    var RELEASE_AFTER_MINUTES = 120;          // over at the next lesson time
+    var MAX_LESSONS = 60;                     // more than a year of weekly lessons
+    var LOOK_BACK_MS = 400 * DAY_MS;
+  
+    function stampMs(v) {
+      if (v == null || v === '') return 0;
+      if (typeof v === 'number') return isFinite(v) ? v : 0;
+      if (v instanceof Date) { var t = v.getTime(); return isFinite(t) ? t : 0; }
+      if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (e) { return 0; } }
+      if (typeof v.seconds === 'number') return v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6);
+      if (typeof v._seconds === 'number') return v._seconds * 1000;
+      var parsed = Date.parse(v);
+      return isFinite(parsed) ? parsed : 0;
+    }
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    function dayIndex(day) { return DAYS.indexOf(String(day || '')); }
+    function validSlot(slot) { return slot === 0 || slot === 1 || slot === 2; }
+    function isWeekendIndex(i) { return i === 0 || i === 6; }
+    // The hour (Singapore) a lesson time starts on a day of the week, or -1.
+    function startHour(day, slot) {
+      var i = dayIndex(day);
+      if (i < 0 || !validSlot(slot)) return -1;
+      return (isWeekendIndex(i) ? START_HOURS_WEEKEND : START_HOURS_WEEKDAY)[slot];
+    }
+    // 'YYYY-MM-DD' of a moment, in Singapore.
+    function sgDayKey(ms) {
+      var n = Number(ms);
+      if (!isFinite(n) || n <= 0) return '';
+      var d = new Date(n + SG_OFFSET_MS);
+      return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+    }
+    // Midnight (Singapore) of a 'YYYY-MM-DD', as a moment; NaN if not a day.
+    function sgMidnight(key) {
+      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key || ''));
+      if (!m) return NaN;
+      var y = +m[1], mo = +m[2], d = +m[3];
+      var t = Date.UTC(y, mo - 1, d);
+      var back = new Date(t);
+      if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return NaN;
+      return t - SG_OFFSET_MS;
+    }
+    // Day of the week (0 Sunday) of a 'YYYY-MM-DD'.
+    function weekdayOf(key) {
+      var t = sgMidnight(key);
+      return isFinite(t) ? new Date(t + SG_OFFSET_MS).getUTCDay() : -1;
+    }
+  
+    /* The lesson of a class (day + lesson time) on the date `key`, when the
+       date falls on the class's day: { day, start, end, release } in ms, or
+       null. */
+    function lessonOn(day, slot, key) {
+      var h = startHour(day, slot);
+      if (h < 0 || weekdayOf(key) !== dayIndex(day)) return null;
+      var start = sgMidnight(key) + h * HOUR_MS;
+      return { day: key, start: start, end: start + LESSON_MINUTES * 60000, release: start + RELEASE_AFTER_MINUTES * 60000 };
+    }
+  
+    /* Every lesson of a class whose release falls in (fromMs, toMs], oldest
+       first (at most MAX_LESSONS, the newest kept). */
+    function lessonsBetween(day, slot, fromMs, toMs) {
+      var out = [];
+      var i = dayIndex(day);
+      if (i < 0 || !validSlot(slot)) return out;
+      var to = Number(toMs), from = Math.max(Number(fromMs) || 0, to - LOOK_BACK_MS);
+      if (!(isFinite(to) && to > from)) return out;
+      // The first date on the class's day at or before `from`'s date.
+      var first = sgMidnight(sgDayKey(from));
+      var wd = new Date(first + SG_OFFSET_MS).getUTCDay();
+      var t = first - ((wd - i + 7) % 7) * DAY_MS;
+      for (; t <= to; t += 7 * DAY_MS) {
+        var lesson = lessonOn(day, slot, sgDayKey(t + 12 * HOUR_MS));
+        if (!lesson) continue;
+        if (lesson.release > from && lesson.release <= to) out.push(lesson);
+      }
+      return out.length > MAX_LESSONS ? out.slice(out.length - MAX_LESSONS) : out;
+    }
+  
+    /* The next release of a class after `now` (ms), or 0 when it has no day
+       and lesson time. */
+    function nextRelease(day, slot, now) {
+      var n = Number(now) || Date.now();
+      var list = lessonsBetween(day, slot, n, n + 8 * DAY_MS);
+      return list.length ? list[0].release : 0;
+    }
+  
+    /* ---- 1. Where the class is now ---- */
+    function idsOf(course) { return course && Array.isArray(course.worksheetIds) ? course.worksheetIds : []; }
+    function storedIndex(course) {
+      var v = course && course.currentIndex;
+      return typeof v === 'number' && isFinite(v) ? Math.floor(v) : -1;
+    }
+    // When the class's place was last written: `clockAt` (every writer of the
+    // place since portal v1.15.0 / Ans Key v1.206.0), or for older data the
+    // times the class was last moved by hand.
+    function anchorOf(course) {
+      if (!course) return 0;
+      return Math.max(stampMs(course.clockAt), stampMs(course.progressAt), stampMs(course.focusAt));
+    }
+    /* The lessons over since the class's place was written, each of which
+       moves it one worksheet on. [] when the class does not move by itself. */
+    function lessonsOver(course, now) {
+      if (!course || course.archived) return [];
+      var ids = idsOf(course), cur = storedIndex(course);
+      if (!ids.length || cur < 0) return [];
+      if (!validSlot(course.slot) || dayIndex(course.day) < 0) return [];
+      var anchor = anchorOf(course);
+      if (!anchor) return [];
+      var n = Number(now);
+      if (!isFinite(n) || n <= 0) n = Date.now();
+      var list = lessonsBetween(course.day, course.slot, anchor, n);
+      // "Finished" pressed during a lesson already moved the class for it.
+      var finished = stampMs(course.finishedAt);
+      if (list.length && finished && finished >= list[0].start && finished < list[0].release) list = list.slice(1);
+      return list;
+    }
+    // A manual Next (Ans Key's `nextIndex`) that is a real other place, or -1.
+    function manualNext(course, at) {
+      var ids = idsOf(course);
+      var n = course && typeof course.nextIndex === 'number' && isFinite(course.nextIndex) ? Math.floor(course.nextIndex) : -1;
+      return n >= 0 && n < ids.length && n !== at ? n : -1;
+    }
+    /* The class as it stands at `now`: the same object when no lesson has
+       ended since its place was written, otherwise a copy with
+         currentIndex, currentDocId   moved one per lesson over (last one stays)
+         progressAt                   the release that moved it last (ms)
+         nextIndex, nextDocId         gone (a manual Next is used up)
+         autoMoved                    how many worksheets it moved
+         storedIndex                  the place as written
+       Idempotent: courseNow(courseNow(c, t), t) is the same place. */
+    function courseNow(course, now) {
+      var lessons = lessonsOver(course, now);
+      if (!lessons.length) return course;
+      var ids = idsOf(course);
+      var at = Math.min(storedIndex(course), ids.length - 1);
+      var from = at;
+      var manual = manualNext(course, at);
+      lessons.forEach(function (lesson, i) {
+        if (i === 0 && manual >= 0) at = manual;
+        else if (at + 1 < ids.length) at += 1;
+      });
+      if (at === from) return course;      // on the last worksheet: it stays
+      var out = {};
+      Object.keys(course).forEach(function (k) { out[k] = course[k]; });
+      var last = lessons[lessons.length - 1].release;
+      out.currentIndex = at;
+      out.currentDocId = ids[at];
+      out.progressAt = last;
+      out.clockAt = last;
+      out.finishedAt = null;
+      delete out.nextIndex;
+      delete out.nextDocId;
+      out.autoMoved = at - from;
+      out.autoMovedAt = last;
+      out.storedIndex = storedIndex(course);
+      return out;
+    }
+    // The soonest release after `now` among some classes, to redraw at (0: none).
+    function nextChange(courses, now) {
+      var n = Number(now) || Date.now(), best = 0;
+      (Array.isArray(courses) ? courses : Object.keys(courses || {}).map(function (k) { return courses[k]; })).forEach(function (c) {
+        if (!c || c.archived) return;
+        var r = nextRelease(c.day, c.slot, n);
+        if (r && (!best || r < best)) best = r;
+      });
+      return best;
+    }
+  
+    /* ---- 2. Answer keys and videos ---- */
+    /* When a class day's answer key and videos are out to the class's
+       students: that day at the class's lesson time + 2 h (Singapore). A class
+       with no lesson time puts them out at once (0). */
+    function dayReleaseAt(course, key) {
+      if (!course) return 0;
+      var i = dayIndex(course.day);
+      if (i < 0 || !validSlot(course.slot)) return 0;
+      var mid = sgMidnight(key);
+      if (!isFinite(mid)) return 0;
+      var h = startHour(course.day, course.slot);
+      return mid + h * HOUR_MS + RELEASE_AFTER_MINUTES * 60000;
+    }
+    function dayOpen(course, key, now) {
+      var at = dayReleaseAt(course, key);
+      return !at || (Number(now) || Date.now()) >= at;
+    }
+    /* A lesson video recorded at `at` (ms): out at the release of that day's
+       lesson, or at once when it was recorded after it. */
+    function recordingOpen(course, at, now) {
+      var t = Number(at) || 0;
+      if (!t) return true;
+      var rel = dayReleaseAt(course, sgDayKey(t));
+      return !rel || t >= rel || (Number(now) || Date.now()) >= rel;
+    }
+  
+    return {
+      SG_OFFSET_MS: SG_OFFSET_MS, DAYS: DAYS, START_HOURS_WEEKDAY: START_HOURS_WEEKDAY, START_HOURS_WEEKEND: START_HOURS_WEEKEND,
+      LESSON_MINUTES: LESSON_MINUTES, RELEASE_AFTER_MINUTES: RELEASE_AFTER_MINUTES,
+      stampMs: stampMs, sgDayKey: sgDayKey, startHour: startHour, lessonOn: lessonOn, lessonsBetween: lessonsBetween,
+      nextRelease: nextRelease, anchorOf: anchorOf, lessonsOver: lessonsOver, courseNow: courseNow, nextChange: nextChange,
+      dayReleaseAt: dayReleaseAt, dayOpen: dayOpen, recordingOpen: recordingOpen
+    };
+  });
+  return self.PolymathLessonClock;
+})();
+function onlineClockNow(course, now) { return course && LessonClock ? LessonClock.courseNow(course, now) : course; }
+// Fields that keep a class where it stands now, for any write that moves the
+// time its place counts from: the clock's own moves are written in, so they
+// are not lost (or counted again).
+function onlineClockPin(course) {
+  var out = { clockAt: firebase.firestore.FieldValue.serverTimestamp() };
+  if (course && course.autoMoved) {
+    out.currentIndex = course.currentIndex;
+    out.currentDocId = course.currentDocId;
+    out.nextIndex = onlineFieldDelete();
+    out.nextDocId = onlineFieldDelete();
+  }
+  return out;
+}
+// The stored record of a class, brought to where it stands now, for a change
+// made on this device before the class lists come back.
+function onlineLocalCourse(cid) {
+  if (!onlineCoursesRaw) return onlineCourses[cid] || null;
+  var raw = onlineCoursesRaw[cid];
+  if (!raw) return null;
+  var now = onlineCourses[cid];
+  if (now && now.autoMoved) {
+    raw.currentIndex = now.currentIndex; raw.currentDocId = now.currentDocId;
+    delete raw.nextIndex; delete raw.nextDocId;
+  }
+  raw.clockAt = Date.now();
+  return raw;
+}
+// Every class as it stands now, from the stored ones.
+function onlineCoursesRecompute(now) {
+  if (!onlineCoursesRaw) return false;
+  var t = now || Date.now(), next = {};
+  Object.keys(onlineCoursesRaw).forEach(function (k) { next[k] = onlineClockNow(onlineCoursesRaw[k], t); });
+  onlineCourses = next;
+  return true;
+}
+// Redraw when the next lesson of any class is over (and when the app comes
+// back into view: a sleeping tablet's timers do not run).
+function onlineClockSchedule() {
+  clearTimeout(onlineClockTimer);
+  if (!onlineCoursesRaw || !LessonClock) return;
+  var now = Date.now(), at = LessonClock.nextChange(onlineCoursesRaw, now);
+  if (at) onlineClockTimer = setTimeout(function () { onlineCoursesDerive(false); }, Math.max(1000, at - now + 1500));
+}
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden && onlineCoursesRaw && onlineCoursesLoaded) onlineCoursesDerive(false);
+});
+
 var ONLINE_RELEASE_AHEAD = 3;          // on worksheet n, release up to n + 3 (3 → 6): the next one and the two after it
 var ONLINE_PRELOAD_AHEAD = 2;          // and keep the next two on this device
 var ONLINE_PDF_CACHE = 'polymath-online-worksheets-v1';
@@ -38481,7 +38814,9 @@ function onlineLessonPick(list, rec) {
   }
   return lessons[0] || null;
 }
-var onlineCourses = {};                // id → course
+var onlineCourses = {};                // id → course, AS IT STANDS NOW (⏰ the lesson clock)
+var onlineCoursesRaw = null;           // id → course as stored (null until the class lists are watched)
+var onlineClockTimer = null;
 var onlineCoursesLoaded = false;
 var onlineCoursesUnsub = null;
 var onlineCoursesWaiters = [];
@@ -38496,37 +38831,48 @@ function onlineTeacherHere() { return !!currentUser && isAdmin(currentUser) && !
 /* ---- The class lists, live ---- */
 function onlineCoursesWatch(user) {
   if (onlineCoursesUnsub) { try { onlineCoursesUnsub(); } catch (e) {} onlineCoursesUnsub = null; }
-  onlineCourses = {}; onlineCoursesLoaded = false; onlineReleaseSig = '';
+  onlineCourses = {}; onlineCoursesRaw = null; onlineCoursesLoaded = false; onlineReleaseSig = '';
+  clearTimeout(onlineClockTimer);
   if (!user) { onlineCoursesSettle(); onlineNextRender(); return; }
   try {
     onlineCoursesUnsub = db.collection(ONLINE_COURSES).onSnapshot(function (snap) {
-      var next = {};
-      snap.forEach(function (doc) { next[doc.id] = Object.assign({ id: doc.id }, doc.data()); });
-      onlineCourses = next;
+      var raw = {};
+      snap.forEach(function (doc) { raw[doc.id] = Object.assign({ id: doc.id }, doc.data()); });
+      onlineCoursesRaw = raw;
       var first = !onlineCoursesLoaded;
       onlineCoursesLoaded = true;
-      onlineCoursesSettle();
-      // A release that lands while a student has the list open shows up in
-      // it without a reload; the teacher's list never depended on it.
-      // 📌 The class position is in it too: when a class moves on, the
-      // teacher's list moves its Current and Next tags without a reload.
-      var sig = Object.keys(next).sort().map(function (id) { return id + ':' + (next[id].releasedThrough) + ':' + (next[id].currentIndex) + ':' + (next[id].nextIndex) + ':' + onlineStampMs(next[id].focusAt) + ':' + (next[id].worksheetIds || []).join(','); }).join('|');
-      var changed = !first && sig !== onlineReleaseSig;
-      var drawerOpen = $('qDrawer').classList.contains('open');
-      if (changed && currentUser && !onlineTeacherList() && drawerOpen) loadQuestionsList();
-      else if (changed && onlineTeacherList() && drawerOpen && typeof renderQuestionList === 'function' && typeof qDocs !== 'undefined' && qDocs.length) {
-        renderQuestionList();
-        if (typeof markActiveQuestion === 'function') markActiveQuestion();
-      }
-      onlineReleaseSig = sig;
-      onlineNextShown = null;
-      onlineNextRender();
-      onlinePreloadNext();
+      onlineCoursesDerive(first);
     }, function (err) {
       console.warn('Class lists could not be read', err);
       onlineCoursesLoaded = true; onlineCoursesSettle();
     });
   } catch (e) { console.warn('Class lists unavailable', e); onlineCoursesLoaded = true; onlineCoursesSettle(); }
+}
+/* The class lists as they stand now (⏰ the lesson clock), and everything
+   that follows from them: run when they arrive, and when a lesson ends. */
+function onlineCoursesDerive(first) {
+  if (!onlineCoursesRecompute()) return;
+  var next = onlineCourses;
+  onlineCoursesSettle();
+  if (typeof onlineFocusChanged === 'function') onlineFocusChanged();
+  // A release that lands while a student has the list open shows up in
+  // it without a reload; the teacher's list never depended on it.
+  // 📌 The class position is in it too: when a class moves on (by hand, or
+  // ⏰ by itself at the end of a lesson), the teacher's list moves its
+  // Current and Next tags without a reload.
+  var sig = Object.keys(next).sort().map(function (id) { return id + ':' + (next[id].releasedThrough) + ':' + (next[id].currentIndex) + ':' + (next[id].nextIndex) + ':' + onlineStampMs(next[id].focusAt) + ':' + (next[id].worksheetIds || []).join(','); }).join('|');
+  var changed = !first && sig !== onlineReleaseSig;
+  var drawerOpen = $('qDrawer').classList.contains('open');
+  if (changed && currentUser && !onlineTeacherList() && drawerOpen) loadQuestionsList();
+  else if (changed && onlineTeacherList() && drawerOpen && typeof renderQuestionList === 'function' && typeof qDocs !== 'undefined' && qDocs.length) {
+    renderQuestionList();
+    if (typeof markActiveQuestion === 'function') markActiveQuestion();
+  }
+  onlineReleaseSig = sig;
+  onlineNextShown = null;
+  onlineNextRender();
+  onlinePreloadNext();
+  onlineClockSchedule();
 }
 function onlineCoursesSettle() {
   var waiters = onlineCoursesWaiters; onlineCoursesWaiters = [];
@@ -38599,7 +38945,9 @@ async function onlineWorksheetOpened(id, data) {
     var result = await db.runTransaction(async function (tx) {
       var snap = await tx.get(ref);
       if (!snap.exists) return null;
-      var c = snap.data(), ids = Array.isArray(c.worksheetIds) ? c.worksheetIds : [];
+      // ⏰ Where the class stands now: a worksheet the clock has already
+      // finished is not where the class goes back to when it is opened.
+      var stored = snap.data(), c = onlineClockNow(stored), ids = Array.isArray(c.worksheetIds) ? c.worksheetIds : [];
       var seq = ids.indexOf(id);
       if (seq < 0) return null;
       var cur = typeof c.currentIndex === 'number' ? c.currentIndex : -1;
@@ -38612,8 +38960,8 @@ async function onlineWorksheetOpened(id, data) {
       if (manualNext >= 0 && seq === manualNext) nextCur = seq;
       var nextRel = Math.max(rel, Math.min(ids.length - 1, seq + ONLINE_RELEASE_AHEAD));
       var update = { lastOpenedIndex: seq, lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() };
-      if (nextCur !== cur) { update.currentIndex = nextCur; update.currentDocId = ids[nextCur]; update.progressAt = firebase.firestore.FieldValue.serverTimestamp(); }
-      if (nextCur !== cur && typeof c.nextIndex === 'number') { update.nextIndex = onlineFieldDelete(); update.nextDocId = onlineFieldDelete(); }
+      if (nextCur !== cur) { update.currentIndex = nextCur; update.currentDocId = ids[nextCur]; update.progressAt = update.clockAt = firebase.firestore.FieldValue.serverTimestamp(); }
+      if (nextCur !== cur && typeof stored.nextIndex === 'number') { update.nextIndex = onlineFieldDelete(); update.nextDocId = onlineFieldDelete(); }
       if (nextRel !== rel) { update.releasedThrough = nextRel; update.releasedAt = firebase.firestore.FieldValue.serverTimestamp(); }
       tx.set(ref, update, { merge: true });
       return { seq: seq, total: ids.length, rel: nextRel, newlyReleased: nextRel - rel, title: c.title || 'this class' };
@@ -38742,12 +39090,55 @@ function onlineLooseMark(d) {
   var m = typeof d.wsFocus === 'string' ? d.wsFocus : '';
   return WS_FOCUS_STATES.indexOf(m) >= 0 ? m : '';
 }
-// The lesson time a worksheet belongs to, as one key: day + lesson slot.
-function onlineLessonKey(d) {
+/* 📌 v1.206.0: WHERE a worksheet is listed. A class's Current and Next
+   worksheets are listed under the CLASS's own day and lesson time (its
+   onlineCourses day + slot), whatever their own `wsDay` / `wsSlot` say.
+   Before this, a worksheet brought into a class list from 📂 Browse Ans Key
+   app (a copy, with no day of its own) or saved at another hour sat under
+   "No class day set" or another lesson time, so when the class moved on its
+   new Current and Next never showed in the class's lesson. A class worksheet
+   with no day of its own is listed under the class's day too. Returns
+   { day, slot } or null (listed by its own day and time, as before). */
+var ONLINE_LIST_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+function onlineListedAt(id, d) {
+  if (!id || !d || !d.onlineCourseId) return null;
+  var place = onlineDocPlace(id, d);
+  if (!place || !place.course || ONLINE_LIST_DAYS.indexOf(place.course.day) < 0) return null;
+  var focus = place.state === 'current' || place.state === 'next';
+  if (!focus && d.wsDay) return null;
+  var slot = place.course.slot;
+  if (!(slot === 0 || slot === 1 || slot === 2)) {
+    if (!focus) return { day: place.course.day, slot: null };
+    slot = null;
+  }
+  return { day: place.course.day, slot: slot };
+}
+// The day and slot key a worksheet is listed under (see onlineListedAt).
+function onlineListDay(item) {
+  var d = item && item.data;
   if (!d) return '';
-  var day = d.wsDay || (typeof DAY_UNDATED !== 'undefined' ? DAY_UNDATED : 'Undated');
-  var slot = typeof slotOf === 'function' ? slotOf(d) : (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2 ? d.wsSlot : 'other');
-  return day + '|' + slot;
+  var at = onlineListedAt(item.id, d);
+  return (at && at.day) || d.wsDay || (typeof DAY_UNDATED !== 'undefined' ? DAY_UNDATED : 'Undated');
+}
+function onlineListSlot(item) {
+  var d = item && item.data;
+  if (!d) return 'other';
+  var at = onlineListedAt(item.id, d);
+  if (at && at.slot !== null && at.slot !== undefined) return at.slot;
+  if (at && !d.wsDay) {
+    // A class with no lesson time of its own, and a worksheet with no day:
+    // read its hour against the CLASS's day, not "no day".
+    var copy = {}; Object.keys(d).forEach(function (k) { copy[k] = d[k]; }); copy.wsDay = at.day;
+    return typeof slotOf === 'function' ? slotOf(copy) : 'other';
+  }
+  return typeof slotOf === 'function' ? slotOf(d) : (d.wsSlot === 0 || d.wsSlot === 1 || d.wsSlot === 2 ? d.wsSlot : 'other');
+}
+// The lesson time a worksheet belongs to, as one key: day + lesson slot.
+// `id` lets a class's Current / Next count in the class's own lesson time.
+function onlineLessonKey(d, id) {
+  if (!d) return '';
+  var item = { id: id || '', data: d };
+  return onlineListDay(item) + '|' + onlineListSlot(item);
 }
 // Which OTHER worksheets lose `state` when `id` takes it: the same mark, in
 // the same lesson time, on a worksheet in no class list. Pure, for tests.
@@ -38756,9 +39147,9 @@ function onlineLooseClears(items, id, state) {
   var target = null;
   (items || []).forEach(function (it) { if (it && it.id === id) target = it; });
   if (!target) return [];
-  var key = onlineLessonKey(target.data);
+  var key = onlineLessonKey(target.data, target.id);
   return (items || []).filter(function (it) {
-    return it && it.id !== id && it.data && onlineLooseMark(it.data) === state && onlineLessonKey(it.data) === key;
+    return it && it.id !== id && it.data && onlineLooseMark(it.data) === state && onlineLessonKey(it.data, it.id) === key;
   }).map(function (it) { return it.id; });
 }
 
@@ -38829,7 +39220,7 @@ function onlineFocusWinners(items) {
     if (!it || !it.id || !it.data) return;
     var raw = onlineRawFocus(it);
     if (ONLINE_FOCUS_STATES.indexOf(raw.state) < 0) return;
-    var key = onlineLessonKey(it.data);
+    var key = onlineLessonKey(it.data, it.id);
     var row = table[key] || (table[key] = { current: null, next: null, losers: [] });
     var me = { id: it.id, source: raw.source, stamp: onlineFocusStamp(it, raw), state: raw.state };
     var held = row[raw.state];
@@ -38868,7 +39259,7 @@ function onlineFocusChanged() { onlineFocusRev++; onlineFocusMemo = null; }
 function onlineFocusOf(item) {
   var raw = onlineRawFocus(item);
   if (ONLINE_FOCUS_STATES.indexOf(raw.state) < 0) return raw;
-  var row = onlineFocusTable()[onlineLessonKey(item.data)];
+  var row = onlineFocusTable()[onlineLessonKey(item.data, item.id)];
   var held = row ? row[raw.state] : null;
   if (!held || held.id === item.id) return raw;
   // Not in the list (the open worksheet only): it competes on its own time.
@@ -38928,9 +39319,9 @@ async function onlineFocusTidy(ids) {
 // replaces: every OTHER loose worksheet there marked with it. Pure.
 function onlineMarksReplacedBy(items, item, state) {
   if (!item || !item.data || ONLINE_FOCUS_STATES.indexOf(state) < 0) return [];
-  var key = onlineLessonKey(item.data);
+  var key = onlineLessonKey(item.data, item.id);
   return (items || []).filter(function (it) {
-    return it && it.id !== item.id && it.data && onlineLooseMark(it.data) === state && onlineLessonKey(it.data) === key;
+    return it && it.id !== item.id && it.data && onlineLooseMark(it.data) === state && onlineLessonKey(it.data, it.id) === key;
   }).map(function (it) { return it.id; });
 }
 // ...and takes them off, in one batch.
@@ -39042,13 +39433,13 @@ async function onlineFinishCurrent(id, d, btn) {
     result = await db.runTransaction(async function (tx) {
       var snap = await tx.get(ref);
       if (!snap.exists) return { gone: true };
-      var c = snap.data();
+      var stored = snap.data(), c = onlineClockNow(stored);
       var fields = onlineFinishUpdate(c, id);
       if (!fields) return { stale: true };
       var stamp = firebase.firestore.FieldValue.serverTimestamp();
-      var extra = { progressAt: stamp, finishedAt: stamp };
+      var extra = { progressAt: stamp, finishedAt: stamp, clockAt: stamp };
       // A manual Next has just become the current worksheet: the pointer is used up.
-      if (typeof c.nextIndex === 'number') { extra.nextIndex = onlineFieldDelete(); extra.nextDocId = onlineFieldDelete(); }
+      if (typeof stored.nextIndex === 'number') { extra.nextIndex = onlineFieldDelete(); extra.nextDocId = onlineFieldDelete(); }
       tx.set(ref, Object.assign({}, fields, extra), { merge: true });
       var ids = onlineCourseIds(c);
       return { fields: fields, total: ids.length, title: c.title || 'this class' };
@@ -39067,8 +39458,8 @@ async function onlineFinishCurrent(id, d, btn) {
   }
   // The live watch brings this back too; written here first so the list
   // changes the moment the button is pressed, not a round trip later.
-  var local = onlineCourses[d.onlineCourseId];
-  if (local) { Object.assign(local, result.fields); delete local.nextIndex; delete local.nextDocId; }
+  var local = onlineLocalCourse(d.onlineCourseId);
+  if (local) { Object.assign(local, result.fields); local.progressAt = local.finishedAt = Date.now(); delete local.nextIndex; delete local.nextDocId; }
   var cur = result.fields.currentIndex;
   toast('✓ Worksheet ' + (result.fields.lastFinishedIndex + 1) + ' finished · ' + result.title + '. Worksheet ' + (cur + 1) + ' is now the current worksheet' +
     (cur + 1 < result.total ? ', and worksheet ' + (cur + 2) + ' is loaded as the next one.' : '. It is the last one in the list.'), 6000);
@@ -39078,6 +39469,8 @@ async function onlineFinishCurrent(id, d, btn) {
 
 // Whenever a class moves: the list, the "Up next" card and what is fetched ahead.
 function onlineAfterProgress() {
+  // ⏰ A class changed on this device: every class as it stands now, again.
+  onlineCoursesRecompute();
   // 📌 A class list changed in place: who holds each lesson time is asked afresh.
   if (typeof onlineFocusChanged === 'function') onlineFocusChanged();
   var drawer = typeof $ === 'function' ? $('qDrawer') : null;
@@ -39181,20 +39574,20 @@ async function onlineSetCurrent(id, d) {
     result = await db.runTransaction(async function (tx) {
       var snap = await tx.get(ref);
       if (!snap.exists) return { gone: true };
-      var c = snap.data();
+      var stored = snap.data(), c = onlineClockNow(stored);
       var fields = onlineSetCurrentUpdate(c, id);
       if (!fields) {
         // 📌 Already the class's current worksheet, but another worksheet may
         // hold the lesson time: asking again takes it back.
         if (onlineCourseIds(c).indexOf(id) < 0) return { same: true, title: c.title || 'this class' };
-        tx.set(ref, { focusAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        tx.set(ref, Object.assign(onlineClockPin(c), { focusAt: firebase.firestore.FieldValue.serverTimestamp() }), { merge: true });
         return { same: true, reclaimed: true, title: c.title || 'this class' };
       }
       var stamp = firebase.firestore.FieldValue.serverTimestamp();
-      var extra = { progressAt: stamp, manualAt: stamp, focusAt: stamp };
+      var extra = { progressAt: stamp, manualAt: stamp, focusAt: stamp, clockAt: stamp };
       if (fields.releasedThrough !== (typeof c.releasedThrough === 'number' ? c.releasedThrough : -1)) extra.releasedAt = stamp;
       var keepNext = onlineNextSurvives(c, fields.currentIndex);
-      if (typeof c.nextIndex === 'number' && !keepNext) { extra.nextIndex = onlineFieldDelete(); extra.nextDocId = onlineFieldDelete(); }
+      if (typeof stored.nextIndex === 'number' && !keepNext) { extra.nextIndex = onlineFieldDelete(); extra.nextDocId = onlineFieldDelete(); }
       tx.set(ref, Object.assign({}, fields, extra), { merge: true });
       return { fields: fields, keepNext: keepNext, total: onlineCourseIds(c).length, title: c.title || 'this class' };
     });
@@ -39207,7 +39600,7 @@ async function onlineSetCurrent(id, d) {
   var item = { id: id, data: d };
   if (result.same) {
     if (result.reclaimed) {
-      var mine = onlineCourses[d.onlineCourseId];
+      var mine = onlineLocalCourse(d.onlineCourseId);
       if (mine) mine.focusAt = Date.now();
       onlineFocusChanged();
       await onlineDropMarksFor(item, 'current');
@@ -39218,7 +39611,7 @@ async function onlineSetCurrent(id, d) {
     toast('It is already the current worksheet of ' + result.title + '.', 3500);
     return null;
   }
-  var local = onlineCourses[d.onlineCourseId];
+  var local = onlineLocalCourse(d.onlineCourseId);
   if (local) {
     Object.assign(local, result.fields);
     local.progressAt = local.focusAt = Date.now();
@@ -39244,15 +39637,16 @@ async function onlineSetNext(id, d) {
     result = await db.runTransaction(async function (tx) {
       var snap = await tx.get(ref);
       if (!snap.exists) return { gone: true };
-      var c = snap.data();
+      var stored = snap.data(), c = onlineClockNow(stored);
       var fields = onlineSetNextUpdate(c, id);
       if (!fields) return { current: true, title: c.title || 'this class' };
       var stamp = firebase.firestore.FieldValue.serverTimestamp();
+      // ⏰ Next is counted from where the class stands now: that place is written with it.
       if (fields.auto) {
-        if (typeof c.nextIndex === 'number') tx.set(ref, { nextIndex: onlineFieldDelete(), nextDocId: onlineFieldDelete(), manualAt: stamp }, { merge: true });
+        if (typeof stored.nextIndex === 'number' || c.autoMoved) tx.set(ref, Object.assign(onlineClockPin(c), { nextIndex: onlineFieldDelete(), nextDocId: onlineFieldDelete(), manualAt: stamp }), { merge: true });
         return { auto: true, seq: onlineClassAt(c) + 1, title: c.title || 'this class' };
       }
-      tx.set(ref, { nextIndex: fields.nextIndex, nextDocId: fields.nextDocId, manualAt: stamp }, { merge: true });
+      tx.set(ref, Object.assign(onlineClockPin(c), { nextIndex: fields.nextIndex, nextDocId: fields.nextDocId, manualAt: stamp }), { merge: true });
       return { fields: fields, title: c.title || 'this class' };
     });
   } catch (e) {
@@ -39262,7 +39656,7 @@ async function onlineSetNext(id, d) {
   }
   if (!result || result.gone) { toast('That class is no longer in Polymath Online.', 5000); return null; }
   if (result.current) { toast('That is the current worksheet of ' + result.title + ' — choose another one as next.', 4500); return null; }
-  var local = onlineCourses[d.onlineCourseId];
+  var local = onlineLocalCourse(d.onlineCourseId);
   if (local) local.manualAt = Date.now();
   onlineFocusChanged();
   // 📌 The ONE next worksheet of its lesson time.
@@ -39283,12 +39677,12 @@ async function onlineClearNext(id, d) {
   if (!onlineTeacherHere() || !d || !d.onlineCourseId) return false;
   var ref = db.collection(ONLINE_COURSES).doc(d.onlineCourseId);
   try {
-    await ref.set({ nextIndex: onlineFieldDelete(), nextDocId: onlineFieldDelete(), manualAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await ref.set(Object.assign(onlineClockPin(onlineCourses[d.onlineCourseId]), { nextIndex: onlineFieldDelete(), nextDocId: onlineFieldDelete(), manualAt: firebase.firestore.FieldValue.serverTimestamp() }), { merge: true });
   } catch (e) {
     toast('Could not change that: ' + (e.message || e), 5000);
     return false;
   }
-  var local = onlineCourses[d.onlineCourseId];
+  var local = onlineLocalCourse(d.onlineCourseId);
   if (local) { delete local.nextIndex; delete local.nextDocId; }
   toast('↺ The next worksheet follows on from the current one again.', 4000);
   onlineAfterProgress();
@@ -39946,8 +40340,11 @@ function docHasSubject(d, subject) {
   return d.subject === subject || d.subject === 'both';
 }
 
-function docOnDay(d, day) {
-  return day === 'all' || (d.wsDay || DAY_UNDATED) === day;
+function docOnDay(d, day, item) {
+  if (day === 'all') return true;
+  // 📌 v1.206.0: a class's Current / Next count on the class's own day.
+  if (item && typeof onlineListDay === 'function') return onlineListDay(item) === day;
+  return (d.wsDay || DAY_UNDATED) === day;
 }
 
 /* Hidden worksheets are the teacher's own files. They are lifted clean out of
@@ -39958,7 +40355,7 @@ function docIsHidden(d) { return !!d.hidden; }
 function filteredQDocs() {
   return qDocs.filter(function (item) {
     return !docIsHidden(item.data) && !docIsQueued(item) &&
-      docHasSubject(item.data, qSubjectFilter) && docOnDay(item.data, qDayFilter);
+      docHasSubject(item.data, qSubjectFilter) && docOnDay(item.data, qDayFilter, item);
   });
 }
 
@@ -40890,8 +41287,9 @@ function renderQuestionGroups(list, docs) {
   // day name -> slot key -> [items], each list already newest first
   var byDay = {};
   docs.forEach(function (item) {
-    var day = item.data.wsDay || DAY_UNDATED;
-    var k = String(slotOf(item.data));
+    // 📌 v1.206.0: a class's Current and Next sit in the class's lesson time.
+    var day = typeof onlineListDay === 'function' ? onlineListDay(item) : (item.data.wsDay || DAY_UNDATED);
+    var k = String(typeof onlineListSlot === 'function' ? onlineListSlot(item) : slotOf(item.data));
     if (!byDay[day]) byDay[day] = {};
     if (!byDay[day][k]) byDay[day][k] = [];
     byDay[day][k].push(item);
