@@ -5,6 +5,14 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## ✨ v1.209.0 — Live class: AI send, AI pre-marking you confirm, and box select
+
+- **✨ AI send.** Press ✨ AI send in the Ask tab and drag a box round a question on the worksheet. Chung GPT reads it, works out whether it is multiple choice, fill in the blank or open-ended, takes the answer from the answer key on that page when there is one, and pushes it to students with the picture. Tick "Let me check it first" to see it in the question form before it goes.
+- **Marked as answers come in.** Multiple choice is marked at once. Fill in the blank and open answers are pre-marked by Chung GPT (ChatGPT by default, Gemini if that fails) as ✓ right, ◐ partly right or ✗ wrong, with a one-line reason, using your answer key when one is loaded.
+- **Nothing counts until you confirm it.** AI and key marks are shown dashed and "to confirm". Press ✓ Confirm all, confirm one student, or tap ✓ / ◐ / ✗ to change a mark. Only confirmed marks reach the student's screen, the parent reports and the lesson record. Points stay your own +1 / +2 / +5 buttons.
+- **A live tally** sits above the answers: tap a chip (an option, ✓, ◐, ✗, no answer) to see who.
+- **▭ Box select** beside the lasso (Shift+M): drag a rectangle to select everything inside it.
+
 ## 🎥 v1.208.0 — Live class: only the worksheet, recorded to the cloud, opened at lesson time
 
 - **Students see the worksheet, not your screen.** 🖥 Share worksheet shares only the worksheet area: no toolbar, no left bar, and not the live class window, so the 📋 Answers panel you open stays private. Your camera is ONE small tile in the corner. (Chrome and Edge: choose “This tab”.)

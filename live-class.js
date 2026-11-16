@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.208.0';
+  var VERSION = '1.209.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended' };
@@ -134,6 +134,7 @@
       out.to = 'all';
     }
     out.open = q.open !== false;
+    if (q.ai === true) out.ai = true;
     return out;
   }
   // The part of a question a STUDENT's device is sent: never the answer.
@@ -349,19 +350,162 @@
     var answers = Object.assign({}, session.answers); answers[q.id] = nb;
     return { session: Object.assign({}, session, { answers: answers }), fresh: true, entry: entry };
   }
+  /* ---------- ✓ ◐ ✗ — marks are PROVISIONAL until the teacher gives them (v1.209.0) ----------
+     An answer can carry three marks, and only ONE of them counts:
+       • `auto` — the answer key on this device (MCQ, a fill in the blank with
+         accepted answers). Instant, and right whenever the key is right.
+       • `ai`   — Chung GPT's pre-mark for a written answer: correct / partial
+         / wrong with a one-line reason. Quick, and NOT 100% accurate.
+       • `ok`   — the TEACHER's mark: ✓ Confirm (the provisional mark becomes
+         theirs), Confirm all, or a one-tap override (✓ ◐ ✗).
+     The board shows `markOf` (the teacher's, else the provisional one) so a
+     class of thirty can be read at a glance. Reports, a student's own screen
+     and a rejoin read `confirmedOf` ALONE: a guess never reaches a parent or
+     a child as if it were the teacher's. */
+  var VERDICTS = ['correct', 'partial', 'wrong'];
+  var VERDICT_MARK = { correct: true, partial: 'partial', wrong: false };
+  var VERDICT_WORDS = {
+    correct: 'correct', right: 'correct', true: 'correct', yes: 'correct', accept: 'correct', accepted: 'correct',
+    partial: 'partial', partly: 'partial', 'partly correct': 'partial', 'partially correct': 'partial', 'half': 'partial', 'partial credit': 'partial',
+    wrong: 'wrong', incorrect: 'wrong', false: 'wrong', no: 'wrong', reject: 'wrong', 'not correct': 'wrong'
+  };
+  function cleanMark(v) { return v === true || v === false || v === 'partial' ? v : null; }
+  function markWord(m) { return m === true ? '✓' : m === false ? '✗' : m === 'partial' ? '◐' : ''; }
+  function cleanVerdict(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var said = oneLine(raw.verdict != null ? raw.verdict : raw.v != null ? raw.v : raw.mark, 40).toLowerCase().replace(/[.!]+$/, '');
+    var v = Object.prototype.hasOwnProperty.call(VERDICT_WORDS, said) ? VERDICT_WORDS[said] : '';
+    if (!v) return null;
+    return { v: v, why: oneLine(raw.why != null ? raw.why : raw.reason, 160), by: oneLine(raw.by, 30), at: Number(raw.at) || 0 };
+  }
+  // What came back from the model for a batch, as {studentId: verdict}. Only
+  // ids that were ASKED about are kept: a reply cannot mark someone else.
+  function cleanVerdicts(raw, ids) {
+    var want = {};
+    (ids || []).forEach(function (id) { want[str(id)] = true; });
+    var list = Array.isArray(raw) ? raw : raw && Array.isArray(raw.results) ? raw.results : raw && Array.isArray(raw.marks) ? raw.marks : [];
+    var out = {};
+    list.forEach(function (r) {
+      if (!r || typeof r !== 'object') return;
+      var id = str(r.id != null ? r.id : r.student);
+      if (!want[id] || out[id]) return;
+      var v = cleanVerdict(r);
+      if (v) out[id] = v;
+    });
+    return out;
+  }
+  function provisionalOf(entry) {
+    if (!entry) return null;
+    var ai = entry.ai && cleanVerdict(entry.ai);
+    if (ai) return VERDICT_MARK[ai.v];
+    return entry.auto === true || entry.auto === false ? entry.auto : null;
+  }
+  function confirmedOf(entry) { return entry ? cleanMark(entry.ok) : null; }
   function markOf(entry) {
     if (!entry) return null;
-    if (entry.ok === true || entry.ok === false) return entry.ok;
-    return entry.auto === true || entry.auto === false ? entry.auto : null;
+    var c = confirmedOf(entry);
+    return c != null ? c : provisionalOf(entry);
+  }
+  // Where the mark on the board came from: the teacher, the key or the AI.
+  function markSource(entry) {
+    if (!entry) return '';
+    if (confirmedOf(entry) != null) return 'teacher';
+    if (entry.ai && cleanVerdict(entry.ai)) return 'ai';
+    if (entry.auto === true || entry.auto === false) return 'key';
+    return '';
+  }
+  // A written answer the key cannot settle goes to Chung GPT once: never an
+  // MCQ (the key marks it instantly), never one the teacher has marked, never
+  // one already pre-marked, and a blank only when the key did not accept it
+  // ("one hundred" against 100 is the model's to judge, not the key's).
+  function needsAiMark(q, entry) {
+    if (!q || !entry || q.kind === 'mcq') return false;
+    if (confirmedOf(entry) != null || (entry.ai && cleanVerdict(entry.ai))) return false;
+    if (q.kind === 'blank' && entry.auto === true) return false;
+    return (entry.v != null && str(entry.v).trim() !== '') || !!entry.ph;
+  }
+  // Everything the teacher's ✓ Confirm all would do for one question.
+  function confirmPlan(session, q) {
+    var byQ = (session && session.answers && session.answers[q.id]) || {};
+    return Object.keys(byQ).map(function (id) {
+      var e = byQ[id];
+      return confirmedOf(e) == null && provisionalOf(e) != null ? { identity: id, ok: provisionalOf(e) } : null;
+    }).filter(Boolean);
+  }
+  // The live tally, and WHO is in each part of it (tap a chip to see).
+  function tallyOf(session, q, present) {
+    var byQ = (session && session.answers && session.answers[q.id]) || {};
+    var out = { right: [], partial: [], wrong: [], unmarked: [], waiting: [], toConfirm: [] };
+    Object.keys(byQ).forEach(function (id) {
+      var m = markOf(byQ[id]);
+      (m === true ? out.right : m === false ? out.wrong : m === 'partial' ? out.partial : out.unmarked).push(id);
+      if (confirmedOf(byQ[id]) == null && provisionalOf(byQ[id]) != null) out.toConfirm.push(id);
+    });
+    (present || []).forEach(function (id) { if (meantFor(q, id) && !byQ[id]) out.waiting.push(id); });
+    return out;
+  }
+  // MCQ: who chose which option.
+  function choosersOf(session, q, option) {
+    var byQ = (session && session.answers && session.answers[q.id]) || {};
+    return Object.keys(byQ).filter(function (id) { return Number(byQ[id].v) === option && byQ[id].v !== '' && byQ[id].v != null; });
+  }
+
+  /* ---------- ✨ AI send: a question Chung GPT read off the worksheet ----------
+     The model returns DATA; this is the one door from that data to the
+     composer's shape, so a reply of the wrong shape can never push a broken
+     question (cleanQuestion still guards the push itself). */
+  var AI_KIND = { mcq: 'mcq', 'multiple choice': 'mcq', 'multiple-choice': 'mcq', multiplechoice: 'mcq', choice: 'mcq', options: 'mcq',
+    blank: 'blank', 'fill in the blank': 'blank', 'fill-in-the-blank': 'blank', fill: 'blank', 'fill in': 'blank', 'short answer': 'blank', short: 'blank', number: 'blank', numeric: 'blank',
+    open: 'open', 'open-ended': 'open', 'open ended': 'open', structured: 'open', explain: 'open', long: 'open', written: 'open' };
+  var OPTION_LEAD = /^\s*(?:\(?\s*(?:[1-9]|[A-Fa-f])\s*[).:]|\(\s*(?:[1-9]|[A-Fa-f])\s*\))\s*/;
+  function questionFromAi(raw) {
+    if (typeof raw === 'string') { try { raw = JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { return null; } }
+    if (!raw || typeof raw !== 'object') return null;
+    if (raw.question && typeof raw.question === 'object') raw = raw.question;
+    var said = oneLine(raw.kind != null ? raw.kind : raw.type, 40).toLowerCase();
+    var kind = Object.prototype.hasOwnProperty.call(AI_KIND, said) ? AI_KIND[said] : '';
+    var text = clean(raw.text != null ? raw.text : raw.question != null ? raw.question : raw.stem, LIMITS.text);
+    var options = (Array.isArray(raw.options) ? raw.options : Array.isArray(raw.choices) ? raw.choices : [])
+      .map(function (o) { return oneLine(o && typeof o === 'object' ? o.text : o, LIMITS.option).replace(OPTION_LEAD, '').trim(); })
+      .filter(Boolean).slice(0, LIMITS.options);
+    if (!kind) kind = options.length >= 2 ? 'mcq' : 'open';
+    if (kind === 'mcq' && options.length < 2) kind = 'open';
+    if (!text && !options.length) return null;
+    var out = { kind: kind, text: text, options: kind === 'mcq' ? options : ['', '', '', ''], answer: -1, accepted: '', model: '', photo: true,
+      note: oneLine(raw.note != null ? raw.note : raw.why, 160) };
+    if (kind === 'mcq') {
+      var a = raw.answer != null ? raw.answer : raw.correct;
+      var idx = -1;
+      // A number is the option's 0-based index (the prompt asks for that);
+      // a letter or "(2)" is read the way a worksheet prints it.
+      if (typeof a === 'number' && isFinite(a)) idx = Math.floor(a);
+      else if (a != null) {
+        var t = oneLine(a, LIMITS.option);
+        var m = /^\(?\s*([A-Fa-f]|[1-9])\s*\)?\.?$/.exec(t);
+        if (m) idx = /[A-Fa-f]/.test(m[1]) ? m[1].toUpperCase().charCodeAt(0) - 65 : Number(m[1]) - 1;
+        else { var low = t.replace(OPTION_LEAD, '').toLowerCase(); options.forEach(function (o, i) { if (idx < 0 && o.toLowerCase() === low) idx = i; }); }
+      }
+      out.answer = idx >= 0 && idx < options.length ? idx : -1;
+    } else if (kind === 'blank') {
+      var acc = Array.isArray(raw.accepted) ? raw.accepted : raw.accepted != null ? str(raw.accepted).split(/[|\n]/) : raw.answer != null ? [raw.answer] : [];
+      out.accepted = acc.map(function (x) { return oneLine(x, LIMITS.option); }).filter(Boolean).slice(0, LIMITS.accepted).join('\n');
+    } else {
+      out.model = clean(raw.model != null ? raw.model : raw.answer, LIMITS.text);
+    }
+    return out;
   }
   function questionStats(session, q, present) {
     var byQ = session.answers[q.id] || {};
     var ids = Object.keys(byQ);
-    var right = 0, wrong = 0, unmarked = 0;
-    ids.forEach(function (id) { var m = markOf(byQ[id]); if (m === true) right++; else if (m === false) wrong++; else unmarked++; });
+    var right = 0, wrong = 0, partial = 0, unmarked = 0, toConfirm = 0;
+    ids.forEach(function (id) {
+      var m = markOf(byQ[id]);
+      if (m === true) right++; else if (m === false) wrong++; else if (m === 'partial') partial++; else unmarked++;
+      if (confirmedOf(byQ[id]) == null && provisionalOf(byQ[id]) != null) toConfirm++;
+    });
     var asked = (present || []).filter(function (id) { return meantFor(q, id); });
     var waiting = asked.filter(function (id) { return !byQ[id]; });
-    return { answered: ids.length, right: right, wrong: wrong, unmarked: unmarked, asked: asked.length, waiting: waiting };
+    return { answered: ids.length, right: right, wrong: wrong, partial: partial, unmarked: unmarked, toConfirm: toConfirm, asked: asked.length, waiting: waiting };
   }
   // Everyone the lesson saw, present or not, sorted by name.
   function roster(session) {
@@ -382,15 +526,17 @@
     var asked = session.questions.filter(function (q) { return meantFor(q, identity) && (q.at || 0) >= (p.joinedAt || 0) - 60000; });
     var rows = asked.map(function (q) {
       var e = (session.answers[q.id] || {})[identity];
-      return { q: q, entry: e || null, mark: markOf(e), text: e ? answerText(q, e.v) : '', photo: !!(e && e.ph) };
+      // ONLY the teacher's own mark reaches a parent — never a provisional one.
+      return { q: q, entry: e || null, mark: confirmedOf(e), text: e ? answerText(q, e.v) : '', photo: !!(e && e.ph) };
     });
     var answered = rows.filter(function (r) { return r.entry; }).length;
     var right = rows.filter(function (r) { return r.mark === true; }).length;
-    var marked = rows.filter(function (r) { return r.mark === true || r.mark === false; }).length;
+    var partly = rows.filter(function (r) { return r.mark === 'partial'; }).length;
+    var marked = rows.filter(function (r) { return r.mark != null; }).length;
     var pts = rows.reduce(function (s, r) { return s + (r.entry && r.entry.pts ? r.entry.pts : 0); }, 0);
     return {
       name: p.name, kind: p.kind, rosterId: p.rosterId, minutes: minutesPresent(p, now),
-      asked: asked.length, answered: answered, right: right, marked: marked, hands: p.hands || 0, points: pts,
+      asked: asked.length, answered: answered, right: right, partly: partly, marked: marked, hands: p.hands || 0, points: pts,
       note: oneLine((session.notes || {})[identity], 400), rows: rows
     };
   }
@@ -401,7 +547,8 @@
     var part = r.answered === r.asked ? 'answered every question asked in class (' + r.asked + ')'
       : r.answered ? 'answered ' + r.answered + ' of the ' + r.asked + ' questions asked in class'
       : 'did not answer the ' + r.asked + ' question' + (r.asked === 1 ? '' : 's') + ' asked in class';
-    var acc = r.marked ? ', getting ' + r.right + ' of ' + r.marked + ' marked answer' + (r.marked === 1 ? '' : 's') + ' right' : '';
+    var acc = r.marked ? ', getting ' + r.right + ' of ' + r.marked + ' marked answer' + (r.marked === 1 ? '' : 's') + ' right' +
+      (r.partly ? ' and ' + r.partly + ' partly right' : '') : '';
     return r.name + ' ' + part + acc + '.';
   }
   function reportText(session, identity, now, centre) {
@@ -414,7 +561,7 @@
     lines.push('');
     lines.push('• Time in class: ' + r.minutes + ' minute' + (r.minutes === 1 ? '' : 's'));
     lines.push('• Questions answered: ' + r.answered + ' of ' + r.asked);
-    if (r.marked) lines.push('• Correct: ' + r.right + ' of ' + r.marked + ' marked');
+    if (r.marked) lines.push('• Correct: ' + r.right + ' of ' + r.marked + ' marked' + (r.partly ? ' (' + r.partly + ' partly right)' : ''));
     if (r.hands) lines.push('• Raised a hand to ask or answer: ' + r.hands + ' time' + (r.hands === 1 ? '' : 's'));
     if (r.points) lines.push('• Points earned in class: ' + r.points);
     if (r.rows.length) {
@@ -423,7 +570,7 @@
       r.rows.forEach(function (row, i) {
         var label = 'Q' + (row.q.n || i + 1) + (row.q.text ? ': ' + oneLine(row.q.text, 140) : ' (picture question)');
         var said = row.entry ? (row.text ? '“' + oneLine(row.text, 200) + '”' : '') + (row.photo ? (row.text ? ' + ' : '') + 'a photo of the working' : '') : 'no answer';
-        var mk = row.mark === true ? ' ✓' : row.mark === false ? ' ✗' : '';
+        var mk = row.mark === true ? ' ✓' : row.mark === false ? ' ✗' : row.mark === 'partial' ? ' ◐ (partly right)' : '';
         lines.push('  ' + label);
         lines.push('     ' + said + mk);
       });
@@ -528,7 +675,8 @@
   function cleanPrefs(p) {
     p = p && typeof p === 'object' ? p : {};
     return { classmates: p.classmates === true, lowData: p.lowData === true, mirror: p.mirror !== false, autoLow: p.autoLow !== false,
-      cameraOff: p.cameraOff === true, record: p.record !== false, hideSelf: p.hideSelf === true, lastKind: KINDS.indexOf(p.lastKind) !== -1 ? p.lastKind : 'mcq' };
+      cameraOff: p.cameraOff === true, record: p.record !== false, hideSelf: p.hideSelf === true, lastKind: KINDS.indexOf(p.lastKind) !== -1 ? p.lastKind : 'mcq',
+      aiMark: p.aiMark !== false, aiReview: p.aiReview === true };
   }
 
   var pure = {
@@ -540,6 +688,9 @@
     outboxAdd: outboxAdd, outboxAck: outboxAck, outboxDue: outboxDue,
     emptySession: emptySession, personJoined: personJoined, personLeft: personLeft, minutesPresent: minutesPresent,
     recordAnswer: recordAnswer, markOf: markOf, questionStats: questionStats, roster: roster,
+    VERDICTS: VERDICTS, cleanMark: cleanMark, markWord: markWord, cleanVerdict: cleanVerdict, cleanVerdicts: cleanVerdicts,
+    provisionalOf: provisionalOf, confirmedOf: confirmedOf, markSource: markSource, needsAiMark: needsAiMark,
+    confirmPlan: confirmPlan, tallyOf: tallyOf, choosersOf: choosersOf, questionFromAi: questionFromAi,
     participation: participation, participationLine: participationLine, reportText: reportText, reportHtml: reportHtml,
     gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, minuteMB: minuteMB, SCREEN: SCREEN, wantTrack: wantTrack,
     shareConstraints: shareConstraints,
@@ -587,6 +738,8 @@
       // teacher
       session: null, saveTimer: 0, tab: 'ask', compose: null, images: {}, pendingPhotos: {}, hands: {}, removed: {},
       reports: {}, mirrorOff: null, status: null, sharing: false,
+      // ✨ AI send and Chung GPT's pre-marks (v1.209.0)
+      aiq: {}, aiBusy: 0, aiMarking: {}, aiFailed: {}, aiSend: '', tally: '', tallyQ: '',
       // student
       questions: {}, order: [], mine: {}, outbox: {}, popup: null, popMin: false, gotState: false, helloTimer: 0, resendTimer: 0,
       handUp: false, lists: null, pickTab: 'mine', pick: null, query: '', confirmAgain: null,
@@ -1965,8 +2118,11 @@
           var q = currentQuestion();
           var e = q && S.session.answers[q.id] ? S.session.answers[q.id][id] : null;
           var mark = markOf(e);
-          t.badge.textContent = !q ? '' : e ? (mark === true ? '✓' : mark === false ? '✗' : '✎') : meantFor(q, id) ? '…' : '';
-          t.badge.className = 'vcTileBadge' + (e ? mark === true ? ' ok' : mark === false ? ' no' : ' in' : '');
+          t.badge.textContent = !q ? '' : e ? (markWord(mark) || '✎') : meantFor(q, id) ? '…' : '';
+          // A provisional mark (the key's, or Chung GPT's) is drawn dashed
+          // until the teacher gives it.
+          t.badge.className = 'vcTileBadge' + (e ? mark === true ? ' ok' : mark === false ? ' no' : mark === 'partial' ? ' part' : ' in' : '') +
+            (e && mark != null && confirmedOf(e) == null ? ' prov' : '');
         });
         S.mainEmpty.hidden = ids.length > 0;
         if (!ids.length && S.mainEmpty.parentNode !== S.grid) S.grid.appendChild(S.mainEmpty);
@@ -2084,7 +2240,12 @@
         }
         // An answer that was waiting for its photo can now be acknowledged.
         var waiting = S.pendingPhotos[ref];
-        if (waiting) { delete S.pendingPhotos[ref]; send({ t: 'ack', aid: waiting.aid, qid: waiting.qid }, [waiting.identity]); }
+        if (waiting) {
+          delete S.pendingPhotos[ref];
+          send({ t: 'ack', aid: waiting.aid, qid: waiting.qid }, [waiting.identity]);
+          var wq = questionById(waiting.qid);
+          if (wq) queueAiMark(wq, waiting.identity);
+        }
         paintSide(true);
       } else {
         paintQuestion();
@@ -2103,11 +2264,11 @@
         // Only a mark the teacher GAVE goes back on a rejoin: the key's own
         // guess stays on the teacher's board until it is given, exactly as on
         // the first send (the acknowledgement never carries it either).
-        if (e) mine[q.id] = { aid: e.aid, ok: e.ok === true || e.ok === false ? e.ok : null, pts: e.pts || 0 };
+        if (e) mine[q.id] = { aid: e.aid, ok: confirmedOf(e), pts: e.pts || 0 };
       });
       var revealed = S.session.questions.filter(function (q) { return q.revealed && meantFor(q, identity); }).slice(-3).map(function (q) {
         var e = (S.session.answers[q.id] || {})[identity];
-        return { q: questionForStudent(q), answer: revealOf(q), mine: e ? { aid: e.aid, v: e.v, ok: markOf(e), pts: e.pts || 0 } : null };
+        return { q: questionForStudent(q), answer: revealOf(q), mine: e ? { aid: e.aid, v: e.v, ok: confirmedOf(e), pts: e.pts || 0 } : null };
       });
       var chain = Promise.resolve();
       qs.forEach(function (q) { if (q.img && S.images[q.img.ref]) chain = chain.then(function () { return sendImage(S.images[q.img.ref], q.img.ref, [identity]); }); });
@@ -2132,6 +2293,7 @@
         if (S.assembler.has(e.ph) === false) send({ t: 'needimg', ref: e.ph }, [identity]);
       } else {
         send({ t: 'ack', aid: msg.aid, qid: msg.qid }, [identity]);
+        if (res.fresh) { var aq = questionById(msg.qid); if (aq) queueAiMark(aq, identity); }
       }
       if (res.fresh) {
         saveSoon();
@@ -2285,7 +2447,7 @@
       Object.keys(mine).forEach(function (qid) {
         var m = mine[qid] || {};
         var have = S.mine[qid] || {};
-        if (!have.aid || have.aid === m.aid) S.mine[qid] = Object.assign({}, have, { aid: m.aid, sent: true, acked: true, ok: m.ok, pts: m.pts });
+        if (!have.aid || have.aid === m.aid) S.mine[qid] = Object.assign({}, have, { aid: m.aid, sent: true, acked: true, ok: cleanMark(m.ok), pts: m.pts });
         S.outbox = outboxAck(S.outbox, m.aid);
       });
       (Array.isArray(msg.revealed) ? msg.revealed : []).forEach(function (r) {
@@ -2293,7 +2455,7 @@
         q.open = false; q.revealed = r.answer || null;
         S.questions[q.id] = Object.assign({}, S.questions[q.id] || {}, q);
         if (S.order.indexOf(q.id) === -1) S.order.push(q.id);
-        if (r.mine) S.mine[q.id] = Object.assign({}, S.mine[q.id] || {}, { aid: r.mine.aid, v: r.mine.v, sent: true, acked: true, ok: r.mine.ok, pts: r.mine.pts });
+        if (r.mine) S.mine[q.id] = Object.assign({}, S.mine[q.id] || {}, { aid: r.mine.aid, v: r.mine.v, sent: true, acked: true, ok: cleanMark(r.mine.ok), pts: r.mine.pts });
       });
       S.handUp = !!msg.hand;
       saveOutbox();
@@ -2323,7 +2485,8 @@
     }
     function onMark(msg) {
       var m = S.mine[msg.qid] || (S.mine[msg.qid] = {});
-      if (msg.ok === true || msg.ok === false) m.ok = msg.ok; else if (msg.ok === null) m.ok = null;
+      // The teacher's own mark only — ✓, ◐ (partly right) or ✗; null takes it off.
+      if (msg.ok === null) m.ok = null; else if (cleanMark(msg.ok) != null) m.ok = cleanMark(msg.ok);
       if (typeof msg.pts === 'number') {
         var gained = msg.pts - (m.pts || 0);
         m.pts = msg.pts;
@@ -2471,6 +2634,7 @@
       if (closed && !mine.sent) text = q.revealed ? 'The question is closed.' : 'Your teacher has closed this question.';
       if (q.revealed && q.revealed.text) text = 'Answer: ' + q.revealed.text + (text ? ' · ' + text : '');
       if (mine.ok === true) { status.classList.add('ok'); text = '✓ Correct!' + (mine.pts ? ' ⭐ +' + mine.pts : '') + (q.revealed && q.revealed.text && q.kind !== 'mcq' ? ' · Answer: ' + q.revealed.text : ''); }
+      if (mine.ok === 'partial') { status.classList.add('part'); text = '◐ Partly right.' + (mine.pts ? ' ⭐ +' + mine.pts : '') + (q.revealed && q.revealed.text ? ' Answer: ' + q.revealed.text : ' Your teacher will go through it.'); }
       if (mine.ok === false) { status.classList.add('no'); text = '✗ Not quite.' + (q.revealed && q.revealed.text ? ' Answer: ' + q.revealed.text : ' Have another look.'); }
       if (mine.note) text += ' · ' + mine.note;
       status.textContent = text;
@@ -2600,9 +2764,89 @@
     function blankCompose(kind) {
       return { kind: kind || 'mcq', text: '', options: ['', '', '', ''], answer: -1, accepted: '', model: '', photo: true, img: '', to: 'all', pick: {} };
     }
+    /* ---------- ✨ AI send: drag over a question, Chung GPT reads and pushes it ----------
+       The teacher drags a box round a question on the worksheet (the glue's
+       env.cropQuestion: the 📸 Snip layer, painted from the page itself, so
+       the window over it does not matter). env.readQuestion sends that
+       picture to the AI with the answer key for the page when one is loaded,
+       and gets DATA back — the kind (MCQ / fill in the blank / open-ended),
+       the words, the options, the answer. questionFromAi is the one door to
+       the composer's shape, and sendQuestion → cleanQuestion still guards the
+       push: the answer stays on the teacher's device as for any question.
+       With "check it first" on it lands in the composer instead. */
+    function aiSendReady() { return typeof env.cropQuestion === 'function' && typeof env.readQuestion === 'function'; }
+    function aiSendStart() {
+      if (!isTeacher() || S.mode !== 'live' || S.aiSend || !aiSendReady()) return;
+      var epoch = S.session && S.session.epoch;
+      var to = S.compose ? S.compose.to : 'all', pick = S.compose ? Object.assign({}, S.compose.pick) : {};
+      S.aiSend = 'crop';
+      paintSide(true);
+      var still = function () { return isTeacher() && S.mode === 'live' && S.session && S.session.epoch === epoch; };
+      Promise.resolve().then(function () { return env.cropQuestion(); }).then(function (img) {
+        if (!still() || !img) return null;
+        if (!validImage(img)) throw new Error('That part of the page is too big to send — drag a smaller box.');
+        S.aiSend = 'read';
+        S.aiSendImg = img;
+        paintSide(true);
+        return Promise.resolve(env.readQuestion({ img: img })).then(function (raw) {
+          if (!still()) return null;
+          var got = questionFromAi(raw);
+          if (!got) throw new Error(aiName() + ' could not find a question in that box. Drag round the whole question, or type it.');
+          var c = Object.assign(blankCompose(got.kind), got, { img: img, to: to, pick: pick, ai: true });
+          if (got.kind === 'mcq') while (c.options.length < 2) c.options.push('');
+          if (S.prefs.aiReview) {
+            S.compose = c;
+            S.tab = 'ask';
+            say('✨ Read as ' + KIND_LABEL[c.kind] + '. Check it, then press 📤 Push.');
+            return null;
+          }
+          sendQuestion(c, false);
+          var key = c.kind === 'mcq' ? (c.answer >= 0 ? ' The key says ' + letter(c.answer) + '.' : ' No answer was found — mark by hand, or tap ✓ on the right option.')
+            : c.kind === 'blank' ? (c.accepted ? ' Accepted: ' + c.accepted.split('\n').join(', ') + '.' : '') : '';
+          say('✨ Sent as ' + KIND_LABEL[c.kind] + '.' + key + (got.note ? ' (' + got.note + ')' : ''));
+          return null;
+        });
+      }).catch(function (e) {
+        say('✨ AI send: ' + ((e && e.message) || e));
+      }).then(function () {
+        S.aiSend = '';
+        S.aiSendImg = '';
+        paintSide(true);
+      });
+    }
+    function paintAiSend(card) {
+      if (!aiSendReady()) return;
+      var row = el('div', 'vcAiSend');
+      var label = S.aiSend === 'crop' ? '⬚ Drag a box round the question on the worksheet…'
+        : S.aiSend === 'read' ? '✨ ' + aiName() + ' is reading the question…'
+        : '✨ AI send';
+      var go = btn('vcPrimary vcAiSendBtn', label, 'Drag a box round a question on the worksheet: ' + aiName() + ' reads it, works out whether it is multiple choice, fill in the blank or open-ended, and pushes it to the class', aiSendStart);
+      go.disabled = !!S.aiSend || S.mode !== 'live';
+      row.appendChild(go);
+      if (S.aiSend === 'read' && S.aiSendImg) {
+        var th = el('img', 'vcThumb vcAiSendShot'); th.src = S.aiSendImg; th.alt = 'The question being read';
+        row.appendChild(th);
+      }
+      var opts = el('div', 'vcAiOpts');
+      var review = el('label', 'vcCheck');
+      var rBox = el('input'); rBox.type = 'checkbox'; rBox.checked = !!S.prefs.aiReview;
+      rBox.addEventListener('change', function () { S.prefs.aiReview = rBox.checked; savePrefs(); });
+      review.appendChild(rBox); review.appendChild(el('span', null, 'Let me check it before it goes out'));
+      opts.appendChild(review);
+      if (typeof env.aiMark === 'function') {
+        var pm = el('label', 'vcCheck');
+        var pBox = el('input'); pBox.type = 'checkbox'; pBox.checked = S.prefs.aiMark !== false;
+        pBox.addEventListener('change', function () { S.prefs.aiMark = pBox.checked; savePrefs(); paintSide(true); });
+        pm.appendChild(pBox); pm.appendChild(el('span', null, aiName() + ' pre-marks written answers (you confirm)'));
+        opts.appendChild(pm);
+      }
+      row.appendChild(opts);
+      card.appendChild(row);
+    }
     function paintAsk(box) {
       var c = S.compose || (S.compose = blankCompose(S.prefs.lastKind));
       var card = el('div', 'vcAsk');
+      paintAiSend(card);
 
       // Quick questions: one tap, for "everyone look at the board".
       var quick = el('div', 'vcQuick');
@@ -2738,6 +2982,7 @@
       var sendBtn = btn('vcPrimary', '📤 Push the question', null, function () { sendQuestion(c, true); });
       foot.appendChild(sendBtn);
       foot.appendChild(btn('', 'Clear', null, function () { S.compose = blankCompose(c.kind); paintSide(); }));
+      if (c.ai) foot.appendChild(el('span', 'vcMuted', '✨ read by ' + aiName() + ' — check the answer'));
       card.appendChild(foot);
       function syncSend() {
         var ok = !!(oneLine(c.text, 10) || c.img);
@@ -2783,7 +3028,8 @@
       }
       var q = cleanQuestion({
         id: randomId('q'), kind: c.kind, text: c.text, options: c.options, answer: c.answer,
-        accepted: c.accepted, model: c.model, photo: c.photo, img: img, to: to, at: now(), n: S.session.questions.length + 1, open: true
+        accepted: c.accepted, model: c.model, photo: c.photo, img: img, to: to, at: now(), n: S.session.questions.length + 1, open: true,
+        ai: c.ai === true
       });
       if (!q) { say(c.kind === 'mcq' ? 'A multiple-choice question needs a question (or a picture) and at least two options.' : 'Type the question, or add a picture, first.'); return; }
       S.session = Object.assign({}, S.session, { questions: S.session.questions.concat([q]) });
@@ -2832,13 +3078,121 @@
       S.session = Object.assign({}, S.session, { answers: answers });
       saveSoon();
     }
+    // The teacher's one-tap override: ✓ ◐ ✗ gives that mark; the same tap
+    // again takes it off, and the provisional mark shows again.
     function setMark(q, identity, ok) {
       var e = entryOf(q.id, identity);
-      if (!e) return;
-      var next = Object.assign({}, e, { ok: e.ok === ok ? null : ok });
+      if (!e || cleanMark(ok) == null) return;
+      var next = Object.assign({}, e, { ok: confirmedOf(e) === ok ? null : ok });
       setEntry(q.id, identity, next);
-      send({ t: 'mark', qid: q.id, ok: next.ok, pts: next.pts || 0 }, [identity]);
-      paintSide();
+      send({ t: 'mark', qid: q.id, ok: confirmedOf(next), pts: next.pts || 0 }, [identity]);
+      paintSide(true);
+      layout();
+    }
+    // ✓ Confirm: the provisional mark (the key's, or Chung GPT's) becomes the
+    // teacher's — the only kind that counts and the only kind a student sees.
+    function confirmMark(q, identity, quiet) {
+      var e = entryOf(q.id, identity);
+      if (!e || confirmedOf(e) != null) return false;
+      var p = provisionalOf(e);
+      if (p == null) return false;
+      var next = Object.assign({}, e, { ok: p, by: markSource(e) });
+      setEntry(q.id, identity, next);
+      send({ t: 'mark', qid: q.id, ok: p, pts: next.pts || 0 }, [identity]);
+      if (!quiet) { paintSide(true); layout(); }
+      return true;
+    }
+    function confirmAll(q) {
+      if (!isTeacher()) return;
+      var plan = confirmPlan(S.session, q);
+      if (!plan.length) { say('Nothing is waiting to be confirmed on Q' + q.n + '.'); return; }
+      var n = 0;
+      plan.forEach(function (row) { if (confirmMark(q, row.identity, true)) n++; });
+      paintSide(true); layout();
+      say('✓ Confirmed ' + n + ' mark' + (n === 1 ? '' : 's') + ' on Q' + q.n + '. They now count, and the students can see them.');
+    }
+
+    /* ---------- ✨ Chung GPT pre-marks written answers (v1.209.0) ----------
+       A blank the key cannot settle and every open answer go to the model in
+       BATCHES (one call for up to AI_BATCH answers to the same question,
+       gathered for AI_WAIT_MS), at most AI_PARALLEL calls at a time, so a
+       class answering at once is marked in seconds rather than thirty
+       separate waits. The result is PROVISIONAL (entry.ai) and stays on the
+       teacher's board until ✓ Confirm / Confirm all / an override. A late
+       reply is dropped when the lesson, the answer (its aid) or the teacher
+       has changed meanwhile. */
+    var AI_BATCH = 8, AI_WAIT_MS = 1200, AI_PARALLEL = 2;
+    function aiName() { var n = typeof env.aiName === 'function' ? oneLine(env.aiName(), 30) : ''; return n || 'Chung GPT'; }
+    function aiMarkOn() { return isTeacher() && typeof env.aiMark === 'function' && S.prefs.aiMark !== false; }
+    function queueAiMark(q, identity) {
+      if (!aiMarkOn() || !S.session) return;
+      var e = entryOf(q.id, identity);
+      if (!needsAiMark(q, e)) return;
+      if (e.ph && !S.images[e.ph]) return;              // its photo is still arriving; imageArrived asks again
+      var b = S.aiq[q.id] || (S.aiq[q.id] = { ids: {}, timer: 0 });
+      b.ids[identity] = e.aid;
+      clearTimeout(b.timer);
+      b.timer = setTimeout(function () { aiFlush(q.id); }, Object.keys(b.ids).length >= AI_BATCH ? 0 : AI_WAIT_MS);
+    }
+    function aiFlush(qid) {
+      var b = S.aiq[qid];
+      if (!b) return;
+      clearTimeout(b.timer);
+      if (!aiMarkOn() || !S.session) { delete S.aiq[qid]; return; }
+      if (S.aiBusy >= AI_PARALLEL) { b.timer = setTimeout(function () { aiFlush(qid); }, 700); return; }
+      var q = questionById(qid);
+      if (!q) { delete S.aiq[qid]; return; }
+      var ids = Object.keys(b.ids).slice(0, AI_BATCH);
+      ids.forEach(function (id) { delete b.ids[id]; });
+      if (!Object.keys(b.ids).length) delete S.aiq[qid];
+      var batch = ids.map(function (id) {
+        var e = entryOf(qid, id);
+        if (!needsAiMark(q, e)) return null;
+        var person = S.session.people[id];
+        return { id: id, aid: e.aid, name: person ? person.name : '', text: answerText(q, e.v), photo: e.ph && validImage(S.images[e.ph]) ? S.images[e.ph] : '' };
+      }).filter(Boolean);
+      if (!batch.length) { if (S.aiq[qid]) aiFlush(qid); return; }
+      var epoch = S.session.epoch;
+      S.aiBusy++;
+      S.aiMarking[qid] = (S.aiMarking[qid] || 0) + batch.length;
+      paintSide(true);
+      var ask = {
+        question: { n: q.n, kind: q.kind, text: q.text, accepted: q.accepted || [], model: q.model || '' },
+        img: q.img && validImage(S.images[q.img.ref]) ? S.images[q.img.ref] : '',
+        // Students are numbered, never named, for the model: a name is no
+        // help in marking and stays on the teacher's device.
+        answers: batch.map(function (a, i) { return { id: 's' + (i + 1), text: a.text, photo: a.photo }; })
+      };
+      var byKey = {};
+      batch.forEach(function (a, i) { byKey['s' + (i + 1)] = a; });
+      Promise.resolve().then(function () { return env.aiMark(ask); }).then(function (res) {
+        if (!S.session || S.session.epoch !== epoch || !isTeacher()) return;
+        var got = cleanVerdicts(res, Object.keys(byKey));
+        var by = res && res.by ? oneLine(res.by, 30) : '';
+        var missed = 0;
+        Object.keys(byKey).forEach(function (k) {
+          var a = byKey[k], e = entryOf(qid, a.id), v = got[k];
+          if (!e || e.aid !== a.aid) return;                 // the student changed their answer meanwhile
+          if (!v) { missed++; return; }
+          setEntry(qid, a.id, Object.assign({}, e, { ai: { v: v.v, why: v.why, by: by, at: now() } }));
+        });
+        if (missed) S.aiFailed[qid] = (S.aiFailed[qid] || 0) + missed;
+      }, function (err) {
+        if (!S.session || S.session.epoch !== epoch) return;
+        S.aiFailed[qid] = (S.aiFailed[qid] || 0) + batch.length;
+        say('✨ Chung GPT could not pre-mark Q' + q.n + ': ' + ((err && err.message) || err) + ' — mark them with ✓ ◐ ✗.');
+      }).then(function () {
+        S.aiBusy = Math.max(0, S.aiBusy - 1);
+        S.aiMarking[qid] = Math.max(0, (S.aiMarking[qid] || 0) - batch.length);
+        if (S.session && S.session.epoch === epoch) { paintSide(true); layout(); }
+        if (S.aiq[qid]) aiFlush(qid);
+      });
+    }
+    // ↻ Pre-mark again: whatever the model missed or failed on, once more.
+    function aiRetry(q) {
+      delete S.aiFailed[q.id];
+      Object.keys(S.session.answers[q.id] || {}).forEach(function (id) { queueAiMark(q, id); });
+      paintSide(true);
     }
     function givePoints(q, identity, n) {
       var e = entryOf(q.id, identity);
@@ -2901,8 +3255,10 @@
       if (right && right.text) head.appendChild(el('p', 'vcHint', 'Answer: ' + right.text));
       var stats = el('p', 'vcStats');
       stats.textContent = st.answered + ' answered' + (st.asked ? ' of ' + st.asked + ' here' : '') +
-        (st.right ? ' · ✓ ' + st.right : '') + (st.wrong ? ' · ✗ ' + st.wrong : '') + (st.unmarked ? ' · ' + st.unmarked + ' to mark' : '');
+        (st.right ? ' · ✓ ' + st.right : '') + (st.partial ? ' · ◐ ' + st.partial : '') + (st.wrong ? ' · ✗ ' + st.wrong : '') +
+        (st.unmarked ? ' · ' + st.unmarked + ' to mark' : '') + (st.toConfirm ? ' · ' + st.toConfirm + ' to confirm' : '');
       head.appendChild(stats);
+      if (q.ai) head.appendChild(el('p', 'vcHint', '✨ Read off the worksheet by Chung GPT.'));
       if (S.mode === 'live') {
         var acts = el('div', 'vcRow');
         if (q.open) {
@@ -2915,6 +3271,54 @@
         head.appendChild(acts);
       }
       box.appendChild(head);
+
+      // The live tally: ✓ ◐ ✗ ? ⏳ — tap a chip to see who.
+      var tally = tallyOf(s, q, present);
+      if (S.tallyQ !== q.id) { S.tally = ''; S.tallyQ = q.id; }
+      var tallyRow = el('div', 'vcTally');
+      tallyRow.setAttribute('role', 'group');
+      tallyRow.setAttribute('aria-label', 'Tally — tap to see who');
+      [
+        { k: 'right', icon: '✓', word: 'right', cls: 'ok' },
+        { k: 'partial', icon: '◐', word: 'partly right', cls: 'part' },
+        { k: 'wrong', icon: '✗', word: 'not right', cls: 'no' },
+        { k: 'unmarked', icon: '?', word: 'not marked yet', cls: 'un' },
+        { k: 'waiting', icon: '⏳', word: 'still to answer', cls: 'wait' }
+      ].forEach(function (c) {
+        var n = tally[c.k].length;
+        if (!n && c.k !== 'right' && c.k !== 'wrong') return;
+        var chip = btn('vcTallyChip ' + c.cls + (S.tally === c.k ? ' on' : ''), c.icon + ' ' + n, n + ' ' + c.word + ' — tap to see who', function () {
+          S.tally = S.tally === c.k ? '' : c.k; paintSide(true);
+        });
+        chip.setAttribute('aria-pressed', S.tally === c.k ? 'true' : 'false');
+        tallyRow.appendChild(chip);
+      });
+      box.appendChild(tallyRow);
+      var tallyIds = null;
+      if (S.tally) {
+        var mOpt = /^opt:(\d+)$/.exec(S.tally);
+        tallyIds = mOpt ? choosersOf(s, q, Number(mOpt[1])) : (tally[S.tally] || []);
+        var who = el('div', 'vcTallyWho');
+        var label = mOpt ? 'Chose ' + letter(Number(mOpt[1])) + ': ' : { right: 'Right: ', partial: 'Partly right: ', wrong: 'Not right: ', unmarked: 'Not marked yet: ', waiting: 'Still to answer: ' }[S.tally] || '';
+        who.appendChild(el('b', null, label));
+        who.appendChild(el('span', null, tallyIds.length ? tallyIds.map(function (id) { return (s.people[id] || { name: 'Student' }).name; }).join(', ') : 'nobody'));
+        who.appendChild(btn('vcIcon', '✕', 'Show everyone again', function () { S.tally = ''; paintSide(true); }));
+        box.appendChild(who);
+      }
+      // Provisional marks: only confirmed ones count (points, reports, what the
+      // student sees).
+      var marking = S.aiMarking[q.id] || 0;
+      if (st.toConfirm || marking || S.aiFailed[q.id]) {
+        var conf = el('div', 'vcConfirmBar');
+        var words = [];
+        if (marking) words.push('✨ ' + aiName() + ' is marking ' + marking + ' answer' + (marking === 1 ? '' : 's') + '…');
+        if (st.toConfirm) words.push(st.toConfirm + ' provisional mark' + (st.toConfirm === 1 ? '' : 's') + ' — only confirmed marks count');
+        if (S.aiFailed[q.id]) words.push(S.aiFailed[q.id] + ' could not be pre-marked');
+        conf.appendChild(el('span', 'vcConfirmText', words.join(' · ')));
+        if (S.aiFailed[q.id] && aiMarkOn()) conf.appendChild(btn('', '↻ Pre-mark again', 'Ask ' + aiName() + ' again for the answers it missed', function () { aiRetry(q); }));
+        if (st.toConfirm) conf.appendChild(btn('vcPrimary vcConfirmAll', '✓ Confirm all (' + st.toConfirm + ')', 'Make every provisional mark on this question yours: it counts, and each student sees it', function () { confirmAll(q); }));
+        box.appendChild(conf);
+      }
 
       // Multiple choice: how the class split.
       var byQ = s.answers[q.id] || {};
@@ -2932,7 +3336,13 @@
           track.appendChild(fill);
           row.appendChild(track);
           row.appendChild(el('span', 'vcBarN', String(counts[i])));
-          row.title = o;
+          row.title = letter(i) + '. ' + o + ' — tap to see who chose it';
+          row.setAttribute('role', 'button');
+          row.tabIndex = 0;
+          var pickOpt = function () { S.tally = S.tally === 'opt:' + i ? '' : 'opt:' + i; paintSide(true); };
+          row.addEventListener('click', pickOpt);
+          row.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pickOpt(); } });
+          if (S.tally === 'opt:' + i) row.classList.add('on');
           bars.appendChild(row);
         });
         box.appendChild(bars);
@@ -2941,9 +3351,10 @@
       // Every answer.
       var list = el('div', 'vcAnsList');
       ids.sort(function (a, b) { return (byQ[a].at || 0) - (byQ[b].at || 0); }).forEach(function (id) {
+        if (tallyIds && tallyIds.indexOf(id) === -1) return;
         var e = byQ[id], p = s.people[id] || { name: 'Student' };
-        var mk = markOf(e);
-        var row = el('div', 'vcAns' + (mk === true ? ' ok' : mk === false ? ' no' : ''));
+        var mk = markOf(e), mine = confirmedOf(e), src = markSource(e);
+        var row = el('div', 'vcAns' + (mk === true ? ' ok' : mk === false ? ' no' : mk === 'partial' ? ' part' : '') + (mk != null && mine == null ? ' prov' : ''));
         var top = el('div', 'vcAnsTop');
         top.appendChild(el('b', 'vcAnsName', p.name));
         if (p.kind === 'trial') top.appendChild(el('span', 'vcTag', 'Trial'));
@@ -2959,10 +3370,27 @@
           img.addEventListener('click', function () { if (S.images[e.ph]) openBigPhoto(S.images[e.ph]); });
           row.appendChild(img);
         }
+        if (src === 'ai' && e.ai) {
+          var why = el('p', 'vcAiWhy');
+          why.appendChild(el('b', null, '✨ ' + markWord(mk) + ' ' + ({ correct: 'Correct', partial: 'Partly right', wrong: 'Not right' }[e.ai.v] || '') + ' · '));
+          why.appendChild(el('span', null, e.ai.why || 'no reason given'));
+          row.appendChild(why);
+        } else if (mine != null && e.ai && e.ai.v && VERDICT_MARK[e.ai.v] !== mine) {
+          row.appendChild(el('p', 'vcAiWhy was', '✨ ' + aiName() + ' had said ' + ({ correct: 'correct', partial: 'partly right', wrong: 'not right' }[e.ai.v]) + (e.ai.why ? ': ' + e.ai.why : '')));
+        }
         var tools = el('div', 'vcAnsTools');
-        tools.appendChild(btn('vcMark' + (mk === true ? ' on' : ''), '✓', 'Right', function () { setMark(q, id, true); }));
-        tools.appendChild(btn('vcMark no' + (mk === false ? ' on' : ''), '✗', 'Not right', function () { setMark(q, id, false); }));
-        if (e.ok == null && (e.auto === true || e.auto === false)) tools.appendChild(el('span', 'vcMuted', 'marked by the key'));
+        // The one-tap override: the button lit is the TEACHER's mark.
+        tools.appendChild(btn('vcMark' + (mine === true ? ' on' : mk === true ? ' guess' : ''), '✓', 'Right', function () { setMark(q, id, true); }));
+        if (q.kind !== 'mcq') tools.appendChild(btn('vcMark part' + (mine === 'partial' ? ' on' : mk === 'partial' ? ' guess' : ''), '◐', 'Partly right', function () { setMark(q, id, 'partial'); }));
+        tools.appendChild(btn('vcMark no' + (mine === false ? ' on' : mk === false ? ' guess' : ''), '✗', 'Not right', function () { setMark(q, id, false); }));
+        if (mine == null && mk != null) {
+          tools.appendChild(btn('vcConfirm', '✓ Confirm', 'Make this ' + (src === 'ai' ? aiName() + '’s' : 'key’s') + ' mark yours — then it counts and ' + p.name + ' sees it', function () { confirmMark(q, id); }));
+          tools.appendChild(el('span', 'vcMuted', src === 'ai' ? 'provisional · ✨' : 'provisional · the key'));
+        } else if (mine == null && needsAiMark(q, e) && aiMarkOn()) {
+          tools.appendChild(el('span', 'vcMuted', (S.aiMarking[q.id] ? '✨ marking…' : 'not marked')));
+        } else if (mine != null) {
+          tools.appendChild(el('span', 'vcMuted vcMine', 'confirmed'));
+        }
         tools.appendChild(el('span', 'vcBarGap'));
         [1, 2, 5].forEach(function (n) {
           tools.appendChild(btn('vcPts', '+' + n, 'Give ' + p.name + ' ' + n + ' point' + (n === 1 ? '' : 's'), function () { givePoints(q, id, n); }));
