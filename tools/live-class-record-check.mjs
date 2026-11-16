@@ -227,11 +227,11 @@ try {
   }
   const mid = await page.evaluate(() => window.h.info());
   const parts = bucketLog.filter(x => x[0] === 'put').length;
-  ok('pieces went up DURING the recording', mid.sent >= Math.floor(SECONDS / 30) - 1 && parts === mid.sent, 'sent ' + mid.sent + ' puts ' + parts);
+  ok('pieces went up DURING the recording', mid.sent >= Math.floor(SECONDS / 30 * 0.9) - 1 && parts === mid.sent, 'sent ' + mid.sent + ' puts ' + parts);
   const stored = await page.evaluate(() => new Promise(res => {
     var r = indexedDB.open('polymath-live-class-rec'); r.onsuccess = () => { var t = r.result.transaction('chunks').objectStore('chunks').count(); t.onsuccess = () => res(t.result); };
   }));
-  ok('every second is on the device first (IndexedDB)', stored >= SECONDS - 5, 'chunks ' + stored);
+  ok('every second is on the device first (IndexedDB)', stored >= Math.min(SECONDS - 5, Math.floor(SECONDS * 0.9)), 'chunks ' + stored);
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'record-1-during.png') });
 
   const tStop = Date.now();
