@@ -5,6 +5,13 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🎥 v1.208.0 — Live class: only the worksheet, recorded to the cloud, opened at lesson time
+
+- **Students see the worksheet, not your screen.** 🖥 Share worksheet shares only the worksheet area: no toolbar, no left bar, and not the live class window, so the 📋 Answers panel you open stays private. Your camera is ONE small tile in the corner. (Chrome and Edge: choose “This tab”.)
+- **Every lesson is recorded and saved to Ans Key's cloud while it runs.** About every 30 seconds a piece goes up; every second is kept on the computer first. When you press End the rest goes up in the background, so you can start the next lesson straight away (a small “☁ Uploading” badge shows bottom left). If the browser closes, it finishes the next time Ans Key opens on that computer. The video is put on each worksheet you used, with every other account, and is listed under 📼 Recordings on the start screen. ⏺ on the bar turns recording off or on.
+- **Students can't join before their lesson.** A P6 student opening the link during the P5 lesson sees “Your lesson starts at 5:00pm” and a countdown; they get in by themselves 10 minutes before (change the minutes on the start screen), or straight away when you press 🚪 Let students in now.
+- **Cheaper video:** student and teacher cameras are smaller and lighter; the worksheet is sharper but sent only a few times a second (a page hardly moves). Students can hide their own video from their own screen (🙂 / 🙈) — you still see them.
+
 ## 🎥 v1.207.0 — Live class: teach on video inside Ans Key
 
 - **🎥 Live class** (beside Live cams) starts a video class inside the app, on LiveKit. Pick the lesson time, press Start, and share the link `…/anskey/?live` (the window shows it with a Copy button). Students open it on an iPad, phone or computer.

@@ -33,6 +33,8 @@ const ROSTER = {
   'schedule_config/main': { slots: { 'WED-2': { level: 'P5', subject: 'Science' }, 'FRI-2': { level: 'P6', subject: 'Science' } } }
 };
 const SLOT = 'WED-2';
+// Wednesday 13 January 2027, 4:55pm in Singapore: five minutes before WED-2.
+const WED_1655 = Date.UTC(2027, 0, 13, 8, 55);
 function fakeDb(initial = ROSTER) {
   const store = new Map(Object.entries(initial));
   const writes = [];
@@ -74,7 +76,7 @@ function fakeLiveKit() {
   return { calls, fetchImpl, setParticipants: p => { participants = p; }, refuse: s => { refuse = s; } };
 }
 
-function harness({ db = fakeDb(), user = teacherUser, appId = APP_ID, lk = fakeLiveKit(), clock = { t: 1_800_000_000_000 } } = {}) {
+function harness({ db = fakeDb(), user = teacherUser, appId = APP_ID, lk = fakeLiveKit(), clock = { t: WED_1655 } } = {}) {
   const reports = [];
   const current = { user };
   const service = lc.createLiveClassService({
@@ -414,4 +416,90 @@ test('a failed mirror write never refuses the class', async () => {
   const res = await h.call({ action: 'open' });
   assert.equal(res.statusCode, 200);
   assert.ok(h.reports.includes('live_class_mirror_failed'));
+});
+
+test('🚪 the lesson-time gate: Singapore time, early minutes, other days', () => {
+  const c = lc.sgClock(WED_1655);
+  assert.equal(c.code, 'WED');
+  assert.equal(c.minutes, 16 * 60 + 55);
+  assert.deepEqual(lc.slotTimes('SAT-2'), { code: 'SAT', dayName: 'Saturday', start: 660, end: 765, startLabel: '11:00am', endLabel: '12:45pm' });
+  assert.equal(lc.clockLabel(16 * 60 + 50), '4:50pm');
+  assert.equal(lc.clockLabel(9 * 60), '9:00am');
+  assert.equal(lc.joinGate('WED-2', WED_1655, 10).open, true, 'inside the ten minutes');
+  const early = lc.joinGate('WED-2', WED_1655, 4);
+  assert.equal(early.open, false);
+  assert.equal(early.reason, 'early');
+  assert.equal(early.startsAt, Date.UTC(2027, 0, 13, 9, 0));
+  assert.equal(early.opensAt, Date.UTC(2027, 0, 13, 8, 56));
+  assert.match(early.message, /starts at 5:00pm\. You can join from 4:56pm/);
+  assert.equal(lc.joinGate('WED-2', Date.UTC(2027, 0, 13, 13, 30), 10).open, true, 'a lesson running over is still open');
+  const fri = lc.joinGate('FRI-2', WED_1655, 10);
+  assert.equal(fri.reason, 'other_day');
+  assert.equal(fri.startsAt, Date.UTC(2027, 0, 15, 9, 0));
+  assert.match(fri.message, /Friday at 5:00pm/);
+  assert.equal(lc.joinGate('FRI-2', WED_1655, 10, true).open, true, 'the teacher let them in');
+  assert.equal(lc.joinGate('', WED_1655, 10).open, true, 'no slot, no gate');
+  assert.equal(lc.cleanEarly(-5), 0);
+  assert.equal(lc.cleanEarly(999), lc.EARLY_MAX);
+  assert.equal(lc.cleanEarly('x'), lc.EARLY_DEFAULT);
+  assert.deepEqual(lc.cleanSettings(null), { earlyMin: 10 });
+  const later = lc.laterLessonToday({ slots: ['WED-3', 'SAT-1'] }, 'WED-2', WED_1655, 10, {});
+  assert.equal(later.slot, 'WED-3');
+  assert.match(later.message, /starts at 7:00pm/);
+  assert.equal(lc.laterLessonToday({ slots: ['WED-1', 'SAT-1'] }, 'WED-2', WED_1655, 10, {}), null, 'an earlier lesson today is no reason to wait');
+});
+
+test('🚪 a student waits for the lesson time; the teacher can let them in', async () => {
+  const clock = { t: Date.UTC(2027, 0, 13, 8, 30) };   // 4:30pm Wednesday
+  const db = fakeDb(ROSTER);
+  const h = harness({ db, clock });
+  await h.call(KEYS);
+  const opened = await h.call({ action: 'open', slot: SLOT });
+  assert.equal(opened.body.gate.open, false, 'the teacher sees the door is still shut');
+  const roster = await h.call({ action: 'roster' }, { as: anonUser });
+  assert.equal(roster.statusCode, 200);
+  assert.equal(roster.body.gate.open, false);
+  assert.equal(roster.body.students.length, 0, 'no names before the lesson time');
+  assert.equal(roster.body.gate.opensAt, Date.UTC(2027, 0, 13, 8, 50));
+  const st = await h.call({ action: 'status' }, { as: anonUser });
+  assert.equal(st.body.gate.open, false);
+  const tok = await h.call({ action: 'token', pick: { kind: 'roster', id: 'famA_sA1' } }, { as: anonUser });
+  assert.equal(tok.statusCode, 403);
+  assert.equal(tok.body.error.code, 'not_yet');
+  assert.match(tok.body.error.message, /4:50pm/);
+  // The teacher changes how early students may come in.
+  assert.equal((await h.call({ action: 'settings', earlyMin: 45 }, { as: anonUser })).body.error.code, 'teacher_only');
+  const set = await h.call({ action: 'settings', earlyMin: 45 }, { as: teacherUser });
+  assert.equal(set.body.settings.earlyMin, 45);
+  assert.equal(set.body.gate.open, true);
+  assert.equal((await h.call({ action: 'status' }, { as: teacherUser })).body.settings.earlyMin, 45, 'kept for the next class');
+  await h.call({ action: 'settings', earlyMin: 10 }, { as: teacherUser });
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'roster', id: 'famA_sA1' } }, { as: anonUser })).body.error.code, 'not_yet');
+  // Let them in now.
+  assert.equal((await h.call({ action: 'letin', on: true }, { as: anonUser })).body.error.code, 'teacher_only');
+  const li = await h.call({ action: 'letin', on: true }, { as: teacherUser });
+  assert.equal(li.body.letIn, true);
+  assert.equal(db.store.get('liveClassRooms/main').letIn, true, 'the mirror tells waiting students to look again');
+  const ok = await h.call({ action: 'token', pick: { kind: 'roster', id: 'famA_sA1' } }, { as: anonUser });
+  assert.equal(ok.statusCode, 200);
+  // A new class starts with the door shut again.
+  await h.call({ action: 'open', slot: SLOT, fresh: true }, { as: teacherUser });
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'roster', id: 'famA_sA1' } }, { as: anonUser })).body.error.code, 'not_yet');
+});
+
+test('🚪 a make-up pick whose own lesson is later today is told to wait for it', async () => {
+  const roster = JSON.parse(JSON.stringify(ROSTER));
+  roster['officeFamilies/famC'].students[1].classes = [{ slotId: 'WED-3' }];
+  const db = fakeDb(roster);
+  const h = harness({ db });
+  await h.call(KEYS);
+  await h.call({ action: 'open', slot: SLOT });
+  const mk = await h.call({ action: 'token', pick: { kind: 'makeup', id: 'famC_sC2' } }, { as: anonUser });
+  assert.equal(mk.statusCode, 403);
+  assert.equal(mk.body.error.code, 'not_yet');
+  assert.match(mk.body.error.message, /Your lesson today .* starts at 7:00pm/);
+  const other = await h.call({ action: 'token', pick: { kind: 'makeup', id: 'famC_sC1' } }, { as: anonUser });
+  assert.equal(other.statusCode, 200, 'a Friday child may make up on Wednesday');
+  await h.call({ action: 'letin', on: true }, { as: teacherUser });
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'makeup', id: 'famC_sC2' } }, { as: anonUser })).statusCode, 200, 'the teacher can still let them in');
 });

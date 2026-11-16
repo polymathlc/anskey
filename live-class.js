@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.207.0';
+  var VERSION = '1.208.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended' };
@@ -472,11 +472,29 @@
     q = str(q).toLowerCase();
     return q === 'excellent' ? 'Strong' : q === 'good' ? 'Good' : q === 'poor' ? 'Weak' : q === 'lost' ? 'Lost' : '';
   }
-  // Per-role publishing choices. Students on weak wifi send a small picture;
-  // the teacher's camera and screen get more.
+  // 💸 What each device sends (v1.208.0). LiveKit bills the data every
+  // student RECEIVES, so the plan spends it where it is read:
+  //   - the WORKSHEET is the lesson: sharp (its own resolution, a high bit
+  //     rate, `contentHint: 'text'`, resolution kept over frame rate) but only
+  //     5 frames a second, because a page being written on needs no more. A
+  //     second layer (720p, 3 frames a second) is what a student on weak
+  //     wifi falls back to.
+  //   - every CAMERA is a small tile, so it is sent small: the teacher's at
+  //     320×180, a student's at 320×240 (160×120 on low data), each ONE
+  //     layer — there is nothing smaller worth switching down to. Students'
+  //     cameras stay ON; only the teacher receives them.
+  //   - voices at the speech preset (24 kbps, with DTX: silence costs nothing).
+  var SCREEN = { fps: 5, bps: 1400000, low: { w: 1280, h: 720, fps: 3, bps: 350000 } };
   function publishPlan(role, lowData) {
-    if (role === 'teacher') return { camera: 'h540', layers: ['h180', 'h360'], screen: 'h1080fps15', screenLayers: ['h720fps5'] };
-    return lowData ? { camera: 'h180', layers: ['h90'] } : { camera: 'h360', layers: ['h90', 'h180'] };
+    if (role === 'teacher') return { camera: { w: 320, h: 180, fps: 15, bps: 150000 }, screen: SCREEN, audioBps: 24000 };
+    return { camera: lowData ? { w: 160, h: 120, fps: 8, bps: 45000 } : { w: 320, h: 240, fps: 12, bps: 110000 }, screen: null, audioBps: 24000 };
+  }
+  // Roughly what one student receives in a minute, in megabytes, at the
+  // ceilings above (a still page costs far less than its ceiling).
+  function minuteMB(plan, opts) {
+    opts = opts || {};
+    var bps = (opts.camera === false ? 0 : plan.camera.bps) + (opts.screen === false || !plan.screen ? 0 : plan.screen.bps) + plan.audioBps;
+    return Math.round(bps * 60 / 8 / 1e6 * 10) / 10;
   }
   // Which remote tracks a student's device receives. The teacher always;
   // classmates only when asked; in low-data mode the teacher's CAMERA is
@@ -501,10 +519,16 @@
       return words.every(function (w) { return parts.some(function (p) { return p.indexOf(w) === 0; }); });
     });
   }
+  // What the teacher's browser is asked for when the worksheet is shared:
+  // THIS tab (the worksheet is in it), at the worksheet's low frame rate.
+  function shareConstraints() {
+    return { video: { displaySurface: 'browser', frameRate: { ideal: SCREEN.fps, max: SCREEN.fps } }, audio: false,
+      preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude', monitorTypeSurfaces: 'exclude' };
+  }
   function cleanPrefs(p) {
     p = p && typeof p === 'object' ? p : {};
     return { classmates: p.classmates === true, lowData: p.lowData === true, mirror: p.mirror !== false, autoLow: p.autoLow !== false,
-      cameraOff: p.cameraOff === true, lastKind: KINDS.indexOf(p.lastKind) !== -1 ? p.lastKind : 'mcq' };
+      cameraOff: p.cameraOff === true, record: p.record !== false, hideSelf: p.hideSelf === true, lastKind: KINDS.indexOf(p.lastKind) !== -1 ? p.lastKind : 'mcq' };
   }
 
   var pure = {
@@ -517,7 +541,8 @@
     emptySession: emptySession, personJoined: personJoined, personLeft: personLeft, minutesPresent: minutesPresent,
     recordAnswer: recordAnswer, markOf: markOf, questionStats: questionStats, roster: roster,
     participation: participation, participationLine: participationLine, reportText: reportText, reportHtml: reportHtml,
-    gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, wantTrack: wantTrack,
+    gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, minuteMB: minuteMB, SCREEN: SCREEN, wantTrack: wantTrack,
+    shareConstraints: shareConstraints,
     filterNames: filterNames, cleanPrefs: cleanPrefs, roleOfIdentity: roleOfIdentity, validIdentity: validIdentity,
     randomId: randomId, fmtDate: fmtDate, oneLine: oneLine
   };
@@ -861,7 +886,34 @@
       }
       row.appendChild(btn('', '⚙ Keys', 'Change the LiveKit keys', function () { paintSetup(false); }));
       card.appendChild(row);
+      // Settings that outlive one class: how early students may come in, and
+      // whether the class is recorded.
+      var opts = el('div', 'vcOpts');
+      var early = el('label', 'vcOpt');
+      early.appendChild(el('span', null, '🚪 Students can join'));
+      var earlyIn = el('input');
+      earlyIn.type = 'number'; earlyIn.min = '0'; earlyIn.max = '120'; earlyIn.step = '5'; earlyIn.className = 'vcEarly';
+      earlyIn.value = String(st.settings && st.settings.earlyMin !== undefined ? st.settings.earlyMin : 10);
+      early.appendChild(earlyIn);
+      early.appendChild(el('span', null, 'minutes before their lesson starts'));
+      earlyIn.addEventListener('change', function () {
+        var n = Math.max(0, Math.min(120, Math.round(Number(earlyIn.value) || 0)));
+        earlyIn.value = String(n);
+        call('settings', { earlyMin: n }).then(function (r) {
+          S.status = Object.assign({}, S.status || {}, { settings: r.settings });
+          say('Students can now join ' + r.settings.earlyMin + ' minute' + (r.settings.earlyMin === 1 ? '' : 's') + ' before their lesson.');
+        }, function (e) { say((e && e.message) || 'That setting could not be saved.'); });
+      });
+      opts.appendChild(early);
+      var recLab = el('label', 'vcOpt');
+      var recBox = el('input'); recBox.type = 'checkbox'; recBox.checked = S.prefs.record !== false; recBox.className = 'vcRecPref';
+      recBox.addEventListener('change', function () { S.prefs.record = recBox.checked; savePrefs(); });
+      recLab.appendChild(recBox);
+      recLab.appendChild(el('span', null, '⏺ Record the class (saved to Ans Key and put on the worksheet you teach from)'));
+      opts.appendChild(recLab);
+      card.appendChild(opts);
       S.body.appendChild(card);
+      paintRecordings(card);
       Promise.resolve(typeof env.slots === 'function' ? env.slots() : []).then(function (slots) {
         clear(sel);
         var list = Array.isArray(slots) ? slots : [];
@@ -877,6 +929,52 @@
           sel.appendChild(o);
         });
       }, function () { clear(sel); sel.appendChild(new Option('The class list could not be loaded', '')); });
+    }
+    // 📼 The classes recorded so far: from the lesson records (every device of
+    // the teacher's), and this device's uploads still on their way.
+    function paintRecordings(card) {
+      if (typeof env.recordings !== 'function') return;
+      var sec = el('div', 'vcRecs');
+      sec.appendChild(el('h4', null, '📼 Recordings'));
+      var list = el('div', 'vcRecList');
+      list.appendChild(el('p', 'vcMuted', 'Loading…'));
+      sec.appendChild(list);
+      card.appendChild(sec);
+      var seq = S.seq;
+      Promise.resolve(env.recordings()).then(function (rows) {
+        if (seq !== S.seq || S.mode !== 'start') return;
+        var local = env.recorder && typeof env.recorder.status === 'function' ? env.recorder.status() : [];
+        clear(list);
+        var items = [];
+        (Array.isArray(rows) ? rows : []).forEach(function (r) {
+          (Array.isArray(r.videos) && r.videos.length ? r.videos : [null]).forEach(function (v) { items.push({ r: r, v: v }); });
+        });
+        local.forEach(function (j) {
+          if (j.state === 'done') return;
+          if (!items.some(function (it) { return it.v && it.v.id === j.id; })) items.push({ r: { epoch: j.epoch, slotLabel: j.slotLabel, startedAt: j.startedAt }, v: null, job: j });
+        });
+        items.sort(function (a, b) { return ((b.v && b.v.startedAt) || b.r.startedAt || 0) - ((a.v && a.v.startedAt) || a.r.startedAt || 0); });
+        items = items.slice(0, 12);
+        if (!items.length) { list.appendChild(el('p', 'vcMuted', 'No class has been recorded yet. Recordings appear here and on the worksheet.')); return; }
+        items.forEach(function (it) {
+          var row = el('div', 'vcRecRow');
+          var when = (it.v && it.v.startedAt) || it.r.startedAt;
+          row.appendChild(el('span', 'vcRecWhen', fmtDate(when) + ' · ' + new Date(when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })));
+          row.appendChild(el('span', 'vcRecWhat', it.r.slotLabel || 'Live class'));
+          var job = it.job || local.filter(function (j) { return it.v === null && j.epoch === it.r.epoch && j.state !== 'done'; })[0];
+          if (it.v && it.v.url) {
+            row.appendChild(el('span', 'vcMuted', fmtRecClock(it.v.durationMs || 0)));
+            var a = el('a', 'vcBtn', '▶ Watch'); a.href = it.v.url; a.target = '_blank'; a.rel = 'noopener';
+            row.appendChild(a);
+            row.appendChild(btn('', '⧉ Link', 'Copy the video link', function () { copyText(it.v.url).then(function () { say('Video link copied.'); }); }));
+          } else if (job) {
+            row.appendChild(el('span', 'vcRecUp', job.recording ? '⏺ recording now' : '☁ uploading from this device · ' + job.percent + '%'));
+          } else {
+            row.appendChild(el('span', 'vcMuted', 'not recorded'));
+          }
+          list.appendChild(row);
+        });
+      }, function () { if (seq === S.seq) { clear(list); list.appendChild(el('p', 'vcMuted', 'The recordings could not be loaded.')); } });
     }
     function copyText(text) {
       if (root.navigator && navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).catch(function () { return fallbackCopy(text); });
@@ -897,6 +995,7 @@
       call('open', { slot: slot || '', fresh: !!fresh }).then(function (res) {
         if (seq !== S.seq || !isTeacher()) return;
         S.slot = res.slot || slot || ''; S.epoch = res.epoch; S.room_name = res.room;
+        S.door = res.gate ? Object.assign({}, res.gate, { skew: Number(res.gate.now) ? Number(res.gate.now) - now() : 0 }) : null;
         S.slotLabel = res.slotLabel || slotLabelOf(S.slot);
         return loadSession(res).then(function () { return connect(res); });
       }).catch(function (e) {
@@ -981,7 +1080,39 @@
           if (b) b.classList.toggle('vcLiveNow', open);
         }
         if (S.role === 'student' && S.mode === 'wait' && open) openStudent();
+        // The teacher pressed "Let students in now", or started another class.
+        if (S.role === 'student' && S.mode === 'gate' && (!open || m.letIn || Number(m.epoch) !== Number(S.gateEpoch))) openStudent();
       });
+    }
+    // 🚪 Too early for this lesson: when it starts, when the door opens, and
+    // a count down to it. The door is the server's; this only waits for it.
+    function paintGate(res) {
+      var g = res.gate || {};
+      S.mode = 'gate';
+      S.gateEpoch = res.epoch;
+      placeWindow();
+      clear(S.body);
+      var box = el('div', 'vcCenter vcWait vcGateCard');
+      box.appendChild(el('div', 'vcBig', '⏳'));
+      box.appendChild(el('h3', null, g.reason === 'other_day' ? 'This class is not on today' : 'Your lesson has not started yet'));
+      if (res.slotLabel) box.appendChild(el('p', 'vcMsg', res.slotLabel));
+      box.appendChild(el('p', 'vcMuted', g.message || 'Your teacher will let you in soon.'));
+      var count = el('p', 'vcCountdown');
+      box.appendChild(count);
+      box.appendChild(btn('', 'Check again', null, openStudent));
+      S.body.appendChild(box);
+      // Counted on the SERVER's clock (a device clock can be wrong by hours).
+      var skew = Number(g.now) ? Number(g.now) - now() : 0;
+      var tick = function () {
+        if (S.mode !== 'gate') return;
+        var left = Number(g.opensAt) - (now() + skew);
+        if (left <= 0) { openStudent(); return; }
+        var mins = Math.ceil(left / 60000);
+        count.textContent = left < 120000 ? 'Opening in ' + Math.ceil(left / 1000) + ' s' : mins < 120 ? 'Opening in ' + mins + ' min' : '';
+        clearTimeout(S.waitTimer);
+        S.waitTimer = setTimeout(tick, left < 120000 ? 1000 : 20000);
+      };
+      tick();
     }
     function paintWait() {
       S.mode = 'wait';
@@ -1001,6 +1132,7 @@
       var seq = ++S.seq;
       call('roster').then(function (res) {
         if (seq !== S.seq) return;
+        if (res.gate && res.gate.open === false) return paintGate(res);
         S.lists = res;
         S.slot = res.slot || '';
         var last = readJson(local(), PICK_KEY, null);
@@ -1143,6 +1275,9 @@
         if (seq !== S.seq) return;
         if (e && e.code === 'already_in') return paintAlreadyIn(pick, e.message);
         if (e && e.code === 'class_closed') return paintWait();
+        // Before the lesson time: the roster says when (a make-up child's own
+        // lesson later today is told in words, with the list to go back to).
+        if (e && e.code === 'not_yet' && pick.kind !== 'makeup') return loadRoster();
         S.mode = 'pick';
         paintError(e, function () { paintPick(); });
       });
@@ -1176,28 +1311,18 @@
         if (p && p.catch) p.catch(function () {});
       } catch (e) {}
     }
-    function preset(LK, name, screen) {
-      var table = screen ? LK.ScreenSharePresets : LK.VideoPresets;
-      return table && table[name] ? table[name] : null;
-    }
     function roomOptions(LK) {
       var plan = publishPlan(S.role, S.prefs.lowData);
-      var cam = preset(LK, plan.camera);
-      var layers = (plan.layers || []).map(function (n) { return preset(LK, n); }).filter(Boolean);
-      var publish = { simulcast: true, videoCodec: 'vp8', red: true, dtx: true, stopMicTrackOnMute: false };
-      if (layers.length) publish.videoSimulcastLayers = layers;
-      if (cam) publish.videoEncoding = cam.encoding;
-      if (plan.screen) {
-        var sc = preset(LK, plan.screen, true);
-        if (sc) publish.screenShareEncoding = sc.encoding;
-        var sl = (plan.screenLayers || []).map(function (n) { return preset(LK, n, true); }).filter(Boolean);
-        if (sl.length) publish.screenShareSimulcastLayers = sl;
-      }
+      var c = plan.camera;
+      // One small camera layer: simulcast would only add a smaller copy nobody needs.
+      var publish = { simulcast: false, videoCodec: 'vp8', red: true, dtx: true, stopMicTrackOnMute: false,
+        videoEncoding: { maxBitrate: c.bps, maxFramerate: c.fps }, audioPreset: { maxBitrate: plan.audioBps } };
+      if (plan.screen) publish.screenShareEncoding = { maxBitrate: plan.screen.bps, maxFramerate: plan.screen.fps };
       return {
         adaptiveStream: true,
         dynacast: true,
         disconnectOnPageLeave: true,
-        videoCaptureDefaults: cam ? { resolution: cam.resolution } : undefined,
+        videoCaptureDefaults: { resolution: { width: c.w, height: c.h, frameRate: c.fps } },
         audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         publishDefaults: publish
       };
@@ -1276,6 +1401,7 @@
         clearInterval(S.resendTimer);
         S.resendTimer = setInterval(teacherTick, 5000);
         saveSoon();
+        if (S.prefs.record !== false) startRecording();
       }
       clearInterval(S.tick);
       S.tick = setInterval(function () { paintPresence(); }, 30000);
@@ -1382,6 +1508,8 @@
     }
 
     function disconnect() {
+      stopRecording(false);
+      stopShareTrack();
       stopTimers();
       var r = S.room; S.room = null;
       if (r) { try { r.disconnect(); } catch (e) {} }
@@ -1474,12 +1602,16 @@
       }));
       if (S.role === 'teacher') {
         var canShare = !!(root.navigator && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
-        if (canShare) S.bar.appendChild(ctl('vcShare', shareOn ? '🛑 Stop sharing' : '🖥 Share screen', shareOn ? 'Stop sharing your screen' : 'Share this tab or your screen with the class', shareOn, function () {
-          var opts = shareOn ? undefined : { audio: false, selfBrowserSurface: 'include', preferCurrentTab: true, surfaceSwitching: 'include', video: { displaySurface: 'browser' } };
-          Promise.resolve(lp.setScreenShareEnabled(!shareOn, opts)).catch(function (e) {
-            if (!/permission|notallowed|abort/i.test((e && (e.name + e.message)) || '')) say('Screen share: ' + ((e && e.message) || e));
-          }).then(function () { S.sharing = !!lp.isScreenShareEnabled; paintControls(); layout(); });
+        if (canShare) S.bar.appendChild(ctl('vcShare', shareOn ? '🛑 Stop sharing' : '🖥 Share worksheet', shareOn ? 'Stop sharing the worksheet' : 'Share the worksheet with the class — only the worksheet, never this window or the toolbars (choose “This tab”)', shareOn, function () {
+          if (shareOn) stopShare(); else startShare();
         }));
+        var rec = S.rec ? S.rec.info() : null;
+        S.bar.appendChild(ctl(rec ? 'vcRecOn' : '', rec ? '⏺ ' + fmtRecClock(rec.elapsed) + (rec.pieces ? ' · ☁ ' + rec.sent + '/' + rec.pieces : '') : '⏺ Record',
+          rec ? 'Recording the class to Ans Key — each half minute goes up as you teach. Press to stop recording.' : 'Record the class: it is saved to Ans Key\'s cloud and put on the worksheet', !!rec, function () {
+          if (S.rec) { stopRecording(true); S.prefs.record = false; savePrefs(); }
+          else { S.prefs.record = true; savePrefs(); startRecording(); }
+        }));
+        if (S.door && !S.door.open) S.bar.appendChild(ctl('vcDoor', '🚪 Let students in now', S.door.message ? 'Students are waiting: ' + S.door.message : 'Let students join before the lesson time', false, letIn));
         S.bar.appendChild(ctl('', '🔇 All', 'Mute every student’s microphone', false, function () {
           call('mute', { all: true }).then(function (r) { say(r.muted ? 'Muted ' + r.muted + ' microphone' + (r.muted === 1 ? '' : 's') + '.' : 'Every student is already muted.'); }, function (e) { say((e && e.message) || 'Could not mute.'); });
         }));
@@ -1495,6 +1627,9 @@
         }));
         S.bar.appendChild(ctl('', '👥', S.prefs.classmates ? 'Hide classmates' : 'See classmates', S.prefs.classmates, function () {
           S.prefs.classmates = !S.prefs.classmates; savePrefs(); applySubscriptions(); layout(); paintControls();
+        }));
+        S.bar.appendChild(ctl('', S.prefs.hideSelf ? '🙈' : '🙂', S.prefs.hideSelf ? 'Show my own video (your teacher still sees you)' : 'Hide my own video from my screen (your teacher still sees you)', !S.prefs.hideSelf, function () {
+          S.prefs.hideSelf = !S.prefs.hideSelf; savePrefs(); layout(); paintControls();
         }));
         S.bar.appendChild(ctl('', '📶', S.prefs.lowData ? 'Low data is on: the teacher’s camera is hidden so the screen and voice stay clear' : 'Low data: hide the teacher’s camera on weak wifi', S.prefs.lowData, function () {
           setLowData(!S.prefs.lowData, false);
@@ -1513,11 +1648,142 @@
       if (lp && lp.isCameraEnabled && S.LK && S.LK.VideoPresets) {
         try {
           var pub = lp.getTrackPublication(S.LK.Track.Source.Camera);
-          if (pub && pub.videoTrack && pub.videoTrack.restartTrack) pub.videoTrack.restartTrack({ resolution: (on ? S.LK.VideoPresets.h180 : S.LK.VideoPresets.h360).resolution }).catch(function () {});
+          var pc = publishPlan('student', on).camera;
+          if (pub && pub.videoTrack && pub.videoTrack.restartTrack) pub.videoTrack.restartTrack({ resolution: { width: pc.w, height: pc.h, frameRate: pc.fps } }).catch(function () {});
         } catch (e) {}
       }
       if (auto) say('Weak connection — low data is on, so the teacher’s screen and voice stay clear.');
       paintControls(); layout();
+    }
+
+
+    /* ---------- 🖥 sharing ONLY the worksheet (v1.208.0) ----------
+       The teacher's browser is asked for THIS tab, and the capture is then
+       narrowed to the worksheet itself (env.shareTarget(): #viewerArea):
+         - Element Capture (`restrictTo`, Chrome/Edge 132+) sends the worksheet
+           and NOTHING drawn over it — not this window, not the answers, not a
+           menu — so a student never sees the teacher open the responses.
+         - Region Capture (`cropTo`) where that is missing: the worksheet's
+           rectangle, which still shows anything moved on top of it, so the
+           teacher is told to keep this window off the page.
+         - Otherwise the whole tab, said in words.
+       The narrowing happens BEFORE the track is published, so not one frame
+       of the whole tab ever reaches a student. */
+    function limitShare(track, target) {
+      if (!target) return Promise.resolve('whole');
+      var crop = function () {
+        if (!root.CropTarget || !track.cropTo) return 'whole';
+        return root.CropTarget.fromElement(target).then(function (t) { return track.cropTo(t); }).then(function () { return 'crop'; }, function () { return 'whole'; });
+      };
+      if (root.RestrictionTarget && track.restrictTo) {
+        return root.RestrictionTarget.fromElement(target).then(function (t) { return track.restrictTo(t); }).then(function () { return 'element'; }, crop);
+      }
+      return Promise.resolve(crop());
+    }
+    function startShare() {
+      if (!isTeacher() || !S.room || S.shareTrack) return;
+      var md = root.navigator && navigator.mediaDevices;
+      if (!md || !md.getDisplayMedia) { say('This browser cannot share the screen.'); return; }
+      var room = S.room, LK = S.LK;
+      var target = typeof env.shareTarget === 'function' ? env.shareTarget() : null;
+      if (target && root.document) document.body.classList.add('vcShareArea');
+      // Asked inside the tap: the browser only allows a share from a press.
+      md.getDisplayMedia(shareConstraints()).then(function (stream) {
+        var track = stream.getVideoTracks()[0];
+        if (!track) throw new Error('No picture came back from the share.');
+        if (S.room !== room || !isTeacher()) { track.stop(); return; }
+        try { track.contentHint = 'text'; } catch (e) {}
+        return limitShare(track, target).then(function (how) {
+          if (S.room !== room || !isTeacher()) { track.stop(); return; }
+          S.shareHow = how;
+          var opts = { source: LK.Track.Source.ScreenShare, name: 'worksheet', videoCodec: 'vp8', simulcast: true,
+            degradationPreference: 'maintain-resolution', screenShareEncoding: { maxBitrate: SCREEN.bps, maxFramerate: SCREEN.fps } };
+          if (LK.VideoPreset) opts.screenShareSimulcastLayers = [new LK.VideoPreset(SCREEN.low.w, SCREEN.low.h, SCREEN.low.bps, SCREEN.low.fps)];
+          return room.localParticipant.publishTrack(track, opts).then(function () {
+            S.shareTrack = track;
+            S.sharing = true;
+            track.addEventListener('ended', function () { if (S.shareTrack === track) stopShare(); });
+            if (how === 'crop') say('Sharing the worksheet. This browser also shares whatever is moved over it, so keep this window to one side.');
+            else if (how === 'whole') say(target ? 'Sharing the whole tab: choose “This tab” in Chrome or Edge to share only the worksheet.' : 'Sharing the screen.');
+            paintControls(); layout();
+          });
+        }).catch(function (e) { try { track.stop(); } catch (x) {} throw e; });
+      }).catch(function (e) {
+        if (!S.shareTrack && root.document) document.body.classList.remove('vcShareArea');
+        if (!/permission|notallowed|abort/i.test((e && (e.name + e.message)) || '')) say('Sharing: ' + ((e && e.message) || e));
+      });
+    }
+    function stopShareTrack() {
+      var t = S.shareTrack;
+      S.shareTrack = null; S.sharing = false; S.shareHow = '';
+      if (root.document) document.body.classList.remove('vcShareArea');
+      if (!t) return;
+      try { if (S.room && S.room.localParticipant) S.room.localParticipant.unpublishTrack(t); } catch (e) {}
+      try { t.stop(); } catch (e) {}
+    }
+    function stopShare() { stopShareTrack(); paintControls(); layout(); }
+
+    /* ---------- 🚪 the lesson-time door ---------- */
+    function letIn() {
+      if (!isTeacher()) return;
+      call('letin', { on: true }).then(function (res) {
+        S.door = res.gate ? Object.assign({}, res.gate, { skew: Number(res.gate.now) ? Number(res.gate.now) - now() : 0 }) : { open: true };
+        say('Students can join now.');
+        paintControls();
+      }, function (e) { say((e && e.message) || 'Could not let students in.'); });
+    }
+
+    /* ---------- 📼 recording the class (live-class-record.js does the work) ---------- */
+    function fmtRecClock(ms) {
+      var sec = Math.floor(ms / 1000), h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), r = sec % 60;
+      return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(r).padStart(2, '0');
+    }
+    function startRecording() {
+      if (!isTeacher() || !S.room || S.rec || S.recStarting || !env.recorder || typeof env.recorder.start !== 'function') return;
+      S.recStarting = true;
+      var room = S.room;
+      Promise.resolve(env.recorder.start({ uid: typeof env.teacherUid === 'function' ? env.teacherUid() : '', epoch: S.epoch, slot: S.slot, slotLabel: S.slotLabel || '' }))
+        .then(function (h) {
+          S.recStarting = false;
+          if (!h) return;
+          if (S.room !== room || !isTeacher()) { h.stop(); return; }
+          S.rec = h;
+          syncRecorder(); paintControls();
+        }, function (e) {
+          S.recStarting = false;
+          say('The class is not being recorded: ' + ((e && e.message) || e));
+          paintControls();
+        });
+    }
+    function stopRecording(tell) {
+      var h = S.rec;
+      S.rec = null; S.recKeys = {};
+      if (!h) return;
+      h.stop();
+      if (tell) say('Recording stopped. It is finishing its upload in the background — you can carry on.');
+      paintControls();
+    }
+    // Every picture and voice the recording should hold, asked afresh each
+    // time (a restarted camera or microphone is a new track).
+    function syncRecorder() {
+      var h = S.rec;
+      if (!h || !S.room || !S.LK) return;
+      var T = S.LK.Track.Source, lp = S.room.localParticipant;
+      var trackOf = function (pub, muted) { return pub && pub.track && !(muted && pub.isMuted) ? pub.track.mediaStreamTrack : null; };
+      try {
+        h.setVideo('camera', trackOf(lp.getTrackPublication(T.Camera), true));
+        h.setVideo('screen', S.shareTrack || trackOf(lp.getTrackPublication(T.ScreenShare), false));
+        h.setAudio('self', trackOf(lp.getTrackPublication(T.Microphone), false));
+        var keys = {};
+        S.room.remoteParticipants.forEach(function (p) {
+          var a = p.getTrackPublication(T.Microphone);
+          var t = a && a.isSubscribed ? trackOf(a, false) : null;
+          if (t) { keys[p.identity] = true; h.setAudio(p.identity, t); }
+        });
+        Object.keys(S.recKeys || {}).forEach(function (k) { if (!keys[k]) h.setAudio(k, null); });
+        S.recKeys = keys;
+        if (typeof env.currentDoc === 'function') h.noteDoc(env.currentDoc());
+      } catch (e) {}
     }
 
     function showAudioGate(on) {
@@ -1606,6 +1872,7 @@
         a.dataset.vcKey = key;
         S.audioBox.appendChild(a);
         S.mediaEls[key] = { el: a, track: track };
+        syncRecorder();
         return;
       }
       var v = track.attach();
@@ -1712,6 +1979,7 @@
         S.pip.hidden = true;
         S.strip.hidden = true;
         S.stage.classList.toggle('sharing', !!S.sharing);
+        syncRecorder();
         return;
       }
       // Student: the teacher's screen big, the teacher's camera small beside
@@ -1729,8 +1997,9 @@
       }
       S.main.classList.toggle('screen', !!screen);
       if (screen && cam) { put(S.pip, cam); S.pip.hidden = false; } else S.pip.hidden = true;
-      if (selfCam) put(S.self, selfCam);
-      S.self.hidden = !selfCam;
+      if (selfCam && !S.prefs.hideSelf) put(S.self, selfCam);
+      else if (selfCam && selfCam.parentNode) selfCam.remove();
+      S.self.hidden = !selfCam || S.prefs.hideSelf;
       // Classmates
       var classmates = [];
       if (S.room && S.prefs.classmates && !S.prefs.lowData) {
@@ -1898,6 +2167,10 @@
     function teacherTick() {
       // Pictures that only partly arrived are dropped after a few minutes.
       S.assembler.sweep(5 * 60 * 1000);
+      syncRecorder();
+      // The lesson's time arrived: the door opened by itself.
+      if (S.door && !S.door.open && Number(S.door.opensAt) && now() + (S.door.skew || 0) >= Number(S.door.opensAt)) { S.door = { open: true }; paintControls(); }
+      else if (S.rec) paintControls();
     }
     function currentQuestion() {
       if (!S.session) return null;
@@ -2975,7 +3248,7 @@
       roleChanged: roleChanged,
       isOpen: function () { return S.mode !== 'closed'; },
       isLive: function () { return S.mode === 'live'; },
-      state: function () { return { mode: S.mode, role: S.role, identity: S.identity, slot: S.slot, epoch: S.epoch, session: S.session ? JSON.parse(JSON.stringify(S.session)) : null }; }
+      state: function () { return { mode: S.mode, role: S.role, identity: S.identity, slot: S.slot, epoch: S.epoch, sharing: !!S.shareTrack, shareHow: S.shareHow || '', recording: !!S.rec, session: S.session ? JSON.parse(JSON.stringify(S.session)) : null }; }
     };
   }
 

@@ -139,13 +139,46 @@ const USERS = {
   s4: { uid: 'anon-s4', firebase: { sign_in_provider: 'anonymous' } }
 };
 const reports = [];
+// The class is Wednesday 5pm (WED-2). The server's clock starts at 4:30pm
+// Singapore time, so the door is shut until the teacher lets them in.
+const CLOCK_BASE = Date.UTC(2027, 0, 13, 8, 30), CLOCK_T0 = Date.now();
+const clock = () => CLOCK_BASE + (Date.now() - CLOCK_T0);
 const service = lcServer.createLiveClassService({
   auth: { async verifyIdToken(tok) { const u = USERS[tok]; if (!u) throw new Error('bad token'); return u; },
     async getUserByEmail() { return { uid: 'teacher', emailVerified: true }; } },
   appCheck: { async verifyToken() { return { appId: APP_ID }; } },
-  db: fakeDb, master: () => 'master-secret-from-secret-manager-0123456789', fetchImpl: fetch, now: () => Date.now(),
+  db: fakeDb, master: () => 'master-secret-from-secret-manager-0123456789', fetchImpl: fetch, now: () => Date.now(), lessonClock: clock,
   report: (code, err) => { reports.push(code + ': ' + (err && err.message)); }
 });
+
+/* ---------------- the recording's cloud: a bucket in memory + the real compose ---------------- */
+const objects = new Map();
+const bucket = {
+  name: 'mathgen--app.firebasestorage.app',
+  file(name) {
+    return {
+      name,
+      async exists() { return [objects.has(name)]; },
+      async getMetadata() { const o = objects.get(name); if (!o) throw new Error('No such object'); return [{ size: String(o.data.length), metadata: o.meta.metadata }]; },
+      async setMetadata(meta) { const o = objects.get(name); Object.assign(o.meta, meta); return [o.meta]; },
+      async delete() { objects.delete(name); return []; }
+    };
+  },
+  async combine(sources, dest) {
+    const data = Buffer.concat(sources.map(x => objects.get(x.name).data));
+    objects.set(dest.name, { data, meta: (objects.get(dest.name) || {}).meta || {} });
+    return [dest];
+  }
+};
+const composer = require('./lesson-compose').createLessonComposeService({
+  auth: { async verifyIdToken() { return { uid: 'teacher', email: TEACHER_EMAIL, email_verified: true }; },
+    async getUserByEmail() { return { uid: 'teacher', emailVerified: true }; } },
+  appCheck: { async verifyToken() { return { appId: APP_ID }; } },
+  bucket, makeToken: () => 'tok-check'
+});
+const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const fStart = html.indexOf('var LessonAudioFinalize = (function () {');
+const FINALIZER = html.slice(fStart, html.indexOf('\n})();', fStart) + 6) + '\nwindow.LessonAudioFinalize = LessonAudioFinalize;\n';
 
 /* ---------------- the pages ---------------- */
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
@@ -162,6 +195,8 @@ body { margin:0; font-family: var(--font); background:#eceae6; height:100vh; }
 <button id="liveClassBtn">🎥 Live class</button>
 <div id="viewerArea"><h1 style="padding:40px">Worksheet page</h1></div>
 <script src="/vendor/livekit-client.umd.js"></script>
+<script src="/lessonfinal.js"></script>
+<script src="/live-class-record.js"></script>
 <script src="/live-class.js"></script>
 <script>
 var who = new URLSearchParams(location.search).get('who');
@@ -173,7 +208,23 @@ function call(action, body) {
       return d;
     }); });
 }
+window.recSaved = [];
+var recorder = who === 'teacher' ? LiveClassRecord.create({
+  toast: function (m) { window.toasts.push(m); },
+  put: function (p, blob, type) { return fetch('/put?path=' + encodeURIComponent(p), { method: 'PUT', body: blob }).then(function (r) { if (!r.ok) throw new Error('put'); }); },
+  compose: function (req) { return fetch('/compose', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) }).then(function (r) { return r.json(); }); },
+  plan: function (b, ms) { return LessonAudioFinalize.plan(b, ms); },
+  finishWhole: function (b) { return b; },
+  saved: function (job, res) { window.recSaved.push({ id: job.id, path: res.path, durationMs: job.durationMs, docs: job.docs }); return Promise.resolve(); },
+  canUpload: function () { return true; },
+  currentDoc: function () { return { id: 'ws1', name: 'Worksheet 1' }; }
+}) : null;
 window.lc = LiveClass.create({
+  shareTarget: function () { return document.getElementById('viewerArea'); },
+  recorder: recorder,
+  teacherUid: function () { return 'teacher'; },
+  currentDoc: function () { return { id: 'ws1', name: 'Worksheet 1' }; },
+  recordings: function () { return Promise.resolve([]); },
   role: function () { return who === 'teacher' ? 'teacher' : 'student'; },
   call: call,
   toast: function (m) { window.toasts.push(m); },
@@ -208,6 +259,21 @@ const web = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/' || url.pathname === '/harness.html') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(HARNESS); }
+    if (url.pathname === '/lessonfinal.js') { res.writeHead(200, { 'content-type': 'text/javascript' }); return res.end(FINALIZER); }
+    if (url.pathname === '/put') {
+      const chunks = []; for await (const c of req) chunks.push(c);
+      objects.set(url.searchParams.get('path'), { data: Buffer.concat(chunks), meta: {} });
+      res.writeHead(200); return res.end('{}');
+    }
+    if (url.pathname === '/compose') {
+      let raw = ''; for await (const c of req) raw += c;
+      const headers = { origin: 'https://polymathlc.github.io', authorization: 'Bearer t', 'x-firebase-appcheck': 'ac', 'content-type': 'application/json' };
+      const fakeReq = { body: JSON.parse(raw), method: 'POST', rawBody: Buffer.from(raw), get: n => headers[n.toLowerCase()] };
+      const fakeRes = { statusCode: 200, set() { return this; }, status(n) { this.statusCode = n; return this; }, json(v) { this.body = v; return this; }, send(v) { this.body = v; return this; } };
+      await composer.handler(fakeReq, fakeRes);
+      res.writeHead(fakeRes.statusCode, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify(fakeRes.body || {}));
+    }
     if (url.pathname === '/mirror') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify(store.get('liveClassRooms/main') || null)); }
     if (url.pathname === '/api') {
       let raw = ''; for await (const c of req) raw += c;
@@ -229,9 +295,14 @@ const webPort = await freePort();
 await new Promise(r => web.listen(webPort, '127.0.0.1', r));
 const BASE = 'http://127.0.0.1:' + webPort;
 
-const browser = await chromium.launch({ args: [
-  '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required',
-  '--disable-features=WebRtcHideLocalIpsWithMdns'] });
+// The full Chromium (new headless) so the teacher can share "this tab";
+// --use-fake-ui-for-media-stream must NOT be passed (it turns a tab share
+// into a fake monitor). Cameras are allowed through the context permissions.
+const LAUNCH_ARGS = ['--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required',
+  '--disable-features=WebRtcHideLocalIpsWithMdns', '--auto-accept-this-tab-capture'];
+let browser;
+try { browser = await chromium.launch({ channel: 'chromium', args: LAUNCH_ARGS }); }
+catch (e) { browser = await chromium.launch({ args: LAUNCH_ARGS }); }
 const errors = [];
 async function openPage(who, opts = {}) {
   const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 860 }, permissions: ['camera', 'microphone'] }, opts));
@@ -280,6 +351,28 @@ try {
   ok('the teacher\'s own camera shows', await T.evaluate(() => !!document.querySelector('.vcSelf video')));
   ok('the side panel opens on Ask', await T.locator('.vcSide .vcTab.on').textContent().then(t => /Ask/.test(t)));
   ok('the mirror says a class is on', !!(store.get('liveClassRooms/main') || {}).open);
+  ok('before 4:50pm the teacher is offered 🚪 Let students in now', await until(() => T.locator('.vcCtl.vcDoor').isVisible(), 5000));
+  ok('the teacher\'s camera is ONE small tile', await T.evaluate(() => { var s = document.querySelector('.vcSelf'); var w = document.getElementById('vcWin'); return !!s && s.getBoundingClientRect().width <= 170 && document.querySelectorAll('#vcWin video').length <= 2 && w.getBoundingClientRect().width > 0; }));
+  ok('the class is being recorded from the start', await until(() => T.evaluate(() => window.lc.state().recording), 10000));
+  ok('…and the bar says so', await until(() => T.locator('.vcCtl.vcRecOn').isVisible(), 5000));
+
+  /* ---------- 1b. 🖥 the worksheet, and only the worksheet ---------- */
+  await T.locator('.vcCtl.vcShare').click();
+  ok('the worksheet share starts', await until(() => T.evaluate(() => window.lc.state().sharing), 15000), JSON.stringify(await T.evaluate(() => window.toasts)));
+  const how = await T.evaluate(() => window.lc.state().shareHow);
+  ok('the share is narrowed to the worksheet (Element Capture or Region Capture), not the whole tab', how === 'element' || how === 'crop', how);
+
+  /* ---------- 1c. 🚪 the door: students wait for their lesson time ---------- */
+  const SG = await openPage('s1');
+  await SG.click('#liveClassBtn');
+  await until(() => SG.locator('.vcGateCard').isVisible(), 10000);
+  ok('a student at 4:30pm is told the lesson starts at 5:00pm', /starts at 5:00pm/.test(await SG.locator('.vcGateCard').textContent()), await SG.evaluate(() => (document.getElementById('vcWin') || document.body).innerText.slice(0, 300)));
+  ok('…with no list of names to pick from yet', !(await SG.locator('.vcPick').isVisible()));
+  await shot(SG, '01b-student-door');
+  await T.locator('.vcCtl.vcDoor').click();
+  ok('🚪 lets them in: the waiting student is taken to "Who are you?"', await until(() => SG.locator('.vcPick').isVisible(), 15000));
+  ok('the teacher\'s door button goes away', await until(async () => !(await T.locator('.vcCtl.vcDoor').isVisible()), 5000));
+  await SG.ctx.close();
 
   /* ---------- 2. students join: My class, Make-up, Trial ---------- */
   console.log('Students: "Who are you?"');
@@ -301,8 +394,19 @@ try {
   await S1.click('.vcConfirm');
   ok('Amy is in the class', await until(async () => (await mode(S1)) === 'live', 20000));
   ok('Amy sees the teacher\'s video', await until(() => S1.evaluate(() => { var v = document.querySelector('.vcMain video'); return !!(v && v.videoWidth > 0); }), 20000));
+  const dimsOf = () => S1.evaluate(() => { var v = document.querySelector('.vcMain video'); return v && v.videoWidth ? v.videoWidth + 'x' + v.videoHeight : ''; });
+  await until(dimsOf, 20000);
+  const dims = await dimsOf();
+  const [vw, vh] = String(dims || '0x0').split('x').map(Number);
+  const area = await T.evaluate(() => { var r = document.getElementById('viewerArea').getBoundingClientRect(); return r.width / r.height; });
+  ok('what Amy sees is the worksheet area\'s shape (' + dims + '), not the whole tab', vh > 0 && Math.abs(vw / vh - area) < 0.06, 'area ' + area.toFixed(3));
   ok('the teacher sees Amy\'s tile', await until(() => T.evaluate(() => [...document.querySelectorAll('.vcTileName')].some(e => e.textContent === 'Amy Tan'))));
   ok('Amy\'s video reaches the teacher', await until(() => T.evaluate(() => { var t = [...document.querySelectorAll('.vcTile')].find(x => x.querySelector('.vcTileName').textContent === 'Amy Tan'); var v = t && t.querySelector('video'); return !!(v && v.videoWidth > 0); }), 20000));
+
+  await S1.locator('.vcCtl', { hasText: '🙂' }).click();
+  ok('a student can hide their own video from their screen', await until(() => S1.evaluate(() => document.querySelector('.vcSelf').hidden), 5000));
+  await S1.locator('.vcCtl', { hasText: '🙈' }).click();
+  ok('…and show it again', await until(() => S1.evaluate(() => !document.querySelector('.vcSelf').hidden), 5000));
 
   const S2 = await openPage('s2');
   await S2.click('#liveClassBtn');
@@ -446,6 +550,20 @@ try {
   ok('the lesson record was saved with every answer', await T.evaluate(() => { var s = Object.values(window.saved)[0]; return !!(s && s.questions.length === 3 && Object.keys(s.answers).length === 3 && s.sent); }));
   await shot(T, '08-teacher-reports');
   ok('the mirror says the class is over', await until(() => !(store.get('liveClassRooms/main') || {}).open, 5000));
+  await until(() => T.evaluate(() => window.recSaved[0]), 60000);
+  const rec = await T.evaluate(() => window.recSaved[0]);
+  ok('📼 the class recording is joined in the cloud after End', !!rec, JSON.stringify(await T.evaluate(() => window.toasts)));
+  if (rec) {
+    const obj = objects.get(rec.path);
+    ok('one file, with the worksheet it was on', !!obj && obj.data.length > 10000 && rec.docs.some(d => d.id === 'ws1'), JSON.stringify(rec) + ' ' + [...objects.keys()].join(','));
+    try {
+      const f = path.join(tmp, 'class.webm'); fs.writeFileSync(f, obj.data);
+      const pr = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=codec_type', '-of', 'json', f], { encoding: 'utf8' }));
+      const dur = Number(pr.format.duration);
+      ok('it says how long it is (' + dur.toFixed(1) + ' s ≈ ' + (rec.durationMs / 1000).toFixed(1) + ' s) and has picture and sound',
+        Math.abs(dur - rec.durationMs / 1000) < 4 && pr.streams.some(x => x.codec_type === 'video') && pr.streams.some(x => x.codec_type === 'audio'));
+    } catch (e) { console.log('    (no ffprobe: the file is not inspected)'); }
+  }
 
   ok('no page errors', errors.length === 0, errors.join('\n'));
   ok('the server reported nothing unexpected', reports.length === 0, reports.join('\n'));

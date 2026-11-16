@@ -25,7 +25,8 @@
 //                                    key derived (HKDF) from a server secret, so
 //                                    the document alone is not a credential.
 //   ansKeyLiveClassState/main      — {open, epoch, room, startedAt, closedAt,
-//                                    teacherUid, removed:{uid:at}}
+//                                    teacherUid, removed:{uid:at}, letIn}
+//   ansKeyLiveClassConfig/settings — {earlyMin} how early students may join
 //   liveClassRooms/main            — {open, epoch, room, startedAt, at}
 //                                    A public MIRROR the student's app listens
 //                                    to so a "Class is live" badge can appear.
@@ -53,8 +54,8 @@ const LIVE_CLASS_LIMITS = Object.freeze({
   removedMax: 200,
   checkTimeoutMs: 8000
 });
-const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit']);
-const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit']);
+const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin']);
+const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin']);
 const ROOM_PREFIX = 'polymath-class-';
 const HKDF_SALT = 'ans-key-live-class';
 const HKDF_INFO = 'livekit-api-secret-v1';
@@ -203,6 +204,87 @@ function slotOrder(id) {
 // "YYYY-MM" in Singapore.
 function sgMonth(nowMs) { return new Date((Number(nowMs) || Date.now()) + 8 * 3600000).toISOString().slice(0, 7); }
 function monthOf(v) { const m = /^(\d{4})-(\d{2})/.exec(String(v || '')); return m ? m[1] + '-' + m[2] : ''; }
+
+/* ---- 🚪 The lesson-time gate (v1.208.0) ----------------------------------
+   A student may join only once THEIR lesson is about to start: a P6 child who
+   opens the class link while the P5 class is still being taught is told when
+   their lesson starts instead of walking into somebody else's. The class's own
+   slot decides it: from `earlyMin` minutes before its start time (Singapore
+   time, the timetable's own clock) the door is open, and it stays open after
+   the end time, because a lesson that runs over is still the same lesson. A
+   class started on another day (a lesson moved to a Monday) waits for the
+   teacher's "Let students in now" (`letIn`), which opens it whatever the
+   clock says. All of it is decided HERE: the browser only paints the wait. */
+const SG_OFFSET_MS = 8 * 3600000;
+const DAY_MS = 86400000;
+const EARLY_DEFAULT = 10;
+const EARLY_MAX = 120;
+const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+function cleanEarly(v) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return EARLY_DEFAULT;
+  return Math.max(0, Math.min(EARLY_MAX, n));
+}
+function cleanSettings(d) {
+  const o = d && typeof d === 'object' ? d : {};
+  return { earlyMin: o.earlyMin === undefined ? EARLY_DEFAULT : cleanEarly(o.earlyMin) };
+}
+// Where `ms` falls in Singapore: the day's code, minutes since midnight and
+// the instant that midnight was.
+function sgClock(ms) {
+  const local = Number(ms) + SG_OFFSET_MS;
+  const midnight = local - (((local % DAY_MS) + DAY_MS) % DAY_MS);
+  const d = new Date(local);
+  return { code: DAY_CODES[d.getUTCDay()], dayIndex: d.getUTCDay(), minutes: d.getUTCHours() * 60 + d.getUTCMinutes(), midnight: midnight - SG_OFFSET_MS };
+}
+// A slot's start and end in minutes, from the timetable's own labels.
+function slotTimes(id) {
+  const { day, time } = slotParts(id);
+  if (!day || !time) return null;
+  const [a, b] = time.label.split(/\s*[–—-]\s*/);
+  return { code: day.code, dayName: day.name, start: startMinutes(a), end: startMinutes(b || a), startLabel: a, endLabel: b || '' };
+}
+function clockLabel(minutes) {
+  const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  const h = Math.floor(m / 60), mm = m % 60;
+  return ((h % 12) || 12) + ':' + String(mm).padStart(2, '0') + (h < 12 ? 'am' : 'pm');
+}
+// { open:true } or { open:false, reason, startsAt, opensAt, message }.
+function joinGate(slotId, nowMs, earlyMin, letIn) {
+  if (letIn === true) return { open: true, reason: 'let_in' };
+  const times = slotTimes(slotId);
+  if (!times) return { open: true, reason: 'no_slot' };
+  const early = cleanEarly(earlyMin);
+  const c = sgClock(nowMs);
+  const target = DAY_CODES.indexOf(times.code);
+  let ahead = (target - c.dayIndex + 7) % 7;
+  if (ahead === 0 && c.minutes >= times.start - early) return { open: true, reason: 'on_time' };
+  const startsAt = c.midnight + ahead * DAY_MS + times.start * 60000;
+  const opensAt = startsAt - early * 60000;
+  const from = early ? ' You can join from ' + clockLabel(times.start - early) + '.' : '';
+  if (ahead === 0) {
+    return { open: false, reason: 'early', startsAt, opensAt, early, now: nowMs,
+      message: 'Your lesson starts at ' + times.startLabel + '.' + from };
+  }
+  return { open: false, reason: 'other_day', startsAt, opensAt, early, now: nowMs,
+    message: 'This class is on ' + times.dayName + ' at ' + times.startLabel + '. Your teacher can let you in early.' };
+}
+// A make-up pick whose OWN lesson is later today: they belong in that lesson,
+// not in this one. Null when nothing stands in the way.
+function laterLessonToday(student, currentSlot, nowMs, earlyMin, schedule) {
+  const c = sgClock(nowMs);
+  const early = cleanEarly(earlyMin);
+  for (const id of (student && student.slots) || []) {
+    if (id === currentSlot) continue;
+    const t = slotTimes(id);
+    if (!t || t.code !== c.code) continue;
+    if (c.minutes < t.start - early) {
+      return { slot: id, startsAt: c.midnight + t.start * 60000, opensAt: c.midnight + (t.start - early) * 60000,
+        message: 'Your lesson today (' + slotLabel(id, schedule) + ') starts at ' + t.startLabel + '.' + (early ? ' You can join it from ' + clockLabel(t.start - early) + '.' : '') };
+    }
+  }
+  return null;
+}
 // office-core's familyStateIn: is this family with the centre THIS month?
 function familyState(f, period) {
   let status = String(f && f.status || 'active');
@@ -370,10 +452,19 @@ async function roomService(fetchImpl, cfg, method, body, now) {
   }
 }
 
-function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), report = () => {}, serverTimestamp = null }) {
+function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), lessonClock = null, report = () => {}, serverTimestamp = null }) {
+  // The clock the lesson-time door reads (Singapore wall time). The same as
+  // `now` in production; a check can move the lesson day without moving the
+  // clock tokens are signed with.
+  const doorNow = typeof lessonClock === 'function' ? lessonClock : now;
   const configRef = db.collection(CONFIG_COLLECTION).doc('livekit');
   const stateRef = db.collection(STATE_COLLECTION).doc('main');
   const mirrorRef = db.collection(MIRROR_COLLECTION).doc('main');
+  const settingsRef = db.collection(CONFIG_COLLECTION).doc('settings');
+  async function readSettings() {
+    try { const snap = await settingsRef.get(); return cleanSettings(snap.exists ? snap.data() : null); }
+    catch (error) { report('live_class_settings_read', error); return cleanSettings(null); }
+  }
 
   const TEACHER_TTL_MS = 5 * 60 * 1000;
   let teacherLookup = null;
@@ -446,15 +537,16 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       closedAt: Number(d.closedAt) || 0,
       teacherUid: typeof d.teacherUid === 'string' ? d.teacherUid : '',
       slot: typeof d.slot === 'string' ? d.slot : '',
+      letIn: d.letIn === true,
       removed: d.removed && typeof d.removed === 'object' ? d.removed : {}
     };
   }
   function publicState(state) {
-    return { open: state.open, epoch: state.epoch, room: state.open ? state.room : '', slot: state.open ? state.slot : '', startedAt: state.startedAt, closedAt: state.closedAt };
+    return { open: state.open, epoch: state.epoch, room: state.open ? state.room : '', slot: state.open ? state.slot : '', startedAt: state.startedAt, closedAt: state.closedAt, letIn: state.open ? state.letIn === true : false };
   }
   async function writeMirror(state) {
     try {
-      await mirrorRef.set({ open: state.open, epoch: state.epoch, room: state.open ? state.room : '', slot: state.open ? state.slot : '', startedAt: state.startedAt, at: now() });
+      await mirrorRef.set({ open: state.open, epoch: state.epoch, room: state.open ? state.room : '', slot: state.open ? state.slot : '', startedAt: state.startedAt, letIn: state.open ? state.letIn === true : false, at: now() });
     } catch (error) {
       // The mirror only lights a badge; a refused write must not refuse the class.
       report('live_class_mirror_failed', error);
@@ -482,7 +574,7 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
     }
   }
   // "Who are you?" — the pick a student confirmed, checked against the roster.
-  async function whoIs(actor, pick, state) {
+  async function whoIs(actor, pick, state, settings) {
     const p = pick && typeof pick === 'object' ? pick : {};
     if (p.kind === 'trial') {
       const name = cleanName(p.name, '');
@@ -497,6 +589,10 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
     const student = enrolledStudents(family ? [family] : [], sgMonth(now())).find(s => s.id === p.id) || null;
     if (!student) fail(404, 'not_on_roster', 'That name is no longer on the class list. Choose again, or ask your teacher.');
     if (p.kind === 'roster' && state.slot && !student.slots.includes(state.slot)) fail(400, 'wrong_list', 'That name is in another class. Choose Make-up to find it.');
+    if (p.kind === 'makeup' && state.letIn !== true) {
+      const later = laterLessonToday(student, state.slot, doorNow(), settings ? settings.earlyMin : EARLY_DEFAULT, schedule);
+      if (later) fail(403, 'not_yet', later.message);
+    }
     const home = p.kind === 'makeup' ? [...student.slots].sort((a, b) => slotOrder(a) - slotOrder(b))[0] : state.slot;
     return { kind: p.kind, identity: 'r:' + student.id, name: student.name, rosterId: student.id,
       level: student.level, home: home ? slotLabel(home, schedule) : '' };
@@ -518,7 +614,10 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
     if (body.action === 'status') {
       const state = await readState();
       const out = { role: actor.isTeacher ? 'teacher' : 'student', ...publicState(state) };
+      const settings = await readSettings();
+      if (state.open) out.gate = joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn);
       if (actor.isTeacher) {
+        out.settings = settings;
         const cfg = await readConfig(false);
         out.configured = !!cfg;
         if (cfg) { out.url = cfg.url; out.apiKey = maskKey(cfg.apiKey); }
@@ -558,22 +657,41 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       let state = prev;
       if (!prev.open || body.fresh === true) {
         const epoch = nextEpoch(prev.epoch, t);
-        state = { open: true, epoch, room: roomFor(epoch), slot, startedAt: t, closedAt: 0, teacherUid: actor.uid, removed: {} };
+        state = { open: true, epoch, room: roomFor(epoch), slot, startedAt: t, closedAt: 0, teacherUid: actor.uid, removed: {}, letIn: false };
         await stateRef.set(state);
         await writeMirror(state);
       } else if (body.slot != null && slot !== prev.slot) {
         // The teacher picked another lesson slot for the class that is
         // running: only the "Who are you?" list changes.
-        state = { ...prev, slot };
+        state = { ...prev, slot, letIn: false };
         await stateRef.set(state);
         await writeMirror(state);
       }
-      return { ...publicState(state), url: cfg.url, token: teacherToken(cfg, actor, state, t), identity: 't:' + actor.uid };
+      const settings = await readSettings();
+      return { ...publicState(state), gate: joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn), settings, url: cfg.url, token: teacherToken(cfg, actor, state, t), identity: 't:' + actor.uid };
+    }
+
+    if (body.action === 'settings') {
+      const prev = await readSettings();
+      const next = cleanSettings({ ...prev, ...(body.earlyMin !== undefined ? { earlyMin: body.earlyMin } : {}) });
+      if (body.earlyMin !== undefined) await settingsRef.set({ ...next, at: t, by: actor.uid });
+      const state = await readState();
+      return { settings: next, gate: state.open ? joinGate(state.slot, doorNow(), next.earlyMin, state.letIn) : null };
+    }
+
+    if (body.action === 'letin') {
+      const prev = await readState();
+      if (!prev.open) fail(409, 'class_closed', 'Start the class first.');
+      const state = { ...prev, letIn: body.on !== false };
+      await stateRef.set(state);
+      await writeMirror(state);
+      const settings = await readSettings();
+      return { ...publicState(state), gate: joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn) };
     }
 
     if (body.action === 'close') {
       const prev = await readState();
-      const state = { ...prev, open: false, closedAt: t };
+      const state = { ...prev, open: false, closedAt: t, letIn: false };
       await stateRef.set(state);
       await writeMirror(state);
       // Ending the room disconnects everyone at once; a failure here is not
@@ -593,9 +711,14 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
     if (body.action === 'roster') {
       const state = await readState();
       if (!state.open) fail(409, 'class_closed', 'The live class has not started yet. It will open here when your teacher starts it.');
-      const { students, schedule } = await enrolment(t);
+      const [{ students, schedule }, settings] = await Promise.all([enrolment(t), readSettings()]);
+      const gate = joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn);
+      const label = state.slot ? slotLabel(state.slot, schedule) : '';
+      // Before the lesson's time a waiting child is told when, and is sent no
+      // names: the list is for the people in the lesson.
+      if (!gate.open) return { slot: state.slot, slotLabel: label, epoch: state.epoch, gate, students: [], others: [] };
       const lists = rosterLists(students, state.slot, schedule);
-      return { slot: state.slot, slotLabel: state.slot ? slotLabel(state.slot, schedule) : '', epoch: state.epoch, ...lists };
+      return { slot: state.slot, slotLabel: label, epoch: state.epoch, gate, ...lists };
     }
 
     if (body.action === 'token') {
@@ -603,7 +726,10 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       if (!state.open || !state.room) fail(409, 'class_closed', actor.isTeacher ? 'Start the class first.' : 'The live class has not started yet. It will open here when your teacher starts it.');
       const cfg = await requireConfig();
       if (actor.isTeacher) return { ...publicState(state), url: cfg.url, token: teacherToken(cfg, actor, state, t), identity: 't:' + actor.uid };
-      const who = await whoIs(actor, body.pick, state);
+      const settings = await readSettings();
+      const gate = joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn);
+      if (!gate.open) fail(403, 'not_yet', gate.message);
+      const who = await whoIs(actor, body.pick, state, settings);
       if (state.removed[who.identity]) fail(403, 'removed', 'Your teacher has taken you out of this class. Ask them to let you back in.');
       // The same name already in the class on ANOTHER device is nearly always
       // a child who tapped the wrong name. Ask before letting the second one in
@@ -713,5 +839,6 @@ module.exports = {
   CONFIG_COLLECTION, STATE_COLLECTION, MIRROR_COLLECTION, LIVE_CLASS_LIMITS, ROOM_PREFIX,
   LiveClassError, validateBody, createLiveClassService,
   signAccessToken, readAccessToken, b64url, b64urlDecode, cleanUrl, httpBase, cleanKey, cleanSecret, maskKey,
+  EARLY_DEFAULT, EARLY_MAX, cleanEarly, cleanSettings, sgClock, slotTimes, clockLabel, joinGate, laterLessonToday,
   cleanName, cleanIdentity, cleanSlot, rosterLists, enrolledStudents, slotChoices, slotLabel, familyState, rosterKey, splitRosterKey, sgMonth, roomFor, nextEpoch, grantsFor, sealSecret, openSecret, roomService
 };
