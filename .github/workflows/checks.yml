@@ -105,6 +105,7 @@ jobs:
           node tools/class-summary-check.mjs
           node tools/receipts-check.mjs
           node tools/live-class-check.mjs
+          node tools/live-class-record-check.mjs
           node tools/screen-record-check.mjs
           node tools/caption-check.mjs
           node tools/lesson-upload-check.mjs

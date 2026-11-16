@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.207.0');
+  assert.equal(P.VERSION, '1.208.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.207\.0'/);
-  assert.match(html, /live-class\.js\?v=1\.207\.0/);
+  assert.match(html, /var APP_VERSION = 'v1\.208\.0'/);
+  assert.match(html, /live-class\.js\?v=1\.208\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -266,9 +266,17 @@ test('clampBox keeps the window on screen', () => {
 });
 
 test('students on weak wifi send less and receive less', () => {
-  assert.equal(P.publishPlan('student', true).camera, 'h180');
-  assert.equal(P.publishPlan('student', false).camera, 'h360');
-  assert.equal(P.publishPlan('teacher', false).screen, 'h1080fps15');
+  const low = P.publishPlan('student', true), std = P.publishPlan('student', false), tch = P.publishPlan('teacher', false);
+  assert.ok(low.camera.bps < std.camera.bps && low.camera.w < std.camera.w, 'low data is smaller');
+  assert.ok(std.camera.w <= 320 && std.camera.bps <= 120000, 'a student camera stays small');
+  assert.ok(tch.camera.w <= 320 && tch.camera.bps <= 160000, 'the teacher camera is a small tile too');
+  assert.equal(std.screen, null, 'a student never shares a screen');
+  assert.ok(tch.screen.bps >= 1000000, 'the worksheet feed is sharp');
+  assert.ok(tch.screen.fps <= 5, 'but slow: a page hardly moves');
+  assert.ok(P.minuteMB(tch) < 15, 'a minute of the class stays modest');
+  const sc = P.shareConstraints();
+  assert.equal(sc.audio, false);
+  assert.equal(sc.video.frameRate.max, tch.screen.fps);
   const prefs = { lowData: true, classmates: true };
   assert.equal(P.wantTrack('student', prefs, 't:x', 'camera'), false, 'low data drops the teacher camera');
   assert.equal(P.wantTrack('student', prefs, 't:x', 'screen'), true, 'but never the screen');
@@ -296,7 +304,8 @@ test('identities: teacher, roster child, trial guest — nothing else', () => {
   assert.equal(P.validIdentity('r:../../x'), false);
   assert.match(P.randomId('q'), /^q[A-Za-z0-9_-]+$/);
   assert.notEqual(P.randomId('q'), P.randomId('q'));
-  assert.deepEqual(plain(P.cleanPrefs({ lowData: true, lastKind: 'evil' })), { classmates: false, lowData: true, mirror: true, autoLow: true, cameraOff: false, lastKind: 'mcq' });
+  assert.deepEqual(plain(P.cleanPrefs({ lowData: true, lastKind: 'evil' })), { classmates: false, lowData: true, mirror: true, autoLow: true, cameraOff: false, record: true, hideSelf: false, lastKind: 'mcq' });
+  assert.equal(P.cleanPrefs({ record: false }).record, false, 'recording can be switched off');
 });
 
 /* ---------- the module's safety rules (read off the source) ---------- */
@@ -347,7 +356,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.207\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.208\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -403,4 +412,149 @@ test('the syntax checker covers the new files', () => {
 test('LiveKit is vendored with its licence', () => {
   assert.ok(fs.statSync(new URL('vendor/livekit-client.umd.js', root)).size > 400000);
   assert.match(fs.readFileSync(new URL('vendor/livekit-client.LICENSE', root), 'utf8'), /Apache License/);
+});
+
+/* ---------- 📼 the class recording (v1.208.0) ---------- */
+const recSrc = fs.readFileSync(new URL('live-class-record.js', root), 'utf8');
+function loadRec() {
+  const sandbox = { console, Date, Math, JSON };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(recSrc, sandbox, { filename: 'live-class-record.js' });
+  return sandbox.LiveClassRecord;
+}
+const R = loadRec().pure;
+
+test('the recording module loads with no DOM, at this version', () => {
+  assert.equal(R.VERSION, '1.208.0');
+  assert.match(html, /live-class-record\.js\?v=1\.208\.0/);
+  assert.ok(html.indexOf('live-class-record.js') < html.indexOf('live-class.js?v='), 'the recorder loads before the window');
+});
+
+test('HEAD equals the lesson upload head, so the join plan agrees', () => {
+  const m = html.match(/var LESSON_UP_HEAD = ([^;]+);/);
+  assert.ok(m, 'LESSON_UP_HEAD is in index.html');
+  assert.equal(R.HEAD, eval(m[1]));
+  assert.ok(R.MAX_PARTS < 900, 'inside the compose service\'s part count');
+});
+
+test('job ids and piece names are what the compose service accepts', () => {
+  const id = R.jobId(1768000000000, 1768000123456);
+  assert.ok(R.validJobId(id));
+  assert.match(id, /^[A-Za-z0-9_-]{1,64}$/);
+  assert.equal(R.validJobId('../x'), false);
+  assert.equal(R.partName(id, 7), 'pdf-annotator/lesson-liveclass-' + id + '.part-0007');
+});
+
+test('cleanJob: the one door, and pieces must run on without a gap', () => {
+  assert.equal(R.cleanJob({ id: 'nope' }), null);
+  const H = R.HEAD;
+  const j = R.cleanJob({ id: 'e1p1', state: 'weird', pieces: [{ from: H, to: H + 10, done: true }, { from: H + 10, to: H + 20 }, { from: H + 99, to: H + 120 }] });
+  assert.equal(j.state, 'finishing', 'an unknown state is finished, never left recording');
+  assert.equal(j.pieces.length, 2, 'a piece after a gap is dropped');
+  assert.equal(R.lastTo(j), H + 20);
+});
+
+test('nextPiece waits ~30 s mid-lesson, sends the rest at the end', () => {
+  const H = R.HEAD;
+  const job = R.cleanJob({ id: 'e1p1', type: 'video/webm', state: 'recording', startedAt: 0, pieces: [] });
+  assert.equal(R.nextPiece(job, H - 5, 60000, false), null, 'nothing past the head yet');
+  assert.equal(R.nextPiece(job, H + 500000, 1000, false), null, 'too soon');
+  const p = R.nextPiece(job, H + 500000, R.PIECE_MS + 1, false);
+  assert.deepEqual(plain(p), { i: 1, from: H, to: H + 500000, done: false });
+  assert.equal(R.nextPiece(job, H + R.PIECE_MAX + 5, 10, false).to, H + R.PIECE_MAX, 'a big burst goes at 8 MB');
+  assert.equal(R.nextPiece(job, H + 100, 10, true).to, H + 100, 'the end sends even a crumb');
+  const mp4 = R.cleanJob({ id: 'e1p1', type: 'video/mp4', pieces: [] });
+  assert.equal(R.nextPiece(mp4, H * 4, 1e9, true), null, 'an MP4 is uploaded whole');
+});
+
+test('nextPiece never needs more parts than compose joins', () => {
+  const H = R.HEAD;
+  let job = R.cleanJob({ id: 'e1p1', type: 'video/webm', state: 'recording', startedAt: 0, pieces: [] });
+  let bytes = H, t = 0;
+  for (let k = 0; k < 2000; k++) {
+    bytes += 300000; t += R.PIECE_MS + 1;
+    const p = R.nextPiece(job, bytes, t, false);
+    if (p) { job.pieces.push(p); job.lastPieceAt = t; }
+  }
+  const last = R.nextPiece(job, bytes + 999, t, true);
+  if (last) job.pieces.push(last);
+  assert.ok(job.pieces.length + 1 <= 900, 'pieces + head fit');
+  assert.equal(R.lastTo(job), bytes + 999, 'every byte is covered at the end');
+});
+
+test('chunksFor cuts stored chunks to a piece exactly', () => {
+  const index = [{ seq: 0, start: 0, size: 100 }, { seq: 1, start: 100, size: 50 }, { seq: 2, start: 150, size: 100 }];
+  assert.deepEqual(plain(R.chunksFor(index, 120, 200)), [{ seq: 1, cutFrom: 20, cutTo: 50 }, { seq: 2, cutFrom: 0, cutTo: 50 }]);
+  assert.deepEqual(plain(R.chunksFor(index, 0, 100)), [{ seq: 0, cutFrom: 0, cutTo: 100 }]);
+});
+
+test('the frame: worksheet big, teacher small in the corner', () => {
+  const W = R.FRAME.w, H = R.FRAME.h;
+  const both = R.frameLayout(W, H, { w: 1920, h: 1080 }, { w: 320, h: 180 });
+  assert.ok(both.screen.w <= W && both.screen.h <= H);
+  assert.ok(both.cam.w <= R.CAM_BOX.w && both.cam.x + both.cam.w <= W && both.cam.y + both.cam.h <= H);
+  assert.ok(both.cam.x > W / 2 && both.cam.y > H / 2, 'bottom right');
+  assert.ok(R.frameLayout(W, H, null, { w: 320, h: 180 }).cam.w > W / 2, 'no share: the teacher fills the frame');
+  assert.equal(R.frameLayout(W, H, null, null).card, true);
+});
+
+test('badge text counts the recordings still going up', () => {
+  const H = R.HEAD;
+  const a = R.cleanJob({ id: 'e1p1', state: 'finishing', bytes: H * 2, pieces: [{ from: H, to: H * 2, done: true }] });
+  const b = R.cleanJob({ id: 'e2p1', state: 'done', bytes: 10 });
+  assert.match(R.badgeText([a, b], 0), /Uploading 1 class recording · 50%/);
+  assert.equal(R.badgeText([b], 0), '');
+  const old = R.cleanJob({ id: 'e3p1', state: 'recording', beat: 1, bytes: 5 });
+  assert.match(R.badgeText([old], R.STALE_MS + 10), /Uploading 1/, 'a recording whose tab has gone is finished here');
+  assert.equal(R.percent(5, 5), 100);
+  assert.equal(R.percent(99, 100), 99);
+  assert.equal(R.fmtClock(3723000), '1:02:03');
+});
+
+test('the glue: compose through the lesson endpoint, saves merge, teacher only', () => {
+  const g = html.slice(html.indexOf('🎥 Live class — glue'), html.indexOf('End live class glue'));
+  assert.match(g, /function liveClassRecCompose/);
+  assert.match(g, /LESSON_UP_ENDPOINT/);
+  assert.match(g, /LessonAudioFinalize\.plan/);
+  assert.match(g, /function liveClassRecSaved/);
+  assert.match(g, /liveClassVideo/);
+  assert.match(g, /shareTarget:/);
+  assert.match(g, /recorder: liveClassRecInit\(\)/);
+  assert.doesNotMatch(recSrc, /\.innerHTML\s*=/, 'the recorder writes with textContent');
+});
+
+test('the share is narrowed to the worksheet before it is published', () => {
+  const i = src.indexOf('function startShare');
+  const body = src.slice(i, src.indexOf('function stopShareTrack'));
+  assert.ok(body.indexOf('limitShare') !== -1 && body.indexOf('limitShare') < body.indexOf('publishTrack'), 'narrow first, then publish');
+  assert.match(src, /restrictTo/);
+  assert.match(src, /cropTo/);
+  assert.match(src, /'text'/, 'contentHint text');
+});
+
+test('the door: the teacher can let students in early', () => {
+  assert.match(src, /vcDoor/);
+  assert.match(src, /call\('letin'/);
+  assert.match(src, /paintGate/);
+  assert.match(src, /call\('settings'/);
+});
+
+test('wholeEnd finds where a cut-off recording\'s last whole block ends', () => {
+  const cluster = [0x1F, 0x43, 0xB6, 0x75, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+  const timecode = [0xE7, 0x81, 0x00];
+  const block = n => [0xA3, 0x80 | (n + 0)].concat(new Array(n).fill(7));
+  const whole = [9, 9, 9].concat(cluster, timecode, block(5), block(6));
+  const cut = whole.concat([0xA3, 0x8A, 1, 2, 3]);              // a block of 10 with only 3 written
+  assert.equal(R.wholeEnd(new Uint8Array(cut), 100, 100 + cut.length), 100 + whole.length);
+  assert.equal(R.wholeEnd(new Uint8Array(whole), 0, whole.length), whole.length, 'a whole file ends where it ends');
+  assert.equal(R.wholeEnd(new Uint8Array([1, 2, 3]), 0, 3), 0, 'no cluster: no answer');
+});
+
+test('a rejoin never hands a student the key\'s own guess before the teacher gives a mark', () => {
+  const hello = src.slice(src.indexOf('function onHello('), src.indexOf('function onNeedImage('));
+  assert.ok(hello.length > 100);
+  const open = hello.slice(0, hello.indexOf('var revealed'));
+  assert.doesNotMatch(open, /markOf\(/, 'an open question\'s mark on a rejoin is only the teacher\'s');
+  assert.match(open, /e\.ok === true \|\| e\.ok === false/);
 });

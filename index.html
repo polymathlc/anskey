@@ -4045,7 +4045,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="live-cams.css">
-<link rel="stylesheet" href="live-class.css?v=1.207.0">
+<link rel="stylesheet" href="live-class.css?v=1.208.0">
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="living-library.css">
@@ -6043,7 +6043,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.207.0';
+var APP_VERSION = 'v1.208.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32797,12 +32797,14 @@ async function liveClassSaveSession(epoch, session) {
   var json = JSON.stringify(session);
   if (json.length > 900000) throw new Error('This lesson\'s record has grown too big to save in one piece.');
   var people = session && session.people ? Object.keys(session.people).length : 0;
+  // Merged, so the class's recordings (`videos`, written when an upload
+  // finishes) are never written over by the next save of the record.
   await ref.set({
     v: 1, epoch: Number(epoch), slot: String(session.slot || ''), slotLabel: String(session.slotLabel || ''),
     startedAt: Number(session.startedAt) || 0, endedAt: Number(session.endedAt) || 0,
     questions: (session.questions || []).length, students: people,
     json: json, at: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  }, { merge: true });
 }
 function liveClassPhotoRef(epoch, photoRef) {
   var doc = liveClassDoc(epoch);
@@ -32914,6 +32916,132 @@ async function liveClassSnapWorksheet() {
   } finally { out.width = out.height = 0; }
 }
 
+
+/* ---- 📼 the class recording: pieces up WHILE teaching, the rest in the background (v1.208.0) ----
+   live-class-record.js records and keeps every second on this device
+   (IndexedDB), and hands this glue the Firebase parts:
+     - each piece goes to pdf-annotator/lesson-liveclass-<id>.part-NNNN
+       (lessonUpPut; the teacher-only `lesson-` Storage rule),
+     - ansKeyLessonCompose joins them (the same cloud join a lesson recording
+       uses) after part 0, the head with the length written in
+       (LessonAudioFinalize.plan), so the video can be scrubbed,
+     - the finished video goes on the lesson's record
+       (users/{teacher}/liveClass/{epoch}.videos.<id>, every device of the
+       teacher's) and, as a video pill, on each worksheet the class was taught
+       from — so every account that opens that worksheet can watch it.
+   The upload is the teacher's own and carries on after End class and while
+   the next class starts; a tab closed mid-upload finishes when Ans Key opens
+   on this device again (liveClassRecBoot from liveClassRoleChanged). */
+var liveClassRec = null;
+function liveClassRecTeacherUid() { return wheelTeacher() && currentUser ? currentUser.uid : ''; }
+async function liveClassRecCompose(request) {
+  var user = currentUser, appCheck = window.liveAppCheckToken;
+  if (!user || !wheelTeacher() || typeof appCheck !== 'function') throw new Error('Sign in as the teacher to save the recording.');
+  var tokens = await Promise.all([user.getIdToken(), appCheck()]);
+  var res;
+  try {
+    res = await fetch(LESSON_UP_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tokens[0], 'X-Firebase-AppCheck': tokens[1] },
+      body: JSON.stringify(request)
+    });
+  } catch (e) { throw new Error('No connection to the cloud just now.'); }
+  var data = await res.json().catch(function () { return null; });
+  if (!res.ok || !data || !data.url || !data.path) throw new Error((data && data.error && data.error.message) || 'The recording could not be joined in the cloud.');
+  return { url: lessonAssetUrl(data.url) || data.url, path: data.path, bytes: Number(data.bytes) || 0 };
+}
+async function liveClassRecPut(path, blob, type) {
+  if (!wheelTeacher()) throw new Error('Only the teacher uploads the class recording.');
+  await lessonUpPut(path, blob, type);
+}
+function liveClassRecLabel(job) {
+  var d = new Date(job.startedAt || Date.now());
+  return '🎥 Live class · ' + d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+// Puts (or updates) the class's video pill on one worksheet: in memory when
+// it is the one open (so the next auto-save keeps it), in the saved document
+// otherwise. Never on a child's practice attempt.
+async function liveClassAttachVideo(docId, job, video) {
+  if (!wheelTeacher() || !/^[A-Za-z0-9_-]{1,64}$/.test(String(docId || '')) || !video || !video.url) return false;
+  var mark = 'lc:' + job.id;
+  var pill = function (list, baseW) {
+    var mine = list.filter(function (a) { return a && a.type === 'video' && a.liveClassVideo === mark; })[0];
+    if (mine) { mine.url = video.url; return list; }
+    var n = list.filter(function (a) { return a && a.type === 'video' && a.liveClassVideo && a.page === 1; }).length;
+    var w = Number(baseW) || 0;
+    list.push({ id: newAnnId(), page: 1, type: 'video', x: w ? round2(Math.max(4, w - VIDEO_BTN_W - 8)) : 8,
+      y: round2(8 + n * (VIDEO_BTN_H + 8)), w: VIDEO_BTN_W, h: VIDEO_BTN_H, url: video.url,
+      label: liveClassRecLabel(job), liveClassVideo: mark, ts: job.startedAt || Date.now() });
+    return list;
+  };
+  if (docId === currentDocId) {
+    var held = practiceMode ? teacherAnswers : annotations;
+    if (!Array.isArray(held)) return false;
+    pill(held, pages && pages[0] ? pages[0].baseW : 0);
+    if (!practiceMode) { renderAllOverlays(); setDirty(true); }
+    else {
+      // Practising: the worksheet's own annotations are parked; write them straight up.
+      await writeAnnotations(docId, JSON.stringify(held));
+    }
+    return true;
+  }
+  var ref = db.collection(COLLECTION).doc(docId);
+  var snap = await ref.get();
+  if (!snap.exists) return false;
+  var d = snap.data() || {};
+  if (d.ownerUid && currentUser && d.ownerUid !== currentUser.uid) return false;
+  var list = [];
+  try { list = JSON.parse(await readAnnotationJson(d) || '[]'); } catch (e) { return false; }
+  if (!Array.isArray(list)) return false;
+  await writeAnnotations(docId, JSON.stringify(pill(list, 0)));
+  return true;
+}
+async function liveClassRecSaved(job, result) {
+  if (!wheelTeacher() || !currentUser || currentUser.uid !== job.uid) throw new Error('The recording belongs to the teacher’s account.');
+  var video = { id: job.id, url: result.url, path: result.path, bytes: result.bytes || job.bytes, durationMs: job.durationMs,
+    startedAt: job.startedAt, endedAt: job.endedAt, type: job.type, docs: job.docs.map(function (x) { return x.id; }) };
+  var ref = /^\d{1,16}$/.test(String(job.epoch)) ? db.collection('users').doc(job.uid).collection('liveClass').doc(String(job.epoch)) : null;
+  if (ref) {
+    var field = {}; field[job.id] = video;
+    await ref.set({ epoch: Number(job.epoch), slotLabel: job.slotLabel || '', videos: field }, { merge: true });
+  }
+  for (var k = 0; k < job.docs.length; k++) {
+    try { await liveClassAttachVideo(job.docs[k].id, job, video); }
+    catch (e) { toast('The class video could not be put on “' + (job.docs[k].name || 'a worksheet') + '” — it is in 🎥 Live class → Recordings.'); }
+  }
+}
+async function liveClassRecordings() {
+  var uid = liveClassRecTeacherUid();
+  if (!uid) return [];
+  var snap = await db.collection('users').doc(uid).collection('liveClass').orderBy('epoch', 'desc').limit(12).get();
+  var out = [];
+  snap.forEach(function (d) {
+    var x = d.data() || {};
+    var vids = x.videos && typeof x.videos === 'object' ? Object.keys(x.videos).map(function (k) { return x.videos[k]; }).filter(function (v) { return v && v.url; }) : [];
+    out.push({ epoch: Number(x.epoch) || Number(d.id) || 0, slotLabel: String(x.slotLabel || ''), startedAt: Number(x.startedAt) || 0, videos: vids });
+  });
+  return out;
+}
+function liveClassRecInit() {
+  if (liveClassRec || !window.LiveClassRecord) return liveClassRec;
+  liveClassRec = window.LiveClassRecord.create({
+    toast: toast,
+    put: liveClassRecPut,
+    compose: liveClassRecCompose,
+    plan: function (blob, ms) { return LessonAudioFinalize.plan(blob, ms); },
+    finishWhole: async function (blob) { try { return await LessonMp4Finalize.finalize(blob); } catch (e) { return blob; } },
+    saved: liveClassRecSaved,
+    // Only the teacher who recorded it, signed in on this device, sends it up.
+    canUpload: function (job) { return !!(wheelTeacher() && currentUser && job && job.uid === currentUser.uid); },
+    currentDoc: function () { return currentDocId ? { id: currentDocId, name: docName || '' } : null; }
+  });
+  return liveClassRec;
+}
+function liveClassRecBoot() {
+  if (!liveClassRecInit()) return;
+  if (wheelTeacher()) liveClassRec.boot();
+}
+
 function liveClassLink() {
   return location.origin + location.pathname + '?live';
 }
@@ -32943,6 +33071,12 @@ function liveClassInit() {
     parentEmails: liveClassParentEmails,
     sendEmail: liveClassSendEmail,
     snapWorksheet: liveClassSnapWorksheet,
+    // 🖥 The share is only ever the worksheet (live-class.js narrows the tab to it).
+    shareTarget: function () { return $('viewerArea'); },
+    recorder: liveClassRecInit(),
+    teacherUid: liveClassRecTeacherUid,
+    currentDoc: function () { return currentDocId ? { id: currentDocId, name: docName || '' } : null; },
+    recordings: liveClassRecordings,
     centre: function () { return 'Polymath Learning Centre'; }
   });
   $('liveClassBtn').addEventListener('click', function () {
@@ -32958,6 +33092,8 @@ function liveClassRoleChanged() {
   var r = liveClassRole();
   if (b) b.style.display = r === 'none' && !LIVE_OPEN ? 'none' : '';
   if (liveClass) liveClass.roleChanged();
+  // A recording still on its way up finishes once the teacher is back.
+  if (r === 'teacher') liveClassRecBoot();
   // ?live: open the class the moment we know who is here. Nobody signed in
   // → an anonymous account, then the "Who are you?" list.
   if (LIVE_OPEN && !liveClassOpenHandled && liveClass && authStateKnown()) {
@@ -44876,7 +45012,8 @@ loadAiNotePrefs();
 <script src="student-heroes.js?v=1.191.0"></script>
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>
-<script src="live-class.js?v=1.207.0"></script>
+<script src="live-class-record.js?v=1.208.0"></script>
+<script src="live-class.js?v=1.208.0"></script>
 <script>liveClassInit();</script>
 <script src="vendor/qrcode-generator.js"></script>
 <script src="question-apps.js"></script>
