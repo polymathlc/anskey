@@ -148,7 +148,17 @@
     if (!el('shDialog').open) el('shDialog').showModal();
     refresh(true);
   }
+  /* v1.213.0 — NOTHING OPENS BY ITSELF ON SIGN-IN.
+     My Hero (the character select for a child who has not picked one yet,
+     their own hero after that) used to open the moment a student's profile
+     was ready — on every sign-in, a personal link, a PIN and a live class
+     join alike — and sat over the worksheet the child came to do. It opens
+     ONLY from the ✦ My Hero button now. `profileReady` still records that
+     the profile is complete (the button is the student's either way), and
+     `pure.shouldAutoOpen` is the one answer, kept so a test can pin it. */
+  function shouldAutoOpen() { return false; }
   function maybeOpen() {
+    if (!shouldAutoOpen()) return;
     if (student() && readyFor === user().uid && openedFor !== user().uid && !window.sharedLink && !window.SHARE_OPEN_ID && !window.shareOpenInProgress && !el('profileModal').classList.contains('open')) { openedFor = user().uid; open('student'); }
   }
   function roleChanged() {
@@ -178,7 +188,7 @@
     else if (target.dataset.shManage) mutate({type:target.dataset.shManage,studentId:target.dataset.studentId});
   });
   el('shBody').addEventListener('change', function (event) { var choice=event.target.closest('[data-sh-loadout-slot]'); if (choice && choice.value && !choice.disabled && !busy && !(studio&&studio.blocked())) mutate({type:'configure',command:'equip',itemId:choice.value,slot:choice.dataset.shLoadoutSlot}); });
-  window.StudentHeroes = { open:open, close:close, roleChanged:roleChanged, profileReady:function (uid) { if (user() && user().uid === uid) { readyFor = uid; maybeOpen(); } } };
+  window.StudentHeroes = { pure:{ shouldAutoOpen:shouldAutoOpen }, open:open, close:close, roleChanged:roleChanged, profileReady:function (uid) { if (user() && user().uid === uid) { readyFor = uid; maybeOpen(); } } };
   roleChanged();
   if (student() && window.profileComplete && window.profileComplete(window.studentProfile)) window.StudentHeroes.profileReady(user().uid);
 })();

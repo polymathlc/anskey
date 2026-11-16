@@ -18,6 +18,11 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## ✦ My Hero waits for its button (v1.213.0)
+
+- `student-heroes.js` no longer opens My Hero when a student's profile is ready. `maybeOpen` asks `shouldAutoOpen()` (exposed as `StudentHeroes.pure.shouldAutoOpen`), which is `false`: every sign-in path (Google, personal link `?live=`, PIN, live class join, account switch) calls `profileReady` / `roleChanged` and nothing opens. The character select (claim → class) shows only from `#myHeroBtn`; a student with a chosen hero gets their hero page. Never put an auto-open back on sign-in.
+- Run `node tools/student-heroes-browser-check.mjs`.
+
 ## 📞 Live class: Zoom hybrid (v1.212.0)
 
 - **The Zoom room's sound** (`startZoom(route, deviceId)` / `stopZoom` / `zoomMeterTick` / `zoomSpeakers` / `paintZoom`, the 📞 Zoom tab in `TABS` and the bar button): `getDisplayMedia` (route `display`, the Zoom window / a tab / the whole screen with system audio) or `getUserMedia` (route `input`, a chosen input), asked with pure `zoomCaptureConstraints` — voice processing OFF, `restrictOwnAudio` + `suppressLocalAudioPlayback` so this page's own sound (every child here) is never captured. It runs source → gain → analyser / `MediaStreamDestination`, and the destination's track is published as `ScreenShareAudio` named `ZOOM.name` (`zoom`), dtx off, `ZOOM.bps`. The window share's picture is never published. Children here receive it through `wantTrack` (teacher's screen audio = yes, low data too). `syncRecorder` gives it to the recording as `zoom`. `disconnect` calls `stopZoom(true)`.
