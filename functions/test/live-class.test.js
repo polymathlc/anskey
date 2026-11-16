@@ -503,3 +503,151 @@ test('🚪 a make-up pick whose own lesson is later today is told to wait for it
   await h.call({ action: 'letin', on: true }, { as: teacherUser });
   assert.equal((await h.call({ action: 'token', pick: { kind: 'makeup', id: 'famC_sC2' } }, { as: anonUser })).statusCode, 200, 'the teacher can still let them in');
 });
+
+/* ---------- 🔗 personal links and PINs (v1.210.0) ---------- */
+
+test('🔗 a link code is checked, not trusted: MAC, generation and shape', () => {
+  const code = lc.passCode('famA_sA1', 0, MASTER);
+  assert.match(code, /^famA_sA1\.0\.[A-Za-z0-9_-]{16}$/);
+  assert.equal(lc.checkPass(code, {}, MASTER), 'famA_sA1', 'generation 0 needs no entry yet');
+  assert.equal(lc.checkPass(code, { famA_sA1: { gen: 0 } }, MASTER), 'famA_sA1');
+  assert.equal(lc.checkPass(code, { famA_sA1: { gen: 1 } }, MASTER), null, 'a replaced link stops working');
+  assert.equal(lc.checkPass(code, {}, 'another-master-secret-0123456789'), null, 'another server cannot make one');
+  const forged = code.replace(/\.[^.]+$/, '.' + 'A'.repeat(16));
+  assert.equal(lc.checkPass(forged, {}, MASTER), null);
+  assert.equal(lc.checkPass('famB_sB1' + code.slice(8), {}, MASTER), null, 'a MAC is for one child only');
+  assert.equal(lc.checkPass('', {}, MASTER), null);
+  assert.equal(lc.checkPass('famA_sA1.0', {}, MASTER), null);
+  assert.equal(lc.checkPass('<script>.0.' + 'a'.repeat(16), {}, MASTER), null);
+  assert.equal(lc.passCode('not a key', 0, MASTER), '');
+});
+
+test('🔗 PINs: four digits, unique, never weak, the same on any run', () => {
+  assert.equal(lc.cleanPin(' 12 34 '), '1234');
+  assert.equal(lc.cleanPin('123'), '');
+  assert.equal(lc.cleanPin('12a4'), '');
+  const students = [];
+  for (let i = 0; i < 400; i++) students.push({ id: 'fam' + i + '_s' + i });
+  const { passes, changed } = lc.ensurePasses({}, students, MASTER, 1);
+  assert.equal(changed, true);
+  const pins = Object.values(passes).map(e => e.pin);
+  assert.equal(pins.length, 400);
+  assert.ok(pins.every(p => /^\d{4}$/.test(p)));
+  assert.equal(new Set(pins).size, 400, 'no two children share a PIN');
+  assert.ok(!pins.includes('1234') && !pins.includes('0000'));
+  const again = lc.ensurePasses({}, students, MASTER, 2).passes;
+  assert.deepEqual(Object.values(again).map(e => e.pin), pins, 'deterministic');
+  const kept = lc.ensurePasses(passes, students.slice(0, 10), MASTER, 3);
+  assert.equal(kept.changed, false, 'nothing new, nothing written');
+  assert.equal(Object.keys(kept.passes).length, 400, 'a child who left keeps their link for when they come back');
+  // A duplicate that somehow got stored is re-drawn rather than shared.
+  const dup = { a_1: { gen: 0, pin: '5555', at: 0 }, b_2: { gen: 0, pin: '5821', at: 0 }, c_3: { gen: 0, pin: '5821', at: 0 } };
+  const fixed = lc.ensurePasses(dup, [{ id: 'a_1' }, { id: 'b_2' }, { id: 'c_3' }], MASTER, 4).passes;
+  assert.notEqual(fixed.b_2.pin, fixed.c_3.pin);
+  assert.equal(lc.pinOwner('5821', fixed) !== '', true);
+  assert.equal(lc.pinOwner('99', fixed), '');
+});
+
+test('🔗 wrong PINs are counted per account and in all, in ten-minute windows', () => {
+  let tries = null;
+  for (let i = 0; i < lc.PASS_LIMITS_PIN.perUid; i++) {
+    const a = lc.pinTriesAllowed(tries, 'u1', 1000 + i);
+    assert.equal(a.ok, true);
+    tries = lc.pinTriesAfterMiss(a.window, 'u1');
+  }
+  assert.equal(lc.pinTriesAllowed(tries, 'u1', 2000).ok, false, 'one account: stopped');
+  assert.equal(lc.pinTriesAllowed(tries, 'u2', 2000).ok, true, 'another account is not');
+  assert.equal(lc.pinTriesAllowed(tries, 'u1', 1000 + lc.PASS_LIMITS_PIN.windowMs + 1).ok, true, 'a new window');
+  const many = { win: 1000, total: lc.PASS_LIMITS_PIN.total, by: {} };
+  assert.equal(lc.pinTriesAllowed(many, 'fresh', 2000).ok, false, 'many anonymous accounts cannot walk the PINs');
+});
+
+test('🔗 the teacher gets every child\'s link and PIN; students cannot', async () => {
+  const h = harness();
+  assert.equal((await h.call({ action: 'passes' }, { as: studentUser })).body.error.code, 'teacher_only');
+  assert.equal((await h.call({ action: 'repass', id: 'famA_sA1' }, { as: anonUser })).body.error.code, 'teacher_only');
+  const res = await h.call({ action: 'passes' }, { as: teacherUser });
+  assert.equal(res.statusCode, 200);
+  const names = res.body.students.map(s => s.name);
+  assert.deepEqual(names, ['Amy Tan', 'Ethan Lim', 'Ethan Lim', 'Zoe Ng'], 'enrolled only, in week order');
+  const amy = res.body.students[0];
+  assert.equal(amy.id, 'famA_sA1');
+  assert.match(amy.pin, /^\d{4}$/);
+  assert.equal(lc.checkPass(amy.code, {}, MASTER), 'famA_sA1');
+  assert.deepEqual(amy.slots, [{ slot: 'WED-2', label: 'Wed 5:00pm · P5 Science' }]);
+  const stored = h.db.store.get('ansKeyLiveClassConfig/passes');
+  assert.equal(stored.list.famA_sA1.pin, amy.pin);
+  assert.ok(!JSON.stringify(stored).includes(MASTER));
+  const writes = h.db.writes.length;
+  await h.call({ action: 'passes' }, { as: teacherUser });
+  assert.equal(h.db.writes.length, writes, 'nothing changed, nothing written');
+  // A new link: the old one stops, the PIN changes.
+  const re = await h.call({ action: 'repass', id: 'famA_sA1' }, { as: teacherUser });
+  assert.equal(re.body.student.gen, 1);
+  assert.notEqual(re.body.student.code, amy.code);
+  assert.notEqual(re.body.student.pin, amy.pin);
+  assert.equal((await h.call({ action: 'repass', id: 'famD_sD1' }, { as: teacherUser })).body.error.code, 'not_on_roster');
+  assert.equal((await h.call({ action: 'repass', id: '../x' }, { as: teacherUser })).body.error.code, 'invalid_request');
+});
+
+test('🔗 a personal link: whose it is before the class, one tap in at lesson time', async () => {
+  const h = harness();
+  await h.call(KEYS);
+  const amy = (await h.call({ action: 'passes' })).body.students[0];
+  // Class not open yet: the link still says whose it is.
+  const early = await h.call({ action: 'pass', code: amy.code }, { as: anonUser });
+  assert.equal(early.statusCode, 200);
+  assert.equal(early.body.open, false);
+  assert.equal(early.body.me.name, 'Amy Tan');
+  await h.call({ action: 'open', slot: SLOT }, { as: teacherUser });
+  const me = await h.call({ action: 'pass', code: amy.code }, { as: anonUser });
+  assert.equal(me.body.gate.open, true);
+  assert.equal(me.body.me.kind, 'roster');
+  assert.equal(me.body.code, amy.code);
+  const tok = await h.call({ action: 'token', pick: { kind: 'pass', code: amy.code } }, { as: anonUser });
+  assert.equal(tok.statusCode, 200);
+  assert.equal(tok.body.identity, 'r:famA_sA1');
+  assert.equal(tok.body.name, 'Amy Tan');
+  assert.equal(tok.body.kind, 'roster');
+  assert.equal((await h.call({ action: 'pass', code: amy.code }, { as: teacherUser })).body.error.code, 'teacher_pass');
+  // Replaced: refused in words.
+  await h.call({ action: 'repass', id: 'famA_sA1' }, { as: teacherUser });
+  const old = await h.call({ action: 'token', pick: { kind: 'pass', code: amy.code } }, { as: anonUser });
+  assert.equal(old.body.error.code, 'pass_unknown');
+});
+
+test('🔗 a link from another class joins as a make-up, and the door still applies', async () => {
+  const h = harness();
+  await h.call(KEYS);
+  const zoe = (await h.call({ action: 'passes' })).body.students.find(s => s.name === 'Zoe Ng');
+  await h.call({ action: 'open', slot: SLOT });
+  const tok = await h.call({ action: 'token', pick: { kind: 'pass', code: zoe.code } }, { as: anonUser });
+  assert.equal(tok.statusCode, 200);
+  assert.equal(tok.body.kind, 'makeup');
+  // Too early for the Wednesday lesson: the link is right, the door is shut.
+  h.clock.t -= 40 * 60000;
+  const shut = await h.call({ action: 'pass', code: zoe.code }, { as: anonUser });
+  assert.equal(shut.body.gate.open, false);
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'pass', code: zoe.code } }, { as: anonUser })).body.error.code, 'not_yet');
+});
+
+test('🔗 a PIN: only while a class is open, and counted', async () => {
+  const h = harness();
+  await h.call(KEYS);
+  const amy = (await h.call({ action: 'passes' })).body.students[0];
+  assert.equal((await h.call({ action: 'pass', pin: amy.pin }, { as: anonUser })).body.error.code, 'class_closed', 'never tried against a closed class');
+  await h.call({ action: 'open', slot: SLOT }, { as: teacherUser });
+  const ok = await h.call({ action: 'pass', pin: amy.pin }, { as: anonUser });
+  assert.equal(ok.body.me.name, 'Amy Tan');
+  assert.equal(ok.body.code, amy.code, 'the device is handed its link for next time');
+  const tok = await h.call({ action: 'token', pick: { kind: 'pin', pin: amy.pin } }, { as: anonUser });
+  assert.equal(tok.body.identity, 'r:famA_sA1');
+  assert.equal(tok.body.code, amy.code);
+  const wrongPin = amy.pin === '5821' ? '5822' : '5821';
+  let last = null;
+  for (let i = 0; i < lc.PASS_LIMITS_PIN.perUid; i++) last = await h.call({ action: 'pass', pin: wrongPin }, { as: studentUser });
+  assert.equal(last.body.error.code, 'pin_unknown');
+  const stopped = await h.call({ action: 'pass', pin: amy.pin }, { as: studentUser });
+  assert.equal(stopped.statusCode, 429, 'even the right PIN waits once an account has guessed too often');
+  assert.equal(stopped.body.error.code, 'pin_wait');
+});

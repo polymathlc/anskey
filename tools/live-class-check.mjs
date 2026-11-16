@@ -136,7 +136,9 @@ const USERS = {
   s1: { uid: 'anon-s1', firebase: { sign_in_provider: 'anonymous' } },
   s2: { uid: 'anon-s2', firebase: { sign_in_provider: 'anonymous' } },
   s3: { uid: 'anon-s3', firebase: { sign_in_provider: 'anonymous' } },
-  s4: { uid: 'anon-s4', firebase: { sign_in_provider: 'anonymous' } }
+  s4: { uid: 'anon-s4', firebase: { sign_in_provider: 'anonymous' } },
+  s5: { uid: 'anon-s5', firebase: { sign_in_provider: 'anonymous' } },
+  s6: { uid: 'anon-s6', firebase: { sign_in_provider: 'anonymous' } }
 };
 const reports = [];
 // The class is Wednesday 5pm (WED-2). The server's clock starts at 4:30pm
@@ -195,6 +197,7 @@ body { margin:0; font-family: var(--font); background:#eceae6; height:100vh; }
 <button id="liveClassBtn">🎥 Live class</button>
 <div id="viewerArea"><h1 style="padding:40px">Worksheet page</h1></div>
 <script src="/vendor/livekit-client.umd.js"></script>
+<script src="/vendor/qrcode-generator.js"></script>
 <script src="/lessonfinal.js"></script>
 <script src="/live-class-record.js"></script>
 <script src="/live-class.js"></script>
@@ -237,6 +240,12 @@ window.lc = LiveClass.create({
   slots: function () { return call('slots').then(function (r) { return r.slots || []; }); },
   guessSlot: function () { return 'WED-2'; },
   classLink: function () { return location.origin + '/?live'; },
+  qrMatrix: function (text) {
+    var qr = window.qrcode(0, 'L'); qr.addData(String(text), 'Byte'); qr.make();
+    var n = qr.getModuleCount(), rows = [];
+    for (var r = 0; r < n; r++) { var row = []; for (var c = 0; c < n; c++) row.push(!!qr.isDark(r, c)); rows.push(row); }
+    return rows;
+  },
   loadSession: function (e) { return Promise.resolve(window.saved[e] || null); },
   saveSession: function (e, s) { window.saved[e] = s; return Promise.resolve(); },
   savePhoto: function (e, ref, d) { window.photos[ref] = d; return Promise.resolve(); },
@@ -329,11 +338,13 @@ try { browser = await chromium.launch({ channel: 'chromium', args: LAUNCH_ARGS }
 catch (e) { browser = await chromium.launch({ args: LAUNCH_ARGS }); }
 const errors = [];
 async function openPage(who, opts = {}) {
+  const query = opts.query || '';
+  opts = Object.assign({}, opts); delete opts.query;
   const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 860 }, permissions: ['camera', 'microphone'] }, opts));
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(who + ': ' + e));
   page.on('dialog', d => { page.__dialogs = (page.__dialogs || []).concat(d.message()); d.accept(); });
-  await page.goto(BASE + '/harness.html?who=' + who);
+  await page.goto(BASE + '/harness.html?who=' + who + (query ? '&' + query : ''));
   page.ctx = ctx;
   return page;
 }
@@ -471,6 +482,59 @@ try {
   ok('"No" goes back to the list', await S1b.locator('.vcPick').isVisible());
   await S1b.ctx.close();
 
+  /* ---------- 2b. 🔗 personal links, QR codes and PINs (v1.210.0) ---------- */
+  console.log('Personal links and PINs');
+  const T2 = await openPage('teacher');
+  await T2.click('#liveClassBtn');
+  await until(() => T2.locator('.vcStart').isVisible(), 10000);
+  await T2.locator('.vcStart button', { hasText: 'Links & PINs' }).click();
+  ok('🔗 Links & PINs opens on this lesson\'s students', await until(async () => (await T2.locator('.vcPassRow').count()) === 2, 10000));
+  await T2.locator('.vcPassSlot').selectOption('');
+  ok('…and lists every enrolled student with a PIN', await until(async () => (await T2.locator('.vcPassRow').count()) === 4, 5000));
+  const pinsShown = await T2.locator('.vcPassRow .vcPin').allTextContents();
+  ok('…each PIN is four digits, none shared', pinsShown.every(p => /^\d{4}$/.test(p)) && new Set(pinsShown).size === pinsShown.length, pinsShown.join(' '));
+  await T2.locator('.vcPassSlot').selectOption('WED-2');
+  ok('…one lesson at a time', await until(async () => (await T2.locator('.vcPassRow').count()) === 2, 5000));
+  await T2.locator('.vcPassRow').first().locator('button', { hasText: 'QR' }).click();
+  ok('▦ QR shows the student\'s code', await until(() => T2.evaluate(() => { var s = document.querySelector('.vcPassQr svg path'); return !!(s && s.getAttribute('d').length > 200); }), 5000));
+  await shot(T2, '02b-links-and-pins');
+  const passList = await T2.evaluate(() => call('passes'));
+  const ethan = passList.students.find(r => r.name === 'Ethan Lim' && r.level === 'P5');
+  ok('the teacher has Ethan\'s link code and PIN', !!(ethan && ethan.code && /^\d{4}$/.test(ethan.pin)));
+  await T2.ctx.close();
+
+  const S5 = await openPage('s5', { query: 'live=' + encodeURIComponent(ethan.code) });
+  await S5.click('#liveClassBtn');
+  ok('a personal link goes straight to "You are Ethan Lim"', await until(() => S5.locator('.vcMe').isVisible(), 10000) && /Ethan Lim/.test(await S5.locator('.vcMe').textContent()));
+  ok('…with no list of names', !(await S5.locator('.vcPick').isVisible()));
+  await shot(S5, '02c-you-are');
+  await S5.locator('.vcMe .vcGo').click();
+  ok('one tap and Ethan is in the class', await until(async () => (await mode(S5)) === 'live', 20000));
+  ok('the teacher sees Ethan\'s tile', await until(() => T.evaluate(() => [...document.querySelectorAll('.vcTileName')].some(e => e.textContent === 'Ethan Lim')), 15000));
+  await S5.evaluate(() => window.lc.close());
+  await S5.goto(BASE + '/harness.html?who=s5');
+  await S5.click('#liveClassBtn');
+  ok('the device remembers Ethan: the plain class link says "You are Ethan Lim" too', await until(() => S5.locator('.vcMe').isVisible(), 10000));
+  await S5.locator('.vcMe .vcLinkBtn').click();
+  ok('"Not me" goes to the list and forgets the link', await until(() => S5.locator('.vcPick').isVisible(), 10000) && await S5.evaluate(() => !localStorage.getItem('polymath.liveClass.pass.v1')));
+  await S5.ctx.close();
+  ok('Ethan\'s tile goes when he leaves', await until(() => T.evaluate(() => ![...document.querySelectorAll('.vcTileName')].some(e => e.textContent === 'Ethan Lim')), 20000));
+
+  const S6 = await openPage('s6', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await S6.click('#liveClassBtn');
+  await until(() => S6.locator('.vcPick').isVisible(), 10000);
+  await S6.locator('.vcTab', { hasText: 'PIN' }).click();
+  ok('🔢 the PIN tab waits for four numbers', await S6.locator('.vcPinRow .vcPrimary').isDisabled());
+  await S6.fill('.vcPinIn', '0000');
+  await S6.press('.vcPinIn', 'Enter');
+  ok('a wrong PIN is refused in words', await until(() => S6.locator('.vcPinMsg', { hasText: 'not right' }).isVisible(), 10000));
+  await S6.fill('.vcPinIn', ethan.pin);
+  await S6.press('.vcPinIn', 'Enter');
+  ok('the right PIN says "You are Ethan Lim"', await until(() => S6.locator('.vcMe').isVisible(), 10000) && /Ethan Lim/.test(await S6.locator('.vcMe').textContent()));
+  ok('…and the device keeps his link for next time', await S6.evaluate(() => /\./.test((JSON.parse(localStorage.getItem('polymath.liveClass.pass.v1') || '{}').code) || '')));
+  await shot(S6, '02d-pin');
+  await S6.ctx.close();
+
   /* ---------- 3. questions ---------- */
   console.log('Questions: MCQ, fill in the blank, open-ended');
   await T.fill('.vcAsk .vcQText', 'Which of these conducts heat best?');
@@ -596,7 +660,7 @@ try {
   console.log('End and reports');
   await T.locator('.vcCtl.vcEnd').click();
   ok('the teacher sees the reports', await until(() => T.locator('.vcEndedTop').isVisible(), 15000));
-  ok('every student who came has a report', await T.locator('.vcRep').count() === 3);
+  ok('every student who came has a report (Ethan too, who came by his link and left)', await T.locator('.vcRep').count() === 4);
   ok('students are told the class ended', await until(() => S1.locator('.vcEnded').isVisible(), 15000));
   ok('Amy\'s summary line is factual', /Amy Tan answered every question asked in class \(3\), getting 3 of 3 marked answers right/.test(await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcRepLine').textContent()));
   await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcRepHead').click();
