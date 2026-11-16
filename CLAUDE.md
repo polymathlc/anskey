@@ -18,6 +18,16 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## ✨ Live class: AI send, provisional marks, box select (v1.209.0)
+
+- **Three marks on an answer entry**: `auto` (the key's), `ai` = `{v: correct|partial|wrong, why, by, at}` (`cleanVerdict(s)`), `ok` (the teacher's: true / false / `'partial'` / null, `cleanMark`). `provisionalOf` = ai else auto, `confirmedOf` = ok only, `markOf` = confirmed else provisional (the teacher's board). **Only `confirmedOf` leaves the teacher's device**: the student's screen (`setMark`, `onHello` rejoin replies), `participation` / `reportText` and the record. Send `markOf` to a student and a guess reads as a verdict (CI caught exactly that on the rejoin).
+- **AI pre-marking** (`needsAiMark`, `queueAiMark`, `aiFlush`): blank and open answers with no confirmed mark, batched `AI_BATCH` per call after `AI_WAIT_MS`, `AI_PARALLEL` at once, students numbered (never named), a reply dropped if the epoch or question changed. `env.aiMark` = glue `liveClassAiMark` (`aiGrounding('mark')`, the key from `liveClassKeyContext` = `answerKeyPageContext`). `prefs.aiMark` switches it off. MCQ never goes to the AI.
+- **Confirm**: `confirmMark` / `confirmAll` (`confirmPlan`) turn provisional into `ok`; tapping ✓ ◐ ✗ overrides (tapping the same mark again clears it). Points stay the teacher's own buttons.
+- **Tally**: `tallyOf` / `choosersOf`, chips `.vcTallyChip`, names `.vcTallyWho`; MCQ bars click through too.
+- **✨ AI send**: `env.cropQuestion` (glue `liveClassCropQuestion` → `snipAsk`, the 📸 snip layer in ask mode, `#snipLayer.asking` over the window, `body.vcCropping` fades it) → `env.readQuestion` (glue `liveClassReadQuestion`, JSON, `aiGrounding('answer')`) → pure `questionFromAi` (kind, options without printed (1)/(A) leads, answer index / accepted / model) → `sendQuestion` (`ai: true`), or the composer when `prefs.aiReview`. `questionForStudent` still strips the key.
+- **▭ Box select** (`rectselect`, Shift+M): the lasso gesture with `lassoing.box`, corners from `boxSelectCorners`, and the ONE inclusion rule `selectAnnotationsInPolygon(p, poly, 'box')`; a tap selects nothing. Everywhere the lasso is a draw tool, so is it.
+- Run `node --test tools/live-class-tests.mjs tools/box-select-tests.mjs tools/pen-select-tests.mjs` and `node tools/live-class-check.mjs` (provisional marks, tally, Confirm all, AI pre-mark and override, AI send).
+
 ## 🎥 Live class: worksheet-only share, cloud recording, the lesson-time door (v1.208.0)
 
 - **The share is narrowed BEFORE it is published** (`startShare` → `limitShare` → `publishTrack`): Element Capture (`RestrictionTarget.fromElement(env.shareTarget())` + `track.restrictTo`) on `#viewerArea`, else Region Capture (`CropTarget` + `cropTo`, toasted: things moved over the page are shared), else the whole tab with a toast. Publish first and the class sees the teacher's whole tab, answers panel included, for a frame. `body.vcShareArea` gives `#viewerArea` `isolation:isolate` (Element Capture needs a stacking context). `shareConstraints()` asks `preferCurrentTab`, `SCREEN.fps` 5.

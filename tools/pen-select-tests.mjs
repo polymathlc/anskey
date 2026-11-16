@@ -501,8 +501,8 @@ test('a barrel-button press mid-path places nothing', () => {
 
 test('a card’s grip, a video pill and the double-click handler leave the pen alone', () => {
   const src = html;
-  assert.match(src, /tool !== 'eraser' && tool !== 'lasso' && tool !== 'penselect'\) \{/, 'a card heading is not grabbed while placing a point');
-  assert.match(src, /tool === 'select' \|\| tool === 'lasso' \|\| tool === 'penselect' \|\| tool === 'eraser'/, 'a video pill does not eat the click');
+  assert.match(src, /tool !== 'eraser' && tool !== 'lasso' && tool !== 'penselect' && tool !== 'rectselect'\) \{/, 'a card heading is not grabbed while placing a point');
+  assert.match(src, /tool === 'select' \|\| tool === 'lasso' \|\| tool === 'penselect' \|\| tool === 'rectselect' \|\| tool === 'eraser'/, 'a video pill does not eat the click');
   const { c, run } = pen();
   run(`annotations.push({ id: 'ink', page: 1, type: 'pen', points: [{x:1,y:1},{x:2,y:2}] }); var inkNode = new Node('g'); inkNode.setAttribute('data-id', 'ink');
        p.svg.emit('dblclick', { type: 'dblclick', target: inkNode, preventDefault: function(){} });`);
@@ -518,12 +518,12 @@ test('without shape-snap.js the tool says so instead of silently doing nothing',
 
 /* ---------- wiring: every place a tool is enumerated ---------- */
 test('the tool is wired in everywhere the lasso is', () => {
-  assert.match(html, /function isDrawTool\(t\) \{[\s\S]{0,400}t === 'lasso' \|\| t === 'penselect';/);
+  assert.match(html, /function isDrawTool\(t\) \{[\s\S]{0,400}t === 'lasso' \|\| t === 'penselect' \|\| t === 'rectselect';/);
   assert.match(html, /data-tool="penselect" data-key="Shift\+S"/);
   const menu = cut('<div id="selectionToolItems">', '<button class="toolbarMenuItem" type="button" id="expandToolsBtn"');
   assert(menu.includes('data-tool="penselect"'), 'it is in the Tools menu beside the lasso, so it travels with the expanded toolbar');
   assert.match(html, /selectionLabels = \{[^}]*penselect: 'Pen select'/);
-  assert.match(html, /if \(t !== 'lasso' && t !== 'penselect'\) clearLassoSel\(true\);/);
+  assert.match(html, /if \(t !== 'lasso' && t !== 'penselect' && t !== 'rectselect'\) clearLassoSel\(true\);/);
   assert.match(html, /if \(t !== 'penselect' && typeof penSelectCancel === 'function'\) penSelectCancel\(\);/);
   assert.match(html, /if \(e\.shiftKey && k === 's'\) setTool\('penselect'\);/);
   assert(/'penselect'/.test(html) && !/TOOL_STYLE_DEFAULTS = \{[^}]*penselect/.test(html), 'it selects, it does not draw: no ink style of its own');

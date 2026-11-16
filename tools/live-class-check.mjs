@@ -244,6 +244,30 @@ window.lc = LiveClass.create({
   award: function (p, n) { window.awards.push([p.name, n]); return Promise.resolve({ saved: true }); },
   parentEmails: function (p) { return Promise.resolve(p.kind === 'trial' ? [] : ['parent-' + (p.rosterId || 'x') + '@example.com']); },
   sendEmail: function (m) { window.sentMail.push(m); return Promise.resolve({ from: 'centre' }); },
+  // ✨ AI send and Chung GPT's pre-marks, with a stand-in model that answers
+  // the way the real prompts ask (DATA, never markup).
+  aiName: function () { return 'Chung GPT'; },
+  cropQuestion: function () {
+    window.cropAsked = (window.cropAsked || 0) + 1;
+    var c = document.createElement('canvas'); c.width = 300; c.height = 120;
+    var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 300, 120); x.fillStyle = '#1565c0'; x.fillRect(20, 20, 200, 60);
+    return new Promise(function (r) { setTimeout(function () { r(c.toDataURL('image/jpeg', 0.8)); }, 300); });
+  },
+  readQuestion: function (ask) {
+    window.readAsked = ask && ask.img ? ask.img.slice(0, 22) : '';
+    return new Promise(function (r) { setTimeout(function () { r({ kind: 'mcq', text: 'Which planet is the largest?', options: ['(1) Mars', '(2) Jupiter', '(3) Venus'], answer: 1 }); }, 400); });
+  },
+  aiMark: function (ask) {
+    window.aiAsks = (window.aiAsks || []).concat([ask]);
+    return new Promise(function (r) { setTimeout(function () {
+      r({ by: 'openai', results: ask.answers.map(function (a) {
+        var t = String(a.text || '').toLowerCase();
+        return /hundred|100/.test(t) ? { id: a.id, verdict: 'correct', why: 'One hundred is the same as 100.' }
+          : /heat/.test(t) ? { id: a.id, verdict: 'partial', why: 'Says heat moves in but not that metal is a good conductor.' }
+          : { id: a.id, verdict: 'wrong', why: 'Does not answer the question.' };
+      }) });
+    }, 500); });
+  },
   snapWorksheet: function () {
     var c = document.createElement('canvas'); c.width = 400; c.height = 200;
     var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 400, 200); x.fillStyle = '#c60085'; x.fillRect(40, 40, 120, 80);
@@ -477,6 +501,21 @@ try {
   ok('the board says who is still owed an answer', /Bella Koh/.test(await T.locator('.vcWaiting').textContent()));
   ok('the class split is drawn', await T.evaluate(() => document.querySelectorAll('.vcBarRow').length === 3));
   ok('the tiles show ✓ and ✗', await until(() => T.evaluate(() => document.querySelectorAll('.vcTileBadge.ok').length === 1 && document.querySelectorAll('.vcTileBadge.no').length === 1)));
+  // ✓ ◐ ✗ — the key's marks are PROVISIONAL until the teacher confirms them.
+  ok('the key\'s marks are provisional: ✓ Confirm all (2) is offered', await T.locator('.vcConfirmAll', { hasText: 'Confirm all (2)' }).isVisible());
+  ok('…drawn dashed on the board and the tiles', await T.evaluate(() => document.querySelectorAll('.vcAns.prov').length === 2 && document.querySelectorAll('.vcTileBadge.prov').length === 2));
+  ok('…and a student is not told a provisional mark', await S1.locator('.vcQStatus', { hasText: 'Your teacher has your answer' }).isVisible());
+  ok('the live tally counts ✓ 1 and ✗ 1', (await T.locator('.vcTallyChip.ok').textContent()).trim() === '✓ 1' && (await T.locator('.vcTallyChip.no').textContent()).trim() === '✗ 1');
+  await T.locator('.vcTallyChip.ok').click();
+  ok('tapping ✓ shows who: Amy, and only her answer', /Amy Tan/.test(await T.locator('.vcTallyWho').textContent()) && await T.locator('.vcAns').count() === 1);
+  await T.locator('.vcTallyChip.ok').click();
+  ok('tapping it again shows everyone', await T.locator('.vcAns').count() === 2);
+  await T.locator('.vcBarRow').nth(1).click();
+  ok('tapping an option\'s bar shows who chose it', /Chose B:.*Zoe Ng/.test(await T.locator('.vcTallyWho').textContent()));
+  await T.locator('.vcTallyWho .vcIcon').click();
+  await T.locator('.vcConfirmAll').click();
+  ok('✓ Confirm all makes them the teacher\'s', await until(() => T.evaluate(() => !document.querySelector('.vcAns.prov') && document.querySelectorAll('.vcMine').length === 2)));
+  ok('…and Amy is told she is right', await until(() => S1.locator('.vcQStatus', { hasText: 'Correct!' }).isVisible(), 10000));
   await shot(T, '06-teacher-answers');
   await T.locator('.vcAnsHead button', { hasText: 'Show the answer' }).click();
   ok('Bella (who did not answer) is shown the answer', await until(() => S3.locator('.vcQStatus', { hasText: 'Answer: A. Iron' }).isVisible()));
@@ -501,6 +540,17 @@ try {
   ok('back online: Zoe\'s answer reaches the teacher', await until(() => T.evaluate(() => [...document.querySelectorAll('.vcAnsName')].some(e => e.textContent === 'Zoe Ng')), 45000));
   ok('…and is acknowledged on her screen', await until(() => S2.locator('.vcQStatus', { hasText: 'Your teacher has your answer' }).isVisible(), 20000));
   ok('"100.0" is marked right against "100"', await T.evaluate(() => { var a = [...document.querySelectorAll('.vcAns')].find(x => x.querySelector('.vcAnsName').textContent === 'Amy Tan'); return !!(a && a.classList.contains('ok')); }));
+  // "one hundred" is not in the key: Chung GPT pre-marks it, with its reason.
+  ok('✨ Chung GPT pre-marks the answer the key could not settle', await until(() => T.evaluate(() => { var a = [...document.querySelectorAll('.vcAns')].find(x => x.querySelector('.vcAnsName').textContent === 'Zoe Ng'); return !!(a && a.classList.contains('ok') && a.classList.contains('prov') && /One hundred is the same as 100/.test((a.querySelector('.vcAiWhy') || {}).textContent || '')); }), 15000));
+  ok('…asked only about Zoe, numbered and never named', await T.evaluate(() => (window.aiAsks || []).length === 1 && window.aiAsks[0].answers.length === 1 && window.aiAsks[0].answers[0].id === 's1' && !JSON.stringify(window.aiAsks).includes('Zoe')));
+  ok('…and Zoe still sees only that her answer arrived', await S2.locator('.vcQStatus', { hasText: 'Your teacher has your answer' }).isVisible());
+  const zoeRow = T.locator('.vcAns', { hasText: 'Zoe Ng' });
+  await zoeRow.locator('.vcMark.part').click();
+  ok('one tap overrides it: ◐ partly right', await until(() => S2.locator('.vcQStatus', { hasText: 'Partly right' }).isVisible(), 10000));
+  await zoeRow.locator('.vcMark.part').click();
+  ok('the same tap takes the override off again', await until(() => T.locator('.vcAns', { hasText: 'Zoe Ng' }).locator('.vcConfirm').isVisible()));
+  await T.locator('.vcConfirmAll').click();
+  ok('Confirm all: Zoe is told she is right', await until(() => S2.locator('.vcQStatus', { hasText: 'Correct!' }).isVisible(), 10000));
 
   // Open-ended, for Bella only; she types and adds nothing else; the teacher marks it and gives points.
   await T.locator('.vcSide .vcTab', { hasText: 'Ask' }).click();
@@ -515,10 +565,24 @@ try {
   await S3.fill('.vcQ textarea', 'Metal conducts heat from the room into the ice faster.');
   await S3.locator('.vcQ .vcPrimary', { hasText: 'Send' }).click();
   await until(() => T.evaluate(() => document.querySelectorAll('.vcAns').length === 1));
+  ok('✨ an open answer is pre-marked ◐ with a one-line reason', await until(() => T.evaluate(() => { var a = document.querySelector('.vcAns'); return !!(a && a.classList.contains('part') && /not that metal/.test((a.querySelector('.vcAiWhy') || {}).textContent || '')); }), 15000));
   await T.locator('.vcAns .vcMark').first().click();
   await T.locator('.vcAns .vcPts', { hasText: '+2' }).click();
   ok('Bella is told she is right and earned points', await until(() => S3.locator('.vcQStatus', { hasText: /Correct!.*\+2/ }).isVisible(), 10000));
   ok('the points go through the reward register door', await T.evaluate(() => JSON.stringify(window.awards) === JSON.stringify([['Bella Koh', 2]])));
+
+  // ✨ AI send: drag round a question, Chung GPT reads it and pushes it.
+  await T.locator('.vcSide .vcTab', { hasText: 'Ask' }).click();
+  await T.locator('.vcAiSendBtn').click();
+  ok('✨ AI send asks for the box, then reads it', await until(() => T.evaluate(() => window.cropAsked === 1 && window.readAsked === 'data:image/jpeg;base64')));
+  ok('…and the question it read pops up for Amy as multiple choice', await until(() => S1.locator('.vcQ .vcOpt', { hasText: 'Jupiter' }).isVisible(), 15000));
+  ok('…with the printed (1) (2) labels off and no answer on her device', await S1.evaluate(() => { var t = [...document.querySelectorAll('.vcQ .vcOpt')].map(x => x.textContent).join('|'); return /Mars/.test(t) && !/\(1\)/.test(t) && !JSON.stringify(window.lc.state()).includes('"answer":1'); }));
+  ok('the board says it was read by Chung GPT', await until(() => T.locator('.vcAnsHead', { hasText: 'Read off the worksheet by Chung GPT' }).isVisible()));
+  await S1.locator('.vcQ .vcOpt', { hasText: 'Jupiter' }).click();
+  await until(() => T.evaluate(() => document.querySelectorAll('.vcAns.ok').length === 1));
+  ok('the key it read marks Amy right, provisionally', await T.locator('.vcConfirmAll', { hasText: 'Confirm all (1)' }).isVisible());
+  await T.locator('.vcConfirmAll').click();
+  await until(() => S1.locator('.vcQStatus', { hasText: 'Correct!' }).isVisible(), 10000);
 
   /* ---------- 4. hands ---------- */
   await S1.locator('.vcCtl', { hasText: '✋' }).first().click();
@@ -534,10 +598,10 @@ try {
   ok('the teacher sees the reports', await until(() => T.locator('.vcEndedTop').isVisible(), 15000));
   ok('every student who came has a report', await T.locator('.vcRep').count() === 3);
   ok('students are told the class ended', await until(() => S1.locator('.vcEnded').isVisible(), 15000));
-  ok('Amy\'s summary line is factual', /Amy Tan answered every question asked in class \(2\), getting 2 of 2 marked answers right/.test(await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcRepLine').textContent()));
+  ok('Amy\'s summary line is factual', /Amy Tan answered every question asked in class \(3\), getting 3 of 3 marked answers right/.test(await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcRepLine').textContent()));
   await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcRepHead').click();
   const reportText = await T.locator('.vcRepText').inputValue();
-  ok('the report lists her answers and time', /Questions answered: 2 of 2/.test(reportText) && /“A\. Iron” ✓/.test(reportText) && /Time in class: \d+ minute/.test(reportText), reportText.slice(0, 400));
+  ok('the report lists her answers and time', /Questions answered: 3 of 3/.test(reportText) && /“A\. Iron” ✓/.test(reportText) && /Time in class: \d+ minute/.test(reportText), reportText.slice(0, 400));
   await until(async () => (await T.locator('.vcRepBody input').nth(1).inputValue()) !== '');
   ok('the family\'s email is filled in', /^parent-famA_sA1@example\.com$/.test(await T.locator('.vcRepBody input').nth(1).inputValue()));
   await T.fill('.vcRepBody input >> nth=0', 'Great focus today.');
@@ -547,7 +611,7 @@ try {
   const mail = await T.evaluate(() => window.sentMail[0]);
   ok('the email has a subject, text and escaped HTML', /Live class report — Amy Tan/.test(mail.subject) && /Dear Parent/.test(mail.text) && /<div style=/.test(mail.html));
   ok('the report row says it was sent', await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcTag.ok').isVisible());
-  ok('the lesson record was saved with every answer', await T.evaluate(() => { var s = Object.values(window.saved)[0]; return !!(s && s.questions.length === 3 && Object.keys(s.answers).length === 3 && s.sent); }));
+  ok('the lesson record was saved with every answer', await T.evaluate(() => { var s = Object.values(window.saved)[0]; return !!(s && s.questions.length === 4 && Object.keys(s.answers).length === 4 && s.sent); }));
   await shot(T, '08-teacher-reports');
   ok('the mirror says the class is over', await until(() => !(store.get('liveClassRooms/main') || {}).open, 5000));
   await until(() => T.evaluate(() => window.recSaved[0]), 60000);

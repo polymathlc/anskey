@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.208.0');
+  assert.equal(P.VERSION, '1.209.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.208\.0'/);
-  assert.match(html, /live-class\.js\?v=1\.208\.0/);
+  assert.match(html, /var APP_VERSION = 'v1\.209\.0'/);
+  assert.match(html, /live-class\.js\?v=1\.209\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -223,6 +223,13 @@ test('the parent report: facts, every answer, the note, no invention', () => {
   s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q1', aid: 'a1', v: 1 }, 5000).session;
   s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q2', aid: 'a2', v: '99' }, 6000).session;
   s.notes = { 'r:famA_s1': 'Asked a great question about magnets.' };
+  // The key's marks are PROVISIONAL: nothing reaches a parent until the
+  // teacher confirms it.
+  const before = P.participation(s, 'r:famA_s1', 1000 + 50 * 60000);
+  assert.equal(before.marked, 0, 'a provisional mark is not counted');
+  assert.equal(before.right, 0);
+  assert.doesNotMatch(P.reportText(s, 'r:famA_s1', 1000 + 50 * 60000), /✓|✗|Correct:/);
+  s.questions.forEach(q => P.confirmPlan(s, q).forEach(row => { s.answers[q.id][row.identity].ok = row.ok; }));
   const r = P.participation(s, 'r:famA_s1', 1000 + 50 * 60000);
   assert.equal(r.asked, 3);
   assert.equal(r.answered, 2);
@@ -304,7 +311,7 @@ test('identities: teacher, roster child, trial guest — nothing else', () => {
   assert.equal(P.validIdentity('r:../../x'), false);
   assert.match(P.randomId('q'), /^q[A-Za-z0-9_-]+$/);
   assert.notEqual(P.randomId('q'), P.randomId('q'));
-  assert.deepEqual(plain(P.cleanPrefs({ lowData: true, lastKind: 'evil' })), { classmates: false, lowData: true, mirror: true, autoLow: true, cameraOff: false, record: true, hideSelf: false, lastKind: 'mcq' });
+  assert.deepEqual(plain(P.cleanPrefs({ lowData: true, lastKind: 'evil' })), { classmates: false, lowData: true, mirror: true, autoLow: true, cameraOff: false, record: true, hideSelf: false, lastKind: 'mcq', aiMark: true, aiReview: false });
   assert.equal(P.cleanPrefs({ record: false }).record, false, 'recording can be switched off');
 });
 
@@ -356,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.208\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.209\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -556,5 +563,141 @@ test('a rejoin never hands a student the key\'s own guess before the teacher giv
   assert.ok(hello.length > 100);
   const open = hello.slice(0, hello.indexOf('var revealed'));
   assert.doesNotMatch(open, /markOf\(/, 'an open question\'s mark on a rejoin is only the teacher\'s');
-  assert.match(open, /e\.ok === true \|\| e\.ok === false/);
+  assert.match(open, /ok: confirmedOf\(e\)/);
+});
+
+/* ---------- ✓ ◐ ✗ provisional marks, Chung GPT's pre-marks, ✨ AI send (v1.209.0) ---------- */
+test('verdicts: only correct / partial / wrong, in any reasonable wording, and only for the ids asked about', () => {
+  assert.equal(P.cleanVerdict({ verdict: 'Correct.', why: 'Names the gas.' }).v, 'correct');
+  assert.equal(P.cleanVerdict({ verdict: 'partially correct' }).v, 'partial');
+  assert.equal(P.cleanVerdict({ mark: 'incorrect' }).v, 'wrong');
+  assert.equal(P.cleanVerdict({ verdict: 'maybe' }), null);
+  assert.equal(P.cleanVerdict(null), null);
+  assert.equal(P.cleanVerdict({ verdict: 'correct', why: 'x'.repeat(500) }).why.length, 160, 'a reason is one short line');
+  const got = P.cleanVerdicts({ results: [{ id: 's1', verdict: 'correct' }, { id: 's9', verdict: 'wrong' }, { id: 's2', verdict: 'nonsense' }, { id: 's1', verdict: 'wrong' }] }, ['s1', 's2']);
+  assert.deepEqual(plain(Object.keys(got)), ['s1'], 'an id nobody asked about is dropped, a bad verdict is dropped');
+  assert.equal(got.s1.v, 'correct', 'the first verdict for an id stands');
+  assert.deepEqual(plain(Object.keys(P.cleanVerdicts([{ id: 's2', verdict: 'partial' }], ['s2']))), ['s2'], 'a bare list works too');
+  assert.deepEqual(plain(P.cleanVerdicts('junk', ['s1'])), {});
+});
+
+test('a mark is provisional until the teacher gives it: the key, then the AI, then the teacher', () => {
+  let s = lesson();
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q2', aid: 'a1', v: 'one hundred' }, 5000).session;
+  const e = s.answers.q2['r:famA_s1'];
+  assert.equal(e.auto, false, 'the key does not accept "one hundred"');
+  assert.equal(P.markOf(e), false);
+  assert.equal(P.confirmedOf(e), null);
+  assert.equal(P.markSource(e), 'key');
+  assert.equal(P.needsAiMark(s.questions[1], e), true, 'a blank the key refused goes to Chung GPT');
+  e.ai = { v: 'correct', why: 'One hundred is 100.' };
+  assert.equal(P.markOf(e), true, 'the AI\'s reading wins over the key\'s refusal');
+  assert.equal(P.markSource(e), 'ai');
+  assert.equal(P.needsAiMark(s.questions[1], e), false, 'never asked twice');
+  e.ok = 'partial';
+  assert.equal(P.markOf(e), 'partial', 'the teacher\'s override wins over everything');
+  assert.equal(P.confirmedOf(e), 'partial');
+  assert.equal(P.markSource(e), 'teacher');
+  e.ok = 'maybe';
+  assert.equal(P.confirmedOf(e), null, 'a mark that is not ✓ ◐ ✗ is no mark');
+  assert.equal(P.markWord('partial'), '◐');
+});
+
+test('Chung GPT is asked only about answers the key cannot settle', () => {
+  let s = lesson();
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q1', aid: 'a1', v: 0 }, 5000).session;
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q2', aid: 'a2', v: '100' }, 5000).session;
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q3', aid: 'a3', v: 'It melts because heat flows in.' }, 5000).session;
+  const [q1, q2, q3] = s.questions;
+  assert.equal(P.needsAiMark(q1, s.answers.q1['r:famA_s1']), false, 'an MCQ is the key\'s, instantly');
+  assert.equal(P.needsAiMark(q2, s.answers.q2['r:famA_s1']), false, 'a blank the key accepted is settled');
+  assert.equal(P.needsAiMark(q3, s.answers.q3['r:famA_s1']), true, 'every open answer is pre-marked');
+  s.answers.q3['r:famA_s1'].ok = true;
+  assert.equal(P.needsAiMark(q3, s.answers.q3['r:famA_s1']), false, 'nor one the teacher has marked');
+});
+
+test('Confirm all turns every provisional mark into the teacher\'s, and nothing else', () => {
+  let s = lesson();
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q2', aid: 'a1', v: '100' }, 5000).session;
+  s = P.recordAnswer(s, 'g:anon1', { qid: 'q2', aid: 'a2', v: 'boiling' }, 5000).session;
+  s.answers.q2['g:anon1'].ai = { v: 'wrong', why: 'No number given.' };
+  const q2 = s.questions[1];
+  const plan = P.confirmPlan(s, q2);
+  assert.deepEqual(plain(plan.map(r => [r.identity, r.ok]).sort()), [['g:anon1', false], ['r:famA_s1', true]]);
+  s.answers.q2['r:famA_s1'].ok = false;   // the teacher overrode one
+  assert.deepEqual(plain(P.confirmPlan(s, q2).map(r => r.identity)), ['g:anon1'], 'a mark the teacher gave is never confirmed over');
+  const st = P.questionStats(s, q2, ['r:famA_s1', 'g:anon1']);
+  assert.equal(st.toConfirm, 1);
+  assert.equal(st.wrong, 2);
+});
+
+test('the tally says who is in each part, and who chose each option', () => {
+  let s = lesson();
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q1', aid: 'a1', v: 1 }, 5000).session;
+  s = P.recordAnswer(s, 'g:anon1', { qid: 'q1', aid: 'a2', v: 0 }, 5000).session;
+  const q1 = s.questions[0];
+  const t = P.tallyOf(s, q1, ['r:famA_s1', 'g:anon1']);
+  assert.deepEqual(plain(t.right), ['r:famA_s1']);
+  assert.deepEqual(plain(t.wrong), ['g:anon1']);
+  assert.deepEqual(plain(t.toConfirm.sort()), ['g:anon1', 'r:famA_s1'], 'the key\'s marks are provisional too');
+  assert.deepEqual(plain(P.choosersOf(s, q1, 0)), ['g:anon1']);
+  assert.deepEqual(plain(P.choosersOf(s, q1, 1)), ['r:famA_s1']);
+  const t3 = P.tallyOf(s, s.questions[2], ['r:famA_s1', 'g:anon1']);
+  assert.deepEqual(plain(t3.waiting), ['r:famA_s1'], 'only those the question was meant for are waited on');
+});
+
+test('the parent report says "partly right" for a confirmed ◐', () => {
+  let s = lesson();
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q3', aid: 'a3', v: 'Heat.' }, 5000).session;
+  s.answers.q3['r:famA_s1'].ai = { v: 'partial', why: 'Names heat but not the flow.' };
+  assert.doesNotMatch(P.reportText(s, 'r:famA_s1', 60000), /partly/, 'the AI\'s guess never reaches a parent');
+  s.answers.q3['r:famA_s1'].ok = 'partial';
+  const text = P.reportText(s, 'r:famA_s1', 60000);
+  assert.match(text, /“Heat\.” ◐ \(partly right\)/);
+  assert.match(text, /Correct: 0 of 1 marked \(1 partly right\)/);
+  assert.match(P.participationLine(P.participation(s, 'r:famA_s1', 60000)), /and 1 partly right/);
+});
+
+test('✨ AI send: what the model read becomes the composer\'s shape, or nothing', () => {
+  const mcq = P.questionFromAi({ kind: 'MCQ', text: 'Which is a conductor?', options: ['(1) wood', '(2) iron', '(3) glass', '(4) rubber'], answer: 1 });
+  assert.equal(mcq.kind, 'mcq');
+  assert.deepEqual(plain(mcq.options), ['wood', 'iron', 'glass', 'rubber'], 'the printed (1) (2) labels come off');
+  assert.equal(mcq.answer, 1);
+  assert.equal(P.questionFromAi({ kind: 'mcq', text: 'Q', options: ['a', 'b', 'c'], answer: '(3)' }).answer, 2, '"(3)" is the third option');
+  assert.equal(P.questionFromAi({ kind: 'mcq', text: 'Q', options: ['a', 'b'], answer: 'B' }).answer, 1);
+  assert.equal(P.questionFromAi({ kind: 'mcq', text: 'Q', options: ['red', 'blue'], answer: 'blue' }).answer, 1);
+  assert.equal(P.questionFromAi({ kind: 'mcq', text: 'Q', options: ['a', 'b'], answer: 7 }).answer, -1, 'an answer off the end is no answer');
+  assert.equal(P.questionFromAi({ kind: 'mcq', text: 'Q', options: ['only one'] }).kind, 'open', 'an MCQ needs two options');
+  const blank = P.questionFromAi({ type: 'fill in the blank', question: 'Water boils at ___ °C.', accepted: ['100', '100 °C'] });
+  assert.equal(blank.kind, 'blank');
+  assert.equal(blank.accepted, '100\n100 °C');
+  const open = P.questionFromAi('```json\n{"kind":"open","text":"Explain why.","model":"Heat flows in."}\n```');
+  assert.equal(open.kind, 'open');
+  assert.equal(open.model, 'Heat flows in.');
+  assert.equal(P.questionFromAi({ kind: 'mystery', text: 'Describe.' }).kind, 'open', 'an unknown kind is open-ended');
+  assert.equal(P.questionFromAi({}), null);
+  assert.equal(P.questionFromAi('not json'), null);
+  // Whatever it read still goes through cleanQuestion, and the answer never reaches a student.
+  const q = P.cleanQuestion(Object.assign({ id: 'qai', at: 1, n: 1, ai: true }, mcq));
+  assert.equal(q.ai, true);
+  assert.equal(P.questionForStudent(q).answer, undefined);
+});
+
+test('the glue: AI send borrows the snip layer, and both calls are grounded and teacher only', () => {
+  assert.match(html, /cropQuestion: liveClassCropQuestion/);
+  assert.match(html, /readQuestion: liveClassReadQuestion/);
+  assert.match(html, /aiMark: liveClassAiMark/);
+  const read = html.slice(html.indexOf('async function liveClassReadQuestion'), html.indexOf('var LIVE_MARK_SYS'));
+  assert.match(read, /wheelTeacher\(\)/);
+  assert.match(read, /aiGrounding\('answer'/);
+  assert.match(read, /liveClassKeyContext\(\)/, 'the answer key for the page wins over the model\'s own working');
+  const mark = html.slice(html.indexOf('async function liveClassAiMark'), html.indexOf('/* ---- 📼 the class recording'));
+  assert.match(mark, /wheelTeacher\(\)/);
+  assert.match(mark, /aiGrounding\('mark'/);
+  assert.match(mark, /liveClassKeyContext\(\)/);
+  assert.match(html, /function snipAsk\(words\)/);
+  assert.match(html, /if \(snipAskResolve\) \{ var res = snipAskResolve; snipAskResolve = null; snipAskEnd\(\); res\(''\); \}/, 'a cancelled crop answers nothing');
+  // Students are numbered for the model, never named.
+  assert.match(src, /answers: batch\.map\(function \(a, i\) \{ return \{ id: 's' \+ \(i \+ 1\), text: a\.text, photo: a\.photo \}; \}\)/);
+  assert.match(src, /if \(!e \|\| e\.aid !== a\.aid\) return;/, 'a reply for an answer the student has since changed is dropped');
 });
