@@ -615,3 +615,30 @@ body.vcCropping .vcWin { opacity: .14; pointer-events: none; transition: opacity
   .vcPassBtns { grid-column: 1 / -1; justify-content: flex-start; }
   .vcMe .vcMeName { font-size: 22px; }
 }
+
+/* 📞 Zoom hybrid (v1.212.0) */
+.vcZoomH { margin: 4px 0 2px; font-size: 15px; font-weight: 800; color: var(--ink, #1a1a1a); }
+.vcSideBody > .vcZoomH { margin: 14px 14px 4px; }
+.vcSideBody > .vcZoomH + .vcMuted { margin: 0 14px 6px; line-height: 1.5; }
+.vcZoomCard, .vcZoomGuide { gap: 12px; }
+.vcZoomLive { margin: 0; font-weight: 800; color: #2e7d32; }
+.vcZoomMeter { height: 10px; border-radius: 999px; background: var(--bg-viewer, #f3f2f0); overflow: hidden; }
+.vcZoomLevel { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #66bb6a, #2e7d32); transition: width .1s linear; }
+.vcZoomDuck { min-height: 1.2em; margin: 0; font-size: 12px; }
+.vcZoomRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink-soft, #55554f); }
+.vcZoomRow input[type="range"] { flex: 1 1 140px; }
+.vcSelect {
+  flex: 1 1 200px; min-width: 0; font: inherit; font-size: 14px; color: var(--ink, #1a1a1a);
+  padding: 8px 10px; border: 1px solid var(--line, #dcdcd8); border-radius: 10px; background: var(--bg, #fff);
+}
+.vcZoomHint { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-soft, #55554f); }
+.vcZoomHint:empty { display: none; }
+.vcZoomHint.loopback, .vcZoomHint.mic { padding: 8px 10px; border-radius: 10px; background: #fff7e0; color: #8a5a00; }
+.vcZoomSteps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; line-height: 1.55; color: var(--ink, #1a1a1a); }
+.vcTag.zoom { background: #e3f2fd; color: #1565c0; }
+.vcCtl.vcZoomOn { background: #e3f2fd; color: #1565c0; }
+.vcZoomPick { display: flex; align-items: flex-start; gap: 10px; text-align: left; font-size: 14px; line-height: 1.45; color: var(--ink, #1a1a1a);
+  padding: 10px 12px; border-radius: 12px; background: var(--bg-viewer, #f3f2f0); cursor: pointer; }
+.vcZoomPick input { margin-top: 3px; width: 18px; height: 18px; flex: 0 0 auto; }
+.vcPickFoot .vcZoomPick { margin-bottom: 10px; }
+.vcTile.vcViaZoom::after { content: '📱 Zoom'; position: absolute; left: 6px; top: 6px; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(21, 101, 192, .9); color: #fff; }

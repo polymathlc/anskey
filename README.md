@@ -5,6 +5,13 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 📞 v1.212.0 — Live class: Zoom hybrid
+
+- **📞 Zoom** on the teacher's bar opens a new Zoom tab. **🪟 Pick the Zoom window** (Chrome asks inside the tap; tick its sound) or pick a **🎚 sound input** (BlackHole, VB-CABLE, Stereo Mix or a microphone). The Zoom room's sound goes into the class as one extra track, so the children here hear the children in Zoom, and it is recorded with the lesson.
+- **No echo loop.** The capture leaves this page's own sound out (`restrictOwnAudio`), the browser's voice processing is off for a room of voices, Zoom is turned down while a child here speaks (a switch), and a loopback or microphone input says what to watch for. A volume slider and a live meter.
+- **📱 Zoom children answer on a phone.** Each child has a **⧉ 📱 Zoom** link (and QR) in 🔗 Links & PINs. It opens straight to their name with "I'm in the Zoom meeting" ticked: no camera, no sound, no video, just the pop-ups and their hand. They count in the tally like everyone else and wear a **📱 Zoom** tag in People and Answers. Any child can tick it on the join card, or switch back with 📱 Zoom on their bar.
+- **🧭 Setting it up**: step-by-step guides for Mac and Windows inside the Zoom tab.
+
 ## 📖 v1.211.0 — Live class: the same link or PIN opens Study Buddy
 
 - Every student's personal link and PIN now also sign them into **Study Buddy** as themselves, at any hour, with no
