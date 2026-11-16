@@ -4072,6 +4072,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="quest-stage.css?v=1.193.0">
 <link rel="stylesheet" href="account-email.css?v=1.194.0">
 <link rel="stylesheet" href="class-summary.css?v=1.204.0">
+<link rel="stylesheet" href="receipts.css?v=1.205.0">
 <link rel="stylesheet" href="file-actions.css?v=1.199.0">
 <link rel="stylesheet" href="worksheet-focus.css?v=1.200.0">
 <!-- 🎓 v1.201.0: a student's level and subject follow polymathlc.com.sg/student
@@ -4448,6 +4449,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
     <button class="btn" id="lessonSplashBtn" type="button" title="Lesson start — flash today's quest rules to the class: a cover, the castle gate, then the rules" style="display:none">🏰 <span class="btnLabel">Lesson start</span></button>
     <button class="btn" id="runeDoorBtn" type="button" title="Rune door — put a sealed medieval door in front of every student; a touch on the Polymath rune lights it, spins it and swings the door open onto the worksheet" style="display:none">🚪 <span class="btnLabel">Rune door</span></button>
     <button class="btn" id="consultLogBtn" type="button" title="Every consult: calls, questions and the answers you recorded" style="display:none">🙋 <span class="btnLabel">Consults</span></button>
+    <button class="btn" id="receiptBtn" type="button" title="Receipts — write a receipt by hand and email it to a parent with the PDF attached, from admin@polymathlc.com.sg. Nothing is sent until you press Send." style="display:none">🧾 <span class="btnLabel">Receipts</span></button>
     <button class="btn" id="liveCamBtn" title="Live cams — see every student's camera live, so they can hold their answers up to it" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/><circle cx="9" cy="12" r="2.2"/></svg>
       <span class="btnLabel">Live cams</span>
@@ -6039,7 +6041,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.204.0';
+var APP_VERSION = 'v1.205.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32609,6 +32611,8 @@ function applyRewardVisibility() {
   if (splashBtn) splashBtn.style.display = show ? '' : 'none';
   var doorBtn = $('runeDoorBtn');
   if (doorBtn) doorBtn.style.display = show ? '' : 'none';
+  // 🧾 Receipts are the teacher's alone; the window closes on a handover.
+  if (typeof rcptRoleChanged === 'function') rcptRoleChanged();
   // 🚪 The rune door follows the person: the teacher's panel closes on a
   // handover, and a student's device starts (or stops) listening for it.
   if (typeof rdoorRoleChanged === 'function') rdoorRoleChanged();
@@ -35069,6 +35073,242 @@ function csumRoleChanged() {
   csumSyncBadge();
 }
 /* ================= End class summary glue ================= */
+
+/* ================= 🧾 Receipts — glue (the rules and the window are receipts.js) =================
+   Zhi Kai writes a receipt by hand (who paid, for what, how much, how) and
+   emails it to the parent with the PDF attached, from admin@polymathlc.com.sg
+   through the same Gmail sign-in the class summaries use (csumAuthorizeGmail:
+   a separate Firebase app, gmail.send only, token in memory, signed out at
+   once). NOTHING is sent by itself: only the window's Send button, behind a
+   confirm naming the addresses and the amount.
+
+   WHERE THEY LIVE: `users/{teacherUid}/receipts/{id}` (the cleanReceipt shape,
+   one document per receipt) and `users/{teacherUid}/settings/receipts` =
+   { centre: {name, address, uen, phone, email, prefix, gst, payInfo, footer},
+     receiptCounters: { "<year>": <last number given> } }.
+   A NUMBER IS GIVEN ONCE, inside the same transaction that writes the
+   receipt, so two devices can never hand out the same number. A sent or
+   voided receipt is never written over (rcptSave refuses it in the
+   transaction); a send is appended by rcptRecordSend, a void by rcptVoid.
+
+   THE TEACHER'S ALONE: rcptTeacher() in every handler and before every
+   write, the uid is re-checked after each await, and applyRewardVisibility
+   calls rcptRoleChanged, which closes the window on a handover, a sign-out
+   or a share link. receipts.js loads at the foot of the page, so `rcpt`
+   stays null until rcptInit() runs there. */
+var rcpt = null;
+var RCPT_COLL = 'receipts';
+var RCPT_SETTINGS_DOC = 'receipts';
+
+function rcptReady() { return !!(window.Receipts && window.Receipts.pure); }
+function rcptTeacher() { return !!(currentUser && isAdmin(currentUser) && !actingStudent && !isSharedVisitor()); }
+function rcptUserRef() {
+  if (!rcptTeacher() || !currentUser || !currentUser.uid) return null;
+  return db.collection('users').doc(currentUser.uid);
+}
+function rcptColl() { var u = rcptUserRef(); return u ? u.collection(RCPT_COLL) : null; }
+function rcptSettingsRef() { var u = rcptUserRef(); return u ? u.collection('settings').doc(RCPT_SETTINGS_DOC) : null; }
+
+/* A late answer for an account that has since changed is an error, never a write. */
+function rcptSameUser(uid) {
+  if (!rcptTeacher() || !currentUser || currentUser.uid !== uid) throw new Error('The account changed, so nothing was saved.');
+}
+
+async function rcptList() {
+  var coll = rcptColl();
+  if (!coll) return [];
+  var uid = currentUser.uid;
+  var snap = await coll.orderBy('createdAt', 'desc').limit(500).get();
+  rcptSameUser(uid);
+  var rows = [];
+  snap.forEach(function (d) { var x = d.data() || {}; x.id = d.id; rows.push(x); });
+  return rows;
+}
+
+async function rcptCentre() {
+  var ref = rcptSettingsRef();
+  if (!ref) return window.Receipts.pure.cleanCentre(null);
+  var uid = currentUser.uid;
+  var snap = await ref.get();
+  rcptSameUser(uid);
+  var d = snap && snap.exists ? snap.data() || {} : {};
+  return window.Receipts.pure.cleanCentre(d.centre);
+}
+
+async function rcptSaveCentre(centre) {
+  var ref = rcptSettingsRef();
+  if (!ref) throw new Error('Only the teacher can change the centre details.');
+  var clean = window.Receipts.pure.cleanCentre(centre);
+  await ref.set({ centre: clean, centreAt: Date.now() }, { merge: true });
+  return clean;
+}
+
+/* Saves a draft. The first save gives it its id and its number, in one
+   transaction with the counter, so a number is never handed out twice and a
+   receipt never exists without one. */
+async function rcptSave(receipt) {
+  var P = window.Receipts.pure;
+  var coll = rcptColl(), settings = rcptSettingsRef();
+  if (!coll || !settings) throw new Error('Only the teacher can save receipts.');
+  var uid = currentUser.uid;
+  var r = P.cleanReceipt(receipt, { now: Date.now() });
+  if (P.isLocked(r)) throw new Error('A sent receipt cannot be changed — copy it into a new one instead.');
+  var ref = r.id ? coll.doc(r.id) : coll.doc();
+  var saved = await db.runTransaction(async function (tx) {
+    var cur = await tx.get(ref);
+    var before = cur.exists ? P.cleanReceipt(Object.assign({}, cur.data(), { id: ref.id })) : null;
+    if (before && P.isLocked(before)) throw new Error('Receipt ' + before.no + ' was already ' + (before.status === 'void' ? 'voided' : 'sent') + ', so it was not changed.');
+    var out = Object.assign({}, r, { id: ref.id, status: 'draft', sends: before ? before.sends : [] });
+    if (before && before.no) { out.no = before.no; out.issued = before.issued; out.createdAt = before.createdAt; }
+    if (!out.no) {
+      var s = await tx.get(settings);
+      var d = s && s.exists ? s.data() || {} : {};
+      var centre = P.cleanCentre(d.centre);
+      var year = String(P.yearOf(out.issued));
+      var counters = d.receiptCounters && typeof d.receiptCounters === 'object' ? d.receiptCounters : {};
+      var next = Math.max(0, Math.floor(Number(counters[year]) || 0)) + 1;
+      out.no = P.numberFor(centre.prefix, Number(year), next);
+      var bump = {}; bump[year] = next;
+      tx.set(settings, { receiptCounters: bump }, { merge: true });
+      out.createdAt = Date.now();
+    }
+    out.at = Date.now();
+    out = P.cleanReceipt(out, { now: Date.now() });
+    tx.set(ref, out);
+    return out;
+  });
+  rcptSameUser(uid);
+  return saved;
+}
+
+async function rcptRecordSend(id, send) {
+  var P = window.Receipts.pure;
+  var coll = rcptColl();
+  if (!coll) throw new Error('Only the teacher can send receipts.');
+  var ref = coll.doc(String(id));
+  return db.runTransaction(async function (tx) {
+    var cur = await tx.get(ref);
+    if (!cur.exists) throw new Error('That receipt is not saved.');
+    var r = P.cleanReceipt(Object.assign({}, cur.data(), { id: ref.id }));
+    r.sends = P.cleanSends((r.sends || []).concat([send]));
+    if (r.status !== 'void') r.status = 'sent';
+    r.at = Date.now();
+    r = P.cleanReceipt(r);
+    tx.set(ref, r);
+    return r;
+  });
+}
+
+async function rcptVoid(id, reason) {
+  var P = window.Receipts.pure;
+  var coll = rcptColl();
+  if (!coll) throw new Error('Only the teacher can void receipts.');
+  var ref = coll.doc(String(id));
+  return db.runTransaction(async function (tx) {
+    var cur = await tx.get(ref);
+    if (!cur.exists) throw new Error('That receipt is not saved.');
+    var r = P.cleanReceipt(Object.assign({}, cur.data(), { id: ref.id }));
+    r.status = 'void';
+    r.voidReason = P.oneLine(reason, P.LIMITS.voidReason);
+    r.voidAt = Date.now();
+    r.at = Date.now();
+    r = P.cleanReceipt(r);
+    tx.set(ref, r);
+    return r;
+  });
+}
+
+function rcptPdf(receipt, centre) {
+  if (typeof PDFLib === 'undefined') return Promise.reject(new Error('The PDF library has not loaded yet. Check the connection and try again.'));
+  return window.Receipts.drawPdf(PDFLib, receipt, centre);
+}
+
+function rcptDownload(bytes, name) {
+  var blob = new Blob([bytes], { type: 'application/pdf' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = name || 'receipt.pdf';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+}
+
+/* Sends one receipt through Gmail as admin@polymathlc.com.sg, the PDF attached. */
+async function rcptSendGmail(job, say) {
+  if (!rcptTeacher()) throw new Error('Only the teacher can send receipts.');
+  var P = window.Receipts.pure;
+  var mailer = await csumAuthorizeGmail();
+  if (!rcptTeacher()) throw new Error('The account changed, so nothing was sent.');
+  var centre = P.cleanCentre(job.centre);
+  say('Sending…');
+  var raw = P.mimeMessage({
+    from: P.SENDER, fromName: centre.name, to: job.to, replyTo: P.SENDER, subject: job.subject,
+    html: P.emailHtml(job.receipt, centre, { intro: job.intro }),
+    text: P.emailText(job.receipt, centre, { intro: job.intro }),
+    attachment: { name: P.fileName(job.receipt), mime: 'application/pdf', data: P.b64Bytes(job.pdf) }
+  }, Date.now().toString(36));
+  var res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + mailer.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw: P.b64url(raw) })
+  });
+  if (!res.ok) {
+    var detail = '';
+    try { var ej = await res.json(); detail = ej && ej.error ? ej.error.message || '' : ''; } catch (e) {}
+    if (res.status === 401) { csumMailer.token = ''; csumMailer.exp = 0; throw new Error('The Gmail sign-in expired. Press Send again.'); }
+    if (res.status === 403) throw new Error('Gmail refused to send' + (detail ? ' (' + detail + ')' : '') + '. Use “Open in Gmail instead”.');
+    throw new Error('Gmail error ' + res.status + (detail ? ': ' + detail : ''));
+  }
+  return { from: mailer.email };
+}
+
+function rcptInit() {
+  if (rcpt || !rcptReady()) return rcpt;
+  rcpt = window.Receipts.create({
+    teacher: rcptTeacher,
+    toast: toast,
+    list: rcptList,
+    save: rcptSave,
+    voidReceipt: rcptVoid,
+    recordSend: rcptRecordSend,
+    centre: rcptCentre,
+    saveCentre: rcptSaveCentre,
+    students: function () { csumStudentsCache = null; return csumStudents(); },
+    saveParents: csumSaveParents,
+    pdf: rcptPdf,
+    sendGmail: rcptSendGmail,
+    authorizeGmail: csumAuthorizeGmail,
+    gmailReady: csumGmailReady,
+    download: rcptDownload,
+    copy: function (text) { return csumCopy(text, ''); },
+    openUrl: function (url) { window.open(url, '_blank', 'noopener'); },
+    confirm: function (m) { return window.confirm(m); }
+  });
+  var b = document.getElementById('receiptBtn');
+  if (b && !b.dataset.rcWired) {
+    b.dataset.rcWired = '1';
+    b.addEventListener('click', function () { rcptOpen(); });
+  }
+  rcptRoleChanged();
+  return rcpt;
+}
+
+function rcptOpen(tab) {
+  if (!rcptTeacher()) { toast('Only the teacher can open receipts.'); return; }
+  var w = rcptInit();
+  if (!w) { toast('Receipts are still loading. Try again in a moment.'); return; }
+  w.open(tab);
+}
+
+function rcptRoleChanged() {
+  var b = document.getElementById('receiptBtn');
+  if (b) b.style.display = rcptTeacher() ? '' : 'none';
+  if (rcpt) rcpt.roleChanged();
+}
+/* ================= End receipts glue ================= */
 
 /* ================= 🏰 Lesson start — glue (the feature itself is lesson-splash.js) =================
    The quest rules the teacher flashes at the start of a lesson: a cover
@@ -43966,6 +44206,8 @@ loadAiNotePrefs();
 <script src="video-playlist.js?v=1.196.0"></script>
 <script src="answer-key-online.js?v=1.197.0"></script>
 <script src="class-summary.js?v=1.204.0"></script>
+<script src="receipts.js?v=1.205.0"></script>
+<script>rcptInit();</script>
 <script src="file-actions.js?v=1.199.0"></script>
 <script src="worksheet-focus.js?v=1.200.0"></script>
 <script>wsFocusInit();</script>

@@ -5,6 +5,15 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🧾 v1.205.0 — Receipts: write one by hand and email it to a parent
+
+- **🧾 Receipts** on the toolbar (the teacher's only) opens a window with three tabs: ✍️ New receipt, 📚 Receipts and 🏫 Centre details.
+- **Write it**: pick a student (fills the name, level and the parents' emails from their profile) or type them, who paid, then the lines — quick buttons for Tuition fee, Lessons, Registration, Materials, Holiday programme and Deposit — with quantities, a discount (and why), GST if the centre charges it, how it was paid (PayNow, bank transfer, cash, cheque, card) and a reference. The total and a live preview of the exact email follow every key.
+- **Save** gives it its number (PLC-2026-0001, counting up by year, never used twice). **Send** asks first, naming the addresses and the amount, then emails it from admin@polymathlc.com.sg with the receipt as a PDF attachment. **Open in Gmail instead** opens a Gmail draft and downloads the PDF to attach. **⬇ PDF** downloads it.
+- A sent receipt is kept as it was sent: it can be resent, downloaded, copied into a new one or voided (kept, marked VOID, with the reason) — never edited.
+- **📚 Receipts** lists every receipt, newest first, searchable by name, number, email or month, with the year's total received.
+- **🏫 Centre details**: address, UEN, phone, the email shown, the number prefix, GST, payment details and the footer — printed on every receipt, the same on every device.
+
 ## 🧾 v1.204.0 — The class summary never gets stuck on "already being written"
 
 - **What went wrong.** Opening a worksheet (or finishing a lesson) starts a summary by itself in the background. If that run hung — a lesson download, a caption request or an AI call that never answered — it held the one "busy" flag for the rest of the visit, so every press of ✨ Write the summary said *"A summary is already being written. Try again in a moment."* and no summary ever came.
