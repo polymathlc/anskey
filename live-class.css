@@ -642,3 +642,40 @@ body.vcCropping .vcWin { opacity: .14; pointer-events: none; transition: opacity
 .vcZoomPick input { margin-top: 3px; width: 18px; height: 18px; flex: 0 0 auto; }
 .vcPickFoot .vcZoomPick { margin-bottom: 10px; }
 .vcTile.vcViaZoom::after { content: '📱 Zoom'; position: absolute; left: 6px; top: 6px; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(21, 101, 192, .9); color: #fff; }
+
+/* ---------- 🔒 Hidden answers and 🔤 fill in the keywords (v1.215.0) ---------- */
+.vcHidden { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; margin-bottom: 14px; border-radius: 12px;
+  background: rgba(46, 125, 50, .06); border: 1px solid rgba(46, 125, 50, .25); font-size: 13px; }
+.vcHiddenTop { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.vcHiddenHead { flex: 1 1 200px; text-align: left; border: 0; background: none; padding: 4px 0; font: inherit; font-weight: 700; font-size: 14px;
+  color: var(--ink, #1a1a1a); cursor: pointer; min-height: 32px; }
+.vcHiddenList { display: flex; flex-direction: column; gap: 8px; max-height: 42vh; overflow: auto; -webkit-overflow-scrolling: touch; padding-right: 2px; }
+.vcHiddenRow { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px; border-radius: 10px; background: var(--bg, #fff); border: 1px solid var(--line, #e3e1dd); }
+.vcHiddenQ { display: flex; gap: 8px; align-items: baseline; line-height: 1.4; }
+.vcHiddenQ b { flex: 0 0 auto; }
+.vcHiddenText { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.vcHiddenAns { margin: 0; padding: 6px 9px; border-radius: 8px; background: #f1f8f1; color: #1b5e20; line-height: 1.45; overflow-wrap: anywhere; }
+.vcHiddenActs { display: flex; flex-wrap: wrap; gap: 6px; }
+.vcHiddenModel { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(46, 125, 50, .06); border: 1px dashed rgba(46, 125, 50, .4); font-size: 13px; line-height: 1.45; }
+.vcWordChips { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: center; padding: 8px; border-radius: 10px; border: 1px solid var(--line, #e3e1dd); background: var(--bg, #fff); }
+.vcWord { min-height: 32px; padding: 3px 9px; border-radius: 8px; font-size: 14px; }
+.vcWord.on { background: #263238; color: #fff; border-color: #263238; text-decoration: line-through; text-decoration-color: rgba(255,255,255,.5); }
+.vcWordPunct { font-size: 14px; color: var(--ink-soft, #55554f); }
+.vcWordBreak { flex-basis: 100%; height: 0; }
+.vcClozePreview { padding: 8px 10px; border-radius: 10px; background: #f4f6fb; font-size: 13.5px; line-height: 1.9; overflow-wrap: anywhere; }
+.vcGapShow { display: inline-block; min-width: 4.5em; margin: 0 2px; padding: 0 6px; border-bottom: 2px solid #2f6fd6; color: #2f6fd6; font-size: 11px; text-align: center; line-height: 1.5; }
+.vcCloze { font-size: 16px; line-height: 2.3; overflow-wrap: anywhere; }
+.vcClozeText { white-space: pre-wrap; }
+.vcGap { font: inherit; font-size: 16px; max-width: 100%; margin: 0 3px; padding: 3px 8px; border: 0; border-bottom: 2px solid #2f6fd6;
+  border-radius: 6px 6px 0 0; background: rgba(47, 111, 214, .07); color: var(--ink, #1a1a1a); }
+.vcGap:focus { outline: none; background: rgba(47, 111, 214, .14); }
+.vcGap:disabled { opacity: .75; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .vcHiddenAns { background: rgba(76, 175, 80, .12); color: #a5d6a7; }
+  :root:not([data-theme="light"]) .vcClozePreview { background: rgba(255, 255, 255, .06); }
+  :root:not([data-theme="light"]) .vcWord.on { background: #eceff1; color: #1a1a1a; border-color: #eceff1; }
+}
+:root[data-theme="dark"] .vcHiddenAns { background: rgba(76, 175, 80, .12); color: #a5d6a7; }
+:root[data-theme="dark"] .vcClozePreview { background: rgba(255, 255, 255, .06); }
+:root[data-theme="dark"] .vcWord.on { background: #eceff1; color: #1a1a1a; border-color: #eceff1; }
