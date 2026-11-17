@@ -673,7 +673,7 @@ try {
   await T.locator('.vcRepBody .vcPrimary', { hasText: 'Send' }).click();
   ok('Send asks first, naming the address', await until(() => T.evaluate(() => window.sentMail.length === 1)) && (T.__dialogs || []).some(d => /Amy Tan’s report to parent-famA_sA1@example\.com/.test(d)));
   const mail = await T.evaluate(() => window.sentMail[0]);
-  ok('the email has a subject, text and escaped HTML', /Live class report — Amy Tan/.test(mail.subject) && /Dear Parent/.test(mail.text) && /<div style=/.test(mail.html));
+  ok('the email has a subject, text and escaped HTML', /Live lesson report — Amy Tan/.test(mail.subject) && /Dear Parent/.test(mail.text) && /<div style=/.test(mail.html));
   ok('the report row says it was sent', await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcTag.ok').isVisible());
   ok('the lesson record was saved with every answer', await T.evaluate(() => { var s = Object.values(window.saved)[0]; return !!(s && s.questions.length === 4 && Object.keys(s.answers).length === 4 && s.sent); }));
   await shot(T, '08-teacher-reports');

@@ -5,6 +5,22 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 📈 v1.214.0 — Live class: performance tracking for parents
+
+- **Every student is tracked through the lesson.** Besides time in class, answers, marks and hands, the live class now
+  measures when each child joined, how quickly they answered (question popping up → answer arriving) and their
+  **focus**: how much of their time in class the class screen stayed in front of them (their device reports when it is
+  hidden — another app, another tab, the phone locked). A 📱 Zoom answer phone is not judged on focus.
+- **🧾 Reports shows it at a glance**: score, answer speed and focus on each row; open a row for six tiles and the
+  child's **recent live lessons** with a ↑ / ↓ trend. A short summary of each lesson is kept per child in
+  `users/{teacher}/liveClassProgress/main` (the newest 12).
+- **The parent's email is a performance card** (tiles, every question with ✓ ◐ ✗, the teacher's note, recent lessons,
+  and how each measure is worked out). If you edit the report's words, exactly your words are sent instead.
+- **Sent from admin@polymathlc.com.sg** through the `mail` collection (Trigger Email), like the shop receipts and
+  Polymath Online invitations: server action `report` on ansKeyLiveClass, teacher only. **✉ Test to me** sends a copy to
+  your own inbox only. If the server cannot be reached, the next Send uses your Gmail sign-in as before.
+- `?live&pin` opens straight on the 🔢 PIN tab (used by polymathlc.com.sg/live).
+
 ## ✦ v1.213.0 — Nothing opens by itself when a student signs in
 
 - **My Hero no longer pops up on sign-in.** A student signing in (Google, a personal link, a PIN or a live
