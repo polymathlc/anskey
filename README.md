@@ -5,6 +5,27 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## ✦ v1.215.0 — Live class: hidden AI answers, fully blank and fill-in-the-keywords questions
+
+- **🔒 Hidden answers.** In 🎥 Live class → ❓ Ask, Chung GPT works out every question on the open worksheet in the
+  background (question words, kind, answer, a full model answer and the keywords a marker looks for), two pages at a
+  time, with the teacher's own written answers winning. It starts by itself when a worksheet is open in class (a
+  switch turns that off) or with ✨ Work out all answers. The answers are covered (👁 Peek shows one on the teacher's
+  screen only), kept on the teacher's account (`users/{teacher}/liveKeys/{worksheet}` + this device's localStorage)
+  and never sent into the room or drawn on the shared worksheet. They also ground ✨ AI send and the pre-marks.
+- **✍️ Blank** sends a question fully blank: the student writes the whole answer; the hidden AI answer marks it and
+  stays covered on the board too until 💡 Show the answer.
+- **🔤 Keywords** (new kind `cloze`, "Fill in the keywords"): the AI answer with its keywords lit; the teacher taps
+  words to blank out (words side by side make one blank, up to 8). The student gets the sentence with boxes; the
+  missing words (`keys`) and the full answer never leave the teacher's device until 💡. The same word (or number) is
+  ✓ at once; any other answer goes to Chung GPT, which judges each gap by meaning (synonyms, equivalent terms,
+  spelling slips). As always, marks are provisional until the teacher confirms or overrides (✓ ◐ ✗), and only
+  confirmed marks reach the student, the reports and the tracking.
+- A student's pop-up now shows the newest question that is open or has news, so an older question left open no
+  longer hides the answer to a newer one.
+- Checks: `node --test tools/live-class-tests.mjs` (6 new), `tools/live-class-check.mjs` (a new section proves no
+  data message a student's device decodes holds the missing words or a hidden answer).
+
 ## ✦ v1.213.0 — Nothing opens by itself when a student signs in
 
 - **My Hero no longer pops up on sign-in.** A student signing in (Google, a personal link, a PIN or a live

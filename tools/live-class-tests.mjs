@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.212.0');
+  assert.equal(P.VERSION, '1.215.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
   assert.match(html, /var APP_VERSION = 'v1\.2(1[2-9]|[2-9]\d)\.\d+'/);
-  assert.match(html, /live-class\.js\?v=1\.212\.0/);
+  assert.match(html, /live-class\.js\?v=1\.215\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -311,7 +311,7 @@ test('identities: teacher, roster child, trial guest — nothing else', () => {
   assert.equal(P.validIdentity('r:../../x'), false);
   assert.match(P.randomId('q'), /^q[A-Za-z0-9_-]+$/);
   assert.notEqual(P.randomId('q'), P.randomId('q'));
-  assert.deepEqual(plain(P.cleanPrefs({ lowData: true, lastKind: 'evil' })), { classmates: false, lowData: true, mirror: true, autoLow: true, cameraOff: false, record: true, hideSelf: false, lastKind: 'mcq', aiMark: true, aiReview: false, answerOnly: false, zoomGain: 1, zoomDuck: true });
+  assert.deepEqual(plain(P.cleanPrefs({ lowData: true, lastKind: 'evil' })), { classmates: false, lowData: true, mirror: true, autoLow: true, cameraOff: false, record: true, hideSelf: false, lastKind: 'mcq', aiMark: true, aiReview: false, answerOnly: false, keyAuto: true, zoomGain: 1, zoomDuck: true });
   assert.equal(P.cleanPrefs({ record: false }).record, false, 'recording can be switched off');
 });
 
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.212\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.215\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -886,4 +886,93 @@ test('📞 Zoom hybrid: the window wires it as published, recorded and stopped',
   assert.doesNotMatch(panel, /innerHTML|outerHTML|insertAdjacentHTML/);
   assert.match(css, /\.vcZoomSteps/);
   assert.match(css, /\.vcTag\.zoom/);
+});
+
+/* ---------- 🔤 fill in the keywords + 🔒 hidden answers (v1.215.0) ---------- */
+test('clozeFrom: tapped words become blanks, side-by-side words are one blank, punctuation stays', () => {
+  const text = 'Plants make food by photosynthesis, using light energy from the Sun.';
+  const toks = P.clozeTokens(text);
+  const idx = w => toks.findIndex(t => t.word && t.core === w);
+  const picks = {}; [idx('photosynthesis'), idx('light'), idx('energy')].forEach(i => { picks[i] = true; });
+  const cz = plain(P.clozeFrom(text, picks));
+  assert.deepEqual(cz.parts, ['Plants make food by ', 0, ', using ', 1, ' from the Sun.']);
+  assert.deepEqual(cz.keys, [['photosynthesis'], ['light energy']]);
+  assert.equal(P.clozeFrom(text, {}), null, 'no blanks, no question');
+  assert.equal(P.clozeText(cz.parts, ['photosinthesis', '']), 'Plants make food by [photosinthesis], using [___] from the Sun.');
+  // A word with a comma after it ends its blank: the next tapped word is a new blank.
+  const t2 = 'heat, light and sound';
+  const k2 = P.clozeTokens(t2); const p2 = {};
+  k2.forEach((t, i) => { if (t.word && (t.core === 'heat' || t.core === 'light')) p2[i] = true; });
+  assert.deepEqual(plain(P.clozeFrom(t2, p2)).keys, [['heat'], ['light']]);
+});
+
+test('pickKeywords lights the AI keywords, phrases included, case and punctuation ignored', () => {
+  const text = 'The Sun gives LIGHT energy; plants trap it in chlorophyll.';
+  const toks = P.clozeTokens(text);
+  const picks = P.pickKeywords(text, ['light energy', 'Chlorophyll', 'not there']);
+  const words = Object.keys(picks).map(i => toks[i].core);
+  assert.deepEqual(words, ['LIGHT', 'energy', 'chlorophyll']);
+});
+
+test('a keyword question: the student gets the gaps, never the words or the full answer', () => {
+  const q = P.cleanQuestion({ id: 'q9', kind: 'cloze', text: 'Explain how plants make food.', parts: ['Plants use ', 0, ' to make food by ', 1, '.'],
+    keys: [['light energy'], ['photosynthesis']], model: 'Plants use light energy to make food by photosynthesis.', to: 'all' });
+  assert.equal(q.kind, 'cloze');
+  assert.deepEqual(plain(q.keys), [['light energy'], ['photosynthesis']]);
+  const sq = plain(P.questionForStudent(q));
+  assert.deepEqual(sq.parts, ['Plants use ', 0, ' to make food by ', 1, '.']);
+  assert.equal(sq.keys, undefined);
+  assert.equal(sq.model, undefined);
+  assert.equal(JSON.stringify(sq).includes('photosynthesis'), false, 'no hidden word anywhere in what is sent');
+  // Rebuilt on the student's device through the same door.
+  assert.equal(P.cleanQuestion(sq).kind, 'cloze');
+  assert.equal(P.cleanQuestion({ id: 'q8', kind: 'cloze', parts: ['no gaps'] }), null);
+});
+
+test('keyword marking: exact words are ✓ at once, anything else goes to the AI, never ✗ by the key', () => {
+  const q = P.cleanQuestion({ id: 'q9', kind: 'cloze', text: 'x', parts: ['A ', 0, ' and ', 1], keys: [['light energy'], ['photosynthesis']] });
+  assert.deepEqual(plain(P.cleanAnswer('cloze', ['Light energy ', 'Photosynthesis.'])), ['Light energy', 'Photosynthesis.']);
+  assert.equal(P.cleanAnswer('cloze', ['', ' ']), null);
+  assert.equal(P.cleanAnswer('cloze', 'text'), null);
+  assert.equal(P.autoMark(q, ['Light energy', 'photosynthesis.']), true);
+  assert.equal(P.autoMark(q, ['sunlight', 'photosynthesis']), null, 'a different word is the AI\'s to judge');
+  const e1 = { aid: 'a1', v: ['sunlight', 'photosynthesis'], auto: null, ok: null };
+  assert.equal(P.needsAiMark(q, e1), true);
+  assert.equal(P.needsAiMark(q, Object.assign({}, e1, { auto: true })), false);
+  assert.equal(P.answerText(q, ['sunlight', '']), 'A [sunlight] and [___]');
+  // Through the teacher's record, like any answer.
+  let s = P.emptySession(1, 'MON-1', 0);
+  s.questions = [Object.assign({}, q, { open: true })];
+  const r = P.recordAnswer(s, 'r:fam_s1', { qid: 'q9', aid: 'a1', v: ['light energy', 'photosynthesis'] }, 5);
+  assert.equal(r.fresh, true);
+  assert.equal(r.entry.auto, true);
+});
+
+test('hidden answers: cleaned rows, and each form of question built from one', () => {
+  const items = plain(P.cleanKeyItems({ items: [
+    { page: 1, number: 'Question 3', kind: 'open', question: 'Why did the ice melt?', answer: 'Heat gained', model: 'The ice gained heat from the warmer metal tray and melted.', keywords: ['gained heat', 'metal'] },
+    { page: 1, number: '1', kind: 'mcq', question: 'Which is a conductor?', option: 'B', answer: 'Copper', options: ['(1) Wood', '(2) Copper'] },
+    { page: 2, number: '4', answer: '', model: '' },
+    'junk'
+  ] }));
+  assert.equal(items.length, 2);
+  assert.equal(items[0].number, '3');
+  assert.deepEqual(items[1].options, ['Wood', 'Copper']);
+  const open = plain(P.keyItemCompose(items[0], 'open'));
+  assert.equal(open.kind, 'open'); assert.equal(open.hideModel, true);
+  assert.match(open.model, /gained heat/);
+  const cz = plain(P.keyItemCompose(items[0], 'cloze'));
+  assert.equal(cz.kind, 'cloze');
+  const toks = P.clozeTokens(cz.model);
+  assert.deepEqual(Object.keys(cz.gapPick).map(i => toks[i].core), ['gained', 'heat', 'metal']);
+  const mcq = plain(P.keyItemCompose(items[1], 'asis'));
+  assert.equal(mcq.kind, 'mcq'); assert.equal(mcq.answer, 1);
+});
+
+test('hidden answers never travel in the room: only the teacher\'s panel reads them', () => {
+  // The hidden key is read through env.hiddenKey on the teacher's side only;
+  // nothing in a message to students names it.
+  assert.equal(/t: 'q', q: questionForStudent\(q\)/.test(src), true);
+  assert.equal(/hiddenKey[^\n]*send\(/.test(src), false);
+  assert.match(html, /liveKeys/);
 });

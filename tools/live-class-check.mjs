@@ -203,6 +203,12 @@ body { margin:0; font-family: var(--font); background:#eceae6; height:100vh; }
 <script src="/live-class.js"></script>
 <script>
 var who = new URLSearchParams(location.search).get('who');
+// Every data message a STUDENT's device decodes is kept, so the check can
+// prove hidden answers never reach it (not only that they are not drawn).
+if (who !== 'teacher') {
+  var _dec = TextDecoder.prototype.decode;
+  TextDecoder.prototype.decode = function () { var t = _dec.apply(this, arguments); try { if (t && t.charAt(0) === '{') (window.rx = window.rx || []).push(t); } catch (e) {} return t; };
+}
 window.toasts = []; window.sentMail = []; window.awards = []; window.saved = {}; window.photos = {};
 function call(action, body) {
   return fetch('/api', { method: 'POST', headers: { 'content-type': 'application/json', 'x-who': who }, body: JSON.stringify(Object.assign({}, body || {}, { action: action })) })
@@ -271,12 +277,24 @@ window.lc = LiveClass.create({
     return new Promise(function (r) { setTimeout(function () {
       r({ by: 'openai', results: ask.answers.map(function (a) {
         var t = String(a.text || '').toLowerCase();
-        return /hundred|100/.test(t) ? { id: a.id, verdict: 'correct', why: 'One hundred is the same as 100.' }
+        return /sunlight/.test(t) ? { id: a.id, verdict: 'correct', why: 'Sunlight is the light energy the plant uses.' }
+          : /hundred|100/.test(t) ? { id: a.id, verdict: 'correct', why: 'One hundred is the same as 100.' }
           : /heat/.test(t) ? { id: a.id, verdict: 'partial', why: 'Says heat moves in but not that metal is a good conductor.' }
           : { id: a.id, verdict: 'wrong', why: 'Does not answer the question.' };
       }) });
     }, 500); });
   },
+  // 🔒 Hidden answers, as the glue hands them over (worked out already).
+  hiddenKey: who === 'teacher' ? (function () {
+    var st = { status: 'ready', docId: 'ws1', items: [
+      { id: 'k0', page: 1, number: '5', kind: 'open', question: 'How do plants make their food?', answer: 'By photosynthesis',
+        model: 'Plants use light energy to make food by photosynthesis in their chlorophyll.', keywords: ['light energy', 'photosynthesis'] },
+      { id: 'k1', page: 1, number: '6', kind: 'open', question: 'Why did the ice on the metal tray melt first?', answer: 'Metal conducts heat better',
+        model: 'The metal tray is a good conductor of heat, so the ice gained heat faster from the warmer surroundings.', keywords: ['good conductor of heat', 'gained heat'] }
+    ] };
+    window.keyEnsured = 0;
+    return { state: function () { return st; }, build: function () { return Promise.resolve(st); }, ensure: function () { window.keyEnsured++; }, onChange: function () {} };
+  })() : undefined,
   snapWorksheet: function () {
     var c = document.createElement('canvas'); c.width = 400; c.height = 200;
     var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 400, 200); x.fillStyle = '#c60085'; x.fillRect(40, 40, 120, 80);
@@ -648,7 +666,80 @@ try {
   await T.locator('.vcConfirmAll').click();
   await until(() => S1.locator('.vcQStatus', { hasText: 'Correct!' }).isVisible(), 10000);
 
+  /* ---------- 3b. 🔒 hidden answers: ✍️ fully blank and 🔤 fill in the keywords (v1.215.0) ---------- */
+  console.log('Hidden answers and keyword questions');
+  // The ✨ AI-send question is closed first, the way a teacher moves on.
+  await T.locator('.vcAnsHead button', { hasText: 'Close' }).click();
+  await until(() => S2.evaluate(() => !document.querySelector('.vcQ .vcOpt:not([disabled])')), 30000);
+  await T.locator('.vcSide .vcTab', { hasText: 'Ask' }).click();
+  ok('🔒 the hidden answers are ready in Ask', await until(() => T.locator('.vcHiddenHead', { hasText: 'Hidden answers ready · 2 questions' }).isVisible()));
+  ok('…and work themselves out during class (the tick asks)', await until(() => T.evaluate(() => window.keyEnsured > 0), 12000));
+  await T.locator('.vcHiddenHead').click();
+  ok('…the questions are listed with every answer covered', await T.locator('.vcHiddenRow').count() === 2 && !/photosynthesis|conductor/.test(await T.locator('.vcSide').textContent()));
+  await T.locator('.vcHiddenRow').first().locator('.vcChip', { hasText: 'Peek' }).click();
+  ok('👁 Peek shows one answer on the teacher\'s screen only', /by photosynthesis in their chlorophyll/.test(await T.locator('.vcHiddenAns').textContent()));
+  await T.locator('.vcHiddenRow').first().locator('.vcChip', { hasText: 'Hide' }).click();
+  ok('…and 🙈 covers it again', await T.locator('.vcHiddenAns').count() === 0);
+  // ✍️ Fully blank, to Amy: the AI answer stays hidden and marks.
+  await T.locator('.vcHiddenRow').nth(1).locator('.vcChip', { hasText: 'Blank' }).click();
+  ok('✍️ Blank loads an open-ended question with the AI answer covered', await T.locator('.vcSeg .vcSegBtn.on', { hasText: 'Open-ended' }).isVisible()
+    && await T.locator('.vcHiddenModel').isVisible() && !/good conductor/.test(await T.locator('.vcAsk').textContent()));
+  ok('…with the question\'s own words', (await T.locator('.vcAsk .vcQText').inputValue()) === 'Why did the ice on the metal tray melt first?');
+  await T.locator('.vcTo .vcSegBtn', { hasText: 'Chosen students' }).click();
+  await T.locator('.vcPickChips .vcChip', { hasText: 'Amy Tan' }).click();
+  await T.click('.vcAskFoot .vcPrimary');
+  ok('…it pops up for Amy as an empty box to write in', await until(() => S1.locator('.vcQ textarea').isVisible(), 30000) && (await S1.locator('.vcQ textarea').inputValue()) === '', await S1.evaluate(() => (document.querySelector('.vcQ') || {}).textContent));
+  await S1.fill('.vcQ textarea', 'The ice gained heat from the metal faster.');
+  await S1.locator('.vcQ .vcPrimary', { hasText: 'Send' }).click();
+  ok('✨ her answer is judged against the hidden AI answer', await until(() => T.evaluate(() => { var a = (window.aiAsks || []).slice(-1)[0]; return !!(a && /good conductor of heat/.test(a.question.model) && a.question.kind === 'open'); }), 30000));
+  ok('…and pre-marked for the teacher to confirm', await until(() => T.evaluate(() => { var a = [...document.querySelectorAll('.vcAns')].find(x => /Amy Tan/.test(x.textContent)); return !!(a && a.classList.contains('prov')); }), 30000));
+  await T.locator('.vcAns', { hasText: 'Amy Tan' }).locator('.vcMark.part').click();
+  ok('…the teacher\'s tap is the mark Amy sees (◐)', await until(() => S1.locator('.vcQStatus', { hasText: 'Partly right' }).isVisible(), 30000),
+    (await S1.evaluate(() => (document.querySelector('.vcQ') || {}).textContent)) + ' || ' + (await T.evaluate(() => [...document.querySelectorAll('.vcAns')].map(x => x.className + ':' + x.textContent).join(' ## '))));
+  // 🔤 Fill in the keywords, to everyone.
+  await T.locator('.vcSide .vcTab', { hasText: 'Ask' }).click();
+  if (!(await T.locator('.vcHiddenRow').count())) await T.locator('.vcHiddenHead').click();
+  await T.locator('.vcHiddenRow').first().locator('.vcChip', { hasText: 'Keywords' }).click();
+  ok('🔤 Keywords loads the AI answer with its keywords lit', await T.locator('.vcSeg .vcSegBtn.on', { hasText: 'Fill in the keywords' }).isVisible()
+    && JSON.stringify(await T.locator('.vcWord.on').allTextContents()) === JSON.stringify(['light', 'energy', 'photosynthesis']));
+  await T.locator('.vcWord', { hasText: 'chlorophyll.' }).click();
+  ok('…a tap blanks one more word, and the preview shows 3 gaps', await until(() => T.evaluate(() => document.querySelectorAll('.vcClozePreview .vcGapShow').length === 3)));
+  ok('…"light energy" is ONE gap', /use\s*1\s*to make food by\s*2\s*in their\s*3\s*\./.test(await T.locator('.vcClozePreview').textContent()));
+  await T.locator('.vcTo .vcSegBtn', { hasText: 'Everyone' }).click();
+  await T.click('.vcAskFoot .vcPrimary');
+  ok('…it pops up for Amy with three boxes in the sentence', await until(() => S1.evaluate(() => document.querySelectorAll('.vcQ .vcGap').length === 3), 30000));
+  ok('…and for Bella on her phone', await until(() => S3.evaluate(() => document.querySelectorAll('.vcQ .vcGap').length === 3), 30000));
+  await sleep(800);
+  for (const [who, S] of [['Amy', S1], ['Zoe', S2], ['Bella', S3]]) {
+    ok('🔒 nothing ' + who + '\'s device received holds the missing words or a hidden answer', await S.evaluate(() => {
+      var win = document.getElementById('vcWin');
+      var all = (window.rx || []).join('\n') + (win ? win.outerHTML + [...win.querySelectorAll('input,textarea')].map(i => i.value).join(' ') : '');
+      return !/photosynthesis|light energy|chlorophyll|good conductor|gained heat faster/i.test(all) && /How do plants make their food/.test(all);
+    }), await S.evaluate(() => { var win = document.getElementById('vcWin'); var all = (window.rx || []).join('\n') + (win ? win.outerHTML : ''); var m = /.{0,200}(photosynthesis|light energy|chlorophyll|good conductor|gained heat faster).{0,200}/i.exec(all); return (m ? m[0] : 'no hidden word') + ' | q? ' + /How do plants make their food/.test(all); }));
+  }
+  await S1.fill('.vcQ .vcGap >> nth=0', 'Light energy');
+  await S1.fill('.vcQ .vcGap >> nth=1', 'photosynthesis');
+  await S1.fill('.vcQ .vcGap >> nth=2', 'chlorophyll');
+  await S1.locator('.vcQ .vcPrimary', { hasText: 'Send' }).click();
+  await S2.fill('.vcQ .vcGap >> nth=0', 'sunlight');
+  await S2.fill('.vcQ .vcGap >> nth=1', 'photosynthesis');
+  await S2.fill('.vcQ .vcGap >> nth=2', 'chlorophyl');
+  await S2.press('.vcQ .vcGap >> nth=2', 'Enter');
+  ok('Amy\'s exact words are ✓ by the key at once', await until(() => T.evaluate(() => { var a = [...document.querySelectorAll('.vcAns')].find(x => /Amy Tan/.test(x.textContent)); return !!(a && a.classList.contains('ok') && /\[Light energy\] to make food by \[photosynthesis\] in their \[chlorophyll\]/.test(a.textContent)); }), 30000));
+  ok('✨ Zoe\'s "sunlight" (and a spelling slip) is judged acceptable by the AI', await until(() => T.evaluate(() => { var a = [...document.querySelectorAll('.vcAns')].find(x => /Zoe Ng/.test(x.textContent)); return !!(a && a.classList.contains('ok') && a.classList.contains('prov') && /Sunlight is the light energy/.test(a.textContent)); }), 30000));
+  ok('…the AI was given the gaps and the taken-out words', await T.evaluate(() => { var a = window.aiAsks.slice(-1)[0]; return a.question.kind === 'cloze' && JSON.stringify(a.question.keys) === JSON.stringify([['light energy'], ['photosynthesis'], ['chlorophyll']]) && /\[sunlight\]/.test(a.answers[0].text); }));
+  ok('…and Zoe is not told a provisional mark', await S2.locator('.vcQStatus', { hasText: 'Your teacher has your answer' }).isVisible());
+  await shot(T, '07b-keyword-answers');
+  await shot(S3, '07c-phone-keywords');
+  await T.locator('.vcConfirmAll').click();
+  ok('✓ Confirm all: Amy and Zoe are told they are right', await until(() => S1.locator('.vcQStatus', { hasText: 'Correct!' }).isVisible(), 30000) && await until(() => S2.locator('.vcQStatus', { hasText: 'Correct!' }).isVisible(), 30000));
+  await T.locator('.vcAnsHead button', { hasText: 'Show the answer' }).click();
+  ok('💡 Show the answer gives Bella the full sentence', await until(() => S3.locator('.vcQStatus', { hasText: 'Plants use light energy to make food by photosynthesis' }).isVisible(), 30000), await S3.evaluate(() => (document.querySelector('.vcQ') || {}).textContent));
+
+  for (const S of [S1, S2, S3]) { const done = S.locator('.vcQ .vcDone'); if (await done.isVisible()) await done.click(); }
+
   /* ---------- 4. hands ---------- */
+  await shot(S1, '07d-before-hand'); await shot(T, '07e-teacher-before-hand');
   await S1.locator('.vcCtl', { hasText: '✋' }).first().click();
   ok('a raised hand reaches the teacher\'s bar', await until(() => T.locator('.vcCtl.vcHands', { hasText: '✋ 1' }).isVisible(), 10000));
   await T.locator('.vcCtl.vcHands').click();
@@ -662,10 +753,10 @@ try {
   ok('the teacher sees the reports', await until(() => T.locator('.vcEndedTop').isVisible(), 15000));
   ok('every student who came has a report (Ethan too, who came by his link and left)', await T.locator('.vcRep').count() === 4);
   ok('students are told the class ended', await until(() => S1.locator('.vcEnded').isVisible(), 15000));
-  ok('Amy\'s summary line is factual', /Amy Tan answered every question asked in class \(3\), getting 3 of 3 marked answers right/.test(await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcRepLine').textContent()));
+  ok('Amy\'s summary line is factual', /Amy Tan answered every question asked in class \(5\), getting 4 of 5 marked answers right and 1 partly right/.test(await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcRepLine').textContent()));
   await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcRepHead').click();
   const reportText = await T.locator('.vcRepText').inputValue();
-  ok('the report lists her answers and time', /Questions answered: 3 of 3/.test(reportText) && /“A\. Iron” ✓/.test(reportText) && /Time in class: \d+ minute/.test(reportText), reportText.slice(0, 400));
+  ok('the report lists her answers and time', /Questions answered: 5 of 5/.test(reportText) && /“A\. Iron” ✓/.test(reportText) && /Time in class: \d+ minute/.test(reportText), reportText.slice(0, 400));
   await until(async () => (await T.locator('.vcRepBody input').nth(1).inputValue()) !== '');
   ok('the family\'s email is filled in', /^parent-famA_sA1@example\.com$/.test(await T.locator('.vcRepBody input').nth(1).inputValue()));
   await T.fill('.vcRepBody input >> nth=0', 'Great focus today.');
@@ -675,7 +766,7 @@ try {
   const mail = await T.evaluate(() => window.sentMail[0]);
   ok('the email has a subject, text and escaped HTML', /Live class report — Amy Tan/.test(mail.subject) && /Dear Parent/.test(mail.text) && /<div style=/.test(mail.html));
   ok('the report row says it was sent', await T.locator('.vcRep', { hasText: 'Amy Tan' }).locator('.vcTag.ok').isVisible());
-  ok('the lesson record was saved with every answer', await T.evaluate(() => { var s = Object.values(window.saved)[0]; return !!(s && s.questions.length === 4 && Object.keys(s.answers).length === 4 && s.sent); }));
+  ok('the lesson record was saved with every answer', await T.evaluate(() => { var s = Object.values(window.saved)[0]; return !!(s && s.questions.length === 6 && Object.keys(s.answers).length === 6 && s.sent); }));
   await shot(T, '08-teacher-reports');
   ok('the mirror says the class is over', await until(() => !(store.get('liveClassRooms/main') || {}).open, 5000));
   await until(() => T.evaluate(() => window.recSaved[0]), 60000);
