@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.215.0';
+  var VERSION = '1.216.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open', 'cloze'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended', cloze: 'Fill in the keywords' };
@@ -67,6 +67,10 @@
   // 🔗 This device's own class link (v1.210.0): the code from a personal link
   // or a PIN, kept so next time "You are Amy Tan — Join" is one tap.
   var PASS_KEY = 'polymath.liveClass.pass.v1';
+  // 📈 Performance tracking (v1.216.0): how long this device's class screen
+  // was hidden (another app, another tab, the phone locked) in this lesson,
+  // kept per lesson so a reload does not forget it.
+  var FOCUS_PREFIX = 'polymath.liveClass.focus.v1:';
 
   /* ================================================================
      PURE HELPERS
@@ -447,7 +451,10 @@
       rosterId: validId(p.rosterId) || /^[A-Za-z0-9_-]{1,128}$/.test(str(p.rosterId)) ? str(p.rosterId) : '',
       home: oneLine(p.home, 120), joinedAt: Number(p.joinedAt) || 0, leftAt: Number(p.leftAt) || 0,
       ms: Number(p.ms) || 0, hands: Number(p.hands) || 0, here: !!p.here, since: Number(p.since) || 0,
-      via: p.via === 'zoom' ? 'zoom' : ''
+      via: p.via === 'zoom' ? 'zoom' : '',
+      // 📈 v1.216.0: milliseconds the class screen was hidden on the child's
+      // device, and how many times it was left (their device's own count).
+      away: Math.max(0, Math.min(FOCUS_MAX_MS, Number(p.away) || 0)), awayN: Math.max(0, Math.min(9999, Math.floor(Number(p.awayN) || 0)))
     };
   }
   // A participant arriving or leaving: presence is counted in milliseconds so
@@ -472,6 +479,25 @@
     q.ms += Math.max(0, now - (q.since || now)); q.here = false; q.since = 0; q.leftAt = now;
     var people = Object.assign({}, session.people); people[identity] = q;
     return Object.assign({}, session, { people: people });
+  }
+  // 📈 A student's device reports how long the class screen was hidden. The
+  // count only ever goes up (a late, older report never lowers it), and is
+  // capped so a broken clock cannot claim a child was away for a day.
+  var FOCUS_MAX_MS = 6 * 3600 * 1000;
+  function personFocus(session, identity, msg, now) {
+    var p = session && session.people && session.people[identity];
+    if (!p || !msg) return session;
+    var away = Math.max(0, Math.min(FOCUS_MAX_MS, Math.floor(Number(msg.away) || 0)));
+    var n = Math.max(0, Math.min(9999, Math.floor(Number(msg.n) || 0)));
+    var q = cleanPerson(p);
+    if (away <= q.away && n <= q.awayN) return session;
+    q.away = Math.max(q.away, away); q.awayN = Math.max(q.awayN, n);
+    var people = Object.assign({}, session.people); people[identity] = q;
+    return Object.assign({}, session, { people: people });
+  }
+  function presentMs(p, now) {
+    if (!p) return 0;
+    return (Number(p.ms) || 0) + (p.here && p.since ? Math.max(0, now - p.since) : 0);
   }
   function minutesPresent(p, now) {
     if (!p) return 0;
@@ -749,9 +775,10 @@
       (r.partly ? ' and ' + r.partly + ' partly right' : '') : '';
     return r.name + ' ' + part + acc + '.';
   }
-  function reportText(session, identity, now, centre) {
+  function reportText(session, identity, now, centre, history) {
     var r = participation(session, identity, now);
     if (!r) return '';
+    var perf = performance(session, identity, now);
     var lines = [];
     lines.push('Dear Parent,');
     lines.push('');
@@ -762,6 +789,14 @@
     if (r.marked) lines.push('• Correct: ' + r.right + ' of ' + r.marked + ' marked' + (r.partly ? ' (' + r.partly + ' partly right)' : ''));
     if (r.hands) lines.push('• Raised a hand to ask or answer: ' + r.hands + ' time' + (r.hands === 1 ? '' : 's'));
     if (r.points) lines.push('• Points earned in class: ' + r.points);
+    // 📈 Performance tracking (v1.216.0): only what the class measured.
+    if (perf) {
+      if (perf.joinedClock) lines.push('• Joined the class at ' + perf.joinedClock);
+      if (perf.avgSecs != null) lines.push('• Average time to answer: ' + secondsWords(perf.avgSecs));
+      if (perf.focusPct != null) lines.push('• Focus: on the class screen ' + perf.focusPct + '% of the time' + (perf.awayTimes ? ' (left it ' + perf.awayTimes + ' time' + (perf.awayTimes === 1 ? '' : 's') + ')' : ''));
+      var hl = historyLines(history);
+      if (hl.length) { lines.push(''); lines.push('Recent live lessons:'); hl.forEach(function (x) { lines.push('  ' + x); }); }
+    }
     if (r.rows.length) {
       lines.push('');
       lines.push('Questions in class:');
@@ -788,6 +823,206 @@
   function reportHtml(text) {
     return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222">' +
       str(text).split('\n').map(function (line) { return line ? escapeHtml(line) : '&nbsp;'; }).join('<br>') + '</div>';
+  }
+
+
+  /* ---------- 📈 performance tracking (v1.216.0) ----------
+     Everything here is MEASURED by the class itself — nothing is guessed:
+       • when the child joined (Singapore time) and how long they stayed;
+       • how many questions they answered, and how many the TEACHER marked
+         right (a provisional key/AI mark never counts, as in the report);
+       • how quickly they answered: the time from the question popping up
+         on screen to their answer reaching the teacher's device;
+       • focus: how much of their time in class the class screen was in
+         front of them (their device reports when it is hidden — another
+         app, another tab, the phone locked). A 📱 Zoom child's phone only
+         answers, so it is not judged on focus.
+     A short summary of each lesson is kept per child (progressMerge), so the
+     report can show the last few live lessons side by side. */
+  function sgClock(ms) {
+    ms = Number(ms) || 0;
+    if (!ms) return '';
+    var d = new Date(ms + 8 * 3600000);
+    var h = d.getUTCHours(), m = d.getUTCMinutes();
+    return (h % 12 || 12) + ':' + (m < 10 ? '0' : '') + m + ' ' + (h < 12 ? 'AM' : 'PM');
+  }
+  function sgDay(ms) {
+    ms = Number(ms) || 0;
+    if (!ms) return '';
+    var d = new Date(ms + 8 * 3600000);
+    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return days[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + months[d.getUTCMonth()];
+  }
+  function secondsWords(sec) {
+    sec = Math.max(0, Math.round(Number(sec) || 0));
+    if (sec < 60) return sec + ' second' + (sec === 1 ? '' : 's');
+    var m = Math.floor(sec / 60), r = sec % 60;
+    return m + ' min' + (r ? ' ' + r + ' s' : '');
+  }
+  function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : null; }
+  function performance(session, identity, now) {
+    var r = participation(session, identity, now);
+    if (!r) return null;
+    var p = cleanPerson(session.people[identity]);
+    var here = presentMs(p, now);
+    var speeds = [];
+    r.rows.forEach(function (row) {
+      var qa = Number(row.q && row.q.at) || 0, ea = Number(row.entry && row.entry.at) || 0;
+      if (row.entry && qa && ea >= qa && ea - qa <= 30 * 60000) speeds.push((ea - qa) / 1000);
+    });
+    var avg = speeds.length ? Math.round(speeds.reduce(function (a, b) { return a + b; }, 0) / speeds.length) : null;
+    var focus = null;
+    if (p.via !== 'zoom' && here >= 60000) focus = Math.max(0, Math.min(100, Math.round(100 * (1 - Math.min(p.away, here) / here))));
+    var score = r.marked ? Math.round((r.right + 0.5 * r.partly) / r.marked * 100) : null;
+    return Object.assign({}, r, {
+      joinedAt: p.joinedAt, joinedClock: sgClock(p.joinedAt), via: p.via,
+      answeredPct: pct(r.answered, r.asked), scorePct: score, avgSecs: avg,
+      focusPct: focus, awayMin: Math.round(Math.min(p.away, here) / 60000), awayTimes: p.away > 0 ? p.awayN : 0
+    });
+  }
+  // A word a parent can read at a glance for each measure.
+  function levelWord(kind, v) {
+    if (v == null) return '';
+    if (kind === 'score') return v >= 85 ? 'Excellent' : v >= 65 ? 'Good' : v >= 40 ? 'Fair' : 'Needs practice';
+    if (kind === 'answered') return v >= 90 ? 'Very active' : v >= 60 ? 'Active' : v > 0 ? 'Quiet' : 'Did not answer';
+    if (kind === 'focus') return v >= 90 ? 'Fully focused' : v >= 75 ? 'Mostly focused' : v >= 50 ? 'Sometimes away' : 'Often away';
+    if (kind === 'speed') return v <= 45 ? 'Quick' : v <= 120 ? 'Steady' : 'Takes time';
+    return '';
+  }
+  // The one line kept per child per lesson (small: a whole term fits one doc).
+  function perfSummary(session, identity, now) {
+    var f = performance(session, identity, now);
+    if (!f) return null;
+    return { e: Number(session.epoch) || 0, d: Number(session.startedAt) || 0, l: oneLine(session.slotLabel || session.slot, 60),
+      m: f.minutes, q: f.asked, a: f.answered, r: f.right, h: f.partly, k: f.marked,
+      s: f.avgSecs == null ? -1 : f.avgSecs, f: f.focusPct == null ? -1 : f.focusPct };
+  }
+  function cleanSummary(x) {
+    if (!x || typeof x !== 'object') return null;
+    var n = function (v, max) { v = Math.floor(Number(v)); return isFinite(v) ? Math.max(-1, Math.min(max, v)) : 0; };
+    var e = Math.floor(Number(x.e)) || 0;
+    if (!(e > 0)) return null;
+    return { e: e, d: Math.max(0, Number(x.d) || 0), l: oneLine(x.l, 60), m: n(x.m, 1000), q: n(x.q, 500), a: n(x.a, 500), r: n(x.r, 500), h: n(x.h, 500), k: n(x.k, 500), s: n(x.s, 1800), f: n(x.f, 100) };
+  }
+  var PROGRESS_KEEP = 12;
+  // The teacher's progress book: { v, students: { identity: { name, rows: [summary…] } } }.
+  // Merging a lesson replaces that lesson's own row (it is re-saved as marks
+  // are given) and keeps the newest PROGRESS_KEEP lessons per child.
+  function progressMerge(progress, session, now) {
+    var out = { v: 1, students: {} };
+    var had = progress && progress.students && typeof progress.students === 'object' ? progress.students : {};
+    Object.keys(had).forEach(function (id) {
+      if (!validIdentity(id)) return;
+      var st = had[id] || {};
+      var rows = (Array.isArray(st.rows) ? st.rows : []).map(cleanSummary).filter(Boolean);
+      out.students[id] = { name: oneLine(st.name, LIMITS.name) || 'Student', rows: rows };
+    });
+    if (session && session.people && Number(session.epoch) > 0) {
+      Object.keys(session.people).forEach(function (id) {
+        if (!validIdentity(id) || roleOfIdentity(id) !== 'student') return;
+        var sum = cleanSummary(perfSummary(session, id, now));
+        if (!sum) return;
+        var st = out.students[id] || { name: '', rows: [] };
+        st.name = cleanPerson(session.people[id]).name;
+        st.rows = st.rows.filter(function (x) { return x.e !== sum.e; }).concat([sum])
+          .sort(function (a, b) { return a.e - b.e; }).slice(-PROGRESS_KEEP);
+        out.students[id] = st;
+      });
+    }
+    return out;
+  }
+  // The lessons BEFORE this one, oldest first (at most `max`).
+  function historyFor(progress, identity, epoch, max) {
+    var st = progress && progress.students && progress.students[identity];
+    if (!st || !Array.isArray(st.rows)) return [];
+    return st.rows.map(cleanSummary).filter(function (x) { return x && x.e !== Number(epoch); })
+      .sort(function (a, b) { return a.e - b.e; }).slice(-(max || 5));
+  }
+  function historyLine(x) {
+    var parts = [sgDay(x.d) || 'Earlier lesson'];
+    if (x.q > 0) parts.push('answered ' + x.a + ' of ' + x.q);
+    if (x.k > 0) parts.push(x.r + ' of ' + x.k + ' right' + (x.h ? ', ' + x.h + ' partly' : '') + ' (' + Math.round((x.r + 0.5 * x.h) / x.k * 100) + '%)');
+    if (x.f >= 0) parts.push('focus ' + x.f + '%');
+    if (!x.q) parts.push(x.m + ' min in class');
+    return parts.join(' · ');
+  }
+  function historyLines(history) {
+    return (Array.isArray(history) ? history : []).map(cleanSummary).filter(Boolean).map(historyLine);
+  }
+  // Better, the same or lower than the average of the earlier lessons.
+  function trendOf(history, perf) {
+    var rows = (Array.isArray(history) ? history : []).map(cleanSummary).filter(function (x) { return x && x.k > 0; });
+    if (!perf || perf.scorePct == null || rows.length < 2) return '';
+    var avg = rows.reduce(function (a, x) { return a + (x.r + 0.5 * x.h) / x.k * 100; }, 0) / rows.length;
+    if (perf.scorePct >= avg + 10) return 'up';
+    if (perf.scorePct <= avg - 10) return 'down';
+    return 'same';
+  }
+
+  /* The report as an email a parent can read on a phone: a card of the
+     measures, the questions, the teacher's note and the recent lessons.
+     Plain inline styles (email apps drop <style>); every field escaped. */
+  function reportCardHtml(session, identity, now, centre, history) {
+    var f = performance(session, identity, now);
+    if (!f) return '';
+    var E = escapeHtml;
+    var when = fmtDate(session.startedAt || now) + (session.slotLabel || session.slot ? ' · ' + (session.slotLabel || session.slot) : '');
+    var tile = function (label, value, word, colour) {
+      return '<td style="width:33%;padding:6px;vertical-align:top"><div style="background:#F7F7F5;border-radius:12px;padding:12px 10px;text-align:center">' +
+        '<div style="font-size:12px;color:#6B6B6B;text-transform:uppercase;letter-spacing:.04em">' + E(label) + '</div>' +
+        '<div style="font-size:24px;font-weight:700;color:' + (colour || '#1A1A1A') + ';margin-top:4px">' + E(value) + '</div>' +
+        (word ? '<div style="font-size:12px;color:#444;margin-top:2px">' + E(word) + '</div>' : '') + '</div></td>';
+    };
+    var green = '#0B7A50', amber = '#B26A00', red = '#B3261E';
+    var colourOf = function (v, good, ok) { return v == null ? '#1A1A1A' : v >= good ? green : v >= ok ? amber : red; };
+    var tiles = [
+      tile('Time in class', f.minutes + ' min', f.joinedClock ? 'joined ' + f.joinedClock : ''),
+      tile('Answered', f.asked ? f.answered + ' / ' + f.asked : '—', levelWord('answered', f.answeredPct), colourOf(f.answeredPct, 80, 50)),
+      tile('Correct', f.scorePct == null ? '—' : f.scorePct + '%', f.scorePct == null ? 'not marked' : levelWord('score', f.scorePct), colourOf(f.scorePct, 75, 45))
+    ];
+    var tiles2 = [
+      tile('Answer speed', f.avgSecs == null ? '—' : (f.avgSecs < 60 ? f.avgSecs + ' s' : Math.floor(f.avgSecs / 60) + 'm ' + (f.avgSecs % 60) + 's'), levelWord('speed', f.avgSecs)),
+      tile('Focus', f.focusPct == null ? '—' : f.focusPct + '%', f.focusPct == null ? (f.via === 'zoom' ? 'watched on Zoom' : '') : levelWord('focus', f.focusPct), colourOf(f.focusPct, 85, 65)),
+      tile('Hands raised', String(f.hands || 0), f.points ? f.points + ' point' + (f.points === 1 ? '' : 's') + ' earned' : '')
+    ];
+    var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222;max-width:620px;margin:0 auto">';
+    html += '<p style="margin:0 0 4px">Dear Parent,</p>';
+    html += '<p style="margin:0 0 14px">Here is how <b>' + E(f.name) + '</b> did in today’s live lesson (' + E(when) + ').</p>';
+    html += '<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse"><tr>' + tiles.join('') + '</tr><tr>' + tiles2.join('') + '</tr></table>';
+    html += '<p style="margin:14px 0 0">' + E(participationLine(f)) + '</p>';
+    var tr = trendOf(history, f);
+    if (tr === 'up') html += '<p style="margin:6px 0 0;color:' + green + '">↑ Better than ' + E(f.name) + '’s recent live lessons.</p>';
+    if (tr === 'down') html += '<p style="margin:6px 0 0;color:' + amber + '">↓ Lower than ' + E(f.name) + '’s recent live lessons — worth a little extra practice this week.</p>';
+    if (f.note) html += '<div style="margin:16px 0 0;padding:12px 14px;border-left:4px solid #0B7A50;background:#F1F8F4;border-radius:6px"><b>Teacher’s note:</b> ' + E(f.note) + '</div>';
+    if (f.rows.length) {
+      html += '<h3 style="font-size:16px;margin:22px 0 8px">Questions in class</h3><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;font-size:14px">';
+      f.rows.forEach(function (row, i) {
+        var label = 'Q' + (row.q.n || i + 1) + (row.q.text ? ': ' + oneLine(row.q.text, 140) : ' (picture question)');
+        var said = row.entry ? (row.text ? '“' + oneLine(row.text, 200) + '”' : '') + (row.photo ? (row.text ? ' + ' : '') + 'a photo of the working' : '') : 'No answer';
+        var mk = row.mark === true ? ['✓ Right', green] : row.mark === false ? ['✗ Not right', red] : row.mark === 'partial' ? ['◐ Partly right', amber] : row.entry ? ['Not marked', '#6B6B6B'] : ['—', '#6B6B6B'];
+        html += '<tr><td style="padding:8px 6px;border-top:1px solid #E6E6E3;vertical-align:top"><div>' + E(label) + '</div><div style="color:#555">' + E(said) + '</div></td>' +
+          '<td style="padding:8px 6px;border-top:1px solid #E6E6E3;vertical-align:top;white-space:nowrap;color:' + mk[1] + ';font-weight:700;text-align:right">' + E(mk[0]) + '</td></tr>';
+      });
+      html += '</table>';
+    }
+    var hist = (Array.isArray(history) ? history : []).map(cleanSummary).filter(Boolean);
+    if (hist.length) {
+      html += '<h3 style="font-size:16px;margin:22px 0 8px">Recent live lessons</h3><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;font-size:14px">';
+      html += '<tr style="color:#6B6B6B;font-size:12px;text-transform:uppercase"><td style="padding:4px 6px">Lesson</td><td style="padding:4px 6px;text-align:right">Answered</td><td style="padding:4px 6px;text-align:right">Correct</td><td style="padding:4px 6px;text-align:right">Focus</td></tr>';
+      hist.concat([{ e: Number(session.epoch) || 1, d: session.startedAt || now, q: f.asked, a: f.answered, r: f.right, h: f.partly, k: f.marked, f: f.focusPct == null ? -1 : f.focusPct, today: true }]).forEach(function (x) {
+        var sc = x.k > 0 ? Math.round((x.r + 0.5 * x.h) / x.k * 100) + '%' : '—';
+        html += '<tr' + (x.today ? ' style="font-weight:700"' : '') + '><td style="padding:6px;border-top:1px solid #E6E6E3">' + E((sgDay(x.d) || 'Lesson') + (x.today ? ' (today)' : '')) + '</td>' +
+          '<td style="padding:6px;border-top:1px solid #E6E6E3;text-align:right">' + E(x.q > 0 ? x.a + ' / ' + x.q : '—') + '</td>' +
+          '<td style="padding:6px;border-top:1px solid #E6E6E3;text-align:right">' + E(sc) + '</td>' +
+          '<td style="padding:6px;border-top:1px solid #E6E6E3;text-align:right">' + E(x.f >= 0 ? x.f + '%' : '—') + '</td></tr>';
+      });
+      html += '</table>';
+    }
+    html += '<p style="margin:22px 0 0;font-size:13px;color:#6B6B6B">How we measure: <b>Correct</b> counts only answers your child’s teacher has marked. <b>Answer speed</b> is the time from a question appearing to the answer arriving. <b>Focus</b> is how much of the lesson the class screen stayed open in front of your child (it drops when they switch to another app or tab).</p>';
+    html += '<p style="margin:18px 0 0">Warm regards,<br>' + E(centre || 'Polymath Learning Centre') + '</p>';
+    html += '<p style="margin:10px 0 0;font-size:13px;color:#6B6B6B">Questions? Reply to this email or WhatsApp us at +65 9645 0588.</p></div>';
+    return html;
   }
 
   /* ---------- layout ---------- */
@@ -1104,6 +1339,9 @@
     provisionalOf: provisionalOf, confirmedOf: confirmedOf, markSource: markSource, needsAiMark: needsAiMark,
     confirmPlan: confirmPlan, tallyOf: tallyOf, choosersOf: choosersOf, questionFromAi: questionFromAi,
     participation: participation, participationLine: participationLine, reportText: reportText, reportHtml: reportHtml,
+    personFocus: personFocus, presentMs: presentMs, performance: performance, levelWord: levelWord, sgClock: sgClock, sgDay: sgDay, secondsWords: secondsWords,
+    perfSummary: perfSummary, cleanSummary: cleanSummary, progressMerge: progressMerge, historyFor: historyFor, historyLines: historyLines, trendOf: trendOf,
+    reportCardHtml: reportCardHtml, FOCUS_PREFIX: FOCUS_PREFIX, PROGRESS_KEEP: PROGRESS_KEEP,
     gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, minuteMB: minuteMB, SCREEN: SCREEN, wantTrack: wantTrack,
     shareConstraints: shareConstraints,
     filterNames: filterNames, cleanPrefs: cleanPrefs,
@@ -1158,7 +1396,7 @@
       aiq: {}, aiBusy: 0, aiMarking: {}, aiFailed: {}, aiSend: '', tally: '', tallyQ: '',
       // student
       questions: {}, order: [], mine: {}, outbox: {}, popup: null, popMin: false, gotState: false, helloTimer: 0, resendTimer: 0,
-      handUp: false, lists: null, pickTab: 'mine', pick: null, query: '', confirmAgain: null,
+      handUp: false, lists: null, pickTab: (typeof env.startTab === 'function' && env.startTab() === 'pin') ? 'pin' : 'mine', pick: null, query: '', confirmAgain: null,
       // 🔗 personal link / PIN (v1.210.0)
       me: null, passOff: false, passNote: '', pinDraft: '', pinMsg: '', pinBusy: false, pv: null,
       // both
@@ -2361,6 +2599,7 @@
       if (S.role === 'student') {
         applySubscriptions();
         sayHello();
+        focusLoad();
         clearInterval(S.resendTimer);
         S.resendTimer = setInterval(studentTick, 1500);
       } else {
@@ -2504,6 +2743,7 @@
     }
     function stopWakeLock() { try { if (S.wakeLock) S.wakeLock.release(); } catch (e) {} S.wakeLock = null; }
     document.addEventListener('visibilitychange', function () {
+      focusChanged();
       if (document.visibilityState === 'visible' && S.mode === 'live') {
         startWakeLock();
         if (S.role === 'student') { sayHello(); flushOutbox(true); }
@@ -3273,6 +3513,7 @@
         if (msg.t === 'a') return onAnswer(from, msg);
         if (msg.t === 'hand') return onHand(from, !!msg.up);
         if (msg.t === 'needimg') return onNeedImage(from, msg.ref);
+        if (msg.t === 'focus') return onFocus(from, msg);
         return;
       }
       // A student's device obeys only the teacher's identity, which the
@@ -3344,6 +3585,14 @@
       chain.then(function () {
         send({ t: 'state', qs: qs.map(questionForStudent).filter(Boolean), mine: mine, revealed: revealed, hand: !!S.hands[identity] }, [identity]);
       });
+    }
+    // 📈 The child's device: how long the class screen has been hidden.
+    function onFocus(identity, msg) {
+      if (!S.session || !S.session.people[identity]) return;
+      var next = personFocus(S.session, identity, msg, now());
+      if (next === S.session) return;
+      S.session = next;
+      saveSoon();
     }
     function onNeedImage(identity, ref) {
       if (!S.images[ref]) return;
@@ -3466,7 +3715,43 @@
         if (++tries < 20) S.helloTimer = setTimeout(again, LIMITS.helloMs);
       })();
     }
-    function studentTick() { flushOutbox(false); S.assembler.sweep(5 * 60 * 1000); }
+    function studentTick() { flushOutbox(false); S.assembler.sweep(5 * 60 * 1000); focusTick(false); }
+    /* ---------- 📈 focus (v1.216.0) ----------
+       While the class is live, the time this device's class screen is
+       hidden is added up and sent to the teacher's device every half
+       minute and the moment the child comes back. A 📱 Zoom answer phone is
+       expected to sit in the background, so it reports nothing. */
+    function focusKey() { return FOCUS_PREFIX + (S.epoch || 0) + ':' + (S.identity || ''); }
+    function focusLoad() {
+      var f = readJson(session(), focusKey(), null);
+      S.focus = { away: Math.max(0, Number(f && f.away) || 0), n: Math.max(0, Math.floor(Number(f && f.n) || 0)), hiddenAt: 0, sentAt: 0, sent: -1 };
+      if (document.visibilityState === 'hidden') S.focus.hiddenAt = now();
+    }
+    function focusAway() {
+      var f = S.focus;
+      if (!f) return 0;
+      return f.away + (f.hiddenAt ? Math.max(0, now() - f.hiddenAt) : 0);
+    }
+    function focusTick(force) {
+      if (S.role !== 'student' || S.mode !== 'live' || answerOnlyHere() || !S.focus) return;
+      var away = focusAway();
+      if (!force && now() - S.focus.sentAt < 30000) return;
+      if (!force && away === S.focus.sent) return;
+      S.focus.sentAt = now();
+      S.focus.sent = away;
+      sendTeacher({ t: 'focus', away: Math.round(away), n: S.focus.n });
+    }
+    function focusChanged() {
+      if (S.role !== 'student' || S.mode !== 'live' || !S.focus) return;
+      if (document.visibilityState === 'hidden') {
+        if (!S.focus.hiddenAt) { S.focus.hiddenAt = now(); S.focus.n += 1; }
+      } else if (S.focus.hiddenAt) {
+        S.focus.away += Math.max(0, now() - S.focus.hiddenAt);
+        S.focus.hiddenAt = 0;
+      }
+      writeJson(session(), focusKey(), { away: S.focus.away, n: S.focus.n });
+      if (document.visibilityState === 'visible') focusTick(true);
+    }
     function flushOutbox(force) {
       if (S.mode !== 'live' || !teacherIdentity()) return;
       var due = outboxDue(S.outbox, force ? Infinity : now(), LIMITS.resendMs);
@@ -4726,7 +5011,9 @@
         if (S.removed[p.identity]) top.appendChild(el('span', 'vcTag warn', 'Removed'));
         row.appendChild(top);
         var q = S.quality[p.identity];
-        row.appendChild(el('p', 'vcMuted', r.minutes + ' min · ' + r.answered + '/' + r.asked + ' answered' + (r.marked ? ' · ✓ ' + r.right + '/' + r.marked : '') + (p.hands ? ' · ✋ ' + p.hands : '') + (q && p.here ? ' · ' + q : '')));
+        var pf = performance(s, p.identity, now());
+        row.appendChild(el('p', 'vcMuted', r.minutes + ' min · ' + r.answered + '/' + r.asked + ' answered' + (r.marked ? ' · ✓ ' + r.right + '/' + r.marked : '') + (p.hands ? ' · ✋ ' + p.hands : '') +
+          (pf && pf.focusPct != null ? ' · 👀 ' + pf.focusPct + '%' : '') + (q && p.here ? ' · ' + q : '')));
         if (S.mode === 'live') {
           var acts = el('div', 'vcRow vcSmall');
           if (p.here) {
@@ -4761,13 +5048,76 @@
 
     /* ---------- 🧾 Reports: one summary per student, for the parent ---------- */
     function centreName() { return typeof env.centre === 'function' ? env.centre() : 'Polymath Learning Centre'; }
+    /* 📈 The progress book (v1.216.0): one small summary per child per
+       lesson, kept by the glue (users/{teacher}/liveClassProgress/main), so a
+       report can show the child's recent live lessons. It is loaded before
+       it is ever written, so a slow read can never overwrite it with an
+       empty book. */
+    function loadProgress() {
+      if (S.progressState || typeof env.loadProgress !== 'function') return;
+      S.progressState = 'loading';
+      Promise.resolve(env.loadProgress()).then(function (book) {
+        S.progress = book && typeof book === 'object' ? book : { v: 1, students: {} };
+        S.progressState = 'ready';
+        updateProgress(true);
+        if (S.tab === 'reports' || S.mode === 'ended') paintSide();
+      }, function () { S.progressState = 'failed'; });
+    }
+    function updateProgress(force) {
+      if (S.progressState !== 'ready' || !S.session || typeof env.saveProgress !== 'function') return;
+      if (!force && now() - (S.progressSavedAt || 0) < 60000) return;
+      S.progressSavedAt = now();
+      S.progress = progressMerge(S.progress, S.session, S.session.endedAt || now());
+      Promise.resolve(env.saveProgress(S.progress)).catch(function () {});
+    }
+    function historyOf(identity) {
+      return S.progressState === 'ready' ? historyFor(S.progress, identity, S.session.epoch, 5) : [];
+    }
     function reportFor(identity) {
       var r = S.reports[identity];
       if (r && r.edited) return r.text;
-      return reportText(S.session, identity, S.session.endedAt || now(), centreName());
+      return reportText(S.session, identity, S.session.endedAt || now(), centreName(), historyOf(identity));
+    }
+    // The email: the full performance card, unless the teacher rewrote the
+    // words — then exactly their words, as they wrote them.
+    function reportMailHtml(identity, text) {
+      var r = S.reports[identity];
+      if (r && r.edited) return reportHtml(text);
+      return reportCardHtml(S.session, identity, S.session.endedAt || now(), centreName(), historyOf(identity));
+    }
+    // 📈 The measures for one child, as the teacher sees them before sending.
+    function perfPanel(p) {
+      var f = performance(S.session, p.identity, S.session.endedAt || now());
+      var box = el('div', 'vcPerf');
+      if (!f) return box;
+      var tile = function (label, value, word) {
+        var t = el('div', 'vcPerfTile');
+        t.appendChild(el('span', 'vcPerfLabel', label));
+        t.appendChild(el('b', null, value));
+        if (word) t.appendChild(el('span', 'vcPerfWord', word));
+        box.appendChild(t);
+      };
+      tile('Time in class', f.minutes + ' min', f.joinedClock ? 'joined ' + f.joinedClock : '');
+      tile('Answered', f.asked ? f.answered + '/' + f.asked : '—', levelWord('answered', f.answeredPct));
+      tile('Correct', f.scorePct == null ? '—' : f.scorePct + '%', f.scorePct == null ? (f.answered ? 'mark answers to count' : '') : levelWord('score', f.scorePct));
+      tile('Answer speed', f.avgSecs == null ? '—' : secondsWords(f.avgSecs), levelWord('speed', f.avgSecs));
+      tile('Focus', f.focusPct == null ? '—' : f.focusPct + '%', f.focusPct == null ? (f.via === 'zoom' ? '📱 on Zoom' : 'not measured') : levelWord('focus', f.focusPct) + (f.awayTimes ? ' · left ' + f.awayTimes + '×' : ''));
+      tile('Hands', String(f.hands || 0), f.points ? f.points + ' pts' : '');
+      var hist = historyOf(p.identity);
+      if (hist.length) {
+        var h = el('div', 'vcPerfHist');
+        h.appendChild(el('span', 'vcPerfLabel', 'Recent live lessons'));
+        historyLines(hist).forEach(function (line) { h.appendChild(el('p', 'vcMuted', line)); });
+        var tr = trendOf(hist, f);
+        if (tr) h.appendChild(el('p', 'vcPerfTrend ' + tr, tr === 'up' ? '↑ Better than recent lessons' : tr === 'down' ? '↓ Lower than recent lessons' : '→ About the same as recent lessons'));
+        box.appendChild(h);
+      } else if (S.progressState === 'loading') {
+        box.appendChild(el('p', 'vcMuted vcPerfHist', 'Loading recent lessons…'));
+      }
+      return box;
     }
     function subjectFor(p) {
-      return 'Live class report — ' + p.name + ' — ' + fmtDate(S.session.startedAt || now());
+      return 'Live lesson report — ' + p.name + ' — ' + fmtDate(S.session.startedAt || now());
     }
     function sentOf(identity) { return ((S.session.sent || {})[identity]) || null; }
     function recordSent(identity, to) {
@@ -4786,12 +5136,14 @@
     function paintReports(box) {
       var s = S.session;
       var people = roster(s);
+      loadProgress();
+      updateProgress(false);
       if (!people.length) {
         box.appendChild(el('p', 'vcMuted vcEmptySide', 'Each student who joins gets a summary here: time in class, every answer, marks and hands raised — ready to send to their parent.'));
         return;
       }
       var intro = el('div', 'vcRepIntro');
-      intro.appendChild(el('p', 'vcMuted', 'A summary for each student’s parent: how long they were in class, every answer, and how many were right. Nothing is sent until you press Send.'));
+      intro.appendChild(el('p', 'vcMuted', 'A performance report for each student’s parent: time in class, answers and marks, answer speed, focus and their recent live lessons. Emails go from admin@polymathlc.com.sg. Nothing is sent until you press Send.'));
       var allRow = el('div', 'vcRow vcSmall');
       allRow.appendChild(btn('', '⧉ Copy all', 'Copy every report', function () {
         copyText(people.map(function (p) { return reportFor(p.identity); }).join('\n\n— — —\n\n')).then(function () { say('Every report copied.'); });
@@ -4810,6 +5162,14 @@
         head.appendChild(el('b', null, p.name));
         if (p.kind !== 'roster') head.appendChild(el('span', 'vcTag', p.kind === 'trial' ? 'Trial' : 'Make-up'));
         head.appendChild(el('span', 'vcRepLine', participationLine(r)));
+        var pf = performance(s, p.identity, s.endedAt || now());
+        if (pf) {
+          var chips = [];
+          if (pf.scorePct != null) chips.push('✓ ' + pf.scorePct + '%');
+          if (pf.avgSecs != null) chips.push('⏱ ' + secondsWords(pf.avgSecs));
+          if (pf.focusPct != null) chips.push('👀 ' + pf.focusPct + '%');
+          if (chips.length) head.appendChild(el('span', 'vcRepChips', chips.join('  ·  ')));
+        }
         if (sent) head.appendChild(el('span', 'vcTag ok', '✓ sent ' + new Date(sent.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })));
         row.appendChild(head);
         if (open) row.appendChild(reportEditor(p));
@@ -4820,6 +5180,7 @@
     function reportEditor(p) {
       var wrap = el('div', 'vcRepBody');
       var id = p.identity;
+      wrap.appendChild(perfPanel(p));
       var noteLab = el('label', 'vcField');
       noteLab.appendChild(el('span', null, 'Your note to the parent (optional)'));
       var note = el('input'); note.type = 'text'; note.value = (S.session.notes || {})[id] || '';
@@ -4851,6 +5212,12 @@
       row.appendChild(btn('', '⧉ Copy', null, function () { copyText(ta.value).then(function () { say('Report copied.'); }); }));
       if (S.reports[id] && S.reports[id].edited) row.appendChild(btn('', '↺ Rebuild', 'Throw away your edits and build the report again', function () { delete S.reports[id]; ta.value = reportFor(id); paintSide(); }));
       if (typeof env.sendEmail === 'function') {
+        // A copy to the teacher's own inbox first, to see exactly what the parent will get.
+        row.appendChild(btn('', '✉ Test to me', 'Email this report to yourself only, to check it before a parent sees it', function () {
+          var text = ta.value;
+          Promise.resolve(env.sendEmail({ to: [], test: true, subject: '[Test] ' + subjectFor(p), text: text, html: reportMailHtml(id, text), rosterId: p.rosterId || '', epoch: S.session.epoch }))
+            .then(function (res) { say('✓ Test sent to ' + ((res && res.to && res.to.join(', ')) || 'you') + '.'); }, function (e) { say('The test could not be sent: ' + ((e && e.message) || e)); });
+        }));
         row.appendChild(btn('vcPrimary', '✉ Send', 'Email this report to the parent', function () {
           var addrs = to.value.split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(function (x) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x); }).slice(0, 4);
           if (!addrs.length) { say('Type the parent’s email first.'); to.focus(); return; }
@@ -4862,7 +5229,8 @@
       return wrap;
     }
     function sendOne(p, addrs, text) {
-      var job = Promise.resolve(env.sendEmail({ to: addrs, subject: subjectFor(p), text: text, html: reportHtml(text) }));
+      updateProgress(true);
+      var job = Promise.resolve(env.sendEmail({ to: addrs, subject: subjectFor(p), text: text, html: reportMailHtml(p.identity, text), rosterId: p.rosterId || '', epoch: S.session.epoch }));
       return job.then(function () {
         recordSent(p.identity, addrs);
         say('✓ Sent ' + p.name + '’s report.');
@@ -4911,6 +5279,8 @@
       wrap.appendChild(S.side);
       S.body.appendChild(wrap);
       if (S.tab !== 'answers') S.tab = 'reports';
+      loadProgress();
+      updateProgress(true);
       paintSide();
     }
 
@@ -4940,6 +5310,7 @@
       close();
       if (S.mirrorOff) { try { S.mirrorOff(); } catch (e) {} S.mirrorOff = null; }
       S.session = null; S.reports = {}; S.compose = null; S.images = {}; S.removed = {}; S.outbox = {};
+      S.progress = null; S.progressState = '';
       S.status = null; S.lists = null; S.box = null; S.me = null; S.passOff = false;
     }
     // A change of person on this device ends everything that was theirs:

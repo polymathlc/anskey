@@ -643,6 +643,31 @@ body.vcCropping .vcWin { opacity: .14; pointer-events: none; transition: opacity
 .vcPickFoot .vcZoomPick { margin-bottom: 10px; }
 .vcTile.vcViaZoom::after { content: '📱 Zoom'; position: absolute; left: 6px; top: 6px; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(21, 101, 192, .9); color: #fff; }
 
+/* ---------- 📈 Performance tracking in the Reports tab (v1.216.0) ---------- */
+.vcRepChips { flex: 1 1 100%; font-size: 12px; font-weight: 700; color: var(--ink-soft, #55554f); letter-spacing: .1px; }
+.vcPerf { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.vcPerfTile {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 12px; text-align: center;
+  background: rgba(0, 0, 0, .035); border: 1px solid var(--line, #ececea); min-width: 0;
+}
+.vcPerfTile b { font-size: 18px; line-height: 1.2; color: var(--ink, #1a1a1a); overflow-wrap: anywhere; }
+.vcPerfLabel { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-faint, #8a8a84); }
+.vcPerfWord { font-size: 11.5px; color: var(--ink-soft, #55554f); line-height: 1.3; }
+.vcPerfHist { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 12px; border: 1px dashed var(--line, #dcdad6); }
+.vcPerfHist p { margin: 0; font-size: 12.5px; }
+.vcPerfTrend { font-weight: 700; font-size: 12.5px; margin: 4px 0 0; }
+.vcPerfTrend.up { color: #2e7d32; }
+.vcPerfTrend.down { color: #b26a00; }
+.vcPerfTrend.same { color: var(--ink-soft, #55554f); }
+@media (max-width: 420px) { .vcPerf { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .vcPerfTile { background: rgba(255, 255, 255, .05); }
+  :root:not([data-theme="light"]) .vcPerfTrend.up { color: #81c784; }
+  :root:not([data-theme="light"]) .vcPerfTrend.down { color: #ffb74d; }
+}
+:root[data-theme="dark"] .vcPerfTile { background: rgba(255, 255, 255, .05); }
+:root[data-theme="dark"] .vcPerfTrend.up { color: #81c784; }
+:root[data-theme="dark"] .vcPerfTrend.down { color: #ffb74d; }
 /* ---------- 🔒 Hidden answers and 🔤 fill in the keywords (v1.215.0) ---------- */
 .vcHidden { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; margin-bottom: 14px; border-radius: 12px;
   background: rgba(46, 125, 50, .06); border: 1px solid rgba(46, 125, 50, .25); font-size: 13px; }

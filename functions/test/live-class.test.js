@@ -751,3 +751,57 @@ test('📖 a Study Buddy PIN works without a class, in its own slower bucket', a
   h.clock.t += lc.STUDY_PIN_LIMITS.windowMs + 1;
   assert.equal((await h.call({ action: 'study', pin: zoe.pin }, { as: studentUser })).statusCode, 200);
 });
+
+// 📈 ✉ Parent performance reports (v1.214.0): a `mail` document from the
+// centre's own address, only ever written by the teacher.
+test('report: the teacher emails a parent from admin@ through the mail collection', async () => {
+  const h = harness();
+  const res = await h.call({ action: 'report', to: ['Tan@Example.com', 'not-an-email', 'tan@example.com'], subject: 'Live lesson report —\n Amy Tan', html: '<p>Hi</p>', text: 'Hi', rosterId: 'famA_sA1', epoch: 123 });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.sent, true);
+  assert.deepEqual(res.body.to, ['tan@example.com'], 'cleaned, lower case, no repeats, bad ones dropped');
+  const [path, doc] = h.db.writes.find(([p]) => p.startsWith('mail/'));
+  assert.match(path, /^mail\/live-class-report-123-[0-9a-f]{12}$/);
+  assert.equal(doc.from, 'Polymath Learning Centre <admin@polymathlc.com.sg>');
+  assert.equal(doc.replyTo, 'admin@polymathlc.com.sg');
+  assert.deepEqual(doc.to, ['tan@example.com']);
+  assert.equal(doc.message.subject, 'Live lesson report — Amy Tan', 'one line');
+  assert.equal(doc.message.html, '<p>Hi</p>');
+  assert.equal(doc.liveClassReport.rosterId, 'famA_sA1');
+  assert.equal(doc.liveClassReport.test, false);
+});
+
+test('report: a test copy goes only to the teacher, whatever the request says', async () => {
+  const h = harness();
+  const res = await h.call({ action: 'report', test: true, to: ['parent@example.com'], subject: 'x', html: '<p>x</p>', text: 'x', epoch: 5 });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.to, [TEACHER_EMAIL.toLowerCase()]);
+  const [path, doc] = h.db.writes.find(([p]) => p.startsWith('mail/'));
+  assert.match(path, /^mail\/live-class-report-test-5-/);
+  assert.deepEqual(doc.to, [TEACHER_EMAIL.toLowerCase()]);
+  assert.equal(doc.liveClassReport.test, true);
+});
+
+test('report: students cannot send; empty, address-less and oversized reports are refused', async () => {
+  const kid = harness({ user: studentUser });
+  const r1 = await kid.call({ action: 'report', to: ['a@example.com'], subject: 's', html: '<p>x</p>' });
+  assert.equal(r1.statusCode, 403);
+  assert.equal(r1.body.error.code, 'teacher_only');
+  assert.equal(kid.db.writes.length, 0);
+  const h = harness();
+  assert.equal((await h.call({ action: 'report', to: ['a@example.com'], subject: 's', html: ' ', text: '' })).statusCode, 400);
+  const noTo = await h.call({ action: 'report', to: ['nope'], subject: 's', html: '<p>x</p>' });
+  assert.equal(noTo.body.error.code, 'bad_email');
+  const big = await h.call({ action: 'report', to: ['a@example.com'], subject: 's', html: 'x'.repeat(lc.LIVE_CLASS_LIMITS.reportHtmlMax + 1) });
+  assert.equal(big.statusCode, 413);
+  assert.equal(h.db.writes.filter(([p]) => p.startsWith('mail/')).length, 0);
+  // Other actions keep the small body limit.
+  const huge = await h.call({ action: 'status', pad: 'x'.repeat(lc.LIVE_CLASS_LIMITS.bodyBytes + 10) });
+  assert.equal(huge.statusCode, 413);
+});
+
+test('reportEmails keeps at most four clean addresses', () => {
+  assert.deepEqual(lc.reportEmails(['a@b.co', 'c@d.co', 'e@f.co', 'g@h.co', 'i@j.co']), ['a@b.co', 'c@d.co', 'e@f.co', 'g@h.co']);
+  assert.deepEqual(lc.reportEmails(['<x>@y.com', 'a b@c.com', '']), []);
+  assert.deepEqual(lc.reportEmails('a@b.co'), []);
+});

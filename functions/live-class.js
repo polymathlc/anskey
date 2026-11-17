@@ -52,10 +52,43 @@ const LIVE_CLASS_LIMITS = Object.freeze({
   teacherTtlSeconds: 6 * 3600,
   studentTtlSeconds: 4 * 3600,
   removedMax: 200,
-  checkTimeoutMs: 8000
+  checkTimeoutMs: 8000,
+  // 📈 A parent's performance report (v1.214.0): the HTML card with every
+  // question, so it may be far bigger than any other request here.
+  reportBytes: 400000,
+  reportHtmlMax: 300000,
+  reportTextMax: 60000,
+  reportSubjectMax: 200,
+  reportTo: 4
 });
-const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study']);
-const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass']);
+// ✉ Parent reports go out the way every Polymath email does: a document in
+// `mail`, sent by the Trigger Email extension as the centre's own address.
+const REPORT_MAIL_COLLECTION = 'mail';
+const REPORT_MAIL_PREFIX = 'live-class-report-';
+const REPORT_FROM = 'Polymath Learning Centre <admin@polymathlc.com.sg>';
+const REPORT_REPLY_TO = 'admin@polymathlc.com.sg';
+const REPORT_EMAIL_RE = /^[^\s@<>(),;:\\"]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/i;
+function reportEmails(list, max) {
+  const out = [];
+  for (const raw of Array.isArray(list) ? list : []) {
+    const e = String(raw == null ? '' : raw).trim().toLowerCase();
+    if (e.length <= 254 && REPORT_EMAIL_RE.test(e) && !out.includes(e)) out.push(e);
+    if (out.length >= (max || LIVE_CLASS_LIMITS.reportTo)) break;
+  }
+  return out;
+}
+// The `mail` document for one report. The HTML was built by the teacher's
+// own app (every field in it escaped there); the subject is one line.
+function reportMail({ to, subject, html, text, epoch, rosterId, test, by, at }) {
+  const subj = String(subject == null ? '' : subject).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, LIVE_CLASS_LIMITS.reportSubjectMax);
+  return {
+    to: to.slice(), from: REPORT_FROM, replyTo: REPORT_REPLY_TO,
+    message: { subject: subj || 'Live lesson report', html: String(html || ''), text: String(text || '') },
+    liveClassReport: { epoch: Number(epoch) || 0, rosterId: typeof rosterId === 'string' ? rosterId.slice(0, 130) : '', test: test === true, by: by || '', at: at || 0 }
+  };
+}
+const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study', 'report']);
+const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'report']);
 // 🔗 Personal links and PINs (v1.210.0). A child's own link carries a code
 // the server can CHECK but nobody can make: the roster key, a generation
 // (bumped when a link is lost) and an HMAC over both, keyed from the same
@@ -961,6 +994,22 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       return publicState(state);
     }
 
+    // 📈 ✉ A parent's performance report (v1.214.0), or a test copy to the
+    // teacher's own inbox. Teacher only (TEACHER_ACTIONS).
+    if (body.action === 'report') {
+      const html = typeof body.html === 'string' ? body.html : '';
+      const text = typeof body.text === 'string' ? body.text : '';
+      if (!html.trim() && !text.trim()) fail(400, 'invalid_request', 'The report is empty.');
+      if (html.length > LIVE_CLASS_LIMITS.reportHtmlMax || text.length > LIVE_CLASS_LIMITS.reportTextMax) fail(413, 'too_large', 'This report is too long to email. Shorten it and try again.');
+      const test = body.test === true;
+      const to = test ? reportEmails([actor.email]) : reportEmails(body.to);
+      if (!to.length) fail(400, 'bad_email', test ? 'Your account has no email to send a test to.' : 'Type the parent’s email first.');
+      const epoch = Math.max(0, Math.floor(Number(body.epoch) || 0));
+      const id = REPORT_MAIL_PREFIX + (test ? 'test-' : '') + (epoch || 'x') + '-' + createHash('sha256').update(to.join(',') + '|' + String(body.rosterId || '') + '|' + t).digest('hex').slice(0, 12);
+      await db.collection(REPORT_MAIL_COLLECTION).doc(id).set(reportMail({ to, subject: body.subject, html, text, epoch, rosterId: body.rosterId, test, by: actor.uid, at: t }));
+      return { sent: true, test, to, id };
+    }
+
     if (body.action === 'slots') {
       const { students, schedule } = await enrolment(t);
       return { slots: slotChoices(students, schedule) };
@@ -1189,7 +1238,8 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
     if (req.method !== 'POST') return res.status(405).json({ error: { code: 'method_not_allowed', message: 'Use POST.' } });
     try {
       if (!/^application\/json(?:;|$)/i.test(req.get('content-type') || '')) fail(415, 'invalid_request', 'Send JSON.');
-      if ((req.rawBody?.length || 0) > LIVE_CLASS_LIMITS.bodyBytes) fail(413, 'invalid_request', 'That request is too large.');
+      const maxBytes = req.body && req.body.action === 'report' ? LIVE_CLASS_LIMITS.reportBytes : LIVE_CLASS_LIMITS.bodyBytes;
+      if ((req.rawBody?.length || 0) > maxBytes) fail(413, 'invalid_request', 'That request is too large.');
       const body = validateBody(req.body);
       const actor = await identify(req);
       const result = await action(actor, body);
@@ -1206,6 +1256,7 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
 
 module.exports = {
   CONFIG_COLLECTION, STATE_COLLECTION, MIRROR_COLLECTION, LIVE_CLASS_LIMITS, ROOM_PREFIX,
+  REPORT_MAIL_COLLECTION, REPORT_MAIL_PREFIX, REPORT_FROM, REPORT_REPLY_TO, reportEmails, reportMail,
   LiveClassError, validateBody, createLiveClassService,
   signAccessToken, readAccessToken, b64url, b64urlDecode, cleanUrl, httpBase, cleanKey, cleanSecret, maskKey,
   EARLY_DEFAULT, EARLY_MAX, cleanEarly, cleanSettings, sgClock, slotTimes, clockLabel, joinGate, laterLessonToday,

@@ -4047,7 +4047,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="live-cams.css">
-<link rel="stylesheet" href="live-class.css?v=1.215.0">
+<link rel="stylesheet" href="live-class.css?v=1.216.0">
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="living-library.css">
@@ -6049,7 +6049,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.215.0';
+var APP_VERSION = 'v1.216.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32899,8 +32899,53 @@ async function liveClassParentEmails(person) {
   return [f.email, f.email2].map(function (x) { return String(x || '').trim(); }).filter(Boolean);
 }
 
-/* ---- sending a report: the class summaries' Gmail sign-in ---- */
+/* ---- 📈 the progress book: one short line per child per lesson (v1.216.0) ----
+   users/{teacher}/liveClassProgress/main = { json: '{v, students:{identity:{name, rows}}}' }.
+   live-class.js builds and merges it (progressMerge); this only keeps it. */
+function liveClassProgressDoc() {
+  var uid = liveClassTeacherUid();
+  return uid ? db.collection('users').doc(uid).collection('liveClassProgress').doc('main') : null;
+}
+async function liveClassLoadProgress() {
+  var ref = liveClassProgressDoc();
+  if (!ref) return { v: 1, students: {} };
+  var snap = await ref.get();
+  if (!snap.exists) return { v: 1, students: {} };
+  try { var d = snap.data() || {}; return d.json ? JSON.parse(d.json) : { v: 1, students: {} }; } catch (e) { return { v: 1, students: {} }; }
+}
+async function liveClassSaveProgress(book) {
+  var ref = liveClassProgressDoc();
+  if (!ref) return;
+  var json = JSON.stringify(book || {});
+  if (json.length > 900000) return;
+  await ref.set({ v: 1, json: json, students: Object.keys((book && book.students) || {}).length, at: firebase.firestore.FieldValue.serverTimestamp() });
+}
+
+/* ---- sending a report (v1.216.0): from admin@polymathlc.com.sg ----
+   The server (ansKeyLiveClass, action "report") drops the email into the
+   `mail` collection, which the Trigger Email extension sends as "Polymath
+   Learning Centre <admin@polymathlc.com.sg>" — the same door as the shop
+   receipts and Polymath Online invitations. A test goes only to the
+   teacher's own address. If the server cannot be reached, a real report
+   falls back to the teacher's Gmail sign-in (the way it was sent before). */
+var liveClassReportViaGmail = false;
 function liveClassSendEmail(msg) {
+  if (!wheelTeacher()) return Promise.reject(new Error('Only the teacher can send reports.'));
+  // Gmail's sign-in window must open inside the tap, so once the server has
+  // failed this visit, the next Send goes straight to Gmail.
+  if (liveClassReportViaGmail && !msg.test) return liveClassSendGmail(msg);
+  var body = { to: msg.test ? [] : msg.to, test: msg.test === true, subject: msg.subject, html: msg.html, text: msg.text, rosterId: msg.rosterId || '', epoch: msg.epoch || 0 };
+  return liveClassCall('report', body).catch(function (e) {
+    // A refusal the server explained (a bad address, too big) is final; only
+    // "could not reach / not deployed yet" falls back to Gmail.
+    var code = (e && e.code) || '';
+    if (msg.test || /^(bad_email|too_large|teacher_only)$/.test(code)) throw e;
+    liveClassReportViaGmail = true;
+    throw new Error('The centre\'s email could not be reached (' + ((e && e.message) || 'no answer') + '). Press Send again to send it from your Gmail instead.');
+  });
+}
+/* ---- the fallback: the class summaries' Gmail sign-in ---- */
+function liveClassSendGmail(msg) {
   if (!wheelTeacher()) return Promise.reject(new Error('Only the teacher can send reports.'));
   if (!window.ClassSummary || typeof csumAuthorizeGmail !== 'function') return Promise.reject(new Error('Email is not available on this page.'));
   // Asked BEFORE anything waits, so the Google window opens inside the tap.
@@ -33383,6 +33428,11 @@ function liveClassInit() {
     award: liveClassAward,
     parentEmails: liveClassParentEmails,
     sendEmail: liveClassSendEmail,
+    // 📈 Performance tracking (v1.216.0): each child's recent live lessons.
+    loadProgress: liveClassLoadProgress,
+    saveProgress: liveClassSaveProgress,
+    // polymathlc.com.sg/live → "I have a PIN" opens the PIN tab (`?live&pin`).
+    startTab: function () { return /(?:^|[?&])pin(?:[=&]|$)/.test(location.search.replace(/^\?/, '')) ? 'pin' : ''; },
     snapWorksheet: liveClassSnapWorksheet,
     // ✨ AI send (drag round a question) and Chung GPT's pre-marks (v1.209.0).
     cropQuestion: liveClassCropQuestion,
@@ -45373,7 +45423,7 @@ loadAiNotePrefs();
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>
 <script src="live-class-record.js?v=1.208.0"></script>
-<script src="live-class.js?v=1.215.0"></script>
+<script src="live-class.js?v=1.216.0"></script>
 <script>liveClassInit();</script>
 <script src="vendor/qrcode-generator.js"></script>
 <script src="question-apps.js"></script>

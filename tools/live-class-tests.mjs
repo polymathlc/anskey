@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.215.0');
+  assert.equal(P.VERSION, '1.216.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
   assert.match(html, /var APP_VERSION = 'v1\.2(1[2-9]|[2-9]\d)\.\d+'/);
-  assert.match(html, /live-class\.js\?v=1\.215\.0/);
+  assert.match(html, /live-class\.js\?v=1\.216\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.215\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.216\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -886,6 +886,135 @@ test('📞 Zoom hybrid: the window wires it as published, recorded and stopped',
   assert.doesNotMatch(panel, /innerHTML|outerHTML|insertAdjacentHTML/);
   assert.match(css, /\.vcZoomSteps/);
   assert.match(css, /\.vcTag\.zoom/);
+});
+
+/* ---------- 📈 performance tracking (v1.216.0) ---------- */
+function markedLesson() {
+  let s = lesson();
+  s.epoch = 1700000000000;
+  s.startedAt = Date.UTC(2026, 10, 18, 7, 0);     // Wed 18 Nov 2026, 3:00 PM in Singapore
+  s.people['r:famA_s1'].joinedAt = Date.UTC(2026, 10, 18, 7, 2);
+  s.people['r:famA_s1'].since = s.people['r:famA_s1'].joinedAt;
+  s.people['g:anon1'].since = s.startedAt;
+  s.questions.forEach((q, i) => { q.at = s.startedAt + (i + 1) * 5 * 60000; });
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q1', aid: 'a1', v: 1 }, s.questions[0].at + 20000).session;
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q2', aid: 'a2', v: '100' }, s.questions[1].at + 40000).session;
+  s.questions.forEach(q => P.confirmPlan(s, q).forEach(row => { s.answers[q.id][row.identity].ok = row.ok; }));
+  return s;
+}
+
+test('📈 focus: only ever goes up, capped, and only for people in the lesson', () => {
+  let s = lesson();
+  s = P.personFocus(s, 'r:famA_s1', { away: 90000, n: 2 }, 5000);
+  assert.equal(s.people['r:famA_s1'].away, 90000);
+  assert.equal(s.people['r:famA_s1'].awayN, 2);
+  const same = P.personFocus(s, 'r:famA_s1', { away: 1000, n: 1 }, 6000);
+  assert.equal(same, s, 'an older, smaller report changes nothing');
+  s = P.personFocus(s, 'r:famA_s1', { away: 1e12, n: 3 }, 7000);
+  assert.equal(s.people['r:famA_s1'].away, 6 * 3600 * 1000, 'capped');
+  assert.equal(P.personFocus(s, 'r:nobody_x', { away: 5 }, 1), s);
+  // Survives the clean of a saved record.
+  s = P.personLeft(s, 'r:famA_s1', 9000);
+  assert.equal(s.people['r:famA_s1'].awayN, 3);
+});
+
+test('📈 performance: join time, answer speed, focus and score are measured, never guessed', () => {
+  let s = markedLesson();
+  const end = s.startedAt + 62 * 60000;
+  s = P.personFocus(s, 'r:famA_s1', { away: 6 * 60000, n: 2 }, end);
+  const f = P.performance(s, 'r:famA_s1', end);
+  assert.equal(f.joinedClock, '3:02 PM');
+  assert.equal(f.minutes, 60);
+  assert.equal(f.asked, 3);
+  assert.equal(f.answered, 2);
+  assert.equal(f.answeredPct, 67);
+  assert.equal(f.scorePct, 100, 'two marked, both right');
+  assert.equal(f.avgSecs, 30, '(20 s + 40 s) / 2');
+  assert.equal(f.focusPct, 90, '6 of 60 minutes away');
+  assert.equal(f.awayTimes, 2);
+  assert.equal(P.levelWord('focus', 90), 'Fully focused');
+  assert.equal(P.levelWord('score', 50), 'Fair');
+  assert.equal(P.secondsWords(95), '1 min 35 s');
+  // A 📱 Zoom answer phone is not judged on focus.
+  s = P.personJoined(s, { identity: 'r:famA_s1', via: 'zoom' }, end);
+  assert.equal(P.performance(s, 'r:famA_s1', end).focusPct, null);
+  // Provisional marks never become a score.
+  const raw = lesson();
+  const r2 = P.recordAnswer(raw, 'r:famA_s1', { qid: 'q1', aid: 'a1', v: 1 }, 9000).session;
+  assert.equal(P.performance(r2, 'r:famA_s1', 60000).scorePct, null);
+});
+
+test('📈 progress book: one row per lesson per child, replaced on re-save, newest twelve kept', () => {
+  let book = null;
+  for (let i = 0; i < 14; i++) {
+    const s = markedLesson();
+    s.epoch = 1700000000000 + i;
+    s.startedAt += i * 7 * 86400000;
+    book = P.progressMerge(book, s, s.startedAt + 3600000);
+  }
+  const rows = book.students['r:famA_s1'].rows;
+  assert.equal(rows.length, 12);
+  assert.equal(rows[0].e, 1700000000002, 'the oldest two fell off');
+  assert.equal(book.students['r:famA_s1'].name, 'Ethan Lim');
+  assert.equal(book.students['t:teacher'], undefined);
+  // Saving the same lesson again replaces its row.
+  const again = markedLesson(); again.epoch = 1700000000013; again.startedAt += 13 * 7 * 86400000;
+  assert.equal(P.progressMerge(book, again, again.startedAt + 3600000).students['r:famA_s1'].rows.length, 12);
+  // History leaves out this lesson and keeps the last five, oldest first.
+  const h = P.historyFor(book, 'r:famA_s1', 1700000000013, 5);
+  assert.equal(h.length, 5);
+  assert.ok(h.every(x => x.e !== 1700000000013));
+  assert.ok(h[0].e < h[4].e);
+  assert.match(P.historyLines(h)[0], /^Wed \d+ \w+ · answered 2 of 3 · 2 of 2 right \(100%\)/);
+  // A broken book is cleaned, never trusted.
+  const dirty = P.progressMerge({ students: { 'x:bad': { rows: [{ e: 1 }] }, 'r:a_b': { name: '<b>', rows: [{ e: 'no' }, { e: 9, q: 1e9 }] } } }, null, 0);
+  assert.equal(dirty.students['x:bad'], undefined);
+  assert.equal(dirty.students['r:a_b'].rows.length, 1);
+  assert.equal(dirty.students['r:a_b'].rows[0].q, 500);
+});
+
+test('📈 trend: better / lower / the same as the recent lessons', () => {
+  const hist = [{ e: 1, d: 1, q: 4, a: 4, r: 2, h: 0, k: 4, f: -1, m: 50, s: -1 }, { e: 2, d: 2, q: 4, a: 4, r: 2, h: 0, k: 4, f: -1, m: 50, s: -1 }];
+  assert.equal(P.trendOf(hist, { scorePct: 80 }), 'up');
+  assert.equal(P.trendOf(hist, { scorePct: 30 }), 'down');
+  assert.equal(P.trendOf(hist, { scorePct: 52 }), 'same');
+  assert.equal(P.trendOf(hist.slice(0, 1), { scorePct: 90 }), '', 'one lesson is not a trend');
+});
+
+test('📈 the report: tracking lines and recent lessons in the words, a card in the email', () => {
+  let s = markedLesson();
+  const end = s.startedAt + 62 * 60000;
+  s = P.personFocus(s, 'r:famA_s1', { away: 6 * 60000, n: 2 }, end);
+  s.people['r:famA_s1'].name = 'Ethan <Lim>';
+  s.notes = { 'r:famA_s1': 'Great <work>' };
+  const hist = [{ e: 1, d: Date.UTC(2026, 10, 11, 7), q: 4, a: 3, r: 1, h: 1, k: 3, f: 80, m: 55, s: 40 }];
+  const text = P.reportText(s, 'r:famA_s1', end, 'Polymath Learning Centre', hist);
+  assert.match(text, /Joined the class at 3:02 PM/);
+  assert.match(text, /Average time to answer: 30 seconds/);
+  assert.match(text, /Focus: on the class screen 90% of the time \(left it 2 times\)/);
+  assert.match(text, /Recent live lessons:\n  Wed 11 Nov · answered 3 of 4 · 1 of 3 right, 1 partly \(50%\) · focus 80%/);
+  // Without history (and for old callers) the report still reads well.
+  assert.doesNotMatch(P.reportText(s, 'r:famA_s1', end, 'Polymath Learning Centre'), /Recent live lessons/);
+  const html = P.reportCardHtml(s, 'r:famA_s1', end, 'Polymath Learning Centre', hist);
+  assert.equal(html.includes('<Lim>'), false, 'names are escaped');
+  assert.equal(html.includes('<work>'), false, 'notes are escaped');
+  assert.match(html, /Ethan &lt;Lim&gt;/);
+  assert.match(html, /90%/);
+  assert.match(html, /Fully focused/);
+  assert.match(html, /Recent live lessons/);
+  assert.match(html, /\(today\)/);
+  assert.match(html, /How we measure/);
+  assert.equal(P.reportCardHtml(s, 'r:nobody_x', end), '');
+});
+
+test('📈 the glue keeps the progress book, sends from admin@ and opens the PIN tab from /live', () => {
+  assert.match(html, /collection\('liveClassProgress'\)\.doc\('main'\)/);
+  assert.match(html, /loadProgress: liveClassLoadProgress/);
+  assert.match(html, /saveProgress: liveClassSaveProgress/);
+  assert.match(html, /liveClassCall\('report', body\)/);
+  assert.match(html, /startTab: function/);
+  assert.match(src, /msg\.t === 'focus'\) return onFocus/);
+  assert.match(src, /'✉ Test to me'/);
 });
 
 /* ---------- 🔤 fill in the keywords + 🔒 hidden answers (v1.215.0) ---------- */
