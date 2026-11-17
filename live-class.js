@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.212.0';
+  var VERSION = '1.213.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended' };
@@ -896,6 +896,145 @@
     return roleOfIdentity(identity) === 'teacher' && source === 'screen_audio' && str(name) === ZOOM.name;
   }
 
+  /* ================================================================
+     🎛 CLASS CONTROLS, 💬 CHAT AND REQUESTS (v1.213.0)
+     ================================================================
+     Zoom's host controls, for children on iPads and phones.
+     · The class switches (`controls`): may a student unmute themselves
+       (selfMic), turn on their own video (selfCam), and who may they
+       message (chat: 'all' | 'teacher' | 'off'). The SERVER keeps them and
+       tells LiveKit what each child may publish (functions/live-class.js
+       `controls` / `permit`), so a locked microphone stays locked on a
+       modified page. This file only paints the switches and the requests.
+     · Nobody can switch a child's microphone or camera ON from afar, so
+       "unmute" and "start video" are a REQUEST card the child accepts
+       (`ask`). Mute and stop video are the server's MutePublishedTrack.
+     · Chat is relayed by the teacher's device: a student sends to the
+       teacher, the teacher's device checks the class switch (`chatAllowed`)
+       and passes it on. A student's device shows only messages that came
+       from the teacher's identity, so nothing goes child to child behind
+       the teacher's back. */
+  var CHAT = Object.freeze({ max: 300, keep: 200, show: 60, toMe: 40 });
+  var CHAT_MODES = ['all', 'teacher', 'off'];
+  var CHAT_MODE_LABEL = { all: 'Everyone', teacher: 'Only me', off: 'Nobody' };
+  var CONTROLS_DEFAULT = { selfMic: true, selfCam: true, chat: 'teacher' };
+  // The same rule as the server's cleanControls: only a real boolean
+  // changes a switch, an unknown chat mode is the default.
+  function cleanControls(d) {
+    var o = d && typeof d === 'object' ? d : {};
+    return {
+      selfMic: typeof o.selfMic === 'boolean' ? o.selfMic : CONTROLS_DEFAULT.selfMic,
+      selfCam: typeof o.selfCam === 'boolean' ? o.selfCam : CONTROLS_DEFAULT.selfCam,
+      chat: CHAT_MODES.indexOf(o.chat) >= 0 ? o.chat : CONTROLS_DEFAULT.chat
+    };
+  }
+  function cleanPermitsView(raw) {
+    var out = {};
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    Object.keys(raw).forEach(function (k) {
+      if (!validIdentity(k) || roleOfIdentity(k) !== 'student') return;
+      var v = raw[k] || {}, p = {};
+      if (v.mic === true) p.mic = true;
+      if (v.cam === true) p.cam = true;
+      if (p.mic || p.cam) out[k] = p;
+    });
+    return out;
+  }
+  function allowOf(controls, permits, identity) {
+    var c = cleanControls(controls), p = (permits && permits[identity]) || {};
+    return { mic: c.selfMic || p.mic === true, cam: c.selfCam || p.cam === true };
+  }
+  // What LiveKit itself says this device may publish (the server's truth).
+  // TrackSource: CAMERA = 1, MICROPHONE = 2. An empty list means "every
+  // source"; canPublish false means none.
+  function allowFromPermissions(perm) {
+    if (!perm || typeof perm !== 'object') return null;
+    if (perm.canPublish === false) return { mic: false, cam: false };
+    var src = Array.isArray(perm.canPublishSources) ? perm.canPublishSources : [];
+    if (!src.length) return { mic: true, cam: true };
+    function has(n, word) { return src.some(function (x) { return x === n || str(x).toLowerCase() === word; }); }
+    return { mic: has(2, 'microphone'), cam: has(1, 'camera') };
+  }
+  // May a STUDENT send this message? The teacher may always.
+  function chatAllowed(mode, to) {
+    var m = cleanControls({ chat: mode }).chat;
+    if (m === 'off') return false;
+    if (m === 'teacher') return to === 'teacher';
+    return to === 'teacher' || to === 'all';
+  }
+  function chatRefusal(mode, to) {
+    var m = cleanControls({ chat: mode }).chat;
+    if (m === 'off') return 'Chat is off right now.';
+    if (m === 'teacher' && to !== 'teacher') return 'You can only message your teacher right now.';
+    return '';
+  }
+  // The one door for a chat entry: who, to whom, the words, when.
+  // to = 'all' (everyone), 'teacher', or one student's identity (the
+  // teacher's private message).
+  function cleanChat(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var id = str(raw.id);
+    if (!validId(id)) return null;
+    var text = str(raw.text).replace(/[\u0000-\u0008\u000b-\u001f\u007f]+/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, CHAT.max);
+    if (!text) return null;
+    var from = str(raw.from);
+    if (!validIdentity(from)) return null;
+    var to = str(raw.to);
+    if (to !== 'all' && to !== 'teacher' && !(validIdentity(to) && roleOfIdentity(to) === 'student')) return null;
+    return { id: id, from: from, name: oneLine(raw.name, 60) || (roleOfIdentity(from) === 'teacher' ? 'Teacher' : 'Student'), to: to, text: text, at: Number(raw.at) || 0 };
+  }
+  function cleanChatList(list) {
+    var seen = {}, out = [];
+    (Array.isArray(list) ? list : []).forEach(function (m) {
+      var c = cleanChat(m);
+      if (c && !seen[c.id]) { seen[c.id] = true; out.push(c); }
+    });
+    return out.slice(-CHAT.keep);
+  }
+  // Add (or replace, by id) and keep the newest CHAT.keep, oldest first.
+  function chatAdd(list, entry) {
+    var c = cleanChat(entry);
+    var arr = Array.isArray(list) ? list.slice() : [];
+    if (!c) return arr;
+    var i = -1;
+    arr.forEach(function (m, k) { if (m && m.id === c.id) i = k; });
+    if (i >= 0) arr[i] = Object.assign({}, arr[i], c, { pending: false, refused: '' });
+    else arr.push(c);
+    arr.sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
+    return arr.slice(-CHAT.keep);
+  }
+  // Which messages one student may see again after a rejoin.
+  function chatFor(list, identity) {
+    return (Array.isArray(list) ? list : []).filter(function (m) {
+      return m && (m.to === 'all' || m.from === identity || m.to === identity);
+    }).slice(-CHAT.toMe);
+  }
+  // Where a student's message goes once the teacher's device has passed it.
+  // [] = the teacher alone. Never back to a child who is not here.
+  function chatTargets(entry, present) {
+    if (!entry || entry.to !== 'all') return [];
+    return (Array.isArray(present) ? present : []).filter(function (id) { return id !== entry.from && roleOfIdentity(id) === 'student'; });
+  }
+  function chatWho(entry, me) {
+    if (!entry) return '';
+    var mine = entry.from === me;
+    var where = entry.to === 'all' ? '' : entry.to === 'teacher' ? (mine ? ' → Teacher' : ' (to you)') : (mine ? ' → privately' : ' (privately)');
+    return (mine ? 'You' : entry.name) + where;
+  }
+  // The People tab's one-line state of a child's microphone and camera.
+  function mediaLine(m) {
+    var o = m || {};
+    return (o.mic ? '🎤 on' : '🔇 off') + ' · ' + (o.cam ? '📷 on' : '📷 off');
+  }
+  function controlsWords(c) {
+    var x = cleanControls(c);
+    return [
+      x.selfMic ? 'Students may unmute themselves' : 'Only you can let a student talk',
+      x.selfCam ? 'students may turn on their video' : 'video only when you ask',
+      'chat: ' + (x.chat === 'all' ? 'everyone' : x.chat === 'teacher' ? 'only with you' : 'off')
+    ].join(' · ');
+  }
+
   var pure = {
     VERSION: VERSION, TOPIC: TOPIC, KINDS: KINDS, KIND_LABEL: KIND_LABEL, LIMITS: LIMITS,
     cleanQuestion: cleanQuestion, questionForStudent: questionForStudent, meantFor: meantFor,
@@ -916,7 +1055,11 @@
     ZOOM: ZOOM, zoomCaptureConstraints: zoomCaptureConstraints, duckGain: duckGain, rmsLevel: rmsLevel, loopbackHint: loopbackHint,
     zoomFromSearch: zoomFromSearch, zoomLink: zoomLink, ZOOM_GUIDE: ZOOM_GUIDE, guideFor: guideFor, isZoomFeed: isZoomFeed,
     cleanPassRow: cleanPassRow, passesShown: passesShown, passSlots: passSlots, passLines: passLines, qrPath: qrPath, PASS_KEY: PASS_KEY, roleOfIdentity: roleOfIdentity, validIdentity: validIdentity,
-    randomId: randomId, fmtDate: fmtDate, oneLine: oneLine
+    randomId: randomId, fmtDate: fmtDate, oneLine: oneLine,
+    CHAT: CHAT, CHAT_MODES: CHAT_MODES, CHAT_MODE_LABEL: CHAT_MODE_LABEL, CONTROLS_DEFAULT: CONTROLS_DEFAULT,
+    cleanControls: cleanControls, cleanPermitsView: cleanPermitsView, allowOf: allowOf, allowFromPermissions: allowFromPermissions,
+    chatAllowed: chatAllowed, chatRefusal: chatRefusal, cleanChat: cleanChat, cleanChatList: cleanChatList, chatAdd: chatAdd,
+    chatFor: chatFor, chatTargets: chatTargets, chatWho: chatWho, mediaLine: mediaLine, controlsWords: controlsWords
   };
 
   /* ================================================================
@@ -968,7 +1111,11 @@
       me: null, passOff: false, passNote: '', pinDraft: '', pinMsg: '', pinBusy: false, pv: null,
       // both
       assembler: makeAssembler(), tiles: {}, mediaEls: {}, quality: {}, audioBlocked: false, wakeLock: null, tick: 0,
-      poorSince: 0, seq: 0
+      poorSince: 0, seq: 0,
+      // 🎛 class controls, 💬 chat and the request cards (v1.213.0)
+      controls: cleanControls(null), permits: {}, allow: { mic: true, cam: true }, controlsBusy: false, asked: {},
+      chat: [], chatUnread: 0, chatOpen: false, chatTo: 'all', chatDraft: '', chatLogEl: null, chatPanel: null, chatRate: {}, chatJump: false,
+      ask: null, askTimer: 0, askLayer: null, peopleTimer: 0
     };
 
     /* ---------- small utilities ---------- */
@@ -1390,7 +1537,7 @@
       if (typeof env.loadSession !== 'function') { S.session = fresh; return Promise.resolve(); }
       return Promise.resolve(env.loadSession(res.epoch)).then(function (saved) {
         if (saved && Number(saved.epoch) === Number(res.epoch)) {
-          S.session = Object.assign(fresh, saved, { people: saved.people || {}, answers: saved.answers || {}, questions: (saved.questions || []).map(cleanQuestion).filter(Boolean), notes: saved.notes || {} });
+          S.session = Object.assign(fresh, saved, { people: saved.people || {}, answers: saved.answers || {}, questions: (saved.questions || []).map(cleanQuestion).filter(Boolean), notes: saved.notes || {}, chat: cleanChatList(saved.chat) });
           // Nobody is "here" until LiveKit says so again.
           Object.keys(S.session.people).forEach(function (k) { S.session = personLeft(S.session, k, now()); });
         } else {
@@ -2112,6 +2259,14 @@
       S.url = res.url; S.identity = res.identity; S.name = res.name || (S.role === 'teacher' ? 'Teacher' : '');
       S.epoch = res.epoch; S.room_name = res.room; if (res.slot) S.slot = res.slot;
       S.leaving = false;
+      // 🎛 What the server says about the class switches and this device.
+      S.controls = cleanControls(res.controls);
+      if (S.role === 'teacher') S.permits = cleanPermitsView(res.permits);
+      else {
+        S.allow = res.allow && typeof res.allow === 'object' ? { mic: res.allow.mic !== false, cam: res.allow.cam !== false } : { mic: true, cam: true };
+        if (Number(res.epoch) !== Number(S.chatEpoch)) { S.chat = []; S.chatUnread = 0; S.chatEpoch = Number(res.epoch) || 0; }
+        S.ask = null;
+      }
       var token = res.token;
       return loadLK().then(function (LK) {
         if (S.mode !== 'joining') return;
@@ -2152,7 +2307,9 @@
       // Publish. A student joins with the camera on and the microphone OFF,
       // the way a class starts; the teacher with both on.
       // 📱 A Zoom child's phone publishes nothing: they are on camera in Zoom.
-      var camOn = S.role === 'teacher' ? true : (S.prefs.cameraOff !== true && !S.prefs.answerOnly);
+      // 🎛 …and never a camera the class controls do not allow yet.
+      if (S.role === 'student') readAllow();
+      var camOn = S.role === 'teacher' ? true : (S.prefs.cameraOff !== true && !S.prefs.answerOnly && S.allow.cam !== false);
       Promise.resolve(lp.setCameraEnabled(camOn)).catch(function (e) {
         say(S.role === 'teacher' ? 'Your camera could not start: ' + ((e && e.message) || e) : 'Your camera could not start. You can still see and answer.');
       }).then(function () { paintControls(); layout(); });
@@ -2186,11 +2343,18 @@
       var E = LK.RoomEvent;
       room.on(E.ParticipantConnected, function (p) { participantIn(p); if (S.role === 'student' && roleOfIdentity(p.identity) === 'teacher') sayHello(); layout(); });
       room.on(E.ParticipantDisconnected, function (p) { participantOut(p); layout(); });
-      room.on(E.TrackPublished, function (pub, p) { if (S.role === 'student') subscribeOne(pub, p); });
+      room.on(E.TrackPublished, function (pub, p) { if (S.role === 'student') subscribeOne(pub, p); else mediaChanged(); });
       room.on(E.TrackSubscribed, function (track, pub, p) { trackIn(track, pub, p); });
       room.on(E.TrackUnsubscribed, function (track, pub, p) { trackOut(track, pub, p); });
-      room.on(E.TrackMuted, function () { layout(); });
-      room.on(E.TrackUnmuted, function () { layout(); });
+      room.on(E.TrackMuted, function () { layout(); mediaChanged(); });
+      room.on(E.TrackUnmuted, function () { layout(); mediaChanged(); });
+      if (E.TrackUnpublished) room.on(E.TrackUnpublished, function () { if (S.role === 'teacher') mediaChanged(); });
+      if (E.LocalTrackUnpublished) room.on(E.LocalTrackUnpublished, function () { if (S.role === 'student') setTimeout(paintControls, 0); });
+      // 🎛 The server changed what this device may publish (the class switch,
+      // a permit, a mute that took a permit back).
+      if (E.ParticipantPermissionsChanged) room.on(E.ParticipantPermissionsChanged, function (prev, p) {
+        if (S.role === 'student' && (!p || p === room.localParticipant)) onPermissionsChanged();
+      });
       room.on(E.LocalTrackPublished, function (pub) { localTrackIn(pub); });
       room.on(E.LocalTrackUnpublished, function (pub) { localTrackOut(pub); });
       room.on(E.DataReceived, function (payload, p, kind, topic) {
@@ -2343,6 +2507,17 @@
       S.stage.appendChild(S.self);
       S.stage.appendChild(S.strip);
       S.stage.appendChild(S.qLayer);
+      if (S.role === 'student') {
+        // 💬 the child's chat panel and 🎤 the teacher's request card.
+        S.chatPanel = el('div', 'vcChatPanel');
+        S.chatPanel.hidden = true;
+        S.chatPanel.addEventListener('keydown', function (e) { e.stopPropagation(); });
+        S.stage.appendChild(S.chatPanel);
+        S.askLayer = el('div', 'vcAskLayer');
+        S.askLayer.hidden = true;
+        S.stage.appendChild(S.askLayer);
+        paintChatPanel(); paintAskCard();
+      }
       S.stage.appendChild(S.gate);
       live.appendChild(S.stage);
       S.bar = el('div', 'vcBar');
@@ -2369,13 +2544,30 @@
       var lp = S.room.localParticipant;
       var micOn = !!(lp && lp.isMicrophoneEnabled), camOn = !!(lp && lp.isCameraEnabled), shareOn = !!(lp && lp.isScreenShareEnabled);
       if (answerOnlyHere()) return paintAnswerOnlyBar();
-      S.bar.appendChild(ctl(micOn ? '' : 'off', micOn ? '🎤' : '🔇', micOn ? 'Mute your microphone' : 'Unmute your microphone', micOn, function () {
-        Promise.resolve(lp.setMicrophoneEnabled(!micOn)).catch(function (e) { say('Microphone: ' + ((e && e.message) || e)); }).then(paintControls);
-      }));
-      S.bar.appendChild(ctl(camOn ? '' : 'off', camOn ? '📷' : '🚫', camOn ? 'Turn your camera off' : 'Turn your camera on', camOn, function () {
-        S.prefs.cameraOff = camOn; savePrefs();
-        Promise.resolve(lp.setCameraEnabled(!camOn)).catch(function (e) { say('Camera: ' + ((e && e.message) || e)); }).then(function () { paintControls(); layout(); });
-      }));
+      // 🎛 A student whose teacher holds the switch sees a lock, not a
+      // button that fails: the microphone's lock raises their hand.
+      var allow = S.role === 'student' ? (S.allow || { mic: true, cam: true }) : { mic: true, cam: true };
+      if (!micOn && !allow.mic) {
+        S.bar.appendChild(ctl('off vcLocked', '🔇🔒', 'Your teacher is holding the microphones. Press to raise your hand and ask to talk.', false, function () {
+          if (!S.handUp) { S.handUp = true; sendTeacher({ t: 'hand', up: true }); }
+          say('✋ Your hand is up. Your teacher can let you talk.');
+          paintControls();
+        }));
+      } else {
+        S.bar.appendChild(ctl(micOn ? '' : 'off', micOn ? '🎤' : '🔇', micOn ? 'Mute your microphone' : 'Unmute your microphone', micOn, function () {
+          Promise.resolve(lp.setMicrophoneEnabled(!micOn)).catch(function (e) { say('Microphone: ' + ((e && e.message) || e)); }).then(paintControls);
+        }));
+      }
+      if (!camOn && !allow.cam) {
+        S.bar.appendChild(ctl('off vcLocked', '🚫🔒', 'Your teacher has turned video off for now. They can ask you to turn it on.', false, function () {
+          say('Your teacher has turned video off for now. They can ask you to turn it on.');
+        }));
+      } else {
+        S.bar.appendChild(ctl(camOn ? '' : 'off', camOn ? '📷' : '🚫', camOn ? 'Turn your camera off' : 'Turn your camera on', camOn, function () {
+          S.prefs.cameraOff = camOn; savePrefs();
+          Promise.resolve(lp.setCameraEnabled(!camOn)).catch(function (e) { say('Camera: ' + ((e && e.message) || e)); }).then(function () { paintControls(); layout(); });
+        }));
+      }
       if (S.role === 'teacher') {
         var canShare = !!(root.navigator && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
         if (canShare) S.bar.appendChild(ctl('vcShare', shareOn ? '🛑 Stop sharing' : '🖥 Share worksheet', shareOn ? 'Stop sharing the worksheet' : 'Share the worksheet with the class — only the worksheet, never this window or the toolbars (choose “This tab”)', shareOn, function () {
@@ -2392,19 +2584,19 @@
           S.tab = 'zoom'; paintSide();
         }));
         if (S.door && !S.door.open) S.bar.appendChild(ctl('vcDoor', '🚪 Let students in now', S.door.message ? 'Students are waiting: ' + S.door.message : 'Let students join before the lesson time', false, letIn));
-        S.bar.appendChild(ctl('', '🔇 All', 'Mute every student’s microphone', false, function () {
-          call('mute', { all: true }).then(function (r) { say(r.muted ? 'Muted ' + r.muted + ' microphone' + (r.muted === 1 ? '' : 's') + '.' : 'Every student is already muted.'); }, function (e) { say((e && e.message) || 'Could not mute.'); });
-        }));
+        S.bar.appendChild(ctl('', '🔇 All', 'Mute every student’s microphone', false, muteAll));
+        S.bar.appendChild(chatCtl());
         var hands = Object.keys(S.hands).length;
         S.bar.appendChild(ctl(hands ? 'vcHands' : '', '✋ ' + hands, hands ? hands + ' hand' + (hands === 1 ? '' : 's') + ' up' : 'No hands up', !!hands, function () { S.tab = 'people'; paintSide(); }));
         S.bar.appendChild(el('span', 'vcBarGap'));
         S.bar.appendChild(ctl('vcEnd', 'End class', 'End the class for everyone', false, endClass));
       } else {
-        S.bar.appendChild(ctl(S.handUp ? 'vcHandUp' : '', S.handUp ? '✋ Hand up' : '✋', S.handUp ? 'Put your hand down' : 'Raise your hand', S.handUp, function () {
+        S.bar.appendChild(ctl('vcHandBtn' + (S.handUp ? ' vcHandUp' : ''), S.handUp ? '✋ Hand up' : '✋ Raise hand', S.handUp ? 'Put your hand down' : 'Raise your hand', S.handUp, function () {
           S.handUp = !S.handUp;
           sendTeacher({ t: 'hand', up: S.handUp });
           paintControls();
         }));
+        if (cleanControls(S.controls).chat !== 'off' || (S.chat && S.chat.length)) S.bar.appendChild(chatCtl());
         S.bar.appendChild(ctl('', '👥', S.prefs.classmates ? 'Hide classmates' : 'See classmates', S.prefs.classmates, function () {
           S.prefs.classmates = !S.prefs.classmates; savePrefs(); applySubscriptions(); layout(); paintControls();
         }));
@@ -2423,11 +2615,12 @@
     // 📱 The answer-only bar: a Zoom child needs their hand, the question
     // and a way out — nothing that sends or plays the lesson a second time.
     function paintAnswerOnlyBar() {
-      S.bar.appendChild(ctl(S.handUp ? 'vcHandUp' : '', S.handUp ? '✋ Hand up' : '✋', S.handUp ? 'Put your hand down' : 'Raise your hand', S.handUp, function () {
+      S.bar.appendChild(ctl('vcHandBtn' + (S.handUp ? ' vcHandUp' : ''), S.handUp ? '✋ Hand up' : '✋ Raise hand', S.handUp ? 'Put your hand down' : 'Raise your hand', S.handUp, function () {
         S.handUp = !S.handUp;
         sendTeacher({ t: 'hand', up: S.handUp });
         paintControls();
       }));
+      if (cleanControls(S.controls).chat !== 'off' || (S.chat && S.chat.length)) S.bar.appendChild(chatCtl());
       var qCount = openQuestions().length;
       if (qCount && S.popMin) S.bar.appendChild(ctl('vcQPill', '❓ Question', 'Show the question', true, function () { S.popMin = false; paintQuestion(); paintControls(); }));
       S.bar.appendChild(ctl('vcZoomOnly', '📱 Zoom', 'You answer here and watch on Zoom. Press to watch and listen on this device instead.', true, function () {
@@ -3078,6 +3271,14 @@
         if (msg.t === 'a') return onAnswer(from, msg);
         if (msg.t === 'hand') return onHand(from, !!msg.up);
         if (msg.t === 'needimg') return onNeedImage(from, msg.ref);
+        if (msg.t === 'chat') return onChatFromStudent(from, msg);
+        if (msg.t === 'askreply') {
+          var who = nameOf(from);
+          if (S.asked) delete S.asked[from + ':' + (msg.what === 'cam' ? 'cam' : 'mic')];
+          say(msg.yes ? (msg.what === 'cam' ? '📷 ' + who + ' turned on their video.' : '🎤 ' + who + ' unmuted.') : who + ' said “not now”.');
+          mediaChanged();
+          return;
+        }
         return;
       }
       // A student's device obeys only the teacher's identity, which the
@@ -3091,10 +3292,15 @@
       if (msg.t === 'mark') return onMark(msg);
       if (msg.t === 'hand') {
         S.handUp = !!msg.up; paintControls();
-        if (msg.speak) say('🎤 Your teacher would like to hear you — tap the microphone to unmute.');
-        else if (!msg.up) say('Your teacher put your hand down.');
+        if (msg.speak) onAsk('mic');
+        else if (!msg.up && !msg.quiet) say('Your teacher put your hand down.');
         return;
       }
+      if (msg.t === 'controls') return onControls(msg.c);
+      if (msg.t === 'ask') return onAsk(msg.what);
+      if (msg.t === 'stopped') return onStopped(msg);
+      if (msg.t === 'chat') return onChatEntry(msg.m);
+      if (msg.t === 'chatno') return onChatNo(msg);
       if (msg.t === 'end') { S.leaving = true; disconnect(); paintStudentEnded(); return; }
     }
     function imageArrived(ref, dataUrl, from) {
@@ -3147,7 +3353,8 @@
       var chain = Promise.resolve();
       qs.forEach(function (q) { if (q.img && S.images[q.img.ref]) chain = chain.then(function () { return sendImage(S.images[q.img.ref], q.img.ref, [identity]); }); });
       chain.then(function () {
-        send({ t: 'state', qs: qs.map(questionForStudent).filter(Boolean), mine: mine, revealed: revealed, hand: !!S.hands[identity] }, [identity]);
+        send({ t: 'state', qs: qs.map(questionForStudent).filter(Boolean), mine: mine, revealed: revealed, hand: !!S.hands[identity],
+          controls: cleanControls(S.controls), chat: chatFor(S.session.chat || [], identity) }, [identity]);
       });
     }
     function onNeedImage(identity, ref) {
@@ -3189,9 +3396,9 @@
       }
       paintControls(); layout(); paintSide(true);
     }
-    function lowerHand(identity) {
+    function lowerHand(identity, quiet) {
       delete S.hands[identity];
-      send({ t: 'hand', up: false }, [identity]);
+      send(quiet ? { t: 'hand', up: false, quiet: true } : { t: 'hand', up: false }, [identity]);
       paintControls(); layout(); paintSide(true);
     }
     function revealOf(q) {
@@ -3332,6 +3539,10 @@
         if (r.mine) S.mine[q.id] = Object.assign({}, S.mine[q.id] || {}, { aid: r.mine.aid, v: r.mine.v, sent: true, acked: true, ok: cleanMark(r.mine.ok), pts: r.mine.pts });
       });
       S.handUp = !!msg.hand;
+      // 🎛 The class switches and the chat this child may see again.
+      if (msg.controls) { S.controls = cleanControls(msg.controls); readAllow(); }
+      if (Array.isArray(msg.chat)) msg.chat.forEach(function (m) { S.chat = chatAdd(S.chat, m); });
+      paintChatPanel();
       saveOutbox();
       flushOutbox(true);
       paintQuestion(); paintControls();
@@ -3585,12 +3796,16 @@
       { id: 'ask', icon: '❓', label: 'Ask' },
       { id: 'answers', icon: '📝', label: 'Answers' },
       { id: 'people', icon: '👥', label: 'People' },
+      { id: 'chat', icon: '💬', label: 'Chat' },
       { id: 'reports', icon: '🧾', label: 'Reports' },
       { id: 'zoom', icon: '📞', label: 'Zoom' }
     ];
     function typingInSide() {
       var a = document.activeElement;
-      return !!(S.side && a && S.side.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT'));
+      // A tick box or a radio is not typing (🎛 the class switches are tick
+      // boxes, and a redraw after one must not wait for the focus to move).
+      var typing = a && (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(checkbox|radio|button)$/i.test(a.type || '')));
+      return !!(S.side && a && S.side.contains(a) && typing);
     }
     // soft = "something changed elsewhere": the panel is redrawn only when
     // nobody is typing in it, so a question half-written is never wiped.
@@ -3610,6 +3825,7 @@
       else if (tab === 'answers') paintAnswers(S.sideBody);
       else if (tab === 'people') paintPeople(S.sideBody);
       else if (tab === 'zoom') paintZoom(S.sideBody);
+      else if (tab === 'chat') paintChat(S.sideBody);
       else paintReports(S.sideBody);
       if (soft) S.sideBody.scrollTop = keepScroll;
     }
@@ -3629,6 +3845,7 @@
         if (t.id === 'answers' && (waitingNow || unmarked)) badge = waitingNow ? '⏳' + waitingNow : '•' + unmarked;
         if (t.id === 'people') badge = (hands ? '✋' + hands + ' ' : '') + here;
         if (t.id === 'zoom' && S.zoom) badge = '●';
+        if (t.id === 'chat' && S.chatUnread) badge = String(S.chatUnread);
         var b = btn('vcTab' + (S.tab === t.id ? ' on' : ''), t.icon + ' ' + t.label, null, function () { S.tab = t.id; paintSide(); });
         b.setAttribute('role', 'tab');
         b.setAttribute('aria-selected', S.tab === t.id ? 'true' : 'false');
@@ -4286,23 +4503,511 @@
       }
     }
 
+    /* ================================================================
+       🎛 CLASS CONTROLS, 💬 CHAT, ✋ AND THE REQUEST CARDS (v1.213.0)
+       ================================================================
+       The teacher's side: the class switches (call('controls')), asking a
+       child to unmute or start their video (a permit from the server when
+       the switch is off, then an `ask` card on their screen), muting and
+       stopping video (call('mute')), and the chat, relayed by this device.
+       The child's side: the request card, the 💬 panel, and a microphone /
+       camera button that knows when the teacher holds the switch. */
+    function remoteOf(id) {
+      try { return S.room && S.room.getParticipantByIdentity ? S.room.getParticipantByIdentity(id) : null; } catch (e) { return null; }
+    }
+    function mediaOf(id) {
+      var rp = remoteOf(id);
+      return { mic: !!(rp && rp.isMicrophoneEnabled), cam: !!(rp && rp.isCameraEnabled), here: !!rp };
+    }
+    function nameOf(id) {
+      var p = S.session && S.session.people ? S.session.people[id] : null;
+      return (p && p.name) || 'Student';
+    }
+    // A redraw of the People tab when a child's microphone or camera changes,
+    // gathered so twenty tiles switching at once draw once.
+    function mediaChanged() {
+      if (S.role !== 'teacher') { paintControls(); return; }
+      clearTimeout(S.peopleTimer);
+      S.peopleTimer = setTimeout(function () { if (S.tab === 'people') paintSide(true); }, 250);
+    }
+
+    /* ---------- the class switches (teacher) ---------- */
+    function setControls(patch) {
+      if (!isTeacher()) return Promise.resolve();
+      if (S.controlsBusy) return Promise.resolve();
+      S.controlsBusy = true;
+      var before = cleanControls(S.controls);
+      // Paint the choice at once; the server's answer is the truth.
+      S.controls = cleanControls(Object.assign({}, before, patch));
+      paintSide(true);
+      return call('controls', patch).then(function (r) {
+        S.controls = cleanControls(r && r.controls);
+        if (r && r.permits) S.permits = cleanPermitsView(r.permits);
+        broadcast({ t: 'controls', c: S.controls });
+        var words = [];
+        if (patch.selfMic === false) words.push('Students can no longer unmute themselves. Anyone talking now keeps going until you mute them (🔇 Mute all).');
+        if (patch.selfMic === true) words.push('Students may unmute themselves.');
+        if (patch.selfCam === false) words.push('Students turn on video only when you ask. Cameras already on stay on until you stop them.');
+        if (patch.selfCam === true) words.push('Students may turn on their own video.');
+        if (patch.chat) words.push('Chat: ' + (S.controls.chat === 'all' ? 'students may message everyone.' : S.controls.chat === 'teacher' ? 'students may message only you.' : 'off for students.'));
+        if (words.length) say(words.join(' '));
+      }, function (e) {
+        S.controls = before;
+        say((e && e.message) || 'The class settings could not be changed.');
+      }).then(function () { S.controlsBusy = false; paintSide(true); paintControls(); });
+    }
+    // Ask one child to unmute ('mic') or turn on their video ('cam'). With the
+    // class switch off, the server first gives them a permit (LiveKit lets
+    // them publish), then the card goes to their screen.
+    function askMedia(id, what) {
+      if (!isTeacher() || S.mode !== 'live') return Promise.resolve(false);
+      var c = cleanControls(S.controls);
+      var needPermit = what === 'mic' ? !c.selfMic : !c.selfCam;
+      var body = { identity: id };
+      body[what === 'mic' ? 'mic' : 'cam'] = true;
+      var first = needPermit ? call('permit', body).then(function (r) { if (r && r.permits) S.permits = cleanPermitsView(r.permits); }) : Promise.resolve();
+      S.asked = S.asked || {};
+      return first.then(function () {
+        S.asked[id + ':' + what] = now();
+        return send({ t: 'ask', what: what === 'mic' ? 'mic' : 'cam' }, [id]);
+      }).then(function (ok) {
+        paintSide(true);
+        return ok;
+      }, function (e) {
+        say((e && e.message) || 'Could not ask ' + nameOf(id) + '.');
+        return false;
+      });
+    }
+    function askOne(id, what) {
+      askMedia(id, what).then(function (ok) {
+        if (ok) say((what === 'mic' ? '🎤 Asked ' : '📷 Asked ') + nameOf(id) + (what === 'mic' ? ' to unmute.' : ' to turn on their video.'));
+      });
+    }
+    // Every child here whose camera is off: one request each.
+    function askAllVideo() {
+      if (!isTeacher()) return;
+      var ids = presentStudents().filter(function (id) { var m = mediaOf(id); return m.here && !m.cam && !(S.session.people[id] || {}).via; });
+      if (!ids.length) { say('Every student here already has their video on.'); return; }
+      var chain = Promise.resolve(), n = 0;
+      ids.forEach(function (id) { chain = chain.then(function () { return askMedia(id, 'cam').then(function (ok) { if (ok) n += 1; }); }); });
+      chain.then(function () { say('📷 Asked ' + n + ' student' + (n === 1 ? '' : 's') + ' to turn on their video.'); });
+    }
+    // Mute one child, or stop their video. The server takes back any permit
+    // for that source, so with the switch off they cannot simply turn it on.
+    function stopMedia(id, what) {
+      if (!isTeacher()) return;
+      call('mute', { identity: id, source: what === 'cam' ? 'camera' : 'microphone' }).then(function (r) {
+        if (r && r.permits) S.permits = cleanPermitsView(r.permits);
+        send({ t: 'stopped', what: what === 'cam' ? 'cam' : 'mic' }, [id]);
+        say(what === 'cam' ? nameOf(id) + '’s video is off.' : nameOf(id) + ' is muted.');
+        mediaChanged();
+      }, function (e) { say((e && e.message) || (what === 'cam' ? 'Could not turn their video off.' : 'Could not mute.')); });
+    }
+    function muteAll() {
+      if (!isTeacher()) return;
+      call('mute', { all: true }).then(function (r) {
+        if (r && r.permits) S.permits = cleanPermitsView(r.permits);
+        broadcast({ t: 'stopped', what: 'mic', all: true });
+        say(r.muted ? 'Muted ' + r.muted + ' microphone' + (r.muted === 1 ? '' : 's') + '.' : 'Every student is already muted.');
+        mediaChanged();
+      }, function (e) { say((e && e.message) || 'Could not mute.'); });
+    }
+    function lowerAllHands() {
+      Object.keys(S.hands).forEach(function (id) { lowerHand(id, true); });
+      say('Every hand is down.');
+    }
+    function switchRow(label, hint, on, onChange) {
+      var row = el('label', 'vcSwitch' + (on ? ' on' : ''));
+      var box = document.createElement('input');
+      box.type = 'checkbox'; box.checked = !!on; box.disabled = !!S.controlsBusy;
+      box.addEventListener('change', function () { onChange(box.checked); });
+      var words = el('span', 'vcSwitchWords');
+      words.appendChild(el('b', null, label));
+      if (hint) words.appendChild(el('span', 'vcMuted', hint));
+      row.appendChild(box); row.appendChild(words);
+      return row;
+    }
+    function chatModePicker(onPick) {
+      var c = cleanControls(S.controls);
+      var seg = el('div', 'vcSeg');
+      seg.setAttribute('role', 'radiogroup');
+      CHAT_MODES.forEach(function (m) {
+        var b = btn('vcSegBtn' + (c.chat === m ? ' on' : ''), CHAT_MODE_LABEL[m], m === 'all' ? 'Students may message the whole class and you' : m === 'teacher' ? 'Students may message only you' : 'Students cannot send messages (you still can)', function () {
+          if (c.chat !== m) onPick(m);
+        });
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', c.chat === m ? 'true' : 'false');
+        b.disabled = !!S.controlsBusy;
+        seg.appendChild(b);
+      });
+      return seg;
+    }
+    // 🎛 The box at the top of People: the switches and the class-wide buttons.
+    function paintControlsBox(box) {
+      var c = cleanControls(S.controls);
+      var cb = el('div', 'vcCtlBox');
+      cb.appendChild(el('h4', null, '🎛 Class controls'));
+      cb.appendChild(switchRow('Students may unmute themselves', c.selfMic ? 'Like Zoom: you can mute anyone, they can unmute.' : 'Off: once muted, a student talks only when you ask them or let a raised hand speak.', c.selfMic, function (v) { setControls({ selfMic: v }); }));
+      cb.appendChild(switchRow('Students may turn on their own video', c.selfCam ? 'They choose. You can still turn anyone’s video off.' : 'Off: once stopped, video comes back only when you ask.', c.selfCam, function (v) { setControls({ selfCam: v }); }));
+      var chatRow = el('div', 'vcCtlChat');
+      chatRow.appendChild(el('b', null, '💬 Students may message'));
+      chatRow.appendChild(chatModePicker(function (m) { setControls({ chat: m }); }));
+      cb.appendChild(chatRow);
+      if (S.mode === 'live') {
+        var acts = el('div', 'vcRow vcSmall');
+        acts.appendChild(btn('', '🔇 Mute all', 'Mute every student’s microphone', muteAll));
+        acts.appendChild(btn('', '📷 Ask all for video', 'Ask every student whose camera is off to turn it on', askAllVideo));
+        if (Object.keys(S.hands).length) acts.appendChild(btn('', '✋ Lower all hands', null, lowerAllHands));
+        cb.appendChild(acts);
+      }
+      cb.appendChild(el('p', 'vcMuted vcTiny', 'Nobody can switch a child’s microphone or camera ON from afar — the browser asks the child. “Ask” puts a card on their screen with one big button.'));
+      box.appendChild(cb);
+    }
+    // The buttons on one person's row in People.
+    function mediaButtons(acts, p) {
+      var m = mediaOf(p.identity);
+      var c = cleanControls(S.controls);
+      var permit = (S.permits || {})[p.identity] || {};
+      if (m.mic) acts.appendChild(btn('', '🔇 Mute', 'Mute their microphone', function () { stopMedia(p.identity, 'mic'); }));
+      else acts.appendChild(btn('', '🎤 Ask to unmute', c.selfMic ? 'Put a card on their screen asking them to unmute' : 'Let them talk and ask them to unmute', function () { askOne(p.identity, 'mic'); }));
+      if (m.cam) acts.appendChild(btn('', '🚫 Stop video', 'Turn their camera off', function () { stopMedia(p.identity, 'cam'); }));
+      else acts.appendChild(btn('', '📷 Ask for video', c.selfCam ? 'Ask them to turn on their camera' : 'Let them turn on video and ask them to', function () { askOne(p.identity, 'cam'); }));
+      if (!c.selfMic && permit.mic && !m.mic) acts.appendChild(btn('', '🔒 No talking', 'Take back their permission to talk', function () {
+        call('permit', { identity: p.identity, mic: false }).then(function (r) { if (r && r.permits) S.permits = cleanPermitsView(r.permits); paintSide(true); }, function (e) { say((e && e.message) || 'Could not change it.'); });
+      }));
+    }
+    function mediaTags(top, p) {
+      var m = mediaOf(p.identity);
+      var c = cleanControls(S.controls);
+      var permit = (S.permits || {})[p.identity] || {};
+      top.appendChild(el('span', 'vcTag media' + (m.mic ? ' live' : ''), m.mic ? '🎤' : '🔇'));
+      top.appendChild(el('span', 'vcTag media' + (m.cam ? ' live' : ''), m.cam ? '📷' : '📷✕'));
+      if (!c.selfMic && permit.mic) top.appendChild(el('span', 'vcTag ok', 'May talk'));
+      if (!c.selfCam && permit.cam) top.appendChild(el('span', 'vcTag ok', 'May video'));
+    }
+
+    /* ---------- 💬 the chat ---------- */
+    function chatList() { return S.role === 'teacher' ? ((S.session && S.session.chat) || []) : (S.chat || []); }
+    function chatCanSend() {
+      if (S.role === 'teacher') return true;
+      return cleanControls(S.controls).chat !== 'off';
+    }
+    // The list, oldest first, written with textContent only.
+    function paintChatLog(log) {
+      if (!log) return;
+      var stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+      clear(log);
+      var list = chatList().slice(-CHAT.show);
+      if (!list.length) {
+        log.appendChild(el('p', 'vcMuted vcEmptySide', S.role === 'teacher' ? 'No messages yet. Write to the whole class, or to one student.' : 'No messages yet.'));
+        return;
+      }
+      list.forEach(function (m) {
+        var mine = m.from === S.identity;
+        var row = el('div', 'vcChatMsg' + (mine ? ' mine' : '') + (roleOfIdentity(m.from) === 'teacher' ? ' teacher' : '') + (m.to !== 'all' ? ' private' : '') + (m.refused ? ' refused' : ''));
+        var head = el('div', 'vcChatHead');
+        head.appendChild(el('b', null, chatWho(m, S.identity) + (S.role === 'teacher' && mine && validIdentity(m.to) ? ' ' + nameOf(m.to) : '')));
+        head.appendChild(el('span', 'vcMuted', m.pending ? 'sending…' : m.refused ? 'not sent' : fmtClock(m.at)));
+        row.appendChild(head);
+        row.appendChild(el('div', 'vcChatText', m.text));
+        if (m.refused) row.appendChild(el('div', 'vcChatWhy', m.refused));
+        log.appendChild(row);
+      });
+      if (stick || S.chatJump) { log.scrollTop = log.scrollHeight; S.chatJump = false; }
+    }
+    function fmtClock(ms) {
+      if (!ms) return '';
+      try { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
+    }
+    // The composer, shared by the teacher's tab and the child's panel.
+    function chatComposer(box) {
+      var form = el('div', 'vcChatForm');
+      var to = null;
+      if (S.role === 'teacher') {
+        to = document.createElement('select');
+        to.className = 'vcChatTo';
+        to.setAttribute('aria-label', 'Send to');
+        var all = document.createElement('option'); all.value = 'all'; all.textContent = 'Everyone'; to.appendChild(all);
+        presentStudents().forEach(function (id) {
+          var o = document.createElement('option'); o.value = id; o.textContent = nameOf(id) + ' (privately)'; to.appendChild(o);
+        });
+        to.value = S.chatTo && (S.chatTo === 'all' || S.session.people[S.chatTo]) ? S.chatTo : 'all';
+        to.addEventListener('change', function () { S.chatTo = to.value; });
+        form.appendChild(to);
+      } else if (cleanControls(S.controls).chat === 'all') {
+        to = document.createElement('select');
+        to.className = 'vcChatTo';
+        to.setAttribute('aria-label', 'Send to');
+        [['all', 'Everyone'], ['teacher', 'Teacher only']].forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; to.appendChild(o); });
+        to.value = S.chatTo === 'teacher' ? 'teacher' : 'all';
+        to.addEventListener('change', function () { S.chatTo = to.value; });
+        form.appendChild(to);
+      }
+      var line = el('div', 'vcChatLine');
+      var input = document.createElement('textarea');
+      input.className = 'vcChatInput';
+      input.rows = 2;
+      input.maxLength = CHAT.max;
+      input.placeholder = S.role === 'teacher' ? 'Write a message…' : (cleanControls(S.controls).chat === 'teacher' ? 'Message your teacher…' : 'Write a message…');
+      input.setAttribute('aria-label', 'Message');
+      input.value = S.chatDraft || '';
+      input.addEventListener('input', function () { S.chatDraft = input.value; });
+      var sendBtn = btn('vcPrimary', 'Send', null, function () {
+        var text = input.value;
+        var dest = to ? to.value : (S.role === 'teacher' ? 'all' : 'teacher');
+        var ok = S.role === 'teacher' ? teacherSendChat(text, dest) : studentSendChat(text, dest);
+        if (ok) { input.value = ''; S.chatDraft = ''; input.focus(); }
+      });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendBtn.click(); }
+      });
+      line.appendChild(input); line.appendChild(sendBtn);
+      form.appendChild(line);
+      box.appendChild(form);
+      return input;
+    }
+    // ✉ The teacher writes: to everyone, or to one child privately.
+    function teacherSendChat(text, to) {
+      if (!isTeacher() || S.mode !== 'live') return false;
+      var entry = cleanChat({ id: randomId('c'), from: S.identity, name: 'Teacher', to: to === 'all' ? 'all' : to, text: text, at: now() });
+      if (!entry) return false;
+      S.session = Object.assign({}, S.session, { chat: chatAdd(S.session.chat, entry) });
+      saveSoon();
+      S.chatJump = true;
+      send({ t: 'chat', m: entry }, entry.to === 'all' ? null : [entry.to]);
+      paintChatLog(S.chatLogEl);
+      return true;
+    }
+    // A child's message arrives at the teacher's device: check the switch,
+    // keep it, pass it on (or send it back refused).
+    function onChatFromStudent(from, msg) {
+      var to = msg && msg.to === 'all' ? 'all' : 'teacher';
+      var id = msg && validId(msg.id) ? msg.id : '';
+      if (!id) return;
+      var refuse = chatRefusal(cleanControls(S.controls).chat, to);
+      // A child sending too fast: five in ten seconds is plenty.
+      S.chatRate = S.chatRate || {};
+      var t = now();
+      var recent = (S.chatRate[from] || []).filter(function (x) { return t - x < 10000; });
+      if (!refuse && recent.length >= 5) refuse = 'Slow down a little — wait a few seconds.';
+      if (refuse) { send({ t: 'chatno', id: id, why: refuse }, [from]); return; }
+      recent.push(t); S.chatRate[from] = recent;
+      var entry = cleanChat({ id: id, from: from, name: nameOf(from), to: to, text: msg.text, at: t });
+      if (!entry) return;
+      var had = chatList().some(function (m) { return m.id === entry.id; });
+      S.session = Object.assign({}, S.session, { chat: chatAdd(S.session.chat, entry) });
+      // The sender always gets it back (that is their "sent"); a message to
+      // everyone goes to every other child here.
+      send({ t: 'chat', m: entry }, [from]);
+      if (had) return;
+      var targets = chatTargets(entry, presentStudents());
+      if (targets.length) send({ t: 'chat', m: entry }, targets);
+      saveSoon();
+      if (S.tab !== 'chat') {
+        S.chatUnread = (S.chatUnread || 0) + 1;
+        say('💬 ' + entry.name + (entry.to === 'all' ? '' : ' (to you)') + ': ' + entry.text.slice(0, 80));
+        paintTabs(); paintControls();
+      } else {
+        paintChatLog(S.chatLogEl);
+      }
+    }
+    function paintChat(box) {
+      S.chatUnread = 0;
+      paintControls();
+      var c = cleanControls(S.controls);
+      var head = el('div', 'vcCtlChat');
+      head.appendChild(el('b', null, 'Students may message'));
+      head.appendChild(chatModePicker(function (m) { setControls({ chat: m }); }));
+      box.appendChild(head);
+      box.appendChild(el('p', 'vcMuted vcTiny', c.chat === 'all' ? 'Messages to everyone are passed on by your device, so you see every one.' : c.chat === 'teacher' ? 'Students can write only to you. You can write to everyone or to one student.' : 'Students cannot write. You still can.'));
+      var log = el('div', 'vcChatLog');
+      log.setAttribute('aria-live', 'polite');
+      box.appendChild(log);
+      S.chatLogEl = log;
+      S.chatJump = true;
+      paintChatLog(log);
+      if (S.mode === 'live') chatComposer(box);
+    }
+
+    /* ---------- the child's side ---------- */
+    function onControls(c) {
+      S.controls = cleanControls(c);
+      readAllow();
+      paintControls();
+      paintChatPanel(true);
+    }
+    // The truth about what this device may publish is LiveKit's.
+    function readAllow() {
+      var lp = S.room && S.room.localParticipant;
+      var a = lp ? allowFromPermissions(lp.permissions) : null;
+      if (a) S.allow = a;
+    }
+    function onPermissionsChanged() {
+      var was = S.allow || { mic: true, cam: true };
+      readAllow();
+      var a = S.allow || { mic: true, cam: true };
+      if (was.mic && !a.mic) say('🔒 Your teacher is holding the microphones for now. Raise your hand ✋ to ask to talk.');
+      if (!was.mic && a.mic && !cleanControls(S.controls).selfMic) say('🎤 Your teacher has let you talk. Tap the microphone to unmute.');
+      if (was.cam && !a.cam) say('Your teacher has turned video off for now.');
+      paintControls();
+    }
+    function onAsk(what) {
+      if (answerOnlyHere()) {
+        say(what === 'mic' ? '🎤 Your teacher would like to hear you — unmute in Zoom.' : '📷 Your teacher asks you to turn on your video in Zoom.');
+        return;
+      }
+      S.ask = { what: what === 'cam' ? 'cam' : 'mic', at: now() };
+      if (S.view === 'mini') setView('float');
+      chime();
+      paintAskCard();
+      clearTimeout(S.askTimer);
+      S.askTimer = setTimeout(function () { if (S.ask) { S.ask = null; paintAskCard(); } }, 90000);
+    }
+    function paintAskCard() {
+      if (!S.askLayer) return;
+      clear(S.askLayer);
+      S.askLayer.hidden = !S.ask;
+      if (!S.ask) return;
+      var mic = S.ask.what === 'mic';
+      var card = el('div', 'vcAsk');
+      card.setAttribute('role', 'alertdialog');
+      card.setAttribute('aria-label', mic ? 'Your teacher asks you to unmute' : 'Your teacher asks you to turn on your video');
+      card.appendChild(el('div', 'vcAskIcon', mic ? '🎤' : '📷'));
+      card.appendChild(el('p', 'vcAskText', mic ? 'Your teacher would like to hear you.' : 'Your teacher asks you to turn on your video.'));
+      var row = el('div', 'vcRow');
+      var yes = btn('vcPrimary vcAskBtn', mic ? '🎤 Unmute' : '📷 Turn on video', null, function () { answerAsk(true); });
+      row.appendChild(yes);
+      row.appendChild(btn('vcAskBtn', 'Not now', null, function () { answerAsk(false); }));
+      card.appendChild(row);
+      S.askLayer.appendChild(card);
+      try { yes.focus(); } catch (e) {}
+    }
+    function answerAsk(yes) {
+      var ask = S.ask;
+      S.ask = null; clearTimeout(S.askTimer); paintAskCard();
+      if (!ask) return;
+      if (!yes) { sendTeacher({ t: 'askreply', what: ask.what, yes: false }); return; }
+      if (ask.what === 'cam') { S.prefs.cameraOff = false; savePrefs(); }
+      enableMedia(ask.what, 0).then(function (ok) {
+        sendTeacher({ t: 'askreply', what: ask.what, yes: !!ok });
+      });
+    }
+    // The permit may reach this device a moment after the card: try a few
+    // times before saying it did not work.
+    function enableMedia(what, tries) {
+      var lp = S.room && S.room.localParticipant;
+      if (!lp) return Promise.resolve(false);
+      var go = what === 'cam' ? function () { return lp.setCameraEnabled(true); } : function () { return lp.setMicrophoneEnabled(true); };
+      return Promise.resolve().then(go).then(function () { paintControls(); layout(); return true; }, function (e) {
+        if (tries < 5 && !/permission|notallowed/i.test((e && e.message) || '')) {
+          return new Promise(function (res) { setTimeout(res, 700); }).then(function () { return enableMedia(what, tries + 1); });
+        }
+        say(what === 'cam' ? 'Your camera could not start: ' + ((e && e.message) || e) : 'Your microphone could not start: ' + ((e && e.message) || e));
+        paintControls();
+        return false;
+      });
+    }
+    function onStopped(msg) {
+      if (msg.what === 'cam') { S.prefs.cameraOff = true; savePrefs(); say('📷 Your teacher turned your video off.'); }
+      else say(msg.all ? '🔇 Your teacher muted everyone.' : '🔇 Your teacher muted your microphone.');
+      setTimeout(paintControls, 300);
+    }
+    // ✉ The child writes: to the teacher, or (when allowed) to everyone. It
+    // shows as "sending…" until the teacher's device sends it back.
+    function studentSendChat(text, to) {
+      if (S.role !== 'student' || S.mode !== 'live') return false;
+      var mode = cleanControls(S.controls).chat;
+      var dest = to === 'all' ? 'all' : 'teacher';
+      var why = chatRefusal(mode, dest);
+      if (why) { say(why); return false; }
+      var entry = cleanChat({ id: randomId('c'), from: S.identity, name: S.name, to: dest, text: text, at: now() });
+      if (!entry) return false;
+      S.chat = chatAdd(S.chat, entry);
+      S.chat.forEach(function (m) { if (m.id === entry.id) m.pending = true; });
+      S.chatJump = true;
+      sendTeacher({ t: 'chat', id: entry.id, to: dest, text: entry.text });
+      setTimeout(function () {
+        S.chat.forEach(function (m) { if (m.id === entry.id && m.pending) { m.pending = false; m.refused = 'Not delivered — check the wifi and send it again.'; } });
+        paintChatLog(S.chatLogEl);
+      }, 8000);
+      paintChatLog(S.chatLogEl);
+      return true;
+    }
+    function onChatEntry(raw) {
+      var m = cleanChat(raw);
+      if (!m) return;
+      var had = S.chat.some(function (x) { return x.id === m.id; });
+      S.chat = chatAdd(S.chat, m);
+      if (!had && m.from !== S.identity) {
+        if (!S.chatOpen) {
+          S.chatUnread = (S.chatUnread || 0) + 1;
+          if (roleOfIdentity(m.from) === 'teacher') { say('💬 Teacher' + (m.to === 'all' ? '' : ' (to you)') + ': ' + m.text.slice(0, 80)); chime(); }
+        }
+      }
+      paintChatLog(S.chatLogEl);
+      paintControls();
+    }
+    function onChatNo(msg) {
+      S.chat.forEach(function (m) { if (m.id === msg.id) { m.pending = false; m.refused = oneLine(msg.why, 120) || 'Not sent.'; } });
+      paintChatLog(S.chatLogEl);
+    }
+    function toggleChat(on) {
+      S.chatOpen = on === undefined ? !S.chatOpen : !!on;
+      if (S.chatOpen) { S.chatUnread = 0; S.chatJump = true; }
+      paintChatPanel();
+      paintControls();
+    }
+    // force: the class switch changed, so the composer itself may change
+    // (the draft is kept in S.chatDraft either way).
+    function paintChatPanel(force) {
+      if (!S.chatPanel || S.role !== 'student') return;
+      S.chatPanel.hidden = !S.chatOpen;
+      if (!S.chatOpen) { S.chatLogEl = null; return; }
+      var a = document.activeElement;
+      if (!force && a && S.chatPanel.contains(a) && a.tagName === 'TEXTAREA') { paintChatLog(S.chatLogEl); return; }
+      clear(S.chatPanel);
+      var head = el('div', 'vcChatPanelHead');
+      head.appendChild(el('b', null, '💬 Chat'));
+      head.appendChild(btn('vcChatClose', '✕', 'Close the chat', function () { toggleChat(false); }));
+      S.chatPanel.appendChild(head);
+      var mode = cleanControls(S.controls).chat;
+      S.chatPanel.appendChild(el('p', 'vcMuted vcTiny', mode === 'all' ? 'You can message everyone, or only your teacher.' : mode === 'teacher' ? 'You can message your teacher.' : 'Your teacher has turned chat off. You can still read your teacher’s messages.'));
+      var log = el('div', 'vcChatLog');
+      log.setAttribute('aria-live', 'polite');
+      S.chatPanel.appendChild(log);
+      S.chatLogEl = log;
+      paintChatLog(log);
+      if (chatCanSend()) chatComposer(S.chatPanel);
+    }
+    function chatCtl() {
+      var n = S.chatUnread || 0;
+      var open = S.role === 'teacher' ? S.tab === 'chat' : !!S.chatOpen;
+      return ctl('vcChatCtl' + (n ? ' vcUnread' : ''), n ? '💬 ' + n : '💬', n ? n + ' new message' + (n === 1 ? '' : 's') : 'Chat', open, function () {
+        if (S.role === 'teacher') { S.tab = 'chat'; paintSide(); }
+        else toggleChat();
+      });
+    }
+
     /* ---------- 👥 People: hands, presence, mute, remove ---------- */
     function paintPeople(box) {
       var s = S.session;
       var people = roster(s);
+      paintControlsBox(box);
       var handIds = Object.keys(S.hands).sort(function (a, b) { return S.hands[a] - S.hands[b]; });
       if (handIds.length) {
         var hb = el('div', 'vcHandsBox');
         hb.appendChild(el('h4', null, '✋ Hands up'));
-        handIds.forEach(function (id) {
+        handIds.forEach(function (id, n) {
           var row = el('div', 'vcHandRow');
+          row.appendChild(el('span', 'vcHandNo', String(n + 1)));
           row.appendChild(el('b', null, (s.people[id] || {}).name || 'Student'));
           row.appendChild(el('span', 'vcMuted', Math.max(0, Math.round((now() - S.hands[id]) / 1000)) + ' s'));
           row.appendChild(el('span', 'vcBarGap'));
-          row.appendChild(btn('', '🎤 Let them speak', 'Ask them to unmute', function () {
-            send({ t: 'hand', up: false, speak: true }, [id]);
-            lowerHand(id);
-            say('Asked ' + ((s.people[id] || {}).name || 'them') + ' to unmute and speak.');
+          row.appendChild(btn('', '🎤 Let them speak', cleanControls(S.controls).selfMic ? 'Ask them to unmute' : 'Let them talk and ask them to unmute', function () {
+            askMedia(id, 'mic').then(function (ok) {
+              lowerHand(id, true);
+              if (ok) say('Asked ' + ((s.people[id] || {}).name || 'them') + ' to unmute and speak.');
+            });
           }));
           row.appendChild(btn('', 'Hand down', null, function () { lowerHand(id); }));
           hb.appendChild(row);
@@ -4326,17 +5031,16 @@
         if (p.kind === 'makeup') top.appendChild(el('span', 'vcTag', 'Make-up' + (p.home ? ' · ' + p.home : '')));
         if (p.via === 'zoom') top.appendChild(el('span', 'vcTag zoom', '📱 Zoom'));
         if (S.removed[p.identity]) top.appendChild(el('span', 'vcTag warn', 'Removed'));
+        if (p.here && S.mode === 'live' && p.via !== 'zoom') mediaTags(top, p);
         row.appendChild(top);
         var q = S.quality[p.identity];
         row.appendChild(el('p', 'vcMuted', r.minutes + ' min · ' + r.answered + '/' + r.asked + ' answered' + (r.marked ? ' · ✓ ' + r.right + '/' + r.marked : '') + (p.hands ? ' · ✋ ' + p.hands : '') + (q && p.here ? ' · ' + q : '')));
         if (S.mode === 'live') {
           var acts = el('div', 'vcRow vcSmall');
           if (p.here) {
-            acts.appendChild(btn('', '🔇 Mute', 'Mute their microphone', function () {
-              call('mute', { identity: p.identity, source: 'microphone' }).then(function () { say(p.name + ' is muted.'); }, function (e) { say((e && e.message) || 'Could not mute.'); });
-            }));
-            acts.appendChild(btn('', '🚫 Camera off', 'Turn their camera off', function () {
-              call('mute', { identity: p.identity, source: 'camera' }).then(function () { say(p.name + '’s camera is off.'); }, function (e) { say((e && e.message) || 'Could not turn it off.'); });
+            if (p.via !== 'zoom') mediaButtons(acts, p);
+            acts.appendChild(btn('', '💬 Message', 'Write to this student privately', function () {
+              S.chatTo = p.identity; S.tab = 'chat'; paintSide();
             }));
             acts.appendChild(btn('', '❓ Ask just them', 'Write a question for this student only', function () {
               var c = S.compose || (S.compose = blankCompose(S.prefs.lastKind));
@@ -4559,7 +5263,18 @@
       roleChanged: roleChanged,
       isOpen: function () { return S.mode !== 'closed'; },
       isLive: function () { return S.mode === 'live'; },
-      state: function () { return { mode: S.mode, role: S.role, identity: S.identity, slot: S.slot, epoch: S.epoch, sharing: !!S.shareTrack, shareHow: S.shareHow || '', recording: !!S.rec, session: S.session ? JSON.parse(JSON.stringify(S.session)) : null }; }
+      state: function () { return { mode: S.mode, role: S.role, identity: S.identity, slot: S.slot, epoch: S.epoch, sharing: !!S.shareTrack, shareHow: S.shareHow || '', recording: !!S.rec, session: S.session ? JSON.parse(JSON.stringify(S.session)) : null,
+        controls: cleanControls(S.controls), allow: Object.assign({}, S.allow), chat: (S.role === 'teacher' ? chatList() : S.chat).length,
+        mic: !!(S.room && S.room.localParticipant && S.room.localParticipant.isMicrophoneEnabled), cam: !!(S.room && S.room.localParticipant && S.room.localParticipant.isCameraEnabled) }; },
+      // What a page with the buttons taken off could do: ask LiveKit straight
+      // for the microphone or camera. The browser check uses it to show the
+      // SERVER's rule holds (v1.213.0); it changes nothing the UI could not.
+      tryMedia: function (what, on) {
+        var lp = S.room && S.room.localParticipant;
+        if (!lp) return Promise.resolve('no room');
+        var p = what === 'cam' ? lp.setCameraEnabled(on !== false) : lp.setMicrophoneEnabled(on !== false);
+        return Promise.resolve(p).then(function () { return 'ok'; }, function (e) { return 'refused: ' + ((e && e.message) || e); });
+      }
     };
   }
 

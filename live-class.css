@@ -642,3 +642,112 @@ body.vcCropping .vcWin { opacity: .14; pointer-events: none; transition: opacity
 .vcZoomPick input { margin-top: 3px; width: 18px; height: 18px; flex: 0 0 auto; }
 .vcPickFoot .vcZoomPick { margin-bottom: 10px; }
 .vcTile.vcViaZoom::after { content: '📱 Zoom'; position: absolute; left: 6px; top: 6px; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(21, 101, 192, .9); color: #fff; }
+
+/* ================================================================
+   🎛 Class controls, 💬 chat, ✋ hands and the request cards (v1.213.0)
+   ================================================================ */
+.vcCtlBox {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 16px; margin-bottom: 14px;
+  border-radius: 12px;
+  background: var(--panel, #fafaf8);
+  border: 1px solid var(--line, #ececea);
+}
+.vcCtlBox h4 { margin: 0; font-size: 13px; color: var(--ink-soft, #55554f); }
+.vcSwitch {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px; border-radius: 10px;
+  cursor: pointer; line-height: 1.4;
+}
+.vcSwitch:hover { background: rgba(0, 0, 0, .03); }
+.vcSwitch input { width: 20px; height: 20px; margin: 1px 0 0; flex: 0 0 auto; accent-color: var(--accent-deep, #e8a54b); }
+.vcSwitchWords { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vcSwitchWords .vcMuted { font-size: 12px; }
+.vcCtlChat { display: flex; flex-direction: column; gap: 8px; padding: 2px 10px; }
+.vcSeg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line, #ececea); border-radius: 10px; overflow: hidden; align-self: flex-start; }
+.vcSegBtn { border: 0 !important; border-radius: 0 !important; min-height: 34px; padding: 4px 14px; background: var(--bg, #fff); }
+.vcSegBtn + .vcSegBtn { border-left: 1px solid var(--line, #ececea) !important; }
+.vcSegBtn.on { background: var(--accent, #ffe0b2); font-weight: 700; }
+.vcTiny { font-size: 12px; line-height: 1.45; margin: 0; }
+.vcTag.media { background: #f1f1ef; color: #6b6b66; }
+.vcTag.media.live { background: #e7f6ec; color: #1f7a3d; }
+.vcTag.ok { background: #e7f6ec; color: #1f7a3d; }
+.vcHandNo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent, #ffe0b2); font-size: 12px; font-weight: 700;
+}
+.vcCtl.vcLocked { opacity: .85; }
+.vcCtl.vcUnread { background: #e3f2fd; border-color: #90caf9; color: #1565c0; font-weight: 700; }
+.vcCtl.vcHandBtn { font-weight: 600; }
+
+/* 💬 the chat: the teacher's tab and the child's panel share the pieces */
+.vcChatLog {
+  display: flex; flex-direction: column; gap: 10px;
+  min-height: 120px; max-height: 46vh;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 12px; margin: 10px 0;
+  border-radius: 12px;
+  background: var(--panel, #fafaf8);
+  border: 1px solid var(--line, #ececea);
+}
+.vcChatMsg {
+  align-self: flex-start; max-width: 88%;
+  padding: 8px 12px; border-radius: 12px 12px 12px 4px;
+  background: var(--bg, #fff); border: 1px solid var(--line, #ececea);
+}
+.vcChatMsg.mine { align-self: flex-end; border-radius: 12px 12px 4px 12px; background: var(--accent, #ffe0b2); border-color: var(--accent-strong, #ffcc80); }
+.vcChatMsg.teacher:not(.mine) { background: #eef2fb; border-color: #c9d7f2; }
+.vcChatMsg.private { box-shadow: inset 3px 0 0 #8e7cc3; }
+.vcChatMsg.refused { opacity: .7; border-style: dashed; }
+.vcChatHead { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.vcChatText { white-space: pre-wrap; word-break: break-word; -webkit-user-select: text; user-select: text; }
+.vcChatWhy { font-size: 12px; color: #c62828; margin-top: 4px; }
+.vcChatForm { display: flex; flex-direction: column; gap: 8px; }
+.vcChatTo { align-self: flex-start; min-height: 34px; border-radius: 8px; border: 1px solid var(--line, #ececea); padding: 4px 8px; background: var(--bg, #fff); }
+.vcChatLine { display: flex; gap: 8px; align-items: flex-end; }
+.vcChatInput {
+  flex: 1 1 auto; min-width: 0; resize: none;
+  font: inherit; font-size: 16px; /* iOS zooms into a smaller field */
+  padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--line, #ececea); background: var(--bg, #fff); color: inherit;
+}
+.vcChatLine .vcBtn { min-height: 42px; }
+.vcChatPanel {
+  position: absolute; z-index: 6;
+  top: 10px; right: 10px; bottom: 10px;
+  width: min(340px, calc(100% - 20px));
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--bg, #fff); color: var(--ink, #1a1a1a);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+}
+.vcChatPanel[hidden] { display: none; }
+.vcChatPanel .vcChatLog { flex: 1 1 auto; max-height: none; min-height: 0; }
+.vcChatPanelHead { display: flex; align-items: center; justify-content: space-between; }
+.vcChatClose { min-width: 36px; min-height: 36px; }
+
+/* 🎤 the request card on a child's screen */
+.vcAskLayer {
+  position: absolute; inset: 0; z-index: 7;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(20, 22, 26, .45);
+}
+.vcAskLayer[hidden] { display: none; }
+.vcAsk {
+  width: 100%; max-width: 380px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 24px 22px; border-radius: 18px; text-align: center;
+  background: var(--bg, #fff); color: var(--ink, #1a1a1a);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .3);
+}
+.vcAskIcon { font-size: 44px; line-height: 1; }
+.vcAskText { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.4; }
+.vcAsk .vcRow { justify-content: center; }
+.vcAskBtn { min-height: 52px; padding: 8px 20px; font-size: 17px; border-radius: 12px; }
+.vcWin[data-view="mini"] .vcChatPanel { display: none; }
+@media (max-width: 560px) {
+  .vcChatPanel { top: 6px; right: 6px; bottom: 6px; width: calc(100% - 12px); }
+  .vcAskText { font-size: 17px; }
+}

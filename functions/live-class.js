@@ -54,8 +54,8 @@ const LIVE_CLASS_LIMITS = Object.freeze({
   removedMax: 200,
   checkTimeoutMs: 8000
 });
-const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study']);
-const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass']);
+const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study', 'controls', 'permit']);
+const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'controls', 'permit']);
 // 🔗 Personal links and PINs (v1.210.0). A child's own link carries a code
 // the server can CHECK but nobody can make: the roster key, a generation
 // (bumped when a link is lost) and an HMAC over both, keyed from the same
@@ -394,14 +394,116 @@ function nextEpoch(prev, now) {
 // The permissions each role gets. A student may publish a camera and a
 // microphone and send data (their answers) but never share a screen, never
 // administer the room and never change their own name or metadata.
-function grantsFor(role, room) {
+function grantsFor(role, room, allow) {
   if (role === 'teacher') {
     return { room, roomJoin: true, roomAdmin: true, canPublish: true, canSubscribe: true, canPublishData: true, canUpdateOwnMetadata: true };
   }
+  // 🎛 What the class controls allow THIS student to switch on (v1.213.0).
+  // LiveKit reads an EMPTY source list as "every source", so a student who
+  // may switch on nothing gets canPublish: false instead — never [].
+  const a = allow && typeof allow === 'object' ? allow : { mic: true, cam: true };
+  const sources = sourcesFor(a);
   return {
-    room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true,
-    canPublishSources: ['camera', 'microphone'], canUpdateOwnMetadata: false
+    room, roomJoin: true, canPublish: sources.length > 0, canSubscribe: true, canPublishData: true,
+    canPublishSources: sources.length ? sources : ['camera', 'microphone'], canUpdateOwnMetadata: false
   };
+}
+
+/* ---------- 🎛 Class controls: the host's switches, enforced by LiveKit (v1.213.0) ----------
+   The teacher decides three things for the class, Zoom's way:
+     selfMic  — may a student unmute themselves?
+     selfCam  — may a student turn their own camera on?
+     chat     — who may a student message: 'all' (classmates and the
+                teacher), 'teacher' (only the teacher) or 'off' (nobody).
+   And one thing per student: a PERMIT (`permits[identity] = {mic, cam}`),
+   given when the teacher asks that child to unmute or start their video, or
+   lets a raised hand speak, while the class switch is off.
+
+   The microphone and camera rules are LiveKit's, not the page's: a student's
+   token carries only the sources they may publish, and a change in the room
+   is pushed to every student with UpdateParticipant. LiveKit stops a track
+   whose source is no longer allowed, so a child cannot turn a microphone
+   back on with a modified page. Nobody can force a microphone or a camera
+   ON from afar (the browser asks the child), so "unmute" and "start video"
+   are always a REQUEST the child accepts.
+
+   Chat goes over the data channel and is relayed by the teacher's device;
+   a student's device shows only what came from the teacher's identity, so
+   a message a modified page sends straight to a classmate is never shown. */
+const CHAT_MODES = Object.freeze(['all', 'teacher', 'off']);
+const CONTROLS_DEFAULT = Object.freeze({ selfMic: true, selfCam: true, chat: 'teacher' });
+const PERMITS_MAX = 200;
+function cleanControls(d) {
+  const o = d && typeof d === 'object' ? d : {};
+  return {
+    selfMic: typeof o.selfMic === 'boolean' ? o.selfMic : CONTROLS_DEFAULT.selfMic,
+    selfCam: typeof o.selfCam === 'boolean' ? o.selfCam : CONTROLS_DEFAULT.selfCam,
+    chat: CHAT_MODES.includes(o.chat) ? o.chat : CONTROLS_DEFAULT.chat
+  };
+}
+// Only the switches the request names (so one switch never resets another).
+function pickControls(body) {
+  const o = {};
+  if (typeof body.selfMic === 'boolean') o.selfMic = body.selfMic;
+  if (typeof body.selfCam === 'boolean') o.selfCam = body.selfCam;
+  if (typeof body.chat === 'string') o.chat = body.chat;
+  return o;
+}
+function cleanPermits(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  const keys = Object.keys(raw).filter(k => cleanIdentity(k) && !k.startsWith('t:'));
+  keys.slice(-PERMITS_MAX).forEach(k => {
+    const v = raw[k] && typeof raw[k] === 'object' ? raw[k] : {};
+    const p = {};
+    if (v.mic === true) p.mic = true;
+    if (v.cam === true) p.cam = true;
+    if (p.mic || p.cam) out[k] = p;
+  });
+  return out;
+}
+// What one student may switch on now: the class switch, or their permit.
+function allowFor(controls, permits, identity) {
+  const c = cleanControls(controls);
+  const p = (permits && permits[identity]) || {};
+  return { mic: c.selfMic || p.mic === true, cam: c.selfCam || p.cam === true };
+}
+// The token's spelling (lowercase), camera first as it always was.
+function sourcesFor(allow) {
+  const out = [];
+  if (allow && allow.cam) out.push('camera');
+  if (allow && allow.mic) out.push('microphone');
+  return out;
+}
+// The room service's spelling: ParticipantPermission, enum names.
+function permissionFor(allow) {
+  const sources = sourcesFor(allow).map(s => s === 'camera' ? 'CAMERA' : 'MICROPHONE');
+  return {
+    can_subscribe: true,
+    can_publish: sources.length > 0,
+    can_publish_data: true,
+    can_publish_sources: sources.length ? sources : ['CAMERA', 'MICROPHONE'],
+    can_update_metadata: false
+  };
+}
+// A permit change, pure: on true the student may; on false the permit for
+// that source goes (the class switch still decides).
+function permitsAfter(permits, identity, change) {
+  const out = cleanPermits(permits);
+  const cur = { ...(out[identity] || {}) };
+  if (change && change.mic === true) cur.mic = true;
+  if (change && change.mic === false) delete cur.mic;
+  if (change && change.cam === true) cur.cam = true;
+  if (change && change.cam === false) delete cur.cam;
+  if (cur.mic || cur.cam) out[identity] = cur; else delete out[identity];
+  return cleanPermits(out);
+}
+// Which of a participant's tracks is the microphone / the camera.
+function trackIs(track, source) {
+  const src = String(track && track.source != null ? track.source : '').toUpperCase();
+  const isMic = src === 'MICROPHONE' || src === '2' || (src === '' && String(track && track.type).toUpperCase() === 'AUDIO');
+  const isCam = src === 'CAMERA' || src === '1';
+  return source === 'MICROPHONE' ? isMic : source === 'CAMERA' ? isCam : false;
 }
 
 /* ---------- the secret at rest ---------- */
@@ -786,8 +888,36 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       teacherUid: typeof d.teacherUid === 'string' ? d.teacherUid : '',
       slot: typeof d.slot === 'string' ? d.slot : '',
       letIn: d.letIn === true,
-      removed: d.removed && typeof d.removed === 'object' ? d.removed : {}
+      removed: d.removed && typeof d.removed === 'object' ? d.removed : {},
+      permits: cleanPermits(d.permits)
     };
+  }
+  // 🎛 The class controls are the teacher's standing choice: kept beside the
+  // door's settings, so the next class starts the way this one ended.
+  async function readControls() {
+    try { const snap = await settingsRef.get(); return cleanControls(snap.exists ? (snap.data() || {}).controls : null); }
+    catch (error) { report('live_class_controls_read', error); return cleanControls(null); }
+  }
+  // Push what each student may switch on to LiveKit, and stop any track the
+  // rules no longer allow. `only` = one identity, or null for everyone.
+  async function applyAllow(cfg, state, controls, only, t) {
+    const listed = await roomService(fetchImpl, cfg, 'ListParticipants', { room: state.room }, t);
+    let updated = 0, stopped = 0;
+    for (const p of Array.isArray(listed.participants) ? listed.participants : []) {
+      const identity = String(p.identity || '');
+      if (!identity || identity.startsWith('t:')) continue;          // never the teacher
+      if (only && identity !== only) continue;
+      const allow = allowFor(controls, state.permits, identity);
+      for (const track of Array.isArray(p.tracks) ? p.tracks : []) {
+        const off = (!allow.mic && trackIs(track, 'MICROPHONE')) || (!allow.cam && trackIs(track, 'CAMERA'));
+        if (!off || track.muted) continue;
+        try { await roomService(fetchImpl, cfg, 'MutePublishedTrack', { room: state.room, identity, track_sid: track.sid, muted: true }, t); stopped += 1; }
+        catch (error) { if (error.upstream !== 404) throw error; }
+      }
+      try { await roomService(fetchImpl, cfg, 'UpdateParticipant', { room: state.room, identity, permission: permissionFor(allow) }, t); updated += 1; }
+      catch (error) { if (error.upstream !== 404) throw error; }
+    }
+    return { updated, stopped };
   }
   function publicState(state) {
     return { open: state.open, epoch: state.epoch, room: state.open ? state.room : '', slot: state.open ? state.slot : '', startedAt: state.startedAt, closedAt: state.closedAt, letIn: state.open ? state.letIn === true : false };
@@ -915,7 +1045,7 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       let state = prev;
       if (!prev.open || body.fresh === true) {
         const epoch = nextEpoch(prev.epoch, t);
-        state = { open: true, epoch, room: roomFor(epoch), slot, startedAt: t, closedAt: 0, teacherUid: actor.uid, removed: {}, letIn: false };
+        state = { open: true, epoch, room: roomFor(epoch), slot, startedAt: t, closedAt: 0, teacherUid: actor.uid, removed: {}, letIn: false, permits: {} };
         await stateRef.set(state);
         await writeMirror(state);
       } else if (body.slot != null && slot !== prev.slot) {
@@ -926,13 +1056,14 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
         await writeMirror(state);
       }
       const settings = await readSettings();
-      return { ...publicState(state), gate: joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn), settings, url: cfg.url, token: teacherToken(cfg, actor, state, t), identity: 't:' + actor.uid };
+      const controls = await readControls();
+      return { ...publicState(state), gate: joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn), settings, controls, permits: state.permits, url: cfg.url, token: teacherToken(cfg, actor, state, t), identity: 't:' + actor.uid };
     }
 
     if (body.action === 'settings') {
       const prev = await readSettings();
       const next = cleanSettings({ ...prev, ...(body.earlyMin !== undefined ? { earlyMin: body.earlyMin } : {}) });
-      if (body.earlyMin !== undefined) await settingsRef.set({ ...next, at: t, by: actor.uid });
+      if (body.earlyMin !== undefined) await settingsRef.set({ ...next, controls: await readControls(), at: t, by: actor.uid });
       const state = await readState();
       return { settings: next, gate: state.open ? joinGate(state.slot, doorNow(), next.earlyMin, state.letIn) : null };
     }
@@ -1088,7 +1219,7 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       const state = await readState();
       if (!state.open || !state.room) fail(409, 'class_closed', actor.isTeacher ? 'Start the class first.' : 'The live class has not started yet. It will open here when your teacher starts it.');
       const cfg = await requireConfig();
-      if (actor.isTeacher) return { ...publicState(state), url: cfg.url, token: teacherToken(cfg, actor, state, t), identity: 't:' + actor.uid };
+      if (actor.isTeacher) return { ...publicState(state), url: cfg.url, token: teacherToken(cfg, actor, state, t), identity: 't:' + actor.uid, controls: await readControls(), permits: state.permits };
       const settings = await readSettings();
       const gate = joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn);
       if (!gate.open) fail(403, 'not_yet', gate.message);
@@ -1104,16 +1235,19 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
           fail(409, 'already_in', who.name + ' is already in the class on another device. If that really is you, press "Yes, it\'s me".');
         }
       }
+      // 🎛 The token carries only what the class controls allow this child.
+      const controls = await readControls();
+      const allow = allowFor(controls, state.permits, who.identity);
       const attributes = { role: 'student', kind: who.kind, uid: actor.uid };
       if (who.rosterId) attributes.rosterId = who.rosterId;
       if (who.level) attributes.level = who.level;
       if (who.home) attributes.home = who.home.slice(0, 120);
       const token = signAccessToken({
         apiKey: cfg.apiKey, apiSecret: cfg.apiSecret, identity: who.identity, name: who.name, now: t,
-        ttlSeconds: LIVE_CLASS_LIMITS.studentTtlSeconds, video: grantsFor('student', state.room),
+        ttlSeconds: LIVE_CLASS_LIMITS.studentTtlSeconds, video: grantsFor('student', state.room, allow),
         attributes, metadata: { role: 'student', kind: who.kind, rosterId: who.rosterId || '' }
       });
-      const out = { ...publicState(state), url: cfg.url, token, identity: who.identity, name: who.name, kind: who.kind, rosterId: who.rosterId || '' };
+      const out = { ...publicState(state), url: cfg.url, token, identity: who.identity, name: who.name, kind: who.kind, rosterId: who.rosterId || '', controls, allow };
       // A PIN join hands the device its link code, so next time it is one tap.
       if (who.via && who.rosterId) {
         const entry = (await readPasses())[who.rosterId] || { gen: 0 };
@@ -1145,27 +1279,108 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
         return { removed: identity };
       }
       // mute: one participant's microphone (or camera), or every student's.
+      // A permit for that source goes with it, so with the class switch off
+      // the child cannot simply switch it back on: LiveKit is told at once.
       const source = body.source === 'camera' ? 'CAMERA' : 'MICROPHONE';
       const listed = await roomService(fetchImpl, cfg, 'ListParticipants', { room: state.room }, t);
       const want = body.all === true ? null : cleanIdentity(body.identity);
       if (!body.all && !want) fail(400, 'invalid_request', 'Choose who to mute.');
+      if (want && want.startsWith('t:')) fail(400, 'invalid_request', 'The teacher cannot be muted from here.');
       let muted = 0;
       for (const p of Array.isArray(listed.participants) ? listed.participants : []) {
         const identity = String(p.identity || '');
         if (!identity || identity.startsWith('t:')) continue;          // never the teacher
         if (want && identity !== want) continue;
         for (const track of Array.isArray(p.tracks) ? p.tracks : []) {
-          const src = String(track.source == null ? '' : track.source).toUpperCase();
-          const isMic = src === 'MICROPHONE' || src === '2' || (src === '' && String(track.type).toUpperCase() === 'AUDIO');
-          const isCam = src === 'CAMERA' || src === '1';
-          if ((source === 'MICROPHONE' && isMic) || (source === 'CAMERA' && isCam)) {
+          if (trackIs(track, source)) {
             if (track.muted) continue;
             await roomService(fetchImpl, cfg, 'MutePublishedTrack', { room: state.room, identity, track_sid: track.sid, muted: true }, t);
             muted += 1;
           }
         }
       }
-      return { muted };
+      const key = source === 'CAMERA' ? 'cam' : 'mic';
+      let permits = state.permits;
+      Object.keys(permits).forEach(id => { if (!want || id === want) permits = permitsAfter(permits, id, { [key]: false }); });
+      let revoked = 0;
+      if (JSON.stringify(permits) !== JSON.stringify(state.permits)) {
+        const next = { ...state, permits };
+        await stateRef.set(next);
+        const controls = await readControls();
+        if (!(key === 'mic' ? controls.selfMic : controls.selfCam)) revoked = (await applyAllow(cfg, next, controls, want, t)).updated;
+      }
+      return { muted, revoked, permits };
+    }
+
+    // 🎛 The class switches (teacher): unmute / video / chat, kept for the
+    // next class and pushed to everyone in the room now.
+    if (body.action === 'controls') {
+      const prev = await readControls();
+      const next = cleanControls({ ...prev, ...pickControls(body) });
+      const raw = await settingsRef.get().then(snap => (snap.exists ? snap.data() : {}) || {}, () => ({}));
+      await settingsRef.set({ ...cleanSettings(raw), controls: next, at: t, by: actor.uid });
+      let state = await readState();
+      let applied = null;
+      const changedMedia = next.selfMic !== prev.selfMic || next.selfCam !== prev.selfCam;
+      if (state.open && state.room && changedMedia) {
+        const cfg = await requireConfig();
+        // Zoom's rule: switching "may unmute / start video" OFF stops a child
+        // STARTING one; whoever is live now keeps going (a permit), until the
+        // teacher mutes them or stops their video.
+        const micOff = prev.selfMic && !next.selfMic, camOff = prev.selfCam && !next.selfCam;
+        if (micOff || camOff) {
+          const listed = await roomService(fetchImpl, cfg, 'ListParticipants', { room: state.room }, t);
+          let permits = state.permits;
+          for (const p of Array.isArray(listed.participants) ? listed.participants : []) {
+            const identity = String(p.identity || '');
+            if (!cleanIdentity(identity) || identity.startsWith('t:')) continue;
+            const tracks = Array.isArray(p.tracks) ? p.tracks : [];
+            const change = {};
+            if (micOff && tracks.some(tr => trackIs(tr, 'MICROPHONE') && !tr.muted)) change.mic = true;
+            if (camOff && tracks.some(tr => trackIs(tr, 'CAMERA') && !tr.muted)) change.cam = true;
+            if (change.mic || change.cam) permits = permitsAfter(permits, identity, change);
+          }
+          if (JSON.stringify(permits) !== JSON.stringify(state.permits)) {
+            state = { ...state, permits };
+            await stateRef.set(state);
+          }
+        }
+        applied = await applyAllow(cfg, state, next, null, t);
+      }
+      return { controls: next, permits: state.permits, applied };
+    }
+
+    // 🎛 One student's permit (teacher): {identity, mic?: bool, cam?: bool}.
+    // true = "you may" (asked to unmute / start video, or a hand let speak);
+    // false = taken back, and that track is stopped.
+    if (body.action === 'permit') {
+      const state = await readState();
+      if (!state.open || !state.room) fail(409, 'class_closed', 'The class is not running.');
+      const identity = cleanIdentity(body.identity);
+      if (!identity || identity.startsWith('t:')) fail(400, 'invalid_request', 'Choose a student.');
+      const change = {};
+      if (typeof body.mic === 'boolean') change.mic = body.mic;
+      if (typeof body.cam === 'boolean') change.cam = body.cam;
+      if (!Object.keys(change).length) fail(400, 'invalid_request', 'Say what they may switch on.');
+      const permits = permitsAfter(state.permits, identity, change);
+      const next = { ...state, permits };
+      await stateRef.set(next);
+      const cfg = await requireConfig();
+      const controls = await readControls();
+      // A permit taken back stops the track even with the class switch on:
+      // that is what "mute" and "stop video" mean.
+      if (change.mic === false || change.cam === false) {
+        const listed = await roomService(fetchImpl, cfg, 'ListParticipants', { room: state.room }, t);
+        const p = (Array.isArray(listed.participants) ? listed.participants : []).find(x => String(x.identity || '') === identity);
+        for (const track of p && Array.isArray(p.tracks) ? p.tracks : []) {
+          const off = (change.mic === false && trackIs(track, 'MICROPHONE')) || (change.cam === false && trackIs(track, 'CAMERA'));
+          if (!off || track.muted) continue;
+          try { await roomService(fetchImpl, cfg, 'MutePublishedTrack', { room: state.room, identity, track_sid: track.sid, muted: true }, t); }
+          catch (error) { if (error.upstream !== 404) throw error; }
+        }
+      }
+      const applied = await applyAllow(cfg, next, controls, identity, t);
+      return { identity, allow: allowFor(controls, permits, identity), permits, applied };
     }
     fail(400, 'invalid_request', 'Choose a valid live class action.');
   }
@@ -1211,5 +1426,6 @@ module.exports = {
   EARLY_DEFAULT, EARLY_MAX, cleanEarly, cleanSettings, sgClock, slotTimes, clockLabel, joinGate, laterLessonToday,
   PASS_LIMITS_PIN: PIN_LIMITS, STUDY_PIN_LIMITS, STUDY_UID_PREFIX, PROFILES_COLLECTION, LIVE_CLASS_ORIGINS,
   liveClassOrigin, studyUid, subjectWords, slotSubjects, studySubject, studyLevel, studyProfileDoc, passCode, parsePass, checkPass, cleanPin, pinFor, cleanPasses, ensurePasses, pinOwner, pinTriesAllowed, pinTriesAfterMiss, passRows,
-  cleanName, cleanIdentity, cleanSlot, rosterLists, enrolledStudents, slotChoices, slotLabel, familyState, rosterKey, splitRosterKey, sgMonth, roomFor, nextEpoch, grantsFor, sealSecret, openSecret, roomService
+  cleanName, cleanIdentity, cleanSlot, rosterLists, enrolledStudents, slotChoices, slotLabel, familyState, rosterKey, splitRosterKey, sgMonth, roomFor, nextEpoch, grantsFor, sealSecret, openSecret, roomService,
+  CHAT_MODES, CONTROLS_DEFAULT, cleanControls, cleanPermits, pickControls, allowFor, sourcesFor, permissionFor, permitsAfter, trackIs
 };

@@ -751,3 +751,148 @@ test('📖 a Study Buddy PIN works without a class, in its own slower bucket', a
   h.clock.t += lc.STUDY_PIN_LIMITS.windowMs + 1;
   assert.equal((await h.call({ action: 'study', pin: zoe.pin }, { as: studentUser })).statusCode, 200);
 });
+
+/* ---------- 🎛 Class controls (v1.213.0) ---------- */
+
+test('controls: cleaned, Zoom-like defaults, one switch never resets another', () => {
+  assert.deepEqual(lc.cleanControls(null), { selfMic: true, selfCam: true, chat: 'teacher' });
+  assert.deepEqual(lc.cleanControls({ selfMic: false, chat: 'shout' }), { selfMic: false, selfCam: true, chat: 'teacher' });
+  assert.deepEqual(lc.cleanControls({ chat: 'off', selfCam: 0 }), { selfMic: true, selfCam: true, chat: 'off' }, 'only a real boolean changes a switch');
+  assert.deepEqual(lc.cleanControls({ selfCam: false }), { selfMic: true, selfCam: false, chat: 'teacher' });
+  assert.deepEqual(lc.pickControls({ selfMic: false, chat: 'all', junk: 1, selfCam: 'yes' }), { selfMic: false, chat: 'all' });
+  assert.deepEqual([...lc.CHAT_MODES], ['all', 'teacher', 'off']);
+});
+
+test('permits: per student, never the teacher, only mic and cam', () => {
+  assert.deepEqual(lc.cleanPermits({ 'r:a': { mic: true, x: true }, 't:teacher': { mic: true }, 'bad id': { cam: true }, 'g:b': { mic: false } }), { 'r:a': { mic: true } });
+  let p = lc.permitsAfter({}, 'r:a', { mic: true });
+  assert.deepEqual(p, { 'r:a': { mic: true } });
+  p = lc.permitsAfter(p, 'r:a', { cam: true });
+  assert.deepEqual(p, { 'r:a': { mic: true, cam: true } });
+  p = lc.permitsAfter(p, 'r:a', { mic: false });
+  assert.deepEqual(p, { 'r:a': { cam: true } });
+  assert.deepEqual(lc.permitsAfter(p, 'r:a', { cam: false }), {}, 'an empty permit is gone');
+});
+
+test('allowFor: the class switch, or that child’s permit', () => {
+  const off = { selfMic: false, selfCam: false, chat: 'off' };
+  assert.deepEqual(lc.allowFor(off, {}, 'r:a'), { mic: false, cam: false });
+  assert.deepEqual(lc.allowFor(off, { 'r:a': { mic: true } }, 'r:a'), { mic: true, cam: false });
+  assert.deepEqual(lc.allowFor(off, { 'r:a': { mic: true } }, 'r:b'), { mic: false, cam: false });
+  assert.deepEqual(lc.allowFor(null, {}, 'r:a'), { mic: true, cam: true });
+});
+
+test('grants and permissions never say "every source" by accident', () => {
+  assert.deepEqual(lc.grantsFor('student', 'r').canPublishSources, ['camera', 'microphone']);
+  const camOnly = lc.grantsFor('student', 'r', { mic: false, cam: true });
+  assert.deepEqual(camOnly.canPublishSources, ['camera']);
+  assert.equal(camOnly.canPublish, true);
+  const none = lc.grantsFor('student', 'r', { mic: false, cam: false });
+  assert.equal(none.canPublish, false, 'an empty source list would mean ALL sources to LiveKit');
+  assert.equal(none.canPublishData, true, 'answers still go');
+  const perm = lc.permissionFor({ mic: true, cam: false });
+  assert.deepEqual(perm.can_publish_sources, ['MICROPHONE']);
+  assert.equal(perm.can_publish, true);
+  assert.equal(lc.permissionFor({ mic: false, cam: false }).can_publish, false);
+  assert.equal(lc.permissionFor({ mic: false, cam: false }).can_publish_data, true);
+  assert.equal(lc.trackIs({ source: 'MICROPHONE' }, 'MICROPHONE'), true);
+  assert.equal(lc.trackIs({ source: 1 }, 'CAMERA'), true);
+  assert.equal(lc.trackIs({ type: 'AUDIO' }, 'MICROPHONE'), true);
+  assert.equal(lc.trackIs({ source: 'SCREEN_SHARE' }, 'CAMERA'), false);
+});
+
+test('controls: teacher only, kept for the next class, pushed to the room', async () => {
+  const h = harness();
+  await h.call(KEYS);
+  await h.call({ action: 'open', slot: SLOT });
+  assert.equal((await h.call({ action: 'controls', selfMic: false }, { as: studentUser })).statusCode, 403, 'a student cannot change the switches');
+  h.current.user = teacherUser;
+  h.lk.setParticipants([
+    { identity: 't:teacher', tracks: [{ sid: 'TR_t', source: 'MICROPHONE' }] },
+    { identity: 'r:a', tracks: [{ sid: 'TR_a', source: 'MICROPHONE' }, { sid: 'TR_ac', source: 'CAMERA' }] },
+    { identity: 'g:b', tracks: [] }
+  ]);
+  const res = await h.call({ action: 'controls', selfMic: false });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.controls, { selfMic: false, selfCam: true, chat: 'teacher' });
+  const ups = h.lk.calls.filter(c => c.method === 'UpdateParticipant');
+  assert.deepEqual(ups.map(c => c.body.identity).sort(), ['g:b', 'r:a'], 'never the teacher');
+  const byId = Object.fromEntries(ups.map(c => [c.body.identity, c.body.permission.can_publish_sources]));
+  assert.deepEqual(byId['g:b'], ['CAMERA'], 'a child with no microphone on cannot start one');
+  assert.deepEqual(byId['r:a'], ['CAMERA', 'MICROPHONE'], 'Zoom’s rule: whoever is talking now keeps going');
+  assert.deepEqual(res.body.permits, { 'r:a': { mic: true } });
+  assert.deepEqual(h.lk.calls.filter(c => c.method === 'MutePublishedTrack'), [], 'switching it off mutes nobody');
+  // Mute all then takes those permits back.
+  const all = await h.call({ action: 'mute', all: true });
+  assert.equal(all.body.muted, 1);
+  assert.deepEqual(all.body.permits, {});
+  assert.equal(h.lk.calls.filter(c => c.method === 'UpdateParticipant').pop().body.permission.can_publish_sources[0], 'CAMERA');
+  // Chat alone does not touch LiveKit.
+  const before = h.lk.calls.length;
+  const chat = await h.call({ action: 'controls', chat: 'off' });
+  assert.deepEqual(chat.body.controls, { selfMic: false, selfCam: true, chat: 'off' });
+  assert.equal(h.lk.calls.length, before);
+  // The door's setting keeps the controls.
+  await h.call({ action: 'settings', earlyMin: 15 });
+  const opened = await h.call({ action: 'open', slot: SLOT });
+  assert.deepEqual(opened.body.controls, { selfMic: false, selfCam: true, chat: 'off' });
+});
+
+test('a student token carries only what the controls allow, and the permit lifts it', async () => {
+  const h = harness();
+  await h.call(KEYS);
+  await h.call({ action: 'open', slot: SLOT });
+  await h.call({ action: 'controls', selfMic: false, selfCam: false });
+  const tok = await h.call({ action: 'token', pick: { kind: 'roster', id: 'famA_sA1' } }, { as: studentUser });
+  assert.equal(tok.statusCode, 200);
+  assert.deepEqual(tok.body.allow, { mic: false, cam: false });
+  assert.equal(tok.body.controls.selfMic, false);
+  let claims = lc.readAccessToken(tok.body.token, SECRET);
+  assert.equal(claims.video.canPublish, false);
+  assert.equal(claims.video.canPublishData, true);
+  h.current.user = teacherUser;
+  h.lk.setParticipants([{ identity: 'r:famA_sA1', tracks: [] }]);
+  assert.equal((await h.call({ action: 'permit', identity: 't:teacher', mic: true })).statusCode, 400);
+  assert.equal((await h.call({ action: 'permit', identity: 'r:famA_sA1' })).statusCode, 400, 'say what they may switch on');
+  const permit = await h.call({ action: 'permit', identity: 'r:famA_sA1', mic: true });
+  assert.equal(permit.statusCode, 200);
+  assert.deepEqual(permit.body.allow, { mic: true, cam: false });
+  const up = h.lk.calls.filter(c => c.method === 'UpdateParticipant').pop();
+  assert.deepEqual(up.body.permission.can_publish_sources, ['MICROPHONE']);
+  // A rejoin keeps the permit.
+  const again = await h.call({ action: 'token', pick: { kind: 'roster', id: 'famA_sA1' }, takeover: true }, { as: studentUser });
+  claims = lc.readAccessToken(again.body.token, SECRET);
+  assert.deepEqual(claims.video.canPublishSources, ['microphone']);
+  // Mute takes the permit back and tells LiveKit.
+  h.current.user = teacherUser;
+  h.lk.setParticipants([{ identity: 'r:famA_sA1', tracks: [{ sid: 'TR_m', source: 'MICROPHONE' }] }]);
+  const muted = await h.call({ action: 'mute', identity: 'r:famA_sA1', source: 'microphone' });
+  assert.equal(muted.body.muted, 1);
+  assert.deepEqual(muted.body.permits, {});
+  assert.equal(muted.body.revoked, 1);
+  const last = h.lk.calls.filter(c => c.method === 'UpdateParticipant').pop();
+  assert.equal(last.body.permission.can_publish, false);
+});
+
+test('permit false stops the track even with the class switch on (stop video)', async () => {
+  const h = harness();
+  await h.call(KEYS);
+  await h.call({ action: 'open', slot: SLOT });
+  h.lk.setParticipants([{ identity: 'r:a', tracks: [{ sid: 'TR_c', source: 'CAMERA' }, { sid: 'TR_m', source: 'MICROPHONE' }] }]);
+  const res = await h.call({ action: 'permit', identity: 'r:a', cam: false });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(h.lk.calls.filter(c => c.method === 'MutePublishedTrack').map(c => c.body.track_sid), ['TR_c']);
+  assert.deepEqual(res.body.allow, { mic: true, cam: true }, 'the switch still lets them turn it back on, as in Zoom');
+  assert.equal((await h.call({ action: 'permit', identity: 'r:a', mic: true }, { as: studentUser })).statusCode, 403);
+});
+
+test('a new class starts with no permits', async () => {
+  const h = harness();
+  await h.call(KEYS);
+  await h.call({ action: 'open', slot: SLOT });
+  h.lk.setParticipants([{ identity: 'r:a', tracks: [] }]);
+  await h.call({ action: 'permit', identity: 'r:a', mic: true });
+  await h.call({ action: 'close' });
+  const opened = await h.call({ action: 'open', slot: SLOT });
+  assert.deepEqual(opened.body.permits, {});
+});

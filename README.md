@@ -5,6 +5,14 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🎛 v1.213.0 — Live class: Zoom-style host controls, chat and hands
+
+- **🎛 Class controls** sit at the top of 👥 People: *Students may unmute themselves*, *Students may turn on their own video*, and *Students may message: Everyone / Only me / Nobody*. They are kept for the next class. The microphone and camera switches are enforced by LiveKit itself (each child's token and `UpdateParticipant` carry only what they may publish), so a modified page cannot unmute. As in Zoom, switching one off stops a child *starting* their microphone or video; whoever is live keeps going until you mute them.
+- **Per student**: 🔇 Mute / 🎤 Ask to unmute, 🚫 Stop video / 📷 Ask for video, 💬 Message. Nobody can switch a child's microphone or camera ON from afar, so "ask" puts a big card on the child's screen (🎤 Unmute / Not now); with the switch off, asking also gives that child permission first. The teacher is told if they said "not now". Plus 🔇 Mute all, 📷 Ask all for video and ✋ Lower all hands.
+- **✋ Raise hand** is labelled on the child's bar, hands are numbered in the order they went up, and "🎤 Let them speak" uses the same request card. A child whose microphone is locked taps 🔇🔒 to raise their hand.
+- **💬 Chat**: a 💬 tab for the teacher (to everyone, or privately to one child) and a 💬 panel for each child. Every child's message goes through the teacher's device, which checks the setting before passing it on, and a child's device shows only what came through the teacher, so nothing goes child to child behind the teacher's back. Kept in the lesson record.
+- Needs the `ansKeyLiveClass` deploy (new `controls` and `permit` actions).
+
 ## 📞 v1.212.0 — Live class: Zoom hybrid
 
 - **📞 Zoom** on the teacher's bar opens a new Zoom tab. **🪟 Pick the Zoom window** (Chrome asks inside the tap; tick its sound) or pick a **🎚 sound input** (BlackHole, VB-CABLE, Stereo Mix or a microphone). The Zoom room's sound goes into the class as one extra track, so the children here hear the children in Zoom, and it is recorded with the lesson.

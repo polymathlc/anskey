@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.212.0');
+  assert.equal(P.VERSION, '1.213.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
-  assert.match(html, /var APP_VERSION = 'v1\.212\.0'/);
-  assert.match(html, /live-class\.js\?v=1\.212\.0/);
+  assert.match(html, /var APP_VERSION = 'v1\.213\.0'/);
+  assert.match(html, /live-class\.js\?v=1\.213\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.212\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.213\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -886,4 +886,93 @@ test('📞 Zoom hybrid: the window wires it as published, recorded and stopped',
   assert.doesNotMatch(panel, /innerHTML|outerHTML|insertAdjacentHTML/);
   assert.match(css, /\.vcZoomSteps/);
   assert.match(css, /\.vcTag\.zoom/);
+});
+
+/* ---------- 🎛 class controls, 💬 chat, ✋ hands (v1.213.0) ---------- */
+
+test('controls: the same rule as the server, Zoom-like defaults', () => {
+  assert.deepEqual(plain(P.cleanControls(null)), { selfMic: true, selfCam: true, chat: 'teacher' });
+  assert.deepEqual(plain(P.cleanControls({ selfMic: false, selfCam: 'no', chat: 'loud' })), { selfMic: false, selfCam: true, chat: 'teacher' });
+  assert.deepEqual(plain(P.CHAT_MODES), ['all', 'teacher', 'off']);
+  assert.deepEqual(plain(P.allowOf({ selfMic: false, selfCam: false }, { 'r:a': { mic: true } }, 'r:a')), { mic: true, cam: false });
+  assert.deepEqual(plain(P.cleanPermitsView({ 'r:a': { mic: true }, 't:x': { mic: true }, 'r:b': { cam: 'yes' } })), { 'r:a': { mic: true } });
+  assert.match(P.controlsWords({ selfMic: false, chat: 'off' }), /Only you can let a student talk.*chat: off/);
+});
+
+test('allowFromPermissions reads LiveKit’s own word, and [] means every source', () => {
+  assert.equal(P.allowFromPermissions(null), null);
+  assert.deepEqual(plain(P.allowFromPermissions({ canPublish: true, canPublishSources: [] })), { mic: true, cam: true });
+  assert.deepEqual(plain(P.allowFromPermissions({ canPublish: true, canPublishSources: [1] })), { mic: false, cam: true });
+  assert.deepEqual(plain(P.allowFromPermissions({ canPublish: true, canPublishSources: [2, 1] })), { mic: true, cam: true });
+  assert.deepEqual(plain(P.allowFromPermissions({ canPublish: true, canPublishSources: ['microphone'] })), { mic: true, cam: false });
+  assert.deepEqual(plain(P.allowFromPermissions({ canPublish: false, canPublishSources: [1, 2] })), { mic: false, cam: false });
+});
+
+test('chat: who may send what', () => {
+  assert.equal(P.chatAllowed('off', 'teacher'), false);
+  assert.equal(P.chatAllowed('teacher', 'teacher'), true);
+  assert.equal(P.chatAllowed('teacher', 'all'), false);
+  assert.equal(P.chatAllowed('all', 'all'), true);
+  assert.equal(P.chatAllowed('all', 'r:someone'), false, 'never child to child privately');
+  assert.match(P.chatRefusal('off', 'teacher'), /off/);
+  assert.match(P.chatRefusal('teacher', 'all'), /only message your teacher/);
+  assert.equal(P.chatRefusal('all', 'all'), '');
+});
+
+test('chat: one door, capped, deduped, oldest first', () => {
+  assert.equal(P.cleanChat({ id: 'c1', from: 'r:a', to: 'all', text: '   ' }), null);
+  assert.equal(P.cleanChat({ id: 'bad id!', from: 'r:a', to: 'all', text: 'hi' }), null);
+  assert.equal(P.cleanChat({ id: 'c1', from: 'x', to: 'all', text: 'hi' }), null);
+  assert.equal(P.cleanChat({ id: 'c1', from: 'r:a', to: 't:teacher', text: 'hi' }), null, 'a private message goes to a student or "teacher"');
+  const long = P.cleanChat({ id: 'c1', from: 'r:a', name: 'Amy', to: 'teacher', text: 'x'.repeat(900), at: 5 });
+  assert.equal(long.text.length, P.CHAT.max);
+  const tag = P.cleanChat({ id: 'c2', from: 'r:a', to: 'all', text: '<img src=x onerror=alert(1)>\n\n\n\nhi' });
+  assert.equal(tag.text, '<img src=x onerror=alert(1)>\n\nhi', 'kept as words (painted with textContent)');
+  let list = [];
+  list = P.chatAdd(list, { id: 'b', from: 'r:a', to: 'all', text: 'two', at: 20 });
+  list = P.chatAdd(list, { id: 'a', from: 't:t', to: 'all', text: 'one', at: 10 });
+  list = P.chatAdd(list, { id: 'b', from: 'r:a', to: 'all', text: 'two', at: 20 });
+  assert.deepEqual(plain(list.map(m => m.id)), ['a', 'b']);
+  for (let i = 0; i < P.CHAT.keep + 20; i++) list = P.chatAdd(list, { id: 'm' + i, from: 'r:a', to: 'teacher', text: 'n' + i, at: 100 + i });
+  assert.equal(list.length, P.CHAT.keep);
+  assert.equal(P.cleanChatList([{ id: 'a', from: 'r:a', to: 'all', text: 'x' }, { id: 'a', from: 'r:a', to: 'all', text: 'y' }, null]).length, 1);
+});
+
+test('chat: a child sees again only what was theirs to see', () => {
+  const list = [
+    { id: '1', from: 't:t', to: 'all', text: 'hello class' },
+    { id: '2', from: 'r:a', to: 'teacher', text: 'Amy to teacher' },
+    { id: '3', from: 'r:b', to: 'teacher', text: 'Ben to teacher' },
+    { id: '4', from: 't:t', to: 'r:b', text: 'private to Ben' },
+    { id: '5', from: 'r:b', to: 'all', text: 'Ben to all' }
+  ];
+  assert.deepEqual(plain(P.chatFor(list, 'r:a').map(m => m.id)), ['1', '2', '5']);
+  assert.deepEqual(plain(P.chatFor(list, 'r:b').map(m => m.id)), ['1', '3', '4', '5']);
+  assert.deepEqual(plain(P.chatTargets({ from: 'r:a', to: 'all' }, ['r:a', 'r:b', 'g:c', 't:x'])), ['r:b', 'g:c']);
+  assert.deepEqual(plain(P.chatTargets({ from: 'r:a', to: 'teacher' }, ['r:a', 'r:b'])), [], 'to the teacher stays with the teacher');
+  assert.equal(P.chatWho({ from: 'r:a', to: 'teacher', name: 'Amy' }, 'r:a'), 'You → Teacher');
+  assert.equal(P.chatWho({ from: 't:t', to: 'r:a', name: 'Teacher' }, 'r:a'), 'Teacher (privately)');
+});
+
+test('the window wires the controls, the chat and the request card', () => {
+  // A student device shows chat only from the teacher's identity: onChatEntry
+  // is reached after the "fromRole !== 'teacher'" return.
+  const student = src.slice(src.indexOf("if (fromRole !== 'teacher') return;"), src.indexOf("function imageArrived("));
+  for (const t of ["'controls'", "'ask'", "'stopped'", "'chat'", "'chatno'"]) assert.ok(student.includes("msg.t === " + t), t);
+  // The teacher's device checks the switch before passing a message on.
+  const relay = src.slice(src.indexOf('function onChatFromStudent('), src.indexOf('function paintChat('));
+  assert.ok(relay.indexOf('chatRefusal(') < relay.indexOf("send({ t: 'chat'"), 'checked before it is passed on');
+  assert.ok(/chatTargets\(entry, presentStudents\(\)\)/.test(relay));
+  // Asking never switches a device on from afar: it is a card the child presses.
+  const ask = src.slice(src.indexOf('function answerAsk('), src.indexOf('function onStopped('));
+  assert.ok(/enableMedia\(/.test(ask));
+  assert.ok(!/setMicrophoneEnabled\(true\)/.test(src.slice(src.indexOf('function onAsk('), src.indexOf('function paintAskCard('))), 'the card arrives, nothing turns on');
+  // With the switch off the teacher's ask first asks the SERVER for a permit.
+  const askMedia = src.slice(src.indexOf('function askMedia('), src.indexOf('function askOne('));
+  assert.ok(askMedia.indexOf("call('permit'") < askMedia.indexOf("t: 'ask'"));
+  // LiveKit's own permission event updates the child's buttons.
+  assert.match(src, /ParticipantPermissionsChanged[\s\S]{0,200}onPermissionsChanged\(\)/);
+  assert.ok(/\{ id: 'chat', icon: '💬', label: 'Chat' \}/.test(src));
+  assert.ok(/vcChatPanel/.test(css) && /vcAskLayer/.test(css));
+  assert.ok(/\.vcChatInput \{[\s\S]*font-size: 16px/.test(css), 'iOS never zooms into the chat box');
 });

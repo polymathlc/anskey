@@ -656,6 +656,86 @@ try {
   ok('the teacher puts it down on Amy\'s screen too', await until(() => S1.evaluate(() => window.toasts.some(t => /put your hand down/.test(t))), 10000));
   await shot(T, '07-teacher-people');
 
+  /* ---------- 4b. 🎛 class controls, 💬 chat, request cards (v1.213.0) ---------- */
+  console.log('Class controls and chat');
+  ok('🎛 the People tab opens with the class controls', await until(() => T.locator('.vcCtlBox').isVisible(), 5000));
+  await T.locator('.vcSwitch', { hasText: 'unmute themselves' }).locator('input').uncheck();
+  ok('switching "may unmute themselves" off reaches LiveKit: Amy\'s microphone is locked', await until(() => S1.locator('.vcCtl.vcLocked', { hasText: '🔇🔒' }).isVisible(), 15000), JSON.stringify(await S1.evaluate(() => window.lc.state().allow)));
+  ok('…and the server, not the page, holds it: asking LiveKit straight is refused', await until(async () => {
+    const r = await S1.evaluate(() => window.lc.tryMedia('mic', true));
+    const st = await S1.evaluate(() => window.lc.state());
+    return !/^ok$/.test(r) || !st.mic;
+  }, 8000));
+  await S1.evaluate(() => window.lc.tryMedia('mic', false));
+  await S1.locator('.vcCtl.vcLocked', { hasText: '🔇🔒' }).click();
+  ok('the locked microphone raises Amy\'s hand', await until(() => T.locator('.vcCtl.vcHands', { hasText: '✋ 1' }).isVisible(), 10000));
+  await T.locator('.vcHandRow button', { hasText: 'Let them speak' }).click();
+  ok('"Let them speak" puts a card on Amy\'s screen', await until(() => S1.locator('.vcAsk', { hasText: 'would like to hear you' }).isVisible(), 10000));
+  await shot(S1, '07b-student-ask-card');
+  await S1.locator('.vcAsk button', { hasText: 'Unmute' }).click();
+  ok('one tap and Amy is unmuted (the server gave her a permit)', await until(() => S1.evaluate(() => window.lc.state().mic), 15000), JSON.stringify(await S1.evaluate(() => window.toasts.slice(-3))));
+  ok('the teacher is told', await until(() => T.evaluate(() => window.toasts.some(t => /Amy Tan unmuted/.test(t))), 10000));
+  ok('…and sees her as allowed to talk', await until(() => T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('.vcTag.ok', { hasText: 'May talk' }).isVisible(), 10000));
+  ok('the teacher\'s row shows her microphone on, with 🔇 Mute', await until(() => T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('button', { hasText: /^🔇 Mute$/ }).isVisible(), 10000));
+  await T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('button', { hasText: /^🔇 Mute$/ }).click();
+  ok('🔇 Mute takes the permit back: Amy is muted and locked again', await until(async () => !(await S1.evaluate(() => window.lc.state().mic)) && await S1.locator('.vcCtl.vcLocked', { hasText: '🔇🔒' }).isVisible(), 15000));
+  ok('Amy is told', await until(() => S1.evaluate(() => window.toasts.some(t => /muted your microphone/.test(t))), 10000));
+  await T.locator('.vcSwitch', { hasText: 'unmute themselves' }).locator('input').check();
+  ok('switching it back on unlocks Amy\'s microphone', await until(async () => !(await S1.locator('.vcCtl.vcLocked').count()), 15000));
+
+  // Video: stop, then ask.
+  ok('Amy\'s camera is on', await until(() => S1.evaluate(() => window.lc.state().cam), 10000));
+  await T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('button', { hasText: 'Stop video' }).click();
+  ok('🚫 Stop video turns Amy\'s camera off', await until(async () => !(await S1.evaluate(() => window.lc.state().cam)), 15000));
+  ok('…and tells her', await until(() => S1.evaluate(() => window.toasts.some(t => /turned your video off/.test(t))), 10000));
+  await until(() => T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('button', { hasText: 'Ask for video' }).isVisible(), 10000);
+  await T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('button', { hasText: 'Ask for video' }).click();
+  ok('📷 Ask for video puts a card on Amy\'s screen', await until(() => S1.locator('.vcAsk', { hasText: 'turn on your video' }).isVisible(), 10000));
+  await S1.locator('.vcAsk button', { hasText: 'Not now' }).click();
+  ok('"Not now" is the child\'s choice, and the teacher hears it', await until(() => T.evaluate(() => window.toasts.some(t => /Amy Tan said “not now”/.test(t))), 10000));
+  await T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('button', { hasText: 'Ask for video' }).click();
+  await until(() => S1.locator('.vcAsk').isVisible(), 10000);
+  await S1.locator('.vcAsk button', { hasText: 'Turn on video' }).click();
+  ok('…and "Turn on video" brings her camera back', await until(() => S1.evaluate(() => window.lc.state().cam), 15000));
+  await T.locator('.vcSwitch', { hasText: 'own video' }).locator('input').uncheck();
+  ok('switching own video off leaves a camera that is on, on (Zoom\'s rule)', await until(() => T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('.vcTag.ok', { hasText: 'May video' }).isVisible(), 15000) && await S1.evaluate(() => window.lc.state().cam));
+  await T.locator('.vcPerson', { hasText: 'Amy Tan' }).locator('button', { hasText: 'Stop video' }).click();
+  ok('…but once stopped, Amy\'s camera button is locked', await until(() => S1.locator('.vcCtl.vcLocked', { hasText: '🚫🔒' }).isVisible(), 15000));
+  ok('…and asking LiveKit straight for the camera is refused', await until(async () => {
+    const r = await S1.evaluate(() => window.lc.tryMedia('cam', true));
+    return !/^ok$/.test(r) || !(await S1.evaluate(() => window.lc.state().cam));
+  }, 8000));
+  await S1.evaluate(() => window.lc.tryMedia('cam', false));
+  await T.locator('.vcSwitch', { hasText: 'own video' }).locator('input').check();
+  ok('switching it back on unlocks the camera', await until(async () => !(await S1.locator('.vcCtl.vcLocked').count()), 15000));
+
+  // 💬 Chat. The default: students may message only the teacher.
+  await S1.locator('.vcCtl.vcChatCtl').click();
+  ok('💬 Amy\'s chat opens, writing to the teacher', await until(() => S1.locator('.vcChatPanel .vcChatInput').isVisible(), 5000) && !(await S1.locator('.vcChatPanel .vcChatTo').count()));
+  await S1.fill('.vcChatPanel .vcChatInput', 'Can I ask about question 3?');
+  await S1.press('.vcChatPanel .vcChatInput', 'Enter');
+  ok('the teacher gets it', await until(() => T.evaluate(() => window.toasts.some(t => /Amy Tan \(to you\): Can I ask about question 3\?/.test(t))), 10000));
+  ok('…Amy sees it delivered', await until(() => S1.locator('.vcChatMsg.mine .vcChatHead', { hasText: 'You → Teacher' }).isVisible() && S1.evaluate(() => !document.querySelector('.vcChatMsg.mine .vcChatHead').textContent.includes('sending')), 10000));
+  await T.locator('.vcCtl.vcChatCtl').click();
+  ok('the teacher\'s 💬 tab lists it', await until(() => T.locator('.vcChatMsg', { hasText: 'question 3' }).isVisible(), 5000));
+  await T.fill('.vcSide .vcChatInput', 'Welcome, everyone!');
+  await T.locator('.vcSide .vcChatForm button', { hasText: 'Send' }).click();
+  ok('the teacher writes to everyone: Zoe is told', await until(() => S2.evaluate(() => window.toasts.some(t => /Teacher: Welcome, everyone!/.test(t))), 10000));
+  ok('Zoe never sees Amy\'s message to the teacher', await S2.evaluate(() => window.lc.state().chat) === 1);
+  await T.locator('.vcSide .vcSegBtn', { hasText: 'Everyone' }).click();
+  ok('chat "Everyone" lets Amy choose who to write to', await until(() => S1.locator('.vcChatPanel .vcChatTo').isVisible(), 10000));
+  await S1.locator('.vcChatPanel .vcChatTo').selectOption('all');
+  await S1.fill('.vcChatPanel .vcChatInput', 'Hi class');
+  await S1.press('.vcChatPanel .vcChatInput', 'Enter');
+  ok('…and her message to everyone reaches Zoe through the teacher', await until(() => S2.evaluate(() => window.lc.state().chat === 2), 10000));
+  await shot(S1, '07c-student-chat');
+  await T.locator('.vcSide .vcSegBtn', { hasText: 'Nobody' }).click();
+  ok('chat "Nobody" takes the box away from Amy', await until(async () => !(await S1.locator('.vcChatPanel .vcChatInput').count()) && await S1.locator('.vcChatPanel', { hasText: 'turned chat off' }).isVisible(), 10000));
+  await shot(T, '07d-teacher-chat');
+  await T.locator('.vcSide .vcSegBtn', { hasText: 'Only me' }).click();
+  await S1.locator('.vcChatClose').click();
+  await T.locator('.vcTab', { hasText: 'People' }).click();
+
   /* ---------- 5. end the class, reports ---------- */
   console.log('End and reports');
   await T.locator('.vcCtl.vcEnd').click();
