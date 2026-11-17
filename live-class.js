@@ -36,16 +36,18 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.214.0';
+  var VERSION = '1.216.0';
   var TOPIC = 'plc';
-  var KINDS = ['mcq', 'blank', 'open'];
-  var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended' };
+  var KINDS = ['mcq', 'blank', 'open', 'cloze'];
+  var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended', cloze: 'Fill in the keywords' };
   var LIMITS = {
     text: 600,
     option: 140,
     options: 6,
     accepted: 8,
     answer: 1200,
+    gaps: 8,               // 🔤 keyword blanks in one fill-in-the-keywords question
+    gapChars: 120,
     name: 60,
     chunk: 12000,          // characters per data message (LiveKit's reliable limit is ~15 KiB)
     imageChars: 900000,    // ~650 KB of JPEG as a data URL, the most one picture may be
@@ -65,7 +67,7 @@
   // 🔗 This device's own class link (v1.210.0): the code from a personal link
   // or a PIN, kept so next time "You are Amy Tan — Join" is one tap.
   var PASS_KEY = 'polymath.liveClass.pass.v1';
-  // 📈 Performance tracking (v1.214.0): how long this device's class screen
+  // 📈 Performance tracking (v1.216.0): how long this device's class screen
   // was hidden (another app, another tab, the phone locked) in this lesson,
   // kept per lesson so a reload does not forget it.
   var FOCUS_PREFIX = 'polymath.liveClass.focus.v1:';
@@ -126,12 +128,20 @@
     } else if (kind === 'blank') {
       var acc = Array.isArray(q.accepted) ? q.accepted : str(q.accepted).split(/[|\n]/);
       out.accepted = acc.map(function (a) { return oneLine(a, LIMITS.option); }).filter(Boolean).slice(0, LIMITS.accepted);
+    } else if (kind === 'cloze') {
+      // 🔤 The AI's answer with the teacher's chosen keywords taken out.
+      var cz = cleanCloze(q.parts, q.keys);
+      if (!cz) return null;
+      out.parts = cz.parts;
+      if (cz.keys) out.keys = cz.keys;
+      var full = clean(q.model, LIMITS.answer);
+      if (full) out.model = full;
     } else {
       out.photo = q.photo !== false;
-      var model = clean(q.model, LIMITS.text);
+      var model = clean(q.model, LIMITS.answer);
       if (model) out.model = model;
     }
-    if (!text && !q.img) return null;
+    if (!text && !q.img && kind !== 'cloze') return null;
     if (q.img && typeof q.img === 'object' && validId(q.img.ref)) out.img = { ref: q.img.ref, n: Math.max(1, Math.min(200, Number(q.img.n) || 1)) };
     var to = q.to;
     if (Array.isArray(to)) {
@@ -142,6 +152,7 @@
     }
     out.open = q.open !== false;
     if (q.ai === true) out.ai = true;
+    if (q.hidden === true) out.hidden = true;   // 🔒 from the hidden answers: the board covers its answer too
     return out;
   }
   // The part of a question a STUDENT's device is sent: never the answer.
@@ -151,8 +162,119 @@
     var out = { id: c.id, kind: c.kind, text: c.text, at: c.at, n: c.n, open: c.open };
     if (c.options) out.options = c.options.slice();
     if (c.kind === 'open') out.photo = c.photo;
+    // A keyword question goes out as the sentence WITH ITS GAPS: the words
+    // that fill them (keys) and the full answer (model) never leave the
+    // teacher's device until the teacher shows the answer.
+    if (c.kind === 'cloze') out.parts = c.parts.slice();
     if (c.img) out.img = { ref: c.img.ref, n: c.img.n };
     return out;
+  }
+
+  /* ---------- 🔤 Fill in the keywords (v1.215.0) ----------
+     The teacher takes the AI's (hidden) answer, taps the few words that
+     matter and those become blanks. `parts` is the sentence as text pieces
+     and blank numbers in order — ["Plants make food by ", 0, " using ", 1,
+     "."] — and `keys[i]` the words that were taken out of blank i. */
+  function cleanCloze(parts, keys) {
+    if (!Array.isArray(parts)) return null;
+    var out = [], outKeys = [], chars = 0, haveKeys = Array.isArray(keys);
+    var seen = {};
+    for (var i = 0; i < parts.length && i < 80; i++) {
+      var p = parts[i];
+      if (typeof p === 'number') {
+        var k = Math.floor(p);
+        if (!(k >= 0 && k < 40) || seen[k] || outKeys.length >= LIMITS.gaps) continue;
+        seen[k] = true;
+        var words = haveKeys ? (Array.isArray(keys[k]) ? keys[k] : keys[k] != null ? [keys[k]] : []) : [];
+        words = words.map(function (w) { return oneLine(w, LIMITS.gapChars); }).filter(Boolean).slice(0, LIMITS.accepted);
+        out.push(outKeys.length);
+        outKeys.push(words);
+      } else {
+        var t = str(p).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, ' ');
+        if (!t) continue;
+        t = t.slice(0, Math.max(0, LIMITS.answer - chars));
+        if (!t) continue;
+        chars += t.length;
+        if (out.length && typeof out[out.length - 1] === 'string') out[out.length - 1] += t; else out.push(t);
+      }
+    }
+    if (!outKeys.length) return null;
+    var res = { parts: out };
+    if (haveKeys) res.keys = outKeys;
+    return res;
+  }
+  function gapCount(q) { return q && Array.isArray(q.parts) ? q.parts.filter(function (p) { return typeof p === 'number'; }).length : 0; }
+  // The sentence as a student wrote it in: their words in [brackets].
+  function clozeText(parts, words) {
+    return (parts || []).map(function (p) {
+      if (typeof p !== 'number') return str(p);
+      var w = Array.isArray(words) ? oneLine(words[p], LIMITS.gapChars) : '';
+      return '[' + (w || '___') + ']';
+    }).join('');
+  }
+  // The full sentence with the taken-out words back in (the teacher's copy).
+  function clozeFull(q) {
+    if (!q || !q.parts) return '';
+    return q.parts.map(function (p) { return typeof p === 'number' ? ((q.keys && q.keys[p] && q.keys[p][0]) || '___') : str(p); }).join('');
+  }
+  // The words of an answer, one token per word or space, for the teacher to
+  // tap: lead/trail punctuation stays in the sentence, the word goes.
+  function clozeTokens(text) {
+    var out = [];
+    str(text).replace(/\r\n?/g, '\n').split(/(\s+)/).forEach(function (t) {
+      if (!t) return;
+      if (/^\s+$/.test(t)) { out.push({ t: t, space: true }); return; }
+      var m = /^([("'\u201c\u2018\[]*)(.*?)([)"'\u201d\u2019\].,!?;:]*)$/.exec(t);
+      var core = m ? m[2] : t;
+      if (!core) { out.push({ t: t }); return; }
+      out.push({ t: t, word: true, lead: m[1], core: core, trail: m[3] });
+    });
+    return out;
+  }
+  // The tapped words → parts + keys. Words tapped side by side (only a space
+  // between) are ONE blank: "light energy" is one gap, not two.
+  function clozeFrom(text, picks) {
+    var toks = clozeTokens(text), parts = [], keys = [], buf = '', open = false, gap = '';
+    var picked = function (i) { return Array.isArray(picks) ? picks.indexOf(i) !== -1 : !!(picks && picks[i]); };
+    toks.forEach(function (tk, i) {
+      if (tk.space) { if (open) gap += tk.t; else buf += tk.t; return; }
+      if (tk.word && picked(i)) {
+        if (open && gap && !tk.lead) { keys[keys.length - 1][0] += ' ' + tk.core; gap = ''; }
+        else {
+          buf += gap; gap = '';
+          buf += tk.lead;
+          if (buf) parts.push(buf);
+          buf = '';
+          parts.push(keys.length);
+          keys.push([tk.core]);
+        }
+        open = !tk.trail;
+        buf += tk.trail;
+        return;
+      }
+      if (open) { buf += gap; gap = ''; open = false; }
+      buf += tk.t;
+    });
+    buf += gap;
+    if (buf) parts.push(buf);
+    return keys.length ? cleanCloze(parts, keys) : null;
+  }
+  // The AI's keywords, found in the answer's words: which tokens to light.
+  function pickKeywords(text, keywords) {
+    var toks = clozeTokens(text), picks = {};
+    var norm = function (s) { return str(s).toLowerCase().replace(/[^a-z0-9\u00c0-\u024f%°]+/g, ''); };
+    var wordIdx = [];
+    toks.forEach(function (tk, i) { if (tk.word) wordIdx.push(i); });
+    (Array.isArray(keywords) ? keywords : []).slice(0, LIMITS.gaps).forEach(function (kw) {
+      var want = str(kw).split(/\s+/).map(norm).filter(Boolean);
+      if (!want.length) return;
+      for (var a = 0; a + want.length <= wordIdx.length; a++) {
+        var ok = true;
+        for (var b = 0; b < want.length; b++) if (norm(toks[wordIdx[a + b]].core) !== want[b]) { ok = false; break; }
+        if (ok) { for (var c = 0; c < want.length; c++) picks[wordIdx[a + c]] = true; break; }
+      }
+    });
+    return picks;
   }
   function meantFor(q, identity) {
     if (!q) return false;
@@ -167,6 +289,11 @@
     }
     if (kind === 'blank') { var b = oneLine(value, 200); return b || null; }
     if (kind === 'open') { var o = clean(str(value).replace(/\r\n?/g, '\n'), LIMITS.answer); return o; }
+    if (kind === 'cloze') {
+      if (!Array.isArray(value)) return null;
+      var words = value.slice(0, LIMITS.gaps).map(function (w) { return oneLine(w, LIMITS.gapChars); });
+      return words.some(Boolean) ? words : null;
+    }
     return null;
   }
 
@@ -218,7 +345,21 @@
     if (!q) return null;
     if (q.kind === 'mcq') return q.answer >= 0 && value != null ? Number(value) === q.answer : null;
     if (q.kind === 'blank') return q.accepted && q.accepted.length && value != null ? blankMatches(q.accepted, value) : null;
+    if (q.kind === 'cloze') return clozeAuto(q, value);
     return null;
+  }
+  // Every gap filled with the word that was taken out (or the same number)
+  // is ✓ straight away. Anything else is NOT ✗ here: a different word can
+  // still be right ("sunlight" for "light energy"), so it goes to the AI to
+  // judge and the teacher has the last word.
+  function clozeAuto(q, value) {
+    if (!q || !q.keys || !Array.isArray(value)) return null;
+    var n = gapCount(q);
+    if (!n) return null;
+    for (var i = 0; i < n; i++) {
+      if (!q.keys[i] || !q.keys[i].length || !blankMatches(q.keys[i], value[i])) return null;
+    }
+    return true;
   }
   function answerText(q, value) {
     if (!q || value == null) return '';
@@ -226,6 +367,7 @@
       var i = Number(value);
       return q.options && q.options[i] != null ? letter(i) + '. ' + q.options[i] : '';
     }
+    if (q.kind === 'cloze') return Array.isArray(value) ? clozeText(q.parts, value) : '';
     return str(value);
   }
 
@@ -310,7 +452,7 @@
       home: oneLine(p.home, 120), joinedAt: Number(p.joinedAt) || 0, leftAt: Number(p.leftAt) || 0,
       ms: Number(p.ms) || 0, hands: Number(p.hands) || 0, here: !!p.here, since: Number(p.since) || 0,
       via: p.via === 'zoom' ? 'zoom' : '',
-      // 📈 v1.214.0: milliseconds the class screen was hidden on the child's
+      // 📈 v1.216.0: milliseconds the class screen was hidden on the child's
       // device, and how many times it was left (their device's own count).
       away: Math.max(0, Math.min(FOCUS_MAX_MS, Number(p.away) || 0)), awayN: Math.max(0, Math.min(9999, Math.floor(Number(p.awayN) || 0)))
     };
@@ -452,7 +594,8 @@
   function needsAiMark(q, entry) {
     if (!q || !entry || q.kind === 'mcq') return false;
     if (confirmedOf(entry) != null || (entry.ai && cleanVerdict(entry.ai))) return false;
-    if (q.kind === 'blank' && entry.auto === true) return false;
+    if ((q.kind === 'blank' || q.kind === 'cloze') && entry.auto === true) return false;
+    if (Array.isArray(entry.v)) return entry.v.some(function (w) { return str(w).trim() !== ''; });
     return (entry.v != null && str(entry.v).trim() !== '') || !!entry.ph;
   }
   // Everything the teacher's ✓ Confirm all would do for one question.
@@ -525,6 +668,56 @@
     }
     return out;
   }
+  /* ---------- 🔒 Hidden answers: the whole worksheet worked out in the background (v1.215.0) ----------
+     The glue asks the AI for every question on the worksheet before the
+     teacher needs it, and keeps the result on the TEACHER's own account
+     (users/{teacher}/liveKeys/{worksheet}) — never in the room, never in
+     the shared picture. cleanKeyItems is the one door from that data, and
+     keyItemCompose turns one row into a question for the composer. */
+  var KEY_KINDS = { mcq: 'mcq', blank: 'blank', open: 'open' };
+  function cleanKeyItems(raw) {
+    var list = Array.isArray(raw) ? raw : raw && Array.isArray(raw.items) ? raw.items : [];
+    var out = [];
+    list.slice(0, 150).forEach(function (r, i) {
+      if (!r || typeof r !== 'object') return;
+      var answer = clean(r.answer, LIMITS.answer), model = clean(r.model, LIMITS.answer), option = oneLine(r.option, 8);
+      if (!answer && !model && !option) return;
+      var opts = (Array.isArray(r.options) ? r.options : []).map(function (o) { return oneLine(o, LIMITS.option).replace(OPTION_LEAD, '').trim(); }).filter(Boolean).slice(0, LIMITS.options);
+      var kind = KEY_KINDS[oneLine(r.kind, 10).toLowerCase()] || (option ? 'mcq' : 'open');
+      if (kind === 'mcq' && opts.length < 2 && !option) kind = 'open';
+      out.push({
+        id: validId(r.id) ? r.id : 'k' + i,
+        page: Math.max(0, Math.min(999, Math.floor(Number(r.page) || 0))),
+        number: oneLine(r.number, 12).replace(/^\s*(question|qn?)[\s.:]*/i, ''),
+        kind: kind, question: clean(r.question, LIMITS.text), answer: answer, option: option, model: model, options: opts,
+        keywords: (Array.isArray(r.keywords) ? r.keywords : []).map(function (k) { return oneLine(k, LIMITS.gapChars); }).filter(Boolean).slice(0, LIMITS.gaps)
+      });
+    });
+    return out;
+  }
+  // One hidden-answer row → the composer. form: 'open' (fully blank: the
+  // student writes it all; the AI answer stays hidden and only marks),
+  // 'cloze' (the AI answer with the keywords lit for the teacher to choose),
+  // 'asis' (the question as printed: MCQ with its key, or a short blank).
+  function keyItemCompose(item, form) {
+    if (!item) return null;
+    var full = item.model || item.answer || '';
+    var text = item.question || ('Question ' + (item.number || '?') + (item.page ? ' on page ' + item.page : '') + ' of the worksheet');
+    var base = { text: text, options: ['', '', '', ''], answer: -1, accepted: '', model: '', photo: true, img: '', keyFrom: item.id };
+    if (form === 'cloze') {
+      return Object.assign(base, { kind: 'cloze', model: full, gapPick: pickKeywords(full, item.keywords) });
+    }
+    if (form === 'asis' && item.kind === 'mcq' && item.options.length >= 2) {
+      var idx = -1, m = /^\(?\s*([A-Fa-f]|[1-9])\s*\)?\.?$/.exec(item.option || '');
+      if (m) idx = /[A-Fa-f]/.test(m[1]) ? m[1].toUpperCase().charCodeAt(0) - 65 : Number(m[1]) - 1;
+      return Object.assign(base, { kind: 'mcq', options: item.options.slice(), answer: idx >= 0 && idx < item.options.length ? idx : -1 });
+    }
+    if (form === 'asis' && item.kind === 'blank') {
+      return Object.assign(base, { kind: 'blank', accepted: item.answer });
+    }
+    return Object.assign(base, { kind: 'open', model: full, hideModel: true });
+  }
+
   function questionStats(session, q, present) {
     var byQ = session.answers[q.id] || {};
     var ids = Object.keys(byQ);
@@ -596,7 +789,7 @@
     if (r.marked) lines.push('• Correct: ' + r.right + ' of ' + r.marked + ' marked' + (r.partly ? ' (' + r.partly + ' partly right)' : ''));
     if (r.hands) lines.push('• Raised a hand to ask or answer: ' + r.hands + ' time' + (r.hands === 1 ? '' : 's'));
     if (r.points) lines.push('• Points earned in class: ' + r.points);
-    // 📈 Performance tracking (v1.214.0): only what the class measured.
+    // 📈 Performance tracking (v1.216.0): only what the class measured.
     if (perf) {
       if (perf.joinedClock) lines.push('• Joined the class at ' + perf.joinedClock);
       if (perf.avgSecs != null) lines.push('• Average time to answer: ' + secondsWords(perf.avgSecs));
@@ -633,7 +826,7 @@
   }
 
 
-  /* ---------- 📈 performance tracking (v1.214.0) ----------
+  /* ---------- 📈 performance tracking (v1.216.0) ----------
      Everything here is MEASURED by the class itself — nothing is guessed:
        • when the child joined (Singapore time) and how long they stayed;
        • how many questions they answered, and how many the TEACHER marked
@@ -919,7 +1112,7 @@
     p = p && typeof p === 'object' ? p : {};
     return { classmates: p.classmates === true, lowData: p.lowData === true, mirror: p.mirror !== false, autoLow: p.autoLow !== false,
       cameraOff: p.cameraOff === true, record: p.record !== false, hideSelf: p.hideSelf === true, lastKind: KINDS.indexOf(p.lastKind) !== -1 ? p.lastKind : 'mcq',
-      aiMark: p.aiMark !== false, aiReview: p.aiReview === true, answerOnly: p.answerOnly === true,
+      aiMark: p.aiMark !== false, aiReview: p.aiReview === true, answerOnly: p.answerOnly === true, keyAuto: p.keyAuto !== false,
       zoomGain: isFinite(Number(p.zoomGain)) ? Math.max(0, Math.min(2, Number(p.zoomGain))) : 1, zoomDuck: p.zoomDuck !== false };
   }
 
@@ -1135,7 +1328,9 @@
     VERSION: VERSION, TOPIC: TOPIC, KINDS: KINDS, KIND_LABEL: KIND_LABEL, LIMITS: LIMITS,
     cleanQuestion: cleanQuestion, questionForStudent: questionForStudent, meantFor: meantFor,
     cleanAnswer: cleanAnswer, normAnswer: normAnswer, numberOf: numberOf, blankMatches: blankMatches,
-    autoMark: autoMark, answerText: answerText, letter: letter, validImage: validImage,
+    autoMark: autoMark, answerText: answerText,
+    cleanCloze: cleanCloze, clozeText: clozeText, clozeFull: clozeFull, clozeTokens: clozeTokens, clozeFrom: clozeFrom, pickKeywords: pickKeywords,
+    clozeAuto: clozeAuto, gapCount: gapCount, cleanKeyItems: cleanKeyItems, keyItemCompose: keyItemCompose, letter: letter, validImage: validImage,
     encode: encode, decode: decode, chunkImage: chunkImage, makeAssembler: makeAssembler,
     outboxAdd: outboxAdd, outboxAck: outboxAck, outboxDue: outboxDue,
     emptySession: emptySession, personJoined: personJoined, personLeft: personLeft, minutesPresent: minutesPresent,
@@ -3446,6 +3641,7 @@
     function revealOf(q) {
       if (q.kind === 'mcq') return q.answer >= 0 ? { index: q.answer, text: letter(q.answer) + '. ' + q.options[q.answer] } : null;
       if (q.kind === 'blank') return q.accepted && q.accepted.length ? { text: q.accepted[0] } : null;
+      if (q.kind === 'cloze') return { text: q.model || clozeFull(q) };
       return q.model ? { text: q.model } : null;
     }
     function resendOpenQuestions() {
@@ -3456,6 +3652,7 @@
       // Pictures that only partly arrived are dropped after a few minutes.
       S.assembler.sweep(5 * 60 * 1000);
       syncRecorder();
+      hiddenTick();
       // The lesson's time arrived: the door opened by itself.
       if (S.door && !S.door.open && Number(S.door.opensAt) && now() + (S.door.skew || 0) >= Number(S.door.opensAt)) { S.door = { open: true }; paintControls(); }
       else if (S.rec) paintControls();
@@ -3519,7 +3716,7 @@
       })();
     }
     function studentTick() { flushOutbox(false); S.assembler.sweep(5 * 60 * 1000); focusTick(false); }
-    /* ---------- 📈 focus (v1.214.0) ----------
+    /* ---------- 📈 focus (v1.216.0) ----------
        While the class is live, the time this device's class screen is
        hidden is added up and sent to the teacher's device every half
        minute and the moment the child comes back. A 📱 Zoom answer phone is
@@ -3658,13 +3855,14 @@
 
     /* ---------- the pop-up over the video ---------- */
     function questionToShow() {
-      var open = openQuestions();
-      if (open.length) return open[open.length - 1];
-      // The last closed one stays up while it has news (a reveal, a mark).
+      // The newest question that is open, or closed with news for this
+      // student (a reveal, a mark) they have not tapped OK on. An older
+      // question left open no longer hides the answer to a newer one (v1.215.0).
       for (var i = S.order.length - 1; i >= 0; i--) {
         var q = S.questions[S.order[i]];
-        if (q && (q.revealed || (S.mine[q.id] && (S.mine[q.id].ok != null))) && !q.dismissed) return q;
-        if (q) break;
+        if (!q) continue;
+        if (q.open) return q;
+        if ((q.revealed || (S.mine[q.id] && (S.mine[q.id].ok != null))) && !q.dismissed) return q;
       }
       return null;
     }
@@ -3740,6 +3938,53 @@
         var syncSend = function () { sendBtn.disabled = closed || !oneLine(input.value, 200); };
         syncSend();
         if (!closed && !mine.sent) setTimeout(function () { try { input.focus({ preventScroll: true }); } catch (e) {} }, 30);
+      } else if (q.kind === 'cloze') {
+        // 🔤 The sentence with its gaps: one box per missing keyword.
+        var words = Array.isArray(draft.v) ? draft.v.slice() : [];
+        draft.v = words;
+        var sentence = el('div', 'vcCloze');
+        var boxes = [];
+        (q.parts || []).forEach(function (p) {
+          if (typeof p !== 'number') { sentence.appendChild(el('span', 'vcClozeText', String(p))); return; }
+          var gap = el('input', 'vcGap');
+          gap.type = 'text';
+          gap.value = words[p] != null ? String(words[p]) : '';
+          gap.maxLength = LIMITS.gapChars;
+          gap.size = Math.max(6, Math.min(18, gap.value.length + 2));
+          gap.disabled = closed;
+          gap.autocomplete = 'off';
+          gap.setAttribute('autocorrect', 'off');
+          gap.setAttribute('aria-label', 'Missing word ' + (p + 1));
+          gap.placeholder = String(p + 1);
+          gap.addEventListener('input', function () {
+            words[p] = gap.value; draft.v = words; mine.dirty = true;
+            gap.size = Math.max(6, Math.min(18, gap.value.length + 2));
+            syncCloze();
+          });
+          gap.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            var at = boxes.indexOf(gap);
+            if (at >= 0 && at < boxes.length - 1) boxes[at + 1].focus(); else sendCloze.click();
+          });
+          boxes.push(gap);
+          sentence.appendChild(gap);
+        });
+        body.appendChild(sentence);
+        var cTools = el('div', 'vcOpenTools');
+        cTools.appendChild(el('span', 'vcMuted', 'Fill in the missing words, then press Send.'));
+        cTools.appendChild(el('span', 'vcBarGap'));
+        var sendCloze = btn('vcPrimary', mine.sent && !mine.dirty ? 'Send again' : 'Send', null, function () {
+          if (closed) return;
+          draft.v = boxes.map(function (b) { return b.value; });
+          if (!draft.v.some(function (w) { return oneLine(w, 5); })) return;
+          submit(q, draft);
+        });
+        cTools.appendChild(sendCloze);
+        body.appendChild(cTools);
+        var syncCloze = function () { sendCloze.disabled = closed || !boxes.some(function (b) { return oneLine(b.value, 5); }); };
+        syncCloze();
+        if (!closed && !mine.sent && boxes[0]) setTimeout(function () { try { boxes[0].focus({ preventScroll: true }); } catch (e) {} }, 30);
       } else {
         var ta = el('textarea', 'vcOpen');
         ta.placeholder = 'Write your answer here';
@@ -3924,7 +4169,7 @@
 
     /* ---------- ❓ Ask: build a question and push it ---------- */
     function blankCompose(kind) {
-      return { kind: kind || 'mcq', text: '', options: ['', '', '', ''], answer: -1, accepted: '', model: '', photo: true, img: '', to: 'all', pick: {} };
+      return { kind: kind || 'mcq', text: '', options: ['', '', '', ''], answer: -1, accepted: '', model: '', photo: true, img: '', to: 'all', pick: {}, gapPick: {}, hideModel: false, keyFrom: '' };
     }
     /* ---------- ✨ AI send: drag over a question, Chung GPT reads and pushes it ----------
        The teacher drags a box round a question on the worksheet (the glue's
@@ -4009,6 +4254,7 @@
       var c = S.compose || (S.compose = blankCompose(S.prefs.lastKind));
       var card = el('div', 'vcAsk');
       paintAiSend(card);
+      paintHidden(card);
 
       // Quick questions: one tap, for "everyone look at the board".
       var quick = el('div', 'vcQuick');
@@ -4035,7 +4281,7 @@
 
       // The question.
       var qLab = el('label', 'vcField');
-      qLab.appendChild(el('span', null, c.kind === 'blank' ? 'Question (use ___ for the blank)' : 'Question'));
+      qLab.appendChild(el('span', null, c.kind === 'blank' ? 'Question (use ___ for the blank)' : c.kind === 'cloze' ? 'Question (shown above the sentence with the gaps)' : 'Question'));
       var ta = el('textarea', 'vcQText');
       ta.rows = 3;
       ta.placeholder = c.kind === 'mcq' ? 'e.g. Which of these is a conductor of electricity?'
@@ -4103,9 +4349,24 @@
         aLab.appendChild(acc);
         card.appendChild(aLab);
         card.appendChild(el('p', 'vcHint', 'Numbers match however they are written (100, 100.0, 1e2), and capitals and spaces are ignored.'));
+      } else if (c.kind === 'cloze') {
+        paintClozeFields(card, c, function () { syncSend(); });
+      } else if (c.hideModel && c.model) {
+        // 🔒 The AI's answer came from the hidden answers: it marks, it is
+        // shown when the teacher presses 💡, and it stays covered here so a
+        // screen the class can see never shows it by accident.
+        var hid = el('div', 'vcHiddenModel');
+        hid.appendChild(el('span', null, '🔒 The AI answer is kept hidden — it is used to mark, and shown only when you press 💡 Show the answer.'));
+        hid.appendChild(btn('vcChip', '👁 Show it to me', 'Show the hidden answer here (only on this screen)', function () { c.hideModel = false; paintSide(); }));
+        card.appendChild(hid);
+        var ph0 = el('label', 'vcCheck');
+        var ph0Box = el('input'); ph0Box.type = 'checkbox'; ph0Box.checked = c.photo !== false;
+        ph0Box.addEventListener('change', function () { c.photo = ph0Box.checked; });
+        ph0.appendChild(ph0Box); ph0.appendChild(el('span', null, 'Students may add a photo of their working'));
+        card.appendChild(ph0);
       } else {
         var mLab = el('label', 'vcField');
-        mLab.appendChild(el('span', null, 'Model answer (optional — shown when you reveal)'));
+        mLab.appendChild(el('span', null, 'Model answer (optional — marks the answers, and is shown when you reveal)'));
         var model = el('textarea'); model.rows = 2; model.value = c.model;
         model.addEventListener('input', function () { c.model = model.value; });
         mLab.appendChild(model);
@@ -4149,6 +4410,7 @@
       function syncSend() {
         var ok = !!(oneLine(c.text, 10) || c.img);
         if (c.kind === 'mcq') ok = ok && c.options.filter(function (o) { return oneLine(o, 5); }).length >= 2;
+        if (c.kind === 'cloze') ok = !!clozeFrom(c.model, c.gapPick);
         sendBtn.disabled = !ok;
       }
       syncSend();
@@ -4170,6 +4432,132 @@
       }
     }
 
+    /* ---------- 🔤 Fill in the keywords: tap the words to blank out ---------- */
+    function paintClozeFields(card, c, changed) {
+      var aLab = el('label', 'vcField');
+      aLab.appendChild(el('span', null, 'The full answer (the AI’s, or type your own)'));
+      var full = el('textarea'); full.rows = 3; full.value = c.model;
+      full.placeholder = 'e.g. Plants make their own food by photosynthesis, using light energy from the Sun.';
+      full.addEventListener('input', function () { c.model = full.value; c.gapPick = {}; changed(); });
+      // The chips are redrawn when the teacher leaves the box (not on every
+      // key, which would take the cursor away mid-word).
+      full.addEventListener('change', function () { paintSide(); });
+      aLab.appendChild(full);
+      card.appendChild(aLab);
+      var toks = clozeTokens(c.model);
+      if (!toks.some(function (t) { return t.word; })) {
+        card.appendChild(el('p', 'vcHint', 'Type or fetch the answer first, then tap the words the student must fill in.'));
+        return;
+      }
+      card.appendChild(el('span', 'vcMuted', 'Tap the keywords to blank out (' + aiName() + '’s suggestions are lit). Words side by side make one blank.'));
+      var chips = el('div', 'vcWordChips');
+      toks.forEach(function (tk, i) {
+        if (tk.space) { if (/\n/.test(tk.t)) chips.appendChild(el('span', 'vcWordBreak')); return; }
+        if (!tk.word) { chips.appendChild(el('span', 'vcWordPunct', tk.t)); return; }
+        var on = !!c.gapPick[i];
+        var b = btn('vcWord' + (on ? ' on' : ''), tk.t, on ? 'Put this word back' : 'Blank out this word', function () {
+          if (c.gapPick[i]) delete c.gapPick[i]; else c.gapPick[i] = true;
+          paintSide();
+        });
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        chips.appendChild(b);
+      });
+      card.appendChild(chips);
+      var cz = clozeFrom(c.model, c.gapPick);
+      var prev = el('div', 'vcClozePreview');
+      prev.appendChild(el('b', null, 'The student sees: '));
+      if (cz) {
+        cz.parts.forEach(function (p) { prev.appendChild(typeof p === 'number' ? el('span', 'vcGapShow', String(p + 1)) : el('span', null, p)); });
+        if (cz.keys.length >= LIMITS.gaps) prev.appendChild(el('span', 'vcMuted', ' (at most ' + LIMITS.gaps + ' blanks)'));
+      } else {
+        prev.appendChild(el('span', 'vcMuted', 'no blanks yet — tap a word above.'));
+      }
+      card.appendChild(prev);
+      card.appendChild(el('p', 'vcHint', 'An answer with the same word is ✓ at once; a different word that means the same is judged by ' + aiName() + ' (you confirm or change the mark).'));
+    }
+
+    /* ---------- 🔒 Hidden answers: the whole worksheet, worked out in the background ---------- */
+    function hiddenKey() { return env.hiddenKey && typeof env.hiddenKey.state === 'function' ? env.hiddenKey : null; }
+    function hiddenAuto() { return S.prefs.keyAuto !== false; }
+    // Called from the teacher's tick: a worksheet open with nothing worked
+    // out yet starts by itself (once per worksheet), unless switched off.
+    function hiddenTick() {
+      var hk = hiddenKey();
+      if (!hk || !isTeacher() || S.mode !== 'live' || !hiddenAuto() || typeof hk.ensure !== 'function') return;
+      try { hk.ensure(); } catch (e) {}
+    }
+    function useKeyItem(item, form) {
+      var made = keyItemCompose(item, form);
+      if (!made) return;
+      var c = S.compose || blankCompose();
+      S.compose = Object.assign(blankCompose(made.kind), made, { to: c.to, pick: c.pick });
+      S.tab = 'ask';
+      S.keyOpen = false;
+      paintSide();
+      say(form === 'cloze' ? '🔤 Tap the keywords to blank out, then press 📤 Push.' : form === 'open' ? '✍️ Ready as a blank open-ended question — the AI answer stays hidden. Press 📤 Push.' : 'Ready — check it, then press 📤 Push.');
+    }
+    function paintHidden(card) {
+      var hk = hiddenKey();
+      if (!hk || !isTeacher()) return;
+      if (!S.keyWired && typeof hk.onChange === 'function') {
+        S.keyWired = true;
+        hk.onChange(function () { if (S.role === 'teacher' && S.tab === 'ask') paintSide(true); });
+      }
+      var st = hk.state() || {};
+      var items = cleanKeyItems(st.items);
+      var box = el('div', 'vcHidden');
+      var top = el('div', 'vcHiddenTop');
+      var word = st.status === 'running' ? '🔒 Working out the answers… ' + (st.total ? (st.done || 0) + ' of ' + st.total + ' pages' : '')
+        : st.status === 'ready' ? '🔒 Hidden answers ready · ' + items.length + ' question' + (items.length === 1 ? '' : 's')
+        : st.status === 'failed' ? '🔒 The answers could not be worked out' + (st.error ? ': ' + st.error : '')
+        : !st.docId ? '🔒 Open a worksheet to work out its answers' : '🔒 Hidden answers';
+      var head = btn('vcHiddenHead', word + (items.length ? (S.keyOpen ? ' ▴' : ' ▾') : ''), 'Every question on the worksheet, worked out by ' + aiName() + ' and kept off the shared screen', function () { S.keyOpen = !S.keyOpen; paintSide(true); });
+      top.appendChild(head);
+      if (st.docId && st.status !== 'running') {
+        top.appendChild(btn('vcChip', st.status === 'ready' ? '↻ Again' : '✨ Work out all answers', st.status === 'ready' ? 'Work every answer out again' : 'Have ' + aiName() + ' answer every question on this worksheet now, in the background', function () {
+          Promise.resolve(hk.build(st.status === 'ready')).catch(function (e) { say('🔒 ' + ((e && e.message) || e)); });
+          paintSide(true);
+        }));
+      }
+      box.appendChild(top);
+      if (st.status === 'failed' && st.failed && st.failed.length) box.appendChild(el('p', 'vcHint', 'Page' + (st.failed.length === 1 ? ' ' : 's ') + st.failed.join(', ') + ' could not be read.'));
+      if (S.keyOpen && items.length) {
+        box.appendChild(el('p', 'vcHint', 'Answers stay covered. ✍️ Blank sends the question for the student to answer in full; 🔤 Keywords lets you pick words of the answer to blank out.'));
+        var list = el('div', 'vcHiddenList');
+        S.keyPeek = S.keyPeek || {};
+        items.forEach(function (it) {
+          var row = el('div', 'vcHiddenRow');
+          var line = el('div', 'vcHiddenQ');
+          line.appendChild(el('b', null, 'Q' + (it.number || '?') + (it.page ? ' · p' + it.page : '')));
+          line.appendChild(el('span', 'vcHiddenText', it.question || '(question on the worksheet)'));
+          row.appendChild(line);
+          if (S.keyPeek[it.id]) {
+            var shown = it.kind === 'mcq' && it.option ? '(' + it.option + ') ' + it.answer : (it.model || it.answer);
+            row.appendChild(el('p', 'vcHiddenAns', shown));
+          }
+          var acts = el('div', 'vcHiddenActs');
+          acts.appendChild(btn('vcChip', S.keyPeek[it.id] ? '🙈 Hide' : '👁 Peek', S.keyPeek[it.id] ? 'Cover the answer again' : 'Show this answer on THIS screen only', function () {
+            if (S.keyPeek[it.id]) delete S.keyPeek[it.id]; else S.keyPeek[it.id] = true;
+            paintSide(true);
+          }));
+          if (it.kind !== 'mcq') {
+            acts.appendChild(btn('vcChip', '✍️ Blank', 'Send it fully blank: the student writes the whole answer', function () { useKeyItem(it, 'open'); }));
+            acts.appendChild(btn('vcChip', '🔤 Keywords', 'Send the answer with a few keywords blanked out for the student to fill in', function () { useKeyItem(it, 'cloze'); }));
+          }
+          if (it.kind === 'mcq' || it.kind === 'blank') acts.appendChild(btn('vcChip', it.kind === 'mcq' ? '🅰 As MCQ' : '▭ Short blank', 'Send it the way it is printed, marked by the key', function () { useKeyItem(it, 'asis'); }));
+          row.appendChild(acts);
+          list.appendChild(row);
+        });
+        box.appendChild(list);
+      }
+      var auto = el('label', 'vcCheck');
+      var aBox = el('input'); aBox.type = 'checkbox'; aBox.checked = hiddenAuto();
+      aBox.addEventListener('change', function () { S.prefs.keyAuto = aBox.checked; savePrefs(); if (aBox.checked) hiddenTick(); });
+      auto.appendChild(aBox); auto.appendChild(el('span', null, 'Work out the answers by itself when a worksheet is open in class'));
+      box.appendChild(auto);
+      card.appendChild(box);
+    }
+
     // ONE way a question leaves the teacher: built through cleanQuestion,
     // recorded in the lesson, then pushed.
     function sendQuestion(c, fromComposer) {
@@ -4188,10 +4576,12 @@
         img = { ref: ref, n: chunkImage(c.img, ref).length };
         if (typeof env.savePhoto === 'function') Promise.resolve(env.savePhoto(S.session.epoch, ref, c.img)).catch(function () {});
       }
+      var cz = c.kind === 'cloze' ? clozeFrom(c.model, c.gapPick) : null;
+      if (c.kind === 'cloze' && !cz) { say('Tap at least one word of the answer to blank it out.'); return; }
       var q = cleanQuestion({
         id: randomId('q'), kind: c.kind, text: c.text, options: c.options, answer: c.answer,
         accepted: c.accepted, model: c.model, photo: c.photo, img: img, to: to, at: now(), n: S.session.questions.length + 1, open: true,
-        ai: c.ai === true
+        ai: c.ai === true, parts: cz ? cz.parts : null, keys: cz ? cz.keys : null, hidden: !!c.keyFrom
       });
       if (!q) { say(c.kind === 'mcq' ? 'A multiple-choice question needs a question (or a picture) and at least two options.' : 'Type the question, or add a picture, first.'); return; }
       S.session = Object.assign({}, S.session, { questions: S.session.questions.concat([q]) });
@@ -4319,7 +4709,8 @@
       S.aiMarking[qid] = (S.aiMarking[qid] || 0) + batch.length;
       paintSide(true);
       var ask = {
-        question: { n: q.n, kind: q.kind, text: q.text, accepted: q.accepted || [], model: q.model || '' },
+        question: { n: q.n, kind: q.kind, text: q.text, accepted: q.accepted || [], model: q.model || '',
+          gaps: q.kind === 'cloze' ? clozeText(q.parts, []) : '', keys: q.kind === 'cloze' ? (q.keys || []) : [] },
         img: q.img && validImage(S.images[q.img.ref]) ? S.images[q.img.ref] : '',
         // Students are numbered, never named, for the model: a name is no
         // help in marking and stays on the teacher's device.
@@ -4414,7 +4805,14 @@
         head.appendChild(qi);
       }
       var right = revealOf(q);
-      if (right && right.text) head.appendChild(el('p', 'vcHint', 'Answer: ' + right.text));
+      S.boardPeek = S.boardPeek || {};
+      if (right && right.text && q.hidden && !q.revealed && !S.boardPeek[q.id]) {
+        // 🔒 Sent from the hidden answers: covered here too until it is shown.
+        var cover = el('div', 'vcHiddenModel');
+        cover.appendChild(el('span', null, '🔒 Answer hidden — it marks the answers, and the class sees it only when you press 💡.'));
+        cover.appendChild(btn('vcChip', '👁 Show it to me', 'Show the answer on this screen only', function () { S.boardPeek[q.id] = true; paintSide(true); }));
+        head.appendChild(cover);
+      } else if (right && right.text) head.appendChild(el('p', 'vcHint', 'Answer: ' + right.text));
       var stats = el('p', 'vcStats');
       stats.textContent = st.answered + ' answered' + (st.asked ? ' of ' + st.asked + ' here' : '') +
         (st.right ? ' · ✓ ' + st.right : '') + (st.partial ? ' · ◐ ' + st.partial : '') + (st.wrong ? ' · ✗ ' + st.wrong : '') +
@@ -4650,7 +5048,7 @@
 
     /* ---------- 🧾 Reports: one summary per student, for the parent ---------- */
     function centreName() { return typeof env.centre === 'function' ? env.centre() : 'Polymath Learning Centre'; }
-    /* 📈 The progress book (v1.214.0): one small summary per child per
+    /* 📈 The progress book (v1.216.0): one small summary per child per
        lesson, kept by the glue (users/{teacher}/liveClassProgress/main), so a
        report can show the child's recent live lessons. It is loaded before
        it is ever written, so a slow read can never overwrite it with an
