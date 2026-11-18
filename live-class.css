@@ -704,3 +704,14 @@ body.vcCropping .vcWin { opacity: .14; pointer-events: none; transition: opacity
 :root[data-theme="dark"] .vcHiddenAns { background: rgba(76, 175, 80, .12); color: #a5d6a7; }
 :root[data-theme="dark"] .vcClozePreview { background: rgba(255, 255, 255, .06); }
 :root[data-theme="dark"] .vcWord.on { background: #eceff1; color: #1a1a1a; border-color: #eceff1; }
+
+/* ---------- 👀 Leaving the lesson screen (v1.217.0) ---------- */
+.vcTile.vcOutNow { box-shadow: inset 0 0 0 3px #e0483e; }
+.vcTile.vcOutNow::before {
+  content: '👀 Left the lesson'; position: absolute; right: 6px; top: 6px; z-index: 3; font-size: 11px; font-weight: 700;
+  padding: 2px 7px; border-radius: 999px; background: rgba(224, 72, 62, .95); color: #fff;
+}
+.vcOutFlag { margin: 4px 0 0; font-size: 12.5px; font-weight: 700; color: #b3261e; line-height: 1.4; }
+.vcLeaves { border-color: #f0b4ae; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .vcOutFlag { color: #ff8a80; } }
+:root[data-theme="dark"] .vcOutFlag { color: #ff8a80; }

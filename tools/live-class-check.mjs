@@ -738,6 +738,24 @@ try {
 
   for (const S of [S1, S2, S3]) { const done = S.locator('.vcQ .vcDone'); if (await done.isVisible()) await done.click(); }
 
+  /* ---------- 3c. 👀 leaving the lesson screen (v1.217.0) ---------- */
+  console.log('Leaving the lesson screen');
+  ok('a student in front of the lesson is not counted as away', !(await T.evaluate(() => (window.toasts || []).some(m => /left the lesson screen/.test(m)))), JSON.stringify(await T.evaluate(() => window.toasts.slice(-5))));
+  await S1.evaluate(() => { window.__hasFocus = document.hasFocus.bind(document); document.hasFocus = () => false; window.dispatchEvent(new Event('blur')); });
+  ok('👀 clicking another window: the teacher is told within seconds', await until(() => T.evaluate(() => window.toasts.some(m => /Amy Tan left the lesson screen/.test(m))), 10000), JSON.stringify(await T.evaluate(() => window.toasts.slice(-5))));
+  ok('…and Amy\'s tile says so', await until(() => T.locator('.vcTile.vcOutNow').count().then(n => n === 1), 5000));
+  await S1.waitForTimeout(1500);
+  await S1.evaluate(() => { document.hasFocus = () => true; window.dispatchEvent(new Event('focus')); });
+  ok('coming back clears the tile', await until(() => T.locator('.vcTile.vcOutNow').count().then(n => n === 0), 10000));
+  const leaves = await until(async () => { const r = await T.evaluate(() => { const p = window.lc.state().session.people; const a = Object.values(p).find(x => x.name === 'Amy Tan'); return a && a.leaves; }); return r && r.length === 1 && r[0].ms >= 2000 ? r : null; }, 8000);
+  ok('the lesson record keeps when she left and for how long', !!leaves, JSON.stringify(leaves));
+  // A blip (under two seconds) is not leaving.
+  await S1.evaluate(() => { document.hasFocus = () => false; window.dispatchEvent(new Event('blur')); });
+  await S1.waitForTimeout(600);
+  await S1.evaluate(() => { document.hasFocus = () => true; window.dispatchEvent(new Event('focus')); });
+  await S1.waitForTimeout(2500);
+  ok('a blip under two seconds is not counted', await T.evaluate(() => { const p = window.lc.state().session.people; const a = Object.values(p).find(x => x.name === 'Amy Tan'); return a.leaves.length === 1; }));
+
   /* ---------- 4. hands ---------- */
   await shot(S1, '07d-before-hand'); await shot(T, '07e-teacher-before-hand');
   await S1.locator('.vcCtl', { hasText: '✋' }).first().click();
