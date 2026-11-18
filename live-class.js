@@ -36,11 +36,12 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.216.0';
+  var VERSION = '1.217.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open', 'cloze'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended', cloze: 'Fill in the keywords' };
   var LIMITS = {
+    leaveLog: 80,
     text: 600,
     option: 140,
     options: 6,
@@ -454,8 +455,108 @@
       via: p.via === 'zoom' ? 'zoom' : '',
       // 📈 v1.216.0: milliseconds the class screen was hidden on the child's
       // device, and how many times it was left (their device's own count).
-      away: Math.max(0, Math.min(FOCUS_MAX_MS, Number(p.away) || 0)), awayN: Math.max(0, Math.min(9999, Math.floor(Number(p.awayN) || 0)))
+      away: Math.max(0, Math.min(FOCUS_MAX_MS, Number(p.away) || 0)), awayN: Math.max(0, Math.min(9999, Math.floor(Number(p.awayN) || 0))),
+      // 👀 v1.217.0: every time they left the lesson screen, by the teacher's
+      // clock: { at (when they left), ms (how long; 0 = still away), k: 'away' | 'photo' }.
+      leaves: cleanLeaves(p.leaves)
     };
+  }
+  /* ---------- 👀 leaving the lesson screen (v1.217.0) ----------
+     Zhi Kai, 18 Nov 2026: "students will use AI to generate answers". The
+     child's device now counts EVERY time the lesson stops being the thing in
+     front of them: another tab, another app, the window minimised, the phone
+     locked, or a click on another window (the browser window losing focus).
+     A blip under LEAVE_MIN_MS (a click on the address bar) is not counted.
+     Opening the camera for "📷 Add a photo of my working" is recorded as a
+     photo, not as leaving. The teacher's device is told the moment a child
+     leaves and when they come back, and an answer carries how often the
+     child left while that question was open and how soon after coming back
+     they sent it. It cannot see a second device, and a 📱 Zoom answer phone
+     (which sits behind Zoom by design) reports nothing. */
+  var LEAVE_MIN_MS = 2000;
+  var LEAVES_KEEP = 60;
+  var BACK_RECENT_S = 60;
+  function cleanLeave(x) {
+    if (!x || typeof x !== 'object') return null;
+    var at = Math.floor(Number(x.at) || 0);
+    if (!(at > 0)) return null;
+    return { at: at, ms: Math.max(0, Math.min(FOCUS_MAX_MS, Math.floor(Number(x.ms) || 0))), k: x.k === 'photo' ? 'photo' : 'away' };
+  }
+  function cleanLeaves(list) {
+    return (Array.isArray(list) ? list : []).map(cleanLeave).filter(Boolean).slice(-LEAVES_KEEP);
+  }
+  // The teacher's device hears "left" (out: true) and "back" (out: false, ms).
+  // A "back" closes the open leave; a "back" whose "left" was lost is added
+  // with its start worked out from how long the child was away.
+  function personLeave(session, identity, msg, now) {
+    var p = session && session.people && session.people[identity];
+    if (!p || !msg || (msg.out !== true && msg.out !== false)) return session;
+    var q = cleanPerson(p);
+    var list = q.leaves.slice();
+    var last = list.length ? list[list.length - 1] : null;
+    var k = msg.k === 'photo' ? 'photo' : 'away';
+    if (msg.out === true) {
+      if (last && last.ms === 0) return session;            // already away
+      list.push({ at: now, ms: 0, k: k });
+    } else {
+      var ms = Math.max(LEAVE_MIN_MS, Math.min(FOCUS_MAX_MS, Math.floor(Number(msg.ms) || 0)));
+      if (last && last.ms === 0) list[list.length - 1] = { at: last.at, ms: Math.max(ms, Math.min(FOCUS_MAX_MS, now - last.at)), k: last.k };
+      else list.push({ at: Math.max(1, now - ms), ms: ms, k: k });
+    }
+    q.leaves = list.slice(-LEAVES_KEEP);
+    var people = Object.assign({}, session.people); people[identity] = q;
+    return Object.assign({}, session, { people: people });
+  }
+  function isAwayNow(p) {
+    var l = p && Array.isArray(p.leaves) && p.leaves.length ? p.leaves[p.leaves.length - 1] : null;
+    return !!(l && l.ms === 0);
+  }
+  // What an answer says about leaving: { n: times left while the question was
+  // open, ms: for how long in all, back: seconds from the last return to the
+  // answer (-1 = had not left) }. From the child's own device.
+  function cleanOut(x) {
+    if (!x || typeof x !== 'object') return null;
+    var n = Math.max(0, Math.min(99, Math.floor(Number(x.n) || 0)));
+    if (!n) return null;
+    var back = Math.floor(Number(x.back));
+    return { n: n, ms: Math.max(0, Math.min(FOCUS_MAX_MS, Math.floor(Number(x.ms) || 0))), back: isFinite(back) && back >= 0 ? Math.min(3600, back) : -1 };
+  }
+  // The child's side: from their leave log [{from, to, k}] (their own clock),
+  // what to say about leaving with an answer to a question that arrived at gotAt.
+  function outForAnswer(log, gotAt, sentAt) {
+    var n = 0, ms = 0, lastBack = 0;
+    (Array.isArray(log) ? log : []).forEach(function (x) {
+      if (!x || x.k === 'photo') return;
+      var to = x.to || sentAt;
+      if (to <= gotAt || x.from >= sentAt) return;
+      n++; ms += Math.max(0, Math.min(to, sentAt) - Math.max(x.from, gotAt));
+      if (x.to && x.to > lastBack) lastBack = x.to;
+    });
+    if (!n) return null;
+    return { n: n, ms: Math.round(ms), back: lastBack ? Math.max(0, Math.round((sentAt - lastBack) / 1000)) : 0 };
+  }
+  // A flagged answer: the child left while the question was open.
+  function outWords(o) {
+    o = cleanOut(o);
+    if (!o) return '';
+    return 'left the lesson ' + (o.n === 1 ? 'once' : o.n + ' times') + ' during this question (' + secondsWords(Math.round(o.ms / 1000)) + ')' +
+      (o.back >= 0 && o.back <= BACK_RECENT_S ? ', answered ' + secondsWords(o.back) + ' after coming back' : '');
+  }
+  // For the teacher: the leaves, counted and listed (photos apart).
+  function leaveSummary(session, identity, now) {
+    var p = session && session.people && session.people[identity];
+    if (!p) return null;
+    var list = cleanLeaves(p.leaves);
+    var away = list.filter(function (x) { return x.k !== 'photo'; });
+    var flagged = 0;
+    Object.keys((session && session.answers) || {}).forEach(function (qid) {
+      var e = session.answers[qid][identity];
+      if (e && cleanOut(e.out)) flagged++;
+    });
+    var longest = 0, total = 0;
+    away.forEach(function (x) { var ms = x.ms || Math.max(0, now - x.at); total += ms; if (ms > longest) longest = ms; });
+    return { count: away.length, photos: list.length - away.length, totalMs: total, longestMs: longest, awayNow: isAwayNow({ leaves: list }), flagged: flagged,
+      list: away.map(function (x) { return { at: x.at, clock: sgClock(x.at), ms: x.ms, now: x.ms === 0 }; }) };
   }
   // A participant arriving or leaving: presence is counted in milliseconds so
   // a child who drops out on weak wifi and comes back keeps every minute.
@@ -518,6 +619,9 @@
     var hasPhoto = !!msg.ph && validId(msg.ph);
     if ((value == null || value === '') && !hasPhoto) return { session: session, fresh: false, reason: 'empty' };
     var entry = { aid: msg.aid, v: value, at: now, sentAt: Number(msg.at) || now, auto: autoMark(q, value), ok: null, pts: 0, ph: hasPhoto ? msg.ph : '', edits: had ? (had.edits || 0) + 1 : 0 };
+    // 👀 v1.217.0: the child left the lesson while this question was open.
+    var out = cleanOut(msg.out);
+    if (out) entry.out = out;
     if (had) { entry.ok = null; entry.pts = had.pts || 0; }
     var nb = Object.assign({}, byQ); nb[identity] = entry;
     var answers = Object.assign({}, session.answers); answers[q.id] = nb;
@@ -1342,6 +1446,7 @@
     personFocus: personFocus, presentMs: presentMs, performance: performance, levelWord: levelWord, sgClock: sgClock, sgDay: sgDay, secondsWords: secondsWords,
     perfSummary: perfSummary, cleanSummary: cleanSummary, progressMerge: progressMerge, historyFor: historyFor, historyLines: historyLines, trendOf: trendOf,
     reportCardHtml: reportCardHtml, FOCUS_PREFIX: FOCUS_PREFIX, PROGRESS_KEEP: PROGRESS_KEEP,
+    LEAVE_MIN_MS: LEAVE_MIN_MS, cleanLeaves: cleanLeaves, personLeave: personLeave, isAwayNow: isAwayNow, cleanOut: cleanOut, outForAnswer: outForAnswer, outWords: outWords, leaveSummary: leaveSummary,
     gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, minuteMB: minuteMB, SCREEN: SCREEN, wantTrack: wantTrack,
     shareConstraints: shareConstraints,
     filterNames: filterNames, cleanPrefs: cleanPrefs,
@@ -2742,6 +2847,9 @@
       } catch (e) {}
     }
     function stopWakeLock() { try { if (S.wakeLock) S.wakeLock.release(); } catch (e) {} S.wakeLock = null; }
+    // 👀 v1.217.0: a click on another window, and coming back to this one.
+    root.addEventListener('blur', function () { setTimeout(focusChanged, 0); });
+    root.addEventListener('focus', function () { setTimeout(focusChanged, 0); });
     document.addEventListener('visibilitychange', function () {
       focusChanged();
       if (document.visibilityState === 'visible' && S.mode === 'live') {
@@ -3369,6 +3477,7 @@
       t.hand.hidden = true;
       t.el.dataset.identity = identity;
       if (S.session && S.session.people[identity] && S.session.people[identity].via === 'zoom') t.el.classList.add('vcViaZoom');
+      if (S.session && S.session.people[identity] && isAwayNow(cleanPerson(S.session.people[identity]))) t.el.classList.add('vcOutNow');
       t.media.appendChild(t.initials);
       t.el.appendChild(t.media); t.el.appendChild(t.name); t.el.appendChild(t.badge); t.el.appendChild(t.net); t.el.appendChild(t.hand);
       if (S.role === 'teacher') {
@@ -3590,9 +3699,22 @@
     function onFocus(identity, msg) {
       if (!S.session || !S.session.people[identity]) return;
       var next = personFocus(S.session, identity, msg, now());
+      // 👀 v1.217.0: left / came back, the moment it happens.
+      if (msg.out === true || msg.out === false) {
+        var wasAway = isAwayNow(cleanPerson(next.people[identity]));
+        next = personLeave(next, identity, msg, now());
+        var p = cleanPerson(next.people[identity]);
+        if (msg.out === true && !wasAway && msg.k !== 'photo' && S.mode === 'live') say('👀 ' + p.name + ' left the lesson screen.');
+        markTileAway(identity, isAwayNow(p) && msg.k !== 'photo');
+      }
       if (next === S.session) return;
       S.session = next;
       saveSoon();
+      if (S.tab === 'people' || S.tab === 'answers' || S.tab === 'reports') paintSide(true);
+    }
+    function markTileAway(identity, on) {
+      var tile = S.tiles && S.tiles[identity];
+      if (tile && tile.el) tile.el.classList.toggle('vcOutNow', !!on);
     }
     function onNeedImage(identity, ref) {
       if (!S.images[ref]) return;
@@ -3724,13 +3846,21 @@
     function focusKey() { return FOCUS_PREFIX + (S.epoch || 0) + ':' + (S.identity || ''); }
     function focusLoad() {
       var f = readJson(session(), focusKey(), null);
-      S.focus = { away: Math.max(0, Number(f && f.away) || 0), n: Math.max(0, Math.floor(Number(f && f.n) || 0)), hiddenAt: 0, sentAt: 0, sent: -1 };
-      if (document.visibilityState === 'hidden') S.focus.hiddenAt = now();
+      S.focus = { away: Math.max(0, Number(f && f.away) || 0), n: Math.max(0, Math.floor(Number(f && f.n) || 0)),
+        log: (Array.isArray(f && f.log) ? f.log : []).filter(function (x) { return x && x.from > 0; }).slice(-LIMITS.leaveLog),
+        awayAt: 0, kind: 'away', told: false, timer: 0, photoAt: 0, sentAt: 0, sent: -1 };
+      // 👀 Told once, at the start: the deterrent is half the point.
+      say('👀 Stay on this lesson screen — your teacher can see when you leave it.');
+      focusChanged();
+    }
+    function focusSave() {
+      var f = S.focus;
+      if (f) writeJson(session(), focusKey(), { away: f.away, n: f.n, log: f.log.slice(-LIMITS.leaveLog) });
     }
     function focusAway() {
       var f = S.focus;
       if (!f) return 0;
-      return f.away + (f.hiddenAt ? Math.max(0, now() - f.hiddenAt) : 0);
+      return f.away + (f.awayAt && f.told && f.kind === 'away' ? Math.max(0, now() - f.awayAt) : 0);
     }
     function focusTick(force) {
       if (S.role !== 'student' || S.mode !== 'live' || answerOnlyHere() || !S.focus) return;
@@ -3741,16 +3871,51 @@
       S.focus.sent = away;
       sendTeacher({ t: 'focus', away: Math.round(away), n: S.focus.n });
     }
+    // 👀 Away = this tab hidden (another tab or app, minimised, locked) OR
+    // the browser window not the one in front (a click on another window).
+    function domAway() {
+      if (document.visibilityState === 'hidden') return true;
+      try { if (typeof document.hasFocus === 'function' && !document.hasFocus()) return true; } catch (e) {}
+      return false;
+    }
+    // "📷 Add a photo" opens the camera or the file picker: that is not leaving.
+    function focusPhotoSoon() { if (S.focus) S.focus.photoAt = now(); }
     function focusChanged() {
-      if (S.role !== 'student' || S.mode !== 'live' || !S.focus) return;
-      if (document.visibilityState === 'hidden') {
-        if (!S.focus.hiddenAt) { S.focus.hiddenAt = now(); S.focus.n += 1; }
-      } else if (S.focus.hiddenAt) {
-        S.focus.away += Math.max(0, now() - S.focus.hiddenAt);
-        S.focus.hiddenAt = 0;
+      if (S.role !== 'student' || S.mode !== 'live' || !S.focus || answerOnlyHere()) return;
+      var f = S.focus;
+      if (domAway()) {
+        if (f.awayAt) return;
+        f.awayAt = now(); f.told = false;
+        f.kind = f.photoAt && now() - f.photoAt < 15000 ? 'photo' : 'away';
+        clearTimeout(f.timer);
+        // A blip (a click on the address bar) is not leaving.
+        f.timer = setTimeout(function () {
+          if (!f.awayAt || !domAway() || S.focus !== f) return;
+          f.told = true;
+          if (f.kind === 'away') f.n += 1;
+          f.log.push({ from: f.awayAt, to: 0, k: f.kind });
+          f.log = f.log.slice(-LIMITS.leaveLog);
+          focusSave();
+          sendTeacher({ t: 'focus', out: true, k: f.kind, away: Math.round(focusAway()), n: f.n });
+        }, LEAVE_MIN_MS);
+        return;
       }
-      writeJson(session(), focusKey(), { away: S.focus.away, n: S.focus.n });
-      if (document.visibilityState === 'visible') focusTick(true);
+      if (!f.awayAt) return;
+      clearTimeout(f.timer);
+      var ms = now() - f.awayAt;
+      var wasTold = f.told;
+      if (ms >= LEAVE_MIN_MS) {
+        if (!wasTold) { if (f.kind === 'away') f.n += 1; f.log.push({ from: f.awayAt, to: 0, k: f.kind }); }
+        var last = f.log[f.log.length - 1];
+        if (last && !last.to) last.to = now();
+        if (f.kind === 'away') f.away += ms;
+        f.awayAt = 0; f.told = false; f.photoAt = 0;
+        focusSave();
+        sendTeacher({ t: 'focus', out: false, ms: Math.round(ms), k: last ? last.k : 'away', away: Math.round(f.away), n: f.n });
+        f.sentAt = now(); f.sent = f.away;
+      } else {
+        f.awayAt = 0; f.told = false;
+      }
     }
     function flushOutbox(force) {
       if (S.mode !== 'live' || !teacherIdentity()) return;
@@ -3761,7 +3926,7 @@
         e.tries = (e.tries || 0) + 1;
         var chain = Promise.resolve();
         if (e.ph && e.photo && (e.tries === 1 || e.tries % 3 === 0 || force)) chain = chain.then(function () { return sendImage(e.photo, e.ph, [teacherIdentity()]); });
-        chain.then(function () { return sendTeacher({ t: 'a', aid: e.aid, qid: e.qid, v: e.v, ph: e.ph || undefined, at: e.at }); });
+        chain.then(function () { return sendTeacher({ t: 'a', aid: e.aid, qid: e.qid, v: e.v, ph: e.ph || undefined, at: e.at, out: e.out || undefined }); });
         var mine = S.mine[e.qid];
         if (mine && mine.aid === e.aid && e.tries > 2 && !mine.slow) { mine.slow = true; paintQuestion(); }
       });
@@ -3775,6 +3940,8 @@
       if (!q) return;
       var isNew = !S.questions[q.id];
       S.questions[q.id] = q;
+      if (!S.qGot) S.qGot = {};
+      if (!S.qGot[q.id]) S.qGot[q.id] = now();
       if (S.order.indexOf(q.id) === -1) S.order.push(q.id);
       if (q.img && !S.images[q.img.ref]) {
         // The picture comes in pieces just before the question; ask again if
@@ -4005,7 +4172,7 @@
             shrinkPhoto(f, LIMITS.photoPx).then(function (d) { draft.photo = d; mine.dirty = true; paintQuestion(); }, function () { say('That photo could not be read. Try again.'); });
           });
           tools.appendChild(file);
-          tools.appendChild(btn('', draft.photo ? '📷 Change photo' : '📷 Add a photo of my working', 'Take or choose a photo', function () { if (!closed) file.click(); }));
+          tools.appendChild(btn('', draft.photo ? '📷 Change photo' : '📷 Add a photo of my working', 'Take or choose a photo', function () { if (!closed) { focusPhotoSoon(); file.click(); } }));
           var camVid = media('self', 'camera');
           if (camVid) tools.appendChild(btn('', '🎦 Snap from my camera', 'Take a picture from your video camera — hold your work up to it', function () {
             if (closed) return;
@@ -4055,6 +4222,9 @@
       var aid = randomId('a');
       var ph = draft.photo ? randomId('p') : '';
       var entry = { aid: aid, qid: q.id, v: value, ph: ph, photo: draft.photo || '', at: now(), sentAt: 0, tries: 0 };
+      // 👀 Did they leave the lesson while this question was open?
+      var out = S.focus ? outForAnswer(S.focus.log, (S.qGot && S.qGot[q.id]) || q.at || 0, entry.at) : null;
+      if (out) entry.out = out;
       S.outbox = outboxAdd(S.outbox, entry);
       S.mine[q.id] = { aid: aid, v: value, photo: draft.photo || '', sent: true, acked: false, ok: null, pts: (S.mine[q.id] || {}).pts || 0 };
       saveOutbox();
@@ -4925,6 +5095,8 @@
         row.appendChild(top);
         var said = answerText(q, e.v);
         if (said) row.appendChild(el('p', 'vcAnsText', said));
+        // 👀 v1.217.0: they left the lesson while this question was open.
+        if (cleanOut(e.out)) row.appendChild(el('p', 'vcOutFlag', '⚠ ' + outWords(e.out)));
         if (e.ph) {
           var img = el('img', 'vcThumb vcAnsPhoto');
           photoFor(e.ph, img);
@@ -5014,6 +5186,11 @@
         var pf = performance(s, p.identity, now());
         row.appendChild(el('p', 'vcMuted', r.minutes + ' min · ' + r.answered + '/' + r.asked + ' answered' + (r.marked ? ' · ✓ ' + r.right + '/' + r.marked : '') + (p.hands ? ' · ✋ ' + p.hands : '') +
           (pf && pf.focusPct != null ? ' · 👀 ' + pf.focusPct + '%' : '') + (q && p.here ? ' · ' + q : '')));
+        var lv = leaveSummary(s, p.identity, now());
+        if (lv && (lv.count || lv.awayNow)) {
+          row.appendChild(el('p', 'vcOutFlag', (lv.awayNow ? '👀 Away from the lesson now · ' : '') + 'Left ' + lv.count + '× (' + secondsWords(Math.round(lv.totalMs / 1000)) + ')' +
+            (lv.flagged ? ' · ⚠ ' + lv.flagged + ' answer' + (lv.flagged === 1 ? '' : 's') + ' after leaving' : '')));
+        }
         if (S.mode === 'live') {
           var acts = el('div', 'vcRow vcSmall');
           if (p.here) {
@@ -5103,6 +5280,16 @@
       tile('Answer speed', f.avgSecs == null ? '—' : secondsWords(f.avgSecs), levelWord('speed', f.avgSecs));
       tile('Focus', f.focusPct == null ? '—' : f.focusPct + '%', f.focusPct == null ? (f.via === 'zoom' ? '📱 on Zoom' : 'not measured') : levelWord('focus', f.focusPct) + (f.awayTimes ? ' · left ' + f.awayTimes + '×' : ''));
       tile('Hands', String(f.hands || 0), f.points ? f.points + ' pts' : '');
+      // 👀 v1.217.0: every time they left the lesson screen, for the teacher.
+      var lv = leaveSummary(S.session, p.identity, S.session.endedAt || now());
+      if (lv && lv.count) {
+        var lb = el('div', 'vcPerfHist vcLeaves');
+        lb.appendChild(el('span', 'vcPerfLabel', '👀 Left the lesson screen ' + lv.count + '× · ' + secondsWords(Math.round(lv.totalMs / 1000)) + ' in all · longest ' + secondsWords(Math.round(lv.longestMs / 1000))));
+        lb.appendChild(el('p', 'vcMuted', lv.list.map(function (x) { return x.clock + (x.now ? ' (still away)' : ' for ' + secondsWords(Math.round(x.ms / 1000))); }).join(' · ')));
+        if (lv.flagged) lb.appendChild(el('p', 'vcOutFlag', '⚠ ' + lv.flagged + ' answer' + (lv.flagged === 1 ? ' was' : 's were') + ' sent after leaving the lesson during that question — see 📋 Answers.'));
+        if (lv.photos) lb.appendChild(el('p', 'vcMuted', '📷 Opened the camera for a photo of their working ' + lv.photos + '× (not counted).'));
+        box.appendChild(lb);
+      }
       var hist = historyOf(p.identity);
       if (hist.length) {
         var h = el('div', 'vcPerfHist');
@@ -5168,6 +5355,8 @@
           if (pf.scorePct != null) chips.push('✓ ' + pf.scorePct + '%');
           if (pf.avgSecs != null) chips.push('⏱ ' + secondsWords(pf.avgSecs));
           if (pf.focusPct != null) chips.push('👀 ' + pf.focusPct + '%');
+          var lvc = leaveSummary(s, p.identity, s.endedAt || now());
+          if (lvc && lvc.count) chips.push('left ' + lvc.count + '×' + (lvc.flagged ? ' ⚠ ' + lvc.flagged : ''));
           if (chips.length) head.appendChild(el('span', 'vcRepChips', chips.join('  ·  ')));
         }
         if (sent) head.appendChild(el('span', 'vcTag ok', '✓ sent ' + new Date(sent.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })));

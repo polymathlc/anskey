@@ -5,6 +5,20 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 👀 v1.217.0 — Live class: see when a student leaves the lesson screen
+
+- **Every time a student leaves the lesson is counted**: another tab, another app, the window minimised, the phone
+  locked, or a click on another window. A blip under two seconds (a click on the address bar) is not counted, and
+  opening the camera for "📷 Add a photo of my working" is recorded as a photo, not as leaving.
+- **You are told at once**: a "👀 Amy Tan left the lesson screen" message, and a red "Left the lesson" badge on their
+  tile until they come back. People shows "Left 3× (2 min 10 s)".
+- **Answers sent after leaving are flagged** in 📋 Answers: "⚠ left the lesson twice during this question (45 seconds),
+  answered 12 seconds after coming back".
+- **🧾 Reports** lists every leave with its time and length, and how many answers were flagged. These details are for
+  the teacher; the parent's email keeps the Focus score ("left it 3 times").
+- Students are told when they join: "Stay on this lesson screen — your teacher can see when you leave it."
+- Limits: a second phone or computer cannot be seen, and a 📱 Zoom answer phone reports nothing.
+
 ## 📈 v1.216.0 — Live class: performance tracking for parents
 
 - **Every student is tracked through the lesson.** Besides time in class, answers, marks and hands, the live class now

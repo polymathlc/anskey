@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.216.0');
+  assert.equal(P.VERSION, '1.217.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
   assert.match(html, /var APP_VERSION = 'v1\.2(1[2-9]|[2-9]\d)\.\d+'/);
-  assert.match(html, /live-class\.js\?v=1\.216\.0/);
+  assert.match(html, /live-class\.js\?v=1\.217\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.216\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.217\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -1104,4 +1104,57 @@ test('hidden answers never travel in the room: only the teacher\'s panel reads t
   assert.equal(/t: 'q', q: questionForStudent\(q\)/.test(src), true);
   assert.equal(/hiddenKey[^\n]*send\(/.test(src), false);
   assert.match(html, /liveKeys/);
+});
+
+/* ---------- 👀 leaving the lesson screen (v1.217.0) ---------- */
+test('👀 personLeave: left, back, a lost "left", photos apart, and the list is capped', () => {
+  let s = lesson();
+  s = P.personLeave(s, 'r:famA_s1', { out: true, k: 'away' }, 10000);
+  assert.equal(P.isAwayNow(s.people['r:famA_s1']), true);
+  assert.equal(P.personLeave(s, 'r:famA_s1', { out: true }, 11000), s, 'already away: nothing new');
+  s = P.personLeave(s, 'r:famA_s1', { out: false, ms: 30000 }, 40000);
+  assert.deepEqual(plain(s.people['r:famA_s1'].leaves), [{ at: 10000, ms: 30000, k: 'away' }]);
+  // The "left" was lost on weak wifi: the "back" alone records it.
+  s = P.personLeave(s, 'r:famA_s1', { out: false, ms: 5000 }, 100000);
+  assert.deepEqual(plain(s.people['r:famA_s1'].leaves[1]), { at: 95000, ms: 5000, k: 'away' });
+  s = P.personLeave(s, 'r:famA_s1', { out: true, k: 'photo' }, 200000);
+  s = P.personLeave(s, 'r:famA_s1', { out: false, ms: 20000, k: 'photo' }, 220000);
+  const sum = P.leaveSummary(s, 'r:famA_s1', 300000);
+  assert.equal(sum.count, 2, 'a photo is not leaving');
+  assert.equal(sum.photos, 1);
+  assert.equal(sum.totalMs, 35000);
+  assert.equal(sum.longestMs, 30000);
+  assert.equal(sum.awayNow, false);
+  assert.equal(P.personLeave(s, 'r:nobody_x', { out: true }, 1), s);
+  assert.equal(P.personLeave(s, 'r:famA_s1', { out: 'maybe' }, 1), s);
+  let many = lesson();
+  for (let i = 0; i < 70; i++) many = P.personLeave(many, 'g:anon1', { out: false, ms: 3000 }, 10000 + i * 10000);
+  assert.equal(many.people['g:anon1'].leaves.length, 60);
+});
+
+test('👀 an answer says the child left during the question, and how soon after coming back they sent it', () => {
+  const log = [{ from: 1000, to: 4000, k: 'away' }, { from: 20000, to: 50000, k: 'away' }, { from: 52000, to: 60000, k: 'photo' }, { from: 90000, to: 95000, k: 'away' }];
+  const o = P.outForAnswer(log, 10000, 62000);
+  assert.deepEqual(plain(o), { n: 1, ms: 30000, back: 12 }, 'only the leave inside the question counts, photos never');
+  assert.equal(P.outForAnswer(log, 60000, 80000), null, 'nothing while it was open');
+  assert.deepEqual(plain(P.outForAnswer([{ from: 5000, to: 0, k: 'away' }], 1000, 9000)), { n: 1, ms: 4000, back: 0 }, 'still away while answering');
+  assert.match(P.outWords(o), /left the lesson once during this question \(30 seconds\), answered 12 seconds after coming back/);
+  assert.equal(P.outWords(null), '');
+  // The teacher's device keeps it on the answer, cleaned.
+  let s = lesson();
+  s = P.recordAnswer(s, 'r:famA_s1', { qid: 'q1', aid: 'a1', v: 1, out: { n: 2, ms: 45000, back: 7, evil: '<x>' } }, 5000).session;
+  assert.deepEqual(plain(s.answers.q1['r:famA_s1'].out), { n: 2, ms: 45000, back: 7 });
+  s = P.recordAnswer(s, 'g:anon1', { qid: 'q1', aid: 'a2', v: 0, out: { n: 0 } }, 5000).session;
+  assert.equal(s.answers.q1['g:anon1'].out, undefined, 'no leaves, no flag');
+  assert.equal(P.leaveSummary(s, 'r:famA_s1', 6000).flagged, 1);
+});
+
+test('👀 the window: blur and focus are watched, photos are excused, the teacher is told', () => {
+  assert.match(src, /root\.addEventListener\('blur'/);
+  assert.match(src, /document\.hasFocus\(\)/);
+  assert.match(src, /focusPhotoSoon\(\); file\.click\(\)/);
+  assert.match(src, /left the lesson screen\.'/);
+  assert.match(src, /out: e\.out \|\| undefined/);
+  assert.match(src, /your teacher can see when you leave it/);
+  assert.match(css, /\.vcTile\.vcOutNow::before/);
 });
