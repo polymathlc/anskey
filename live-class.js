@@ -1841,7 +1841,7 @@
       }
       var lab = el('label', 'vcField');
       lab.appendChild(el('span', null, 'Lesson slot (whose names students see)'));
-      var sel = el('select');
+      var sel = el('select', 'vcSlotSel');
       sel.appendChild(new Option('Loading the class list…', ''));
       lab.appendChild(sel);
       card.appendChild(lab);
