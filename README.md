@@ -5,6 +5,17 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🙋 v1.218.0 — Live class: attendance, "not joined yet" emails and catch-up emails
+
+- **Attendance is taken from the live class.** Enrolled children (from the office timetable) who have not joined
+  10 minutes after the lesson starts are listed on a banner in the teacher window. By default their parents are
+  emailed automatically after a 60-second countdown (Send now / Wait); the start card can switch this to "ask me"
+  or off, and change the 10 minutes. ✋ Here marks a child who is on Zoom only (Zoom is invisible to the app).
+- **Catch-up email**: when the teacher ends the class, parents of children who never joined get one email with the
+  catch-up link to Polymath Online. Both emails are sent once per child per lesson, from admin@.
+- Stored in `officeSettings/attend-YYYY-MM-DD` (admin-only); the office can correct a mark. Progress history and
+  parent report cards show "Absent" for missed lessons.
+
 ## 👀 v1.217.0 — Live class: see when a student leaves the lesson screen
 
 - **Every time a student leaves the lesson is counted**: another tab, another app, the window minimised, the phone

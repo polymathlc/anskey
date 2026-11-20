@@ -87,8 +87,175 @@ function reportMail({ to, subject, html, text, epoch, rosterId, test, by, at }) 
     liveClassReport: { epoch: Number(epoch) || 0, rosterId: typeof rosterId === 'string' ? rosterId.slice(0, 130) : '', test: test === true, by: by || '', at: at || 0 }
   };
 }
-const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study', 'report']);
-const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'report']);
+/* ---------- 🙋 Attendance and absence alerts (v1.218.0) ----------
+   Zhi Kai, 20 Nov 2026: "Attendance is taken from the live lesson, and a
+   parent gets a message if their child has not joined ten minutes in, plus
+   a catch-up link afterwards. When a student is absent, any reports sent to
+   parents show that."
+
+   Attendance is ONLY what the Ans Key live class saw: a child counts as here
+   once they joined it (on a computer, a tablet or a 📱 Zoom answer phone). A
+   child who is on Zoom without ever opening the live class is NOT seen, so
+   the teacher (here) and the office (polymathlc.com.sg/office/#lessons) can
+   mark anyone as here by hand, and a child marked here is never emailed.
+
+   The record of one day, beside the office's other settings (admins only):
+     officeSettings/attend-YYYY-MM-DD = {
+       kind: 'attendance-day', day,
+       live:   { [slotId]: { epoch, slot, label, start, end, release, startedAt,
+                             dueAt, checkedAt, closedAt, expected: {rosterId: name},
+                             joined: {rosterId: first join ms}, final } },
+       alerts: { [slotId__rosterId]: { late: {at, to, id}, catchup: {at, to, id} } },
+       marks:  { [slotId__rosterId]: { s: 'here' | 'absent', by, at } }   // by hand
+     }
+   The live class writes `live` and `alerts`; the office writes `marks` too.
+   Every email is a document in `mail` with a fixed id per child per lesson,
+   made only when it does not exist yet, so a parent is never told twice. */
+const ATTEND_COLLECTION = 'officeSettings';
+const ATTEND_KIND = 'attendance-day';
+const ATTEND_PREFIX = 'attend-';
+const ABSENT_MAIL_PREFIX = 'live-class-absent-';
+const CATCHUP_MAIL_PREFIX = 'live-class-catchup-';
+const SITE_URL = 'https://polymathlc.com.sg';
+const LIVE_URL = SITE_URL + '/live/';
+const ONLINE_URL = SITE_URL + '/online/';
+const RELEASE_AFTER_MS = 15 * 60000;      // the lesson clock: answer keys open 15 min after the end
+const ATTEND_EXPECTED_MAX = 60;
+function sgDayKey(ms) { return new Date(Number(ms) + 8 * 3600000).toISOString().slice(0, 10); }
+function attendDocId(day) { return ATTEND_PREFIX + (/^\d{4}-\d{2}-\d{2}$/.test(String(day)) ? day : 'invalid'); }
+function attendKey(slotId, rosterId) { return String(slotId || '') + '__' + String(rosterId || ''); }
+// The lesson a class belongs to: the slot's own times on the day the class
+// was opened. A class opened on another day (a moved lesson) runs from when
+// it was opened, for as long as the slot's lesson.
+function lessonWindow(slotId, startedAt) {
+  const times = slotTimes(slotId);
+  const at = Number(startedAt) || 0;
+  if (!times || !(at > 0)) return null;
+  const c = sgClock(at);
+  const lengthMs = Math.max(30, times.end - times.start) * 60000;
+  if (c.code === times.code) {
+    const start = c.midnight + times.start * 60000;
+    // Opened more than two hours after its own start: that is a lesson of its own.
+    if (at - start <= 2 * 3600000) {
+      const end = c.midnight + times.end * 60000;
+      return { day: sgDayKey(start), start, end, release: end + RELEASE_AFTER_MS, moved: false, startLabel: times.startLabel, endLabel: times.endLabel };
+    }
+  }
+  return { day: sgDayKey(at), start: at, end: at + lengthMs, release: at + lengthMs + RELEASE_AFTER_MS, moved: true,
+    startLabel: clockLabel(c.minutes), endLabel: clockLabel(c.minutes + lengthMs / 60000) };
+}
+// When the "not joined yet" check is due: N minutes after the lesson started,
+// or after the class was opened when the teacher opened it late.
+function absentDueAt(win, startedAt, afterMin) {
+  if (!win) return 0;
+  return Math.max(win.start, Number(startedAt) || 0) + cleanAbsentAfter(afterMin) * 60000;
+}
+// { rosterId: ms } from the teacher's device, cleaned: roster keys only,
+// times that make sense for this lesson.
+function cleanJoined(map, from, to) {
+  const out = {};
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return out;
+  let n = 0;
+  for (const k of Object.keys(map)) {
+    if (n >= ATTEND_EXPECTED_MAX * 2) break;
+    if (!splitRosterKey(k)) continue;
+    const at = Math.floor(Number(map[k]));
+    if (!Number.isFinite(at) || at < from || at > to) continue;
+    out[k] = at; n++;
+  }
+  return out;
+}
+function cleanIdList(list) {
+  return [...new Set((Array.isArray(list) ? list : []).map(String).filter(k => splitRosterKey(k)))].slice(0, ATTEND_EXPECTED_MAX);
+}
+// Who was meant to be in the lesson and who was not: { present, missing }.
+// joined and marks come from the day's record; a child marked here by hand
+// counts as here, a child marked absent by hand as absent even if joined.
+function attendanceSplit(expected, joined, marks, slotId) {
+  const present = [], missing = [];
+  for (const id of Object.keys(expected || {})) {
+    const m = marks && marks[attendKey(slotId, id)];
+    const s = m && (m.s === 'here' || m.s === 'absent') ? m.s : '';
+    if (s === 'here' || (!s && joined && joined[id])) present.push(id); else missing.push(id);
+  }
+  return { present, missing };
+}
+function escHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function firstWord(name) { return String(name || '').trim().split(/\s+/)[0] || 'your child'; }
+function greeting(parentName) {
+  const p = String(parentName || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return p && p.toLowerCase() !== 'parent' ? 'Hi ' + p + ',' : 'Hello,';
+}
+function dateWords(ms) {
+  const d = new Date(Number(ms) + 8 * 3600000);
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return days[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + months[d.getUTCMonth()];
+}
+function clockOf(ms) { const c = sgClock(ms); return clockLabel(c.minutes); }
+// "P5 Science" from the timetable (or "your lesson").
+function classWords(slotId, schedule) {
+  const slot = ((schedule && schedule.slots) || {})[slotId] || {};
+  const sub = String(slot.subject || '').trim();
+  const subject = /^math/i.test(sub) ? 'Maths' : sub;
+  return slot.level && subject ? (slot.type === 'master' ? 'Master Class ' : '') + levelLabel(slot.level) + ' ' + subject : 'lesson';
+}
+function mailCard(title, colour, paragraphs, button) {
+  const P = 'font-size:15px;line-height:1.6;margin:0 0 12px;color:#10303a;';
+  let h = '<div style="background:#f4f8f9;padding:18px 10px;font-family:Arial,Helvetica,sans-serif;"><div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #d1eaee;overflow:hidden;">';
+  h += '<div style="background:' + colour + ';color:#ffffff;padding:16px 20px;font-size:18px;font-weight:700;">' + escHtml(title) + '</div><div style="padding:18px 20px 8px;">';
+  paragraphs.forEach(p => { h += '<p style="' + P + '">' + p + '</p>'; });
+  if (button) h += '<p style="margin:16px 0 18px;"><a href="' + escHtml(button.href) + '" style="display:inline-block;background:' + colour + ';color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:999px;font-size:15px;">' + escHtml(button.label) + '</a></p>';
+  h += '<p style="font-size:12px;line-height:1.5;color:#6b7f85;margin:14px 0 12px;">Polymath Learning Centre · reply to this email with any question.</p></div></div></div>';
+  return h;
+}
+/* "Not joined yet", N minutes into the lesson. */
+function absentEmail({ parentName, childName, classLabel, startMs, joinUrl, catchUp }) {
+  const first = firstWord(childName);
+  const subject = first + ' has not joined today’s ' + classLabel + ' yet (' + clockOf(startMs) + ')';
+  const after = catchUp ? ' After the lesson we will email you a catch-up link with the worksheet, the answer key and the lesson video.' : '';
+  const lines = [
+    greeting(parentName),
+    first + '’s ' + classLabel + ' lesson started at ' + clockOf(startMs) + ' today (' + dateWords(startMs) + '), and ' + first + ' has not joined the live class yet.',
+    'If ' + first + ' is on the way, tap the button below to join straight away.',
+    'If ' + first + ' is in the lesson on Zoom, or is away today, there is nothing you need to do.' + after
+  ];
+  const html = mailCard('⏰ ' + first + ' has not joined yet', '#b26a00', lines.map(escHtml), { href: joinUrl, label: 'Join the lesson now' });
+  const text = lines.join('\n\n') + '\n\nJoin the lesson: ' + joinUrl + '\n\nPolymath Learning Centre · reply to this email with any question.';
+  return { subject, html, text };
+}
+/* "Missed today's lesson": the catch-up, when the class ends. */
+function catchUpEmail({ parentName, childName, classLabel, win }) {
+  const first = firstWord(childName);
+  const when = dateWords(win.start) + ', ' + win.startLabel + (win.endLabel ? ' – ' + win.endLabel : '');
+  const subject = 'Catch-up for ' + first + ': ' + classLabel + ' on ' + dateWords(win.start);
+  const lines = [
+    greeting(parentName),
+    first + ' was absent from today’s ' + classLabel + ' lesson (' + when + '). We missed ' + first + '! Here is how to catch up at home:',
+    '1. Open Polymath Online: the worksheet from today’s lesson, its answer key and the lesson video are there from ' + clockOf(win.release) + '.',
+    '2. Work through the worksheet first, then check each answer with the answer key.',
+    '3. Watch the lesson video for the parts that are new, and bring any question to the next lesson.',
+    'If ' + first + ' was actually in the lesson (for example on Zoom), please reply and we will correct our record.'
+  ];
+  const html = mailCard('📚 Catch-up for ' + first, '#056c76', lines.map(escHtml), { href: ONLINE_URL, label: 'Open Polymath Online' });
+  const text = lines.join('\n\n') + '\n\nPolymath Online: ' + ONLINE_URL + '\n\nPolymath Learning Centre · reply to this email with any question.';
+  return { subject, html, text };
+}
+function alertMail({ to, subject, html, text, kind, slot, rosterId, epoch, day, by, at }) {
+  return {
+    to: to.slice(), from: REPORT_FROM, replyTo: REPORT_REPLY_TO,
+    message: { subject: String(subject).replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, LIVE_CLASS_LIMITS.reportSubjectMax), html, text },
+    liveClassAttendance: { kind, slot, rosterId, epoch: Number(epoch) || 0, day, by: by || '', at: at || 0 }
+  };
+}
+function alertMailId(kind, day, slotId, rosterId) {
+  return (kind === 'catchup' ? CATCHUP_MAIL_PREFIX : ABSENT_MAIL_PREFIX) + day + '-' + String(slotId).replace(/[^A-Za-z0-9-]/g, '') + '-' + String(rosterId).replace(/[^A-Za-z0-9_-]/g, '');
+}
+
+const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study', 'report', 'attendance']);
+const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'report', 'attendance']);
 // 🔗 Personal links and PINs (v1.210.0). A child's own link carries a code
 // the server can CHECK but nobody can make: the roster key, a generation
 // (bumped when a link is lost) and an HMAC over both, keyed from the same
@@ -281,9 +448,26 @@ function cleanEarly(v) {
   if (!Number.isFinite(n)) return EARLY_DEFAULT;
   return Math.max(0, Math.min(EARLY_MAX, n));
 }
+// 🙋 v1.218.0: absence alerts. absentMode: 'auto' (the teacher's window
+// counts down a minute, then emails the parents of every child who has not
+// joined), 'ask' (the window lists them with one Email button) or 'off'.
+// absentAfter: minutes after the lesson starts. catchUp: when the class ends,
+// email a catch-up link to the parents of every child who never came.
+const ABSENT_MODES = ['auto', 'ask', 'off'];
+const ABSENT_AFTER_DEFAULT = 10;
+function cleanAbsentAfter(v) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return ABSENT_AFTER_DEFAULT;
+  return Math.max(3, Math.min(45, n));
+}
 function cleanSettings(d) {
   const o = d && typeof d === 'object' ? d : {};
-  return { earlyMin: o.earlyMin === undefined ? EARLY_DEFAULT : cleanEarly(o.earlyMin) };
+  return {
+    earlyMin: o.earlyMin === undefined ? EARLY_DEFAULT : cleanEarly(o.earlyMin),
+    absentMode: ABSENT_MODES.includes(o.absentMode) ? o.absentMode : 'auto',
+    absentAfter: o.absentAfter === undefined ? ABSENT_AFTER_DEFAULT : cleanAbsentAfter(o.absentAfter),
+    catchUp: o.catchUp !== false
+  };
 }
 // Where `ms` falls in Singapore: the day's code, minutes since midnight and
 // the instant that midnight was.
@@ -898,6 +1082,132 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
     return { students: enrolledStudents(docsOf(famSnap), sgMonth(t)), schedule };
   }
 
+  /* ---- 🙋 attendance (v1.218.0) ----
+     One run: who was meant to be in this lesson, who joined (the teacher's
+     device's list, plus whoever LiveKit has in the room now), and — when
+     asked — the emails: `late` N minutes in, `catchup` when the class ends.
+     Returns the class list for the teacher's window. */
+  function attendRef(day) { return db.collection(ATTEND_COLLECTION).doc(attendDocId(day)); }
+  async function familyOf(familyId) {
+    try { const snap = await db.collection(OFFICE_FAMILIES).doc(familyId).get(); return snap.exists ? snap.data() || {} : null; }
+    catch (error) { report('live_class_attend_family', error); return null; }
+  }
+  async function sendAlert(kind, { day, slot, rosterId, name, epoch, win, schedule, settings, passes, by, t }) {
+    const key = splitRosterKey(rosterId);
+    const fam = key ? await familyOf(key.familyId) : null;
+    const to = reportEmails([fam && fam.email, fam && fam.email2]);
+    if (!to.length) return { sent: false, reason: 'no_email' };
+    const id = alertMailId(kind, day, slot, rosterId);
+    const mailRef = db.collection(REPORT_MAIL_COLLECTION).doc(id);
+    const had = await mailRef.get();
+    if (had.exists) return { sent: false, reason: 'already', id, to };
+    const classLabel = classWords(slot, schedule);
+    let msg;
+    if (kind === 'late') {
+      // The child's own link joins them as themselves in one tap; without one, the class door.
+      const entry = passes && passes[rosterId];
+      const code = entry ? passCode(rosterId, entry.gen, master()) : '';
+      const joinUrl = code ? LIVE_URL + '?c=' + encodeURIComponent(code) : LIVE_URL;
+      msg = absentEmail({ parentName: fam.parentName, childName: name, classLabel, startMs: win.start, joinUrl, catchUp: settings.catchUp });
+    } else {
+      msg = catchUpEmail({ parentName: fam.parentName, childName: name, classLabel, win });
+    }
+    await mailRef.set(alertMail({ to, subject: msg.subject, html: msg.html, text: msg.text, kind, slot, rosterId, epoch, day, by, at: t }));
+    return { sent: true, id, to };
+  }
+  async function attendanceRun(actor, { state, joinedIn, send, skip, here, final, t }) {
+    const slot = state.slot;
+    if (!slot || !slotTimes(slot)) return { taken: false, reason: 'no_slot' };
+    const win = lessonWindow(slot, state.startedAt);
+    if (!win) return { taken: false, reason: 'no_slot' };
+    const [{ students, schedule }, settings] = await Promise.all([enrolment(t), readSettings()]);
+    const expected = {};
+    students.filter(s => s.slots.includes(slot)).slice(0, ATTEND_EXPECTED_MAX).forEach(s => { expected[s.id] = s.name; });
+    const ref = attendRef(win.day);
+    const snap = await ref.get();
+    const doc = snap.exists ? snap.data() || {} : {};
+    const prevLive = (doc.live && doc.live[slot]) || {};
+    const marks = { ...(doc.marks || {}) };
+    const alerts = { ...(doc.alerts || {}) };
+    // Joined: what was saved before, what the teacher's device saw, and who is in the room now.
+    const joined = { ...cleanJoined(prevLive.joined, win.start - 3 * 3600000, t + 60000) };
+    const add = (id, at) => { if (!joined[id] || at < joined[id]) joined[id] = at; };
+    const seen = cleanJoined(joinedIn, Math.min(win.start, state.startedAt) - 3 * 3600000, t + 60000);
+    Object.keys(seen).forEach(id => add(id, seen[id]));
+    if (state.open && state.room) {
+      try {
+        const cfg = await requireConfig();
+        for (const p of await participantsIn(cfg, state.room, t)) {
+          const m = /^r:([A-Za-z0-9-]{1,60}_[A-Za-z0-9-]{1,60})$/.exec(String(p.identity || ''));
+          if (m) add(m[1], Math.floor(Number(p.joined_at || p.joinedAt) * 1000) || t);
+        }
+      } catch (error) { report('live_class_attend_room', error); }
+    }
+    // The teacher's "Here (on Zoom)": a hand mark, which the office sees too.
+    const marked = {};
+    for (const id of cleanIdList(here)) {
+      if (!expected[id]) continue;
+      marked[attendKey(slot, id)] = { s: 'here', by: 'teacher', at: t, note: 'Marked here in the live class' };
+    }
+    Object.assign(marks, marked);
+    const dueAt = absentDueAt(win, state.startedAt, settings.absentAfter);
+    const split = attendanceSplit(expected, joined, marks, slot);
+    const skipSet = new Set(cleanIdList(skip));
+    const newAlerts = {};
+    const results = {};
+    const kind = final ? 'catchup' : 'late';
+    const allowed = settings.absentMode !== 'off' && (kind === 'late' ? state.open : settings.catchUp);
+    if (send === true && allowed && t >= dueAt) {
+      let passes = null;
+      if (kind === 'late') {
+        // Every child gets their own one-tap link; one made now is kept, as the Links & PINs window would.
+        try {
+          const made = ensurePasses(await readPasses(), students, master(), t);
+          if (made.changed) await writePasses(made.passes, t, actor.uid);
+          passes = made.passes;
+        } catch (error) { report('live_class_attend_passes', error); }
+      }
+      for (const id of split.missing) {
+        if (skipSet.has(id)) continue;
+        const k = attendKey(slot, id);
+        if (alerts[k] && alerts[k][kind]) continue;
+        // A child marked absent by hand in the office was already dealt with: no "not joined yet".
+        if (kind === 'late' && marks[k] && marks[k].s === 'absent') continue;
+        let r;
+        try { r = await sendAlert(kind, { day: win.day, slot, rosterId: id, name: expected[id], epoch: state.epoch, win, schedule, settings, passes, by: actor.uid, t }); }
+        catch (error) { report('live_class_attend_mail', error); r = { sent: false, reason: 'failed' }; }
+        results[id] = r;
+        if (r.sent || r.reason === 'already') {
+          const entry = { at: t, to: (r.to || []).slice(0, 4), id: r.id || '' };
+          newAlerts[k] = { ...(alerts[k] || {}), [kind]: entry };
+          alerts[k] = newAlerts[k];
+        }
+      }
+    }
+    const live = {
+      epoch: state.epoch, slot, label: slotLabel(slot, schedule), start: win.start, end: win.end, release: win.release, moved: win.moved,
+      startedAt: state.startedAt, dueAt, checkedAt: t, closedAt: final ? t : (Number(prevLive.closedAt) || 0),
+      expected, joined, final: final === true || prevLive.final === true
+    };
+    const write = { kind: ATTEND_KIND, day: win.day, v: 1, at: t, live: { [slot]: live } };
+    if (Object.keys(newAlerts).length) write.alerts = newAlerts;
+    if (Object.keys(marked).length) write.marks = marked;
+    await ref.set(write, { merge: true });
+    const rows = Object.keys(expected).map(id => {
+      const k = attendKey(slot, id);
+      const m = marks[k] && (marks[k].s === 'here' || marks[k].s === 'absent') ? marks[k].s : '';
+      return { id, name: expected[id], joinedAt: joined[id] || 0, mark: m, here: split.present.includes(id),
+        late: (alerts[k] && alerts[k].late && alerts[k].late.at) || 0, catchup: (alerts[k] && alerts[k].catchup && alerts[k].catchup.at) || 0,
+        noEmail: !!(results[id] && results[id].reason === 'no_email') };
+    }).sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+    return {
+      taken: true, day: win.day, slot, label: live.label, start: win.start, end: win.end, release: win.release, dueAt, now: t,
+      mode: settings.absentMode, after: settings.absentAfter, catchUp: settings.catchUp,
+      students: rows, missing: split.missing, present: split.present,
+      sent: Object.keys(results).filter(id => results[id].sent), noEmail: Object.keys(results).filter(id => results[id].reason === 'no_email')
+    };
+  }
+
   async function action(actor, body) {
     if (TEACHER_ACTIONS.has(body.action) && !actor.isTeacher) fail(403, 'teacher_only', 'Only the teacher can do that.');
     const t = now();
@@ -964,8 +1274,16 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
 
     if (body.action === 'settings') {
       const prev = await readSettings();
-      const next = cleanSettings({ ...prev, ...(body.earlyMin !== undefined ? { earlyMin: body.earlyMin } : {}) });
-      if (body.earlyMin !== undefined) await settingsRef.set({ ...next, at: t, by: actor.uid });
+      const change = {};
+      if (body.earlyMin !== undefined) change.earlyMin = body.earlyMin;
+      if (body.absentMode !== undefined) {
+        if (!ABSENT_MODES.includes(body.absentMode)) fail(400, 'invalid_request', 'Choose automatic, ask me, or off.');
+        change.absentMode = body.absentMode;
+      }
+      if (body.absentAfter !== undefined) change.absentAfter = body.absentAfter;
+      if (body.catchUp !== undefined) change.catchUp = body.catchUp === true;
+      const next = cleanSettings({ ...prev, ...change });
+      if (Object.keys(change).length) await settingsRef.set({ ...next, at: t, by: actor.uid });
       const state = await readState();
       return { settings: next, gate: state.open ? joinGate(state.slot, doorNow(), next.earlyMin, state.letIn) : null };
     }
@@ -983,6 +1301,13 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
     if (body.action === 'close') {
       const prev = await readState();
       const state = { ...prev, open: false, closedAt: t, letIn: false };
+      // 🙋 The class's last attendance, with the room still listed, and the
+      // catch-up emails for whoever never came. Never a reason not to close.
+      let attendance = null;
+      if (prev.open && prev.slot) {
+        try { attendance = await attendanceRun(actor, { state: prev, joinedIn: body.joined, send: body.catchUp !== false, skip: body.skip, here: body.here, final: true, t }); }
+        catch (error) { report('live_class_attend_close', error); }
+      }
       await stateRef.set(state);
       await writeMirror(state);
       // Ending the room disconnects everyone at once; a failure here is not
@@ -991,7 +1316,17 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
         try { const cfg = await requireConfig(); await roomService(fetchImpl, cfg, 'DeleteRoom', { room: prev.room }, t); }
         catch (error) { report('live_class_delete_room', error); }
       }
-      return publicState(state);
+      return attendance ? { ...publicState(state), attendance } : publicState(state);
+    }
+
+    // 🙋 The teacher's device, every minute or so while the class runs: the
+    // class list with who is here, and (send: true) the "not joined yet"
+    // emails once the check is due. Teacher only (TEACHER_ACTIONS).
+    if (body.action === 'attendance') {
+      const state = await readState();
+      const epoch = Math.floor(Number(body.epoch) || 0);
+      if (!state.open || (epoch && epoch !== state.epoch)) fail(409, 'class_closed', 'This class is not running any more.');
+      return attendanceRun(actor, { state, joinedIn: body.joined, send: body.send === true, skip: body.skip, here: body.here, final: false, t });
     }
 
     // 📈 ✉ A parent's performance report (v1.214.0), or a test copy to the
@@ -1259,7 +1594,9 @@ module.exports = {
   REPORT_MAIL_COLLECTION, REPORT_MAIL_PREFIX, REPORT_FROM, REPORT_REPLY_TO, reportEmails, reportMail,
   LiveClassError, validateBody, createLiveClassService,
   signAccessToken, readAccessToken, b64url, b64urlDecode, cleanUrl, httpBase, cleanKey, cleanSecret, maskKey,
-  EARLY_DEFAULT, EARLY_MAX, cleanEarly, cleanSettings, sgClock, slotTimes, clockLabel, joinGate, laterLessonToday,
+  EARLY_DEFAULT, EARLY_MAX, cleanEarly, cleanSettings, ABSENT_MODES, ABSENT_AFTER_DEFAULT, cleanAbsentAfter,
+  ATTEND_COLLECTION, ATTEND_KIND, ABSENT_MAIL_PREFIX, CATCHUP_MAIL_PREFIX, sgDayKey, attendDocId, attendKey, lessonWindow, absentDueAt,
+  cleanJoined, attendanceSplit, absentEmail, catchUpEmail, alertMailId, classWords, sgClock, slotTimes, clockLabel, joinGate, laterLessonToday,
   PASS_LIMITS_PIN: PIN_LIMITS, STUDY_PIN_LIMITS, STUDY_UID_PREFIX, PROFILES_COLLECTION, LIVE_CLASS_ORIGINS,
   liveClassOrigin, studyUid, subjectWords, slotSubjects, studySubject, studyLevel, studyProfileDoc, passCode, parsePass, checkPass, cleanPin, pinFor, cleanPasses, ensurePasses, pinOwner, pinTriesAllowed, pinTriesAfterMiss, passRows,
   cleanName, cleanIdentity, cleanSlot, rosterLists, enrolledStudents, slotChoices, slotLabel, familyState, rosterKey, splitRosterKey, sgMonth, roomFor, nextEpoch, grantsFor, sealSecret, openSecret, roomService

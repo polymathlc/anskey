@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.217.0';
+  var VERSION = '1.218.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open', 'cloze'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended', cloze: 'Fill in the keywords' };
@@ -841,6 +841,49 @@
       .sort(function (a, b) { return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }); });
   }
 
+  /* ---------- 🙋 attendance (v1.218.0) ----------
+     The server (ansKeyLiveClass, action "attendance") knows the class list
+     and sends the emails; the teacher's device says who joined and when the
+     minute's countdown is up. These are the rules the window paints from. */
+  // { rosterId: first join ms } from the lesson's record (roster children only).
+  function attJoinedMap(session) {
+    var out = {};
+    var people = (session && session.people) || {};
+    Object.keys(people).forEach(function (k) {
+      var m = /^r:([A-Za-z0-9-]{1,60}_[A-Za-z0-9-]{1,60})$/.exec(k);
+      var p = people[k];
+      if (m && p && Number(p.joinedAt) > 0) out[m[1]] = Number(p.joinedAt);
+    });
+    return out;
+  }
+  // The children whose parents would be emailed now: not here, not emailed
+  // yet, with an address, not marked absent in the office, not skipped.
+  function attPending(data, skip, joinedNow) {
+    if (!data || !data.taken || data.mode === 'off') return [];
+    var sk = skip || {}, jn = joinedNow || {};
+    return (Array.isArray(data.students) ? data.students : []).filter(function (r) {
+      return r && !r.here && !jn[r.id] && !r.late && !r.noEmail && r.mark !== 'absent' && !sk[r.id];
+    });
+  }
+  // "Amy, Ben and Chloe".
+  function namesWords(list) {
+    var n = (list || []).map(function (x) { return typeof x === 'string' ? x : (x && x.name) || ''; }).filter(Boolean);
+    if (n.length <= 1) return n.join('');
+    return n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1];
+  }
+  // One child's line in the teacher's attendance list.
+  function attStatus(r, joinedNow) {
+    if (!r) return { word: '', cls: '' };
+    var j = (joinedNow && joinedNow[r.id]) || r.joinedAt;
+    if (r.mark === 'here' && !j) return { word: '✋ Marked here', cls: 'here' };
+    if (r.mark === 'absent') return { word: '✗ Marked absent', cls: 'absent' };
+    if (j) return { word: '✓ Joined ' + sgClock(j), cls: 'here' };
+    if (r.catchup) return { word: '📚 Absent · catch-up emailed ' + sgClock(r.catchup), cls: 'absent' };
+    if (r.late) return { word: '✉ Not joined · parent emailed ' + sgClock(r.late), cls: 'late' };
+    if (r.noEmail) return { word: '⏳ Not joined · no parent email on file', cls: 'late' };
+    return { word: '⏳ Not joined yet', cls: 'wait' };
+  }
+
   /* ---------- the parent's participation report ---------- */
   function fmtDate(ms) {
     var d = new Date(Number(ms) || Date.now());
@@ -1007,7 +1050,11 @@
     var n = function (v, max) { v = Math.floor(Number(v)); return isFinite(v) ? Math.max(-1, Math.min(max, v)) : 0; };
     var e = Math.floor(Number(x.e)) || 0;
     if (!(e > 0)) return null;
-    return { e: e, d: Math.max(0, Number(x.d) || 0), l: oneLine(x.l, 60), m: n(x.m, 1000), q: n(x.q, 500), a: n(x.a, 500), r: n(x.r, 500), h: n(x.h, 500), k: n(x.k, 500), s: n(x.s, 1800), f: n(x.f, 100) };
+    var out = { e: e, d: Math.max(0, Number(x.d) || 0), l: oneLine(x.l, 60), m: n(x.m, 1000), q: n(x.q, 500), a: n(x.a, 500), r: n(x.r, 500), h: n(x.h, 500), k: n(x.k, 500), s: n(x.s, 1800), f: n(x.f, 100) };
+    // 🙋 v1.218.0: a lesson the child missed (from the day's attendance, never
+    // from the progress book): shown as "absent", never as a zero.
+    if (x.x === 1 || x.x === true) { out.x = 1; out.m = 0; out.q = 0; out.a = 0; out.r = 0; out.h = 0; out.k = 0; out.s = -1; out.f = -1; }
+    return out;
   }
   var PROGRESS_KEEP = 12;
   // The teacher's progress book: { v, students: { identity: { name, rows: [summary…] } } }.
@@ -1019,7 +1066,7 @@
     Object.keys(had).forEach(function (id) {
       if (!validIdentity(id)) return;
       var st = had[id] || {};
-      var rows = (Array.isArray(st.rows) ? st.rows : []).map(cleanSummary).filter(Boolean);
+      var rows = (Array.isArray(st.rows) ? st.rows : []).map(cleanSummary).filter(function (x) { return x && !x.x; });
       out.students[id] = { name: oneLine(st.name, LIMITS.name) || 'Student', rows: rows };
     });
     if (session && session.people && Number(session.epoch) > 0) {
@@ -1044,6 +1091,7 @@
       .sort(function (a, b) { return a.e - b.e; }).slice(-(max || 5));
   }
   function historyLine(x) {
+    if (x.x) return (sgDay(x.d) || 'Earlier lesson') + (x.l ? ' · ' + x.l : '') + ' · absent (missed this lesson)';
     var parts = [sgDay(x.d) || 'Earlier lesson'];
     if (x.q > 0) parts.push('answered ' + x.a + ' of ' + x.q);
     if (x.k > 0) parts.push(x.r + ' of ' + x.k + ' right' + (x.h ? ', ' + x.h + ' partly' : '') + ' (' + Math.round((x.r + 0.5 * x.h) / x.k * 100) + '%)');
@@ -1051,12 +1099,26 @@
     if (!x.q) parts.push(x.m + ' min in class');
     return parts.join(' · ');
   }
+  // 🙋 The lessons before this one with the ones the child missed put in
+  // (absences: [{ d: lesson start, l: label }]), oldest first, at most `max`.
+  function historyWithAbsences(history, absences, beforeMs, max) {
+    var rows = (Array.isArray(history) ? history : []).map(cleanSummary).filter(Boolean);
+    (Array.isArray(absences) ? absences : []).forEach(function (a) {
+      var d = Number(a && a.d) || 0;
+      if (!(d > 0) || (beforeMs && d >= beforeMs - 30 * 60000)) return;
+      // A lesson they were in after all (a row the same day) wins over a mark.
+      if (rows.some(function (x) { return !x.x && sgDay(x.d) === sgDay(d); })) return;
+      if (rows.some(function (x) { return x.x && sgDay(x.d) === sgDay(d); })) return;
+      rows.push(cleanSummary({ e: d, d: d, l: a.l || '', x: 1 }));
+    });
+    return rows.sort(function (a, b) { return a.d - b.d; }).slice(-(max || 5));
+  }
   function historyLines(history) {
     return (Array.isArray(history) ? history : []).map(cleanSummary).filter(Boolean).map(historyLine);
   }
   // Better, the same or lower than the average of the earlier lessons.
   function trendOf(history, perf) {
-    var rows = (Array.isArray(history) ? history : []).map(cleanSummary).filter(function (x) { return x && x.k > 0; });
+    var rows = (Array.isArray(history) ? history : []).map(cleanSummary).filter(function (x) { return x && !x.x && x.k > 0; });
     if (!perf || perf.scorePct == null || rows.length < 2) return '';
     var avg = rows.reduce(function (a, x) { return a + (x.r + 0.5 * x.h) / x.k * 100; }, 0) / rows.length;
     if (perf.scorePct >= avg + 10) return 'up';
@@ -1116,6 +1178,11 @@
       html += '<tr style="color:#6B6B6B;font-size:12px;text-transform:uppercase"><td style="padding:4px 6px">Lesson</td><td style="padding:4px 6px;text-align:right">Answered</td><td style="padding:4px 6px;text-align:right">Correct</td><td style="padding:4px 6px;text-align:right">Focus</td></tr>';
       hist.concat([{ e: Number(session.epoch) || 1, d: session.startedAt || now, q: f.asked, a: f.answered, r: f.right, h: f.partly, k: f.marked, f: f.focusPct == null ? -1 : f.focusPct, today: true }]).forEach(function (x) {
         var sc = x.k > 0 ? Math.round((x.r + 0.5 * x.h) / x.k * 100) + '%' : '—';
+        if (x.x) {
+          html += '<tr><td style="padding:6px;border-top:1px solid #E6E6E3">' + E(sgDay(x.d) || 'Lesson') + '</td>' +
+            '<td colspan="3" style="padding:6px;border-top:1px solid #E6E6E3;text-align:right;color:' + red + ';font-weight:700">Absent</td></tr>';
+          return;
+        }
         html += '<tr' + (x.today ? ' style="font-weight:700"' : '') + '><td style="padding:6px;border-top:1px solid #E6E6E3">' + E((sgDay(x.d) || 'Lesson') + (x.today ? ' (today)' : '')) + '</td>' +
           '<td style="padding:6px;border-top:1px solid #E6E6E3;text-align:right">' + E(x.q > 0 ? x.a + ' / ' + x.q : '—') + '</td>' +
           '<td style="padding:6px;border-top:1px solid #E6E6E3;text-align:right">' + E(sc) + '</td>' +
@@ -1445,6 +1512,7 @@
     participation: participation, participationLine: participationLine, reportText: reportText, reportHtml: reportHtml,
     personFocus: personFocus, presentMs: presentMs, performance: performance, levelWord: levelWord, sgClock: sgClock, sgDay: sgDay, secondsWords: secondsWords,
     perfSummary: perfSummary, cleanSummary: cleanSummary, progressMerge: progressMerge, historyFor: historyFor, historyLines: historyLines, trendOf: trendOf,
+    historyWithAbsences: historyWithAbsences, attJoinedMap: attJoinedMap, attPending: attPending, namesWords: namesWords, attStatus: attStatus,
     reportCardHtml: reportCardHtml, FOCUS_PREFIX: FOCUS_PREFIX, PROGRESS_KEEP: PROGRESS_KEEP,
     LEAVE_MIN_MS: LEAVE_MIN_MS, cleanLeaves: cleanLeaves, personLeave: personLeave, isAwayNow: isAwayNow, cleanOut: cleanOut, outForAnswer: outForAnswer, outWords: outWords, leaveSummary: leaveSummary,
     gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, minuteMB: minuteMB, SCREEN: SCREEN, wantTrack: wantTrack,
@@ -1773,7 +1841,7 @@
       }
       var lab = el('label', 'vcField');
       lab.appendChild(el('span', null, 'Lesson slot (whose names students see)'));
-      var sel = el('select');
+      var sel = el('select', 'vcSlotSel');
       sel.appendChild(new Option('Loading the class list…', ''));
       lab.appendChild(sel);
       card.appendChild(lab);
@@ -1826,6 +1894,7 @@
       recLab.appendChild(recBox);
       recLab.appendChild(el('span', null, '⏺ Record the class (saved to Ans Key and put on the worksheet you teach from)'));
       opts.appendChild(recLab);
+      paintAttSettings(opts, st);
       card.appendChild(opts);
       S.body.appendChild(card);
       paintRecordings(card);
@@ -1905,6 +1974,7 @@
     function startClass(slot, fresh) {
       if (!isTeacher()) return;
       S.mode = 'joining';
+      S.closeAtt = null;
       paintBusy(fresh ? 'Starting a new class…' : 'Opening the class…');
       var seq = ++S.seq;
       call('open', { slot: slot || '', fresh: !!fresh }).then(function (res) {
@@ -1957,7 +2027,16 @@
       broadcast({ t: 'end' });
       if (S.session) { S.session.endedAt = now(); Object.keys(S.session.people).forEach(function (k) { S.session = personLeft(S.session, k, now()); }); }
       var done = saveNow();
-      call('close').catch(function (e) { say('The class could not be closed: ' + ((e && e.message) || e)); });
+      stopAttTimer();
+      var closeBody = S.session ? { epoch: S.session.epoch, joined: attJoinedMap(S.session), skip: S.att ? Object.keys(S.att.skip) : [] } : {};
+      call('close', closeBody).then(function (r) {
+        var d = r && r.attendance;
+        if (!d || !d.taken) return;
+        S.closeAtt = d;
+        var caught = d.students.filter(function (x) { return x.catchup && !x.here; });
+        if (caught.length) say('📚 Catch-up link emailed to the parents of ' + namesWords(caught) + '.');
+        if (S.mode === 'ended') paintSide();
+      }).catch(function (e) { say('The class could not be closed: ' + ((e && e.message) || e)); });
       S.leaving = true;
       disconnect();
       Promise.resolve(done).then(function () {
@@ -2899,6 +2978,7 @@
       paintControls();
       layout();
       if (S.role === 'student') paintQuestion();
+      else paintAttBanner();
     }
 
     function ctl(cls, text, title, on, onClick) {
@@ -3773,6 +3853,7 @@
     function teacherTick() {
       // Pictures that only partly arrived are dropped after a few minutes.
       S.assembler.sweep(5 * 60 * 1000);
+      attendanceTick(false);
       syncRecorder();
       hiddenTick();
       // The lesson's time arrived: the door opened by itself.
@@ -5142,9 +5223,243 @@
     }
 
     /* ---------- 👥 People: hands, presence, mute, remove ---------- */
+    /* ================================================================
+       🙋 ATTENDANCE AND ABSENCE ALERTS (v1.218.0)
+       Every minute the teacher's device tells the server who has joined
+       (the lesson's record) and gets back the class list for this slot.
+       N minutes into the lesson (10 by default) the children still missing
+       show on a banner over the class: in "automatic" a minute counts down
+       and then their parents are emailed from admin@ (one email per child
+       per lesson, never twice); "ask me first" waits for the button. Any
+       name can be skipped or marked "here" (a child on Zoom who never
+       opened the live class). When the class ends the server emails a
+       catch-up link to the parents of every child who never came.
+       ================================================================ */
+    var ATT_EVERY_MS = 60000;
+    var ATT_COUNTDOWN_MS = 60000;
+    function att() {
+      if (!S.att || S.att.epoch !== (S.session && S.session.epoch)) {
+        S.att = { epoch: S.session && S.session.epoch, data: null, at: 0, busy: false, until: 0, held: false, skip: {}, hidden: '', err: '', skew: 0, dueSeen: false, timer: 0 };
+      }
+      return S.att;
+    }
+    function attOn() { return isTeacher() && S.mode === 'live' && !!S.session && !!(S.session.slot || S.slot); }
+    function attNow() { return now() + (att().skew || 0); }
+    function attendanceTick(force) {
+      if (!attOn()) return;
+      var a = att();
+      if (a.busy) return;
+      var d = a.data;
+      var dueNow = !!(d && d.taken && !a.dueSeen && attNow() >= d.dueAt);
+      if (dueNow) a.dueSeen = true;
+      var countdownDone = !!(a.until && now() >= a.until);
+      if (countdownDone) { attendanceSend(); return; }
+      if (force || dueNow || now() - a.at >= ATT_EVERY_MS) attendanceCall(false);
+    }
+    function attendanceCall(sendNow, extra) {
+      var a = att();
+      a.busy = true;
+      var body = Object.assign({ epoch: S.session.epoch, joined: attJoinedMap(S.session), send: !!sendNow, skip: Object.keys(a.skip) }, extra || {});
+      return call('attendance', body).then(function (r) {
+        a.busy = false; a.at = now(); a.err = '';
+        if (r && r.taken) { a.data = r; a.skew = Number(r.now) ? Number(r.now) - now() : 0; }
+        else a.data = r || null;
+        if (sendNow) {
+          a.until = 0;
+          var nm = function (ids) { return namesWords((ids || []).map(function (id) { var x = (r.students || []).filter(function (s) { return s.id === id; })[0]; return x ? x.name : ''; })); };
+          if (r && r.sent && r.sent.length) say('✉ Emailed the parents of ' + nm(r.sent) + ': not joined yet.');
+          else if (r && r.taken) say('Nobody left to email — everyone is here or already told.');
+          if (r && r.noEmail && r.noEmail.length) say('No parent email on file for ' + nm(r.noEmail) + ' — add one in the office.');
+        }
+        attendancePlan();
+        paintAttBanner();
+        if (S.tab === 'people') paintSide(true); else paintTabs();
+        return r;
+      }, function (e) {
+        a.busy = false; a.at = now(); a.err = (e && e.message) || 'The class list could not be checked.';
+        if (sendNow) { a.until = 0; say('The parents could not be emailed: ' + a.err); }
+        paintAttBanner();
+      });
+    }
+    function attendanceSend() {
+      var a = att();
+      a.until = 0;
+      stopAttTimer();
+      return attendanceCall(true);
+    }
+    // After each check: start the minute's countdown when it is due (automatic).
+    function attendancePlan() {
+      var a = att(), d = a.data;
+      if (!d || !d.taken || d.mode === 'off' || attNow() < d.dueAt) { a.until = 0; stopAttTimer(); return; }
+      var pend = attPending(d, a.skip, attJoinedMap(S.session));
+      if (!pend.length) { a.until = 0; stopAttTimer(); return; }
+      if (d.mode === 'auto' && !a.held && !a.until) a.until = now() + ATT_COUNTDOWN_MS;
+      if (a.until) startAttTimer();
+    }
+    function startAttTimer() {
+      var a = att();
+      if (a.timer) return;
+      a.timer = setInterval(function () {
+        if (!attOn()) { stopAttTimer(); return; }
+        if (a.until && now() >= a.until) { attendanceSend(); return; }
+        paintAttBanner();
+      }, 1000);
+    }
+    function stopAttTimer() { var a = S.att; if (a && a.timer) { clearInterval(a.timer); a.timer = 0; } }
+    function markHere(id, name) {
+      var a = att();
+      delete a.skip[id];
+      say(name + ' is marked as here.');
+      return attendanceCall(false, { here: [id] });
+    }
+    // The banner over the class, top left: who is missing and what happens next.
+    function paintAttBanner() {
+      if (!S.stage || S.role !== 'teacher') return;
+      if (!S.attBox) { S.attBox = el('div', 'vcAttBanner'); S.attBox.setAttribute('role', 'status'); }
+      if (S.attBox.parentNode !== S.stage) S.stage.appendChild(S.attBox);
+      var box = S.attBox;
+      clear(box);
+      var a = att(), d = a.data;
+      var pend = d ? attPending(d, a.skip, attJoinedMap(S.session)) : [];
+      var sig = pend.map(function (r) { return r.id; }).join(',');
+      var show = !!(d && d.taken && d.mode !== 'off' && attNow() >= d.dueAt && pend.length && a.hidden !== sig);
+      box.hidden = !show;
+      if (!show) return;
+      var mins = Math.max(0, Math.round((attNow() - d.start) / 60000));
+      box.appendChild(el('b', 'vcAttTitle', '⏰ ' + mins + ' min in · not joined yet'));
+      var list = el('div', 'vcAttNames');
+      pend.forEach(function (r) {
+        var chip = el('span', 'vcAttChip');
+        chip.appendChild(el('span', null, r.name));
+        chip.appendChild(btn('vcAttMini', '✋ Here', 'They are in the lesson another way (e.g. on Zoom): mark them here, no email', function () { markHere(r.id, r.name); }));
+        chip.appendChild(btn('vcAttMini', 'Skip', 'Do not email this parent', function () { a.skip[r.id] = true; attendancePlan(); paintAttBanner(); }));
+        list.appendChild(chip);
+      });
+      box.appendChild(list);
+      var row = el('div', 'vcRow');
+      if (a.until) {
+        var secs = Math.max(0, Math.ceil((a.until - now()) / 1000));
+        box.appendChild(el('p', 'vcAttWhen', 'Their parents are emailed in ' + secs + ' s, from admin@polymathlc.com.sg.'));
+        row.appendChild(btn('vcPrimary', '✉ Send now', 'Email these parents now', function () { attendanceSend(); }));
+        row.appendChild(btn('', 'Wait', 'Stop the countdown — you can still send with the button', function () { a.held = true; a.until = 0; stopAttTimer(); paintAttBanner(); }));
+      } else {
+        box.appendChild(el('p', 'vcAttWhen', 'Email their parents that their child has not joined (with a one-tap join link)?'));
+        row.appendChild(btn('vcPrimary', '✉ Email ' + (pend.length === 1 ? 'the parent' : 'their parents'), 'Email these parents now, from admin@', function () { attendanceSend(); }));
+        row.appendChild(btn('', 'Not now', 'Hide this until someone else is missing', function () { a.hidden = sig; paintAttBanner(); }));
+      }
+      box.appendChild(row);
+      if (a.err) box.appendChild(el('p', 'vcMuted', a.err));
+    }
+    // 👥 People: the whole class list for this lesson slot, at the top.
+    function paintAttendance(box) {
+      var a = att(), d = a.data;
+      var sec = el('div', 'vcAttList');
+      if (!d) {
+        sec.appendChild(el('h4', null, '🙋 Attendance'));
+        sec.appendChild(el('p', 'vcMuted', a.err || (S.session && (S.session.slot || S.slot) ? 'Checking the class list…' : 'Pick a lesson slot when you start the class to take attendance.')));
+        box.appendChild(sec);
+        if (!a.busy && !a.err) attendanceTick(true);
+        return;
+      }
+      if (!d.taken) {
+        sec.appendChild(el('h4', null, '🙋 Attendance'));
+        sec.appendChild(el('p', 'vcMuted', 'No lesson slot was picked for this class, so attendance is not taken.'));
+        box.appendChild(sec);
+        return;
+      }
+      var jn = attJoinedMap(S.session);
+      var here = d.students.filter(function (r) { return r.here || jn[r.id]; }).length;
+      sec.appendChild(el('h4', null, '🙋 Attendance · ' + here + ' of ' + d.students.length + ' here'));
+      var when = d.mode === 'off' ? 'Absence emails are off.' : attNow() < d.dueAt
+        ? 'Missing children are checked at ' + sgClock(d.dueAt) + (d.mode === 'auto' ? ' and their parents emailed a minute later.' : ' (you choose whether to email).')
+        : d.mode === 'auto' ? 'Parents of missing children are emailed automatically.' : 'You choose whether to email parents.';
+      sec.appendChild(el('p', 'vcMuted', when + (d.catchUp && d.mode !== 'off' ? ' A catch-up link goes to the parents of anyone still absent when you end the class.' : '')));
+      d.students.forEach(function (r) {
+        var st = attStatus(r, jn);
+        var row = el('div', 'vcAttRow ' + st.cls);
+        row.appendChild(el('b', null, r.name));
+        row.appendChild(el('span', 'vcAttWord', st.word));
+        if (!r.here && !jn[r.id]) row.appendChild(btn('vcAttMini', '✋ Mark here', 'They are in the lesson another way (e.g. on Zoom)', function () { markHere(r.id, r.name); }));
+        sec.appendChild(row);
+      });
+      sec.appendChild(el('p', 'vcMuted vcAttNote', 'Only the live class is seen: a child on Zoom alone shows as not joined — mark them here. The office can correct any day in 💬 Lesson updates.'));
+      box.appendChild(sec);
+    }
+    // 🧾 Reports: who was absent, so no one is forgotten (they get the catch-up, not a report).
+    function paintAbsentNote(box) {
+      var d = (S.closeAtt && S.closeAtt.taken ? S.closeAtt : null) || (S.att && S.att.data && S.att.data.taken ? S.att.data : null);
+      if (!d) return;
+      var jn = attJoinedMap(S.session);
+      var absent = d.students.filter(function (r) { return !r.here && !jn[r.id]; });
+      if (!absent.length) return;
+      var n = el('div', 'vcAttAbsent');
+      n.appendChild(el('b', null, '🙋 Absent today: ' + namesWords(absent)));
+      var caught = absent.filter(function (r) { return r.catchup; });
+      n.appendChild(el('p', 'vcMuted', caught.length === absent.length ? 'Their parents were emailed a catch-up link (worksheet, answer key and lesson video on Polymath Online). They have no report for this lesson.'
+        : d.catchUp && d.mode !== 'off' ? 'When you end the class their parents are emailed a catch-up link instead of a report.' : 'They have no report for this lesson; the office’s lesson updates and weekly reports say they were absent.'));
+      box.appendChild(n);
+    }
+    // ⚙ On the start card: how absences are handled (kept on the server for every class).
+    function paintAttSettings(card, st) {
+      var set = (st && st.settings) || {};
+      var wrap = el('div', 'vcOpt vcAttOpt');
+      wrap.appendChild(el('span', null, '🙋 Not joined'));
+      var after = el('input');
+      after.type = 'number'; after.min = '3'; after.max = '45'; after.step = '1'; after.className = 'vcEarly';
+      after.value = String(set.absentAfter || 10);
+      wrap.appendChild(after);
+      wrap.appendChild(el('span', null, 'minutes in:'));
+      var mode = el('select', 'vcAttMode');
+      [['auto', 'email the parents automatically (1-minute countdown)'], ['ask', 'ask me first'], ['off', 'do nothing']].forEach(function (o) {
+        var opt = new Option(o[1], o[0]);
+        if ((set.absentMode || 'auto') === o[0]) opt.selected = true;
+        mode.appendChild(opt);
+      });
+      wrap.appendChild(mode);
+      var cuLab = el('label', 'vcOpt');
+      var cu = el('input'); cu.type = 'checkbox'; cu.checked = set.catchUp !== false;
+      cuLab.appendChild(cu);
+      cuLab.appendChild(el('span', null, '📚 When I end the class, email a catch-up link to the parents of every child who was absent'));
+      function save(change, words) {
+        call('settings', change).then(function (r) {
+          S.status = Object.assign({}, S.status || {}, { settings: r.settings });
+          say(words(r.settings));
+        }, function (e) { say((e && e.message) || 'That setting could not be saved.'); });
+      }
+      after.addEventListener('change', function () {
+        var n = Math.max(3, Math.min(45, Math.round(Number(after.value) || 10)));
+        after.value = String(n);
+        save({ absentAfter: n }, function (x) { return 'Missing children are now checked ' + x.absentAfter + ' minutes into the lesson.'; });
+      });
+      mode.addEventListener('change', function () {
+        save({ absentMode: mode.value }, function (x) { return x.absentMode === 'auto' ? 'Parents of missing children are emailed automatically.' : x.absentMode === 'ask' ? 'You will be asked before parents are emailed.' : 'Absence emails are off.'; });
+      });
+      cu.addEventListener('change', function () {
+        save({ catchUp: cu.checked }, function (x) { return x.catchUp ? 'A catch-up link goes to absent children’s parents when a class ends.' : 'No catch-up emails when a class ends.'; });
+      });
+      card.appendChild(wrap);
+      card.appendChild(cuLab);
+    }
+    // 🙋 Earlier absences for a report's "Recent live lessons" (the office's
+    // record of each day), loaded once per class.
+    function loadAbsences() {
+      if (S.absState || typeof env.loadAbsences !== 'function') return;
+      S.absState = 'loading';
+      Promise.resolve(env.loadAbsences()).then(function (map) {
+        S.absences = map && typeof map === 'object' ? map : {};
+        S.absState = 'ready';
+        if (S.tab === 'reports' || S.mode === 'ended') paintSide();
+      }, function () { S.absState = 'failed'; S.absences = {}; });
+    }
+    function absencesOf(identity) {
+      var m = /^r:(.+)$/.exec(String(identity || ''));
+      return m && S.absences ? S.absences[m[1]] || [] : [];
+    }
+
     function paintPeople(box) {
       var s = S.session;
       var people = roster(s);
+      paintAttendance(box);
       var handIds = Object.keys(S.hands).sort(function (a, b) { return S.hands[a] - S.hands[b]; });
       if (handIds.length) {
         var hb = el('div', 'vcHandsBox');
@@ -5248,7 +5563,9 @@
       Promise.resolve(env.saveProgress(S.progress)).catch(function () {});
     }
     function historyOf(identity) {
-      return S.progressState === 'ready' ? historyFor(S.progress, identity, S.session.epoch, 5) : [];
+      loadAbsences();
+      var hist = S.progressState === 'ready' ? historyFor(S.progress, identity, S.session.epoch, 8) : [];
+      return historyWithAbsences(hist, absencesOf(identity), S.session.startedAt || now(), 5);
     }
     function reportFor(identity) {
       var r = S.reports[identity];
@@ -5325,6 +5642,7 @@
       var people = roster(s);
       loadProgress();
       updateProgress(false);
+      paintAbsentNote(box);
       if (!people.length) {
         box.appendChild(el('p', 'vcMuted vcEmptySide', 'Each student who joins gets a summary here: time in class, every answer, marks and hands raised — ready to send to their parent.'));
         return;

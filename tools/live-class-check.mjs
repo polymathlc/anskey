@@ -392,10 +392,10 @@ try {
   ok('the keys are tested with LiveKit and saved', await T.locator('.vcStart').isVisible());
   const cfgDoc = JSON.stringify(store.get('ansKeyLiveClassConfig/main') || [...store.entries()].filter(([k]) => /Config/.test(k)));
   ok('the secret is never stored in the clear', !cfgDoc.includes(API_SECRET) && cfgDoc.length > 10, cfgDoc.slice(0, 200));
-  await until(async () => (await T.locator('.vcStart select option').count()) >= 2);
-  const optionTexts = await T.locator('.vcStart select option').allTextContents();
+  await until(async () => (await T.locator('.vcStart select.vcSlotSel option').count()) >= 2);
+  const optionTexts = await T.locator('.vcStart select.vcSlotSel option').allTextContents();
   ok('the slot list is the /office timetable, named in words', optionTexts.some(t => /Wed 5:00pm · P5 Science · 2 students/.test(t)), optionTexts.join(' | '));
-  ok('this lesson\'s slot is chosen', await T.locator('.vcStart select').inputValue() === 'WED-2');
+  ok('this lesson\'s slot is chosen', await T.locator('.vcStart select.vcSlotSel').inputValue() === 'WED-2');
   ok('the class link is shown with a Copy button', /\?live$/.test(await T.locator('.vcLink').textContent()));
   await shot(T, '01-teacher-start');
   await T.click('.vcGo');
