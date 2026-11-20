@@ -1,5 +1,6 @@
 'use strict';
 // 🎥 The live class (v1.207.0): a video lesson inside Ans Key, on LiveKit.
+// 🎟 v1.219.0: a trial booking's own live link (kind 'trialpass', below).
 //
 // This function is the ONLY place a LiveKit credential exists. The browser
 // never sees the API secret: it asks here for a short-lived access token,
@@ -254,7 +255,7 @@ function alertMailId(kind, day, slotId, rosterId) {
   return (kind === 'catchup' ? CATCHUP_MAIL_PREFIX : ABSENT_MAIL_PREFIX) + day + '-' + String(slotId).replace(/[^A-Za-z0-9-]/g, '') + '-' + String(rosterId).replace(/[^A-Za-z0-9_-]/g, '');
 }
 
-const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study', 'report', 'attendance']);
+const ACTIONS = new Set(['status', 'config', 'configure', 'forget', 'open', 'close', 'slots', 'roster', 'token', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'pass', 'study', 'report', 'attendance', 'trial']);
 const TEACHER_ACTIONS = new Set(['config', 'configure', 'forget', 'open', 'close', 'slots', 'mute', 'remove', 'readmit', 'settings', 'letin', 'passes', 'repass', 'report', 'attendance']);
 // 🔗 Personal links and PINs (v1.210.0). A child's own link carries a code
 // the server can CHECK but nobody can make: the roster key, a generation
@@ -872,6 +873,74 @@ async function roomService(fetchImpl, cfg, method, body, now) {
   }
 }
 
+/* ---- 🎟 A trial student's own live-lesson link (v1.219.0) ----------------
+   polymathlc.com.sg/trial (polymathlc/cer, shop-function trial.js) gives
+   every trial booking ONE link of its own for the live lesson:
+       polymathlc.com.sg/live/?trial=<BOOKING>.<mac>
+   which, at lesson time, opens Ans Key as  …/anskey/?live&trial=<BOOKING>.<mac>.
+   The mac is an HMAC over the booking code, keyed with the booking's own
+   secret (`linkKey`, or for the oldest bookings 'legacy:' + viewToken) that
+   only the server ever reads, so nobody can make a link for a booking, and
+   the link opens nothing but this: not the trial page, not the worksheets.
+   cer's trial.js makes the same mac (trialLiveMac there); the tests on both
+   sides hold the same fixed example, so the two can never drift apart.
+
+   "One use" (Zhi Kai, 20 Nov 2026) is ONE LESSON, not one click: the link
+   works only for its own lesson — the booked date (or, for a one-week class
+   link, any lesson of that class while the class link lasts) and only while
+   the teacher has THAT class open — on any device, so a child who refreshes
+   or swaps to a tablet is not locked out. The same child on two devices is
+   one person in the class (identity g:trial-<BOOKING>), asked about as for
+   any name. After the lesson day the link says it has ended.
+   The child joins as a Trial student, named from the booking, so the teacher
+   sees "Trial" beside them in People, Answers and Reports exactly as for a
+   typed trial name, and nothing reads them as a roster child. */
+const TRIAL_BOOKINGS = 'trialBookings';
+const TRIAL_LINKS = 'trialLinks';
+const TRIAL_LIVE_RE = /^([A-Z2-9]{6})\.([A-Za-z0-9_-]{16})$/;
+const TRIAL_LIVE_INFO = 'live-lesson-v1|';
+const TRIAL_HELP = ' Use the Zoom link in your email instead, or WhatsApp us at +65 9645 0588.';
+function parseTrialLive(value) {
+  const m = TRIAL_LIVE_RE.exec(String(value == null ? '' : value).trim());
+  return m ? { code: m[1], mac: m[2] } : null;
+}
+function trialLiveMac(booking, code) {
+  const b = booking && typeof booking === 'object' ? booking : {};
+  const key = typeof b.linkKey === 'string' && b.linkKey ? b.linkKey : 'legacy:' + String(b.viewToken || '');
+  return createHmac('sha256', key).update(TRIAL_LIVE_INFO + String(code || '')).digest('base64url').slice(0, 16);
+}
+function trialLiveCode(booking) {
+  const code = String(booking && booking.code || '');
+  return /^[A-Z2-9]{6}$/.test(code) && (booking.linkKey || booking.viewToken) ? code + '.' + trialLiveMac(booking, code) : '';
+}
+function sgDayKey(ms) { return new Date(Number(ms) + SG_OFFSET_MS).toISOString().slice(0, 10); }
+// Whether a booking's live link works today: null when it does, otherwise a
+// refusal { status, code, message } in words a parent can act on.
+function trialLiveRefusal(booking, link, nowMs) {
+  const b = booking || {};
+  const lesson = String(b.sessionLabel || b.slotLabel || '').slice(0, 120);
+  if (b.status === 'cancelled') return { status: 410, code: 'trial_cancelled', message: 'This trial lesson was cancelled.' + TRIAL_HELP };
+  if (b.kind === 'link') {
+    const until = Math.min(Number(link && link.expiresAtMs) || 0, Number(b.accessUntilMs) || Infinity);
+    if (!link || link.revoked || !(nowMs < until)) return { status: 410, code: 'trial_ended', message: 'This trial class link has ended.' + TRIAL_HELP };
+    return null;
+  }
+  const today = sgDayKey(nowMs);
+  const day = String(b.lessonDate || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { status: 404, code: 'trial_unknown', message: 'This trial lesson link is not working.' + TRIAL_HELP };
+  if (day > today) return { status: 403, code: 'trial_not_today', message: 'Your trial lesson is on ' + (lesson || day) + '. Open this link again on the day — it lets you in a few minutes before the lesson starts.' };
+  if (day < today) return { status: 410, code: 'trial_ended', message: 'This link was for your trial lesson on ' + (lesson || day) + ', which has ended.' + ' To book another lesson, WhatsApp us at +65 9645 0588.' };
+  return null;
+}
+// The class that is open now is not this trial's class (the teacher's "Let
+// students in now" overrides it, as it does the lesson-time door).
+function trialWrongClass(booking, state) {
+  if (!state || !state.open || state.letIn === true || !state.slot) return '';
+  if (String(booking && booking.slot || '') === state.slot) return '';
+  const lesson = String(booking.kind === 'link' ? booking.slotLabel || '' : booking.sessionLabel || booking.slotLabel || '').slice(0, 120);
+  return 'The class on now is a different class. Your trial lesson is ' + (lesson || 'at another time') + '. Keep this page open — it lets you in when your lesson starts.';
+}
+
 // The teacher's rows: name, level, the slots they attend (labelled), the link
 // code and the PIN, in week order of their first slot, then by name.
 function passRows(students, passes, schedule, master) {
@@ -925,6 +994,28 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       fail(404, 'pin_unknown', cleanPin(p.pin) ? 'That PIN is not right. Check the four numbers your teacher gave you.' : 'Type the four numbers of your PIN.');
     }
     return id;
+  }
+  // 🎟 The trial booking a live link names, checked: its mac, that it is not
+  // cancelled, and that today is its lesson (or its class link still lasts).
+  async function resolveTrial(code) {
+    const parsed = parseTrialLive(code);
+    const unknown = () => fail(404, 'trial_unknown', 'This trial lesson link is not working.' + TRIAL_HELP);
+    if (!parsed) unknown();
+    const snap = await db.collection(TRIAL_BOOKINGS).doc(parsed.code).get();
+    const booking = snap.exists ? { ...(snap.data() || {}), code: parsed.code } : null;
+    if (!booking || !sameText(trialLiveMac(booking, parsed.code), parsed.mac)) unknown();
+    let link = null;
+    if (booking.kind === 'link' && typeof booking.linkToken === 'string' && /^[A-Za-z0-9]{1,60}$/.test(booking.linkToken)) {
+      const ls = await db.collection(TRIAL_LINKS).doc(booking.linkToken).get();
+      link = ls.exists ? ls.data() || {} : null;
+    }
+    const refusal = trialLiveRefusal(booking, link, doorNow());
+    if (refusal) fail(refusal.status, refusal.code, refusal.message);
+    return booking;
+  }
+  function trialMe(booking) {
+    return { id: '', name: cleanName(booking.studentName, 'Trial student'), level: cleanName(booking.classLevel, '').slice(0, 12), kind: 'trial',
+      lesson: String(booking.kind === 'link' ? booking.slotLabel || '' : booking.sessionLabel || booking.slotLabel || '').slice(0, 120) };
   }
   async function readSettings() {
     try { const snap = await settingsRef.get(); return cleanSettings(snap.exists ? snap.data() : null); }
@@ -1041,6 +1132,15 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
   // "Who are you?" — the pick a student confirmed, checked against the roster.
   async function whoIs(actor, pick, state, settings) {
     let p = pick && typeof pick === 'object' ? pick : {};
+    // 🎟 A trial booking's own live link: named from the booking, and only
+    // into its own class (or any class the teacher has let everyone into).
+    if (p.kind === 'trialpass') {
+      const booking = await resolveTrial(p.code);
+      const wrong = trialWrongClass(booking, state);
+      if (wrong) fail(403, 'trial_other_class', wrong);
+      const me = trialMe(booking);
+      return { kind: 'trial', identity: 'g:trial-' + booking.code, name: me.name, rosterId: '', level: me.level, home: '', trialCode: booking.code };
+    }
     if (p.kind === 'trial') {
       const name = cleanName(p.name, '');
       if (name.length < 2) fail(400, 'name_required', 'Type your full name so your teacher knows who you are.');
@@ -1424,6 +1524,20 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
         me: { id: who.rosterId, name: who.name, level: who.level, kind: who.kind, home: who.home } };
     }
 
+    // 🎟 A trial student's own live link: who it is for, and whether they may
+    // come in now. Ans Key shows "Hi Bella!" and one Join button (or waits).
+    if (body.action === 'trial') {
+      if (actor.isTeacher) fail(400, 'teacher_pass', 'This is a trial student\'s link. Open it on the student\'s device.');
+      const booking = await resolveTrial(body.code);
+      const state = await readState();
+      const me = trialMe(booking);
+      if (!state.open) return { ...publicState(state), me };
+      const settings = await readSettings();
+      const gate = joinGate(state.slot, doorNow(), settings.earlyMin, state.letIn);
+      const schedule = await readSchedule();
+      return { ...publicState(state), slotLabel: state.slot ? slotLabel(state.slot, schedule) : '', gate, me, wrongClass: trialWrongClass(booking, state) };
+    }
+
     // 📖 The same link or PIN signs the child into Study Buddy as THEMSELVES:
     // their roster row is brought up to date from /office (name, level, the
     // subjects of their own lessons) and a custom token for their own uid
@@ -1492,6 +1606,7 @@ function createLiveClassService({ auth, appCheck, db, master, fetchImpl = (...a)
       if (who.rosterId) attributes.rosterId = who.rosterId;
       if (who.level) attributes.level = who.level;
       if (who.home) attributes.home = who.home.slice(0, 120);
+      if (who.trialCode) attributes.trial = who.trialCode;
       const token = signAccessToken({
         apiKey: cfg.apiKey, apiSecret: cfg.apiSecret, identity: who.identity, name: who.name, now: t,
         ttlSeconds: LIVE_CLASS_LIMITS.studentTtlSeconds, video: grantsFor('student', state.room),
@@ -1598,6 +1713,7 @@ module.exports = {
   ATTEND_COLLECTION, ATTEND_KIND, ABSENT_MAIL_PREFIX, CATCHUP_MAIL_PREFIX, sgDayKey, attendDocId, attendKey, lessonWindow, absentDueAt,
   cleanJoined, attendanceSplit, absentEmail, catchUpEmail, alertMailId, classWords, sgClock, slotTimes, clockLabel, joinGate, laterLessonToday,
   PASS_LIMITS_PIN: PIN_LIMITS, STUDY_PIN_LIMITS, STUDY_UID_PREFIX, PROFILES_COLLECTION, LIVE_CLASS_ORIGINS,
+  TRIAL_BOOKINGS, TRIAL_LINKS, parseTrialLive, trialLiveMac, trialLiveCode, trialLiveRefusal, trialWrongClass,
   liveClassOrigin, studyUid, subjectWords, slotSubjects, studySubject, studyLevel, studyProfileDoc, passCode, parsePass, checkPass, cleanPin, pinFor, cleanPasses, ensurePasses, pinOwner, pinTriesAllowed, pinTriesAfterMiss, passRows,
   cleanName, cleanIdentity, cleanSlot, rosterLists, enrolledStudents, slotChoices, slotLabel, familyState, rosterKey, splitRosterKey, sgMonth, roomFor, nextEpoch, grantsFor, sealSecret, openSecret, roomService
 };

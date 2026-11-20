@@ -5,6 +5,20 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 🎟 v1.219.0 — Live class: a trial student's own live-lesson link
+
+- **polymathlc.com.sg/trial now gives every trial booking one link for its live lesson**:
+  `polymathlc.com.sg/live/?trial=<BOOKING>.<mac>`, which at lesson time opens `…/anskey/?live&trial=<BOOKING>.<mac>`.
+  The child sees "Hi Bella! Your trial lesson is on" and one ▶ Join button, and joins as a **Trial** student named
+  from the booking (identity `g:trial-<BOOKING>`, the same on every device), so the teacher sees the Trial tag as
+  for a typed trial name and nothing treats them as a roster child.
+- **One lesson, not one click**: the server (`functions/live-class.js`, action `trial` and pick `trialpass`) reads
+  `trialBookings/<BOOKING>` (and `trialLinks` for a one-week class link), checks the mac (HMAC of the booking code
+  keyed with the booking's own `linkKey`, the same as cer's `trialLiveMac`; a fixed example is tested in both repos),
+  refuses a cancelled booking, any day but the booked one (a class link: after it ends), and any class but its own
+  (`trial_other_class`) unless the teacher pressed "Let students in now". A refresh or a second device works.
+- Run `npm --prefix functions test` and `node --test tools/live-class-tests.mjs`. Needs the `ansKeyLiveClass` deploy.
+
 ## 🙋 v1.218.0 — Live class: attendance, "not joined yet" emails and catch-up emails
 
 - **Attendance is taken from the live class.** Enrolled children (from the office timetable) who have not joined

@@ -969,3 +969,124 @@ test('🙋 ending the class sends the catch-up to every child who never came', a
   await h2.call({ action: 'close', joined: {} });
   assert.equal(db2.writes.filter(([p]) => p.startsWith('mail/')).length, 0);
 });
+
+/* ---------- 🎟 a trial booking's own live link (v1.219.0) ---------- */
+// The same fixed example lives in polymathlc/cer tools/trial-live-tests.mjs:
+// both servers must make the same mac, or a trial link stops working.
+const TRIAL_KEY = 'TrialLinkKeyForTheFixedExample0123';
+const TRIAL_MAC = 'CnXQrsTQ2yQ7Xyyk';
+const TRIAL_BOOKING = {
+  code: 'ABC234', kind: 'booking', viewToken: 'ViewTokenOfTheBooking0001', linkKey: TRIAL_KEY,
+  slot: 'WED-2', slotLabel: 'Wednesday 5:00pm', lessonDate: '2027-01-13', sessionLabel: 'Wednesday 13 January 2027, 5:00pm – 6:45pm',
+  classLevel: 'P5', classSubject: 'Science', studentName: 'Bella  Koh', parentName: 'Mrs Koh', email: 'koh@example.com', status: 'booked'
+};
+function trialDb(extra = {}) {
+  return fakeDb({ ...ROSTER, 'trialBookings/ABC234': TRIAL_BOOKING, ...extra });
+}
+
+test('🎟 the trial live mac is the one cer makes (fixed example), and the code is checked by shape', () => {
+  assert.equal(lc.trialLiveMac({ linkKey: TRIAL_KEY }, 'ABC234'), TRIAL_MAC);
+  assert.equal(lc.trialLiveMac({ viewToken: 'ViewTokenOfAnOldBooking01' }, 'XYZ789'), 'Hs9xkdP-G0yl3xd2', 'an old booking with no linkKey');
+  assert.equal(lc.trialLiveCode(TRIAL_BOOKING), 'ABC234.' + TRIAL_MAC);
+  assert.deepEqual(lc.parseTrialLive(' ABC234.' + TRIAL_MAC + ' '), { code: 'ABC234', mac: TRIAL_MAC });
+  assert.equal(lc.parseTrialLive('abc234.' + TRIAL_MAC), null, 'booking codes are capitals');
+  assert.equal(lc.parseTrialLive('ABC234.short'), null);
+  assert.equal(lc.parseTrialLive('ABC234-' + TRIAL_MAC), null);
+  assert.equal(lc.parseTrialLive(null), null);
+});
+
+test('🎟 a trial link works on its lesson day only, never when cancelled; a class link while it lasts', () => {
+  assert.equal(lc.trialLiveRefusal(TRIAL_BOOKING, null, WED_1655), null);
+  assert.equal(lc.trialLiveRefusal(TRIAL_BOOKING, null, Date.UTC(2027, 0, 13, 15, 59)), null, '11:59pm the same day');
+  assert.equal(lc.trialLiveRefusal(TRIAL_BOOKING, null, WED_1655 - 86400000).code, 'trial_not_today');
+  assert.match(lc.trialLiveRefusal(TRIAL_BOOKING, null, WED_1655 - 86400000).message, /Wednesday 13 January 2027/);
+  assert.equal(lc.trialLiveRefusal(TRIAL_BOOKING, null, Date.UTC(2027, 0, 13, 16, 1)).code, 'trial_ended', 'past midnight in Singapore');
+  assert.equal(lc.trialLiveRefusal({ ...TRIAL_BOOKING, status: 'cancelled' }, null, WED_1655).code, 'trial_cancelled');
+  const visit = { code: 'LNK234', kind: 'link', linkToken: 'tok', slot: 'WED-2', slotLabel: 'Wednesday 5:00pm', accessUntilMs: WED_1655 + 86400000 };
+  assert.equal(lc.trialLiveRefusal(visit, { expiresAtMs: WED_1655 + 3600000 }, WED_1655), null);
+  assert.equal(lc.trialLiveRefusal(visit, { expiresAtMs: WED_1655 - 1 }, WED_1655).code, 'trial_ended');
+  assert.equal(lc.trialLiveRefusal(visit, { expiresAtMs: WED_1655 + 3600000, revoked: true }, WED_1655).code, 'trial_ended');
+  assert.equal(lc.trialLiveRefusal(visit, null, WED_1655).code, 'trial_ended', 'a class link that is gone');
+  // Only its own class, unless the teacher let everyone in.
+  assert.equal(lc.trialWrongClass(TRIAL_BOOKING, { open: true, slot: 'WED-2' }), '');
+  assert.match(lc.trialWrongClass(TRIAL_BOOKING, { open: true, slot: 'FRI-2' }), /different class/);
+  assert.equal(lc.trialWrongClass(TRIAL_BOOKING, { open: true, slot: 'FRI-2', letIn: true }), '');
+  assert.equal(lc.trialWrongClass(TRIAL_BOOKING, { open: false, slot: 'FRI-2' }), '');
+});
+
+test('🎟 a trial link: who it is for before the class, then in as a Trial student named from the booking', async () => {
+  const db = trialDb();
+  const h = harness({ db });
+  await h.call(KEYS);
+  const code = 'ABC234.' + TRIAL_MAC;
+  const before = await h.call({ action: 'trial', code }, { as: anonUser });
+  assert.equal(before.statusCode, 200);
+  assert.equal(before.body.open, false);
+  assert.equal(before.body.me.name, 'Bella Koh');
+  assert.equal(before.body.me.kind, 'trial');
+  assert.match(before.body.me.lesson, /13 January/);
+  assert.equal(JSON.stringify(before.body).includes('koh@example.com'), false, 'never the parent\'s email');
+  assert.equal(JSON.stringify(before.body).includes(TRIAL_KEY), false, 'never the booking\'s key');
+  // A wrong mac, an unknown booking and a teacher are refused.
+  assert.equal((await h.call({ action: 'trial', code: 'ABC234.' + 'x'.repeat(16) }, { as: anonUser })).body.error.code, 'trial_unknown');
+  assert.equal((await h.call({ action: 'trial', code: 'ZZZ999.' + TRIAL_MAC }, { as: anonUser })).body.error.code, 'trial_unknown');
+  assert.equal((await h.call({ action: 'trial', code }, { as: teacherUser })).body.error.code, 'teacher_pass');
+  await h.call({ action: 'open', slot: SLOT }, { as: teacherUser });
+  const open = await h.call({ action: 'trial', code }, { as: anonUser });
+  assert.equal(open.body.open, true);
+  assert.equal(open.body.gate.open, true);
+  assert.equal(open.body.wrongClass, '');
+  const tok = await h.call({ action: 'token', pick: { kind: 'trialpass', code } }, { as: anonUser });
+  assert.equal(tok.statusCode, 200);
+  assert.equal(tok.body.identity, 'g:trial-ABC234', 'one identity on any device');
+  assert.equal(tok.body.kind, 'trial');
+  assert.equal(tok.body.name, 'Bella Koh');
+  assert.equal(tok.body.rosterId, '');
+  const claims = lc.readAccessToken(tok.body.token, SECRET);
+  assert.equal(claims.attributes.kind, 'trial');
+  assert.equal(claims.attributes.trial, 'ABC234');
+  assert.equal(claims.attributes.rosterId, undefined);
+  // A second device: the same child, asked about like any name.
+  h.lk.setParticipants([{ identity: 'g:trial-ABC234', attributes: { uid: 'anon1' } }]);
+  const other = { uid: 'tablet', firebase: { sign_in_provider: 'anonymous' } };
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'trialpass', code } }, { as: other })).body.error.code, 'already_in');
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'trialpass', code }, takeover: true }, { as: other })).statusCode, 200);
+});
+
+test('🎟 a trial link waits for its own class and refuses another day', async () => {
+  const db = trialDb();
+  const clock = { t: Date.UTC(2027, 0, 15, 8, 55) };   // Friday 4:55pm: the P6 class, not Bella's
+  const h = harness({ db, clock });
+  await h.call(KEYS);
+  const code = 'ABC234.' + TRIAL_MAC;
+  assert.equal((await h.call({ action: 'trial', code }, { as: anonUser })).body.error.code, 'trial_ended', 'Friday is after her Wednesday lesson');
+  clock.t = WED_1655;
+  await h.call({ action: 'open', slot: 'WED-1' }, { as: teacherUser });   // the 3pm class running over
+  const st = await h.call({ action: 'trial', code }, { as: anonUser });
+  assert.equal(st.body.gate.open, true);
+  assert.match(st.body.wrongClass, /different class/);
+  const refused = await h.call({ action: 'token', pick: { kind: 'trialpass', code } }, { as: anonUser });
+  assert.equal(refused.statusCode, 403);
+  assert.equal(refused.body.error.code, 'trial_other_class');
+  // The teacher lets everyone in: she may come in.
+  await h.call({ action: 'letin', on: true }, { as: teacherUser });
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'trialpass', code } }, { as: anonUser })).statusCode, 200);
+  // A cancelled booking stops at once.
+  db.store.set('trialBookings/ABC234', { ...TRIAL_BOOKING, status: 'cancelled' });
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'trialpass', code } }, { as: anonUser })).body.error.code, 'trial_cancelled');
+});
+
+test('🎟 a one-week class link visit opens any lesson of its class while the link lasts', async () => {
+  const visit = { kind: 'link', linkToken: 'Tok234abcdefghijkmnopq', linkKey: 'VisitLinkKey0123456789abcdefghij', slot: 'WED-2', slotLabel: 'Wednesday 5:00pm',
+    lessonDate: '', sessionLabel: 'Wednesday 5:00pm', studentName: 'Chen Wei', status: 'booked', accessUntilMs: WED_1655 + 3 * 86400000 };
+  const db = fakeDb({ ...ROSTER, 'trialBookings/LNK234': visit, 'trialLinks/Tok234abcdefghijkmnopq': { expiresAtMs: WED_1655 + 3 * 86400000 } });
+  const h = harness({ db });
+  await h.call(KEYS);
+  await h.call({ action: 'open', slot: SLOT }, { as: teacherUser });
+  const code = 'LNK234.' + lc.trialLiveMac(visit, 'LNK234');
+  const tok = await h.call({ action: 'token', pick: { kind: 'trialpass', code } }, { as: anonUser });
+  assert.equal(tok.statusCode, 200);
+  assert.equal(tok.body.name, 'Chen Wei');
+  db.store.set('trialLinks/Tok234abcdefghijkmnopq', { expiresAtMs: WED_1655 + 3 * 86400000, revoked: true });
+  assert.equal((await h.call({ action: 'token', pick: { kind: 'trialpass', code } }, { as: anonUser })).body.error.code, 'trial_ended');
+});
