@@ -5,6 +5,18 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 📋 v1.220.0 — Live class: answer options printed as a table show as a table
+
+- A multiple-choice question whose options were printed as a **table** (column headings such as Circle | Triangle | Square,
+  one row per option) used to reach the student as four lines like "Circle: X; triangle: Y; square: Z". The student now
+  sees the table: a header row of the printed headings, then each option as one tappable row (`live-class.js`
+  `optionTableOf`, `.vcOptsTable` in `live-class.css`). Options that were not a table are untouched.
+- Both readers (✨ AI send, `LIVE_READ_SYS`, and 🔒 Hidden answers, `LIVE_KEY_SYS`) are told the one shared rule
+  (`LIVE_OPTION_TABLE_RULE`): write each table option as "Heading: cell; Heading: cell", same headings in the same order.
+- `option-table.js` is a copy of polymathlc/cer `shop-function/functions/option-table.js` (keep them identical); the same
+  file draws these tables in the CER app and on the Question of the Day. An option may now be 240 characters (was 140),
+  so a written-out table row is never cut short. Tests: `tools/option-table-tests.mjs`.
+
 ## 🎟 v1.219.0 — Live class: a trial student's own live-lesson link
 
 - **polymathlc.com.sg/trial now gives every trial booking one link for its live lesson**:
