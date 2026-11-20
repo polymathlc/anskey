@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.218.0');
+  assert.equal(P.VERSION, '1.219.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
   assert.match(html, /var APP_VERSION = 'v1\.2(1[2-9]|[2-9]\d)\.\d+'/);
-  assert.match(html, /live-class\.js\?v=1\.218\.0/);
+  assert.match(html, /live-class\.js\?v=1\.219\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.218\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.219\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -1228,4 +1228,25 @@ test('🙋 the window: the banner, the countdown, the People list, the settings 
   assert.match(css, /:root\[data-theme="dark"\] \.vcAttBanner/);
   assert.match(html, /loadAbsences: liveClassLoadAbsences/);
   assert.match(html, /x\.kind !== 'attendance-day'/);
+});
+
+/* ---------- 🎟 a trial student's own live link (v1.219.0) ---------- */
+test('🎟 the trial link is read from ?live&trial= by shape only', () => {
+  assert.equal(P.trialFromSearch('?live&trial=ABC234.CnXQrsTQ2yQ7Xyyk'), 'ABC234.CnXQrsTQ2yQ7Xyyk');
+  assert.equal(P.trialFromSearch('?trial=ABC234.CnXQrsTQ2yQ7Xyyk&live'), 'ABC234.CnXQrsTQ2yQ7Xyyk');
+  assert.equal(P.trialFromSearch('?live&trial=ABC234.CnXQrsTQ2yQ7Xyyk&zoom'), 'ABC234.CnXQrsTQ2yQ7Xyyk');
+  assert.equal(P.trialFromSearch('?live'), '');
+  assert.equal(P.trialFromSearch('?live&trial=abc234.CnXQrsTQ2yQ7Xyyk'), '');
+  assert.equal(P.trialFromSearch('?live&trial=ABC234.short'), '');
+  assert.equal(P.trialFromSearch('?live&trial=%E0%A4%A'), '');
+  assert.equal(P.cleanTrialCode(' ABC234.CnXQrsTQ2yQ7Xyyk '), 'ABC234.CnXQrsTQ2yQ7Xyyk');
+  assert.equal(P.passFromSearch('?live&trial=ABC234.CnXQrsTQ2yQ7Xyyk'), '', 'never read as a personal link');
+});
+
+test('🎟 the window joins a trial link as trialpass and waits for its own class', () => {
+  assert.match(src, /kind: 'trialpass', code: pick\.code/);
+  assert.match(src, /var tcode = trialNow\(\);\s*if \(tcode\) return checkTrialCode\(tcode\);/);
+  assert.match(src, /call\('trial', \{ code: code \}\)/);
+  assert.match(src, /e\.code === 'trial_other_class'/);
+  assert.match(src, /S\.mode === 'trialwait'\) openStudent\(\)/);
 });

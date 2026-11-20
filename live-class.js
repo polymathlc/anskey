@@ -36,7 +36,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.218.0';
+  var VERSION = '1.219.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open', 'cloze'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended', cloze: 'Fill in the keywords' };
@@ -1308,6 +1308,26 @@
     });
     return out;
   }
+  /* 🎟 A trial booking's own live link (v1.219.0): `?live&trial=<BOOKING>.<mac>`,
+     made by polymathlc.com.sg/trial for ONE trial lesson. The server checks
+     it (functions/live-class.js resolveTrial); this only reads its shape. */
+  var TRIAL_CODE_RE = /^[A-Z2-9]{6}\.[A-Za-z0-9_-]{16}$/;
+  function cleanTrialCode(v) {
+    var t = str(v).trim();
+    return TRIAL_CODE_RE.test(t) ? t : '';
+  }
+  function trialFromSearch(search) {
+    var q = str(search).replace(/^\?/, '');
+    var out = '';
+    q.split('&').forEach(function (part) {
+      var i = part.indexOf('=');
+      if (i < 0 || part.slice(0, i) !== 'trial' || out) return;
+      var v = part.slice(i + 1);
+      try { v = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) { v = ''; }
+      out = cleanTrialCode(v);
+    });
+    return out;
+  }
   function cleanPinInput(v) { return str(v).replace(/\D+/g, '').slice(0, 4); }
   // The personal link for a code, from the class link (`…/anskey/?live`).
   function passLink(classLink, code) {
@@ -1518,6 +1538,7 @@
     gridFor: gridFor, clampBox: clampBox, qualityWord: qualityWord, publishPlan: publishPlan, minuteMB: minuteMB, SCREEN: SCREEN, wantTrack: wantTrack,
     shareConstraints: shareConstraints,
     filterNames: filterNames, cleanPrefs: cleanPrefs,
+    cleanTrialCode: cleanTrialCode, trialFromSearch: trialFromSearch,
     cleanPassCode: cleanPassCode, passFromSearch: passFromSearch, cleanPinInput: cleanPinInput, passLink: passLink, studyLink: studyLink, studyBase: studyBase,
     ZOOM: ZOOM, zoomCaptureConstraints: zoomCaptureConstraints, duckGain: duckGain, rmsLevel: rmsLevel, loopbackHint: loopbackHint,
     zoomFromSearch: zoomFromSearch, zoomLink: zoomLink, ZOOM_GUIDE: ZOOM_GUIDE, guideFor: guideFor, isZoomFeed: isZoomFeed,
@@ -2061,6 +2082,9 @@
       call('status').then(function (st) {
         if (seq !== S.seq) return;
         S.status = st;
+        // 🎟 A trial booking's own link comes first: it names the child.
+        var tcode = trialNow();
+        if (tcode) return checkTrialCode(tcode);
         // 🔗 A personal link (or this device's remembered one) says who this
         // is: no list to search, one Join button.
         var code = passNow();
@@ -2078,6 +2102,8 @@
           if (b) b.classList.toggle('vcLiveNow', open);
         }
         if (S.role === 'student' && S.mode === 'wait' && open) openStudent();
+        // 🎟 A trial child waiting for THEIR class: any change may be it.
+        if (S.role === 'student' && S.mode === 'trialwait') openStudent();
         // The teacher pressed "Let students in now", or started another class.
         if (S.role === 'student' && S.mode === 'gate' && (!open || m.letIn || Number(m.epoch) !== Number(S.gateEpoch))) openStudent();
       });
@@ -2092,7 +2118,7 @@
       clear(S.body);
       var box = el('div', 'vcCenter vcWait vcGateCard');
       box.appendChild(el('div', 'vcBig', '⏳'));
-      if (S.me && S.me.name && passNow()) box.appendChild(el('p', 'vcHello', 'Hi ' + S.me.name + '!'));
+      if (S.me && S.me.name && (passNow() || trialNow())) box.appendChild(el('p', 'vcHello', 'Hi ' + S.me.name + '!'));
       box.appendChild(el('h3', null, g.reason === 'other_day' ? 'This class is not on today' : 'Your lesson has not started yet'));
       if (res.slotLabel) box.appendChild(el('p', 'vcMsg', res.slotLabel));
       box.appendChild(el('p', 'vcMuted', g.message || 'Your teacher will let you in soon.'));
@@ -2119,7 +2145,7 @@
       clear(S.body);
       var box = el('div', 'vcCenter vcWait');
       box.appendChild(el('div', 'vcBig', '⏳'));
-      if (S.me && S.me.name && passNow()) box.appendChild(el('p', 'vcHello', 'Hi ' + S.me.name + '!'));
+      if (S.me && S.me.name && (passNow() || trialNow())) box.appendChild(el('p', 'vcHello', 'Hi ' + S.me.name + '!'));
       box.appendChild(el('h3', null, 'The class has not started yet'));
       box.appendChild(el('p', 'vcMuted', 'Keep this window open. The class opens here by itself when your teacher starts it.'));
       box.appendChild(btn('', 'Check again', null, openStudent));
@@ -2272,10 +2298,13 @@
       blessAudio();
       var seq = ++S.seq;
       var body = pick.kind === 'pass' ? { kind: 'pass', code: pick.code }
+        : pick.kind === 'trialpass' ? { kind: 'trialpass', code: pick.code }
         : { kind: pick.kind, id: pick.id, name: pick.kind === 'trial' ? pick.name : undefined };
       call('token', { pick: body, takeover: !!takeover }).then(function (res) {
         if (seq !== S.seq) return;
-        if (pick.kind === 'pass') {
+        if (pick.kind === 'trialpass') {
+          writeJson(local(), PICK_KEY, { kind: 'trial', id: '', name: res.name || pick.name || '', epoch: 0 });
+        } else if (pick.kind === 'pass') {
           rememberPass(res.code || pick.code, res.name || pick.name);
           writeJson(local(), PICK_KEY, { kind: res.kind === 'makeup' ? 'makeup' : 'roster', id: res.rosterId || '', name: '', epoch: 0 });
         } else {
@@ -2293,6 +2322,10 @@
           forgetPass(); S.passNote = e.message; return loadRoster();
         }
         if (pick.kind === 'pass' && e && e.code === 'not_yet') return openStudent();
+        // 🎟 Not their class yet, or the door shut: wait again; an ended or
+        // cancelled trial says so in words.
+        if (pick.kind === 'trialpass' && e && (e.code === 'not_yet' || e.code === 'trial_other_class')) return openStudent();
+        if (pick.kind === 'trialpass' && e && /^trial_/.test(e.code || '')) return paintTrialStop(e.message);
         // Before the lesson time: the roster says when (a make-up child's own
         // lesson later today is told in words, with the list to go back to).
         if (e && e.code === 'not_yet' && pick.kind !== 'makeup') return loadRoster();
@@ -2312,10 +2345,94 @@
       row.appendChild(btn('', 'No, choose again', null, function () {
         S.pick = null;
         if (pick.kind === 'pass') { forgetPass(); S.passOff = true; return loadRoster(); }
+        if (pick.kind === 'trialpass') { S.trialOff = true; S.me = null; return openStudent(); }
         paintPick();
       }));
       card.appendChild(row);
       S.body.appendChild(card);
+    }
+
+    /* ================================================================
+       🎟 A TRIAL STUDENT'S OWN LIVE LINK (v1.219.0)
+       polymathlc.com.sg/trial gives each trial booking one link for its
+       lesson: `?live&trial=<BOOKING>.<mac>`. It names the child (from the
+       booking), opens only their own class on their own lesson day, and
+       joins them as a Trial student. The server checks everything.
+       ================================================================ */
+    function urlTrial() {
+      if (typeof env.trialCode === 'function') return cleanTrialCode(env.trialCode());
+      try { return trialFromSearch(root.location && root.location.search); } catch (e) { return ''; }
+    }
+    function trialNow() { return S.trialOff ? '' : urlTrial(); }
+    function checkTrialCode(code) {
+      paintBusy('Checking your trial lesson link…');
+      var seq = ++S.seq;
+      call('trial', { code: code }).then(function (res) {
+        if (seq !== S.seq || S.role !== 'student') return;
+        S.me = res.me || null;
+        if (!res.open) return paintWait();
+        if (res.gate && res.gate.open === false) return paintGate(res);
+        if (res.wrongClass) return paintTrialWait(res);
+        paintTrialMe(res, code);
+      }, function (e) {
+        if (seq !== S.seq) return;
+        if (e && e.code === 'teacher_pass') { S.trialOff = true; return paintError(e, null); }
+        if (e && /^trial_/.test(e.code || '')) return paintTrialStop(e.message);
+        paintError(e, openStudent);
+      });
+    }
+    // "Hi Bella!" — one Join button for the trial lesson.
+    function paintTrialMe(res, code) {
+      S.mode = 'me';
+      S.slot = res.slot || '';
+      placeWindow();
+      clear(S.body);
+      var me = res.me || {};
+      var card = el('div', 'vcCard vcCenter vcMe');
+      card.appendChild(el('div', 'vcBig', '👋'));
+      card.appendChild(el('p', 'vcHello', 'Hi ' + (me.name || 'there') + '!'));
+      card.appendChild(el('h3', 'vcMeName', 'Your trial lesson is on'));
+      if (res.slotLabel) card.appendChild(el('p', 'vcMsg', res.slotLabel));
+      card.appendChild(el('p', 'vcMuted', 'Press Join, then Allow the camera and microphone when your browser asks.'));
+      if (urlZoom()) { S.prefs.answerOnly = true; savePrefs(); }
+      card.appendChild(zoomChoice());
+      var go = btn('vcPrimary vcGo', '▶ Join the class', null, function () {
+        joinAsStudent({ kind: 'trialpass', code: code, name: me.name || '', label: me.name || '' }, false);
+      });
+      card.appendChild(go);
+      card.appendChild(btn('vcLinkBtn', 'Not me — choose my name', 'This is not your trial link', function () {
+        S.trialOff = true; S.me = null; openStudent();
+      }));
+      S.body.appendChild(card);
+      if (!phone()) setTimeout(function () { try { go.focus(); } catch (e) {} }, 0);
+    }
+    // Another class is on: their own lesson lets them in when it starts.
+    function paintTrialWait(res) {
+      S.mode = 'trialwait';
+      placeWindow();
+      clear(S.body);
+      var box = el('div', 'vcCenter vcWait');
+      box.appendChild(el('div', 'vcBig', '⏳'));
+      if (S.me && S.me.name) box.appendChild(el('p', 'vcHello', 'Hi ' + S.me.name + '!'));
+      box.appendChild(el('h3', null, 'Your trial lesson has not started yet'));
+      if (S.me && S.me.lesson) box.appendChild(el('p', 'vcMsg', S.me.lesson));
+      box.appendChild(el('p', 'vcMuted', res.wrongClass || 'Keep this window open. It lets you in when your lesson starts.'));
+      box.appendChild(btn('', 'Check again', null, openStudent));
+      S.body.appendChild(box);
+      clearTimeout(S.waitTimer);
+      S.waitTimer = setTimeout(function () { if (S.mode === 'trialwait' && !S.win.hidden) openStudent(); }, 30000);
+    }
+    // The link has ended, is not for today, or was cancelled: say so.
+    function paintTrialStop(message) {
+      S.mode = 'trialstop';
+      placeWindow();
+      clear(S.body);
+      var box = el('div', 'vcCenter vcWait');
+      box.appendChild(el('div', 'vcBig', '📅'));
+      box.appendChild(el('h3', null, 'This trial lesson link is not open now'));
+      box.appendChild(el('p', 'vcMuted', message || 'Use the Zoom link in your email instead.'));
+      box.appendChild(btn('', 'Check again', null, openStudent));
+      S.body.appendChild(box);
     }
 
     /* ================================================================
@@ -5818,7 +5935,7 @@
       if (S.mirrorOff) { try { S.mirrorOff(); } catch (e) {} S.mirrorOff = null; }
       S.session = null; S.reports = {}; S.compose = null; S.images = {}; S.removed = {}; S.outbox = {};
       S.progress = null; S.progressState = '';
-      S.status = null; S.lists = null; S.box = null; S.me = null; S.passOff = false;
+      S.status = null; S.lists = null; S.box = null; S.me = null; S.passOff = false; S.trialOff = false;
     }
     // A change of person on this device ends everything that was theirs:
     // the call, the camera, the class record held in memory.
