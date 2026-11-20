@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.217.0');
+  assert.equal(P.VERSION, '1.218.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
   assert.match(html, /var APP_VERSION = 'v1\.2(1[2-9]|[2-9]\d)\.\d+'/);
-  assert.match(html, /live-class\.js\?v=1\.217\.0/);
+  assert.match(html, /live-class\.js\?v=1\.218\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.217\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.218\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 
@@ -1157,4 +1157,75 @@ test('👀 the window: blur and focus are watched, photos are excused, the teach
   assert.match(src, /out: e\.out \|\| undefined/);
   assert.match(src, /your teacher can see when you leave it/);
   assert.match(css, /\.vcTile\.vcOutNow::before/);
+});
+
+/* ---------- 🙋 attendance and absence alerts (v1.218.0) ---------- */
+test('🙋 who joined: roster children only, with their first join time', () => {
+  const s = lesson();
+  assert.deepEqual(plain(P.attJoinedMap(s)), { famA_s1: 1000 }, 'the trial guest and the teacher are not on the class list');
+  assert.deepEqual(plain(P.attJoinedMap(null)), {});
+});
+
+test('🙋 who would be emailed: not here, not told, with an address, not skipped or marked absent', () => {
+  const data = { taken: true, mode: 'auto', students: [
+    { id: 'a_1', name: 'Amy', here: true },
+    { id: 'b_2', name: 'Ben' },
+    { id: 'c_3', name: 'Cai', late: 5 },
+    { id: 'd_4', name: 'Dan', noEmail: true },
+    { id: 'e_5', name: 'Eve', mark: 'absent' },
+    { id: 'f_6', name: 'Fay' },
+    { id: 'g_7', name: 'Gus' }
+  ] };
+  assert.deepEqual(plain(P.attPending(data, { f_6: true }, { g_7: 9 })).map(r => r.id), ['b_2'], 'Gus has just joined on this device');
+  assert.deepEqual(plain(P.attPending({ ...data, mode: 'off' }, {}, {})), []);
+  assert.deepEqual(plain(P.attPending({ taken: false }, {}, {})), []);
+  assert.equal(P.namesWords(['Amy']), 'Amy');
+  assert.equal(P.namesWords([{ name: 'Amy' }, { name: 'Ben' }, { name: 'Cai' }]), 'Amy, Ben and Cai');
+});
+
+test('🙋 each child\'s line in the teacher\'s list', () => {
+  const t = Date.UTC(2027, 0, 13, 9, 2);
+  assert.equal(P.attStatus({ id: 'a', joinedAt: t }).word, '✓ Joined 5:02 PM');
+  assert.equal(P.attStatus({ id: 'a', mark: 'here' }).word, '✋ Marked here');
+  assert.equal(P.attStatus({ id: 'a', late: t }).word, '✉ Not joined · parent emailed 5:02 PM');
+  assert.equal(P.attStatus({ id: 'a', late: t, catchup: t }).cls, 'absent');
+  assert.equal(P.attStatus({ id: 'a', noEmail: true }).word, '⏳ Not joined · no parent email on file');
+  assert.equal(P.attStatus({ id: 'a' }, { a: t }).cls, 'here', 'joined on this device since the last check');
+});
+
+test('🙋 a missed lesson reads as absent in a report, never as zero, and never enters the progress book', () => {
+  const d1 = Date.UTC(2027, 0, 6, 9, 0), d2 = Date.UTC(2027, 0, 13, 9, 0), today = Date.UTC(2027, 0, 20, 9, 0);
+  const hist = [{ e: 11, d: d1, q: 4, a: 4, r: 3, h: 0, k: 4, f: 90, m: 100, s: 20 }];
+  const merged = plain(P.historyWithAbsences(hist, [{ d: d2, l: 'Wed 5:00pm · P5 Science' }, { d: d1, l: 'x' }, { d: today, l: 'today' }], today, 5));
+  assert.equal(merged.length, 2, 'a mark on a day with a lesson row loses; today is not history');
+  assert.equal(merged[1].x, 1);
+  assert.equal(merged[1].q, 0);
+  const lines = P.historyLines(merged);
+  assert.match(lines[1], /absent \(missed this lesson\)/);
+  assert.doesNotMatch(lines[1], /answered|min in class/);
+  assert.equal(P.trendOf([merged[1], merged[1], merged[0]], { scorePct: 10 }), '', 'absences are not lessons to compare with');
+  // A report card shows the word Absent for that lesson.
+  const s = lesson();
+  const card = P.reportCardHtml(s, 'r:famA_s1', 9000, 'Polymath', merged);
+  assert.match(card, />Absent</);
+  // The book keeps lessons the child was in only.
+  const book = P.progressMerge({ v: 1, students: { 'r:famA_s1': { name: 'Ethan', rows: merged } } }, null, 0);
+  assert.equal(book.students['r:famA_s1'].rows.length, 1);
+  assert.equal(book.students['r:famA_s1'].rows[0].x, undefined);
+});
+
+test('🙋 the window: the banner, the countdown, the People list, the settings and the close', () => {
+  assert.match(src, /call\('attendance', body\)/);
+  assert.match(src, /ATT_COUNTDOWN_MS = 60000/);
+  assert.match(src, /Their parents are emailed in ' \+ secs \+ ' s/);
+  assert.match(src, /'✋ Mark here'/);
+  assert.match(src, /call\('close', closeBody\)/);
+  assert.match(src, /attendanceTick\(false\);/);
+  assert.match(src, /paintAttSettings\(opts, st\)/);
+  assert.match(src, /paintAttendance\(box\);/);
+  assert.match(src, /paintAbsentNote\(box\);/);
+  assert.match(css, /\.vcAttBanner \{/);
+  assert.match(css, /:root\[data-theme="dark"\] \.vcAttBanner/);
+  assert.match(html, /loadAbsences: liveClassLoadAbsences/);
+  assert.match(html, /x\.kind !== 'attendance-day'/);
 });

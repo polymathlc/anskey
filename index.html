@@ -4047,7 +4047,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="live-cams.css">
-<link rel="stylesheet" href="live-class.css?v=1.217.0">
+<link rel="stylesheet" href="live-class.css?v=1.218.0">
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="living-library.css">
@@ -6049,7 +6049,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.217.0';
+var APP_VERSION = 'v1.218.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -32921,6 +32921,44 @@ async function liveClassSaveProgress(book) {
   await ref.set({ v: 1, json: json, students: Object.keys((book && book.students) || {}).length, at: firebase.firestore.FieldValue.serverTimestamp() });
 }
 
+/* ---- 🙋 earlier absences, for a report's "Recent live lessons" (v1.218.0) ----
+   officeSettings/attend-YYYY-MM-DD (the office's record of each day, written
+   by the live class's server and corrected by hand in the office) → for each
+   child, the lessons of the last eight weeks they missed: { rosterId: [{ d, l }] }.
+   A child counts as absent when the class was taken live (or the office
+   marked them absent) and they were neither in it nor marked here. */
+async function liveClassLoadAbsences() {
+  if (!wheelTeacher()) return {};
+  var from = new Date(Date.now() + 8 * 3600000 - 56 * 86400000).toISOString().slice(0, 10);
+  var snap = await db.collection('officeSettings').where('day', '>=', from).get();
+  var out = {};
+  var add = function (id, d, l) { if (!/^[A-Za-z0-9-]{1,60}_[A-Za-z0-9-]{1,60}$/.test(id)) return; (out[id] = out[id] || []).push({ d: Number(d) || 0, l: String(l || '').slice(0, 60) }); };
+  snap.forEach(function (doc) {
+    var x = doc.data() || {};
+    if (x.kind !== 'attendance-day') return;
+    var marks = x.marks || {}, live = x.live || {};
+    var seen = {};
+    Object.keys(live).forEach(function (slot) {
+      var L = live[slot] || {};
+      if (!(Number(L.dueAt) > 0) || Number(L.checkedAt) < Number(L.dueAt)) return;   // the check never came round
+      Object.keys(L.expected || {}).forEach(function (id) {
+        var m = marks[slot + '__' + id];
+        if ((m && m.s === 'here') || (L.joined && L.joined[id] && !(m && m.s === 'absent'))) return;
+        seen[slot + '__' + id] = true;
+        add(id, L.start, L.label);
+      });
+    });
+    // Marked absent by hand on a day the live class was not used.
+    Object.keys(marks).forEach(function (k) {
+      var m = marks[k] || {};
+      var i = k.indexOf('__');
+      if (m.s !== 'absent' || i < 1 || seen[k]) return;
+      add(k.slice(i + 2), Number(m.start) || Date.parse(String(x.day) + 'T12:00:00+08:00'), m.label || '');
+    });
+  });
+  return out;
+}
+
 /* ---- sending a report (v1.216.0): from admin@polymathlc.com.sg ----
    The server (ansKeyLiveClass, action "report") drops the email into the
    `mail` collection, which the Trigger Email extension sends as "Polymath
@@ -33431,6 +33469,7 @@ function liveClassInit() {
     // 📈 Performance tracking (v1.216.0): each child's recent live lessons.
     loadProgress: liveClassLoadProgress,
     saveProgress: liveClassSaveProgress,
+    loadAbsences: liveClassLoadAbsences,
     // polymathlc.com.sg/live → "I have a PIN" opens the PIN tab (`?live&pin`).
     startTab: function () { return /(?:^|[?&])pin(?:[=&]|$)/.test(location.search.replace(/^\?/, '')) ? 'pin' : ''; },
     snapWorksheet: liveClassSnapWorksheet,
@@ -45423,7 +45462,7 @@ loadAiNotePrefs();
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>
 <script src="live-class-record.js?v=1.208.0"></script>
-<script src="live-class.js?v=1.217.0"></script>
+<script src="live-class.js?v=1.218.0"></script>
 <script>liveClassInit();</script>
 <script src="vendor/qrcode-generator.js"></script>
 <script src="question-apps.js"></script>

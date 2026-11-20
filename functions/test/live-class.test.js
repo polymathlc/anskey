@@ -42,7 +42,13 @@ function fakeDb(initial = ROSTER) {
     return {
       path,
       async get() { const d = store.get(path); return { exists: d !== undefined, data: () => (d === undefined ? undefined : JSON.parse(JSON.stringify(d))) }; },
-      async set(v) { writes.push([path, v]); store.set(path, JSON.parse(JSON.stringify(v))); },
+      async set(v, opts) {
+        writes.push([path, v]);
+        const next = JSON.parse(JSON.stringify(v));
+        // { merge: true } merges maps the way Firestore does (deeply).
+        const merge = (a, b) => { for (const k of Object.keys(b)) { a[k] = b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object' && !Array.isArray(a[k]) ? merge(a[k], b[k]) : b[k]; } return a; };
+        store.set(path, opts && opts.merge && store.has(path) ? merge(JSON.parse(JSON.stringify(store.get(path))), next) : next);
+      },
       collection(name) { return coll(path + '/' + name); }
     };
   }
@@ -444,7 +450,7 @@ test('🚪 the lesson-time gate: Singapore time, early minutes, other days', () 
   assert.equal(lc.cleanEarly(-5), 0);
   assert.equal(lc.cleanEarly(999), lc.EARLY_MAX);
   assert.equal(lc.cleanEarly('x'), lc.EARLY_DEFAULT);
-  assert.deepEqual(lc.cleanSettings(null), { earlyMin: 10 });
+  assert.deepEqual(lc.cleanSettings(null), { earlyMin: 10, absentMode: 'auto', absentAfter: 10, catchUp: true });
   const later = lc.laterLessonToday({ slots: ['WED-3', 'SAT-1'] }, 'WED-2', WED_1655, 10, {});
   assert.equal(later.slot, 'WED-3');
   assert.match(later.message, /starts at 7:00pm/);
@@ -804,4 +810,162 @@ test('reportEmails keeps at most four clean addresses', () => {
   assert.deepEqual(lc.reportEmails(['a@b.co', 'c@d.co', 'e@f.co', 'g@h.co', 'i@j.co']), ['a@b.co', 'c@d.co', 'e@f.co', 'g@h.co']);
   assert.deepEqual(lc.reportEmails(['<x>@y.com', 'a b@c.com', '']), []);
   assert.deepEqual(lc.reportEmails('a@b.co'), []);
+});
+
+// 🙋 Attendance and absence alerts (v1.218.0).
+const ATT_ROSTER = {
+  ...ROSTER,
+  'officeFamilies/famA': { ...ROSTER['officeFamilies/famA'], parentName: 'Mrs Tan', email2: 'Mr.Tan@Example.com' },
+  'officeFamilies/famF': { status: 'active', parentName: 'Mr Goh', email: 'goh@example.com', students: [
+    { id: 'sF1', name: 'Chloe Goh', level: 'P5', status: 'active', classes: [{ slotId: 'WED-2' }] }
+  ] }
+};
+// Wednesday 13 January 2027 in Singapore; WED-2 is 5:00pm – 6:45pm.
+const WED_1700 = Date.UTC(2027, 0, 13, 9, 0);
+
+test('🙋 the lesson window: the slot\'s own times, or from when a moved lesson was opened', () => {
+  const w = lc.lessonWindow('WED-2', WED_1655);
+  assert.equal(w.start, WED_1700);
+  assert.equal(w.end, WED_1700 + 105 * 60000);
+  assert.equal(w.release, w.end + 15 * 60000, 'answer keys open 15 minutes after the end');
+  assert.equal(w.day, '2027-01-13');
+  assert.equal(w.moved, false);
+  const moved = lc.lessonWindow('FRI-2', WED_1655);
+  assert.equal(moved.moved, true);
+  assert.equal(moved.start, WED_1655);
+  assert.equal(lc.lessonWindow('nope', WED_1655), null);
+  assert.equal(lc.absentDueAt(w, WED_1655, 10), WED_1700 + 10 * 60000, 'ten minutes after the lesson starts');
+  assert.equal(lc.absentDueAt(w, WED_1700 + 20 * 60000, 10), WED_1700 + 30 * 60000, 'a class opened late counts from when it opened');
+  assert.equal(lc.cleanAbsentAfter(1), 3);
+  assert.equal(lc.cleanAbsentAfter(99), 45);
+  assert.deepEqual(lc.cleanSettings(null), { earlyMin: 10, absentMode: 'auto', absentAfter: 10, catchUp: true });
+  assert.equal(lc.cleanSettings({ absentMode: 'loud' }).absentMode, 'auto');
+});
+
+test('🙋 attendance: who is here, a hand mark wins, and the emails read as plain words', () => {
+  const split = lc.attendanceSplit({ a_1: 'A', b_2: 'B', c_3: 'C' }, { a_1: 5 }, { 'WED-2__b_2': { s: 'here' }, 'WED-2__a_1': { s: 'absent' } }, 'WED-2');
+  assert.deepEqual(split.present, ['b_2']);
+  assert.deepEqual(split.missing.sort(), ['a_1', 'c_3']);
+  assert.deepEqual(lc.cleanJoined({ 'famA_sA1': 100, 'bad id': 100, 'famB_sB1': 5, 'famF_sF1': 'x' }, 50, 200), { famA_sA1: 100 });
+  const late = lc.absentEmail({ parentName: 'Mrs <Tan>', childName: 'Amy Tan', classLabel: 'P5 Science', startMs: WED_1700, joinUrl: 'https://polymathlc.com.sg/live/?c=x', catchUp: true });
+  assert.match(late.subject, /^Amy has not joined today’s P5 Science yet \(5:00pm\)$/);
+  assert.match(late.html, /Hi Mrs &lt;Tan&gt;,/, 'escaped');
+  assert.match(late.text, /Join the lesson: https:\/\/polymathlc\.com\.sg\/live\/\?c=x/);
+  assert.match(late.text, /on Zoom, or is away today, there is nothing you need to do/);
+  const w = lc.lessonWindow('WED-2', WED_1655);
+  const cu = lc.catchUpEmail({ parentName: '', childName: 'Amy Tan', classLabel: 'P5 Science', win: w });
+  assert.match(cu.subject, /^Catch-up for Amy: P5 Science on Wed 13 Jan$/);
+  assert.match(cu.text, /^Hello,/);
+  assert.match(cu.text, /Amy was absent from today’s P5 Science lesson \(Wed 13 Jan, 5:00pm – 6:45pm\)/);
+  assert.match(cu.text, /from 7:00pm/);
+  assert.match(cu.text, /polymathlc\.com\.sg\/online\//);
+  assert.equal(lc.alertMailId('late', '2027-01-13', 'WED-2', 'famA_sA1'), 'live-class-absent-2027-01-13-WED-2-famA_sA1');
+  assert.equal(lc.classWords('WED-2', { slots: { 'WED-2': { level: 'P5', subject: 'Math' } } }), 'P5 Maths');
+});
+
+test('🙋 ten minutes in: the parents of children not in the class are emailed once, never a child marked here', async () => {
+  const db = fakeDb(ATT_ROSTER);
+  const clock = { t: WED_1655 };
+  const h = harness({ db, clock });
+  await h.call(KEYS);
+  const opened = await h.call({ action: 'open', slot: SLOT });
+  const epoch = opened.body.epoch;
+  // Amy joined at 4:58; LiveKit also has Chloe in the room.
+  h.lk.setParticipants([{ identity: 'r:famF_sF1', joined_at: String(Math.floor((WED_1700 + 60000) / 1000)) }, { identity: 't:teacher' }]);
+  clock.t = WED_1700 + 5 * 60000;
+  const early = await h.call({ action: 'attendance', epoch, joined: { famA_sA1: WED_1655 + 3 * 60000 }, send: true });
+  assert.equal(early.statusCode, 200);
+  assert.equal(early.body.taken, true);
+  assert.equal(early.body.dueAt, WED_1700 + 10 * 60000);
+  assert.deepEqual(early.body.missing, ['famB_sB1'], 'only Ethan is missing');
+  assert.equal(early.body.sent.length, 0, 'not due yet');
+  assert.equal(db.writes.filter(([p]) => p.startsWith('mail/')).length, 0);
+  const doc = db.store.get('officeSettings/attend-2027-01-13');
+  assert.equal(doc.kind, 'attendance-day');
+  assert.equal(doc.live['WED-2'].joined.famF_sF1, WED_1700 + 60000, 'from the room');
+  assert.equal(doc.live['WED-2'].expected.famA_sA1, 'Amy Tan');
+  assert.equal(doc.live['WED-2'].expected['famD_sD1'], undefined, 'withdrawn families are not expected');
+
+  // Ten minutes in. Ethan's family has no email: nothing is sent, and the teacher is told.
+  clock.t = WED_1700 + 11 * 60000;
+  h.lk.setParticipants([]);
+  const due = await h.call({ action: 'attendance', epoch, joined: {}, send: true });
+  assert.deepEqual(due.body.noEmail, ['famB_sB1']);
+  assert.equal(db.writes.filter(([p]) => p.startsWith('mail/')).length, 0);
+  assert.deepEqual(due.body.present.sort(), ['famA_sA1', 'famF_sF1'], 'a child who joined stays here after leaving');
+
+  // Chloe never really came: the office marks her absent → no "not joined yet" email, but she is missing.
+  const st = db.store.get('officeSettings/attend-2027-01-13');
+  st.live['WED-2'].joined = { famA_sA1: WED_1655 + 3 * 60000 };
+  db.store.set('officeSettings/attend-2027-01-13', st);
+  const again = await h.call({ action: 'attendance', epoch, joined: {}, send: true });
+  assert.deepEqual(again.body.missing.sort(), ['famB_sB1', 'famF_sF1']);
+  const mails = db.writes.filter(([p]) => p.startsWith('mail/'));
+  assert.equal(mails.length, 1);
+  const [path, mail] = mails[0];
+  assert.equal(path, 'mail/live-class-absent-2027-01-13-WED-2-famF_sF1');
+  assert.deepEqual(mail.to, ['goh@example.com']);
+  assert.equal(mail.from, 'Polymath Learning Centre <admin@polymathlc.com.sg>');
+  assert.match(mail.message.subject, /^Chloe has not joined/);
+  assert.match(mail.message.text, /Hi Mr Goh,/);
+  assert.equal(mail.liveClassAttendance.kind, 'late');
+  assert.ok(db.store.get('officeSettings/attend-2027-01-13').alerts['WED-2__famF_sF1'].late.at > 0);
+  // Asked again: never a second email.
+  await h.call({ action: 'attendance', epoch, joined: {}, send: true });
+  assert.equal(db.writes.filter(([p]) => p.startsWith('mail/')).length, 1);
+
+  // "Here (on Zoom)" from the teacher: a hand mark the office sees.
+  const marked = await h.call({ action: 'attendance', epoch, here: ['famB_sB1'] });
+  assert.deepEqual(marked.body.missing, ['famF_sF1']);
+  assert.equal(db.store.get('officeSettings/attend-2027-01-13').marks['WED-2__famB_sB1'].s, 'here');
+  // Students may not ask.
+  assert.equal((await h.call({ action: 'attendance', epoch }, { as: studentUser })).statusCode, 403);
+});
+
+test('🙋 skipped names, off, and an old class', async () => {
+  const db = fakeDb(ATT_ROSTER);
+  const clock = { t: WED_1655 };
+  const h = harness({ db, clock });
+  await h.call(KEYS);
+  const { epoch } = (await h.call({ action: 'open', slot: SLOT })).body;
+  clock.t = WED_1700 + 12 * 60000;
+  const r = await h.call({ action: 'attendance', epoch, joined: { famB_sB1: WED_1700 }, send: true, skip: ['famF_sF1'] });
+  assert.deepEqual(r.body.sent, ['famA_sA1'], 'Chloe was skipped by the teacher');
+  const [, mail] = db.writes.find(([p]) => p.startsWith('mail/'));
+  assert.deepEqual(mail.to, ['tan@example.com', 'mr.tan@example.com'], 'both of the family\'s addresses');
+  assert.match(mail.message.text, /\/live\/\?c=famA_sA1\.0\./, 'the child\'s own one-tap link');
+  await h.call({ action: 'settings', absentMode: 'off' });
+  const off = await h.call({ action: 'attendance', epoch, joined: {}, send: true });
+  assert.equal(off.body.mode, 'off');
+  assert.equal(off.body.sent.length, 0);
+  assert.equal((await h.call({ action: 'settings', absentMode: 'shout' })).statusCode, 400);
+  assert.equal((await h.call({ action: 'attendance', epoch: epoch - 1 })).body.error.code, 'class_closed');
+});
+
+test('🙋 ending the class sends the catch-up to every child who never came', async () => {
+  const db = fakeDb(ATT_ROSTER);
+  const clock = { t: WED_1655 };
+  const h = harness({ db, clock });
+  await h.call(KEYS);
+  const { epoch } = (await h.call({ action: 'open', slot: SLOT })).body;
+  clock.t = WED_1700 + 100 * 60000;
+  const closed = await h.call({ action: 'close', joined: { famA_sA1: WED_1700 + 2 * 60000 }, epoch });
+  assert.equal(closed.statusCode, 200);
+  assert.equal(closed.body.open, false);
+  assert.deepEqual(closed.body.attendance.missing.sort(), ['famB_sB1', 'famF_sF1']);
+  const mails = db.writes.filter(([p]) => p.startsWith('mail/'));
+  assert.equal(mails.length, 1, 'Ethan\'s family has no email');
+  assert.equal(mails[0][0], 'mail/live-class-catchup-2027-01-13-WED-2-famF_sF1');
+  assert.match(mails[0][1].message.subject, /^Catch-up for Chloe: P5 Science on Wed 13 Jan$/);
+  const rec = db.store.get('officeSettings/attend-2027-01-13').live['WED-2'];
+  assert.equal(rec.final, true);
+  assert.equal(rec.closedAt, clock.t);
+  // A class opened and closed before the check was due sends nothing.
+  const db2 = fakeDb(ATT_ROSTER);
+  const h2 = harness({ db: db2, clock: { t: WED_1655 } });
+  await h2.call(KEYS);
+  await h2.call({ action: 'open', slot: SLOT });
+  h2.clock.t = WED_1655 + 60000;
+  await h2.call({ action: 'close', joined: {} });
+  assert.equal(db2.writes.filter(([p]) => p.startsWith('mail/')).length, 0);
 });
