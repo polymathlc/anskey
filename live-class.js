@@ -36,14 +36,14 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.219.0';
+  var VERSION = '1.220.0';
   var TOPIC = 'plc';
   var KINDS = ['mcq', 'blank', 'open', 'cloze'];
   var KIND_LABEL = { mcq: 'Multiple choice', blank: 'Fill in the blank', open: 'Open-ended', cloze: 'Fill in the keywords' };
   var LIMITS = {
     leaveLog: 80,
     text: 600,
-    option: 140,
+    option: 240,           // a table row written out ("Circle: X; Triangle: Y; Square: Z") must never be cut short
     options: 6,
     accepted: 8,
     answer: 1200,
@@ -80,6 +80,13 @@
   function str(v) { return v == null ? '' : String(v); }
   function clean(v, max) {
     return str(v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').replace(/[ \t]+/g, ' ').trim().slice(0, max);
+  }
+  // The table an option list spells out ("Circle: X; Triangle: Y; …" in every
+  // option), or null — option-table.js, shared with the CER app and Question of
+  // the Day. Without that file loaded the options stay as lines.
+  function optionTableOf(options) {
+    var T = root.PolymathOptionTable;
+    return T && Array.isArray(options) ? T.fromOptions(options) : null;
   }
   function oneLine(v, max) { return str(v).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max); }
   function randomId(prefix) {
@@ -4267,7 +4274,20 @@
       var draft = keepDraft || { v: mine.v != null ? mine.v : null, photo: mine.photo || '' };
       S.draft = draft;
       if (q.kind === 'mcq') {
-        var opts = el('div', 'vcOpts');
+        // 📋 Options printed as a table (option-table.js, v1.220.0): every option
+        // written as the same "Heading: cell; …" pairs is drawn as that table —
+        // a header row of the printed headings, then each option one tappable
+        // row. Anything else stays the buttons it always was.
+        var table = optionTableOf(q.options);
+        var opts = el('div', 'vcOpts' + (table ? ' vcOptsTable' : ''));
+        if (table) {
+          opts.style.setProperty('--vc-cols', String(table.head.length));
+          var head = el('div', 'vcOptHead');
+          head.setAttribute('aria-hidden', 'true');
+          head.appendChild(el('span', null, ''));
+          table.head.forEach(function (h) { head.appendChild(el('span', 'vcOptCell', h)); });
+          opts.appendChild(head);
+        }
         q.options.forEach(function (o, i) {
           var chosen = draft.v === i;
           var right = q.revealed && q.revealed.index === i;
@@ -4277,7 +4297,10 @@
             submit(q, draft);
           });
           b.appendChild(el('span', 'vcOptLetter', letter(i)));
-          b.appendChild(el('span', 'vcOptText', o));
+          if (table) {
+            table.rows[i].forEach(function (c) { b.appendChild(el('span', 'vcOptCell', c)); });
+            b.setAttribute('aria-label', letter(i) + '. ' + table.head.map(function (h, k) { return h + ' ' + table.rows[i][k]; }).join(', '));
+          } else b.appendChild(el('span', 'vcOptText', o));
           b.disabled = closed;
           b.setAttribute('aria-pressed', chosen ? 'true' : 'false');
           opts.appendChild(b);

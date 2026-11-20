@@ -24,13 +24,13 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 test('the module loads with no DOM and exposes pure + create', () => {
   assert.equal(typeof LC.create, 'function');
-  assert.equal(P.VERSION, '1.219.0');
+  assert.equal(P.VERSION, '1.220.0');
   assert.equal(P.TOPIC, 'plc');
 });
 
 test('the version shown in the app matches the module', () => {
   assert.match(html, /var APP_VERSION = 'v1\.2(1[2-9]|[2-9]\d)\.\d+'/);
-  assert.match(html, /live-class\.js\?v=1\.219\.0/);
+  assert.match(html, /live-class\.js\?v=1\.220\.0/);
 });
 
 /* ---------- questions ---------- */
@@ -363,7 +363,7 @@ test('the glue is present, marked and loaded after its module', () => {
   assert.ok(glue.length > 2000);
   assert.ok(html.indexOf('<script src="live-class.js?v=1.207.0"></script>') < html.indexOf('<script>liveClassInit();</script>'));
   assert.match(html, /id="liveClassBtn"/);
-  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.219\.0">/);
+  assert.match(html, /<link rel="stylesheet" href="live-class\.css\?v=1\.220\.0">/);
   assert.match(html, /if \(typeof liveClassRoleChanged === 'function'\) liveClassRoleChanged\(\);/);
 });
 

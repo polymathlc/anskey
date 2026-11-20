@@ -4047,7 +4047,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <link rel="stylesheet" href="wheel-pixel.css">
 <link rel="stylesheet" href="lesson-guests.css">
 <link rel="stylesheet" href="live-cams.css">
-<link rel="stylesheet" href="live-class.css?v=1.219.0">
+<link rel="stylesheet" href="live-class.css?v=1.220.0">
 <link rel="stylesheet" href="question-bank.css">
 <link rel="stylesheet" href="living-apps.css">
 <link rel="stylesheet" href="living-library.css">
@@ -6049,7 +6049,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.219.0';
+var APP_VERSION = 'v1.220.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -33076,6 +33076,16 @@ function liveClassJson(text) {
   if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch (e) {} }
   throw new Error('the reply could not be read');
 }
+// 📋 Answer options printed as a TABLE (v1.220.0): every reader writes each
+// option as that row's "Heading: cell; Heading: cell", and the live class draws
+// such options as the table (option-table.js, shared with the CER app and the
+// Question of the Day). The same sentence as option-table.js PROMPT_RULE.
+var LIVE_OPTION_TABLE_RULE = (window.PolymathOptionTable && window.PolymathOptionTable.PROMPT_RULE) ||
+  'ANSWER OPTIONS PRINTED AS A TABLE: when the answer options are printed as a TABLE (column headings across the top and one row per option), ' +
+  'write EACH option as that row\'s cells paired with the printed column headings, in the printed column order, as "Heading: cell; Heading: cell" ' +
+  '(for example "Circle: X; Triangle: Y; Square: Z"), with the SAME headings in the SAME order in every option and each cell copied exactly as printed ' +
+  '(a tick as ✓ and a cross as ✗). Never leave out a column or a heading. When the options are NOT printed as a table, write them exactly as printed ' +
+  'and never invent headings or turn them into "Heading: cell" pairs.';
 var LIVE_READ_SYS = 'You read ONE question off a cropped picture of a primary school worksheet (Singapore MOE syllabus) ' +
   'so a teacher can push it to a live class. Decide its kind: "mcq" when it lists options to choose from (usually (1) (2) (3) (4) or A B C D), ' +
   '"blank" when the answer is one word, number or short phrase (fill in the blank, a calculation with one final answer), ' +
@@ -33084,6 +33094,7 @@ var LIVE_READ_SYS = 'You read ONE question off a cropped picture of a primary sc
   'Work out the correct answer: for mcq "answer" is the 0-based index of the right option; for blank "accepted" lists the accepted answers ' +
   '(every reasonable way of writing it, units optional); for open "model" is a short model answer in the teacher\'s style. ' +
   'If an answer key for this page is given, it WINS over your own working. If part of the question is cut off, still return what is there and say so in "note". ' +
+  LIVE_OPTION_TABLE_RULE + ' ' +
   'Reply with JSON only: {"kind":"mcq|blank|open","text":"…","options":["…"],"answer":0,"accepted":["…"],"model":"…","note":"…"}';
 async function liveClassReadQuestion(ask) {
   if (!wheelTeacher()) throw new Error('Only the teacher can send questions.');
@@ -33163,7 +33174,7 @@ var LIVE_KEY_LOCAL = 'polymath.liveKey.v1:';
 var LIVE_KEY_SYS =
   'You are an experienced Singapore tuition teacher (P3 to Secondary 1) preparing the HIDDEN answers for a live online lesson, for ONE page ' +
   'of a worksheet. Snapshots of the page are attached. Reply with STRICT JSON only, exactly this shape: {"questions":[{"number":"3a",' +
-  '"kind":"mcq|blank|open","question":"…","options":["…"],"option":"2","answer":"…","model":"…","keywords":["…"]}]}. Rules: one entry for ' +
+  '"kind":"mcq|blank|open","question":"…","options":["…"],"option":"2","answer":"…","model":"…","keywords":["…"]}]}. ' + LIVE_OPTION_TABLE_RULE + ' Rules: one entry for ' +
   'EVERY question actually printed on the page being keyed, in order, keeping the worksheet\'s own numbering ("16", "3a"); multiple-choice ' +
   'questions included. Never invent a question: a cover, instructions or blank page returns {"questions":[]}. "question" is the question\'s ' +
   'words as printed, at most 60 words, able to stand on its own (for a part such as 3b include the bit of the stem it needs; say "the diagram" ' +
@@ -45462,7 +45473,8 @@ loadAiNotePrefs();
 <script src="live-cams.js"></script>
 <script>liveCamsInit();</script>
 <script src="live-class-record.js?v=1.208.0"></script>
-<script src="live-class.js?v=1.219.0"></script>
+<script src="option-table.js?v=1.0.0"></script>
+<script src="live-class.js?v=1.220.0"></script>
 <script>liveClassInit();</script>
 <script src="vendor/qrcode-generator.js"></script>
 <script src="question-apps.js"></script>
