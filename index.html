@@ -1908,6 +1908,30 @@
   .tnHint { font-size: 0.76rem; color: var(--ink-faint); line-height: 1.5; }
   .tnBtnRow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
   .tnBtnRow .btn { font-size: 0.8rem; padding: 8px 14px; }
+  /* 📖 The answer book (v1.221.0) — every answer the teacher wrote, word for word. */
+  .abCard .modalBody { display: flex; flex-direction: column; gap: 16px; }
+  .abStatus { font-size: 0.83rem; color: var(--ink-soft); line-height: 1.5; min-height: 1.2em; }
+  .abFilter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .abSearch { flex: 1 1 220px; min-width: 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); font: inherit; font-size: 0.9rem; }
+  .abBucket { padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); font: inherit; font-size: 0.85rem; background: #fff; }
+  .abList { display: flex; flex-direction: column; gap: 14px; }
+  .abEntry { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow-card); display: flex; flex-direction: column; gap: 10px; }
+  .abQ { font-size: 0.86rem; color: var(--ink-soft); line-height: 1.55; }
+  .abQ b { color: var(--ink); }
+  .abA { width: 100%; min-height: 64px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); font: inherit; font-size: 0.92rem; line-height: 1.55; resize: vertical; }
+  .abBtns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .abBtns .btn { font-size: 0.78rem; padding: 6px 12px; }
+  .abCheck { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .abBars { display: flex; flex-direction: column; gap: 10px; }
+  .abBarRow { display: grid; grid-template-columns: minmax(120px, 34%) 1fr 48px; gap: 10px; align-items: center; font-size: 0.84rem; }
+  .abBarLabel { color: var(--ink-soft); }
+  .abBarTrack { height: 10px; border-radius: 6px; background: var(--bg); overflow: hidden; }
+  .abBarFill { display: block; height: 100%; border-radius: 6px; background: var(--accent-strong); }
+  .abBarNum { text-align: right; }
+  .abCheckRow { border-top: 1px solid var(--line); padding-top: 10px; font-size: 0.84rem; line-height: 1.55; }
+  .abCheckRow summary { cursor: pointer; }
+  .abCheckAns { margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--bg); white-space: pre-wrap; }
+  @media (max-width: 560px) { .abBarRow { grid-template-columns: 1fr 40px; } .abBarLabel { grid-column: 1 / -1; } }
   .tnStatus {
     font-size: 0.83rem;
     color: var(--accent-deep);
@@ -5980,6 +6004,7 @@ body.studentView .videoAnnBtn { animation:sbPill 2.6s ease-in-out infinite; }
 <script src="consult-answer.js"></script>
 <script src="consult-alert.js"></script>
 <script src="concept-tags.js"></script>
+<script src="teacher-voice.js?v=1.221.0"></script>
 <script src="gap-view.js"></script>
 <script src="lo-marks.js?v=1.188.0"></script>
 <script src="lo-practice.js?v=1.188.0"></script>
@@ -6049,7 +6074,7 @@ function tutorMethodRule() {
 }
 /* ================= End AI request deadlines ================= */
 
-var APP_VERSION = 'v1.220.0';
+var APP_VERSION = 'v1.221.0';
 
 /* =====================================================================
    🧭 ALL THE APPS UNDER ONE ROOF (v1.99.0)
@@ -6981,6 +7006,9 @@ async function buildPagesFromBytes(contextCheck) {
   // worksheet has to be drawn back onto them.
   renderAllOverlays();
   syncThumbStars();
+  // 📖 Fetch the teacher's own answers to the questions on this paper, so the
+  // AI can answer, mark and explain in their words.
+  if (typeof abPrimeSoon === 'function') abPrimeSoon();
 }
 
 /* ================= ➕ A BLANK PAGE =================
@@ -20297,6 +20325,7 @@ function notesDetach() {
 }
 function stopTeachingNotes() {
   notesDetach();
+  if (typeof abRoleChanged === 'function') abRoleChanged();   // 📖 one teacher's answers never ground the next account
   /* A job captured under one account would file that page in whoever signs in
      next on this device. */
   autoLearnReset(true);
@@ -20574,9 +20603,21 @@ function _styleOverlap(a, b) {
   for (k in B) if (!A[k]) all++;
   return all ? hit / all : 0;
 }
+/* 🎯 The Voice check holds one question OUT of everything the AI is shown —
+   the answer book AND these exemplars — so a score for a question the
+   teacher has answered measures what the AI learned, not what it copied.
+   Null on every ordinary call. */
+var styleHoldOutQ = null;
+function styleHeldOut(s) {
+  if (!styleHoldOutQ || !s) return false;
+  var TV = (typeof window !== 'undefined') && window.TeacherVoice;
+  if (!TV) return false;
+  return TV.pure.relation(styleHoldOutQ.q, s.q || '') === 'same' ||
+    TV.pure.norm(s.a || '') === TV.pure.norm(styleHoldOutQ.a || '');
+}
 function styleExemplarsFor(q, lvl, sub) {
   var bucket = styleBucketKey(lvl, sub);
-  var pool = styleSamples().filter(function (s) { return s && s.a && s.q; });
+  var pool = styleSamples().filter(function (s) { return s && s.a && s.q && !styleHeldOut(s); });
   if (q) {
     var inB = pool.filter(function (s) { return styleBucketOfSample(s) === bucket; });
     var use = inB.length >= STYLE_EX_MAX ? inB : pool;
@@ -20589,7 +20630,7 @@ function styleExemplarsFor(q, lvl, sub) {
   }
   var p = styleProfileFor(lvl, sub);
   var ex = (p && Array.isArray(p.exemplars)) ? p.exemplars : [];
-  return ex.filter(function (e) { return e && e.a; }).slice(0, STYLE_EX_MAX);
+  return ex.filter(function (e) { return e && e.a && !styleHeldOut(e); }).slice(0, STYLE_EX_MAX);
 }
 function styleExemplars() {
   return styleExemplarsFor('', wsMeta && wsMeta.level, wsMeta && wsMeta.subject);
@@ -20686,11 +20727,15 @@ function aiGrounding(kind, opts) {
   var guide = guidanceBlock();
   var notes = notesBlock(kind);
   var style = styleBlock(kind, opts && opts.q);
-  if (!guide && !notes && !style) return '';
+  /* 📖 The answer book: the teacher's OWN answer to this question (or one like
+     it), word for word, and the other answers on this paper. Read from the
+     cache primed when the worksheet opened, so grounding stays synchronous. */
+  var voice = (typeof abGroundingBlock === 'function') ? abGroundingBlock(kind, opts) : '';
+  if (!guide && !notes && !style && !voice) return '';
   var authority = kind === 'mark'
     ? "\n\nAUTHORITY ORDER: the teacher's model answer on the worksheet (when one is attached) always wins — never mark against it. Then the general guidance above. Use the notes and the style for the keywords, the phrasing and the standard expected; fall back to ordinary syllabus knowledge only where they say nothing."
     : "\n\nAUTHORITY ORDER: what the worksheet itself prints or shows always wins — never contradict it. Then the general guidance above. Otherwise base the content AND the wording on the notes and the style, and fall back to ordinary syllabus knowledge only where they say nothing.";
-  return guide + notes + style + authority;
+  return guide + notes + style + voice + authority;
 }
 
 /* ================= Learning from the answers already on the PDFs =========
@@ -21517,7 +21562,7 @@ function styleEditRules(lvl, sub) {
    it. They are capped hard — three pairs is enough to change the next answer
    and small enough to carry on every call. */
 function styleRecentEdits(q, lvl, sub, cap) {
-  var all = styleEditsAll().filter(function (e) { return e && e.wrote && e.a; });
+  var all = styleEditsAll().filter(function (e) { return e && e.wrote && e.a && !styleHeldOut(e); });
   if (!all.length) return [];
   var bucket = styleBucketKey(lvl, sub);
   var mine = all.filter(function (e) { return styleBucketKey(e.lvl, e.sub) === bucket; });
@@ -21658,7 +21703,8 @@ function styleDistilDue(st) {
 var STYLE_READ_SYS =
   'You are reading one page of a worksheet a teacher has already answered, so ' +
   'that an AI can learn how THIS teacher writes answers. Reply with STRICT ' +
-  'JSON only: {"pairs":[{"q":"the question, condensed to one line","a":"the ' +
+  'JSON only: {"pairs":[{"n":"the question number as printed, e.g. 7 or 7b","q":"the question ' +
+  'as printed, word for word, on one line","a":"the ' +
   "teacher's answer exactly as written on the page\"}]}. Rules: one entry per " +
   'question the teacher has actually answered on this page — typed or ' +
   'handwritten. Transcribe the answer EXACTLY: never correct it, complete it, ' +
@@ -21730,6 +21776,8 @@ async function styleLearnOpenWorksheet() {
           });
         });
         found += styleAddSamples(batch);
+        // 📖 …and the same pairs, word for word, into the answer book.
+        if (typeof abFileRead === 'function') await abFileRead(pairs, currentDocId, p.num, { level: wsMeta.level, subject: wsMeta.subject, name: docName });
       } catch (e) {
         failed++;
         console.warn('Could not read page ' + p.num, e);
@@ -23036,6 +23084,7 @@ function notesTrainingHtml() {
     notesLessonsHtml() +
     notesBucketsHtml() +
     '<div class="tnBtnRow">' +
+      '<button class="btn" onclick="abOpen()" title="Every answer you have written, word for word — what the AI copies in every app">📒 My answer book' + ((typeof abCount === 'function' && abCount()) ? ' (' + abCount() + ')' : '') + '</button>' +
       '<button class="btn" onclick="styleLearnOpenWorksheet()"' + (notesBusy ? ' disabled' : '') + '>📖 Learn from this worksheet</button>' +
       '<button class="btn" onclick="styleLearnAllWorksheets()"' + (notesBusy ? ' disabled' : '') + '>📚 Learn from all my saved worksheets</button>' +
       '<button class="btn" onclick="styleDistilAll(false)"' + (notesBusy ? ' disabled' : '') + '>🧠 Rebuild my style</button>' +
@@ -23346,7 +23395,7 @@ var AUTO_READ_SYS =
   'on, so that a Singapore P3-to-Secondary-1 worksheet app can learn what ' +
   'THIS teacher teaches and how they answer. Reply with STRICT JSON only, ' +
   'exactly this shape: {"teaches":true,"keywords":[],"keyFacts":"","pairs":' +
-  '[{"q":"","a":""}]}. Rules:\n' +
+  '[{"n":"","q":"","a":""}]}. Rules:\n' +
   '- "keywords": 0 to 12 exact terms a student is expected to use in an ' +
   'answer to this page, 1 to 4 words each, copied from what is printed or ' +
   'from the teacher\'s own answer. Never invent a term the page does not show.\n' +
@@ -23355,7 +23404,8 @@ var AUTO_READ_SYS =
   'Only what the page shows.\n' +
   '- NEVER write marking rules, mark schemes or instructions about how to ' +
   'mark. You are recording what the page teaches, not how to judge an answer.\n' +
-  '- "pairs": one entry per question the teacher has ANSWERED on this page, ' +
+  '- "pairs": one entry per question the teacher has ANSWERED on this page ' +
+  '("n" the question number as printed, "q" the question word for word), ' +
   'typed or handwritten. Transcribe the answer EXACTLY as written: never ' +
   'correct it, complete it or improve it. Skip any question with no answer ' +
   'written on it.\n' +
@@ -23412,6 +23462,10 @@ async function autoLearnRunJob(job) {
     });
   });
   var addedStyle = styleAddSamples(batch);
+  // 📖 The same pairs, word for word, into the answer book.
+  if (typeof abFileRead === 'function') {
+    try { await abFileRead(got.pairs, job.docId, job.num, job.meta); } catch (e) { console.warn('📖 Answer book read failed', e); }
+  }
   if (addedStyle) {
     await styleSave();
     if (styleDistilDue(styleEnsure())) {
@@ -23546,6 +23600,778 @@ function autoLearnPanelHtml() {
       '. Edit ' + (full === 1 ? 'it' : 'them') + ' down to what is worth keeping.</div>' : '') +
   '</div>';
 }
+
+/* ================= 📖 THE ANSWER BOOK — the teacher's own answers, question by question (v1.221.0) =================
+   teacher-voice.js (window.TeacherVoice, the SAME file in Study Buddy, the
+   Science portal and Scan) holds the shapes, the matching and the prompt
+   block. This is Ans Key's half: the ONE writer.
+
+   WHAT GOES IN.
+     · Every text box the teacher types that reads as an answer (the style
+       corpus's own test, `styleWorthLearning`), tied to the QUESTION it
+       answers: the question number printed down the left margin at or above
+       the box, and the printed words from that number to the next one
+       (`abQuestionAt`). A box ✨ Answer filled carries its own question (`aiQ`)
+       and that wins. Written AFTER the worksheet is saved, from both save paths.
+     · Every handwritten answer the model reads off a page — 📚 learning as you
+       go, 📖 Learn from this worksheet and ✍️ the back-fill — with the
+       question as printed and the working kept line by line.
+   WHAT NEVER GOES IN. A deliberate 🐾 mistake (`annHoldsMistake`), a living
+   question's own words, anything in practice mode, a shared visitor's or a
+   handed-over device's page (`styleHarvestAllowed`, the corpus's ONE gate),
+   and a box whose question cannot be found (an answer with no question can
+   never be matched to one).
+
+   IDENTITY. A typed entry is `<doc>:a:<annId>` and a read one
+   `<doc>:p<page>:q<number>`, so a corrected answer REPLACES the old one —
+   the corpus's own v1.83.0 lesson. A box deleted from the page is deleted
+   from the book on the next save of that worksheet (`abSweepDoc`).
+
+   WHAT COMES OUT. `abGroundingBlock(kind, opts)` is called from
+   `aiGrounding`, so every AI call in this app — ✨ Answer, the answer key,
+   practice marking, the live class's pre-marks, the bank's ✨ Mark, Ask AI,
+   note cards — is handed the teacher's own answer whenever the question in
+   hand is one they have answered. The other three apps call the same
+   TeacherVoice block from their own aiGrounding. */
+var AB_ROWS_PER_WRITE = 60;          // entries written per batch
+var AB_BACKFILL_SHEETS = 50;         // ✍️ handwriting: the newest worksheets read
+var AB_BACKFILL_PAGES = 12;          // …pages per worksheet, ink pages only
+var AB_TYPED_SHEETS = 300;           // 📥 typed: worksheets swept at most
+var AB_CHECK_N = 8;                  // 🎯 Voice check: questions asked
+var AB_QNUM_BELOW = 14;              // a number up to this far below a box's top is still its question
+var AB_SUBPART_RE = /^\(?([a-h]|i{1,3}|iv|v)\)\s*/i;
+
+var abReader = null;
+var abTextCache = {}, abTextEpoch = -1;
+var abSeen = {};                     // entry id → content hash written this session
+var abDocSwept = {};                 // doc id → entry ids of that doc known this session
+var abBusy = false;
+var abPrimeTimer = null;
+var abLoadedAllFor = '';
+var abExcludeNow = null;             // the Voice check's held-out answers, during one grounding call
+
+function abReady() { return typeof window !== 'undefined' && !!window.TeacherVoice; }
+function abOwner() { return typeof notesOwner === 'function' ? notesOwner() : ''; }
+function abEntriesRef(owner) {
+  return db.collection('users').doc(owner).collection(TeacherVoice.COLL).doc(TeacherVoice.BOOK_DOC).collection(TeacherVoice.ENTRIES);
+}
+function abInit() {
+  if (abReader || !abReady()) return abReader;
+  abReader = TeacherVoice.reader({
+    owner: abOwner,
+    getDoc: function (segs) {
+      return db.doc(segs.join('/')).get().then(function (d) { return d.exists ? d.data() : null; });
+    },
+    listEntries: function (f) {
+      var o = abOwner();
+      if (!o || !isAdmin(currentUser) || o !== currentUser.uid) return Promise.resolve([]);
+      var ref = abEntriesRef(o);
+      if (f && f.doc) ref = ref.where('doc', '==', f.doc);
+      return ref.get().then(function (snap) {
+        var out = [];
+        snap.forEach(function (d) { out.push(d.data()); });
+        return out;
+      });
+    },
+    log: function (msg, err) { console.warn(msg, err); }
+  });
+  return abReader;
+}
+
+/* ---- What the page prints, in page units ---- */
+function abPageItems(p) {
+  if (!p || !p.page || typeof p.page.getTextContent !== 'function') return Promise.resolve([]);
+  var own = pages.indexOf(p) !== -1;
+  if (own && abTextEpoch !== wsEpoch) { abTextCache = {}; abTextEpoch = wsEpoch; }
+  if (own && abTextCache[p.num]) return abTextCache[p.num];
+  var vp = p.viewport1 || p.page.getViewport({ scale: 1 });
+  var job = p.page.getTextContent().then(function (content) {
+    return (content.items || []).map(function (it) {
+      var pt = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+      return { str: String(it.str || ''), x: pt[0], y: pt[1] };
+    }).filter(function (it) { return it.str.trim(); });
+  }).catch(function () { return []; });
+  if (own) abTextCache[p.num] = job;
+  return job;
+}
+
+// Printed items to lines of text, top to bottom.
+function abLinesOf(items) {
+  var sorted = (items || []).slice().sort(function (a, b) { return (a.y - b.y) || (a.x - b.x); });
+  var lines = [], cur = null;
+  sorted.forEach(function (it) {
+    if (!cur || Math.abs(it.y - cur.y) > 3.5) { cur = { y: it.y, x: it.x, parts: [] }; lines.push(cur); }
+    cur.parts.push(it.str);
+  });
+  return lines.map(function (l) { return { y: l.y, x: l.x, text: l.parts.join(' ').replace(/\s+/g, ' ').trim() }; })
+    .filter(function (l) { return l.text; });
+}
+
+/* The question a box at `y` answers: the last question number printed in the
+   left margin at or above it (LESSON_QNUM_RE's rule: a number standing
+   alone, so "1.5 kg" and "2021" are not questions), the printed words from
+   that number to the next one, and a sub-part — "(b)" — between the number
+   and the box. Pure, so the harness pins it. */
+function abQuestionAt(items, y, pageW) {
+  var re = /^(?:Q(?:uestion)?\s*)?(\d{1,2})\s*[.)]?(?=\s|$)/i;
+  var nums = [];
+  (items || []).forEach(function (it) {
+    if (!it || !(it.x >= 0) || it.x > pageW * 0.2 || !Number.isFinite(it.y)) return;
+    var m = String(it.str || '').trim().match(re);
+    if (!m) return;
+    var n = Number(m[1]);
+    if (n >= 1 && n <= 99) nums.push({ n: n, y: it.y });
+  });
+  nums.sort(function (a, b) { return a.y - b.y; });
+  var cur = null, next = null;
+  for (var i = 0; i < nums.length; i++) {
+    if (nums[i].y <= y + AB_QNUM_BELOW) cur = nums[i];
+    else { next = nums[i]; break; }
+  }
+  if (!cur) return null;
+  var lines = abLinesOf((items || []).filter(function (it) {
+    return it.y >= cur.y - 4 && (!next || it.y < next.y - 4);
+  }));
+  var part = '';
+  lines.forEach(function (l) {
+    if (l.y > cur.y + 2 && l.y <= y + AB_QNUM_BELOW) {
+      var m = l.text.match(AB_SUBPART_RE);
+      if (m) part = m[1].toLowerCase();
+    }
+  });
+  var text = lines.map(function (l) { return l.text; }).join('\n').trim();
+  if (!text) return null;
+  return { n: String(cur.n) + part, q: text };
+}
+
+function abHash(e) { return TeacherVoice.pure.hash32([e.n, e.q, e.a, e.lvl, e.sub].join('|')); }
+
+/* ---- The typed answers on a set of annotations, with their questions ---- */
+async function abTypedEntries(anns, docId, meta, pageList) {
+  var out = [];
+  var byNum = {};
+  (pageList || []).forEach(function (p) { byNum[p.num] = p; });
+  for (var i = 0; i < (anns || []).length; i++) {
+    var a = anns[i];
+    if (!a || a.type !== 'text' || !styleWorthLearning(a.text, true)) continue;
+    if (annHoldsMistake(a)) continue;
+    if (typeof annLivingQuestion === 'function' && annLivingQuestion(a)) continue;
+    var found = null;
+    var p = byNum[a.page];
+    if (p) {
+      var items = await abPageItems(p);
+      found = abQuestionAt(items, Number(a.y) || 0, p.baseW || (p.viewport1 && p.viewport1.width) || 600);
+    }
+    var q = String(a.aiQ || '').trim() || (found && found.q) || '';
+    if (!q) continue;
+    var e = TeacherVoice.pure.cleanEntry({
+      k: TeacherVoice.pure.slotKey(docId, 'a:' + a.id),
+      n: found ? found.n : '',
+      q: q, a: a.text, src: 'typed',
+      lvl: meta.level, sub: meta.subject, ws: meta.name,
+      doc: docId, page: a.page, at: new Date().toISOString()
+    });
+    if (e) out.push(e);
+  }
+  return out;
+}
+
+/* Pairs a model read off one page ({n, q, a}) as entries. */
+function abReadEntries(pairs, docId, pageNum, meta) {
+  var out = [];
+  (pairs || []).forEach(function (pair, i) {
+    if (!pair || !pair.a || !pair.q) return;
+    if (!styleWorthLearning(String(pair.a).replace(/\s+/g, ' '), true)) return;
+    var num = String(pair.n || '').toLowerCase().replace(/[^0-9a-z]/g, '');
+    var e = TeacherVoice.pure.cleanEntry({
+      k: TeacherVoice.pure.slotKey(docId, 'p' + pageNum + ':' + (num ? 'q' + num : 'i' + i)),
+      n: num, q: pair.q, a: pair.a, src: 'read',
+      lvl: meta.level, sub: meta.subject, ws: meta.name,
+      doc: docId, page: pageNum, at: new Date().toISOString()
+    });
+    if (e) out.push(e);
+  });
+  return out;
+}
+
+/* ---- THE ONE WRITER ----
+   Entries first, then each bucket's index in a transaction (read, upsert,
+   write — two tabs filing at once must not lose each other's rows), then the
+   bucket list. Only the teacher's own device writes, and only what changed
+   since this tab last wrote it. Resolves the number written; never throws. */
+async function abFile(list, removeIds) {
+  if (!abReady() || !isAdmin(currentUser) || actingStudent) return 0;
+  var owner = currentUser.uid;
+  var fresh = (list || []).filter(function (e) { return e && abSeen[e.id] !== abHash(e); });
+  var gone = (removeIds || []).filter(Boolean);
+  if (!fresh.length && !gone.length) return 0;
+  try {
+    for (var i = 0; i < fresh.length; i += AB_ROWS_PER_WRITE) {
+      var batch = db.batch();
+      fresh.slice(i, i + AB_ROWS_PER_WRITE).forEach(function (e) { batch.set(abEntriesRef(owner).doc(e.id), e); });
+      await batch.commit();
+    }
+    if (gone.length) {
+      for (var j = 0; j < gone.length; j += AB_ROWS_PER_WRITE) {
+        var b2 = db.batch();
+        gone.slice(j, j + AB_ROWS_PER_WRITE).forEach(function (id) { b2.delete(abEntriesRef(owner).doc(id)); });
+        await b2.commit();
+      }
+    }
+    var byBucket = {};
+    fresh.forEach(function (e) { (byBucket[e.bucket] = byBucket[e.bucket] || { add: [], rm: [] }).add.push(TeacherVoice.pure.rowOf(e)); });
+    var rmBuckets = gone.length ? abKnownBuckets() : [];
+    rmBuckets.forEach(function (b) { (byBucket[b] = byBucket[b] || { add: [], rm: [] }).rm = gone; });
+    var counts = {};
+    for (var bucket in byBucket) {
+      var ref = db.collection('users').doc(owner).collection(TeacherVoice.COLL).doc(TeacherVoice.pure.indexDocId(bucket));
+      var job = byBucket[bucket];
+      counts[bucket] = await db.runTransaction(function (tx) {
+        return tx.get(ref).then(function (snap) {
+          var have = TeacherVoice.pure.cleanIndex(snap.exists ? snap.data() : null, bucket).rows;
+          var rows = TeacherVoice.pure.upsertRows(have, job.add, job.rm);
+          tx.set(ref, { v: TeacherVoice.VERSION, bucket: bucket, rows: rows, at: new Date().toISOString() });
+          return rows.length;
+        });
+      });
+    }
+    var buckets = {};
+    Object.keys(counts).forEach(function (b) { buckets[b] = { n: counts[b], at: new Date().toISOString() }; });
+    if (Object.keys(buckets).length) {
+      await db.collection('users').doc(owner).collection(TeacherVoice.COLL).doc(TeacherVoice.INDEX_DOC)
+        .set({ v: TeacherVoice.VERSION, buckets: buckets, at: new Date().toISOString() }, { merge: true });
+    }
+    fresh.forEach(function (e) { abSeen[e.id] = abHash(e); });
+    if (abInit()) { abReader.remember(fresh); abReader.forget(gone); }
+    gone.forEach(function (id) { delete abSeen[id]; });
+    return fresh.length;
+  } catch (e) {
+    console.warn('📖 The answer book could not be written', e);
+    return 0;
+  }
+}
+function abKnownBuckets() {
+  var st = abReader && abReader._state();
+  var have = (st && st.buckets) ? Object.keys(st.buckets) : [];
+  (abReader ? abReader.entries() : []).forEach(function (e) { if (have.indexOf(e.bucket) === -1) have.push(e.bucket); });
+  return have;
+}
+
+/* A worksheet's typed entries whose box is no longer on the page (deleted,
+   rewritten into nothing, turned into a deliberate mistake) come out. */
+async function abSweepDoc(docId, keepIds) {
+  if (!docId || !isAdmin(currentUser)) return [];
+  var known = abDocSwept[docId];
+  if (!known) {
+    try {
+      var snap = await abEntriesRef(currentUser.uid).where('doc', '==', docId).get();
+      known = [];
+      snap.forEach(function (d) { var e = d.data(); if (e && e.src === 'typed' && !e.fixed) known.push(e.id || d.id); });
+    } catch (e) { known = []; }
+  }
+  var keep = {};
+  (keepIds || []).forEach(function (id) { keep[id] = 1; });
+  var gone = known.filter(function (id) { return !keep[id]; });
+  abDocSwept[docId] = (keepIds || []).slice();
+  return gone;
+}
+
+/* Called from both save paths, AFTER the annotations are written. Never
+   awaited by the save and never fails it. */
+function abHarvestOnSave() {
+  if (!abReady() || !styleHarvestAllowed() || !currentDocId) return null;
+  var docId = currentDocId, epoch = wsEpoch;
+  var meta = { level: wsMeta.level, subject: wsMeta.subject, name: docName };
+  var anns = annotations.slice();
+  return (async function () {
+    var list = await abTypedEntries(anns, docId, meta, pages);
+    if (epoch !== wsEpoch && docId !== currentDocId) { /* the pages are another worksheet's now — what was read stands */ }
+    var gone = await abSweepDoc(docId, list.map(function (e) { return e.id; }));
+    var n = await abFile(list, gone);
+    if (n || gone.length) abRepaint();
+    // A worksheet saved for the first time has a new name for its paper: prime it under that.
+    if (abReader && abReader._state().paperKey !== abPaperKey()) abPrimeSoon();
+    return n;
+  })().catch(function (e) { console.warn('📖 Answer book harvest failed', e); return 0; });
+}
+
+// The pairs 📚 learning-as-you-go and 📖 Learn-from-this-worksheet read.
+function abFileRead(pairs, docId, pageNum, meta) {
+  if (!abReady() || !styleHarvestAllowed() || !docId) return Promise.resolve(0);
+  return abFile(abReadEntries(pairs, docId, pageNum, meta || {}), []).then(function (n) { if (n) abRepaint(); return n; });
+}
+
+/* ---- PRIMING: the answers to the questions on the open paper ---- */
+function abPrimeSoon() {
+  if (!abReady()) return;
+  if (abPrimeTimer) clearTimeout(abPrimeTimer);
+  abPrimeTimer = setTimeout(function () { abPrimeTimer = null; abPrime(); }, 1200);
+}
+async function abPrime() {
+  if (!abInit() || !pages.length || !abOwner()) return 0;
+  var epoch = wsEpoch, key = abPaperKey();
+  try {
+    if (isAdmin(currentUser) && !actingStudent && abLoadedAllFor !== currentUser.uid) {
+      abLoadedAllFor = currentUser.uid;
+      await abReader.loadAll();
+    }
+    var texts = [];
+    for (var i = 0; i < pages.length && i < 40; i++) {
+      var items = await abPageItems(pages[i]);
+      texts.push(items.map(function (it) { return it.str; }).join(' '));
+      if (epoch !== wsEpoch) return 0;
+    }
+    return await abReader.primePaper(texts, { key: key, lvl: wsMeta.level, sub: wsMeta.subject, ws: docName });
+  } catch (e) { console.warn('📖 Answer book not primed', e); return 0; }
+}
+function abPaperKey() { return currentDocId || ('epoch' + wsEpoch); }
+
+/* ---- THE BLOCK, for aiGrounding ----
+   Synchronous, from what is already fetched. A question in hand gets the
+   teacher's answer to THAT question; none (the answer key, a whole page being
+   marked) gets the answers to the questions on this paper. */
+function abGroundingBlock(kind, opts) {
+  if (!abReady() || !abReader) return '';
+  if (abExcludeNow === true) return '';      // 🎯 the Voice check's "no answer book" ask
+  var o = opts || {};
+  try {
+    return abReader.block(kind, {
+      q: o.q ? String(o.q) : '',
+      lvl: o.lvl || (wsMeta && wsMeta.level) || '',
+      sub: o.sub || (wsMeta && wsMeta.subject) || '',
+      key: abPaperKey(),
+      exclude: abExcludeNow || o.tvExclude || []
+    });
+  } catch (e) { console.warn('📖 Answer book block failed', e); return ''; }
+}
+
+/* ================= 📖 The window ================= */
+function abRepaint() {
+  var m = $('abModal');
+  if (m && m.classList.contains('open') && !(document.activeElement && m.contains(document.activeElement) && document.activeElement.tagName === 'TEXTAREA')) abRender();
+  if (typeof notesLiveRepaint === 'function') notesLiveRepaint();
+}
+function abCount() { return abReader ? abReader.count() : 0; }
+
+function abEnsureModal() {
+  var m = $('abModal');
+  if (m) return m;
+  m = document.createElement('div');
+  m.className = 'modalBack';
+  m.id = 'abModal';
+  var card = document.createElement('div');
+  card.className = 'modalCard tnWide abCard';
+  var head = document.createElement('div');
+  head.className = 'modalHead';
+  var h = document.createElement('h2');
+  h.textContent = '📖 Your answer book';
+  var x = document.createElement('button');
+  x.className = 'modalClose';
+  x.title = 'Close';
+  x.textContent = '✕';
+  x.addEventListener('click', abClose);
+  head.appendChild(h); head.appendChild(x);
+  var body = document.createElement('div');
+  body.className = 'modalBody';
+  body.id = 'abBody';
+  card.appendChild(head); card.appendChild(body);
+  m.appendChild(card);
+  m.addEventListener('click', function (e) { if (e.target === m) abClose(); });
+  // Every key typed in the window stops here, or a letter fires a tool.
+  m.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); abClose(); }
+    e.stopPropagation();
+  });
+  document.body.appendChild(m);
+  return m;
+}
+var abView = { q: '', bucket: '', check: null, status: '' };
+async function abOpen() {
+  if (!isAdmin(currentUser) || actingStudent) { toast('The answer book is the teacher\'s own.'); return; }
+  if (!abInit()) { toast('The answer book did not load — reload the page.'); return; }
+  var m = abEnsureModal();
+  m.classList.add('open');
+  abRender();
+  if (abLoadedAllFor !== currentUser.uid) {
+    abLoadedAllFor = currentUser.uid;
+    abView.status = 'Loading your answers…';
+    abRender();
+    await abReader.loadAll();
+    abView.status = '';
+    abRender();
+  }
+}
+function abClose() { var m = $('abModal'); if (m) m.classList.remove('open'); }
+
+function abEl(tag, cls, text) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function abBtn(label, fn, title, disabled) {
+  var b = abEl('button', 'btn', label);
+  if (title) b.title = title;
+  if (disabled) b.disabled = true;
+  b.addEventListener('click', fn);
+  return b;
+}
+function abBucketLabel(b) {
+  var parts = String(b || '').split('-');
+  var l = parts[0] && parts[0] !== 'any' ? parts[0].toUpperCase() : 'Any level';
+  var s = { math: 'Maths', science: 'Science', english: 'English', chinese: 'Chinese' }[parts[1]] || 'any subject';
+  return l + ' ' + s;
+}
+function abRender() {
+  var body = $('abBody');
+  if (!body) return;
+  body.textContent = '';
+  var all = abReader ? abReader.entries() : [];
+  var intro = abEl('div', 'profileIntro');
+  intro.textContent = 'Every answer you write on a worksheet — typed or by hand — is kept here with the question it answers. ' +
+    'Whenever any Polymath app (Ans Key, Study Buddy, the Science portal, Scan) meets one of these questions again, ' +
+    'it answers, marks and explains it YOUR way: your steps, your keywords, your wording. The printed answer key still ' +
+    'decides the final value. Fix a handwriting reading here and every app uses the fixed one.';
+  body.appendChild(intro);
+
+  var stats = abEl('div', 'tnStats');
+  var typed = all.filter(function (e) { return e.src === 'typed'; }).length;
+  var read = all.filter(function (e) { return e.src === 'read'; }).length;
+  var buckets = {};
+  all.forEach(function (e) { buckets[e.bucket] = (buckets[e.bucket] || 0) + 1; });
+  [[all.length, 'answers kept'], [typed, 'typed'], [read, 'handwritten'], [Object.keys(buckets).length, 'levels × subjects']].forEach(function (s) {
+    var d = abEl('div', 'tnStat');
+    d.appendChild(abEl('b', '', String(s[0])));
+    d.appendChild(abEl('span', '', s[1]));
+    stats.appendChild(d);
+  });
+  body.appendChild(stats);
+
+  var row = abEl('div', 'tnBtnRow');
+  row.appendChild(abBtn('📥 Fill from my saved worksheets', abBackfillTyped, 'Reads the typed answers on every worksheet you have saved and ties each one to its question (no AI cost)', abBusy));
+  row.appendChild(abBtn('✍️ Read my handwriting (newest ' + AB_BACKFILL_SHEETS + ')', abBackfillInk, 'The AI reads the pages you wrote on, newest worksheets first', abBusy));
+  row.appendChild(abBtn('🎯 Voice check', abVoiceCheck, 'Hides your answer to ' + AB_CHECK_N + ' questions, lets the AI answer, and scores how close it comes to yours', abBusy || all.length < 2));
+  body.appendChild(row);
+  if (abView.status) body.appendChild(abEl('div', 'abStatus', abView.status));
+  if (abView.check) body.appendChild(abCheckNode(abView.check));
+
+  var filt = abEl('div', 'abFilter');
+  var search = abEl('input', 'abSearch');
+  search.type = 'search';
+  search.placeholder = 'Search your questions and answers…';
+  search.value = abView.q;
+  search.addEventListener('input', function () { abView.q = search.value; abRenderList(); });
+  filt.appendChild(search);
+  var sel = abEl('select', 'abBucket');
+  var optAll = abEl('option', '', 'Every level and subject');
+  optAll.value = '';
+  sel.appendChild(optAll);
+  Object.keys(buckets).sort().forEach(function (b) {
+    var o = abEl('option', '', abBucketLabel(b) + ' (' + buckets[b] + ')');
+    o.value = b;
+    if (abView.bucket === b) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', function () { abView.bucket = sel.value; abRenderList(); });
+  filt.appendChild(sel);
+  body.appendChild(filt);
+  body.appendChild(abEl('div', 'abList'));
+  abRenderList();
+}
+function abRenderList() {
+  var body = $('abBody');
+  var list = body && body.querySelector('.abList');
+  if (!list) return;
+  list.textContent = '';
+  var q = abView.q.trim().toLowerCase();
+  var rows = (abReader ? abReader.entries() : []).filter(function (e) {
+    if (abView.bucket && e.bucket !== abView.bucket) return false;
+    if (!q) return true;
+    return (e.q + ' ' + e.a + ' ' + e.ws).toLowerCase().indexOf(q) !== -1;
+  }).sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+  if (!rows.length) {
+    list.appendChild(abEl('div', 'tnEmpty', abCount() ? 'Nothing matches.' : 'Nothing kept yet. Save a worksheet you have answered, or press 📥 Fill from my saved worksheets.'));
+    return;
+  }
+  rows.slice(0, 80).forEach(function (e) { list.appendChild(abEntryNode(e)); });
+  if (rows.length > 80) list.appendChild(abEl('div', 'tnCardMeta', (rows.length - 80) + ' more — search to narrow them down.'));
+}
+function abEntryNode(e) {
+  var card = abEl('div', 'abEntry');
+  var meta = abEl('div', 'tnCardMeta',
+    [abBucketLabel(e.bucket), e.ws, e.n ? 'Q' + e.n : '', e.page ? 'page ' + e.page : '',
+     e.src === 'read' ? '✍️ handwriting' + (e.fixed ? ', fixed by you' : '') : '⌨️ typed'].filter(Boolean).join(' · '));
+  card.appendChild(meta);
+  card.appendChild(abEl('div', 'abQ', e.q));
+  var ta = abEl('textarea', 'abA');
+  ta.value = e.a;
+  ta.rows = Math.min(8, Math.max(2, e.a.split('\n').length + 1));
+  card.appendChild(ta);
+  var btns = abEl('div', 'abBtns');
+  btns.appendChild(abBtn('Save fix', function () {
+    var t = ta.value.trim();
+    if (!t) { toast('An answer cannot be empty — use 🗑 to remove it.'); return; }
+    var next = TeacherVoice.pure.cleanEntry(Object.assign({}, e, { a: t, fixed: true, at: new Date().toISOString() }));
+    abFile([next], []).then(function (n) { toast(n ? '📖 Fixed — every app uses this answer now.' : 'Nothing changed.'); abRender(); });
+  }));
+  btns.appendChild(abBtn('🗑 Remove', function () {
+    if (!window.confirm('Remove this answer from your answer book? The worksheet itself is not changed.')) return;
+    abFile([], [e.id]).then(function () { toast('Removed.'); abRender(); });
+  }));
+  card.appendChild(btns);
+  return card;
+}
+
+/* ---- 📥 Back-fill: the typed answers on every saved worksheet ---- */
+async function abOpenSheet(data) {
+  var url = await storage.ref(data.storagePath).getDownloadURL();
+  var resp = await fetch(url);
+  if (!resp.ok) throw new Error('PDF ' + resp.status);
+  var bytes = await resp.arrayBuffer();
+  var doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+  var list = [];
+  for (var n = 1; n <= doc.numPages && n <= 40; n++) {
+    var page = await doc.getPage(n);
+    var vp = page.getViewport({ scale: 1 });
+    list.push({ num: n, page: page, viewport1: vp, baseW: vp.width, baseH: vp.height });
+  }
+  return { doc: doc, pages: list };
+}
+async function abSavedSheets() {
+  var snap = await db.collection(COLLECTION).get();
+  var rows = [];
+  snap.forEach(function (d) { rows.push({ id: d.id, data: d.data() }); });
+  rows = rows.filter(function (r) { return (!r.data.ownerUid || r.data.ownerUid === currentUser.uid) && r.data.storagePath; });
+  var when = function (r) {
+    var t = r.data.updatedAt || r.data.createdAt;
+    return t && t.toMillis ? t.toMillis() : (Date.parse(t) || 0);
+  };
+  rows.sort(function (a, b) { return when(b) - when(a); });
+  return rows;
+}
+async function abBackfillTyped() {
+  if (!isAdmin(currentUser) || abBusy) return;
+  abBusy = true;
+  var filed = 0, sheets = 0, failed = 0;
+  try {
+    abView.status = '📥 Fetching your saved worksheets…'; abRender();
+    var rows = (await abSavedSheets()).slice(0, AB_TYPED_SHEETS);
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      abView.status = '📥 Worksheet ' + (i + 1) + ' of ' + rows.length + ' — ' + filed + ' answers filed so far…'; abRender();
+      try {
+        var anns = JSON.parse((await readAnnotationJson(r.data)) || '[]');
+        var typed = anns.filter(function (a) { return a && a.type === 'text' && styleWorthLearning(a.text, true) && !annHoldsMistake(a); });
+        if (!typed.length) continue;
+        var sheet = await abOpenSheet(r.data);
+        var list = await abTypedEntries(typed, r.id, { level: r.data.level, subject: r.data.subject, name: r.data.name }, sheet.pages);
+        try { sheet.doc.destroy(); } catch (e) {}
+        filed += await abFile(list, []);
+        sheets++;
+      } catch (e) { failed++; console.warn('📥 Could not read "' + (r.data.name || r.id) + '"', e); }
+    }
+  } catch (e) {
+    toast('Could not read your saved worksheets: ' + ((e && e.message) || e), 6000);
+  } finally {
+    abBusy = false;
+    abView.status = '📥 Done: ' + filed + ' answers filed from ' + sheets + ' worksheet' + (sheets === 1 ? '' : 's') +
+      (failed ? ' (' + failed + ' could not be opened)' : '') + '.';
+    abRender();
+  }
+}
+
+/* ---- ✍️ Back-fill: handwriting, newest worksheets first, ink pages only ---- */
+var AB_READ_SYS =
+  'You are reading ONE page of a worksheet a teacher has answered, to keep each of their answers with the ' +
+  'question it answers. Reply with STRICT JSON only: {"pairs":[{"n":"","q":"","a":""}]}. Rules:\n' +
+  '- one entry per question the teacher has ANSWERED on this page, typed or handwritten;\n' +
+  '- "n": the question number as printed, with its part ("3", "3b"), or "" when none is printed;\n' +
+  '- "q": the question as printed — its words in full (up to about 80 words), numbers exactly as printed;\n' +
+  '- "a": the teacher\'s answer EXACTLY as written, with the working: one line of working per line, separated ' +
+  'by \\n. Never correct, complete or improve it;\n' +
+  '- skip a question with no answer written on it, and a page with none returns {"pairs":[]};\n' +
+  '- plain text in every field: no markdown.';
+function abInkPages(anns) {
+  var ink = {};
+  (anns || []).forEach(function (a) {
+    if (!a || !a.page) return;
+    if (a.type === 'pen' || a.type === 'text') ink[a.page] = 1;
+  });
+  return Object.keys(ink).map(Number).sort(function (a, b) { return a - b; });
+}
+async function abBackfillInk() {
+  if (!isAdmin(currentUser) || abBusy) return;
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) { toast('AI is not available — reload the page.'); return; }
+  if (!window.confirm('Read the handwriting on your newest ' + AB_BACKFILL_SHEETS + ' worksheets with the AI? It reads only the pages you wrote on, one AI call per page, in the background.')) return;
+  abBusy = true;
+  var filed = 0, read = 0, failed = 0;
+  try {
+    var rows = (await abSavedSheets()).slice(0, AB_BACKFILL_SHEETS);
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      try {
+        var anns = JSON.parse((await readAnnotationJson(r.data)) || '[]');
+        var nums = abInkPages(anns).slice(0, AB_BACKFILL_PAGES);
+        if (!nums.length) continue;
+        var sheet = await abOpenSheet(r.data);
+        var meta = { level: r.data.level, subject: r.data.subject, name: r.data.name };
+        for (var k = 0; k < nums.length; k++) {
+          var p = sheet.pages[nums[k] - 1];
+          if (!p) continue;
+          var mine = anns.filter(function (a) { return a.page === p.num; });
+          if (annsHoldMistake(mine)) continue;
+          abView.status = '✍️ Worksheet ' + (i + 1) + ' of ' + rows.length + ', page ' + p.num + ' — ' + filed + ' answers filed…'; abRender();
+          var img = await keyPageJpeg(p, mine, AUTO_PAGE_PX);
+          if (!img) continue;
+          var raw = await window.askGemini('Worksheet: ' + [meta.level, meta.subject].filter(Boolean).join(' ') +
+            '.\nAttached: page ' + p.num + ' of "' + (meta.name || 'a worksheet') + '", with the teacher\'s answers on it.', {
+            system: AB_READ_SYS, maxOutputTokens: 2600, temperature: 0.1, json: true,
+            images: [{ mimeType: 'image/jpeg', data: img }]
+          });
+          var res = _parseAIJson(raw);
+          read++;
+          filed += await abFile(abReadEntries(res && res.pairs, r.id, p.num, meta), []);
+        }
+        try { sheet.doc.destroy(); } catch (e) {}
+      } catch (e) { failed++; console.warn('✍️ Could not read "' + (r.data.name || r.id) + '"', e); }
+    }
+  } finally {
+    abBusy = false;
+    abView.status = '✍️ Done: ' + read + ' page' + (read === 1 ? '' : 's') + ' read, ' + filed + ' answers filed' +
+      (failed ? ' (' + failed + ' worksheet(s) could not be opened)' : '') + '. Check the readings below and fix any the AI misread.';
+    abRender();
+  }
+}
+
+/* ================= 🎯 THE VOICE CHECK =================
+   Does the AI really answer like you? For each of a handful of saved answers:
+     ① Plain — the bare model, nothing about you;
+     ② Your style — the notes and the style profile, with THIS answer (and any
+        other answer to the same question) HIDDEN, so the score is what the app
+        does on a question you have never answered;
+     ③ Your answer book — everything, your answer to this question included,
+        which is what every app now does on a question you HAVE answered.
+   Each reply is scored against your own answer by TeacherVoice.pure.compare
+   (shared words, your numbers and key terms used, length), 0–100. The result
+   is kept at users/{you}/aiTraining/voiceCheck so the next check can say
+   whether it got better. */
+var AB_CHECK_SYS =
+  'You are answering one worksheet question for a Singapore P3 to Secondary 1 student, the way it should be ' +
+  'written in the answer space. Plain text only — no markdown, no headings. Short working only where the ' +
+  'question expects it.';
+function abWithMeta(lvl, sub, fn) {
+  var was = { level: wsMeta.level, subject: wsMeta.subject };
+  wsMeta.level = lvl ? lvl.toUpperCase() : was.level;
+  wsMeta.subject = sub || was.subject;
+  try { return fn(); } finally { wsMeta.level = was.level; wsMeta.subject = was.subject; }
+}
+async function abVoiceCheck() {
+  if (!isAdmin(currentUser) || abBusy) return;
+  if (!window.askGemini || !window.aiReady || !window.aiReady()) { toast('AI is not available — reload the page.'); return; }
+  var all = abReader.entries();
+  var sample = TeacherVoice.pure.checkSample(all, AB_CHECK_N, Date.now() % 97);
+  if (!sample.length) { toast('Keep a few answers with their questions first.'); return; }
+  abBusy = true;
+  var rows = [];
+  try {
+    for (var i = 0; i < sample.length; i++) {
+      var e = sample[i];
+      abView.status = '🎯 Question ' + (i + 1) + ' of ' + sample.length + '…'; abRender();
+      var twins = all.filter(function (x) { return x.id === e.id || TeacherVoice.pure.relation(e.q, x.q) === 'same'; })
+        .map(function (x) { return x.id; });
+      var prompt = 'Worksheet: ' + abBucketLabel(e.bucket) + '.\nQuestion' + (e.n ? ' ' + e.n : '') + ':\n' + e.q + '\n\nWrite only the answer.';
+      /* The four asks. ② and ③ hold THIS question out of everything — the
+         answer book and the style exemplars and corrections alike — so their
+         scores are what the AI learned, never what it copied. */
+      var ground = function (exclude, holdOut) {
+        return abWithMeta(e.lvl, e.sub, function () {
+          abExcludeNow = exclude; styleHoldOutQ = holdOut ? { q: e.q, a: e.a } : null;
+          try { return aiGrounding('answer', { q: e.q }); } finally { abExcludeNow = null; styleHoldOutQ = null; }
+        });
+      };
+      var styleOnly = ground(true, true);       // ② what the AI had before the answer book
+      var held = ground(twins, true);           // ③ the answer book, this question held out
+      var full = ground(null, false);           // ④ a question you have answered before
+      var ask = function (sys) {
+        return window.askGemini(prompt, { system: sys, maxOutputTokens: 900, temperature: 0.2 })
+          .then(function (t) { return String(t || '').trim(); }, function () { return ''; });
+      };
+      var got = await Promise.all([ask(AB_CHECK_SYS), ask(AB_CHECK_SYS + styleOnly), ask(AB_CHECK_SYS + held), ask(AB_CHECK_SYS + full)]);
+      rows.push({
+        id: e.id, q: e.q, mine: e.a, ws: e.ws, bucket: e.bucket,
+        plain: got[0], style: got[1], held: got[2], book: got[3],
+        sPlain: TeacherVoice.pure.compare(e.a, got[0]).score,
+        sStyle: TeacherVoice.pure.compare(e.a, got[1]).score,
+        sHeld: TeacherVoice.pure.compare(e.a, got[2]).score,
+        sBook: TeacherVoice.pure.compare(e.a, got[3]).score,
+        hadLike: held.indexOf('A QUESTION LIKE THIS ONE') !== -1,
+        hadBook: full.indexOf('THE TEACHER HAS ALREADY ANSWERED THIS QUESTION') !== -1
+      });
+    }
+    var avg = function (k) { return TeacherVoice.pure.mean(rows.map(function (r) { return r[k]; })); };
+    var res = { at: new Date().toISOString(), n: rows.length, plain: avg('sPlain'), style: avg('sStyle'), held: avg('sHeld'), book: avg('sBook'), rows: rows };
+    var prev = null;
+    try {
+      var ref = db.collection('users').doc(currentUser.uid).collection(TeacherVoice.COLL).doc('voiceCheck');
+      var snap = await ref.get();
+      prev = snap.exists ? snap.data().last : null;
+      await ref.set({ v: 2, last: { at: res.at, n: res.n, plain: res.plain, style: res.style, held: res.held, book: res.book }, prev: prev || null }, { merge: true });
+    } catch (err) { console.warn('🎯 Voice check result not kept', err); }
+    res.prev = prev;
+    abView.check = res;
+    abView.status = '';
+  } finally {
+    abBusy = false;
+    abRender();
+  }
+}
+function abCheckNode(res) {
+  var box = abEl('div', 'abCheck');
+  box.appendChild(abEl('h3', '', '🎯 How close the AI comes to your own answers'));
+  var bars = abEl('div', 'abBars');
+  var held = res.held == null ? res.style : res.held;   // a check kept before v1.221.0 had three asks
+  [['Plain AI', res.plain], ['Your style only (this answer hidden)', res.style],
+   ['Your answer book (this answer hidden)', held], ['A question you have answered', res.book]].forEach(function (b) {
+    var r = abEl('div', 'abBarRow');
+    r.appendChild(abEl('span', 'abBarLabel', b[0]));
+    var track = abEl('span', 'abBarTrack');
+    var fill = abEl('span', 'abBarFill');
+    fill.style.width = Math.max(2, Math.min(100, Number(b[1]) || 0)) + '%';
+    track.appendChild(fill);
+    r.appendChild(track);
+    r.appendChild(abEl('b', 'abBarNum', String(b[1])));
+    bars.appendChild(r);
+  });
+  box.appendChild(bars);
+  var say = 'Scored 0–100 on ' + res.n + ' of your answers: shared wording, your numbers and key terms, and length. ' +
+    'The middle two hide your answer to the question from the AI completely, so they measure what it LEARNED from you; ' +
+    'the last is what every app now does on a question you have already answered.';
+  if (res.prev) say += ' Last check: plain ' + res.prev.plain + ', style ' + res.prev.style +
+    (res.prev.held != null ? ', book (hidden) ' + res.prev.held : '') + ', answered ' + res.prev.book + '.';
+  box.appendChild(abEl('div', 'tnCardMeta', say));
+  (res.rows || []).forEach(function (r) {
+    var d = abEl('details', 'abCheckRow');
+    var sHeld = r.sHeld == null ? r.sStyle : r.sHeld;
+    d.appendChild(abEl('summary', '', r.sPlain + ' → ' + r.sStyle + ' → ' + sHeld + ' → ' + r.sBook + ' · ' + String(r.q).slice(0, 110)));
+    [['Yours', r.mine], ['Plain AI', r.plain], ['Your style only', r.style], ['Your answer book, this one hidden', r.held], ['A question you have answered', r.book]].forEach(function (x) {
+      if (x[1] == null) return;
+      var p = abEl('div', 'abCheckAns');
+      p.appendChild(abEl('b', '', x[0] + ': '));
+      p.appendChild(document.createTextNode(x[1] || '(no reply)'));
+      d.appendChild(p);
+    });
+    box.appendChild(d);
+  });
+  return box;
+}
+
+function abRoleChanged() {
+  // Another account on this device: nothing of the last teacher's stays.
+  if (abReader) abReader.reset();
+  abSeen = {}; abDocSwept = {}; abLoadedAllFor = ''; abView.check = null;
+  abClose();
+}
+/* ================= End answer book ================= */
 
 /* ================= Gemini AI helpers =================
    Gemini is reached through Firebase AI Logic on the shared mathgen--app
@@ -38341,6 +39167,7 @@ async function performSave() {
     // Every answer typed onto this worksheet teaches the AI your style — and
     // the button says what went up with it. Auto-save runs the identical pair.
     var styleSum = styleHarvestOnSave();
+    if (typeof abHarvestOnSave === 'function') abHarvestOnSave();   // 📖 the answer book, word for word
     if (typeof llibAfterSave === 'function') llibAfterSave();   // 📚 the living app library
     if (typeof vplAfterSave === 'function') vplAfterSave();     // 🎬 one link to every video
     if (typeof akoAfterSave === 'function') akoAfterSave();     // 📄 the day's answer key on Polymath Online
@@ -38414,6 +39241,7 @@ async function autoSave() {
        after it, so hanging the harvest off the dialog alone meant almost
        nothing was ever learned. */
     styleAnnounceSaved(styleHarvestOnSave());
+    if (typeof abHarvestOnSave === 'function') abHarvestOnSave();   // 📖 the answer book, word for word
     // 📚 Every living app on the sheet gets its code and goes in the library.
     if (typeof llibAfterSave === 'function') llibAfterSave();
     if (typeof vplAfterSave === 'function') vplAfterSave();     // 🎬 one link to every video

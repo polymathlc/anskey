@@ -18,6 +18,32 @@ Guidance for Claude when working in this repo.
 Guidance for Claude when working in this repo.
 
 
+## 📖 The answer book — the teacher's own answers ground every app (v1.221.0)
+
+- **`teacher-voice.js` (`window.TeacherVoice`: `reader(env)`, `pure`) is BYTE FOR BYTE the same file in polymathlc/anskey,
+  tutor, cer and scan**; `tools/teacher-voice-tests.mjs` compares the copies whenever siblings are checked out beside
+  this repo. Change it in all four together, never fork.
+- **Store** (inside `aiTraining`, so no rules change): `users/{admin}/aiTraining/answerBook/entries/{id}` = one answer
+  `{v,id,k,n,q,a,src,lvl,sub,bucket,ws,doc,page,at,fixed?}`; `answerIndex-<bucket>` = rows of QUESTIONS only (never an
+  answer), ≤ `ROWS_MAX`; `answerIndex` = the bucket list. `k` is `<doc>:a:<annId>` (typed) or `<doc>:p<page>:q<n>`
+  (read) and `entryId(k)` hashes it, so a rewrite REPLACES its entry. `cleanEntry` is the one door.
+- **Ans Key is the only writer**: glue `📖 THE ANSWER BOOK — the teacher's own answers` … `End answer book` (before the Gemini helpers).
+  `abFile` (entries in batches, each bucket index in a transaction, then the bucket list; admin, never `actingStudent`)
+  is the one writer; `abHarvestOnSave` runs in BOTH save paths after `writeAnnotations`; `abFileRead` files what
+  `styleLearnOpenWorksheet` and `autoLearnRunJob` read (their prompts now ask for `n` and the question as printed).
+  `abQuestionAt` (pure) finds the question a typed box answers. Every gate the style corpus has applies
+  (`styleHarvestAllowed`, `annHoldsMistake`, living questions skipped).
+- **Grounding stays synchronous**: `buildPagesFromBytes` → `abPrimeSoon` → `primePaper` (page text containment
+  `PAGE_MIN`) fetches only this paper's answers; `aiGrounding` appends `abGroundingBlock(kind, opts)` (with a `q`: the
+  teacher's answer to THAT question, `same`/`similar`; without: this paper's answers). `gen` gets nothing, an unknown
+  kind is treated as `mark`, `hint` is told never to state the answer.
+- **🎯 Voice check** (`abVoiceCheck`) hides the scored answer from EVERYTHING — `abExcludeNow` (the book; `true` = none)
+  and `styleHoldOutQ` / `styleHeldOut` in `styleExemplarsFor` and `styleRecentEdits` — or the score measures copying.
+  Kept at `users/{uid}/aiTraining/voiceCheck {last, prev}`.
+- `abRoleChanged` (from `stopTeachingNotes`) drops the cache on an account change. The window writes with textContent.
+- Run `node --test tools/teacher-voice-tests.mjs`, `node tools/notes-tests.mjs`; the blind eval is
+  `node tools/teacher-voice-eval.mjs prompts|score <dir>`.
+
 ## ✦ My Hero waits for its button (v1.213.0)
 
 - `student-heroes.js` no longer opens My Hero when a student's profile is ready. `maybeOpen` asks `shouldAutoOpen()` (exposed as `StudentHeroes.pure.shouldAutoOpen`), which is `false`: every sign-in path (Google, personal link `?live=`, PIN, live class join, account switch) calls `profileReady` / `roleChanged` and nothing opens. The character select (claim → class) shows only from `#myHeroBtn`; a student with a chosen hero gets their hero page. Never put an auto-open back on sign-in.
