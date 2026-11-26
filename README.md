@@ -5,6 +5,27 @@ Firebase (Auth + Firestore + Storage, project `mathgen--app`).
 
 
 
+## 📖 v1.221.0 — Your answer book: every app answers, marks and explains in your own words
+
+- **Every answer you write on a worksheet is now kept word for word, with its question**, in one answer book
+  (`users/{you}/aiTraining/answerBook/entries`). Typed answers are filed on every save (manual and auto-save);
+  handwritten ones are filed whenever 📚 learning-as-you-go or 📖 *Learn from this worksheet* reads a page.
+- **The AI is handed YOUR answer to the question in front of it.** When a worksheet opens, the app finds the
+  questions on it that you have already answered (by their printed words) and every AI call on that paper —
+  ✨ Answer, the answer key, marking, explanations — gets your answer as the model: "write it the way the teacher
+  wrote this one". A question *like* one you answered (other numbers, another object) gets your method and layout,
+  with its own numbers. The printed answer key still wins on the final value.
+- **The same book powers Study Buddy, the Science portal and Scan** (`teacher-voice.js`, byte for byte the same file
+  in all four apps), so a hint, a mark or an answer card there follows your own answer too.
+- **📒 My answer book** (Teaching notes window): search and filter every answer, fix a handwriting reading, remove one,
+  back-fill your typed answers from every saved worksheet, read your handwriting off your newest 50 worksheets, and
+  **🎯 Voice check**: eight of your answers are hidden from the AI completely and it answers them four ways (plain,
+  your style only, your answer book with that answer hidden, and as a question you have answered). Each reply is
+  scored 0–100 against yours, and the last result is kept so the next check says whether it improved.
+- Blind test with a fixture teacher (`tools/teacher-voice-eval.mjs`): with the answer book the replies matched the
+  teacher's own answers at 100 on reworded repeats (78 without) and 100 on twin questions with other numbers or
+  another object (86 without).
+
 ## 📋 v1.220.0 — Live class: answer options printed as a table show as a table
 
 - A multiple-choice question whose options were printed as a **table** (column headings such as Circle | Triangle | Square,

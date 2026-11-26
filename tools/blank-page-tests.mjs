@@ -171,9 +171,15 @@ ok('…and with it shut the worksheet has it back',
    nobody opens a worksheet with. */
 ok('loadPdf builds its pages through the shared builder',
   /async function loadPdf\([\s\S]{0,4000}?await buildPagesFromBytes\(contextCheck\);/.test(html));
-ok('there is exactly ONE pdf.js getDocument in the app',
-  (html.match(/pdfjsLib\.getDocument\(/g) || []).length === 1,
-  (html.match(/pdfjsLib\.getDocument\(/g) || []).length);
+/* 📖 The answer book's back-fill opens OTHER saved worksheets only to read
+   their printed text (abOpenSheet) and builds no page, so it is the one
+   exception, and it is counted separately. */
+const abStart = html.indexOf('📖 THE ANSWER BOOK — the teacher');
+const abEnd = abStart >= 0 ? html.indexOf('End answer book', abStart) : -1;
+const outsideAb = abStart >= 0 && abEnd > abStart ? html.slice(0, abStart) + html.slice(abEnd) : html;
+ok('there is exactly ONE pdf.js getDocument that builds pages',
+  (outsideAb.match(/pdfjsLib\.getDocument\(/g) || []).length === 1,
+  (outsideAb.match(/pdfjsLib\.getDocument\(/g) || []).length);
 ok('the builder is what addBlankPage rebuilds with',
   /async function addBlankPage\([\s\S]{0,8500}?await buildPagesFromBytes\(requireCurrent\);/.test(html));
 
