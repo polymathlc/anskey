@@ -251,7 +251,7 @@ test('teacher-voice.js is byte for byte the same in every app checked out beside
 
 /* ------------------------------------------------------------ Ans Key's glue */
 const html = fs.existsSync(path.join(root, 'index.html')) ? fs.readFileSync(path.join(root, 'index.html'), 'utf8') : '';
-const isAnsKey = html.includes('📖 THE ANSWER BOOK — the teacher');
+const isAnsKey = html.includes('function abHarvestOnSave(');
 const ak = isAnsKey ? test : test.skip;
 function fnBody(name) {
   const s = html.search(new RegExp('(?:async )?function ' + name + '\\('));
